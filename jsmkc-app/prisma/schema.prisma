@@ -1,0 +1,238 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Player model
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  nickname  String   @unique
+  country   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Battle Mode relations
+  bmPlayer1Matches BMMatch[] @relation("BMPlayer1")
+  bmPlayer2Matches BMMatch[] @relation("BMPlayer2")
+  bmQualifications BMQualification[]
+
+  // Match Race relations
+  mrPlayer1Matches MRMatch[] @relation("MRPlayer1")
+  mrPlayer2Matches MRMatch[] @relation("MRPlayer2")
+  mrQualifications MRQualification[]
+
+  // Grand Prix relations
+  gpPlayer1Matches GPMatch[] @relation("GPPlayer1")
+  gpPlayer2Matches GPMatch[] @relation("GPPlayer2")
+  gpQualifications GPQualification[]
+
+  // Time Trial relations
+  ttEntries TTEntry[]
+}
+
+// Tournament model
+model Tournament {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime
+  status    String   @default("draft") // draft, active, completed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Related data
+  bmMatches        BMMatch[]
+  bmQualifications BMQualification[]
+  mrMatches        MRMatch[]
+  mrQualifications MRQualification[]
+  gpMatches        GPMatch[]
+  gpQualifications GPQualification[]
+  ttEntries        TTEntry[]
+}
+
+// Course model (for Time Trial and Match Race)
+model Course {
+  id   String @id @default(cuid())
+  name String
+  abbr String @unique // MC1, DP1, GV1, etc.
+  cup  String // Mushroom, Flower, Star, Special
+}
+
+// Battle Arena model
+model Arena {
+  id   String @id @default(cuid())
+  name String
+  abbr String @unique // Arena 1-4
+}
+
+// ==========================================
+// Battle Mode Models
+// ==========================================
+
+model BMQualification {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  group        String // A, B, C
+  seeding      Int?
+  mp           Int        @default(0) // Matches Played
+  wins         Int        @default(0)
+  ties         Int        @default(0)
+  losses       Int        @default(0)
+  winRounds    Int        @default(0)
+  lossRounds   Int        @default(0)
+  points       Int        @default(0) // Calculated: winRounds - lossRounds
+  score        Int        @default(0) // Ranking score
+
+  @@unique([tournamentId, playerId])
+}
+
+model BMMatch {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  matchNumber  Int
+  stage        String     @default("qualification") // qualification, finals
+  round        String? // For finals: "winners_r1", "losers_r1", etc.
+  tvNumber     Int?
+  player1      Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
+  player1Id    String
+  player1Side  Int        @default(1) // 1 or 2 (which controller)
+  player2      Player     @relation("BMPlayer2", fields: [player2Id], references: [id])
+  player2Id    String
+  player2Side  Int        @default(2)
+  score1       Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
+  score2       Int        @default(0) // Player 2's wins
+  completed    Boolean    @default(false)
+  rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, matchNumber, stage])
+}
+
+// ==========================================
+// Match Race Models
+// ==========================================
+
+model MRQualification {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  group        String
+  seeding      Int?
+  mp           Int        @default(0)
+  wins         Int        @default(0)
+  ties         Int        @default(0)
+  losses       Int        @default(0)
+  winRounds    Int        @default(0)
+  lossRounds   Int        @default(0)
+  points       Int        @default(0)
+  score        Int        @default(0)
+
+  @@unique([tournamentId, playerId])
+}
+
+model MRMatch {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  matchNumber  Int
+  stage        String     @default("qualification")
+  round        String?
+  tvNumber     Int?
+  player1      Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
+  player1Id    String
+  player1Side  Int        @default(1)
+  player2      Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
+  player2Id    String
+  player2Side  Int        @default(2)
+  score1       Int        @default(0)
+  score2       Int        @default(0)
+  completed    Boolean    @default(false)
+  rounds       Json? // [{course: "MC1", winner: 1}, ...]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, matchNumber, stage])
+}
+
+// ==========================================
+// Grand Prix Models
+// ==========================================
+
+model GPQualification {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  group        String
+  seeding      Int?
+  mp           Int        @default(0)
+  wins         Int        @default(0)
+  ties         Int        @default(0)
+  losses       Int        @default(0)
+  points       Int        @default(0) // Driver points total
+  score        Int        @default(0)
+
+  @@unique([tournamentId, playerId])
+}
+
+model GPMatch {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  matchNumber  Int
+  stage        String     @default("qualification")
+  round        String?
+  cup          String? // Mushroom, Flower, Star, Special
+  tvNumber     Int?
+  player1      Player     @relation("GPPlayer1", fields: [player1Id], references: [id])
+  player1Id    String
+  player1Side  Int        @default(1)
+  player2      Player     @relation("GPPlayer2", fields: [player2Id], references: [id])
+  player2Id    String
+  player2Side  Int        @default(2)
+  points1      Int        @default(0) // Driver points for player 1
+  points2      Int        @default(0) // Driver points for player 2
+  completed    Boolean    @default(false)
+  races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, matchNumber, stage])
+}
+
+// ==========================================
+// Time Trial Models
+// ==========================================
+
+model TTEntry {
+  id           String     @id @default(cuid())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  stage        String     @default("qualification") // qualification, finals
+  lives        Int        @default(3) // For finals
+  eliminated   Boolean    @default(false)
+  times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
+  totalTime    Int? // Total time in milliseconds
+  rank         Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, playerId, stage])
+}
