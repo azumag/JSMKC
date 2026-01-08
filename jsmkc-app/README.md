@@ -1,12 +1,20 @@
-# JSMKC Score System
+# SMKC Score System
 
-Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計算・順位管理システム
+Super Mario Kart Championship の大会運営における点数計算・順位管理システム
 
 ## System Overview
 
-### What is JSMKC?
+### What is *SMKC?
 
-**Japan Super Mario Kart Championship (JSMKC)** は、スーパーファミコン版「スーパーマリオカート」の競技大会です。
+**SMKC (Super Mario Kart Championship)** は、スーパーファミコン版「スーパーマリオカート」の競技大会フォーマットです。
+
+先頭の文字は各地域/組織のプレフィックスとして使用できます：
+- **JSMKC** - Japan Super Mario Kart Championship
+- **ESMKC** - Europe Super Mario Kart Championship
+- **NASMKC** - North America Super Mario Kart Championship
+- etc.
+
+本システムは世界中のSMKC大会で使用可能な汎用的なスコア管理システムです。
 
 - **参加者**: 最大48人
 - **使用機材**: 任天堂純正スーパーファミコン実機（NTSC規格）

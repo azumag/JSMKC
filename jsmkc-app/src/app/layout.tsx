@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JSMKC Score System",
-  description: "Japan Super Mario Kart Championship Score Management System",
+  title: "SMKC Score System",
+  description: "Super Mario Kart Championship Score Management System",
 };
 
 export default function RootLayout({
@@ -33,7 +33,7 @@ export default function RootLayout({
             <div className="container mx-auto px-4 py-4">
               <nav className="flex items-center justify-between">
                 <Link href="/" className="text-xl font-bold">
-                  JSMKC Score System
+                  SMKC Score System
                 </Link>
                 <div className="flex gap-6">
                   <Link

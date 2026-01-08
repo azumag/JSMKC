@@ -6,9 +6,9 @@ export default function Home() {
   return (
     <div className="space-y-8">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold">JSMKC Score System</h1>
+        <h1 className="text-4xl font-bold">SMKC Score System</h1>
         <p className="text-muted-foreground text-lg">
-          Japan Super Mario Kart Championship Score Management
+          Super Mario Kart Championship Score Management
         </p>
       </div>
 

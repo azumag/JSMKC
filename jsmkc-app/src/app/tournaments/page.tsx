@@ -160,7 +160,7 @@ export default function TournamentsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="e.g., JSMKC 2025"
+                    placeholder="e.g., SMKC 2025"
                     required
                   />
                 </div>
