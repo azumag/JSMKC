@@ -114,6 +114,13 @@ model BMMatch {
   score2       Int        @default(0) // Player 2's wins
   completed    Boolean    @default(false)
   rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
+
+  // Player-reported scores (for participant score entry)
+  player1ReportedScore1 Int? // Player 1's report: score for player 1
+  player1ReportedScore2 Int? // Player 1's report: score for player 2
+  player2ReportedScore1 Int? // Player 2's report: score for player 1
+  player2ReportedScore2 Int? // Player 2's report: score for player 2
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

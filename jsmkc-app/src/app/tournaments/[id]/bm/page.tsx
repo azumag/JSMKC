@@ -434,7 +434,16 @@ export default function BattleModePage({
                         >
                           {match.player2.nickname}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                          >
+                            <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                              Share
+                            </Link>
+                          </Button>
                           <Button
                             variant={match.completed ? "outline" : "default"}
                             size="sm"
