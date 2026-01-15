@@ -200,6 +200,13 @@ export default function BattleModePage({
           </p>
         </div>
         <div className="flex gap-2">
+          {qualifications.length > 0 && (
+            <Button asChild>
+              <Link href={`/tournaments/${tournamentId}/bm/finals`}>
+                Go to Finals
+              </Link>
+            </Button>
+          )}
           <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
