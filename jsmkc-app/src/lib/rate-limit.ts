@@ -7,6 +7,8 @@ interface RateLimitResult {
   success: boolean;
   remaining?: number;
   reset?: number;
+  limit?: number;
+  retryAfter?: number;
 }
 
 // Initialize Redis client
@@ -15,12 +17,73 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// Create a new ratelimiter that allows 10 requests per minute
-const ratelimit = new Ratelimit({
-  redis: redis,
-  limiter: Ratelimit.slidingWindow(10, '1 m'),
-  analytics: false,
-});
+// エンドポイント別の制限設定 as specified in ARCHITECTURE.md section 6.2
+const rateLimits = {
+  // スコア入力: 高頻度を許可
+  scoreInput: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(20, '60 s'), // 1分に20回
+  }),
+  
+  // 一般ポーリング: 中程度
+  polling: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(12, '60 s'), // 1分に12回（5秒間隔）
+  }),
+  
+  // トークン検証: 低頻度
+  tokenValidation: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(10, '60 s'), // 1分に10回
+  }),
+
+  // Default general purpose limiter
+  general: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(10, '1 m'),
+    analytics: false,
+  }),
+};
+
+// Create a new ratelimiter that allows 10 requests per minute (fallback)
+const ratelimit = rateLimits.general;
+
+export async function checkRateLimit(
+  type: keyof typeof rateLimits, 
+  identifier: string
+) {
+  try {
+    const { success, limit, remaining, reset } = await rateLimits[type].limit(identifier)
+    
+    return {
+      success,
+      limit,
+      remaining,
+      reset,
+      retryAfter: success ? undefined : Math.ceil((reset - Date.now()) / 1000)
+    }
+  } catch (error) {
+    console.warn(`Rate limiting failed for type ${type}, falling back to in-memory:`, error);
+    // Fallback to in-memory rate limiting
+    const limit = getLimitForType(type);
+    const windowMs = getWindowForType(type);
+    return rateLimitInMemory(identifier, limit, windowMs);
+  }
+}
+
+// Helper function to get limit values for different types
+function getLimitForType(type: keyof typeof rateLimits): number {
+  switch (type) {
+    case 'scoreInput': return 20;
+    case 'polling': return 12;
+    case 'tokenValidation': return 10;
+    default: return 10;
+  }
+}
+
+function getWindowForType(type: keyof typeof rateLimits): number {
+  return 60 * 1000; // 1 minute for all types
+}
 
 export async function rateLimit(
   identifier: string,
@@ -66,21 +129,30 @@ function rateLimitInMemory(
       count: 1,
       resetTime: now + windowMs,
     });
-    return { success: true, remaining: limit - 1 };
+    return { 
+      success: true, 
+      remaining: limit - 1,
+      limit,
+      retryAfter: undefined
+    };
   }
 
   if (current.count >= limit) {
     return { 
       success: false, 
       remaining: 0,
-      reset: current.resetTime 
+      reset: current.resetTime,
+      limit,
+      retryAfter: Math.ceil((current.resetTime - now) / 1000)
     };
   }
 
   current.count++;
   return { 
     success: true, 
-    remaining: limit - current.count 
+    remaining: limit - current.count,
+    limit,
+    retryAfter: undefined
   };
 }
 

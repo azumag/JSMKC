@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit-log";
 import { extendTokenExpiry, getTokenTimeRemaining } from "@/lib/token-utils";
-import { getServerSideIdentifier } from "@/lib/rate-limit";
+import { checkRateLimit, getServerSideIdentifier } from "@/lib/rate-limit";
 
 // POST - Extend tournament token expiry
 export async function POST(
@@ -16,6 +16,28 @@ export async function POST(
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },
       { status: 401 }
+    );
+  }
+
+  // Apply rate limiting for token validation
+  const identifier = await getServerSideIdentifier();
+  const rateLimitResult = await checkRateLimit('tokenValidation', identifier);
+  
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Too many requests. Please try again later.',
+        retryAfter: rateLimitResult.retryAfter
+      },
+      { 
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': rateLimitResult.limit?.toString(),
+          'X-RateLimit-Remaining': rateLimitResult.remaining?.toString(),
+          'X-RateLimit-Reset': rateLimitResult.reset?.toString(),
+        }
+      }
     );
   }
 

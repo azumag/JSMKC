@@ -52,20 +52,31 @@ export default auth(async (req) => {
   }
 
   // Add security headers
-  const response = NextResponse.next()
+  const nonce = generateNonce()
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
 
   // CSPヘッダー（開発環境では緩め、本番環境では厳格に設定）
   if (process.env.NODE_ENV === 'production') {
     // 本番環境: nonceまたはhashを使用した厳格なポリシー
-    const nonce = generateNonce()
     response.headers.set('Content-Security-Policy', [
       "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}'`,
-      `style-src 'self' 'nonce-${nonce}'`,
-      "img-src 'self' data: blob:",
-      "connect-src 'self'",
-      "font-src 'self' data:",
-      "frame-ancestors 'none'",
+      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
+      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+      `font-src 'self' https://fonts.gstatic.com`,
+      `img-src 'self' data: blob: https://www.google-analytics.com`,
+      `connect-src 'self' https://api.github.com https://oauth2.googleapis.com`,
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests"
     ].join('; '))
   } else {
     // 開発環境: shadcn/ui動作のための緩いポリシー（本番では使用しない）
@@ -96,5 +107,9 @@ export default auth(async (req) => {
 })
 
 export const config = {
-  matcher: ['/api/:path*', '/auth/:path*']
+  matcher: [
+    '/api/:path*', 
+    '/auth/:path*',
+    '/api/auth/:path*', // Added for session status endpoint
+  ]
 }
