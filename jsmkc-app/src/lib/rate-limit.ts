@@ -11,38 +11,44 @@ interface RateLimitResult {
   retryAfter?: number;
 }
 
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+// Initialize Redis client only if environment variables are properly configured
+let redis: Redis | null = null;
+if (process.env.UPSTASH_REDIS_REST_URL && 
+    process.env.UPSTASH_REDIS_REST_URL !== 'your_upstash_redis_url_here' &&
+    process.env.UPSTASH_REDIS_REST_URL.startsWith('https://') &&
+    process.env.UPSTASH_REDIS_REST_TOKEN) {
+  redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+}
 
 // エンドポイント別の制限設定 as specified in ARCHITECTURE.md section 6.2
 const rateLimits = {
   // スコア入力: 高頻度を許可
-  scoreInput: new Ratelimit({
+  scoreInput: redis ? new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(20, '60 s'), // 1分に20回
-  }),
+  }) : null,
   
   // 一般ポーリング: 中程度
-  polling: new Ratelimit({
+  polling: redis ? new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(12, '60 s'), // 1分に12回（5秒間隔）
-  }),
+  }) : null,
   
   // トークン検証: 低頻度
-  tokenValidation: new Ratelimit({
+  tokenValidation: redis ? new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(10, '60 s'), // 1分に10回
-  }),
+  }) : null,
 
   // Default general purpose limiter
-  general: new Ratelimit({
+  general: redis ? new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(10, '1 m'),
     analytics: false,
-  }),
+  }) : null,
 };
 
 // Create a new ratelimiter that allows 10 requests per minute (fallback)
@@ -52,8 +58,18 @@ export async function checkRateLimit(
   type: keyof typeof rateLimits, 
   identifier: string
 ) {
+  const limiter = rateLimits[type];
+  
+  // If Redis is not configured or rate limit type is not available, use in-memory fallback
+  if (!limiter) {
+    console.warn(`Redis rate limiting not available for type ${type}, using in-memory fallback`);
+    const limit = getLimitForType(type);
+    const windowMs = getWindowForType(type);
+    return rateLimitInMemory(identifier, limit, windowMs);
+  }
+
   try {
-    const { success, limit, remaining, reset } = await rateLimits[type].limit(identifier)
+    const { success, limit, remaining, reset } = await limiter.limit(identifier)
     
     return {
       success,
@@ -90,8 +106,13 @@ export async function rateLimit(
   limit: number = 10,
   windowMs: number = 60 * 1000 // 1 minute
 ): Promise<RateLimitResult> {
+  if (!rateLimits.general) {
+    console.warn('Redis rate limiting not available, using in-memory fallback');
+    return rateLimitInMemory(identifier, limit, windowMs);
+  }
+
   try {
-    const result = await ratelimit.limit(identifier);
+    const result = await rateLimits.general.limit(identifier);
     return {
       success: result.success,
       remaining: result.remaining,
