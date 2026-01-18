@@ -27,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -84,31 +86,44 @@ export default function MatchDetailPage({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [matchRes, tournamentRes] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}`),
-        fetch(`/api/tournaments/${tournamentId}`),
-      ]);
+  const fetchMatchData = useCallback(async () => {
+    const [matchRes, tournamentRes] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}`),
+      fetch(`/api/tournaments/${tournamentId}`),
+    ]);
 
-      if (matchRes.ok) {
-        const matchData = await matchRes.json();
-        setMatch(matchData);
-      }
-      if (tournamentRes.ok) {
-        const tournamentData = await tournamentRes.json();
-        setTournament(tournamentData);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!matchRes.ok) {
+      throw new Error(`Failed to fetch MR match data: ${matchRes.status}`);
     }
+
+    if (!tournamentRes.ok) {
+      throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
+    }
+
+    const matchData = await matchRes.json();
+    const tournamentData = await tournamentRes.json();
+
+    return {
+      match: matchData,
+      tournament: tournamentData,
+    };
   }, [tournamentId, matchId]);
 
+  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchMatchData,
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setMatch(pollData.match);
+      setTournament(pollData.tournament);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
@@ -150,7 +165,7 @@ export default function MatchDetailPage({
 
       if (response.ok) {
         setSubmitted(true);
-        fetchData();
+        refetch();
       } else {
         const data = await response.json();
         setError(data.error || "Failed to submit result");
@@ -193,6 +208,9 @@ export default function MatchDetailPage({
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
           <p className="text-muted-foreground">Match Race - Match #{match.matchNumber}</p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
 
         <Card>

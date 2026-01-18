@@ -37,6 +37,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -92,33 +94,46 @@ export default function BattleModePage({
     { playerId: string; group: string }[]
   >([]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [bmResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/bm`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [bmResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/bm`),
+      fetch("/api/players"),
+    ]);
 
-      if (bmResponse.ok) {
-        const data = await bmResponse.json();
-        setQualifications(data.qualifications || []);
-        setMatches(data.matches || []);
-      }
-
-      if (playersResponse.ok) {
-        const players = await playersResponse.json();
-        setAllPlayers(players);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!bmResponse.ok) {
+      throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const bmData = await bmResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      qualifications: bmData.qualifications || [],
+      matches: bmData.matches || [],
+      allPlayers: players,
+    };
   }, [tournamentId]);
 
+  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchTournamentData,
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setQualifications(pollData.qualifications);
+      setMatches(pollData.matches);
+      setAllPlayers(pollData.allPlayers);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
@@ -136,7 +151,7 @@ export default function BattleModePage({
       if (response.ok) {
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to setup:", err);
@@ -161,7 +176,7 @@ export default function BattleModePage({
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to update score:", err);
@@ -192,12 +207,15 @@ export default function BattleModePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Battle Mode</h1>
           <p className="text-muted-foreground">
             Qualification round-robin and finals
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex gap-2">
           {qualifications.length > 0 && (

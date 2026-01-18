@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -110,25 +112,38 @@ export default function MatchRaceFinals({
   ]);
   const [champion, setChampion] = useState<Player | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`);
-      if (response.ok) {
-        const data = await response.json();
-        setMatches(data.matches || []);
-        setBracketStructure(data.bracketStructure || []);
-        setRoundNames(data.roundNames || {});
-      }
-    } catch (err) {
-      console.error("Failed to fetch finals data:", err);
-    } finally {
-      setLoading(false);
+  const fetchFinalsData = useCallback(async () => {
+    const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch MR finals data: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    return {
+      matches: data.matches || [],
+      bracketStructure: data.bracketStructure || [],
+      roundNames: data.roundNames || {},
+    };
   }, [tournamentId]);
 
+  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchFinalsData,
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setMatches(pollData.matches);
+      setBracketStructure(pollData.bracketStructure);
+      setRoundNames(pollData.roundNames);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleCreateBracket = async () => {
     setCreating(true);
@@ -144,7 +159,7 @@ export default function MatchRaceFinals({
         setMatches(data.matches || []);
         setBracketStructure(data.bracketStructure || []);
         setSeededPlayers(data.seededPlayers || []);
-        fetchData();
+        refetch();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to create bracket");
@@ -213,7 +228,7 @@ export default function MatchRaceFinals({
           { course: "", winner: null },
           { course: "", winner: null },
         ]);
-        fetchData();
+        refetch();
 
         if (data.isComplete && data.champion) {
           const winnerMatch = matches.find(
@@ -247,12 +262,15 @@ export default function MatchRaceFinals({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Match Race Finals</h1>
           <p className="text-muted-foreground">
             Double Elimination Tournament
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex gap-2">
           {matches.length === 0 ? (

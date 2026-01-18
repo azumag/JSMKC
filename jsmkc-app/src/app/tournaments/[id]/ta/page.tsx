@@ -39,6 +39,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -90,51 +92,54 @@ export default function TimeAttackPage({
   const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
   const [promotionError, setPromotionError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setError(null);
-    try {
-      const [taResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [taResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+      fetch("/api/players"),
+    ]);
 
-      if (!taResponse.ok) {
-        const errorData = await taResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
-      }
-
-      if (!playersResponse.ok) {
-        const errorData = await playersResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
-      }
-
-      const taData = await taResponse.json();
-      const players = await playersResponse.json();
-
-      setEntries(taData.entries || []);
-      setAllPlayers(players);
-      setFinalsCount(taData.finalsCount || 0);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch data";
-      console.error("Failed to fetch data:", err);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+    if (!taResponse.ok) {
+      const errorData = await taResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      const errorData = await playersResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const taData = await taResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      entries: taData.entries || [],
+      allPlayers: players,
+      finalsCount: taData.finalsCount || 0,
+    };
   }, [tournamentId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { data: pollData, loading: pollLoading, error: pollError, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchTournamentData,
+    interval: 3000,
+  });
 
-  // Real-time polling (every 3 seconds)
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchData();
-    }, 3000); // 3 seconds
+    if (pollData) {
+      setEntries(pollData.entries);
+      setAllPlayers(pollData.allPlayers);
+      setFinalsCount(pollData.finalsCount);
+    }
+  }, [pollData]);
 
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
+
+  useEffect(() => {
+    if (pollError) {
+      setError(pollError);
+    }
+  }, [pollError]);
 
   const handleAddPlayer = async (playerId: string) => {
     setSaveError(null);
@@ -151,7 +156,7 @@ export default function TimeAttackPage({
       }
 
       setIsAddPlayerDialogOpen(false);
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to add player";
       console.error("Failed to add player:", err);
@@ -183,7 +188,7 @@ export default function TimeAttackPage({
       const data = await response.json();
       setIsPromoteDialogOpen(false);
       setSelectedPlayerIds([]);
-      fetchData();
+      refetch();
 
       if (data.skipped && data.skipped.length > 0) {
         alert(`Promoted ${data.entries.length} players. Skipped ${data.skipped.join(", ")} (incomplete times)`);
@@ -239,7 +244,7 @@ export default function TimeAttackPage({
       setIsTimeEntryDialogOpen(false);
       setSelectedEntry(null);
       setTimeInputs({});
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save times";
       console.error("Failed to save times:", err);
@@ -263,7 +268,7 @@ export default function TimeAttackPage({
         throw new Error(errorData.error || "Failed to delete entry");
       }
 
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to delete entry";
       console.error("Failed to delete entry:", err);
@@ -298,7 +303,7 @@ export default function TimeAttackPage({
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
+            <Button onClick={refetch}>Retry</Button>
           </CardContent>
         </Card>
       </div>
@@ -307,12 +312,15 @@ export default function TimeAttackPage({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Time Attack</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             Qualification round - {TOTAL_COURSES} courses total time
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           {finalsCount > 0 && (

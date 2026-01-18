@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -38,6 +37,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -105,33 +106,46 @@ export default function MatchRacePage({
     { playerId: string; group: string }[]
   >([]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [mrResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/mr`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [mrResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/mr`),
+      fetch("/api/players"),
+    ]);
 
-      if (mrResponse.ok) {
-        const data = await mrResponse.json();
-        setQualifications(data.qualifications || []);
-        setMatches(data.matches || []);
-      }
-
-      if (playersResponse.ok) {
-        const players = await playersResponse.json();
-        setAllPlayers(players);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!mrResponse.ok) {
+      throw new Error(`Failed to fetch MR data: ${mrResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const mrData = await mrResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      qualifications: mrData.qualifications || [],
+      matches: mrData.matches || [],
+      allPlayers: players,
+    };
   }, [tournamentId]);
 
+  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchTournamentData,
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setQualifications(pollData.qualifications);
+      setMatches(pollData.matches);
+      setAllPlayers(pollData.allPlayers);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
@@ -149,7 +163,7 @@ export default function MatchRacePage({
       if (response.ok) {
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to setup:", err);
@@ -211,7 +225,7 @@ export default function MatchRacePage({
           { course: "", winner: null },
           { course: "", winner: null },
         ]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to update match:", err);
@@ -236,12 +250,15 @@ export default function MatchRacePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Match Race</h1>
           <p className="text-muted-foreground">
             5-race course selection and point-based scoring
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex gap-2">
           {qualifications.length > 0 && (

@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -116,33 +118,46 @@ export default function GrandPrixPage({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [gpResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/gp`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [gpResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/gp`),
+      fetch("/api/players"),
+    ]);
 
-      if (gpResponse.ok) {
-        const data = await gpResponse.json();
-        setQualifications(data.qualifications || []);
-        setMatches(data.matches || []);
-      }
-
-      if (playersResponse.ok) {
-        const players = await playersResponse.json();
-        setAllPlayers(players);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!gpResponse.ok) {
+      throw new Error(`Failed to fetch GP data: ${gpResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const gpData = await gpResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      qualifications: gpData.qualifications || [],
+      matches: gpData.matches || [],
+      allPlayers: players,
+    };
   }, [tournamentId]);
 
+  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+    fetchFn: fetchTournamentData,
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setQualifications(pollData.qualifications);
+      setMatches(pollData.matches);
+      setAllPlayers(pollData.allPlayers);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
@@ -160,7 +175,7 @@ export default function GrandPrixPage({
       if (response.ok) {
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to setup:", err);
@@ -220,7 +235,7 @@ export default function GrandPrixPage({
           { course: "", position1: null, position2: null },
           { course: "", position1: null, position2: null },
         ]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to update match:", err);
@@ -245,12 +260,15 @@ export default function GrandPrixPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Grand Prix</h1>
           <p className="text-muted-foreground">
             Cup-based races with driver points
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex gap-2">
           {qualifications.length > 0 && (
