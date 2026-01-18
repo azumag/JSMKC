@@ -80,8 +80,77 @@ Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計
   - マッチ結果の編集・削除
   - トークン発行・無効化
 - **許可ユーザー**: GitHub Organizationのメンバーのみ（`jsmkc-org`）
-- **セッション管理**: JWT、有効期限24時間
+- **セッション管理**: JWT + Refresh Token機構
+  - JWT有効期限: 1時間（アクセストークン）
+  - Refresh Token有効期限: 24時間
+  - 自動リフレッシュ: アクセストークン期限切れ時にバックグラウンドで更新
+  - リフレッシュ失敗時: ユーザーに再ログインを要求
 - **認証ミドルウェア**: NextAuth.jsの`authMiddleware`で保護エンドポイントを指定
+
+#### Refresh Token機構の実装詳細
+```typescript
+// lib/auth.ts
+const refreshRate = 1000 * 60 * 5 // 5分間隔でチェック
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: "jwt" },
+  callbacks: {
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        // 初回ログイン時
+        return {
+          ...token,
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          accessTokenExpires: Date.now() + account.expires_in * 1000,
+          refreshTokenExpires: Date.now() + 24 * 60 * 60 * 1000, // 24時間
+        }
+      }
+
+      // アクセストークンの有効期限チェック
+      if (Date.now() < token.accessTokenExpires) {
+        return token
+      }
+
+      // アクセストークンが期限切れの場合、リフレッシュ
+      return refreshAccessToken(token)
+    },
+  },
+})
+
+async function refreshAccessToken(token) {
+  try {
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.AUTH_GOOGLE_ID!,
+        client_secret: process.env.AUTH_GOOGLE_SECRET!,
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken!,
+      }),
+    })
+
+    const refreshedTokens = await response.json()
+
+    if (!response.ok) {
+      throw refreshedTokens
+    }
+
+    return {
+      ...token,
+      accessToken: refreshedTokens.access_token,
+      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+    }
+  } catch (error) {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    }
+  }
+}
+```
 
 #### 参加者スコア入力
 - 認証なし（トーナメントURL + トークンでアクセス）
@@ -97,15 +166,245 @@ Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計
   - IP制限（オプション）: 運営が特定IPのみ許可する設定
   - CAPTCHA（オプション）: 不正入力回数が多い場合
 
+#### トークン延長機能の実装詳細
+```typescript
+// app/api/tournaments/[id]/token/extend/route.ts
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) {
+    return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+  
+  const { extensionHours = 24 } = await request.json()
+  
+  try {
+    const tournament = await prisma.tournament.update({
+      where: { id: parseInt(params.id) },
+      data: {
+        tokenExpiresAt: new Date(Date.now() + extensionHours * 60 * 60 * 1000)
+      }
+    })
+    
+    await createAuditLog({
+      userId: session.user.id,
+      action: 'EXTEND_TOKEN',
+      targetId: tournament.id,
+      targetType: 'Tournament',
+      details: { extensionHours, newExpiryDate: tournament.tokenExpiresAt }
+    })
+    
+    return Response.json({ 
+      success: true, 
+      data: { newExpiryDate: tournament.tokenExpiresAt }
+    })
+  } catch (error) {
+    return Response.json({ 
+      success: false, 
+      error: 'Failed to extend token' 
+    }, { status: 500 })
+  }
+}
+```
+
+#### レート制限の柔軟な実装
+**エンドポイント別制限設定**:
+```typescript
+// lib/rate-limiting.ts
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
+
+// エンドポイント別の制限設定
+const rateLimits = {
+  // スコア入力: 高頻度を許可
+  scoreInput: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(20, '60 s'), // 1分に20回
+  }),
+  
+  // 一般ポーリング: 中程度
+  polling: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(12, '60 s'), // 1分に12回（5秒間隔）
+  }),
+  
+  // トークン検証: 低頻度
+  tokenValidation: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(10, '60 s'), // 1分に10回
+  }),
+}
+
+export async function checkRateLimit(
+  type: keyof typeof rateLimits, 
+  identifier: string
+) {
+  const { success, limit, remaining, reset } = await rateLimits[type].limit(identifier)
+  
+  return {
+    success,
+    limit,
+    remaining,
+    reset,
+    retryAfter: success ? undefined : Math.ceil((reset - Date.now()) / 1000)
+  }
+}
+```
+
+**制限閾値の根拠**:
+- スコア入力（20回/分）: 誤入力・再試行を考慮し、正常な利用で抵触しない値
+- ポーリング（12回/分）: 5秒間隔で最大1分に12回、余裕を持たせた設定
+- トークン検証（10回/分）: 不正アクセス対策、通常使用で抵触しない値
+
 #### その他セキュリティ
 - データベース接続: SSL/TLS必須
 - 環境変数管理: Vercel環境変数
 - 入力バリデーション: Zodによるサーバーサイドバリデーション
 - SQLインジェクション対策: Prisma ORMによるパラメータ化クエリ
 - セキュリティヘッダー:
-  - CSPヘッダー: 外部スクリプトの制限（XSS対策）
-  - X-Frame-Options: クリックジャッキング対策
-  - X-Content-Type-Options: MIMEタイプスニッフィング対策
+  - **CSPヘッダー**: 詳細なポリシー設定（後述）
+  - X-Frame-Options: DENY（クリックジャッキング対策）
+  - X-Content-Type-Options: nosniff（MIMEタイプスニッフィング対策）
+  - X-XSS-Protection: 1; mode=block（レガシーブラウザ用XSS対策）
+  - Referrer-Policy: strict-origin-when-cross-origin
+  - Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+#### Content Security Policy (CSP) の詳細実装
+**ポリシー設定**:
+```javascript
+// next.config.js
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: [
+      "default-src 'self';",
+      "script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com;",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;",
+      "font-src 'self' https://fonts.gstatic.com;",
+      "img-src 'self' data: blob: https://www.google-analytics.com;",
+      "connect-src 'self' https://api.github.com;",
+      "frame-src 'none';",
+      "object-src 'none';",
+      "base-uri 'self';",
+      "form-action 'self';",
+      "upgrade-insecure-requests;"
+    ].join(' ')
+  }
+]
+```
+
+**Nonceの実装**:
+```typescript
+// app/layout.tsx
+import { headers } from 'next/headers'
+import Script from 'next/script'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = headers().get('x-nonce') || crypto.randomUUID()
+  
+  return (
+    <html>
+      <head>
+        <meta httpEquiv="Content-Security-Policy" 
+              content={`default-src 'self'; script-src 'self' 'nonce-${nonce}';`} />
+      </head>
+      <body>
+        {children}
+        <Script nonce={nonce} src="/some-script.js" />
+      </body>
+    </html>
+  )
+}
+```
+
+**ミドルウェアでのNonce生成**:
+```typescript
+// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export function middleware(request: NextRequest) {
+  const nonce = crypto.randomUUID()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
+
+  response.headers.set(
+    'Content-Security-Policy',
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}';`
+  )
+
+  return response
+}
+```
+
+#### XSS対策の追加実装
+**AuditLog.detailsのサニタイゼーション**:
+```typescript
+// lib/xss-protection.ts
+import DOMPurify from 'isomorphic-dompurify'
+
+export function sanitizeAuditDetails(details: unknown): unknown {
+  if (typeof details === 'string') {
+    return DOMPurify.sanitize(details, { ALLOWED_TAGS: [] })
+  }
+  
+  if (Array.isArray(details)) {
+    return details.map(sanitizeAuditDetails)
+  }
+  
+  if (typeof details === 'object' && details !== null) {
+    const sanitized: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(details)) {
+      sanitized[key] = sanitizeAuditDetails(value)
+    }
+    return sanitized
+  }
+  
+  return details
+}
+
+// 使用例
+const auditData = {
+  userInput: "<script>alert('xss')</script>",
+  oldValue: { name: "Old Name" },
+  newValue: { name: "New <script>alert('xss')</script> Name" }
+}
+
+const sanitizedData = sanitizeAuditDetails(auditData)
+// 結果: { userInput: "", oldValue: { name: "Old Name" }, newValue: { name: "New  Name" } }
+```
+
+**API入力の自動サニタイゼーション**:
+```typescript
+// lib/api-middleware.ts
+export function withSanitization(handler: Function) {
+  return async (req: Request, ...args: any[]) => {
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const body = await req.json()
+      const sanitizedBody = sanitizeAuditDetails(body)
+      
+      const newReq = new Request(req.url, {
+        ...req,
+        body: JSON.stringify(sanitizedBody)
+      })
+      
+      return handler(newReq, ...args)
+    }
+    
+    return handler(req, ...args)
+  }
+}
+```
 
 ### 使いやすさ要件
 - モバイルフレンドリーUI（スマートフォンでの操作に最適化）
@@ -222,15 +521,102 @@ Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計
 #### リアルタイム更新の実装
 **課題**: Vercelのサーバーレス環境ではSSEの継続接続が制限される
 
+**負荷分析と最適化**:
+- **ポーリング間隔**: 3秒→5秒に延長（負荷削減）
+- **同時接続最大数**: 48人（プレイヤー+運営）
+- **推定リクエスト数**: 48人×(60秒/5秒)=576回/時間
+- **大会期間中**: 576回×24時間×2日=27,648回（従来の46,080回から40%削減）
+
 **実装方案**:
-1. **Polling方式（採用）**: 3秒間隔でサーバーをポーリング
-   - メリット: 実装がシンプル、Vercelで動作
-   - デメリット: サーバー負荷増、更新遅延
+1. **Polling方式（採用）**: 5秒間隔でサーバーをポーリング
+   - メリット: 実装がシンプル、Vercelで動作、負荷最適化済み
+   - デメリット: 更新遅延（最大5秒）
 2. **SSE方式（将来検討）**: Pusher等のマネージドサービス利用
    - メリット: リアルタイム性が高い
-   - デメリット: コスト増、外部依存
+   - デメリット: コスト増（$20/月〜）、外部依存
 
-**結論**: Polling方式で実装、必要に応じてPusher移行
+**負荷対策の実装詳細**:
+```typescript
+// app/hooks/use-polling.ts
+import { useState, useEffect, useCallback } from 'react'
+
+export function usePolling(url: string, interval: number = 5000) {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  const [lastFetch, setLastFetch] = useState(0)
+  
+  const fetchData = useCallback(async () => {
+    try {
+      // 前回のリクエストから500ms以上経過しない場合はスキップ
+      const now = Date.now()
+      if (now - lastFetch < 500) {
+        return
+      }
+      
+      setLastFetch(now)
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
+      const result = await response.json()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err)
+      // エラー時は指数バックオフ
+      setTimeout(() => fetchData(), interval * 2)
+    }
+  }, [url, lastFetch, interval])
+  
+  useEffect(() => {
+    const intervalId = setInterval(fetchData, interval)
+    
+    // ページが非表示の場合はポーリングを停止
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearInterval(intervalId)
+      } else {
+        fetchData() // 再表示時は即時取得
+        const newIntervalId = setInterval(fetchData, interval)
+        intervalId.id = newIntervalId.id
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [fetchData, interval])
+  
+  return { data, error, refetch: fetchData }
+}
+```
+
+**Vercelリソース監視**:
+```typescript
+// app/api/monitor/polling-stats/route.ts
+export async function GET() {
+  const stats = {
+    totalRequests: await getPollingRequestCount(),
+    averageResponseTime: await getAverageResponseTime(),
+    activeConnections: await getActiveConnectionCount(),
+    errorRate: await getErrorRate(),
+  }
+  
+  // しきい値超過時のアラート
+  if (stats.totalRequests > 30000) { // 月30,000リクエスト超過
+    await sendAlert('Polling requests approaching limit')
+  }
+  
+  return Response.json(stats)
+}
+```
+
+**結論**: 負荷最適化済みPolling方式で実装、月30,000リクエスト監視
 
 #### APIエンドポイント構造
 ```
@@ -251,13 +637,276 @@ Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計
 - バックアップ・復元（7日間保持）
 - **外部バックアップ**: Neonの自動バックアップ（7日間）に加え、週1回のCSVエクスポートをS3またはローカルに保存
 
+#### 競合処理の設計（楽観的ロック）
+**設計方針**: 楽観的ロック（Optimistic Locking）を採用し、同時編集時のデータ整合性を確保
+
+```prisma
+// 全ての更新対象モデルにバージョンフィールドを追加
+model Match {
+  id          Int      @id @default(autoincrement())
+  tournamentId Int
+  player1Id   Int
+  player2Id   Int
+  score1      Int?
+  score2      Int?
+  status      MatchStatus @default(PENDING)
+  version     Int      @default(0) // 楽観的ロック用バージョン
+  deletedAt   DateTime? // ソフトデリート用
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tournament {
+  id          Int      @id @default(autoincrement())
+  name        String
+  version     Int      @default(0) // 楽観的ロック用バージョン
+  deletedAt   DateTime? // ソフトデリート用
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+```
+
+**競合検知とリトライ処理**:
+```typescript
+// lib/optimistic-locking.ts
+export class OptimisticLockError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OptimisticLockError'
+  }
+}
+
+export async function updateWithRetry<T>(
+  updateFn: (currentVersion: number) => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await updateFn(attempt)
+    } catch (error) {
+      lastError = error as Error
+      
+      if (error instanceof OptimisticLockError && attempt < maxRetries - 1) {
+        // バックオフ: 指数関数的に待機時間を増加
+        const delay = Math.pow(2, attempt) * 100 // 100ms, 200ms, 400ms
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      
+      throw error
+    }
+  }
+  
+  throw lastError!
+}
+
+// 使用例
+export async function updateMatchScore(
+  matchId: number, 
+  score1: number, 
+  score2: number,
+  expectedVersion: number
+) {
+  return updateWithRetry(async () => {
+    const updatedMatch = await prisma.match.update({
+      where: {
+        id: matchId,
+        version: expectedVersion // バージョンを条件に含める
+      },
+      data: {
+        score1,
+        score2,
+        version: { increment: 1 }, // バージョンをインクリメント
+        updatedAt: new Date()
+      }
+    })
+    
+    if (!updatedMatch) {
+      throw new OptimisticLockError('Match was updated by another user')
+    }
+    
+    return updatedMatch
+  })
+}
+```
+
+**API実装例**:
+```typescript
+// app/api/tournaments/[id]/bm/match/[matchId]/route.ts
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string; matchId: string } }
+) {
+  const session = await auth()
+  const body = await request.json()
+  
+  try {
+    const updatedMatch = await updateMatchScore(
+      parseInt(params.matchId),
+      body.score1,
+      body.score2,
+      body.expectedVersion
+    )
+    
+    await createAuditLog({
+      userId: session?.user?.id,
+      action: 'UPDATE_MATCH',
+      targetId: updatedMatch.id,
+      targetType: 'Match',
+      details: { 
+        oldScores: { score1: body.oldScore1, score2: body.oldScore2 },
+        newScores: { score1: body.score1, score2: body.score2 }
+      }
+    })
+    
+    return Response.json({ success: true, data: updatedMatch })
+  } catch (error) {
+    if (error instanceof OptimisticLockError) {
+      return Response.json({
+        success: false,
+        error: 'This match was updated by someone else. Please refresh and try again.',
+        requiresRefresh: true
+      }, { status: 409 })
+    }
+    
+    return Response.json({
+      success: false,
+      error: 'Failed to update match'
+    }, { status: 500 })
+  }
+}
+```
+
+**フロントエンドでの競合処理**:
+```typescript
+// components/match-score-form.tsx
+export function MatchScoreForm({ match }: { match: Match }) {
+  const [optimisticScore, setOptimisticScore] = useState(match)
+  const [conflict, setConflict] = useState(false)
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      const response = await updateMatchScore({
+        matchId: match.id,
+        score1: optimisticScore.score1,
+        score2: optimisticScore.score2,
+        expectedVersion: match.version
+      })
+      
+      if (!response.success && response.requiresRefresh) {
+        setConflict(true)
+        return
+      }
+      
+      // 成功時の処理
+    } catch (error) {
+      console.error('Failed to update score:', error)
+    }
+  }
+  
+  const handleResolveConflict = async () => {
+    // 最新のデータを取得して再試行
+    const latestMatch = await getMatch(match.id)
+    setMatch(latestMatch)
+    setConflict(false)
+  }
+  
+  return (
+    <>
+      {conflict && (
+        <div className="alert alert-warning">
+          <p>Someone else updated this match.</p>
+          <button onClick={handleResolveConflict}>
+            Refresh and Continue
+          </button>
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit}>
+        <ScoreInput 
+          value={optimisticScore.score1}
+          onChange={(score1) => setOptimisticScore(prev => ({ ...prev, score1 }))}
+        />
+        <ScoreInput 
+          value={optimisticScore.score2}
+          onChange={(score2) => setOptimisticScore(prev => ({ ...prev, score2 }))}
+        />
+        <button type="submit">Update Score</button>
+      </form>
+    </>
+  )
+}
+```
+
 #### スキーマ設計
-- **Player**: プレイヤー情報
-- **Tournament**: トーナメント情報（トークン含む）
+- **Player**: プレイヤー情報（バージョンフィールド含む）
+- **Tournament**: トーナメント情報（バージョンフィールド、トークン含む）
 - **Course/Arena**: コース/アリーナ情報
-- **各モードのMatch/Qualificationモデル**: 対戦・予選情報
-- **AuditLog**: 操作ログ（IP、ユーザーエージェント、タイムスタンプ、操作内容）
+- **各モードのMatch/Qualificationモデル**: 対戦・予選情報（バージョンフィールド含む）
+- **AuditLog**: 操作ログ（IP、ユーザーエージェント、タイムスタンプ、XSS対策済み操作内容）
 - **Account/Session/VerificationToken**: NextAuth.jsの認証関連モデル
+
+#### ソフトデリートの実装
+**設計方針**: 論理削除（Soft Delete）を採用し、データ復元と履歴追跡を可能にする
+
+```prisma
+// 全モデルに共通のソフトデリートフィールド
+model Player {
+  id        Int      @id @default(autoincrement())
+  name      String
+  // ... 他のフィールド
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tournament {
+  id        Int      @id @default(autoincrement())
+  name      String
+  // ... 他のフィールド
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+**ミドルウェアによる自動適用**:
+```typescript
+// lib/prisma-middleware.ts
+prisma.$use(async (params, next) => {
+  // 対象モデルのチェック
+  if (['Player', 'Tournament', 'Match'].includes(params.model!)) {
+    if (params.action === 'delete') {
+      // DELETEをUPDATE（ソフトデリート）に変換
+      params.action = 'update'
+      params.args['data'] = { deletedAt: new Date() }
+    }
+    if (params.action === 'deleteMany') {
+      params.action = 'updateMany'
+      if (params.args.data != undefined) {
+        params.args.data['deletedAt'] = new Date()
+      } else {
+        params.args['data'] = { deletedAt: new Date() }
+      }
+    }
+    if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'findUnique') {
+      // 明示的なincludeDeletedフラグがない場合は、削除済みレコードを除外
+      if (!params.args?.includeDeleted) {
+        if (params.args.where) {
+          params.args.where['deletedAt'] = null
+        } else {
+          params.args.where = { deletedAt: null }
+        }
+      }
+    }
+  }
+  return next(params)
+})
+```
 
 #### AuditLogモデル
 ```prisma
@@ -266,12 +915,36 @@ model AuditLog {
   userId      Int?     // 運営ユーザーID（参加者の場合はnull）
   ipAddress   String
   userAgent   String
-  action      String   // 操作内容: "CREATE_TOURNAMENT", "UPDATE_MATCH", etc.
+  action      String   // 操作内容: "CREATE_TOURNAMENT", "UPDATE_MATCH", "DELETE_PLAYER", etc.
   targetId    Int?     // 対象のID（Tournament、Player、Matchなど）
   targetType  String?  // 対象の型
   timestamp   DateTime @default(now())
-  details     Json?    // 追加の詳細情報
+  details     Json?    // XSS対策済みの追加詳細情報
+  // XSS対策: HTMLタグを自動的にサニタイズ
+  @@map("audit_logs")
 }
+
+// トリガーによる自動ログ記録（PostgreSQL）
+CREATE OR REPLACE FUNCTION audit_trigger_function()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO audit_logs (action, targetId, targetType, details)
+    VALUES ('DELETE', OLD.id, TG_TABLE_NAME, to_jsonb(OLD));
+    RETURN OLD;
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO audit_logs (action, targetId, targetType, details)
+    VALUES ('UPDATE', NEW.id, TG_TABLE_NAME, 
+            jsonb_build_object('old', to_jsonb(OLD), 'new', to_jsonb(NEW)));
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    INSERT INTO audit_logs (action, targetId, targetType, details)
+    VALUES ('CREATE', NEW.id, TG_TABLE_NAME, to_jsonb(NEW));
+    RETURN NEW;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
 #### 履歴管理の仕様
@@ -459,12 +1132,12 @@ jsmkc-app/
 - 帯域: 100GB/月（大会期間のみ集中、通常は低使用）
 - ビルド: 6,000分/月（開発期間集中、本番は安定）
 - 関数実行: 100GB時間/月
-  - Polling: 48人×(60秒/3秒)=960回/時間×24時間×2日大会=46,080回
+  - Polling: 48人×(60秒/5秒)=576回/時間×24時間×2日大会=27,648回
   - 各ポーリングのCPU時間: 約100ms（データベースクエリを含む）
-  - CPU時間合計: 46,080回×0.1秒=4,608秒≈1.28GB時間
+  - CPU時間合計: 27,648回×0.1秒=2,764.8秒≈0.77GB時間
   - 各ポーリングのメモリ使用量: 512MB
-  - メモリ時間合計: 46,080回×0.5GB×0.1秒≈2,304GB秒≈0.00064GB時間
-  - 合計: 約1.28GB時間/月、十分余裕
+  - メモリ時間合計: 27,648回×0.5GB×0.1秒≈1,382GB秒≈0.00038GB時間
+  - 合計: 約0.77GB時間/月、十分余裕（従来比40%削減）
 
 **必要なライブラリ**:
 ```bash
@@ -505,6 +1178,7 @@ npm install next-auth @upstash/ratelimit @upstash/redis xlsx @vercel/analytics
 
 | バージョン | 日付 | 内容 |
 |------------|------|------|
+| 12.0 | 2026-01-19 | レビュー指摘事項8項目を完全修正：JWT Refresh Token機構、Soft DeleteとAuditLog、XSS対策とCSP詳細化、ポーリング負荷最適化、競合処理（楽観的ロック）、トークン延長機能、レート制限柔軟化 |
 | 11.0 | 2026-01-19 | アーキテクチャ構造を再整理（機能要件、非機能要件、受け入れ基準、設計方針、アーキテクチャ決定、トレードオフ検討） |
 | 10.0 | 2026-01-18 | CSPヘッダー改善（unsafe-eval/unsafe-inline削除、本番環境ではnonce使用） |
 | 9.0 | 2026-01-18 | バックアップスクリプト修正、GitHub Actionsアーティファクト保持期間30日、Vercelリソース監視追加、手動監視スケジュール具体化、監視設定通知先追加、セキュリティヘッダー実装追加、Prisma接続プール設定追加、キャッシュ戦略追加 |
