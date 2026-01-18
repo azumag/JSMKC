@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { SoftDeleteUtils } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
@@ -14,6 +14,7 @@ export async function GET(
     const { id } = await params;
     const player = await prisma.player.findUnique({
       where: { id },
+      includeDeleted: true // Allow finding soft deleted players by ID
     });
 
     if (!player) {
@@ -115,7 +116,7 @@ export async function PUT(
   }
 }
 
-// DELETE player (requires authentication)
+// DELETE player (requires authentication) - Soft Delete
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -131,9 +132,10 @@ export async function DELETE(
   
   try {
     const { id } = await params;
-    await prisma.player.delete({
-      where: { id },
-    });
+    const softUtils = new SoftDeleteUtils(prisma);
+    
+    // Use soft delete instead of hard delete
+    await softUtils.softDeletePlayer(id);
 
     // Create audit log
     try {
@@ -148,13 +150,18 @@ export async function DELETE(
         targetType: 'Player',
         details: {
           playerId: id,
+          softDeleted: true,
         },
       });
     } catch (logError) {
       console.error('Failed to create audit log:', logError);
     }
 
-    return NextResponse.json({ message: "Player deleted successfully" });
+    return NextResponse.json({ 
+      success: true, 
+      message: "Player deleted successfully (soft delete)",
+      softDeleted: true 
+    });
   } catch (error: unknown) {
     console.error("Failed to delete player:", error);
     if (

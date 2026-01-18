@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { SoftDeleteUtils } from "@/lib/prisma";
 import { sanitizeInput } from "@/lib/sanitize";
 
-// GET all players
+// GET all players (excluding soft deleted)
 export async function GET() {
   try {
-    const players = await prisma.player.findMany({
+    const softUtils = new SoftDeleteUtils(prisma);
+    const players = await softUtils.getPlayers({
       orderBy: { nickname: "asc" },
     });
     return NextResponse.json(players);

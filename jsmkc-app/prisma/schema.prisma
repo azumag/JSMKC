@@ -74,6 +74,7 @@ model Player {
   name      String
   nickname  String   @unique
   country   String?
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -102,6 +103,7 @@ model Tournament {
   name      String
   date      DateTime
   status    String   @default("draft") // draft, active, completed
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -150,6 +152,7 @@ model BMQualification {
   lossRounds   Int        @default(0)
   points       Int        @default(0) // Calculated: winRounds - lossRounds
   score        Int        @default(0) // Ranking score
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
 
   @@unique([tournamentId, playerId])
 }
@@ -179,6 +182,7 @@ model BMMatch {
   player2ReportedScore1 Int? // Player 2's report: score for player 1
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -205,6 +209,7 @@ model MRQualification {
   lossRounds   Int        @default(0)
   points       Int        @default(0)
   score        Int        @default(0)
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
 
   @@unique([tournamentId, playerId])
 }
@@ -233,6 +238,7 @@ model MRMatch {
   player2ReportedScore1 Int? // Player 2's report: score for player 1
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -257,6 +263,7 @@ model GPQualification {
   losses       Int        @default(0)
   points       Int        @default(0) // Driver points total
   score        Int        @default(0)
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
 
   @@unique([tournamentId, playerId])
 }
@@ -289,6 +296,7 @@ model GPMatch {
   player2ReportedPoints2 Int? // Player 2's report: points for player 2
   player2ReportedRaces Json? // Player 2's report: races details
 
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -334,6 +342,7 @@ model TTEntry {
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds
   rank         Int?
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

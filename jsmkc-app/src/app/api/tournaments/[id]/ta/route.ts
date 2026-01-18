@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { SoftDeleteUtils } from "@/lib/prisma";
 import { z } from "zod";
 import { COURSES, CourseAbbr } from "@/lib/constants";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
@@ -740,9 +740,8 @@ export async function DELETE(
       );
     }
 
-    await prisma.tTEntry.delete({
-      where: { id: entryId },
-    });
+    const softUtils = new SoftDeleteUtils(prisma);
+    await softUtils.softDeleteTTEntry(entryId);
 
     // Recalculate ranks
     await recalculateRanks(tournamentId);
@@ -762,13 +761,18 @@ export async function DELETE(
           tournamentId,
           playerNickname: entryToDelete.player.nickname,
           deletedBy: session.user.email,
+          softDeleted: true,
         },
       });
     } catch (logError) {
       console.error("Failed to create audit log:", logError);
     }
 
-    return NextResponse.json({ message: "Entry deleted" });
+    return NextResponse.json({ 
+      success: true,
+      message: "Entry deleted successfully (soft delete)",
+      softDeleted: true 
+    });
   } catch (error) {
     console.error("Failed to delete entry:", error);
     return NextResponse.json(

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import prisma, { SoftDeleteUtils } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 
-// GET all tournaments (public access)
+// GET all tournaments (public access, excluding soft deleted)
 export async function GET() {
   try {
-    const tournaments = await prisma.tournament.findMany({
+    const softUtils = new SoftDeleteUtils(prisma);
+    const tournaments = await softUtils.getTournaments({
       orderBy: { date: "desc" },
     });
     return NextResponse.json(tournaments);
