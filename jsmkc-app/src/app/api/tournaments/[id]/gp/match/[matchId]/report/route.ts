@@ -59,7 +59,7 @@ export async function POST(
     });
 
     if (!match) {
-      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
     }
 
     if (match.completed) {
@@ -72,7 +72,7 @@ export async function POST(
     let totalPoints1 = 0;
     let totalPoints2 = 0;
 
-    const processedRaces = races.map((race: any) => {
+    const processedRaces = races.map((race: { position1: number; position2: number; course: string }) => {
       const points1 = getPointsFromPosition(race.position1);
       const points2 = getPointsFromPosition(race.position2);
       totalPoints1 += points1;
@@ -143,7 +143,7 @@ export async function POST(
         data: {
           points1: p1p1,
           points2: p1p2,
-          races: racesToUse as any,
+          races: racesToUse,
           completed: true,
         },
         include: { player1: true, player2: true },

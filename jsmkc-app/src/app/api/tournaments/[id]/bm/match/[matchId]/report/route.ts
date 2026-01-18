@@ -56,7 +56,7 @@ export async function POST(
     });
 
     if (!match) {
-      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
     }
 
     if (match.completed) {
@@ -174,7 +174,7 @@ async function recalculatePlayerStats(tournamentId: string, playerId: string) {
     },
   });
 
-  let stats = {
+  const stats = {
     mp: 0,
     wins: 0,
     ties: 0,

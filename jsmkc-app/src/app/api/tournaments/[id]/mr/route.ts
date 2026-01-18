@@ -166,7 +166,7 @@ export async function PUT(
       },
     });
 
-    let p1Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
+    const p1Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player1Matches) {
       p1Stats.mp++;
       const isPlayer1 = m.player1Id === match.player1Id;
@@ -183,7 +183,7 @@ export async function PUT(
       else p1Stats.ties++;
     }
 
-    let p2Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
+    const p2Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player2Matches) {
       p2Stats.mp++;
       const isPlayer1 = m.player1Id === match.player2Id;

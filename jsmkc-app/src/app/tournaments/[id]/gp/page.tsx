@@ -271,7 +271,6 @@ export default function GrandPrixPage({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to export";
       console.error("Failed to export:", err);
     } finally {
       setExporting(false);

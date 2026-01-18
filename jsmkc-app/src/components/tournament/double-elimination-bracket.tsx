@@ -164,7 +164,6 @@ function BracketSection({
 export function DoubleEliminationBracket({
   matches,
   bracketStructure,
-  roundNames,
   onMatchClick,
   seededPlayers,
 }: DoubleEliminationBracketProps) {

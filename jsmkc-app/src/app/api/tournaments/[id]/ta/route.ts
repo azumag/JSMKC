@@ -186,7 +186,7 @@ export async function GET(
   } catch (error) {
     console.error("Failed to fetch TA data:", error);
     return NextResponse.json(
-      { error: "Failed to fetch time attack data" },
+      { success: false, error: "Failed to fetch time attack data" },
       { status: 500 }
     );
   }
@@ -228,7 +228,7 @@ export async function POST(
       const session = await auth();
       if (!session?.user) {
         return NextResponse.json(
-          { error: "Authentication required for finals promotion" },
+          { success: false, error: "Authentication required for finals promotion" },
           { status: 401 }
         );
       }
@@ -237,10 +237,10 @@ export async function POST(
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000); // 5 requests per minute
       if (!rateLimitResult.success) {
-        return NextResponse.json(
-          { error: "Rate limit exceeded. Please try again later." },
-          { status: 429 }
-        );
+      return NextResponse.json(
+        { success: false, error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
       }
 
       const ipAddress = getClientIdentifier(request);
@@ -261,15 +261,15 @@ export async function POST(
           include: { player: true },
         });
       } else {
-        return NextResponse.json(
-          { error: "Either players array or topN is required for promotion" },
-          { status: 400 }
-        );
+      return NextResponse.json(
+        { success: false, error: "Invalid tournament ID format" },
+        { status: 400 }
+      );
       }
 
       if (qualifiers.length === 0) {
         return NextResponse.json(
-          { error: "No qualifying players found" },
+          { success: false, error: "No qualifying players found" },
           { status: 400 }
         );
       }
@@ -411,7 +411,7 @@ export async function POST(
   } catch (error) {
     console.error("Failed to add player to TA:", error);
     return NextResponse.json(
-      { error: "Failed to add player to time attack" },
+      { success: false, error: "Failed to add player to time attack" },
       { status: 500 }
     );
   }
@@ -452,15 +452,15 @@ export async function PUT(
     if (action === "eliminate") {
       const session = await auth();
       if (!session?.user) {
-        return NextResponse.json(
-          { error: "Authentication required for elimination" },
-          { status: 401 }
-        );
+      return NextResponse.json(
+        { success: false, error: "Authentication required for delete operations" },
+        { status: 401 }
+      );
       }
 
       if (eliminated === undefined) {
         return NextResponse.json(
-          { error: "eliminated boolean is required for eliminate action" },
+          { success: false, error: "Either players array or topN is required for promotion" },
           { status: 400 }
         );
       }
@@ -471,7 +471,7 @@ export async function PUT(
       });
 
       if (!entry) {
-        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
       }
 
       const updatedEntry = await prisma.tTEntry.update({
@@ -513,14 +513,14 @@ export async function PUT(
       const session = await auth();
       if (!session?.user) {
         return NextResponse.json(
-          { error: "Authentication required for lives update" },
+          { success: false, error: "Authentication required for lives update" },
           { status: 401 }
         );
       }
 
       if (livesDelta === undefined) {
         return NextResponse.json(
-          { error: "livesDelta is required for update_lives action" },
+          { success: false, error: "eliminated boolean is required for eliminate action" },
           { status: 400 }
         );
       }
@@ -531,7 +531,7 @@ export async function PUT(
       });
 
       if (!entry) {
-        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
       }
 
       const newLives = entry.lives + livesDelta;
@@ -595,7 +595,7 @@ export async function PUT(
 
     if (!entry) {
       return NextResponse.json(
-        { error: "Entry not found" },
+        { success: false, error: "Entry not found" },
         { status: 404 }
       );
     }
@@ -608,14 +608,14 @@ export async function PUT(
     } else if (course && time !== undefined) {
       if (!COURSES.includes(course as CourseAbbr)) {
         return NextResponse.json(
-          { error: "Invalid course abbreviation" },
+          { success: false, error: "Invalid course abbreviation" },
           { status: 400 }
         );
       }
       updatedTimes = { ...currentTimes, [course]: time };
     } else {
       return NextResponse.json(
-        { error: "Either (course and time) or times object is required" },
+        { success: false, error: "Either (course and time) or times object is required" },
         { status: 400 }
       );
     }
@@ -623,7 +623,7 @@ export async function PUT(
     for (const [c, t] of Object.entries(updatedTimes)) {
       if (t && t !== "" && timeToMs(t) === null) {
         return NextResponse.json(
-          { error: `Invalid time format for ${c}: ${t}` },
+          { success: false, error: `Invalid time format for ${c}: ${t}` },
           { status: 400 }
         );
       }
@@ -664,7 +664,7 @@ export async function PUT(
   } catch (error) {
     console.error("Failed to update times:", error);
     return NextResponse.json(
-      { error: "Failed to update times" },
+      { success: false, error: "Failed to update times" },
       { status: 500 }
     );
   }
@@ -681,10 +681,10 @@ export async function DELETE(
     // Get session for authentication (DELETE requires auth)
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Authentication required for delete operations" },
-        { status: 401 }
-      );
+        return NextResponse.json(
+          { success: false, error: "livesDelta is required for update_lives action" },
+          { status: 400 }
+        );
     }
 
     // Rate limiting
@@ -712,7 +712,7 @@ export async function DELETE(
 
     if (!entryId) {
       return NextResponse.json(
-        { error: "entryId is required" },
+        { success: false, error: "entryId is required" },
         { status: 400 }
       );
     }
@@ -721,7 +721,7 @@ export async function DELETE(
     const entryIdResult = uuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
       return NextResponse.json(
-        { error: "Invalid entry ID format" },
+        { success: false, error: "Invalid entry ID format" },
         { status: 400 }
       );
     }
@@ -734,7 +734,7 @@ export async function DELETE(
 
     if (!entryToDelete) {
       return NextResponse.json(
-        { error: "Entry not found" },
+        { success: false, error: "Entry not found" },
         { status: 404 }
       );
     }
@@ -771,7 +771,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Failed to delete entry:", error);
     return NextResponse.json(
-      { error: "Failed to delete entry" },
+      { success: false, error: "Failed to delete entry" },
       { status: 500 }
     );
   }

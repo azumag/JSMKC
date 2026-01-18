@@ -18,14 +18,14 @@ export async function GET(
     });
 
     if (!match) {
-      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
     }
 
     return NextResponse.json(match);
   } catch (error) {
     console.error("Failed to fetch match:", error);
     return NextResponse.json(
-      { error: "Failed to fetch match" },
+      { success: false, error: "Failed to fetch match" },
       { status: 500 }
     );
   }

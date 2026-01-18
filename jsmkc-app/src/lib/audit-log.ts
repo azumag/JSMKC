@@ -7,7 +7,7 @@ export interface AuditLogParams {
   action: string;
   targetId?: string;
   targetType?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export async function createAuditLog(params: AuditLogParams) {
@@ -20,7 +20,7 @@ export async function createAuditLog(params: AuditLogParams) {
         action: params.action,
         targetId: params.targetId,
         targetType: params.targetType,
-        details: params.details as any,
+        details: params.details,
       },
     });
   } catch (error) {

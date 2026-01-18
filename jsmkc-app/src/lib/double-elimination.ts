@@ -163,8 +163,6 @@ export function getNextMatchInfo(
       position: match.position || 1,
     };
   } else if (!isWinner && match.loserGoesTo) {
-    // Losers always go to position based on the round structure
-    const loserMatch = matches.find((m) => m.matchNumber === match.loserGoesTo);
     // Determine position for loser
     if (match.round === "winners_qf") {
       // QF losers go to L_R1 as player 1 or 2 based on their original position

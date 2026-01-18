@@ -9,10 +9,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
     }),
   ],
+  session: {
+    strategy: 'jwt',
+    maxAge: 24 * 60 * 60, // 24 hours in seconds
+  },
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'github') {
         try {
+          if (!account.access_token) {
+            console.error('No access token provided by GitHub');
+            return false;
+          }
+
           // GitHub APIを使ってOrganizationメンバーかどうかを確認
           const response = await fetch('https://api.github.com/user/orgs', {
             headers: {
@@ -20,15 +29,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               Accept: 'application/vnd.github.v3+json',
             },
           });
-          
+
           if (!response.ok) {
-            console.error('Failed to fetch GitHub orgs:', response.status);
+            console.error('Failed to fetch GitHub orgs:', response.status, response.statusText);
             return false;
           }
-          
+
           const orgs = await response.json();
           const isMember = orgs.some((org: { login: string }) => org.login === 'jsmkc-org');
-          
+
           if (!isMember) {
             console.warn(`User ${user.email} is not a member of jsmkc-org`);
             return false;
@@ -48,7 +57,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               },
             });
           }
-          
+
           return true;
         } catch (error) {
           console.error('Error during GitHub organization verification:', error);

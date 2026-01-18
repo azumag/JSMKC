@@ -15,7 +15,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Tournament not found" }, { status: 404 });
     }
 
     const qualifications = await prisma.mRQualification.findMany({
@@ -234,7 +234,7 @@ export async function GET(
   } catch (error) {
     console.error("Failed to export match race:", error);
     return NextResponse.json(
-      { error: "Failed to export match race data" },
+      { success: false, error: "Failed to export match race data" },
       { status: 500 }
     );
   }

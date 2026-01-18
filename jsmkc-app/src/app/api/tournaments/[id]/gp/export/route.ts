@@ -15,7 +15,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Tournament not found" }, { status: 404 });
     }
 
     const qualifications = await prisma.gPQualification.findMany({
@@ -266,7 +266,7 @@ export async function GET(
   } catch (error) {
     console.error("Failed to export grand prix:", error);
     return NextResponse.json(
-      { error: "Failed to export grand prix data" },
+      { success: false, error: "Failed to export grand prix data" },
       { status: 500 }
     );
   }

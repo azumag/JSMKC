@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { getServerSideIdentifier } from "@/lib/rate-limit";
 
-// GET all tournaments
+// GET all tournaments (public access)
 export async function GET() {
   try {
     const tournaments = await prisma.tournament.findMany({
@@ -17,8 +20,17 @@ export async function GET() {
   }
 }
 
-// POST create new tournament
+// POST create new tournament (requires authentication)
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  
+  if (!session?.user) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+  
   try {
     const body = await request.json();
     const { name, date } = body;
@@ -37,6 +49,26 @@ export async function POST(request: NextRequest) {
         status: "draft",
       },
     });
+
+    // Create audit log
+    try {
+      const ip = await getServerSideIdentifier();
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      await createAuditLog({
+        userId: session.user.id,
+        ipAddress: ip,
+        userAgent,
+        action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
+        targetId: tournament.id,
+        targetType: 'Tournament',
+        details: {
+          name,
+          date,
+        },
+      });
+    } catch (logError) {
+      console.error('Failed to create audit log:', logError);
+    }
 
     return NextResponse.json(tournament, { status: 201 });
   } catch (error) {

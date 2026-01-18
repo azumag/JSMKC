@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { getServerSideIdentifier } from "@/lib/rate-limit";
 
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
@@ -47,11 +50,20 @@ export async function GET(
   }
 }
 
-// POST setup battle mode qualification (assign players to groups)
+// POST setup battle mode qualification (assign players to groups) - requires authentication
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  
+  if (!session?.user) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+  
   try {
     const { id: tournamentId } = await params;
     const body = await request.json();
@@ -112,6 +124,26 @@ export async function POST(
           matchNumber++;
         }
       }
+    }
+
+    // Create audit log
+    try {
+      const ip = await getServerSideIdentifier();
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      await createAuditLog({
+        userId: session.user.id,
+        ipAddress: ip,
+        userAgent,
+        action: AUDIT_ACTIONS.CREATE_BM_MATCH,
+        targetId: tournamentId,
+        targetType: 'Tournament',
+        details: {
+          mode: 'qualification',
+          playerCount: players.length,
+        },
+      });
+    } catch (logError) {
+      console.error('Failed to create audit log:', logError);
     }
 
     return NextResponse.json(
@@ -179,7 +211,7 @@ export async function PUT(
     });
 
     // Calculate stats for player 1
-    let p1Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
+    const p1Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player1Matches) {
       p1Stats.mp++;
       const isPlayer1 = m.player1Id === match.player1Id;
@@ -187,7 +219,7 @@ export async function PUT(
       const oppScore = isPlayer1 ? m.score2 : m.score1;
       p1Stats.winRounds += myScore;
       p1Stats.lossRounds += oppScore;
-      const { result1: r1, result2: r2 } = calculateMatchResult(
+      const { result1: r1 } = calculateMatchResult(
         isPlayer1 ? m.score1 : m.score2,
         isPlayer1 ? m.score2 : m.score1
       );
@@ -197,7 +229,7 @@ export async function PUT(
     }
 
     // Calculate stats for player 2
-    let p2Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
+    const p2Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player2Matches) {
       p2Stats.mp++;
       const isPlayer1 = m.player1Id === match.player2Id;
