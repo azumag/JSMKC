@@ -15,7 +15,7 @@ const prismaClient =
   });
 
 // Apply soft delete middleware if $use method is available
-if (typeof prismaClient.$use === 'function') {
+if ('$use' in prismaClient && typeof prismaClient.$use === 'function') {
   prismaClient.$use(createSoftDeleteMiddleware());
   console.log('✅ Soft delete middleware applied');
 } else {

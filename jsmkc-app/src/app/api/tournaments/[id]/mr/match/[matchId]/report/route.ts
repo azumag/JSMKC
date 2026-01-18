@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { createAuditLog } from "@/lib/audit-log";
 import { sanitizeInput } from "@/lib/sanitize";
+import { validateTournamentToken } from "@/lib/token-validation";
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,15 @@ export async function POST(
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
+      );
+    }
+
+    // Validate tournament token for security
+    const tokenValidation = await validateTournamentToken(request, tournamentId);
+    if (!tokenValidation.tournament) {
+      return NextResponse.json(
+        { success: false, error: tokenValidation.error || 'Invalid or expired tournament token' },
+        { status: 401 }
       );
     }
 

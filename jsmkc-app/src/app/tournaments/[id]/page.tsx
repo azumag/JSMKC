@@ -12,12 +12,15 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
 
 interface Tournament {
   id: string;
   name: string;
   date: string;
   status: string;
+  token?: string | null;
+  tokenExpiresAt?: string | null;
 }
 
 export default function TournamentDetailPage({
@@ -111,6 +114,13 @@ export default function TournamentDetailPage({
           </Button>
         </div>
       </div>
+
+      {/* Token Management Section */}
+      <TournamentTokenManager
+        tournamentId={id}
+        initialToken={tournament.token}
+        initialTokenExpiresAt={tournament.tokenExpiresAt}
+      />
 
       <Tabs defaultValue="bm" className="space-y-4">
         <TabsList>

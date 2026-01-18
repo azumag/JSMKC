@@ -99,13 +99,15 @@ model Player {
 
 // Tournament model
 model Tournament {
-  id        String   @id @default(cuid())
-  name      String
-  date      DateTime
-  status    String   @default("draft") // draft, active, completed
-  deletedAt DateTime? // ソフトデリート用タイムスタンプ
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  date          DateTime
+  status        String   @default("draft") // draft, active, completed
+  token         String?  @db.Text // 32-character hex string for participant score entry
+  tokenExpiresAt DateTime? // Token expiry time
+  deletedAt     DateTime? // ソフトデリート用タイムスタンプ
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Related data
   bmMatches        BMMatch[]

@@ -12,9 +12,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tournament = await prisma.tournament.findUnique({
-      where: { id },
-      include: {
+    const softUtils = new SoftDeleteUtils(prisma);
+    const tournament = await softUtils.findTournamentWithDeleted(id, {
+      select: {
+        id: true,
+        name: true,
+        date: true,
+        status: true,
+        token: true,
+        tokenExpiresAt: true,
+        deletedAt: true,
+        createdAt: true,
+        updatedAt: true,
         bmQualifications: {
           include: { player: true },
           orderBy: [{ group: "asc" }, { score: "desc" }],
@@ -27,7 +36,6 @@ export async function GET(
           orderBy: { matchNumber: "asc" },
         },
       },
-      includeDeleted: true // Allow finding soft deleted tournaments by ID
     });
 
     if (!tournament) {

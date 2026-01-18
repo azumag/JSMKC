@@ -159,4 +159,18 @@ export class SoftDeleteUtils {
   async getTournamentsWithDeleted(options: any = {}) {
     return this.prisma.tournament.findMany(options);
   }
+
+  // Find single records with deleted included
+  async findPlayerWithDeleted(id: string) {
+    return this.prisma.player.findUnique({
+      where: { id }
+    });
+  }
+
+  async findTournamentWithDeleted(id: string, options: any = {}) {
+    return this.prisma.tournament.findUnique({
+      where: { id },
+      ...options
+    });
+  }
 }

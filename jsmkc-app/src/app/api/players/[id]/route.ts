@@ -12,10 +12,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const player = await prisma.player.findUnique({
-      where: { id },
-      includeDeleted: true // Allow finding soft deleted players by ID
-    });
+    const softUtils = new SoftDeleteUtils(prisma);
+    const player = await softUtils.findPlayerWithDeleted(id);
 
     if (!player) {
       return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
