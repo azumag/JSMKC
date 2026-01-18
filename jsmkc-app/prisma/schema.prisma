@@ -157,6 +157,7 @@ model BMQualification {
   points       Int        @default(0) // Calculated: winRounds - lossRounds
   score        Int        @default(0) // Ranking score
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -215,6 +216,7 @@ model MRQualification {
   points       Int        @default(0)
   score        Int        @default(0)
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -270,6 +272,7 @@ model GPQualification {
   points       Int        @default(0) // Driver points total
   score        Int        @default(0)
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }

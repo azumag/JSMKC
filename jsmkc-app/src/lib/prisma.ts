@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { getSoftDeleteManager } from "./prisma-middleware";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -14,6 +15,9 @@ const prismaClient =
   });
 
 export const prisma = prismaClient;
+
+// ソフトデリートマネージャーの初期化
+export const softDelete = getSoftDeleteManager(prismaClient);
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 

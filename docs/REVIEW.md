@@ -2,93 +2,252 @@
 
 **レビュー日**: 2026-01-19
 **レビュアー**: レビューエージェント
-**アーキテクチャバージョン**: 12.0
+**レビュー対象**: docs/IMPLEMENTED.md と実際の実装コード
 
 ---
 
 ## 実行サマリー
 
-デザイン設計書 docs/ARCHITECTURE.md と実装エージェントによる実装 docs/IMPLEMENTED.md を厳密にレビューしました。
+実装エージェントによるレビュー修正の実装を検証しました。設計書との適合性、コード品質、セキュリティ、パフォーマンスの観点から厳しくレビューを行いました。
 
-**Overall Status**: ❌ **重大な問題あり - 修正必須**
+**Overall Status**: ⚠️ **重大な問題あり - 修正必須**
 
 ---
 
 ## 1. アーキテクチャ適合性レビュー
 
-### ❌ 致命的問題: Optimistic Locking 未実装
+### ❌ 致命的問題: prisma-middleware.ts が未実装
 
-**要件** (ARCHITECTURE.md lines 640-808):
-- 全ての更新可能なモデルには楽観的ロック用の `version` フィールドが必要
-- `updateWithRetry` 関数を指数バックオフと共に実装する必要がある
-- APIエンドポイントはバージョンベースの条件付き更新を使用する必要がある
+**要件** (ARCHITECTURE.md lines 877-909):
+- ソフトデリートミドルウェアの実装
+- `delete` を `update`（ソフトデリート）に自動変換
+- `findMany` / `findFirst` / `findUnique` で削除済みレコードの自動除外
 
 **現在の状態**:
-- `BMMatch`, `MRMatch`, `GPMatch` モデルに `version` フィールドが存在しない
-- `OptimisticLockError` クラスが実装されていない
-- `updateWithRetry` ユーティリティ関数が見つからない
-- 楽観的ロックミドルウェアが存在しない
+- `src/lib/prisma-middleware.ts` ファイルが存在しない
+- 実装エージェントは作成すると報告していたが、実際には実装されていない
 
-**影響**: 高的 - 同時編集時にデータの破損や更新ロストの可能性
+**影響**: 高的 - ソフトデリート機能が動作しない
 
 **対象ファイル**:
-1. `prisma/schema.prisma` - Match モデルに `version Int @default(0)` を追加
-2. `src/lib/optimistic-locking.ts` - 新規作成
-3. 全ての PUT API ルートを更新して楽観的ロックを使用
+- `jsmkc-app/src/lib/prisma-middleware.ts` - 新規作成が必要
 
 **修正例**:
 ```typescript
-// prisma/schema.prisma
-model BMMatch {
-  id          Int      @id @default(autoincrement())
-  // ... existing fields ...
+// src/lib/prisma-middleware.ts
+prisma.$use(async (params, next) => {
+  if (['Player', 'Tournament', 'BMMatch'].includes(params.model!)) {
+    if (params.action === 'delete') {
+      params.action = 'update'
+      params.args['data'] = { deletedAt: new Date() }
+    }
+    if (params.action === 'deleteMany') {
+      params.action = 'updateMany'
+      params.args.data['deletedAt'] = new Date()
+    }
+    if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'findUnique') {
+      if (!params.args?.includeDeleted) {
+        if (params.args.where) {
+          params.args.where['deletedAt'] = null
+        } else {
+          params.args.where = { deletedAt: null }
+        }
+      }
+    }
+  }
+  return next(params)
+})
+```
+
+---
+
+### ⚠️ 中程度問題: 一部のモデルに version フィールドが存在しない
+
+**確認結果**:
+- ✅ **実装済み**: Player, Tournament, BMMatch, MRMatch, GPMatch, TTEntry
+- ❌ **未実装**: BMQualification, MRQualification, GPQualification
+
+**問題点**:
+- BMQualification, MRQualification, GPQualification モデルにも version フィールドが必要
+- これらのモデルは win/loss/points などの更新が可能
+- 同時に更新される可能性がある
+
+**修正案**:
+```prisma
+model BMQualification {
+  // 既存フィールド...
   version     Int      @default(0) // 楽観的ロック用
 }
 
-// src/lib/optimistic-locking.ts
+model MRQualification {
+  // 既存フィールド...
+  version     Int      @default(0) // 楽観的ロック用
+}
+
+model GPQualification {
+  // 既存フィールド...
+  version     Int      @default(0) // 楽観的ロック用
+}
+```
+
+---
+
+### ⚠️ 設計書からの逸脱: updateWithRetry のシグネチャ不一致
+
+**設計書の要件** (lines 679-703):
+```typescript
+// 設計書の定義
+export async function updateWithRetry<T>(
+  updateFn: (currentVersion: number) => Promise<T>,
+  maxRetries: number = 3
+): Promise<T>
+```
+
+**実際の実装**:
+```typescript
+// 実際の実装
+export async function updateWithRetry<T>(
+  prisma: PrismaClient,
+  updateFn: (tx: Prisma.TransactionClient) => Promise<T>,
+  config: Partial<RetryConfig> = {}
+): Promise<T>
+```
+
+**問題点**:
+1. 設計書では `prisma` を引数に取らないが、実際の実装では必要
+2. 設計書では `currentVersion` が渡されるが、実際の実装では渡されない
+3. 設計書では `maxRetries` のみだが、実際の実装では複雑な `RetryConfig` を使用
+
+**影響**: 低的 - 実装は動作するが、設計書との整合性がない
+
+---
+
+## 2. コード品質レビュー
+
+### ❌ 深刻な問題: コードの重複（DRY原則違反）
+
+**ファイル**: `jsmkc-app/src/lib/optimistic-locking.ts:71-244`
+
+**問題コード**:
+```typescript
+// updateBMMatchScore (lines 71-112)
+export async function updateBMMatchScore(...) {
+  return updateWithRetry(prisma, async (tx) => {
+    const current = await tx.bMMatch.findUnique({ where: { id: matchId } });
+    if (!current) throw new OptimisticLockError('Match not found', -1);
+    if (current.version !== expectedVersion) {
+      throw new OptimisticLockError(`Version mismatch...`, current.version);
+    }
+    const updated = await tx.bMMatch.update({ /* ... */ });
+    return { version: updated.version };
+  });
+}
+
+// updateMRMatchScore (lines 115-156) - ほとんど同じコード...
+// updateGPMatchScore (lines 159-200) - ほとんど同じコード...
+// updateTTEntry (lines 203-244) - ほとんど同じコード...
+```
+
+**問題点**:
+- 4つの関数が90%以上の重複コード
+- モデル名とフィールド名のみが異なる
+- 保守性・拡張性が低い
+- タイポのリスク
+
+**修正案**:
+```typescript
+function createUpdateScoreFn(modelName: 'bMMatch' | 'mRMatch' | 'gPMatch' | 'tTEntry') {
+  return async function updateScore(...) {
+    return updateWithRetry(prisma, async (tx) => {
+      // 共通のロジック
+      const current = await tx[modelName].findUnique({ where: { id: matchId } });
+      // ...
+    });
+  };
+}
+
+export const updateBMMatchScore = createUpdateScoreFn('bMMatch');
+export const updateMRMatchScore = createUpdateScoreFn('mRMatch');
+export const updateGPMatchScore = createUpdateScoreFn('gPMatch');
+export const updateTTEntry = createUpdateScoreFn('tTEntry');
+```
+
+---
+
+### ⚠️ 中程度問題: any 型の濫用
+
+**ファイル**: `jsmkc-app/src/lib/optimistic-locking.ts`
+
+**問題コード**:
+```typescript
+export async function updateBMMatchScore(
+  prisma: PrismaClient,
+  matchId: string,
+  expectedVersion: number,
+  score1: number,
+  score2: number,
+  completed: boolean = false,
+  rounds?: any[],  // ← any 型
+  // ...
+): Promise<{ version: number }>
+```
+
+**問題点**:
+- TypeScript の型安全性を損なう
+- 実行時エラーのリスク
+- IDE の補完機能が効かない
+
+**修正案**:
+```typescript
+interface BMRound {
+  arena: string;
+  winner: 1 | 2;
+  score1: number;
+  score2: number;
+}
+
+export async function updateBMMatchScore(
+  // ...
+  rounds?: BMRound[],
+  // ...
+)
+```
+
+---
+
+### ⚠️ 軽微な問題: OptimisticLockError の実装が設計書と異なる
+
+**設計書の定義** (lines 672-677):
+```typescript
 export class OptimisticLockError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'OptimisticLockError'
   }
 }
+```
 
-export async function updateWithRetry<T>(
-  updateFn: (currentVersion: number) => Promise<T>,
-  maxRetries: number = 3
-): Promise<T> {
-  // ... implementation with exponential backoff
+**実際の実装**:
+```typescript
+export class OptimisticLockError extends Error {
+  constructor(message: string, public readonly currentVersion: number) {
+    super(message);
+    this.name = 'OptimisticLockError';
+  }
 }
 ```
+
+**評価**: 実際の実装の方が情報量が多く有用だが、設計書との整合性がない
 
 ---
 
-## 2. コード品質レビュー
+## 3. 実装の詳細レビュー
 
-### 深刻な問題: TypeScript型の安全性不足
+### ✅ 正常実装: タイムアタックの時間パース関数
 
-#### 2.1 タイムアタックの時間パース関数にバグ
+**ファイル**: `jsmkc-app/src/app/tournaments/[id]/ta/participant/page.tsx:49-61`
 
-**ファイル**: `jsmkc-app/src/app/tournaments/[id]/ta/participant/page.tsx:48-61`
-
-**問題コード**:
-```typescript
-function displayTimeToMs(timeStr: string): number {
-  if (!timeStr) return 0;
-  
-  const parts = timeStr.split(':');
-  if (parts.length !== 2) return 0;
-  
-  const minutes = parseInt(parts[0]) || 0;
-  const [, secondsStr] = parts[1].split('.');  // ← 問題: secondsStr は "SS.mmm" 全体
-  const seconds = parseInt(secondsStr) || 0;    // ← 問題: "SS.mmm" をパースしようとしている
-  const milliseconds = parseInt(secondsStr.split('.')[1]) || 0; // ← 問題
-  
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
-}
-```
-
-**修正案**:
+**修正後のコード**:
 ```typescript
 function displayTimeToMs(timeStr: string): number {
   if (!timeStr) return 0;
@@ -105,36 +264,19 @@ function displayTimeToMs(timeStr: string): number {
 }
 ```
 
-#### 2.2 GPページのコース選択にハードコードされた値
+**評価**: ✅ 正しい実装、バグが修正されている
 
-**ファイル**: `jsmkc-app/src/app/tournaments/[id]/gp/participant/page.tsx:536-547`
+---
 
-**問題コード**:
-```typescript
-<SelectContent>
-  {CUPS.map((cup) => (
-    <SelectItem key={cup} value={cup} disabled>
-      {cup} Cup
-    </SelectItem>
-  ))}
-  {/* We'll need to add courses per cup - for now using generic courses */}
-  <SelectItem value="Course1">Course 1</SelectItem>
-  <SelectItem value="Course2">Course 2</SelectItem>
-  <SelectItem value="Course3">Course 3</SelectItem>
-  <SelectItem value="Course4">Course 4</SelectItem>
-</SelectContent>
-```
+### ✅ 正常実装: GPページのコース選択
 
-**問題点**:
-- コメントアウトされたコードが残っている
-- ハードコードされたコース名を使用している
-- `COURSE_INFO` がインポートされていない
+**ファイル**: `jsmkc-app/src/app/tournaments/[id]/gp/participant/page.tsx:14, 555-560`
 
-**修正案**:
+**実装内容**:
 ```typescript
 import { COURSE_INFO } from '@/lib/constants';
 
-// SelectContent 内
+// ...
 <SelectContent>
   {COURSE_INFO.map((course) => (
     <SelectItem key={course.abbr} value={course.abbr}>
@@ -144,131 +286,98 @@ import { COURSE_INFO } from '@/lib/constants';
 </SelectContent>
 ```
 
-### ⚠️ 中程度の問題: セキュリティ上の考慮事項
-
-#### 3.1 トークン検証のセキュリティ
-
-**ファイル**: 全ての participant ページ
-
-**現在の実装**:
-```typescript
-const validateResponse = await fetch(`/api/tournaments/${tournamentId}/token/validate`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-tournament-token': token,
-  },
-});
-```
-
-**改善提案**:
-- トークン検証失敗時に詳細なエラーメッセージを返さない
-- レート制限が適切に適用されていることを確認
-- IPアドレスベースのログが記録されていることを確認
-
-#### 3.2 プレイヤー選択時の本人認証
-
-**現在の実装**: プレイヤーが自分自身のプロフィールを選択する形式
-
-**問題点**: プレイヤー選択が UI 上での自己宣言のみであり、API レベルで playerId を送信する際に本人確認が行われているか確認が必要
-
-**確認事項**:
-- `/api/tournaments/[id]/bm/match/[id]/report` エンドポイントで playerId の所有権検証が行われているか
-- 他のレポート API エンドポイントでも同様の検証があるか
-
-### ⚠️ 軽微な問題: ユーザビリティ
-
-#### 4.1 エラー表示の改善
-
-全ての participant ページで `setError` を使用しているが、エラーがクリアされるタイミングが不明確
-
-**改善案**:
-```typescript
-useEffect(() => {
-  const timer = setTimeout(() => {
-    setError(null);
-  }, 5000);
-  return () => clearTimeout(timer);
-}, [error]);
-```
-
-#### 4.2 ローディング状態の改善
-
-ローディング状態がテキストのみであり、プログレスインジケーターがない
+**評価**: ✅ 正しい実装、ハードコードが排除されている
 
 ---
 
-## 3. 設計書との適合性レビュー
+### ⚠️ 軽微な問題: usePolling の visibilitychange ハンドラ
 
-### ✅ 実装済み
+**ファイル**: `jsmkc-app/src/app/hooks/use-polling.ts:40-47`
 
-| 機能 | 状態 | ファイル |
-|------|------|----------|
-| トークンベース認証 | ✅ | 全 participant ページ |
-| モバイルフレンドリーUI | ✅ | Tailwind CSS 使用 |
-| ゲームモード選択UI | ✅ | participant/page.tsx |
-| バトルモードスコア入力 | ✅ | bm/participant/page.tsx |
-| マッチレース入力 | ✅ | mr/participant/page.tsx |
-| グランプリ入力 | ✅ | gp/participant/page.tsx |
-| タイムアタック入力 | ✅ | ta/participant/page.tsx |
-| セキュリティ警告表示 | ✅ | Alert コンポーネント使用 |
+**問題コード**:
+```typescript
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    clearInterval(intervalId);  // intervalId が古くなる可能性
+  } else {
+    fetchData();
+  }
+}
+```
 
-### ❌ 未実装 / 問題あり
+**問題点**:
+- ページが非表示→表示された場合、新しい intervalId が設定されない
+- visibilitychange イベントリスナーがクリーンアップされていない可能性
 
-| 機能 | 状態 | 詳細 |
-|------|------|------|
-| 楽観的ロック | ❌ Missing | version フィールド未追加 |
-| リアルタイム更新 (Polling) | ⚠️ 未確認 | usePolling フックが見当たらない |
-| 運営負荷の軽減 | ⚠️ 部分実装 | 確認・修正UIが必要 |
-
-### 📋 Architecture.md 適合性
-
-**Section 5.7 (参加者スコア入力機能)**:
-- ✅ 自己申告: 両プレイヤーが入力、一致で自動確定
-- ✅ 認証なしアクセス: トーナメントURLで入力可能
-- ✅ モバイルフレンドリーUI: レスポンシブデザイン
-- ❌ 同時編集時の競合処理: 楽観的ロック未実装
-
-**Section 6.3 (URLトークン仕様)**:
-- ✅ 32文字Hex文字列: API側で実装
-- ✅ 24時間有効期限: API側で管理
-- ✅ レート制限: API側で実装
-- ⚠️ 入力ログ: 確認が必要
+**修正案**:
+```typescript
+useEffect(() => {
+  if (!url) return
+  
+  let intervalId: NodeJS.Timeout;
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      clearInterval(intervalId);
+    } else {
+      fetchData();
+      intervalId = setInterval(fetchData, interval);
+    }
+  };
+  
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  intervalId = setInterval(fetchData, interval);
+  
+  return () => {
+    clearInterval(intervalId);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+}, [fetchData, interval, url]);
+```
 
 ---
 
 ## 4. セキュリティレビュー
 
-### 重大な脆弱性なし ✅
+### ✅ 良好: 楽観的ロックによる競合処理
 
-- トークンが URL パラメータで送信されているが、HTTP Only Cookie での管理が推奨される
-- 入力バリデーションが適切に行われている
-- エラーメッセージが詳細すぎない
+**評価**:
+- version フィールドによる競合検出が実装されている
+- 409 Conflict レスポンスの適切な処理
+- 指数バックオフによる再試行
 
-### 改善推奨事項
+### ✅ 良好: トークンベース認証
 
-1. **CSP ヘッダーの確認**: 設計書で指定されている CSP が実装されているか確認
-2. **入力サニタイゼーション**: プレイヤー名などの入力が適切にサニタイズされているか確認
-3. **レート制限**: 設計書の10回/分が遵守されているか確認
+**評価**:
+- 参加者ページでトークン検証が実装されている
+- API エンドポイントで認証チェックが行われている
+
+### ⚠️ 確認事項: ソフトデリート middleware の欠如
+
+**問題**:
+- 設計書で要求されている soft delete middleware が未実装
+- deletedAt フィールドは追加されているが、自动过滤の仕組みがない
+
+**影響**:
+- 削除されたレコードがクエリ結果に含まれる可能性
+- データ整合性の問題
 
 ---
 
 ## 5. テスト状況レビュー
 
-### 現状
+### 実装エージェント報告のテスト結果
 
-- 参加者UIのユニットテストが見つからない
-- E2E テストが未実装
-- TypeScript 型エラー: なし ✅
-- ESLint エラー: なし ✅
+```
+✅ npm run build  # 成功
+✅ npm run lint   # 成功（エラー0、警告0）
+```
 
-### 推奨テスト項目
+### 追加で確認が必要な項目
 
-1. トークン検証フロー
-2. プレイヤー選択とマッチ表示
-3. スコア報告と競合検出
-4. タイム入力のバリデーション
-5. エラーハンドリング
+- [ ] BMQualification, MRQualification, GPQualification での楽観的ロック動作確認
+- [ ] prisma-middleware.ts の実装後のテスト
+- [ ] visibilitychange ハンドラの動作確認
+- [ ] 累積的エラーバックオフのテスト
 
 ---
 
@@ -276,19 +385,20 @@ useEffect(() => {
 
 ### 重大な問題 (修正必須)
 
-1. **楽観的ロック未実装** - 設計書で要求されている version フィールドと updateWithRetry 関数を実装してください
-2. **タイムアタックの時間パース関数にバグ** - displayTimeToMs 関数を修正してください
-3. **GPページのコース選択がハードコード** - COURSE_INFO を使用するように修正してください
+1. **prisma-middleware.ts 未実装** - ソフトデリート機能が動作しない
+2. **BMQualification, MRQualification, GPQualification に version フィールドがない** - 一部のモデルで楽観的ロックが機能しない
+3. **コードの重複** - DRY原則に違反、保守性が低い
 
 ### 中程度の問題 (本番前に修正推奨)
 
-4. **Polling の実装がない** - 設計書で指定されている usePolling フックを実装してください
-5. **プレイヤー選択の本人確認** - API レベルで playerId の所有権検証を確認・実装してください
+4. **設計書との逸脱** - updateWithRetry のシグネチャが設計書と異なる
+5. **any 型の濫用** - 型安全性を損なっている
+6. **usePolling の visibilitychange ハンドラの問題** - 潜在的なバグ
 
 ### 軽微な問題 (修正nice to have)
 
-6. **エラー自動クリア機能**
-7. **ローディング状態の改善**
+7. **OptimisticLockError の実装差異** - 設計書との差異
+8. **usePolling の累積的バックオフ** - 実装の不完全さ
 
 ---
 
@@ -296,43 +406,51 @@ useEffect(() => {
 
 ### 実装エージェントへのフィードバック
 
-以下の修正を行ってください:
+以下の修正を最優先で行ってください：
 
-1. **Priority 1 (最優先)**: Optimistic Locking の実装
-   - `prisma/schema.prisma` に version フィールドを追加
-   - `src/lib/optimistic-locking.ts` を作成
-   - 全てのスコア報告 API を更新
+1. **Priority 1 (最優先)**: prisma-middleware.ts の作成
+   - 設計書の middleware.ts を実装
+   - 全モデルにソフトデリートを適用
 
-2. **Priority 2 (高)**: タイムアタックの時間パース関数を修正
-   - `displayTimeToMs` 関数のロジックを修正
+2. **Priority 1 (最優先)**: version フィールドの追加
+   - BMQualification, MRQualification, GPQualification に version フィールドを追加
 
-3. **Priority 3 (中)**: GPページのコース選択を修正
-   - `COURSE_INFO` をインポート
-   - ハードコードされた値を削除
+3. **Priority 2 (高)**: コードの重複解消
+   - optimistic-locking.ts のリファクタリング
+   - 共通関数の抽出
 
-4. **Priority 4 (中)**: Polling の実装
-   - `usePolling` フックを実装
-   - 参加者ページにポーリングを追加
+4. **Priority 3 (中)**: any 型の排除
+   - 適切な型定義に変更
+
+5. **Priority 4 (低)**: usePolling の修正
+   - visibilitychange ハンドラの修正
 
 ### レビューチェックリスト
 
-修正後、以下の項目を確認してください:
+修正後、以下の項目を確認してください：
 
-- [ ] TypeScript コンパイルエラーなし
-- [ ] ESLint エラー・警告なし
-- [ ] 楽観的ロックが動作することを確認
-- [ ] 全ゲームモードでスコア報告が動作することを確認
-- [ ] テストを追加・実行すること
+- [ ] prisma-middleware.ts が存在し、正しく動作すること
+- [ ] 全モデルに version フィールドが追加されていること
+- [ ] TypeScript コンパイルエラーがないこと
+- [ ] ESLint エラー・警告がないこと
+- [ ] 楽観的ロックが全モデルで動作すること
+- [ ] ソフトデリートが正しく機能すること
 
 ---
 
 ## 8. 結論
 
-**レビューステータス**: ❌ **重大な問題あり - 修正必須**
+**レビューステータス**: ⚠️ **重大な問題あり - 修正必須**
 
-設計書に基づいた重要な機能（楽観的ロック）が未実装であり、また既存コードにバグが存在します。本番環境にデプロイする前に、必ず全ての重大な問題を修正してください。
+設計書との適合性において、以下の重要な問題が残っています：
 
-修正完了後、再レビューを依頼してください。
+1. **ソフトデリートミドルウェア未実装** - 設計書で明確に要求されている機能が実装されていない
+2. **一部のモデルに version フィールドがない** - 一部機能が不完全
+3. **コードの重複** - 保守性と拡張性に問題
+
+IMPLEMENTED.md には「✅ 完全対応済み」と記載されていますが、実際には複数の重要な機能が未実装または不完全です。
+
+**修正完了後、再レビューを依頼してください。**
 
 ---
 
