@@ -123,11 +123,15 @@ export default function TournamentDetailPage({
         <TabsContent value="tt">
           <Card>
             <CardHeader>
-              <CardTitle>Time Trial</CardTitle>
-              <CardDescription>Individual time-based competition</CardDescription>
+              <CardTitle>Time Attack</CardTitle>
+              <CardDescription>Individual time-based competition - 20 courses total time</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Coming soon...</p>
+              <Button asChild>
+                <Link href={`/tournaments/${id}/ta`}>
+                  Manage Time Attack
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -152,10 +156,14 @@ export default function TournamentDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>Match Race</CardTitle>
-              <CardDescription>1v1 race competition</CardDescription>
+              <CardDescription>1v1 5-race competition</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Coming soon...</p>
+              <Button asChild>
+                <Link href={`/tournaments/${id}/mr`}>
+                  Manage Match Race
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

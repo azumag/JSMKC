@@ -57,42 +57,42 @@ export function getClientIdentifier(request: NextRequest): string {
   const forwardedFor = request.headers.get('x-forwarded-for');
   const realIp = request.headers.get('x-real-ip');
   const cfConnectingIp = request.headers.get('cf-connecting-ip'); // Cloudflare
-  
+
   if (forwardedFor) {
     return forwardedFor.split(',')[0].trim();
   }
-  
+
   if (realIp) {
     return realIp;
   }
-  
+
   if (cfConnectingIp) {
     return cfConnectingIp;
   }
-  
-  // Fallback to request IP
-  return request.ip || 'unknown';
+
+  // Fallback
+  return 'unknown';
 }
 
 export function getUserAgent(request: NextRequest): string {
   return request.headers.get('user-agent') || 'unknown';
 }
 
-export function getServerSideIdentifier(): string {
+export async function getServerSideIdentifier(): Promise<string> {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const forwardedFor = headersList.get('x-forwarded-for');
     const realIp = headersList.get('x-real-ip');
     const userAgent = headersList.get('user-agent');
-    
+
     if (forwardedFor) {
       return forwardedFor.split(',')[0].trim();
     }
-    
+
     if (realIp) {
       return realIp;
     }
-    
+
     return 'server';
   } catch {
     return 'server';

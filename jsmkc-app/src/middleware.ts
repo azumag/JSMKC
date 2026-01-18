@@ -3,6 +3,12 @@ import { auth } from '@/lib/auth'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/rate-limit'
 
+function generateNonce(): string {
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  return btoa(String.fromCharCode(...array))
+}
+
 export default auth(async (req) => {
   const { pathname } = req.nextUrl
   const method = req.method || 'GET'
@@ -20,9 +26,9 @@ export default auth(async (req) => {
 
   // Check authentication
   if (requiresAuth && !req.auth) {
-    const ip = getServerSideIdentifier()
+    const ip = await getServerSideIdentifier()
     const userAgent = req.headers.get('user-agent') || 'unknown'
-    
+
     // Log unauthorized access attempt
     try {
       await createAuditLog({
@@ -51,7 +57,7 @@ export default auth(async (req) => {
   // CSPヘッダー（開発環境では緩め、本番環境では厳格に設定）
   if (process.env.NODE_ENV === 'production') {
     // 本番環境: nonceまたはhashを使用した厳格なポリシー
-    const nonce = crypto.randomBytes(16).toString('base64')
+    const nonce = generateNonce()
     response.headers.set('Content-Security-Policy', [
       "default-src 'self'",
       `script-src 'self' 'nonce-${nonce}'`,
@@ -69,6 +75,8 @@ export default auth(async (req) => {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "connect-src 'self'",
+      "font-src 'self' data:",
+      "frame-ancestors 'none'",
     ].join('; '))
   }
 

@@ -81,7 +81,7 @@ function timeToMs(time: string): number | null {
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
-function renderLives(lives: number, eliminated: boolean): JSX.Element {
+function renderLives(lives: number, eliminated: boolean) {
   if (eliminated) {
     return <span className="text-gray-400">💀 Eliminated</span>;
   }
