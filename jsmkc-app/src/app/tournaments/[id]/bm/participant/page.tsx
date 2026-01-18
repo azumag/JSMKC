@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { usePolling } from '@/app/hooks/use-polling';
+import { usePolling } from '@/lib/hooks/usePolling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -132,10 +132,22 @@ export default function BattleModeParticipantPage({
   }, [tournamentId, token]);
 
   // Real-time polling for match data
-  const { data: pollingData, error: pollingError } = usePolling(
-    tokenValid ? `/api/tournaments/${tournamentId}/bm/matches?token=${token}` : null,
-    5000 // 5 seconds as per optimization requirements
-  );
+  const fetchMatches = useCallback(async () => {
+    if (!tokenValid) {
+      return { matches: [] };
+    }
+    const response = await fetch(`/api/tournaments/${tournamentId}/bm/matches?token=${token}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.json();
+  }, [tournamentId, token, tokenValid]);
+
+  const { data: pollingData, error: pollingError } = usePolling({
+    fetchFn: fetchMatches,
+    interval: 5000,
+    enabled: tokenValid,
+  });
 
   // Update matches when polling data is received
   useEffect(() => {
