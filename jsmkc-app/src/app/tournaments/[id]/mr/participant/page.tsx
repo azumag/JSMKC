@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { usePolling } from '@/app/hooks/use-polling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ export default function MatchRaceParticipantPage({
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [raceResults, setRaceResults] = useState<{ [key: string]: RaceResult[] }>({});
 
+  // Initial data fetch
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
@@ -136,6 +138,22 @@ export default function MatchRaceParticipantPage({
 
     validateTokenAndFetchData();
   }, [tournamentId, token]);
+
+  // Real-time polling for match data
+  const { data: pollingData, error: pollingError } = usePolling(
+    tokenValid ? `/api/tournaments/${tournamentId}/mr/matches?token=${token}` : null,
+    5000 // 5 seconds as per optimization requirements
+  );
+
+  // Update matches when polling data is received
+  useEffect(() => {
+    if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
+      setMatches(pollingData.matches as MRMatch[]);
+    }
+    if (pollingError) {
+      console.error('Polling error:', pollingError);
+    }
+  }, [pollingData, pollingError]);
 
   useEffect(() => {
     if (selectedPlayer && matches.length > 0) {
@@ -293,7 +311,7 @@ export default function MatchRaceParticipantPage({
               <ul className="list-disc list-inside space-y-1">
                 <li>A valid tournament access token</li>
                 <li>The complete URL from the tournament organizer</li>
-                <li>Token that hasn't expired</li>
+                <li>Token that hasn&apos;t expired</li>
               </ul>
               <p className="mt-3">Contact the tournament organizer if you need a new access link.</p>
             </div>
@@ -493,7 +511,7 @@ export default function MatchRaceParticipantPage({
                               {matchRaceResults.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground">
                                   <Flag className="h-8 w-8 mx-auto mb-2" />
-                                  <p>No races added yet. Click "Add Race" to begin.</p>
+                                  <p>No races added yet. Click &quot;Add Race&quot; to begin.</p>
                                 </div>
                               ) : (
                                 <div className="space-y-3">

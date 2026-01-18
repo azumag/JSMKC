@@ -75,6 +75,7 @@ model Player {
   nickname  String   @unique
   country   String?
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  version   Int      @default(0) // 楽観的ロック用
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -106,6 +107,7 @@ model Tournament {
   token         String?  @db.Text // 32-character hex string for participant score entry
   tokenExpiresAt DateTime? // Token expiry time
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
+  version       Int      @default(0) // 楽観的ロック用
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -185,6 +187,7 @@ model BMMatch {
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -241,6 +244,7 @@ model MRMatch {
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -299,6 +303,7 @@ model GPMatch {
   player2ReportedRaces Json? // Player 2's report: races details
 
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -345,6 +350,7 @@ model TTEntry {
   totalTime    Int? // Total time in milliseconds
   rank         Int?
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

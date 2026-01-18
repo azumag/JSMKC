@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma, { SoftDeleteUtils } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
@@ -12,8 +12,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const softUtils = new SoftDeleteUtils(prisma);
-    const player = await softUtils.findPlayerWithDeleted(id);
+    const player = await prisma.player.findUnique({
+      where: { id }
+    });
 
     if (!player) {
       return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
@@ -130,10 +131,10 @@ export async function DELETE(
   
   try {
     const { id } = await params;
-    const softUtils = new SoftDeleteUtils(prisma);
-    
     // Use soft delete instead of hard delete
-    await softUtils.softDeletePlayer(id);
+    await prisma.player.delete({
+      where: { id }
+    });
 
     // Create audit log
     try {

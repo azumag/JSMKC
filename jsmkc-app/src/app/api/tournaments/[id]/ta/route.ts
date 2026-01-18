@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma, { SoftDeleteUtils } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { COURSES, CourseAbbr } from "@/lib/constants";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
@@ -740,8 +740,9 @@ export async function DELETE(
       );
     }
 
-    const softUtils = new SoftDeleteUtils(prisma);
-    await softUtils.softDeleteTTEntry(entryId);
+    await prisma.tTEntry.delete({
+      where: { id: entryId }
+    });
 
     // Recalculate ranks
     await recalculateRanks(tournamentId);

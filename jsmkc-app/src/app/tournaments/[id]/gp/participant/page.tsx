@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { usePolling } from '@/app/hooks/use-polling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,10 +86,11 @@ export default function GrandPrixBParticipantPage({
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [raceResults, setRaceResults] = useState<{ [key: string]: RaceResult[] }>({});
 
+  // Initial data fetch
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
-        setError('Access token is required. Please use the full URL provided by the tournament organizer.');
+        setError('Access token is required. Please use the full URL provided by tournament organizer.');
         setLoading(false);
         return;
       }
@@ -150,6 +152,22 @@ export default function GrandPrixBParticipantPage({
 
     validateTokenAndFetchData();
   }, [tournamentId, token]);
+
+  // Real-time polling for match data
+  const { data: pollingData, error: pollingError } = usePolling(
+    tokenValid ? `/api/tournaments/${tournamentId}/gp/matches?token=${token}` : null,
+    5000 // 5 seconds as per optimization requirements
+  );
+
+  // Update matches when polling data is received
+  useEffect(() => {
+    if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
+      setMatches(pollingData.matches as GPMatch[]);
+    }
+    if (pollingError) {
+      console.error('Polling error:', pollingError);
+    }
+  }, [pollingData, pollingError]);
 
   useEffect(() => {
     if (selectedPlayer && matches.length > 0) {

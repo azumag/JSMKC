@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { usePolling } from '@/app/hooks/use-polling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,14 +49,13 @@ function msToDisplayTime(ms: number | null): string {
 function displayTimeToMs(timeStr: string): number {
   if (!timeStr) return 0;
   
-  // Parse M:SS.mmm format
   const parts = timeStr.split(':');
   if (parts.length !== 2) return 0;
   
   const minutes = parseInt(parts[0]) || 0;
-  const [, secondsStr] = parts[1].split('.');
-  const seconds = parseInt(secondsStr) || 0;
-  const milliseconds = parseInt(secondsStr.split('.')[1]) || 0;
+  const secondsParts = parts[1].split('.');
+  const seconds = parseInt(secondsParts[0]) || 0;
+  const milliseconds = parseInt(secondsParts[1]?.padEnd(3, '0').slice(0, 3)) || 0;
   
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
@@ -80,10 +80,11 @@ export default function TimeAttackParticipantPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  // Initial data fetch
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
-        setError('Access token is required. Please use the full URL provided by the tournament organizer.');
+        setError('Access token is required. Please use the full URL provided by tournament organizer.');
         setLoading(false);
         return;
       }
@@ -145,6 +146,22 @@ export default function TimeAttackParticipantPage({
 
     validateTokenAndFetchData();
   }, [tournamentId, token]);
+
+  // Real-time polling for entry data
+  const { data: pollingData, error: pollingError } = usePolling(
+    tokenValid ? `/api/tournaments/${tournamentId}/ta/entries?token=${token}` : null,
+    5000 // 5 seconds as per optimization requirements
+  );
+
+  // Update entries when polling data is received
+  useEffect(() => {
+    if (pollingData && typeof pollingData === 'object' && 'entries' in pollingData) {
+      setEntries(pollingData.entries as TTEntry[]);
+    }
+    if (pollingError) {
+      console.error('Polling error:', pollingError);
+    }
+  }, [pollingData, pollingError]);
 
   useEffect(() => {
     if (selectedPlayer && entries.length > 0) {
@@ -244,8 +261,8 @@ export default function TimeAttackParticipantPage({
   // Calculate total time
   const getTotalTime = (): number => {
     return Object.entries(timeInputs)
-      .filter(([_, timeStr]) => timeStr && timeStr !== "")
-      .reduce((total, [_, timeStr]) => total + displayTimeToMs(timeStr), 0);
+      .filter(([_timeKey, timeStr]) => timeStr && timeStr !== "")
+      .reduce((total, [_timeKey, timeStr]) => total + displayTimeToMs(timeStr), 0);
   };
 
   if (loading) {
@@ -280,7 +297,7 @@ export default function TimeAttackParticipantPage({
               <ul className="list-disc list-inside space-y-1">
                 <li>A valid tournament access token</li>
                 <li>The complete URL from the tournament organizer</li>
-                <li>Token that hasn't expired</li>
+                <li>Token that hasn&apos;t expired</li>
               </ul>
               <p className="mt-3">Contact the tournament organizer if you need a new access link.</p>
             </div>

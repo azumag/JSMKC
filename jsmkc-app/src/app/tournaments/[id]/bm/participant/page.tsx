@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { usePolling } from '@/app/hooks/use-polling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +64,7 @@ export default function BattleModeParticipantPage({
   const [reportingScores, setReportingScores] = useState<{ [key: string]: { score1: string; score2: string } }>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
 
+  // Initial data fetch
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
@@ -128,6 +130,22 @@ export default function BattleModeParticipantPage({
 
     validateTokenAndFetchData();
   }, [tournamentId, token]);
+
+  // Real-time polling for match data
+  const { data: pollingData, error: pollingError } = usePolling(
+    tokenValid ? `/api/tournaments/${tournamentId}/bm/matches?token=${token}` : null,
+    5000 // 5 seconds as per optimization requirements
+  );
+
+  // Update matches when polling data is received
+  useEffect(() => {
+    if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
+      setMatches(pollingData.matches as BMMatch[]);
+    }
+    if (pollingError) {
+      console.error('Polling error:', pollingError);
+    }
+  }, [pollingData, pollingError]);
 
   useEffect(() => {
     if (selectedPlayer && matches.length > 0) {
@@ -254,7 +272,7 @@ export default function BattleModeParticipantPage({
               <ul className="list-disc list-inside space-y-1">
                 <li>A valid tournament access token</li>
                 <li>The complete URL from the tournament organizer</li>
-                <li>Token that hasn't expired</li>
+                <li>Token that hasn&apos;t expired</li>
               </ul>
               <p className="mt-3">Contact the tournament organizer if you need a new access link.</p>
             </div>

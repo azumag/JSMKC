@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma, { SoftDeleteUtils } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
@@ -12,8 +12,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const softUtils = new SoftDeleteUtils(prisma);
-    const tournament = await softUtils.findTournamentWithDeleted(id, {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
       select: {
         id: true,
         name: true,
@@ -141,10 +141,10 @@ export async function DELETE(
   
   try {
     const { id } = await params;
-    const softUtils = new SoftDeleteUtils(prisma);
-    
     // Use soft delete instead of hard delete
-    await softUtils.softDeleteTournament(id);
+    await prisma.tournament.delete({
+      where: { id }
+    });
 
     // Create audit log
     try {
