@@ -10,6 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User model (for NextAuth.js)
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  role          String    @default("member") // member, admin
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  auditLogs     AuditLog[]
+  
+  @@index([email])
+}
+
 // Player model
 model Player {
   id        String   @id @default(cuid())
@@ -169,6 +185,12 @@ model MRMatch {
   score2       Int        @default(0)
   completed    Boolean    @default(false)
   rounds       Json? // [{course: "MC1", winner: 1}, ...]
+
+  player1ReportedScore1 Int? // Player 1's report: score for player 1
+  player1ReportedScore2 Int? // Player 1's report: score for player 2
+  player2ReportedScore1 Int? // Player 2's report: score for player 1
+  player2ReportedScore2 Int? // Player 2's report: score for player 2
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -216,10 +238,42 @@ model GPMatch {
   points2      Int        @default(0) // Driver points for player 2
   completed    Boolean    @default(false)
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+
+  // Player-reported scores (for participant score entry)
+  player1ReportedPoints1 Int? // Player 1's report: points for player 1
+  player1ReportedPoints2 Int? // Player 1's report: points for player 2
+  player1ReportedRaces Json? // Player 1's report: races details
+  player2ReportedPoints1 Int? // Player 2's report: points for player 1
+  player2ReportedPoints2 Int? // Player 2's report: points for player 2
+  player2ReportedRaces Json? // Player 2's report: races details
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
+}
+
+// ==========================================
+// Time Trial Models
+// ==========================================
+
+// Audit Log model
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  // User ID (null for anonymous actions)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress   String
+  userAgent   String
+  action      String   // CREATE_TOURNAMENT, UPDATE_MATCH, etc.
+  targetId    String?  // Target resource ID
+  targetType  String?  // Target resource type: Tournament, Player, Match, etc.
+  timestamp   DateTime @default(now())
+  details     Json?    // Additional details
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+  @@index([targetType, targetId])
 }
 
 // ==========================================

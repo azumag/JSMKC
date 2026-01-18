@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -32,7 +30,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 
@@ -42,7 +56,7 @@ interface Player {
   nickname: string;
 }
 
-interface BMMatch {
+interface MRMatch {
   id: string;
   matchNumber: number;
   round: string | null;
@@ -51,6 +65,7 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
 }
@@ -69,28 +84,39 @@ interface SeededPlayer {
   player: Player;
 }
 
-export default function BattleModeFinals({
+interface Round {
+  course: CourseAbbr | "";
+  winner: number | null;
+}
+
+export default function MatchRaceFinals({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [matches, setMatches] = useState<BMMatch[]>([]);
+  const [matches, setMatches] = useState<MRMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
   const [seededPlayers, setSeededPlayers] = useState<SeededPlayer[]>([]);
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
+  const [rounds, setRounds] = useState<Round[]>([
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+  ]);
   const [champion, setChampion] = useState<Player | null>(null);
 
   const fetchFinalsData = useCallback(async () => {
-    const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
+    const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch BM finals data: ${response.status}`);
+      throw new Error(`Failed to fetch MR finals data: ${response.status}`);
     }
 
     const data = await response.json();
@@ -122,7 +148,7 @@ export default function BattleModeFinals({
   const handleCreateBracket = async () => {
     setCreating(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topN: 8 }),
@@ -146,35 +172,65 @@ export default function BattleModeFinals({
     }
   };
 
-  const openScoreDialog = (match: BMMatch) => {
+  const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2 });
-    setIsScoreDialogOpen(true);
+    if (match.rounds && match.rounds.length === 5) {
+      setRounds(match.rounds as Round[]);
+    } else {
+      setRounds([
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+      ]);
+    }
+    setIsMatchDialogOpen(true);
   };
 
-  const handleScoreSubmit = async () => {
+  const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
+    const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
+    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
+      alert("Please select 5 unique courses");
+      return;
+    }
+
+    const winnerCount = rounds.filter(r => r.winner === 1).length;
+    const loserCount = rounds.filter(r => r.winner === 2).length;
+
+    if (winnerCount < 3 && loserCount < 3) {
+      alert("Match must have a winner (3 out of 5)");
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: selectedMatch.id,
-          score1: scoreForm.score1,
-          score2: scoreForm.score2,
+          score1: winnerCount,
+          score2: loserCount,
+          rounds,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setIsScoreDialogOpen(false);
+        setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
+        setRounds([
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+        ]);
         refetch();
 
         if (data.isComplete && data.champion) {
-          // Find champion player
           const winnerMatch = matches.find(
             (m) =>
               m.player1Id === data.champion || m.player2Id === data.champion
@@ -189,15 +245,14 @@ export default function BattleModeFinals({
         }
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to update score");
+        alert(error.error || "Failed to update match");
       }
     } catch (err) {
-      console.error("Failed to update score:", err);
-      alert("Failed to update score");
+      console.error("Failed to update match:", err);
+      alert("Failed to update match");
     }
   };
 
-  // Calculate progress
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
 
@@ -209,7 +264,7 @@ export default function BattleModeFinals({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode Finals</h1>
+          <h1 className="text-3xl font-bold">Match Race Finals</h1>
           <p className="text-muted-foreground">
             Double Elimination Tournament
           </p>
@@ -267,14 +322,13 @@ export default function BattleModeFinals({
             </AlertDialog>
           )}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/bm`}>
+            <Link href={`/tournaments/${tournamentId}/mr`}>
               Back to Qualification
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Champion Banner */}
       {champion && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
@@ -287,7 +341,6 @@ export default function BattleModeFinals({
         </Card>
       )}
 
-      {/* Progress */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
@@ -299,7 +352,6 @@ export default function BattleModeFinals({
         </div>
       )}
 
-      {/* Bracket or Empty State */}
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
@@ -312,9 +364,15 @@ export default function BattleModeFinals({
             <p className="text-muted-foreground">
               The finals bracket will be generated using the top 8 players from
               the qualification standings. The bracket uses a double elimination
-              format:
+              format with 5-race matches:
             </p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
+              <li>
+                <strong>5 Races:</strong> Each match consists of 5 unique courses
+              </li>
+              <li>
+                <strong>First to 3:</strong> First player to win 3 races wins the match
+              </li>
               <li>
                 <strong>Winners Bracket:</strong> Players who haven&apos;t lost
                 yet
@@ -340,15 +398,14 @@ export default function BattleModeFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          onMatchClick={openScoreDialog}
+          onMatchClick={openMatchDialog}
         />
       )}
 
-      {/* Score Entry Dialog */}
-      <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>Enter Match Result</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -365,55 +422,85 @@ export default function BattleModeFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-            </div>
-            {scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < 3 &&
-              scoreForm.score2 < 3 && (
-                <p className="text-sm text-yellow-600 text-center">
-                  Match needs a winner (first to 3)
-                </p>
-              )}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Race</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead className="text-center">Winner</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rounds.map((round, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">Race {index + 1}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={round.course}
+                        onValueChange={(value) => {
+                          const newRounds = [...rounds];
+                          newRounds[index].course = value as CourseAbbr;
+                          setRounds(newRounds);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select course..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COURSE_INFO.map((course) => (
+                            <SelectItem key={course.abbr} value={course.abbr}>
+                              {course.name} ({course.cup})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm w-12">
+                          {selectedMatch?.player1.nickname}
+                        </span>
+                        <Button
+                          variant={round.winner === 1 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const newRounds = [...rounds];
+                            newRounds[index].winner = round.winner === 1 ? null : 1;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          {round.winner === 1 ? "✓" : "-"}
+                        </Button>
+                        <Button
+                          variant={round.winner === 2 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const newRounds = [...rounds];
+                            newRounds[index].winner = round.winner === 2 ? null : 2;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          {round.winner === 2 ? "✓" : "-"}
+                        </Button>
+                        <span className="text-sm w-12">
+                          {selectedMatch?.player2.nickname}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
           <DialogFooter>
             <Button
-              onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
+              onClick={handleMatchSubmit}
+              disabled={
+                rounds.filter(r => r.winner === 1).length < 3 &&
+                rounds.filter(r => r.winner === 2).length < 3
+              }
             >
-              Save Score
+              Save Result
             </Button>
           </DialogFooter>
         </DialogContent>

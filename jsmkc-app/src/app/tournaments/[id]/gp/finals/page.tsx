@@ -42,7 +42,7 @@ interface Player {
   nickname: string;
 }
 
-interface BMMatch {
+interface GPMatch {
   id: string;
   matchNumber: number;
   round: string | null;
@@ -69,28 +69,28 @@ interface SeededPlayer {
   player: Player;
 }
 
-export default function BattleModeFinals({
+export default function GrandPrixFinals({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [matches, setMatches] = useState<BMMatch[]>([]);
+  const [matches, setMatches] = useState<GPMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
   const [seededPlayers, setSeededPlayers] = useState<SeededPlayer[]>([]);
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   const [champion, setChampion] = useState<Player | null>(null);
 
   const fetchFinalsData = useCallback(async () => {
-    const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
+    const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`);
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch BM finals data: ${response.status}`);
+      throw new Error(`Failed to fetch GP finals data: ${response.status}`);
     }
 
     const data = await response.json();
@@ -122,7 +122,7 @@ export default function BattleModeFinals({
   const handleCreateBracket = async () => {
     setCreating(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topN: 8 }),
@@ -146,7 +146,7 @@ export default function BattleModeFinals({
     }
   };
 
-  const openScoreDialog = (match: BMMatch) => {
+  const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
     setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsScoreDialogOpen(true);
@@ -156,7 +156,7 @@ export default function BattleModeFinals({
     if (!selectedMatch) return;
 
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -174,7 +174,6 @@ export default function BattleModeFinals({
         refetch();
 
         if (data.isComplete && data.champion) {
-          // Find champion player
           const winnerMatch = matches.find(
             (m) =>
               m.player1Id === data.champion || m.player2Id === data.champion
@@ -197,7 +196,6 @@ export default function BattleModeFinals({
     }
   };
 
-  // Calculate progress
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
 
@@ -209,7 +207,7 @@ export default function BattleModeFinals({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode Finals</h1>
+          <h1 className="text-3xl font-bold">Grand Prix Finals</h1>
           <p className="text-muted-foreground">
             Double Elimination Tournament
           </p>
@@ -267,14 +265,13 @@ export default function BattleModeFinals({
             </AlertDialog>
           )}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/bm`}>
+            <Link href={`/tournaments/${tournamentId}/gp`}>
               Back to Qualification
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Champion Banner */}
       {champion && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
@@ -287,7 +284,6 @@ export default function BattleModeFinals({
         </Card>
       )}
 
-      {/* Progress */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
@@ -299,7 +295,6 @@ export default function BattleModeFinals({
         </div>
       )}
 
-      {/* Bracket or Empty State */}
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
@@ -344,7 +339,6 @@ export default function BattleModeFinals({
         />
       )}
 
-      {/* Score Entry Dialog */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>

@@ -123,3 +123,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .update-flash {
+    animation: flash-highlight 1s ease-out;
+  }
+
+  @keyframes flash-highlight {
+    0% {
+      background-color: oklch(0.922 0 0);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .dark .update-flash {
+    animation: flash-highlight-dark 1s ease-out;
+  }
+
+  @keyframes flash-highlight-dark {
+    0% {
+      background-color: oklch(1 0 0 / 10%);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+}

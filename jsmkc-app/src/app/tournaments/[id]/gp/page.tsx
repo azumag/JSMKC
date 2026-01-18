@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -37,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 
@@ -46,7 +46,7 @@ interface Player {
   nickname: string;
 }
 
-interface BMQualification {
+interface GPQualification {
   id: string;
   playerId: string;
   group: string;
@@ -55,66 +55,90 @@ interface BMQualification {
   wins: number;
   ties: number;
   losses: number;
-  winRounds: number;
-  lossRounds: number;
   points: number;
   score: number;
   player: Player;
 }
 
-interface BMMatch {
+interface GPMatch {
   id: string;
   matchNumber: number;
   player1Id: string;
   player2Id: string;
   player1Side: number;
   player2Side: number;
-  score1: number;
-  score2: number;
+  points1: number;
+  points2: number;
   completed: boolean;
+  cup?: string;
+  races?: {
+    course: string;
+    position1: number;
+    position2: number;
+    points1: number;
+    points2: number;
+  }[];
   player1: Player;
   player2: Player;
 }
 
-export default function BattleModePage({
+interface Race {
+  course: CourseAbbr | "";
+  position1: number | null;
+  position2: number | null;
+}
+
+export default function GrandPrixPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [qualifications, setQualifications] = useState<BMQualification[]>([]);
-  const [matches, setMatches] = useState<BMMatch[]>([]);
+  const [qualifications, setQualifications] = useState<GPQualification[]>([]);
+  const [matches, setMatches] = useState<GPMatch[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
-  const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
+  const [selectedCup, setSelectedCup] = useState<string>("");
+  const [races, setRaces] = useState<Race[]>([
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+  ]);
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string }[]
   >([]);
   const [exporting, setExporting] = useState(false);
 
+  const CUPS = ["Mushroom", "Flower", "Star", "Special"] as const;
+
+  const getCupCourses = (cup: string): CourseAbbr[] => {
+    return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
+  };
+
   const fetchTournamentData = useCallback(async () => {
-    const [bmResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/bm`),
+    const [gpResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/gp`),
       fetch("/api/players"),
     ]);
 
-    if (!bmResponse.ok) {
-      throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
+    if (!gpResponse.ok) {
+      throw new Error(`Failed to fetch GP data: ${gpResponse.status}`);
     }
 
     if (!playersResponse.ok) {
       throw new Error(`Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const bmData = await bmResponse.json();
+    const gpData = await gpResponse.json();
     const players = await playersResponse.json();
 
     return {
-      qualifications: bmData.qualifications || [],
-      matches: bmData.matches || [],
+      qualifications: gpData.qualifications || [],
+      matches: gpData.matches || [],
       allPlayers: players,
     };
   }, [tournamentId]);
@@ -143,7 +167,7 @@ export default function BattleModePage({
     }
 
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ players: setupPlayers }),
@@ -159,35 +183,64 @@ export default function BattleModePage({
     }
   };
 
-  const handleScoreSubmit = async () => {
-    if (!selectedMatch) return;
+  const openMatchDialog = (match: GPMatch) => {
+    setSelectedMatch(match);
+    if (match.cup && match.races && match.races.length === 4) {
+      setSelectedCup(match.cup);
+      setRaces(match.races as Race[]);
+    } else {
+      setSelectedCup("");
+      setRaces([
+        { course: "", position1: null, position2: null },
+        { course: "", position1: null, position2: null },
+        { course: "", position1: null, position2: null },
+        { course: "", position1: null, position2: null },
+      ]);
+    }
+    setIsMatchDialogOpen(true);
+  };
+
+  const handleMatchSubmit = async () => {
+    if (!selectedMatch || !selectedCup) {
+      alert("Please select a cup");
+      return;
+    }
+
+    const completedRaces = races.filter(
+      (r) => r.course !== "" && r.position1 !== null && r.position2 !== null
+    );
+
+    if (completedRaces.length !== 4) {
+      alert("Please complete all 4 races");
+      return;
+    }
 
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: selectedMatch.id,
-          score1: scoreForm.score1,
-          score2: scoreForm.score2,
+          cup: selectedCup,
+          races,
         }),
       });
 
       if (response.ok) {
-        setIsScoreDialogOpen(false);
+        setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
+        setSelectedCup("");
+        setRaces([
+          { course: "", position1: null, position2: null },
+          { course: "", position1: null, position2: null },
+          { course: "", position1: null, position2: null },
+          { course: "", position1: null, position2: null },
+        ]);
         refetch();
       }
     } catch (err) {
-      console.error("Failed to update score:", err);
+      console.error("Failed to update match:", err);
     }
-  };
-
-  const openScoreDialog = (match: BMMatch) => {
-    setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2 });
-    setIsScoreDialogOpen(true);
   };
 
   const addPlayerToSetup = (playerId: string, group: string) => {
@@ -203,7 +256,7 @@ export default function BattleModePage({
   const handleExport = async () => {
     setExporting(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/export`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/export`);
       if (!response.ok) {
         throw new Error("Failed to export data");
       }
@@ -212,7 +265,7 @@ export default function BattleModePage({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.download = `grand-prix-${new Date().toISOString().split("T")[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -235,9 +288,9 @@ export default function BattleModePage({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode</h1>
+          <h1 className="text-3xl font-bold">Grand Prix</h1>
           <p className="text-muted-foreground">
-            Qualification round-robin and finals
+            Cup-based races with driver points
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -253,7 +306,7 @@ export default function BattleModePage({
           </Button>
           {qualifications.length > 0 && (
             <Button asChild>
-              <Link href={`/tournaments/${tournamentId}/bm/finals`}>
+              <Link href={`/tournaments/${tournamentId}/gp/finals`}>
                 Go to Finals
               </Link>
             </Button>
@@ -266,7 +319,7 @@ export default function BattleModePage({
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Setup Battle Mode Groups</DialogTitle>
+                <DialogTitle>Setup Grand Prix Groups</DialogTitle>
                 <DialogDescription>
                   Assign players to groups for the qualification round.
                 </DialogDescription>
@@ -412,7 +465,6 @@ export default function BattleModePage({
                           <TableHead className="text-center">W</TableHead>
                           <TableHead className="text-center">T</TableHead>
                           <TableHead className="text-center">L</TableHead>
-                          <TableHead className="text-center">+/-</TableHead>
                           <TableHead className="text-center">Pts</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -430,11 +482,8 @@ export default function BattleModePage({
                               <TableCell className="text-center">{q.wins}</TableCell>
                               <TableCell className="text-center">{q.ties}</TableCell>
                               <TableCell className="text-center">{q.losses}</TableCell>
-                              <TableCell className="text-center">
-                                {q.points > 0 ? `+${q.points}` : q.points}
-                              </TableCell>
                               <TableCell className="text-center font-bold">
-                                {q.score}
+                                {q.points}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -460,7 +509,7 @@ export default function BattleModePage({
                     <TableRow>
                       <TableHead className="w-16">#</TableHead>
                       <TableHead>Player 1</TableHead>
-                      <TableHead className="text-center w-24">Score</TableHead>
+                      <TableHead className="text-center w-24">Points</TableHead>
                       <TableHead>Player 2</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -471,7 +520,7 @@ export default function BattleModePage({
                         <TableCell>{match.matchNumber}</TableCell>
                         <TableCell
                           className={
-                            match.completed && match.score1 >= 3
+                            match.completed && match.points1 > match.points2
                               ? "font-bold"
                               : ""
                           }
@@ -480,12 +529,12 @@ export default function BattleModePage({
                         </TableCell>
                         <TableCell className="text-center font-mono">
                           {match.completed
-                            ? `${match.score1} - ${match.score2}`
+                            ? `${match.points1} - ${match.points2}`
                             : "- - -"}
                         </TableCell>
                         <TableCell
                           className={
-                            match.completed && match.score2 >= 3
+                            match.completed && match.points2 > match.points1
                               ? "font-bold"
                               : ""
                           }
@@ -498,16 +547,16 @@ export default function BattleModePage({
                             size="sm"
                             asChild
                           >
-                            <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                            <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
                               Share
                             </Link>
                           </Button>
                           <Button
                             variant={match.completed ? "outline" : "default"}
                             size="sm"
-                            onClick={() => openScoreDialog(match)}
+                            onClick={() => openMatchDialog(match)}
                           >
-                            {match.completed ? "Edit" : "Enter Score"}
+                            {match.completed ? "Edit" : "Enter Result"}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -520,11 +569,10 @@ export default function BattleModePage({
         </Tabs>
       )}
 
-      {/* Score Entry Dialog */}
-      <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>Enter Match Result</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -536,49 +584,143 @@ export default function BattleModePage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
+            <div>
+              <Label>Select Cup</Label>
+              <Select value={selectedCup} onValueChange={setSelectedCup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cup..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CUPS.map((cup) => (
+                    <SelectItem key={cup} value={cup}>
+                      {cup}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {scoreForm.score1 + scoreForm.score2 !== 4 && (
-              <p className="text-sm text-yellow-600 text-center">
-                Total rounds should equal 4
-              </p>
+
+            {selectedCup && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">Race</TableHead>
+                    <TableHead>Course</TableHead>
+                    <TableHead className="text-center">P1 Position</TableHead>
+                    <TableHead className="text-center">P2 Position</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {races.map((race, index) => {
+                    const cupCourses = getCupCourses(selectedCup);
+                    return (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          Race {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={race.course}
+                            onValueChange={(value) => {
+                              const newRaces = [...races];
+                              newRaces[index].course = value as CourseAbbr;
+                              setRaces(newRaces);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select course..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {cupCourses.map((course) => (
+                                <SelectItem key={course} value={course}>
+                                  {
+                                    COURSE_INFO.find((c) => c.abbr === course)
+                                      ?.name
+                                  }
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={race.position1?.toString() || ""}
+                            onValueChange={(value) => {
+                              const newRaces = [...races];
+                              newRaces[index].position1 =
+                                value === "" ? null : parseInt(value);
+                              setRaces(newRaces);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Position..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1st</SelectItem>
+                              <SelectItem value="2">2nd</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={race.position2?.toString() || ""}
+                            onValueChange={(value) => {
+                              const newRaces = [...races];
+                              newRaces[index].position2 =
+                                value === "" ? null : parseInt(value);
+                              setRaces(newRaces);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Position..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1st</SelectItem>
+                              <SelectItem value="2">2nd</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
+
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm font-medium mb-2">
+                Driver Points: 1st = 9pts, 2nd = 6pts
+              </p>
+              {selectedMatch && (
+                <div className="flex gap-4 justify-center">
+                  <div>
+                    <span className="text-sm">{selectedMatch.player1.nickname}:</span>
+                    <span className="ml-2 font-bold">
+                      {races.reduce(
+                        (acc, r) =>
+                          acc + (r.position1 === 1 ? 9 : r.position1 === 2 ? 6 : 0),
+                        0
+                      )}
+                      pts
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm">{selectedMatch.player2.nickname}:</span>
+                    <span className="ml-2 font-bold">
+                      {races.reduce(
+                        (acc, r) =>
+                          acc + (r.position2 === 1 ? 9 : r.position2 === 2 ? 6 : 0),
+                        0
+                      )}
+                      pts
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleScoreSubmit}>Save Score</Button>
+            <Button onClick={handleMatchSubmit}>Save Result</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

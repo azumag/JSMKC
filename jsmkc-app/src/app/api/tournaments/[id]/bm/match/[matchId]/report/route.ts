@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { createAuditLog } from "@/lib/audit-log";
 
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
@@ -19,6 +21,17 @@ export async function POST(
 ) {
   try {
     const { id: tournamentId, matchId } = await params;
+    const clientIp = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
+
+    const rateLimitResult = await rateLimit(clientIp, 10, 60 * 1000);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { reportingPlayer, score1, score2 } = body;
 
@@ -68,6 +81,20 @@ export async function POST(
     const updatedMatch = await prisma.bMMatch.update({
       where: { id: matchId },
       data: updateData,
+    });
+
+    await createAuditLog({
+      ipAddress: clientIp,
+      userAgent,
+      action: "REPORT_BM_SCORE",
+      targetId: matchId,
+      targetType: "BMMatch",
+      details: {
+        tournamentId,
+        reportingPlayer,
+        score1,
+        score2,
+      },
     });
 
     // Check if both players have reported and scores match

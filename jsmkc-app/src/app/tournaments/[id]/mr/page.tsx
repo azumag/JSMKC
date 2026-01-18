@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -37,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 
@@ -46,7 +46,7 @@ interface Player {
   nickname: string;
 }
 
-interface BMQualification {
+interface MRQualification {
   id: string;
   playerId: string;
   group: string;
@@ -62,7 +62,7 @@ interface BMQualification {
   player: Player;
 }
 
-interface BMMatch {
+interface MRMatch {
   id: string;
   matchNumber: number;
   player1Id: string;
@@ -72,49 +72,61 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
 }
 
-export default function BattleModePage({
+interface Round {
+  course: CourseAbbr | "";
+  winner: number | null;
+}
+
+export default function MatchRacePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [qualifications, setQualifications] = useState<BMQualification[]>([]);
-  const [matches, setMatches] = useState<BMMatch[]>([]);
+  const [qualifications, setQualifications] = useState<MRQualification[]>([]);
+  const [matches, setMatches] = useState<MRMatch[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
-  const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
+  const [rounds, setRounds] = useState<Round[]>([
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+  ]);
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string }[]
   >([]);
   const [exporting, setExporting] = useState(false);
 
   const fetchTournamentData = useCallback(async () => {
-    const [bmResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/bm`),
+    const [mrResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/mr`),
       fetch("/api/players"),
     ]);
 
-    if (!bmResponse.ok) {
-      throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
+    if (!mrResponse.ok) {
+      throw new Error(`Failed to fetch MR data: ${mrResponse.status}`);
     }
 
     if (!playersResponse.ok) {
       throw new Error(`Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const bmData = await bmResponse.json();
+    const mrData = await mrResponse.json();
     const players = await playersResponse.json();
 
     return {
-      qualifications: bmData.qualifications || [],
-      matches: bmData.matches || [],
+      qualifications: mrData.qualifications || [],
+      matches: mrData.matches || [],
       allPlayers: players,
     };
   }, [tournamentId]);
@@ -143,7 +155,7 @@ export default function BattleModePage({
     }
 
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ players: setupPlayers }),
@@ -159,35 +171,66 @@ export default function BattleModePage({
     }
   };
 
-  const handleScoreSubmit = async () => {
+  const openMatchDialog = (match: MRMatch) => {
+    setSelectedMatch(match);
+    if (match.rounds && match.rounds.length === 5) {
+      setRounds(match.rounds as Round[]);
+    } else {
+      setRounds([
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+        { course: "", winner: null },
+      ]);
+    }
+    setIsMatchDialogOpen(true);
+  };
+
+  const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
+    const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
+    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
+      alert("Please select 5 unique courses");
+      return;
+    }
+
+    const winnerCount = rounds.filter(r => r.winner === 1).length;
+    const loserCount = rounds.filter(r => r.winner === 2).length;
+
+    if (winnerCount < 3 && loserCount < 3) {
+      alert("Match must have a winner (3 out of 5)");
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: selectedMatch.id,
-          score1: scoreForm.score1,
-          score2: scoreForm.score2,
+          score1: winnerCount,
+          score2: loserCount,
+          rounds,
         }),
       });
 
       if (response.ok) {
-        setIsScoreDialogOpen(false);
+        setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
+        setRounds([
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+          { course: "", winner: null },
+        ]);
         refetch();
       }
     } catch (err) {
-      console.error("Failed to update score:", err);
+      console.error("Failed to update match:", err);
     }
-  };
-
-  const openScoreDialog = (match: BMMatch) => {
-    setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2 });
-    setIsScoreDialogOpen(true);
   };
 
   const addPlayerToSetup = (playerId: string, group: string) => {
@@ -203,7 +246,7 @@ export default function BattleModePage({
   const handleExport = async () => {
     setExporting(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/export`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/export`);
       if (!response.ok) {
         throw new Error("Failed to export data");
       }
@@ -212,7 +255,7 @@ export default function BattleModePage({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.download = `match-race-${new Date().toISOString().split("T")[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -235,9 +278,9 @@ export default function BattleModePage({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode</h1>
+          <h1 className="text-3xl font-bold">Match Race</h1>
           <p className="text-muted-foreground">
-            Qualification round-robin and finals
+            5-race course selection and point-based scoring
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -253,7 +296,7 @@ export default function BattleModePage({
           </Button>
           {qualifications.length > 0 && (
             <Button asChild>
-              <Link href={`/tournaments/${tournamentId}/bm/finals`}>
+              <Link href={`/tournaments/${tournamentId}/mr/finals`}>
                 Go to Finals
               </Link>
             </Button>
@@ -266,7 +309,7 @@ export default function BattleModePage({
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Setup Battle Mode Groups</DialogTitle>
+                <DialogTitle>Setup Match Race Groups</DialogTitle>
                 <DialogDescription>
                   Assign players to groups for the qualification round.
                 </DialogDescription>
@@ -498,16 +541,16 @@ export default function BattleModePage({
                             size="sm"
                             asChild
                           >
-                            <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                            <Link href={`/tournaments/${tournamentId}/mr/match/${match.id}`}>
                               Share
                             </Link>
                           </Button>
                           <Button
                             variant={match.completed ? "outline" : "default"}
                             size="sm"
-                            onClick={() => openScoreDialog(match)}
+                            onClick={() => openMatchDialog(match)}
                           >
-                            {match.completed ? "Edit" : "Enter Score"}
+                            {match.completed ? "Edit" : "Enter Result"}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -520,11 +563,10 @@ export default function BattleModePage({
         </Tabs>
       )}
 
-      {/* Score Entry Dialog */}
-      <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>Enter Match Result</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -536,49 +578,78 @@ export default function BattleModePage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-            </div>
-            {scoreForm.score1 + scoreForm.score2 !== 4 && (
-              <p className="text-sm text-yellow-600 text-center">
-                Total rounds should equal 4
-              </p>
-            )}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Race</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead className="text-center">Winner</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rounds.map((round, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">Race {index + 1}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={round.course}
+                        onValueChange={(value) => {
+                          const newRounds = [...rounds];
+                          newRounds[index].course = value as CourseAbbr;
+                          setRounds(newRounds);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select course..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COURSE_INFO.map((course) => (
+                            <SelectItem key={course.abbr} value={course.abbr}>
+                              {course.name} ({course.cup})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm w-12">
+                          {selectedMatch?.player1.nickname}
+                        </span>
+                        <Button
+                          variant={round.winner === 1 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const newRounds = [...rounds];
+                            newRounds[index].winner = round.winner === 1 ? null : 1;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          {round.winner === 1 ? "✓" : "-"}
+                        </Button>
+                        <Button
+                          variant={round.winner === 2 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const newRounds = [...rounds];
+                            newRounds[index].winner = round.winner === 2 ? null : 2;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          {round.winner === 2 ? "✓" : "-"}
+                        </Button>
+                        <span className="text-sm w-12">
+                          {selectedMatch?.player2.nickname}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
           <DialogFooter>
-            <Button onClick={handleScoreSubmit}>Save Score</Button>
+            <Button onClick={handleMatchSubmit}>Save Result</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
