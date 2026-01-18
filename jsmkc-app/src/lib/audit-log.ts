@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { sanitizeInput } from '@/lib/sanitize';
 
 export interface AuditLogParams {
   userId?: string;
@@ -20,7 +21,7 @@ export async function createAuditLog(params: AuditLogParams) {
         action: params.action,
         targetId: params.targetId,
         targetType: params.targetType,
-        details: params.details,
+        details: params.details ? sanitizeInput(params.details) as any : undefined,
       },
     });
   } catch (error) {

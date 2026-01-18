@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sanitizeInput } from "@/lib/sanitize";
 
 function calculateMatchResult(score1: number, score2: number) {
   const totalRounds = score1 + score2;
@@ -51,7 +52,7 @@ export async function POST(
 ) {
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { players } = body;
 
     if (!players || !Array.isArray(players) || players.length === 0) {

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // GET single player (public access)
 export async function GET(
@@ -45,7 +46,7 @@ export async function PUT(
   
   try {
     const { id } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { name, nickname, country } = body;
 
     if (!name || !nickname) {

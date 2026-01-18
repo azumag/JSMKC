@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
@@ -66,7 +67,7 @@ export async function POST(
   
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { players } = body; // Array of { playerId, group, seeding }
 
     if (!players || !Array.isArray(players) || players.length === 0) {

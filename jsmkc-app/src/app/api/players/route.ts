@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // GET all players
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
 // POST create new player
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { name, nickname, country } = body;
 
     if (!name || !nickname) {

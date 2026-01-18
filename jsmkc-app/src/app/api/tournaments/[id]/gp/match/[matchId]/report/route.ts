@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { createAuditLog } from "@/lib/audit-log";
+import { sanitizeInput } from "@/lib/sanitize";
 
 const DRIVER_POINTS = [0, 1, 3, 6, 9];
 
@@ -27,7 +28,7 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { reportingPlayer, races } = body;
 
     if (!reportingPlayer || !Array.isArray(races) || races.length === 0) {
@@ -143,7 +144,7 @@ export async function POST(
         data: {
           points1: p1p1,
           points2: p1p2,
-          races: racesToUse,
+          races: racesToUse || [],
           completed: true,
         },
         include: { player1: true, player2: true },

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { sanitizeInput } from "@/lib/sanitize";
 
 function calculateDriverPoints(position1: number, position2: number) {
   const points1 = position1 === 1 ? 9 : position1 === 2 ? 6 : 0;
@@ -61,7 +63,7 @@ export async function POST(
 
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { players } = body;
 
     if (!players || !Array.isArray(players) || players.length === 0) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { createAuditLog } from "@/lib/audit-log";
+import { sanitizeInput } from "@/lib/sanitize";
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +21,7 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2, rounds } = body;
 
     if (!reportingPlayer || score1 === undefined || score2 === undefined) {

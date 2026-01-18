@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // GET all tournaments (public access)
 export async function GET() {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
   
   try {
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { name, date } = body;
 
     if (!name || !date) {

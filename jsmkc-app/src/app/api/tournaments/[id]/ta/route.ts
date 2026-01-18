@@ -5,6 +5,7 @@ import { COURSES, CourseAbbr } from "@/lib/constants";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // Zod schemas for input validation
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
@@ -210,7 +211,7 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
 
     // Validate request body with zod
     const parseResult = PostRequestSchema.safeParse(body);
@@ -435,7 +436,7 @@ export async function PUT(
       );
     }
 
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
 
     // Validate request body with zod
     const parseResult = PutRequestSchema.safeParse(body);

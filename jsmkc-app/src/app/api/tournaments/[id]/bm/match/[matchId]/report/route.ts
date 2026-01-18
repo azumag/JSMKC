@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { createAuditLog } from "@/lib/audit-log";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
@@ -32,7 +33,7 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2 } = body;
 
     // Validate input
