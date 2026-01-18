@@ -179,18 +179,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return false;
     },
     async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: Record<string, unknown> }) {
-      if (session.user && token.sub) {
+      if (session.user && typeof token.sub === 'string') {
         session.user.id = token.sub;
       }
       
       // Add error information to session for client-side handling
       if (token.error) {
-        (session as Record<string, unknown>).error = token.error;
+        (session as unknown as Record<string, unknown>).error = token.error;
       }
       
       return session;
     },
-    async jwt({ token, user, account }: { token: Record<string, unknown>; user?: unknown; account?: Record<string, unknown> | undefined }) {
+    async jwt({ token, user, account }: { token: Record<string, unknown>; user?: import('next-auth').User; account?: import('next-auth').Account | null }) {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         if (account.provider === 'google') {

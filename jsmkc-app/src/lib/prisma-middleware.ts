@@ -51,7 +51,7 @@ export class SoftDeleteManager {
     return this.prisma.player.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
@@ -74,7 +74,7 @@ export class SoftDeleteManager {
     return this.prisma.tournament.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
@@ -97,7 +97,7 @@ export class SoftDeleteManager {
     return this.prisma.bMMatch.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
@@ -120,7 +120,7 @@ export class SoftDeleteManager {
     return this.prisma.mRMatch.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
@@ -143,7 +143,7 @@ export class SoftDeleteManager {
     return this.prisma.gPMatch.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
@@ -166,7 +166,7 @@ export class SoftDeleteManager {
     return this.prisma.tTEntry.findUnique({
       ...options,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id, ...(options.where || {}) }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
     });
   }
 
