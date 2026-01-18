@@ -105,6 +105,7 @@ export default function MatchRacePage({
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string }[]
   >([]);
+  const [exporting, setExporting] = useState(false);
 
   const fetchTournamentData = useCallback(async () => {
     const [mrResponse, playersResponse] = await Promise.all([
@@ -242,6 +243,31 @@ export default function MatchRacePage({
     setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/export`);
+      if (!response.ok) {
+        throw new Error("Failed to export data");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `match-race-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to export";
+      console.error("Failed to export:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
   if (loading) {
@@ -261,6 +287,13 @@ export default function MatchRacePage({
           </div>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? "Exporting..." : "Export to Excel"}
+          </Button>
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/mr/finals`}>

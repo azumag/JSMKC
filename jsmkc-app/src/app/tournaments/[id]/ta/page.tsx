@@ -91,6 +91,7 @@ export default function TimeAttackPage({
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
   const [promotionError, setPromotionError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchTournamentData = useCallback(async () => {
     const [taResponse, playersResponse] = await Promise.all([
@@ -276,6 +277,32 @@ export default function TimeAttackPage({
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/export`);
+      if (!response.ok) {
+        throw new Error("Failed to export data");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `time-attack-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to export";
+      console.error("Failed to export:", err);
+      setError(errorMessage);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Get count of entered times for an entry
   const getEnteredTimesCount = (entry: TTEntry): number => {
     if (!entry.times) return 0;
@@ -323,6 +350,13 @@ export default function TimeAttackPage({
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? "Exporting..." : "Export to Excel"}
+          </Button>
           {finalsCount > 0 && (
             <Button variant="default" asChild>
               <Link href={`/tournaments/${tournamentId}/ta/finals`}>
