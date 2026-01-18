@@ -238,6 +238,15 @@ model GPMatch {
   points2      Int        @default(0) // Driver points for player 2
   completed    Boolean    @default(false)
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+
+  // Player-reported scores (for participant score entry)
+  player1ReportedPoints1 Int? // Player 1's report: points for player 1
+  player1ReportedPoints2 Int? // Player 1's report: points for player 2
+  player1ReportedRaces Json? // Player 1's report: races details
+  player2ReportedPoints1 Int? // Player 2's report: points for player 1
+  player2ReportedPoints2 Int? // Player 2's report: points for player 2
+  player2ReportedRaces Json? // Player 2's report: races details
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

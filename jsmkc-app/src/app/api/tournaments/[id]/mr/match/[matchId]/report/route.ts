@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { createAuditLog } from "@/lib/audit-log";
 
 export async function POST(
   request: NextRequest,
@@ -7,6 +9,17 @@ export async function POST(
 ) {
   try {
     const { id: tournamentId, matchId } = await params;
+    const clientIp = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
+
+    const rateLimitResult = await rateLimit(clientIp, 10, 60 * 1000);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { reportingPlayer, score1, score2, rounds } = body;
 
@@ -74,8 +87,22 @@ export async function POST(
             rounds: rounds || null,
             completed: true,
           },
-        });
-      }
+      });
+    }
+
+    await createAuditLog({
+      ipAddress: clientIp,
+      userAgent,
+      action: "REPORT_MR_SCORE",
+      targetId: matchId,
+      targetType: "MRMatch",
+      details: {
+        tournamentId,
+        reportingPlayer,
+        score1,
+        score2,
+      },
+    });
     }
 
     return NextResponse.json({ success: true, match: updatedMatch });

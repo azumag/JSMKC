@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,6 +11,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 
 interface Player {
@@ -36,11 +44,21 @@ interface GPMatch {
     points1: number;
     points2: number;
   }[];
+  player1ReportedPoints1?: number;
+  player1ReportedPoints2?: number;
+  player2ReportedPoints1?: number;
+  player2ReportedPoints2?: number;
 }
 
 interface Tournament {
   id: string;
   name: string;
+}
+
+interface Race {
+  course: CourseAbbr | "";
+  position1: 1 | 2 | null;
+  position2: 1 | 2 | null;
 }
 
 export default function GPMatchPage({
@@ -52,6 +70,16 @@ export default function GPMatchPage({
   const [match, setMatch] = useState<GPMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
+  const [races, setRaces] = useState<Race[]>([
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+    { course: "", position1: null, position2: null },
+  ]);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -79,9 +107,76 @@ export default function GPMatchPage({
     fetchData();
   }, [fetchData]);
 
-  const getCourseName = (abbr: CourseAbbr) => {
-    return COURSE_INFO.find((c) => c.abbr === abbr)?.name || abbr;
+  const handleSubmit = async () => {
+    if (selectedPlayer === null) {
+      setError("Please select which player you are");
+      return;
+    }
+
+    const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
+    if (usedCourses.length !== 4 || new Set(usedCourses).size !== 4) {
+      setError("Please select 4 unique courses");
+      return;
+    }
+
+    const incompleteRaces = races.filter(
+      (r) => r.position1 === null || r.position2 === null
+    );
+    if (incompleteRaces.length > 0) {
+      setError("Please complete all race positions");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/gp/match/${matchId}/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportingPlayer: selectedPlayer,
+            races,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setSubmitted(true);
+        fetchData();
+      } else {
+        const data = await response.json();
+        setError(data.error || "Failed to submit result");
+      }
+    } catch (err) {
+      console.error("Failed to submit:", err);
+      setError("Failed to submit result");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const getCourseName = (abbr: string) => {
+    const course = COURSE_INFO.find((c) => c.abbr === abbr);
+    return course ? course.name : abbr;
+  };
+
+  const getPointsFromPosition = (position: number) => {
+    if (position === 1) return 9;
+    if (position === 2) return 6;
+    return 0;
+  };
+
+  const totalPoints1 = races.reduce(
+    (sum, r) => sum + (r.position1 ? getPointsFromPosition(r.position1) : 0),
+    0
+  );
+  const totalPoints2 = races.reduce(
+    (sum, r) => sum + (r.position2 ? getPointsFromPosition(r.position2) : 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -126,19 +221,166 @@ export default function GPMatchPage({
           </CardHeader>
         </Card>
 
-        {match.cup && match.races && (
+        {!match.completed && !submitted && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Enter Result</CardTitle>
+              <CardDescription>
+                Select who you are and enter the race results
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">I am:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={selectedPlayer === 1 ? "default" : "outline"}
+                    className="h-16 text-lg"
+                    onClick={() => setSelectedPlayer(1)}
+                  >
+                    {match.player1.nickname}
+                  </Button>
+                  <Button
+                    variant={selectedPlayer === 2 ? "default" : "outline"}
+                    className="h-16 text-lg"
+                    onClick={() => setSelectedPlayer(2)}
+                  >
+                    {match.player2.nickname}
+                  </Button>
+                </div>
+              </div>
+
+              {selectedPlayer && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-medium text-center">
+                        Current Score
+                      </p>
+                      <p className="text-sm font-medium text-center">
+                        {totalPoints1} - {totalPoints2}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {races.map((race, index) => (
+                      <div key={index} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium w-20">
+                            Race {index + 1}
+                          </span>
+                          <Select
+                            value={race.course}
+                            onValueChange={(value) => {
+                              const newRaces = [...races];
+                              newRaces[index].course = value as CourseAbbr;
+                              setRaces(newRaces);
+                            }}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Course..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {COURSE_INFO.map((course) => (
+                                <SelectItem key={course.abbr} value={course.abbr}>
+                                  {course.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={
+                              race.position1 === 1 ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => {
+                              const newRaces = [...races];
+                              newRaces[index].position1 =
+                                newRaces[index].position1 === 1 ? null : 1;
+                              setRaces(newRaces);
+                            }}
+                            className="flex-1"
+                          >
+                            {selectedPlayer === 1
+                              ? "I Won (1st)"
+                              : `${match.player1.nickname} Won (1st)`}
+                          </Button>
+                          <Button
+                            variant={
+                              race.position2 === 1 ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => {
+                              const newRaces = [...races];
+                              newRaces[index].position2 =
+                                newRaces[index].position2 === 1 ? null : 1;
+                              setRaces(newRaces);
+                            }}
+                            className="flex-1"
+                          >
+                            {selectedPlayer === 2
+                              ? "I Won (1st)"
+                              : `${match.player2.nickname} Won (1st)`}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {error && (
+                    <p className="text-red-500 text-sm text-center">{error}</p>
+                  )}
+
+                  <Button
+                    className="w-full h-14 text-lg"
+                    onClick={handleSubmit}
+                    disabled={submitting || !canSubmit(races)}
+                  >
+                    {submitting ? "Submitting..." : "Submit Result"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {submitted && !match.completed && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <div className="text-4xl mb-4">✓</div>
+              <h3 className="text-lg font-semibold mb-2">
+                Result Submitted!
+              </h3>
+              <p className="text-muted-foreground">
+                Waiting for the other player to confirm...
+              </p>
+              <p className="text-sm mt-4">
+                Your report: {totalPoints1} - {totalPoints2}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {match.completed && match.races && (
           <Card>
             <CardHeader>
               <CardTitle>
                 {match.cup} Cup - Race Results
               </CardTitle>
+              <CardDescription>
+                Final Score: {match.points1} - {match.points2}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {match.races.map((race, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <h3 className="font-medium mb-3">
-                      Race {index + 1}: {getCourseName(race.course as CourseAbbr)}
+                      Race {index + 1}:{" "}
+                      {getCourseName(race.course as CourseAbbr)}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div
@@ -195,16 +437,7 @@ export default function GPMatchPage({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {match.completed && (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-4">🏁</div>
-              <h3 className="text-lg font-semibold mb-2">Match Complete</h3>
-              <p className="text-muted-foreground">
+              <p className="mt-4 text-center">
                 {match.points1 > match.points2
                   ? `${match.player1.nickname} wins!`
                   : match.points2 > match.points1
@@ -225,5 +458,14 @@ export default function GPMatchPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function canSubmit(races: Race[]): boolean {
+  const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
+  return (
+    usedCourses.length === 4 &&
+    new Set(usedCourses).size === 4 &&
+    races.every((r) => r.position1 !== null && r.position2 !== null)
   );
 }
