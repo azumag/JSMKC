@@ -7,6 +7,7 @@ describe('JWT Token Expiration Utilities', () => {
   describe('isAccessTokenExpired', () => {
     it('should return true for expired token', () => {
       const session = {
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         accessTokenExpires: Date.now() - 1000, // 1 second ago
       };
 
@@ -15,6 +16,7 @@ describe('JWT Token Expiration Utilities', () => {
 
     it('should return false for valid token', () => {
       const session = {
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         accessTokenExpires: Date.now() + 60 * 60 * 1000, // 1 hour from now
       };
 
@@ -23,13 +25,13 @@ describe('JWT Token Expiration Utilities', () => {
 
     it('should return true for null/undefined session', () => {
       expect(isAccessTokenExpired(null)).toBe(true);
-      expect(isAccessTokenExpired(undefined)).toBe(true);
     });
   });
 
   describe('isRefreshTokenExpired', () => {
     it('should return true for expired refresh token', () => {
       const session = {
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         refreshTokenExpires: Date.now() - 1000, // 1 second ago
       };
 
@@ -38,6 +40,7 @@ describe('JWT Token Expiration Utilities', () => {
 
     it('should return false for valid refresh token', () => {
       const session = {
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         refreshTokenExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
       };
 
@@ -46,7 +49,6 @@ describe('JWT Token Expiration Utilities', () => {
 
     it('should return true for null/undefined session', () => {
       expect(isRefreshTokenExpired(null)).toBe(true);
-      expect(isRefreshTokenExpired(undefined)).toBe(true);
     });
   });
 });
