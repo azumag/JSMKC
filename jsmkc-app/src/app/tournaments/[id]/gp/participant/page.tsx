@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Shield, AlertTriangle, Trophy, CheckCircle, Clock, Users, Star } from 'lucide-react';
 import Link from 'next/link';
+import { COURSE_INFO } from '@/lib/constants';
 
 interface Player {
   id: string;
@@ -55,7 +56,7 @@ interface RaceResult {
   points2: number;
 }
 
-const CUPS = ['Mushroom', 'Flower', 'Star', 'Special'];
+
 
 const DRIVER_POINTS = {
   1: 9,
@@ -318,7 +319,7 @@ export default function GrandPrixBParticipantPage({
               <ul className="list-disc list-inside space-y-1">
                 <li>A valid tournament access token</li>
                 <li>The complete URL from the tournament organizer</li>
-                <li>Token that hasn't expired</li>
+                <li>Token that hasn&apos;t expired</li>
               </ul>
               <p className="mt-3">Contact the tournament organizer if you need a new access link.</p>
             </div>
@@ -519,7 +520,7 @@ export default function GrandPrixBParticipantPage({
                               {matchRaceResults.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground">
                                   <Star className="h-8 w-8 mx-auto mb-2" />
-                                  <p>No races added yet. Click "Add Race" to begin.</p>
+                                  <p>No races added yet. Click &quot;Add Race&quot; to begin.</p>
                                 </div>
                               ) : (
                                 <div className="space-y-3">
@@ -533,18 +534,13 @@ export default function GrandPrixBParticipantPage({
                                           <SelectTrigger>
                                             <SelectValue placeholder="Course" />
                                           </SelectTrigger>
-                                          <SelectContent>
-                                            {CUPS.map((cup) => (
-                                              <SelectItem key={cup} value={cup} disabled>
-                                                {cup} Cup
-                                              </SelectItem>
-                                            ))}
-                                            {/* We'll need to add courses per cup - for now using generic courses */}
-                                            <SelectItem value="Course1">Course 1</SelectItem>
-                                            <SelectItem value="Course2">Course 2</SelectItem>
-                                            <SelectItem value="Course3">Course 3</SelectItem>
-                                            <SelectItem value="Course4">Course 4</SelectItem>
-                                          </SelectContent>
+<SelectContent>
+                                             {COURSE_INFO.map((course) => (
+                                               <SelectItem key={course.abbr} value={course.abbr}>
+                                                 {course.name}
+                                               </SelectItem>
+                                             ))}
+                                           </SelectContent>
                                         </Select>
                                       </div>
                                       <div className="col-span-2">
