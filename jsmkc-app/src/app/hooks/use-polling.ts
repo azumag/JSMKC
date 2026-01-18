@@ -35,18 +35,18 @@ export function usePolling(url: string | null, interval: number = 5000) {
   useEffect(() => {
     if (!url) return
     
-    const intervalId = setInterval(fetchData, interval)
-    
-    // ページが非表示の場合はポーリングを停止
+    let intervalId: NodeJS.Timeout
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearInterval(intervalId)
       } else {
         fetchData() // 再表示時は即時取得
+        intervalId = setInterval(fetchData, interval)
       }
     }
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    intervalId = setInterval(fetchData, interval)
     
     return () => {
       clearInterval(intervalId)

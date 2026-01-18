@@ -1,12 +1,26 @@
 // Soft Delete Middleware for Prisma
 // This provides automatic soft delete functionality for specified models
 
+import { PrismaClient } from '@prisma/client';
+
 export interface SoftDeleteOptions {
   includeDeleted?: boolean;
 }
 
+interface PrismaMiddlewareParams {
+  model?: string;
+  action: string;
+  args: Record<string, unknown>;
+  dataPath?: string[];
+  runInTransaction?: boolean;
+}
+
+interface PrismaNextFunction {
+  (params: PrismaMiddlewareParams): Promise<unknown>;
+}
+
 export function createSoftDeleteMiddleware() {
-  return async (params: any, next: (params: any) => Promise<any>) => {
+  return async (params: PrismaMiddlewareParams, next: PrismaNextFunction) => {
     // 対象モデルのチェック
     const softDeleteModels = [
       'Player', 'Tournament', 'BMMatch', 'BMQualification',
@@ -24,7 +38,8 @@ export function createSoftDeleteMiddleware() {
       if (params.action === 'deleteMany') {
         params.action = 'updateMany';
         if (params.args.data != undefined) {
-          params.args.data['deletedAt'] = new Date();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (params.args.data as any)['deletedAt'] = new Date();
         } else {
           params.args['data'] = { deletedAt: new Date() };
         }
@@ -35,7 +50,8 @@ export function createSoftDeleteMiddleware() {
         // includeDeletedフラグがない場合はデフォルトで除外
         if (params.args?.includeDeleted !== true) {
           if (params.args.where) {
-            params.args.where['deletedAt'] = null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (params.args.where as any)['deletedAt'] = null;
           } else {
             params.args.where = { deletedAt: null };
           }
@@ -49,7 +65,7 @@ export function createSoftDeleteMiddleware() {
 
 // Utility functions for soft delete operations
 export class SoftDeleteUtils {
-  constructor(private prisma: any) {}
+  constructor(private prisma: PrismaClient) {}
 
   // Soft delete functions
   async softDeletePlayer(id: string) {
@@ -116,7 +132,7 @@ export class SoftDeleteUtils {
   }
 
   // Query functions that automatically exclude deleted records
-  async getPlayers(options: any = {}) {
+  async getPlayers(options: import('@prisma/client').Prisma.PlayerFindManyArgs = {}) {
     return this.prisma.player.findMany({
       ...options,
       where: {
@@ -126,7 +142,7 @@ export class SoftDeleteUtils {
     });
   }
 
-  async getTournaments(options: any = {}) {
+  async getTournaments(options: import('@prisma/client').Prisma.TournamentFindManyArgs = {}) {
     return this.prisma.tournament.findMany({
       ...options,
       where: {
@@ -152,11 +168,11 @@ export class SoftDeleteUtils {
   }
 
   // Include deleted records queries
-  async getPlayersWithDeleted(options: any = {}) {
+  async getPlayersWithDeleted(options: import('@prisma/client').Prisma.PlayerFindManyArgs = {}) {
     return this.prisma.player.findMany(options);
   }
 
-  async getTournamentsWithDeleted(options: any = {}) {
+  async getTournamentsWithDeleted(options: import('@prisma/client').Prisma.TournamentFindManyArgs = {}) {
     return this.prisma.tournament.findMany(options);
   }
 
@@ -167,7 +183,7 @@ export class SoftDeleteUtils {
     });
   }
 
-  async findTournamentWithDeleted(id: string, options: any = {}) {
+  async findTournamentWithDeleted(id: string, options: Omit<import('@prisma/client').Prisma.TournamentFindUniqueArgs, 'where'> = {}) {
     return this.prisma.tournament.findUnique({
       where: { id },
       ...options

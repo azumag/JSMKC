@@ -95,13 +95,15 @@ export async function GET() {
 }
 
 // Mock implementation functions - in a real app these would query actual data
-async function getPollingRequestCount(_startDate: Date, _endDate: Date): Promise<number> {
+async function getPollingRequestCount(startDate: Date, endDate: Date): Promise<number> {
+  console.debug('Querying request count from', startDate, 'to', endDate);
   // This would query your analytics database or service
   // For now, return a mock number that demonstrates the pattern
   return Math.floor(Math.random() * 1000) + 500;
 }
 
-async function getAverageResponseTime(_startDate: Date, _endDate: Date): Promise<number> {
+async function getAverageResponseTime(startDate: Date, endDate: Date): Promise<number> {
+  console.debug('Calculating average response time from', startDate, 'to', endDate);
   // This would calculate actual average response time from logs
   return Math.floor(Math.random() * 500) + 100; // 100-600ms range
 }
@@ -111,17 +113,19 @@ async function getActiveConnectionCount(): Promise<number> {
   return Math.floor(Math.random() * 50) + 10; // 10-60 connections
 }
 
-async function getErrorRate(_startDate: Date, _endDate: Date): Promise<number> {
+async function getErrorRate(startDate: Date, endDate: Date): Promise<number> {
+  console.debug('Calculating error rate from', startDate, 'to', endDate);
   // This would calculate actual error rate from error logs
   return Math.random() * 5; // 0-5% error rate
 }
 
-async function getRateLimitStats(_type: string, _startDate: Date, _endDate: Date): Promise<{
+async function getRateLimitStats(type: string, startDate: Date, endDate: Date): Promise<{
   total: number;
   blocked: number;
   allowed: number;
   rate: number;
 }> {
+  console.debug('Getting rate limit stats for type:', type, 'from', startDate, 'to', endDate);
   const total = Math.floor(Math.random() * 200) + 100;
   const blocked = Math.floor(Math.random() * 20); // 0-20 blocked requests
   const allowed = total - blocked;

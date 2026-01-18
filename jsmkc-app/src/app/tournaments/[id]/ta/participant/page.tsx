@@ -261,8 +261,8 @@ export default function TimeAttackParticipantPage({
   // Calculate total time
   const getTotalTime = (): number => {
     return Object.entries(timeInputs)
-      .filter(([_timeKey, timeStr]) => timeStr && timeStr !== "")
-      .reduce((total, [_timeKey, timeStr]) => total + displayTimeToMs(timeStr), 0);
+      .filter(([, timeStr]) => timeStr && timeStr !== "")
+      .reduce((total, [, timeStr]) => total + displayTimeToMs(timeStr), 0);
   };
 
   if (loading) {

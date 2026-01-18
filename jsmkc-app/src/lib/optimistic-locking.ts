@@ -1,5 +1,38 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 
+// Type definitions for the data structures
+export interface BMRound {
+  arena: string;
+  winner: 1 | 2;
+}
+
+export interface MRRound {
+  course: string;
+  winner: 1 | 2;
+}
+
+export interface GPRace {
+  course: string;
+  position1: number;
+  position2: number;
+  points1: number;
+  points2: number;
+}
+
+export interface TTEntryData {
+  times?: Record<string, string>;
+  totalTime?: number;
+  rank?: number;
+  eliminated?: boolean;
+  lives?: number;
+}
+
+// Type for update data that can be spread into the update operation
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type UpdateData<T> = Partial<T> & {
+  version?: { increment: number };
+};
+
 export class OptimisticLockError extends Error {
   constructor(message: string, public readonly currentVersion: number) {
     super(message);
@@ -67,7 +100,66 @@ function isOptimisticLockError(error: Prisma.PrismaClientKnownRequestError): boo
          error.code === 'P2025';
 }
 
+// Generic model keys for type-safe access to Prisma models
+type PrismaModelKeys = 
+  | 'bMMatch'
+  | 'mRMatch' 
+  | 'gPMatch'
+  | 'tTEntry';
+
+// Generic function to create model-specific update functions
+function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
+  modelName: TModel,
+  defaultNotFoundError: string
+) {
+  return async function updateWithVersion(
+    prisma: PrismaClient,
+    id: string,
+    expectedVersion: number,
+    data: TData
+  ): Promise<{ version: number }> {
+    return updateWithRetry(prisma, async (tx) => {
+      // Type-safe access to the model
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const model = (tx as any)[modelName];
+      
+      const current = await model.findUnique({
+        where: { id }
+      });
+
+      if (!current) {
+        throw new OptimisticLockError(defaultNotFoundError, -1);
+      }
+
+      if (current.version !== expectedVersion) {
+        throw new OptimisticLockError(
+          `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
+          current.version
+        );
+      }
+
+      const updated = await model.update({
+        where: {
+          id,
+          version: expectedVersion
+        },
+        data: {
+          ...data,
+          version: { increment: 1 }
+        }
+      });
+
+      return { version: updated.version };
+    });
+  };
+}
+
 // Battle Mode スコア更新用ユーティリティ
+const _updateBMMatchScore = createUpdateFunction(
+  'bMMatch',
+  'Match not found'
+);
+
 export async function updateBMMatchScore(
   prisma: PrismaClient,
   matchId: string,
@@ -75,43 +167,22 @@ export async function updateBMMatchScore(
   score1: number,
   score2: number,
   completed: boolean = false,
-  rounds?: any[]
+  rounds?: BMRound[]
 ): Promise<{ version: number }> {
-  return updateWithRetry(prisma, async (tx) => {
-    const current = await tx.bMMatch.findUnique({
-      where: { id: matchId }
-    });
-
-    if (!current) {
-      throw new OptimisticLockError('Match not found', -1);
-    }
-
-    if (current.version !== expectedVersion) {
-      throw new OptimisticLockError(
-        `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-        current.version
-      );
-    }
-
-    const updated = await tx.bMMatch.update({
-      where: {
-        id: matchId,
-        version: expectedVersion
-      },
-      data: {
-        score1,
-        score2,
-        completed,
-        rounds,
-        version: { increment: 1 }
-      }
-    });
-
-    return { version: updated.version };
+  return _updateBMMatchScore(prisma, matchId, expectedVersion, {
+    score1,
+    score2,
+    completed,
+    rounds
   });
 }
 
 // Match Race スコア更新用ユーティリティ
+const _updateMRMatchScore = createUpdateFunction(
+  'mRMatch',
+  'Match not found'
+);
+
 export async function updateMRMatchScore(
   prisma: PrismaClient,
   matchId: string,
@@ -119,43 +190,22 @@ export async function updateMRMatchScore(
   score1: number,
   score2: number,
   completed: boolean = false,
-  rounds?: any[]
+  rounds?: MRRound[]
 ): Promise<{ version: number }> {
-  return updateWithRetry(prisma, async (tx) => {
-    const current = await tx.mRMatch.findUnique({
-      where: { id: matchId }
-    });
-
-    if (!current) {
-      throw new OptimisticLockError('Match not found', -1);
-    }
-
-    if (current.version !== expectedVersion) {
-      throw new OptimisticLockError(
-        `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-        current.version
-      );
-    }
-
-    const updated = await tx.mRMatch.update({
-      where: {
-        id: matchId,
-        version: expectedVersion
-      },
-      data: {
-        score1,
-        score2,
-        completed,
-        rounds,
-        version: { increment: 1 }
-      }
-    });
-
-    return { version: updated.version };
+  return _updateMRMatchScore(prisma, matchId, expectedVersion, {
+    score1,
+    score2,
+    completed,
+    rounds
   });
 }
 
 // Grand Prix スコア更新用ユーティリティ
+const _updateGPMatchScore = createUpdateFunction(
+  'gPMatch',
+  'Match not found'
+);
+
 export async function updateGPMatchScore(
   prisma: PrismaClient,
   matchId: string,
@@ -163,82 +213,27 @@ export async function updateGPMatchScore(
   points1: number,
   points2: number,
   completed: boolean = false,
-  races?: any[]
+  races?: GPRace[]
 ): Promise<{ version: number }> {
-  return updateWithRetry(prisma, async (tx) => {
-    const current = await tx.gPMatch.findUnique({
-      where: { id: matchId }
-    });
-
-    if (!current) {
-      throw new OptimisticLockError('Match not found', -1);
-    }
-
-    if (current.version !== expectedVersion) {
-      throw new OptimisticLockError(
-        `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-        current.version
-      );
-    }
-
-    const updated = await tx.gPMatch.update({
-      where: {
-        id: matchId,
-        version: expectedVersion
-      },
-      data: {
-        points1,
-        points2,
-        completed,
-        races,
-        version: { increment: 1 }
-      }
-    });
-
-    return { version: updated.version };
+  return _updateGPMatchScore(prisma, matchId, expectedVersion, {
+    points1,
+    points2,
+    completed,
+    races
   });
 }
 
 // Time Trial エントリー更新用ユーティリティ
+const _updateTTEntry = createUpdateFunction(
+  'tTEntry',
+  'Entry not found'
+);
+
 export async function updateTTEntry(
   prisma: PrismaClient,
   entryId: string,
   expectedVersion: number,
-  data: {
-    times?: any;
-    totalTime?: number;
-    rank?: number;
-    eliminated?: boolean;
-    lives?: number;
-  }
+  data: TTEntryData
 ): Promise<{ version: number }> {
-  return updateWithRetry(prisma, async (tx) => {
-    const current = await tx.tTEntry.findUnique({
-      where: { id: entryId }
-    });
-
-    if (!current) {
-      throw new OptimisticLockError('Entry not found', -1);
-    }
-
-    if (current.version !== expectedVersion) {
-      throw new OptimisticLockError(
-        `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-        current.version
-      );
-    }
-
-    const updated = await tx.tTEntry.update({
-      where: {
-        id: entryId,
-        version: expectedVersion
-      },
-      data: {
-        ...data,
-        version: { increment: 1 }
-      }
-    });
-
-    return { version: updated.version };
-  });
+  return _updateTTEntry(prisma, entryId, expectedVersion, data);
 }

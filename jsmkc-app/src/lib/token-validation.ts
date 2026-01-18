@@ -67,11 +67,16 @@ export async function validateTournamentToken(
   }
 }
 
+interface TournamentContext {
+  tournament: { id: string; name: string; token: string | null; tokenExpiresAt: Date | null; status: string; date: Date };
+  params: Promise<Record<string, string>>;
+}
+
 /**
  * Create middleware that requires valid tournament token
  */
-export function requireTournamentToken(handler: (request: NextRequest, context: { tournament: any; params: Promise<any> }) => Promise<NextResponse>) {
-  return async (request: NextRequest, context: { tournament: any; params: Promise<any> }) => {
+export function requireTournamentToken(handler: (request: NextRequest, context: TournamentContext) => Promise<NextResponse>) {
+  return async (request: NextRequest, context: TournamentContext) => {
     const { id: tournamentId } = await context.params;
     
     const validation = await validateTournamentToken(request, tournamentId);

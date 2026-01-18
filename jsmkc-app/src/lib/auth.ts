@@ -29,7 +29,8 @@ async function refreshGoogleAccessToken(token: { refreshToken?: string | null; a
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     }
-  } catch (error) {
+    } catch {
+    console.warn('Token refresh failed');
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -66,7 +67,8 @@ async function refreshGitHubAccessToken(token: { refreshToken?: string | null; a
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     }
-  } catch (error) {
+    } catch {
+    console.warn('Token refresh failed');
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -143,8 +145,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
 
           return true;
-        } catch (error) {
-          console.error('Error during GitHub organization verification:', error);
+        } catch (err) {
+          console.error('Error during GitHub organization verification:', err);
           return false;
         }
       }
@@ -168,27 +170,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
 
           return true;
-        } catch (error) {
-          console.error('Error during Google user creation:', error);
+        } catch (err) {
+          console.error('Error during Google user creation:', err);
           return false;
         }
       }
 
       return false;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: Record<string, unknown> }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
       
       // Add error information to session for client-side handling
       if (token.error) {
-        (session as any).error = token.error;
+        (session as Record<string, unknown>).error = token.error;
       }
       
       return session;
     },
-    async jwt({ token, user, account }: any) {
+    async jwt({ token, user, account }: { token: Record<string, unknown>; user?: unknown; account?: Record<string, unknown> | undefined }) {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         if (account.provider === 'google') {

@@ -14,7 +14,7 @@ export interface ExtendedSession extends Session {
   accessTokenExpires?: number;
   refreshToken?: string;
   refreshTokenExpires?: number;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 /**
@@ -67,17 +67,17 @@ export function useAutoRefresh() {
       // Trigger session update which will invoke JWT callback
       const result = await update();
       
-      if ((result as any)?.error === 'RefreshAccessTokenError') {
+      if ((result as ExtendedSession)?.error === 'RefreshAccessTokenError') {
         await handleSessionRefreshFailure('Unable to refresh your session. Please sign in again.');
         return false;
       }
       
       return true;
-  } catch {
-    console.error('Manual session refresh failed');
-    await handleSessionRefreshFailure('Session refresh failed. Please sign in again.');
-    return false;
-  }
+    } catch {
+      console.error('Manual session refresh failed');
+      await handleSessionRefreshFailure('Session refresh failed. Please sign in again.');
+      return false;
+    }
   };
 
   // Auto-refresh check (called before critical operations)
@@ -138,7 +138,7 @@ export async function authenticatedFetch(
         // Update the session object with refreshed data
         Object.assign(session, refreshedSession);
         return true;
-      } catch (error) {
+      } catch {
         await handleSessionRefreshFailure();
         return false;
       }
@@ -169,21 +169,23 @@ export async function authenticatedFetch(
  * Client-side error handling for API responses
  */
 export function handleApiError(response: Response, data: unknown) {
+  const errorData = data as { error?: string };
+  
   if (response.status === 401) {
-    handleSessionRefreshFailure((data as any)?.error || 'Authentication failed');
+    handleSessionRefreshFailure(errorData?.error || 'Authentication failed');
     return;
   }
   
   if (response.status === 403) {
-    throw new Error((data as ExtendedSession)?.error || 'Access forbidden');
+    throw new Error(errorData?.error || 'Access forbidden');
   }
   
   if (response.status >= 500) {
-    throw new Error((data as ExtendedSession)?.error || 'Server error');
+    throw new Error(errorData?.error || 'Server error');
   }
   
   if (!response.ok) {
-    throw new Error((data as ExtendedSession)?.error || `Request failed with status ${response.status}`);
+    throw new Error(errorData?.error || `Request failed with status ${response.status}`);
   }
 }
 

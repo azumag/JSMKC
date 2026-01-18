@@ -21,7 +21,7 @@ export async function createAuditLog(params: AuditLogParams) {
         action: params.action,
         targetId: params.targetId,
         targetType: params.targetType,
-        details: params.details ? sanitizeInput(params.details) as any : undefined,
+        details: params.details ? JSON.parse(JSON.stringify(sanitizeInput(params.details))) : undefined,
       },
     });
   } catch (error) {

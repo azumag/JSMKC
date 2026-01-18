@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
+import { ExportButton } from "@/components/tournament/export-button";
 
 interface Tournament {
   id: string;
@@ -109,6 +110,7 @@ export default function TournamentDetailPage({
               Complete Tournament
             </Button>
           )}
+          <ExportButton tournamentId={id} tournamentName={tournament.name} />
           <Button variant="outline" asChild>
             <Link href="/tournaments">Back to List</Link>
           </Button>

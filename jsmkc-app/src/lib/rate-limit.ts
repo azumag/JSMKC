@@ -52,6 +52,7 @@ const rateLimits = {
 };
 
 // Create a new ratelimiter that allows 10 requests per minute (fallback)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ratelimit = rateLimits.general;
 
 export async function checkRateLimit(
@@ -97,7 +98,8 @@ function getLimitForType(type: keyof typeof rateLimits): number {
   }
 }
 
-function getWindowForType(type: keyof typeof rateLimits): number {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getWindowForType(_type: keyof typeof rateLimits): number {
   return 60 * 1000; // 1 minute for all types
 }
 
