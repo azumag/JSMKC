@@ -14,6 +14,7 @@ export interface ExtendedSession extends Session {
   accessTokenExpires?: number;
   refreshToken?: string;
   refreshTokenExpires?: number;
+  data?: any;
 }
 
 /**
@@ -66,7 +67,7 @@ export function useAutoRefresh() {
       // Trigger session update which will invoke JWT callback
       const result = await update();
       
-      if (result?.error === 'RefreshAccessTokenError') {
+      if ((result as any)?.error === 'RefreshAccessTokenError') {
         await handleSessionRefreshFailure('Unable to refresh your session. Please sign in again.');
         return false;
       }
@@ -169,20 +170,20 @@ export async function authenticatedFetch(
  */
 export function handleApiError(response: Response, data: unknown) {
   if (response.status === 401) {
-    handleSessionRefreshFailure(data?.error || 'Authentication failed');
+    handleSessionRefreshFailure((data as any)?.error || 'Authentication failed');
     return;
   }
   
   if (response.status === 403) {
-    throw new Error(data?.error || 'Access forbidden');
+    throw new Error((data as ExtendedSession)?.error || 'Access forbidden');
   }
   
   if (response.status >= 500) {
-    throw new Error(data?.error || 'Server error occurred');
+    throw new Error((data as ExtendedSession)?.error || 'Server error');
   }
   
   if (!response.ok) {
-    throw new Error(data?.error || `Request failed with status ${response.status}`);
+    throw new Error((data as ExtendedSession)?.error || `Request failed with status ${response.status}`);
   }
 }
 

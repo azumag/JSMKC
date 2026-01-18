@@ -4,7 +4,7 @@ import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 
 // Refresh token function for Google OAuth as specified in ARCHITECTURE.md section 6.2
-async function refreshGoogleAccessToken(token) {
+async function refreshGoogleAccessToken(token: { refreshToken?: string | null; accessTokenExpires?: number }) {
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -38,7 +38,7 @@ async function refreshGoogleAccessToken(token) {
 }
 
 // Refresh token function for GitHub OAuth as specified in ARCHITECTURE.md section 6.2
-async function refreshGitHubAccessToken(token) {
+async function refreshGitHubAccessToken(token: { refreshToken?: string | null; accessTokenExpires?: number }) {
   try {
     const response = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -183,12 +183,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       
       // Add error information to session for client-side handling
       if (token.error) {
-        session.error = token.error;
+        (session as any).error = token.error;
       }
       
       return session;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account }: any) {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         if (account.provider === 'google') {
@@ -216,7 +216,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // Return previous token if still valid
-      if (Date.now() < (token.accessTokenExpires || 0)) {
+      if (Date.now() < ((token.accessTokenExpires as number) || 0)) {
         return token
       }
 

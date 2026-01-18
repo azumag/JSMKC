@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   description: "Super Mario Kart Championship Score Management System",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Get nonce from middleware-generated headers
-  const headersList = headers()
+  const headersList = await headers()
   const nonce = headersList.get('x-nonce') || crypto.randomUUID()
   
   return (

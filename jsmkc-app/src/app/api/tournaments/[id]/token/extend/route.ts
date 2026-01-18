@@ -33,9 +33,9 @@ export async function POST(
       { 
         status: 429,
         headers: {
-          'X-RateLimit-Limit': rateLimitResult.limit?.toString(),
-          'X-RateLimit-Remaining': rateLimitResult.remaining?.toString(),
-          'X-RateLimit-Reset': rateLimitResult.reset?.toString(),
+          'X-RateLimit-Limit': (rateLimitResult.limit ?? 0).toString(),
+          'X-RateLimit-Remaining': (rateLimitResult.remaining ?? 0).toString(),
+          'X-RateLimit-Reset': (rateLimitResult.reset ?? 0).toString(),
         }
       }
     );
