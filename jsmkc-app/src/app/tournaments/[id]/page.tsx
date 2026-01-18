@@ -175,7 +175,11 @@ export default function TournamentDetailPage({
               <CardDescription>Cup-based driver points competition</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Coming soon...</p>
+              <Button asChild>
+                <Link href={`/tournaments/${id}/gp`}>
+                  Manage Grand Prix
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
