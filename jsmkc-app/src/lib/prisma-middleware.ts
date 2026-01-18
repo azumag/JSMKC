@@ -3,20 +3,6 @@
 
 import { PrismaClient } from '@prisma/client';
 
-// 対象モデルのリスト
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const SOFT_DELETE_MODELS = [
-  'Player',
-  'Tournament', 
-  'BMMatch',
-  'MRMatch',
-  'GPMatch',
-  'TTEntry',
-  'BMQualification',
-  'MRQualification',
-  'GPQualification'
-] as const;
-
 // ソフトデリート用のユーティリティ関数
 export class SoftDeleteManager {
   constructor(private prisma: PrismaClient) {}

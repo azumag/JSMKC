@@ -3,8 +3,8 @@ import GitHub from 'next-auth/providers/github'
 import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 
-// Refresh token function for Google OAuth as specified in ARCHITECTURE.md section 6.2
-async function refreshGoogleAccessToken(token: { refreshToken?: string | null; accessTokenExpires?: number }) {
+// Refresh token function for Google OAuth
+async function refreshGoogleAccessToken(token: import('next-auth/jwt').JWT) {
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -29,17 +29,19 @@ async function refreshGoogleAccessToken(token: { refreshToken?: string | null; a
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     }
-    } catch {
-    console.warn('Token refresh failed');
+    } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Token refresh failed:', errorMessage);
     return {
       ...token,
       error: "RefreshAccessTokenError",
+      errorDetails: errorMessage,
     }
   }
 }
 
-// Refresh token function for GitHub OAuth as specified in ARCHITECTURE.md section 6.2
-async function refreshGitHubAccessToken(token: { refreshToken?: string | null; accessTokenExpires?: number }) {
+// Refresh token function for GitHub OAuth
+async function refreshGitHubAccessToken(token: import('next-auth/jwt').JWT) {
   try {
     const response = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -67,11 +69,13 @@ async function refreshGitHubAccessToken(token: { refreshToken?: string | null; a
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     }
-    } catch {
-    console.warn('Token refresh failed');
+    } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Token refresh failed:', errorMessage);
     return {
       ...token,
       error: "RefreshAccessTokenError",
+      errorDetails: errorMessage,
     }
   }
 }
@@ -178,19 +182,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return false;
     },
-    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: Record<string, unknown> }) {
+    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: import('next-auth/jwt').JWT }) {
       if (session.user && typeof token.sub === 'string') {
         session.user.id = token.sub;
       }
       
       // Add error information to session for client-side handling
       if (token.error) {
-        (session as unknown as Record<string, unknown>).error = token.error;
+        session.error = token.error;
       }
       
       return session;
     },
-    async jwt({ token, user, account }: { token: Record<string, unknown>; user?: import('next-auth').User; account?: import('next-auth').Account | null }) {
+    async jwt({ token, user, account }: { token: import('next-auth/jwt').JWT; user?: import('next-auth').User; account?: import('next-auth').Account | null }) {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         if (account.provider === 'google') {
@@ -218,7 +222,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // Return previous token if still valid
-      if (Date.now() < ((token.accessTokenExpires as number) || 0)) {
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
         return token
       }
 
