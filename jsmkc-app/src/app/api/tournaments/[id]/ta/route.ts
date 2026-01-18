@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { COURSES, CourseAbbr } from "@/lib/constants";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { auth } from "@/lib/auth";
 
 // Zod schemas for input validation
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
+const StageSchema = z.enum(["qualification", "finals"]);
 
 const TimeStringSchema = z.string().refine(
   (val) => val === "" || timeFormatRegex.test(val),
@@ -16,6 +20,8 @@ const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
 const PostRequestSchema = z.object({
   playerId: z.string().uuid().optional(),
   players: z.array(z.string().uuid()).optional(),
+  action: z.enum(["add", "promote_to_finals"]).optional(),
+  topN: z.number().min(1).max(32).optional(),
 }).refine(
   (data) => data.playerId !== undefined || (data.players !== undefined && data.players.length > 0),
   { message: "Either playerId or players array is required" }
@@ -26,9 +32,14 @@ const PutRequestSchema = z.object({
   course: z.string().optional(),
   time: z.string().optional(),
   times: TimesObjectSchema.optional(),
+  livesDelta: z.number().optional(),
+  eliminated: z.boolean().optional(),
+  action: z.enum(["update_times", "update_lives", "eliminate"]).optional(),
 }).refine(
-  (data) => data.times !== undefined || (data.course !== undefined && data.time !== undefined),
-  { message: "Either (course and time) or times object is required" }
+  (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
+            data.action === "eliminate" ? data.eliminated !== undefined :
+            data.times !== undefined || (data.course !== undefined && data.time !== undefined),
+  { message: "Invalid request for action" }
 );
 
 // Convert time string (MM:SS.mmm or M:SS.mmm) to milliseconds
@@ -52,6 +63,7 @@ function timeToMs(time: string): number | null {
 async function recalculateRanks(tournamentId: string, stage: string = "qualification") {
   const entries = await prisma.tTEntry.findMany({
     where: { tournamentId, stage },
+    include: { player: true },
   });
 
   // Calculate total time for each entry
@@ -77,13 +89,36 @@ async function recalculateRanks(tournamentId: string, stage: string = "qualifica
     return {
       id: entry.id,
       totalTime: allTimesEntered ? totalMs : null,
+      lives: entry.lives,
+      eliminated: entry.eliminated,
     };
   });
 
-  // Sort entries with valid total times for ranking
-  const sorted = entriesWithTotal
-    .filter(e => e.totalTime !== null)
-    .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
+  let sorted;
+
+  if (stage === "finals") {
+    // Finals ranking: Not eliminated first, then by lives (desc), then by totalTime (asc)
+    sorted = entriesWithTotal.sort((a, b) => {
+      // Eliminated players go last
+      if (a.eliminated !== b.eliminated) {
+        return a.eliminated ? 1 : -1;
+      }
+      // More lives = better (descending)
+      if (a.lives !== b.lives) {
+        return b.lives - a.lives;
+      }
+      // Less time = better (ascending), but eliminated or no time go to end
+      if (a.eliminated || b.eliminated) return 0;
+      if (a.totalTime === null) return 1;
+      if (b.totalTime === null) return -1;
+      return (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
+    });
+  } else {
+    // Qualification: Sort by total time
+    sorted = entriesWithTotal
+      .filter(e => e.totalTime !== null)
+      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
+  }
 
   // Create a Map for O(1) rank lookup instead of O(N) findIndex
   const rankMap = new Map<string, number>();
@@ -124,13 +159,30 @@ export async function GET(
       );
     }
 
+    // Get stage from query params, default to qualification
+    const { searchParams } = new URL(request.url);
+    const stage = StageSchema.safeParse(searchParams.get("stage"));
+    const stageToQuery = stage.success ? stage.data : "qualification";
+
     const entries = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "qualification" },
+      where: { tournamentId, stage: stageToQuery },
       include: { player: true },
       orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
     });
 
-    return NextResponse.json({ entries, courses: COURSES });
+    // Fetch both qualification and finals counts for status
+    const [qualCount, finalsCount] = await Promise.all([
+      prisma.tTEntry.count({ where: { tournamentId, stage: "qualification" } }),
+      prisma.tTEntry.count({ where: { tournamentId, stage: "finals" } }),
+    ]);
+
+    return NextResponse.json({
+      entries,
+      courses: COURSES,
+      stage: stageToQuery,
+      qualCount,
+      finalsCount,
+    });
   } catch (error) {
     console.error("Failed to fetch TA data:", error);
     return NextResponse.json(
@@ -140,7 +192,7 @@ export async function GET(
   }
 }
 
-// POST add player to time attack
+// POST add player to time attack or promote to finals
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -169,12 +221,144 @@ export async function POST(
       );
     }
 
-    const { playerId, players } = parseResult.data;
+    const { action, playerId, players, topN } = parseResult.data;
 
-    // Handle single player or array of players
+    // Handle promoting to finals
+    if (action === "promote_to_finals") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json(
+          { error: "Authentication required for finals promotion" },
+          { status: 401 }
+        );
+      }
+
+      // Rate limiting for promotion
+      const identifier = getClientIdentifier(request);
+      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000); // 5 requests per minute
+      if (!rateLimitResult.success) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Please try again later." },
+          { status: 429 }
+        );
+      }
+
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+
+      // Get top N qualifiers
+      let qualifiers;
+      if (topN) {
+        qualifiers = await prisma.tTEntry.findMany({
+          where: { tournamentId, stage: "qualification" },
+          include: { player: true },
+          orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+          take: topN,
+        });
+      } else if (players && players.length > 0) {
+        qualifiers = await prisma.tTEntry.findMany({
+          where: { tournamentId, stage: "qualification", playerId: { in: players } },
+          include: { player: true },
+        });
+      } else {
+        return NextResponse.json(
+          { error: "Either players array or topN is required for promotion" },
+          { status: 400 }
+        );
+      }
+
+      if (qualifiers.length === 0) {
+        return NextResponse.json(
+          { error: "No qualifying players found" },
+          { status: 400 }
+        );
+      }
+
+      const createdEntries = [];
+      const skippedEntries = [];
+
+      for (const qual of qualifiers) {
+        if (qual.totalTime === null) {
+          skippedEntries.push(qual.player.nickname);
+          continue;
+        }
+
+        // Check if already in finals
+        const existingFinals = await prisma.tTEntry.findUnique({
+          where: {
+            tournamentId_playerId_stage: {
+              tournamentId,
+              playerId: qual.playerId,
+              stage: "finals",
+            },
+          },
+        });
+
+        if (!existingFinals) {
+          const entry = await prisma.tTEntry.create({
+            data: {
+              tournamentId,
+              playerId: qual.playerId,
+              stage: "finals",
+              lives: 3,
+              eliminated: false,
+              times: {},
+            },
+            include: { player: true },
+          });
+          createdEntries.push(entry);
+
+          // Audit log
+          try {
+            await createAuditLog({
+              userId: session.user.id,
+              ipAddress,
+              userAgent,
+              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+              targetId: entry.id,
+              targetType: "TTEntry",
+              details: {
+                tournamentId,
+                playerId: qual.playerId,
+                playerNickname: entry.player.nickname,
+                qualRank: qual.rank,
+                promotedTo: "finals",
+              },
+            });
+          } catch (logError) {
+            console.error("Failed to create audit log:", logError);
+          }
+        }
+      }
+
+      // Recalculate finals ranks
+      await recalculateRanks(tournamentId, "finals");
+
+      return NextResponse.json(
+        {
+          message: "Players promoted to finals",
+          entries: createdEntries,
+          skipped: skippedEntries,
+        },
+        { status: 201 }
+      );
+    }
+
+    // Handle adding players to qualification
+    const identifier = getClientIdentifier(request);
+    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000); // 10 requests per minute
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const playerIds = players || (playerId ? [playerId] : []);
 
     const createdEntries = [];
+    const ipAddress = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
 
     for (const pid of playerIds) {
       // Check if player already exists in this tournament
@@ -199,6 +383,24 @@ export async function POST(
           include: { player: true },
         });
         createdEntries.push(entry);
+
+        // Audit log
+        try {
+          await createAuditLog({
+            ipAddress,
+            userAgent,
+            action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+            targetId: entry.id,
+            targetType: "TTEntry",
+            details: {
+              tournamentId,
+              playerId: pid,
+              playerNickname: entry.player.nickname,
+            },
+          });
+        } catch (logError) {
+          console.error("Failed to create audit log:", logError);
+        }
       }
     }
 
@@ -215,7 +417,7 @@ export async function POST(
   }
 }
 
-// PUT update times for a player
+// PUT update times, lives, or elimination status
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -244,7 +446,147 @@ export async function PUT(
       );
     }
 
-    const { entryId, course, time, times: bulkTimes } = parseResult.data;
+    const { entryId, action, livesDelta, eliminated } = parseResult.data;
+
+    // Handle elimination
+    if (action === "eliminate") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json(
+          { error: "Authentication required for elimination" },
+          { status: 401 }
+        );
+      }
+
+      if (eliminated === undefined) {
+        return NextResponse.json(
+          { error: "eliminated boolean is required for eliminate action" },
+          { status: 400 }
+        );
+      }
+
+      const entry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: true },
+      });
+
+      if (!entry) {
+        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      }
+
+      const updatedEntry = await prisma.tTEntry.update({
+        where: { id: entryId },
+        data: { eliminated },
+        include: { player: true },
+      });
+
+      // Recalculate ranks
+      await recalculateRanks(tournamentId, entry.stage);
+
+      // Audit log
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+      try {
+        await createAuditLog({
+          userId: session.user.id,
+          ipAddress,
+          userAgent,
+          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+          targetId: entryId,
+          targetType: "TTEntry",
+          details: {
+            tournamentId,
+            playerNickname: updatedEntry.player.nickname,
+            eliminated,
+            manualUpdate: true,
+          },
+        });
+      } catch (logError) {
+        console.error("Failed to create audit log:", logError);
+      }
+
+      return NextResponse.json({ entry: updatedEntry });
+    }
+
+    // Handle lives update
+    if (action === "update_lives") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json(
+          { error: "Authentication required for lives update" },
+          { status: 401 }
+        );
+      }
+
+      if (livesDelta === undefined) {
+        return NextResponse.json(
+          { error: "livesDelta is required for update_lives action" },
+          { status: 400 }
+        );
+      }
+
+      const entry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: true },
+      });
+
+      if (!entry) {
+        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      }
+
+      const newLives = entry.lives + livesDelta;
+      const newEliminated = newLives <= 0;
+
+      const updatedEntry = await prisma.tTEntry.update({
+        where: { id: entryId },
+        data: {
+          lives: Math.max(0, newLives),
+          eliminated: newEliminated,
+        },
+        include: { player: true },
+      });
+
+      // Recalculate ranks
+      await recalculateRanks(tournamentId, entry.stage);
+
+      // Audit log
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+      try {
+        await createAuditLog({
+          userId: session.user.id,
+          ipAddress,
+          userAgent,
+          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+          targetId: entryId,
+          targetType: "TTEntry",
+          details: {
+            tournamentId,
+            playerNickname: updatedEntry.player.nickname,
+            oldLives: entry.lives,
+            newLives: updatedEntry.lives,
+            eliminated: updatedEntry.eliminated,
+          },
+        });
+      } catch (logError) {
+        console.error("Failed to create audit log:", logError);
+      }
+
+      return NextResponse.json({ entry: updatedEntry });
+    }
+
+    // Handle times update (default action)
+    const { course, time, times: bulkTimes } = parseResult.data;
+
+    // Rate limiting
+    const identifier = getClientIdentifier(request);
+    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000); // 10 requests per minute
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Get current entry
     const entry = await prisma.tTEntry.findUnique({
@@ -262,10 +604,8 @@ export async function PUT(
     let updatedTimes: Record<string, string>;
 
     if (bulkTimes) {
-      // Bulk update all times
       updatedTimes = { ...currentTimes, ...bulkTimes };
     } else if (course && time !== undefined) {
-      // Single course update - validate course is in COURSES
       if (!COURSES.includes(course as CourseAbbr)) {
         return NextResponse.json(
           { error: "Invalid course abbreviation" },
@@ -280,7 +620,6 @@ export async function PUT(
       );
     }
 
-    // Validate time formats (additional check for single course update)
     for (const [c, t] of Object.entries(updatedTimes)) {
       if (t && t !== "" && timeToMs(t) === null) {
         return NextResponse.json(
@@ -290,20 +629,36 @@ export async function PUT(
       }
     }
 
-    // Update the entry
     await prisma.tTEntry.update({
       where: { id: entryId },
       data: { times: updatedTimes },
     });
 
-    // Recalculate ranks for all entries
-    await recalculateRanks(tournamentId);
+    await recalculateRanks(tournamentId, entry.stage);
 
-    // Fetch updated entry with new rank
     const finalEntry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
       include: { player: true },
     });
+
+    const ipAddress = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
+    try {
+      await createAuditLog({
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entryId,
+        targetType: "TTEntry",
+        details: {
+          tournamentId,
+          updatedTimes: updatedTimes,
+          playerNickname: finalEntry?.player.nickname,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create audit log:", logError);
+    }
 
     return NextResponse.json({ entry: finalEntry });
   } catch (error) {
@@ -322,6 +677,25 @@ export async function DELETE(
 ) {
   try {
     const { id: tournamentId } = await params;
+
+    // Get session for authentication (DELETE requires auth)
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Authentication required for delete operations" },
+        { status: 401 }
+      );
+    }
+
+    // Rate limiting
+    const identifier = getClientIdentifier(request);
+    const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000); // 5 delete requests per minute
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Validate tournamentId
     const uuidSchema = z.string().uuid();
@@ -352,12 +726,46 @@ export async function DELETE(
       );
     }
 
+    // Get entry details for audit log before deletion
+    const entryToDelete = await prisma.tTEntry.findUnique({
+      where: { id: entryId },
+      include: { player: true },
+    });
+
+    if (!entryToDelete) {
+      return NextResponse.json(
+        { error: "Entry not found" },
+        { status: 404 }
+      );
+    }
+
     await prisma.tTEntry.delete({
       where: { id: entryId },
     });
 
     // Recalculate ranks
     await recalculateRanks(tournamentId);
+
+    // Audit log
+    const ipAddress = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
+    try {
+      await createAuditLog({
+        userId: session.user.id,
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
+        targetId: entryId,
+        targetType: "TTEntry",
+        details: {
+          tournamentId,
+          playerNickname: entryToDelete.player.nickname,
+          deletedBy: session.user.email,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to create audit log:", logError);
+    }
 
     return NextResponse.json({ message: "Entry deleted" });
   } catch (error) {
