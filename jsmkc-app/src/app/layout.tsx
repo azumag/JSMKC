@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,8 +24,43 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Get nonce from middleware-generated headers
+  const headersList = headers()
+  const nonce = headersList.get('x-nonce') || crypto.randomUUID()
+  
   return (
     <html lang="en">
+      <head>
+        {/* CSP header with nonce for security */}
+        <meta
+          httpEquiv="Content-Security-Policy"
+          content={
+            process.env.NODE_ENV === 'production'
+              ? [
+                  "default-src 'self'",
+                  `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
+                  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+                  `font-src 'self' https://fonts.gstatic.com`,
+                  `img-src 'self' data: blob: https://www.google-analytics.com`,
+                  `connect-src 'self' https://api.github.com https://oauth2.googleapis.com`,
+                  "frame-src 'none'",
+                  "object-src 'none'",
+                  "base-uri 'self'",
+                  "form-action 'self'",
+                  "upgrade-insecure-requests"
+                ].join('; ')
+              : [
+                  "default-src 'self'",
+                  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+                  "style-src 'self' 'unsafe-inline'",
+                  "img-src 'self' data: blob:",
+                  "connect-src 'self'",
+                  "font-src 'self' data:",
+                  "frame-ancestors 'none'",
+                ].join('; ')
+          }
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

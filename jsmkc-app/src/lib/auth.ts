@@ -3,8 +3,8 @@ import GitHub from 'next-auth/providers/github'
 import Google from 'next-auth/providers/google'
 import { prisma } from '@/lib/prisma'
 
-// Refresh token function as specified in ARCHITECTURE.md section 6.2
-async function refreshAccessToken(token) {
+// Refresh token function for Google OAuth as specified in ARCHITECTURE.md section 6.2
+async function refreshGoogleAccessToken(token) {
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -12,6 +12,43 @@ async function refreshAccessToken(token) {
       body: new URLSearchParams({
         client_id: process.env.AUTH_GOOGLE_ID!,
         client_secret: process.env.AUTH_GOOGLE_SECRET!,
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken!,
+      }),
+    })
+
+    const refreshedTokens = await response.json()
+
+    if (!response.ok) {
+      throw refreshedTokens
+    }
+
+    return {
+      ...token,
+      accessToken: refreshedTokens.access_token,
+      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+    }
+  } catch (error) {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    }
+  }
+}
+
+// Refresh token function for GitHub OAuth as specified in ARCHITECTURE.md section 6.2
+async function refreshGitHubAccessToken(token) {
+  try {
+    const response = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GITHUB_CLIENT_ID!,
+        client_secret: process.env.GITHUB_CLIENT_SECRET!,
         grant_type: "refresh_token",
         refresh_token: token.refreshToken!,
       }),
@@ -185,7 +222,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       // Access token has expired, try to refresh it
       if (account?.provider === 'google' && token.refreshToken) {
-        return refreshAccessToken(token)
+        return refreshGoogleAccessToken(token)
+      }
+
+      // Access token has expired, try to refresh it for GitHub
+      if (account?.provider === 'github' && token.refreshToken) {
+        return refreshGitHubAccessToken(token)
       }
 
       // Unable to refresh token

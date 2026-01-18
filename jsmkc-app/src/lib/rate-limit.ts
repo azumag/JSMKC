@@ -105,7 +105,41 @@ export async function rateLimit(
 }
 
 // Fallback in-memory rate limiting for development
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+
+// Maximum store size to prevent memory leaks in Edge Runtime
+const MAX_STORE_SIZE = 10000
+
+function cleanupExpiredEntries(): number {
+  const now = Date.now()
+  let cleanedCount = 0
+  
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (value.resetTime < now) {
+      rateLimitStore.delete(key)
+      cleanedCount++
+    }
+  }
+  
+  return cleanedCount
+}
+
+function enforceStoreSizeLimit(): number {
+  if (rateLimitStore.size <= MAX_STORE_SIZE) return 0
+  
+  const entries = Array.from(rateLimitStore.entries())
+  entries.sort((a, b) => a[1].resetTime - b[1].resetTime)
+  
+  const toDelete = entries.slice(0, rateLimitStore.size - MAX_STORE_SIZE)
+  let deletedCount = 0
+  
+  for (const [key] of toDelete) {
+    rateLimitStore.delete(key)
+    deletedCount++
+  }
+  
+  return deletedCount
+}
 
 function rateLimitInMemory(
   identifier: string,
@@ -114,11 +148,12 @@ function rateLimitInMemory(
 ): RateLimitResult {
   const now = Date.now();
 
-  // Clean up expired entries
-  for (const [key, value] of rateLimitStore.entries()) {
-    if (value.resetTime < now) {
-      rateLimitStore.delete(key);
-    }
+  // Clean up expired entries on every request (Edge Runtime compatible)
+  const expiredCleaned = cleanupExpiredEntries();
+  const sizeCleaned = enforceStoreSizeLimit();
+  
+  if (expiredCleaned > 0 || sizeCleaned > 0) {
+    console.log(`[RateLimit] Cleaned up ${expiredCleaned} expired, ${sizeCleaned} size-limit entries`);
   }
 
   const current = rateLimitStore.get(identifier);
