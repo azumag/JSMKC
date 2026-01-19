@@ -1,109 +1,120 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { POLLING_INTERVAL } from '@/lib/constants';
 
-interface UsePollingOptions<T> {
-  fetchFn: () => Promise<T>;
-  interval?: number;
+interface UsePollingOptions {
   enabled?: boolean;
+  interval?: number;
+  immediate?: boolean;
+  onSuccess?: (data: unknown) => void;
+  onError?: (error: Error) => void;
 }
 
-interface UsePollingReturn<T> {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-  lastUpdated: Date | null;
-  isPolling: boolean;
-  refetch: () => Promise<void>;
-}
+export function usePolling<T>(
+  fetchFn: () => Promise<T>,
+  options: UsePollingOptions = {}
+) {
+  const {
+    enabled = true,
+    interval = POLLING_INTERVAL,
+    immediate = true,
+    onSuccess,
+    onError,
+  } = options;
 
-export function usePolling<T>({
-  fetchFn,
-  interval = 3000,
-  enabled = true,
-}: UsePollingOptions<T>): UsePollingReturn<T> {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [lastETag, setLastETag] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const pollRef = useRef<(() => Promise<void>) | null>(null);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const prevDataRef = useRef<string | null>(null);
+  const poll = useCallback(async () => {
+    if (!isMountedRef.current) return;
 
-  const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const result = await fetchFn();
+      setIsLoading(true);
+      const response = await fetchFn();
+      const responseObj = response as { headers?: { get: (name: string) => string | null } };
+      const currentETag = responseObj?.headers?.get('etag');
 
-      const currentDataString = JSON.stringify(result);
-      const prevDataString = prevDataRef.current;
-
-      if (prevDataString !== currentDataString) {
-        setData(result);
-        setLastUpdated(new Date());
+      if (currentETag && currentETag === lastETag) {
+        setIsLoading(false);
+        return;
       }
 
-      prevDataRef.current = currentDataString;
+      setLastETag(currentETag ?? null);
+      setData(response);
+
+      if (onSuccess) {
+        onSuccess(response);
+      }
+
+      setError(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch data";
-      setError(errorMessage);
-      console.error("Polling error:", err);
+      const error = err instanceof Error ? err : new Error('Polling failed');
+      setError(error);
+
+      if (onError) {
+        onError(error);
+      }
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [fetchFn]);
+  }, [fetchFn, lastETag, onSuccess, onError]);
 
-  const startPolling = useCallback(() => {
-    if (!enabled) return;
+  pollRef.current = poll;
 
-    fetchData();
-    setIsPolling(true);
-
-    intervalRef.current = setInterval(() => {
-      fetchData();
-    }, interval);
-  }, [enabled, interval, fetchData]);
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const clearPolling = useCallback(() => {
+    isMountedRef.current = false;
+    setIsLoading(false);
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current);
+      pollingRef.current = null;
     }
-    setIsPolling(false);
+    setError(null);
   }, []);
 
   useEffect(() => {
-    if (enabled) {
-      startPolling();
+    isMountedRef.current = true;
+
+    if (!enabled) {
+      clearPolling();
+      return;
     }
 
-    return () => {
-      stopPolling();
-    };
-  }, [enabled, startPolling, stopPolling]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopPolling();
-      } else if (enabled) {
-        startPolling();
+    const executePoll = async () => {
+      if (isMountedRef.current && pollRef.current) {
+        await pollRef.current();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (immediate) {
+      executePoll();
+    }
+
+    pollingRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        executePoll();
+      }
+    }, interval);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearPolling();
     };
-  }, [enabled, startPolling, stopPolling]);
+  }, [enabled, interval, immediate, poll, clearPolling]);
+
+  const manuallyRefetch = useCallback(() => {
+    if (pollRef.current) {
+      return pollRef.current();
+    }
+  }, []);
 
   return {
     data,
-    loading,
+    isLoading,
     error,
-    lastUpdated,
-    isPolling,
-    refetch: fetchData,
+    lastETag,
+    refetch: manuallyRefetch,
   };
 }
