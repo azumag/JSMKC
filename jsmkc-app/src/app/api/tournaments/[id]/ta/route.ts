@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { z } from "zod";
-import { COURSES, CourseAbbr } from "@/lib/constants";
+import { auth as authenticate } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
-import { auth } from "@/lib/auth";
 import { sanitizeInput } from "@/lib/sanitize";
 
 // Zod schemas for input validation
@@ -231,7 +229,7 @@ export async function POST(
 
     // Handle promoting to revival round 1 (players 17-24)
     if (action === "promote_to_revival_1") {
-      const session = await auth();
+      const session = await authenticate();
       if (!session?.user) {
         return NextResponse.json(
           { success: false, error: "Authentication required for revival promotion" },
@@ -288,7 +286,7 @@ export async function POST(
         });
 
         if (!existingRevival) {
-          const entryData: any = {
+          const entryData: TTEntryData = {
             tournamentId,
             playerId: qual.playerId,
             stage: "revival_1",
@@ -348,7 +346,7 @@ export async function POST(
 
     // Handle promoting to revival round 2 (players 13-16 + revival_1 survivors)
     if (action === "promote_to_revival_2") {
-      const session = await auth();
+      const session = await authenticate();
       if (!session?.user) {
         return NextResponse.json(
           { success: false, error: "Authentication required for revival promotion" },
@@ -415,7 +413,7 @@ export async function POST(
         });
 
         if (!existingRevival) {
-          const entryData: any = {
+          const entryData: TTEntryData = {
             tournamentId,
             playerId: source.playerId,
             stage: "revival_2",
@@ -475,7 +473,7 @@ export async function POST(
 
     // Handle promoting to finals
     if (action === "promote_to_finals") {
-      const session = await auth();
+      const session = await authenticate();
       if (!session?.user) {
         return NextResponse.json(
           { success: false, error: "Authentication required for finals promotion" },
@@ -700,7 +698,7 @@ export async function PUT(
 
     // Handle elimination
     if (action === "eliminate") {
-      const session = await auth();
+      const session = await authenticate();
       if (!session?.user) {
       return NextResponse.json(
         { success: false, error: "Authentication required for delete operations" },
@@ -862,7 +860,7 @@ export async function DELETE(
     const { id: tournamentId } = await params;
 
     // Get session for authentication (DELETE requires auth)
-    const session = await auth();
+    const session = await authenticate();
     if (!session?.user) {
         return NextResponse.json(
           { success: false, error: "livesDelta is required for update_lives action" },

@@ -82,4 +82,5 @@ MIT
 
 ### 📋 既知の問題
 - Time AttackページのJSX構造問題（Issue #13）
+- ESLint 'any'型警告（Issue #18）
 - 未使用変数の警告（コード品質向上）

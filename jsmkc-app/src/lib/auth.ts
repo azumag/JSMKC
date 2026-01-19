@@ -13,6 +13,18 @@ const ADMIN_DISCORD_IDS = [
   'YOUR_DISCORD_USER_ID_HERE', // Placeholder, user to update
 ];
 
+interface ExtendedJWT {
+  sub: string;
+  userType?: 'player' | 'admin' | 'member';
+  playerId?: string;
+  nickname?: string;
+  role?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpires?: number;
+  refreshTokenExpires?: number;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
   providers: [
@@ -155,7 +167,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             playerId: user.playerId,
             nickname: user.nickname,
             role: 'player'
-          } as any;
+          } as ExtendedJWT;
         }
 
         // Handle OAuth providers (Discord, GitHub, Google)
@@ -173,16 +185,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
           user: user,
           role: role,
-        } as any;
+        } as ExtendedJWT;
       }
 
       // Return previous token if still valid
       if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        return token as any;
+        return token as ExtendedJWT;
       }
 
       // Token refresh logic can be simplified or expanded as needed
-      return token as any;
+      return token as ExtendedJWT;
     },
   },
   pages: {

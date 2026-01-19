@@ -14,6 +14,13 @@ const UpdateMatchSchema = z.object({
   completed: z.boolean().optional(),
 });
 
+interface BMMatchUpdateData {
+  score1: number;
+  score2: number;
+  completed: boolean;
+  rounds?: Array<{ arena: string; winner: number }>;
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
@@ -56,7 +63,7 @@ export async function PUT(
     const targetWins = 5;
     const isComplete = data.completed || data.score1 >= targetWins || data.score2 >= targetWins;
 
-    const updateData: any = {
+    const updateData: BMMatchUpdateData = {
       score1: data.score1,
       score2: data.score2,
       completed: isComplete,
