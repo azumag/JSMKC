@@ -111,6 +111,30 @@ export async function POST(
       return handleValidationError(scoreValidation.error || "Invalid scores", "scores");
     }
 
+    // Determine player ID for logging
+    const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
+
+    // Create score entry log
+    try {
+      await prisma.scoreEntryLog.create({
+        data: {
+          tournamentId,
+          matchId,
+          matchType: 'BM',
+          playerId: reportingPlayerId,
+          reportedData: {
+            reportingPlayer,
+            score1,
+            score2
+          },
+          ipAddress: clientIp,
+          userAgent: request.headers.get('user-agent') || 'unknown',
+        },
+      });
+    } catch (logError) {
+      console.error('Failed to create score entry log:', logError);
+    }
+
     // Use optimistic locking to prevent race conditions
     let result;
     try {

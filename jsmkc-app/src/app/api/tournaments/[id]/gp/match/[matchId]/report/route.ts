@@ -108,13 +108,10 @@ export async function POST(
       }
     }
 
-    if (match.completed) {
-      return NextResponse.json(
-        { error: "Match already completed" },
-        { status: 400 }
-      );
-    }
+    // Determine player ID for logging
+    const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
 
+    // Calculate points for logging
     let totalPoints1 = 0;
     let totalPoints2 = 0;
 
@@ -131,6 +128,35 @@ export async function POST(
         points2,
       };
     });
+
+    // Create score entry log
+    try {
+      await prisma.scoreEntryLog.create({
+        data: {
+          tournamentId,
+          matchId,
+          matchType: 'GP',
+          playerId: reportingPlayerId,
+          reportedData: {
+            reportingPlayer,
+            races: processedRaces,
+            totalPoints1,
+            totalPoints2,
+          },
+          ipAddress: clientIp,
+          userAgent: userAgent,
+        },
+      });
+    } catch (logError) {
+      console.error('Failed to create score entry log:', logError);
+    }
+
+    if (match.completed) {
+      return NextResponse.json(
+        { error: "Match already completed" },
+        { status: 400 }
+      );
+    }
 
     const updateData =
       reportingPlayer === 1

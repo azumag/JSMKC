@@ -26,7 +26,8 @@ model User {
   
   // Relations
   auditLogs     AuditLog[]
-  
+  player        Player?
+
   @@index([email])
 }
 
@@ -74,10 +75,15 @@ model Player {
   name      String
   nickname  String   @unique
   country   String?
+  password  String?  // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int      @default(0) // 楽観的ロック用
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // User relation (Optional, for linked users)
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
 
   // Battle Mode relations
   bmPlayer1Matches BMMatch[] @relation("BMPlayer1")
@@ -93,6 +99,9 @@ model Player {
   gpPlayer1Matches GPMatch[] @relation("GPPlayer1")
   gpPlayer2Matches GPMatch[] @relation("GPPlayer2")
   gpQualifications GPQualification[]
+
+  // Score entry logs (all match types)
+  scoreEntryLogs ScoreEntryLog[]
 
   // Time Trial relations
   ttEntries TTEntry[]
@@ -334,6 +343,29 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([targetType, targetId])
+}
+
+// Score Entry Log model - Tracks participant score submissions
+model ScoreEntryLog {
+  id           String   @id @default(cuid())
+  tournamentId  String
+  matchId      String
+  matchType    String   // BM, MR, GP
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+
+  // Reported data (varies by match type)
+  reportedData Json     // Flexible storage for different match types
+
+  // Metadata
+  ipAddress     String
+  userAgent     String
+  timestamp     DateTime @default(now())
+
+  @@index([matchId])
+  @@index([playerId])
+  @@index([timestamp])
+  @@index([tournamentId])
 }
 
 // ==========================================

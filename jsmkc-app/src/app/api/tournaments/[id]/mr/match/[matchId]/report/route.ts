@@ -97,6 +97,30 @@ export async function POST(
       );
     }
 
+    // Determine player ID for logging
+    const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
+
+    // Create score entry log
+    try {
+      await prisma.scoreEntryLog.create({
+        data: {
+          tournamentId,
+          matchId,
+          matchType: 'MR',
+          playerId: reportingPlayerId,
+          reportedData: {
+            reportingPlayer,
+            score1,
+            score2
+          },
+          ipAddress: clientIp,
+          userAgent: userAgent,
+        },
+      });
+    } catch (logError) {
+      console.error('Failed to create score entry log:', logError);
+    }
+
     if (reportingPlayer === 1) {
       await prisma.mRMatch.update({
         where: { id: matchId },
