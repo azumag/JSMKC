@@ -13,14 +13,6 @@ const ADMIN_DISCORD_IDS = [
   'YOUR_DISCORD_USER_ID_HERE', // Placeholder, user to update
 ];
 
-type ExtendedJWT = import('next-auth/jwt').JWT & {
-  sub: string;
-  userType: 'player' | 'admin';
-  playerId?: string;
-  nickname?: string;
-  role: string;
-};
-
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
   providers: [
@@ -110,88 +102,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               image: user.image,
               role: role,
             },
-          });
-        } else if (existingUser.role !== role && role === 'admin') {
-          // Upgrade to admin if whitelisted
-          await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { role: 'admin' },
-          });
-        } else if (role === 'admin' && existingUser.role !== 'admin') {
-          // Ensure database reflects admin status if whitelisted
-          await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { role: 'admin' },
-          });
-        }
-
-        return true;
-      } catch (err) {
-        console.error(`Error during ${account?.provider} sign in:`, err);
-        return true;
-      }
-    },
-    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: import('next-auth/jwt').JWT }) {
-      if (session.user && typeof token.sub === 'string') {
-        session.user.id = token.sub;
-        session.user.role = token.role;
-        session.user.userType = token.userType;
-
-        // Add player-specific fields if user is a player
-        if (token.userType === 'player') {
-          session.user.playerId = token.playerId;
-          session.user.nickname = token.nickname;
-        }
-      }
-
-      // Add error information to session for client-side handling
-      if (token.error) {
-        session.error = token.error;
-      }
-
-      return session;
-    },
-    async jwt({ token, user, account }): Promise<ExtendedJWT> {
-      // Initial sign in: store tokens and expiration
-      if (account && user) {
-        // Handle player credentials (password-based login)
-        if (account.provider === 'player-credentials') {
-          return {
-            ...token,
-            sub: user.id,
-            userType: 'player',
-            playerId: user.playerId,
-            nickname: user.nickname,
-            role: 'player'
-          };
-        }
-
-        // Handle OAuth providers (Discord, GitHub, Google)
-        // Fetch user role from DB to be sure
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
-        const role = dbUser?.role || 'member';
-
-        return {
-          ...token,
-          sub: dbUser?.id,
-          userType: 'admin',
-          accessToken: account.access_token,
-          refreshToken: account.refresh_token,
-          accessTokenExpires: Date.now() + (account.expires_in || 3600) * 1000,
-          refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
-          user: user,
-          role: role,
-        };
-      }
-
-      // Return previous token if still valid
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        return token;
-      }
-
-      // Token refresh logic can be simplified or expanded as needed
-      return token;
-    },
           });
         } else if (existingUser.role !== role && role === 'admin') {
           // Upgrade to admin if whitelisted
