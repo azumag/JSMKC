@@ -15,7 +15,8 @@ import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
 import {
   RATE_LIMIT_SCORE_INPUT,
-  RATE_LIMIT_SCORE_INPUT_DURATION
+  RATE_LIMIT_SCORE_INPUT_DURATION,
+  SMK_CHARACTERS
 } from "@/lib/constants";
 
 import prisma from "@/lib/prisma";
@@ -42,7 +43,12 @@ export async function POST(
     }
 
     const body = sanitizeInput(await request.json());
-    const { reportingPlayer, score1, score2 } = body;
+    const { reportingPlayer, score1, score2, character } = body;
+
+    // Validate character if provided
+    if (character && !SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number])) {
+      return handleValidationError("Invalid character", "character");
+    }
 
     // Get match first to check players
     const match = await prisma.bMMatch.findUnique({
@@ -133,6 +139,22 @@ export async function POST(
       });
     } catch (logError) {
       console.error('Failed to create score entry log:', logError);
+    }
+
+    // Log character usage if character is provided
+    if (character) {
+      try {
+        await prisma.matchCharacterUsage.create({
+          data: {
+            matchId,
+            matchType: 'BM',
+            playerId: reportingPlayerId,
+            character,
+          },
+        });
+      } catch (charError) {
+        console.error('Failed to create character usage log:', charError);
+      }
     }
 
     // Use optimistic locking to prevent race conditions

@@ -100,11 +100,14 @@ model Player {
   gpPlayer2Matches GPMatch[] @relation("GPPlayer2")
   gpQualifications GPQualification[]
 
+  // Time Trial relations
+  ttEntries TTEntry[]
+
   // Score entry logs (all match types)
   scoreEntryLogs ScoreEntryLog[]
 
-  // Time Trial relations
-  ttEntries TTEntry[]
+  // Character usage tracking
+  characterUsages MatchCharacterUsage[]
 }
 
 // Tournament model
@@ -366,6 +369,25 @@ model ScoreEntryLog {
   @@index([playerId])
   @@index([timestamp])
   @@index([tournamentId])
+}
+
+// Match Character Usage model - Tracks which characters players use in matches
+model MatchCharacterUsage {
+  id          String   @id @default(cuid())
+  matchId     String
+  matchType   String   // BM, MR, GP
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  // Character used
+  character   String   // Mario, Luigi, Peach, Toad, Yoshi, DK Jr., Bowser, Koopa
+
+  // Metadata
+  createdAt   DateTime @default(now())
+
+  @@unique([matchId, matchType, playerId])
+  @@index([playerId])
+  @@index([character])
 }
 
 // ==========================================

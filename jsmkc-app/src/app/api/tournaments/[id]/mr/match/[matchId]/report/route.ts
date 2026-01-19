@@ -4,6 +4,7 @@ import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { validateTournamentToken } from "@/lib/token-validation";
 import { auth } from "@/lib/auth";
+import { SMK_CHARACTERS } from "@/lib/constants";
 
 export async function POST(
   request: NextRequest,
@@ -23,7 +24,12 @@ export async function POST(
     }
 
     const body = sanitizeInput(await request.json());
-    const { reportingPlayer, score1, score2, rounds } = body;
+    const { reportingPlayer, score1, score2, rounds, character } = body;
+
+    // Validate character if provided
+    if (character && !SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number])) {
+      return NextResponse.json({ error: "Invalid character" }, { status: 400 });
+    }
 
     // Get match first to check players
     const match = await prisma.mRMatch.findUnique({
@@ -119,6 +125,22 @@ export async function POST(
       });
     } catch (logError) {
       console.error('Failed to create score entry log:', logError);
+    }
+
+    // Log character usage if character is provided
+    if (character) {
+      try {
+        await prisma.matchCharacterUsage.create({
+          data: {
+            matchId,
+            matchType: 'MR',
+            playerId: reportingPlayerId,
+            character,
+          },
+        });
+      } catch (charError) {
+        console.error('Failed to create character usage log:', charError);
+      }
     }
 
     if (reportingPlayer === 1) {

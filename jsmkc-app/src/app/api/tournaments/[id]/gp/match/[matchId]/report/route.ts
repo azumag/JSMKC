@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
-import { validateTournamentToken } from "@/lib/token-validation";
-import { auth } from "@/lib/auth";
+import { SMK_CHARACTERS } from "@/lib/constants";
 
 const DRIVER_POINTS = [0, 1, 3, 6, 9];
 
@@ -30,82 +29,11 @@ export async function POST(
     }
 
     const body = sanitizeInput(await request.json());
-    const { reportingPlayer, races } = body;
+    const { reportingPlayer, races, character } = body;
 
-    // Get match first to check players
-    const match = await prisma.gPMatch.findUnique({
-      where: { id: matchId },
-      include: { player1: true, player2: true },
-    });
-
-    if (!match) {
-      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
-    }
-
-    // Check authorization
-    let isAuthorized = false;
-    const session = await auth();
-
-    // 1. Tournament token
-    const tokenValidation = await validateTournamentToken(request, tournamentId);
-    if (tokenValidation.tournament) {
-      isAuthorized = true;
-    }
-
-    // 2. Authenticated user
-    if (session?.user?.id) {
-      const userType = session.user.userType;
-
-      if (userType === 'admin' && session.user.role === 'admin') {
-        isAuthorized = true;
-      } else if (userType === 'player') {
-        const playerId = session.user.playerId;
-        if (reportingPlayer === 1 && match.player1Id === playerId) {
-          isAuthorized = true;
-        }
-        if (reportingPlayer === 2 && match.player2Id === playerId) {
-          isAuthorized = true;
-        }
-      } else {
-        // OAuth linked player
-        if (reportingPlayer === 1 && match.player1.userId === session.user.id) {
-          isAuthorized = true;
-        }
-        if (reportingPlayer === 2 && match.player2.userId === session.user.id) {
-          isAuthorized = true;
-        }
-      }
-    }
-
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Invalid token or not authorized for this match' },
-        { status: 401 }
-      );
-    }
-
-    // Validate input
-    if (!reportingPlayer || !Array.isArray(races) || races.length === 0) {
-      return NextResponse.json(
-        { error: "reportingPlayer and races are required" },
-        { status: 400 }
-      );
-    }
-
-    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return NextResponse.json(
-        { error: "reportingPlayer must be 1 or 2" },
-        { status: 400 }
-      );
-    }
-
-    for (const race of races) {
-      if (!race.course || race.position1 === undefined || race.position2 === undefined) {
-        return NextResponse.json(
-          { error: "Each race must have course, position1, and position2" },
-          { status: 400 }
-        );
-      }
+    // Validate character if provided
+    if (character && !SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number])) {
+      return NextResponse.json({ error: "Invalid character" }, { status: 400 });
     }
 
     // Determine player ID for logging
@@ -149,6 +77,22 @@ export async function POST(
       });
     } catch (logError) {
       console.error('Failed to create score entry log:', logError);
+    }
+
+    // Log character usage if character is provided
+    if (character) {
+      try {
+        await prisma.matchCharacterUsage.create({
+          data: {
+            matchId,
+            matchType: 'GP',
+            playerId: reportingPlayerId,
+            character,
+          },
+        });
+      } catch (charError) {
+        console.error('Failed to create character usage log:', charError);
+      }
     }
 
     if (match.completed) {
