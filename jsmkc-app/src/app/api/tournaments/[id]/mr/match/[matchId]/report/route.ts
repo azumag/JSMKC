@@ -5,6 +5,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { validateTournamentToken } from "@/lib/token-validation";
 import { auth } from "@/lib/auth";
 import { SMK_CHARACTERS } from "@/lib/constants";
+import { createAuditLog } from "@/lib/audit-log";
 
 export async function POST(
   request: NextRequest,
@@ -147,16 +148,16 @@ export async function POST(
       await prisma.mRMatch.update({
         where: { id: matchId },
         data: {
-          player1ReportedScore1: score1,
-          player1ReportedScore2: score2,
+          player1ReportedPoints1: score1,
+          player1ReportedPoints2: score2,
         },
       });
     } else {
       await prisma.mRMatch.update({
         where: { id: matchId },
         data: {
-          player2ReportedScore1: score1,
-          player2ReportedScore2: score2,
+          player2ReportedPoints1: score1,
+          player2ReportedPoints2: score2,
         },
       });
     }
@@ -167,10 +168,10 @@ export async function POST(
     });
 
     if (score1 >= 3 || score2 >= 3) {
-      const p1Score1 = updatedMatch!.player1ReportedScore1;
-      const p1Score2 = updatedMatch!.player1ReportedScore2;
-      const p2Score1 = updatedMatch!.player2ReportedScore1;
-      const p2Score2 = updatedMatch!.player2ReportedScore2;
+      const p1Score1 = updatedMatch!.player1ReportedPoints1;
+      const p1Score2 = updatedMatch!.player1ReportedPoints2;
+      const p2Score1 = updatedMatch!.player2ReportedPoints1;
+      const p2Score2 = updatedMatch!.player2ReportedPoints2;
 
       if (p1Score1 !== null && p2Score1 !== null && p1Score1 === p2Score1 &&
           p1Score2 !== null && p2Score2 !== null && p1Score2 === p2Score2) {

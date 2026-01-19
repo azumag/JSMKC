@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { SMK_CHARACTERS } from "@/lib/constants";
+import { createAuditLog } from "@/lib/audit-log";
 
 const DRIVER_POINTS = [0, 1, 3, 6, 9];
 
@@ -30,6 +31,20 @@ export async function POST(
 
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, races, character } = body;
+
+    // Fetch match to check completion status and get player IDs
+    const match = await prisma.gPMatch.findUnique({
+      where: { id: matchId },
+      select: {
+        player1Id: true,
+        player2Id: true,
+        completed: true,
+      },
+    });
+
+    if (!match) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
 
     // Validate character if provided
     if (character && !SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number])) {

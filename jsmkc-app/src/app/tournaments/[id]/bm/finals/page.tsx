@@ -102,8 +102,7 @@ export default function BattleModeFinals({
     };
   }, [tournamentId]);
 
-  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
-    fetchFn: fetchFinalsData,
+  const { data: pollData, isLoading: pollLoading, error, lastETag, refetch } = usePolling(fetchFinalsData, {
     interval: 3000,
   });
 
@@ -214,7 +213,7 @@ export default function BattleModeFinals({
             Double Elimination Tournament
           </p>
           <div className="mt-2">
-            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+            <UpdateIndicator lastUpdated={new Date(lastETag || 0)} isPolling={!error && pollLoading} />
           </div>
         </div>
         <div className="flex gap-2">

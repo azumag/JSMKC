@@ -82,7 +82,7 @@ export default function MatchEntryPage({
     };
   }, [tournamentId, matchId]);
 
-  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
     fetchFn: fetchMatchData,
     interval: 3000,
   });

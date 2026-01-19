@@ -23,11 +23,12 @@ export async function GET(
       orderBy: [{ score: "desc" }, { points: "desc" }],
     });
 
-    const players: BracketPlayer[] = qualifications.map((q) => ({
+    const players: BracketPlayer[] = qualifications.map((q, index) => ({
       playerId: q.playerId,
       playerName: q.player.name,
       playerNickname: q.player.nickname,
-      qualifyingRank: q.rank,
+      qualifyingRank: index + 1,
+      losses: 0,
       points: q.points,
     }));
 
@@ -74,11 +75,12 @@ export async function POST(
       );
     }
 
-    const players: BracketPlayer[] = qualifications.map((q) => ({
+    const players: BracketPlayer[] = qualifications.map((q, index) => ({
       playerId: q.playerId,
       playerName: q.player.name,
       playerNickname: q.player.nickname,
-      qualifyingRank: q.rank,
+      qualifyingRank: index + 1,
+      losses: 0,
       points: q.points,
     }));
 

@@ -143,7 +143,7 @@ export default function GrandPrixPage({
     };
   }, [tournamentId]);
 
-  const { data: pollData, loading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
     fetchFn: fetchTournamentData,
     interval: 3000,
   });

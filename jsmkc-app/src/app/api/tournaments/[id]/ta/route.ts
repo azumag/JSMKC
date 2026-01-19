@@ -288,17 +288,26 @@ export async function POST(
         });
 
         if (!existingRevival) {
+          const entryData: any = {
+            tournamentId,
+            playerId: qual.playerId,
+            stage: "revival_1",
+            lives: 1,
+            eliminated: false,
+          };
+
+          if (qual.times !== null) {
+            entryData.times = qual.times;
+          }
+          if (qual.totalTime !== null) {
+            entryData.totalTime = qual.totalTime;
+          }
+          if (qual.rank !== null) {
+            entryData.rank = qual.rank;
+          }
+
           const entry = await prisma.tTEntry.create({
-            data: {
-              tournamentId,
-              playerId: qual.playerId,
-              stage: "revival_1",
-              lives: 1,
-              eliminated: false,
-              times: qual.times,
-              totalTime: qual.totalTime,
-              rank: qual.rank,
-            },
+            data: entryData,
             include: { player: true },
           });
           createdEntries.push(entry);
@@ -406,17 +415,26 @@ export async function POST(
         });
 
         if (!existingRevival) {
+          const entryData: any = {
+            tournamentId,
+            playerId: source.playerId,
+            stage: "revival_2",
+            lives: 1,
+            eliminated: false,
+          };
+
+          if (source.times !== null) {
+            entryData.times = source.times;
+          }
+          if (source.totalTime !== null) {
+            entryData.totalTime = source.totalTime;
+          }
+          if (source.rank !== null) {
+            entryData.rank = source.rank;
+          }
+
           const entry = await prisma.tTEntry.create({
-            data: {
-              tournamentId,
-              playerId: source.playerId,
-              stage: "revival_2",
-              lives: 1,
-              eliminated: false,
-              times: source.times,
-              totalTime: source.totalTime,
-              rank: source.rank,
-            },
+            data: entryData,
             include: { player: true },
           });
           createdEntries.push(entry);

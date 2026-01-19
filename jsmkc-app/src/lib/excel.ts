@@ -70,6 +70,6 @@ export function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-export function getExportFormat(format?: string): 'xlsx' | 'csv' {
+export function getExportFormat(format: string | null): 'xlsx' | 'csv' {
   return (format === 'csv' ? 'csv' : 'xlsx');
 }

@@ -113,8 +113,11 @@ export function usePolling<T>(
   return {
     data,
     isLoading,
+    loading: isLoading,
     error,
     lastETag,
+    lastUpdated: lastETag ? new Date(lastETag) : null,
+    isPolling: isLoading,
     refetch: manuallyRefetch,
   };
 }

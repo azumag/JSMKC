@@ -56,14 +56,19 @@ export async function PUT(
     const targetWins = 5;
     const isComplete = data.completed || data.score1 >= targetWins || data.score2 >= targetWins;
 
+    const updateData: any = {
+      score1: data.score1,
+      score2: data.score2,
+      completed: isComplete,
+    };
+
+    if (data.rounds) {
+      updateData.rounds = data.rounds;
+    }
+
     const updatedMatch = await prisma.bMMatch.update({
       where: { id: matchId },
-      data: {
-        score1: data.score1,
-        score2: data.score2,
-        rounds: data.rounds || match.rounds,
-        completed: isComplete,
-      },
+      data: updateData,
       include: { player1: true, player2: true },
     });
 
