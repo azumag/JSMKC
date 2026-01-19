@@ -90,7 +90,7 @@ Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計
 #### Refresh Token機構の実装詳細
 ```typescript
 // lib/auth.ts
-const refreshRate = 1000 * 60 * 5 // 5分間隔でチェック
+const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24時間
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -102,8 +102,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
-          accessTokenExpires: Date.now() + account.expires_in * 1000,
-          refreshTokenExpires: Date.now() + 24 * 60 * 60 * 1000, // 24時間
+          accessTokenExpires: Date.now() + (account.expires_in || 3600) * 1000,
+          refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
         }
       }
 
@@ -161,7 +161,7 @@ async function refreshAccessToken(token) {
   - 無効化: 運営のみ可能（認証済みユーザー）
 - URL漏洩対策:
   - トークン無効化機能
-  - レート制限: 1IPあたり10回/分（Redis/Vercel KV）
+  - レート制限: 1IPあたり10回/分（メモリベース）
   - 入力ログ: IPアドレス、ユーザーエージェント、タイムスタンプを保存（90日間）
   - IP制限（オプション）: 運営が特定IPのみ許可する設定
   - CAPTCHA（オプション）: 不正入力回数が多い場合
@@ -206,53 +206,57 @@ export async function POST(request: Request, { params }: { params: { id: string 
 }
 ```
 
-#### レート制限の柔軟な実装
+#### レート制限の実装（メモリベース）
+**設計方針**: Redisではなくメモリベースのシンプルなレート制限を実装
+
 **エンドポイント別制限設定**:
 ```typescript
 // lib/rate-limiting.ts
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+// メモリベースのレート制限（開発初期段階）
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-})
-
-// エンドポイント別の制限設定
-const rateLimits = {
-  // スコア入力: 高頻度を許可
-  scoreInput: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(20, '60 s'), // 1分に20回
-  }),
-  
-  // 一般ポーリング: 中程度
-  polling: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(12, '60 s'), // 1分に12回（5秒間隔）
-  }),
-  
-  // トークン検証: 低頻度
-  tokenValidation: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '60 s'), // 1分に10回
-  }),
-}
+const RATE_LIMITS = {
+  scoreInput: { max: 20, window: 60 * 1000 }, // 1分に20回
+  polling: { max: 12, window: 60 * 1000 },    // 1分に12回
+  tokenValidation: { max: 10, window: 60 * 1000 }, // 1分に10回
+};
 
 export async function checkRateLimit(
-  type: keyof typeof rateLimits, 
+  type: keyof typeof RATE_LIMITS,
   identifier: string
 ) {
-  const { success, limit, remaining, reset } = await rateLimits[type].limit(identifier)
+  const now = Date.now();
+  const key = `${type}:${identifier}`;
+  const limit = RATE_LIMITS[type];
   
-  return {
-    success,
-    limit,
-    remaining,
-    reset,
-    retryAfter: success ? undefined : Math.ceil((reset - Date.now()) / 1000)
+  const record = rateLimitStore.get(key);
+  
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + limit.window });
+    return { success: true, remaining: limit.max - 1 };
   }
+  
+  if (record.count >= limit.max) {
+    return { 
+      success: false, 
+      remaining: 0,
+      retryAfter: Math.ceil((record.resetAt - now) / 1000)
+    };
+  }
+  
+  record.count++;
+  return { success: true, remaining: limit.max - record.count };
 }
+
+// 定期的なクリーンアップ（メモリリーク防止）
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore.entries()) {
+    if (now > record.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // 5分ごと
 ```
 
 **制限閾値の根拠**:
@@ -1141,10 +1145,12 @@ jsmkc-app/
 
 **必要なライブラリ**:
 ```bash
-npm install next-auth @upstash/ratelimit @upstash/redis xlsx @vercel/analytics
+npm install next-auth xlsx @vercel/analytics
 ```
 
-**注意**: `@vercel/analytics`はVercel専用、他プラットフォームでは動作しない
+**注意**:
+- `@vercel/analytics`はVercel専用、他プラットフォームでは動作しない
+- レート制限はメモリベース実装
 
 **コスト超過時の対応**:
 - 関数実行時間が100GB時間を超過した場合、以下の対策を実施:
@@ -1174,10 +1180,664 @@ npm install next-auth @upstash/ratelimit @upstash/redis xlsx @vercel/analytics
 
 ---
 
+## Issue #2, #3, #4, #5への対応
+
+### Issue #2: Redis除外とメモリベースレート制限
+
+**変更内容**:
+- アーキテクチャからRedis/Upstashの記述を削除
+- メモリベースのシンプルなレート制限に変更
+- `lib/rate-limiting.ts`の実装を上記の通り変更
+
+**理由**:
+- 開発初期段階ではRedisの複雑さは不要
+- メモリベースで十分な規模（最大48人同時接続）
+- 将来的にスケールする場合のみRedis導入を検討
+
+### Issue #3: README.md追加
+
+**必要な内容**:
+1. プロジェクト概要
+   - JSMKC点数計算システムの説明
+   - 主要機能の紹介
+2. 技術スタック
+   - Next.js 15.x, TypeScript, PostgreSQL, NextAuth.js等
+3. 前提条件
+   - Node.js 18.x以上
+   - npm または yarn
+   - PostgreSQL（Neonアカウント）
+4. セットアップ手順
+   - リポジトリクローン
+   - 依存関係インストール: `npm install`
+   - 環境変数設定: `.env.example`をコピーして`.env.local`作成
+   - データベースマイグレーション: `npx prisma migrate dev`
+   - 開発サーバー起動: `npm run dev`
+5. 環境変数設定
+   - `DATABASE_URL`: Neon PostgreSQL接続URL
+   - `AUTH_SECRET`: NextAuth.jsシークレット（`openssl rand -base64 32`で生成）
+   - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth
+   - `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`: Google OAuth
+6. データベース管理
+   - マイグレーション作成: `npx prisma migrate dev --name <name>`
+   - Prisma Studio: `npx prisma studio`
+7. 開発コマンド
+   - `npm run dev`: 開発サーバー起動
+   - `npm run build`: 本番ビルド
+   - `npm run start`: 本番サーバー起動
+   - `npm run lint`: ESLint実行
+8. デプロイ手順（Vercel）
+   - Vercelプロジェクト作成
+   - 環境変数設定
+   - GitHubリポジトリ連携
+   - 自動デプロイ
+
+### Issue #4: NextAuth.js MissingSecret エラー修正
+
+**変更内容**:
+1. `lib/auth.ts`に`REFRESH_TOKEN_EXPIRY`定数を追加
+   ```typescript
+   const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24時間
+   ```
+2. `.env.example`に`AUTH_SECRET`を追加
+   ```
+   # NextAuth.js
+   AUTH_SECRET=your_nextauth_secret_here  # openssl rand -base64 32 で生成
+   NEXTAUTH_URL=http://localhost:3000
+   ```
+3. READMEにシークレット生成方法を記載
+   - `openssl rand -base64 32`コマンドの使い方
+
+**理由**:
+- NextAuth.js v5では`AUTH_SECRET`環境変数が必須
+- セキュアなシークレット生成方法を提供
+
+### Issue #5: トーナメント作成時のUnauthorizedエラー修正
+
+**問題原因**:
+- `lib/auth.ts`の`jwt`コールバックで、`account?.provider`の判定が毎回実行されている
+- `account`は初回ログイン時のみ存在し、以降のトークンリフレッシュ時は`null`
+- そのため、トークンリフレッシュ時に正しくリフレッシュ処理が実行されない
+
+**修正内容**:
+1. `jwt`コールバックのロジックを修正
+   - `account && user`の条件内でprovider判定を行う（初回ログイン時のみ）
+   - トークンリフレッシュ時は、token内に保存されたprovider情報を使用
+2. tokenにprovider情報を保存
+   ```typescript
+   if (account && user) {
+     return {
+       ...token,
+       provider: account.provider,  // provider情報を保存
+       accessToken: account.access_token,
+       // ...
+     }
+   }
+   
+   // トークンリフレッシュ時
+   if (token.provider === 'google' && token.refreshToken) {
+     return refreshAccessToken(token, 'google')
+   }
+   ```
+
+**受け入れ基準**:
+- ログイン後、トーナメント作成が成功する
+- セッション情報が正しく維持される
+- MissingSecretエラーが発生しない
+
+---
+
+## 実装詳細仕様（Implementation Agent Request Response）
+
+### 追加日: 2026-01-19
+### 対応: Implementation Agent からの質問 (docs/REQUEST.md)
+
+---
+
+## 1. キャラクター使用記録の詳細仕様
+
+### 1.1 要件レベル
+- **オプショナル（Optional）**: キャラクター情報は任意入力
+- スコア入力時にキャラクター未選択でも送信可能
+- 既存トーナメントへの影響を最小化
+
+### 1.2 対象モード
+- **全4モード対応**: BM, MR, GP, TA
+- Time Trialも含める理由: タイム短縮テクニックはキャラクター性能に依存するため
+
+### 1.3 キャラクターリスト
+**Super Mario Kart (SNES) 全8キャラクター**:
+```typescript
+export const CHARACTERS = [
+  { id: 'mario', name: 'Mario', weight: 'medium', acceleration: 'medium' },
+  { id: 'luigi', name: 'Luigi', weight: 'medium', acceleration: 'medium' },
+  { id: 'peach', name: 'Princess', weight: 'light', acceleration: 'high' },
+  { id: 'yoshi', name: 'Yoshi', weight: 'light', acceleration: 'high' },
+  { id: 'bowser', name: 'Bowser', weight: 'heavy', acceleration: 'low' },
+  { id: 'dk', name: 'Donkey Kong Jr.', weight: 'heavy', acceleration: 'low' },
+  { id: 'koopa', name: 'Koopa Troopa', weight: 'light', acceleration: 'high' },
+  { id: 'toad', name: 'Toad', weight: 'light', acceleration: 'high' },
+] as const;
+
+export type CharacterId = typeof CHARACTERS[number]['id'];
+```
+
+**実装方針**:
+- プルダウンメニュー（Select）で選択
+- 「未選択」オプションを用意（デフォルト）
+- フリーテキスト入力は不可（データ整合性のため）
+
+### 1.4 データベーススキーマ
+
+```prisma
+model BMMatch {
+  // ... 既存フィールド
+  player1Character String? // CharacterId または null
+  player2Character String? // CharacterId または null
+  
+  @@index([player1Character])
+  @@index([player2Character])
+}
+
+model MRMatch {
+  // ... 既存フィールド
+  player1Character String?
+  player2Character String?
+  
+  @@index([player1Character])
+  @@index([player2Character])
+}
+
+model GPMatch {
+  // ... 既存フィールド
+  player1Character String?
+  player2Character String?
+  
+  @@index([player1Character])
+  @@index([player2Character])
+}
+
+model TAEntry {
+  // ... 既存フィールド
+  character String? // CharacterId または null
+  
+  @@index([character])
+}
+```
+
+**マイグレーション戦略**:
+1. 新規カラム追加（nullable）
+2. 既存データは `null` のまま（バックフィル不要）
+3. 新規入力から徐々にデータ蓄積
+
+**マイグレーションコマンド**:
+```bash
+npx prisma migrate dev --name add_character_tracking
+```
+
+### 1.5 アナリティクス要件
+
+**Phase 1 (MVP)**:
+- 基本統計のみ実装
+- キャラクター使用率（各キャラクターの選択回数）
+- キャラクター別勝率（Win Rate by Character）
+
+**Phase 2 (Post-MVP)**:
+- キャラクターマッチアップマトリックス（A vs B の勝率）
+- コース別最適キャラクター分析
+- 専用アナリティクスページ（`/tournaments/[id]/analytics`）
+
+**API実装**:
+```typescript
+// GET /api/tournaments/[id]/analytics/characters
+{
+  "characterStats": [
+    {
+      "character": "yoshi",
+      "usage": 45,          // 使用回数
+      "winRate": 0.62,      // 勝率
+      "avgPosition": 2.3    // 平均順位（TA用）
+    },
+    // ...
+  ],
+  "matchups": [            // Phase 2
+    {
+      "char1": "yoshi",
+      "char2": "bowser",
+      "char1WinRate": 0.65
+    },
+    // ...
+  ]
+}
+```
+
+---
+
+## 2. リアルタイム順位表示の詳細仕様
+
+### 2.1 ページ構造
+**選択肢A: 専用ページ（推奨）**
+- URL: `/tournaments/[id]/leaderboard`
+- 理由: 観戦者専用UI、プロジェクター表示最適化
+
+**選択肢B: タブ統合**
+- トーナメントページ内の「順位表」タブ
+- 理由: ナビゲーションがシンプル
+
+**決定: 選択肢A（専用ページ）を採用**
+- より大きな表示領域
+- フルスクリーンモード対応
+- 観戦者とオーガナイザーのUI分離
+
+### 2.2 観戦者モード
+**実装する機能**:
+- ✅ **認証不要アクセス**: パブリックURL（`/tournaments/[id]/leaderboard?token=xxx`）
+- ✅ **フルスクリーンモード**: プロジェクター表示用（F11キー、またはボタン）
+- ✅ **シンプルUI**: 管理機能非表示、順位表のみ
+
+**UIデザイン指針**:
+```typescript
+// フルスクリーンモード時の特徴
+- フォントサイズ: 通常の1.5倍
+- 余白: 最小化
+- ダークモード対応（プロジェクター見やすさ向上）
+- 自動スクロール（長いリストの場合）
+```
+
+### 2.3 更新頻度
+**決定: 5秒間隔（アーキテクチャ最適化版）**
+- 理由: サーバー負荷削減（従来3秒→5秒で40%削減）
+- 「最大3秒遅延」要件は許容範囲内（5秒も実用的）
+- トーナメント別設定: 当面は固定、将来的にオプション化検討
+
+**実装**:
+```typescript
+// hooks/useLeaderboard.ts
+export function useLeaderboard(tournamentId: number) {
+  return usePolling(`/api/tournaments/${tournamentId}/leaderboard`, 5000);
+}
+```
+
+### 2.4 表示データ
+**MVP版（Phase 1）**:
+- ✅ 現在の順位表（リアルタイム）
+- ✅ プレイヤー名、勝点/タイム、順位
+- ✅ モード別タブ（BM, MR, GP, TA）
+
+**Phase 2拡張**:
+- 最近の試合結果（Live Feed、最新5件）
+- 次回対戦予定（Upcoming Matches）
+
+### 2.5 ゲームモード対応
+**複数モード同時開催の場合**:
+- タブUI（各モード別に表示切替）
+- デフォルト: トーナメントのメインモード
+- URL: `/tournaments/[id]/leaderboard?mode=bm`
+
+---
+
+## 3. Excelエクスポート拡張仕様
+
+### 3.1 優先度
+**決定: 基本エクスポートでMVP可、拡張はPhase 2**
+- 現状の `xlsx` ライブラリによる基本出力で十分
+- Phase 2で高度な機能追加
+
+### 3.2 エクスポート形式（Phase 1 - MVP）
+**シングルシート、プレーンデータ**:
+```
+Tournament: JSMKC 2024
+Mode: Battle Mode
+Date: 2024-01-19
+
+Rank | Player | Wins | Losses | Win Points | Character
+-----|--------|------|--------|------------|----------
+1    | Player1| 5    | 1      | 15         | Yoshi
+2    | Player2| 4    | 2      | 12         | Mario
+...
+```
+
+### 3.3 拡張機能（Phase 2）
+**マルチシート対応**:
+- Sheet 1: Overview（トーナメント概要）
+- Sheet 2: BM Results（バトルモード結果）
+- Sheet 3: MR Results（マッチレース結果）
+- Sheet 4: GP Results（グランプリ結果）
+- Sheet 5: TA Results（タイムアタック結果）
+- Sheet 6: Finals Bracket（決勝トーナメント表）
+
+**スタイリング**:
+- ヘッダー: 太字、背景色（青系）
+- 1位: 金色ハイライト
+- 2位: 銀色ハイライト
+- 3位: 銅色ハイライト
+- 罫線: 全セルに適用
+
+**チャート（Phase 3）**:
+- 優先度: 低（手動作成で代替可能）
+- 実装する場合: `xlsx` ではなく `exceljs` への移行検討
+
+### 3.4 決勝ブラケット出力
+**Phase 1**: テキスト形式の対戦表
+```
+Finals Bracket (Double Elimination)
+
+Winners Bracket:
+Round 1: Player1 vs Player2 -> Player1 wins (3-1)
+Round 1: Player3 vs Player4 -> Player3 wins (3-0)
+...
+
+Losers Bracket:
+Round 1: Player2 vs Player5 -> Player2 wins (3-2)
+...
+
+Grand Finals: Player1 vs Player3 -> Player1 wins (3-2)
+```
+
+**Phase 2**: ASCII図形式
+```
+        Player1 ─┐
+                 ├─ Player1 ─┐
+        Player2 ─┘           │
+                             ├─ Champion: Player1
+        Player3 ─┐           │
+                 ├─ Player3 ─┘
+        Player4 ─┘
+```
+
+**Phase 3**: 画像生成（SVG/PNG）
+- ライブラリ: `canvas` または `puppeteer`
+- 優先度: 低（実装コスト高）
+
+---
+
+## 4. テスト戦略
+
+### 4.1 テストカバレッジ目標
+**本番デプロイ要件**:
+- **最低70%カバレッジ** （業界標準）
+- **クリティカルパス100%**: 認証、スコア入力、計算ロジック、トークン検証
+
+**カバレッジ測定**:
+```bash
+npm run test:coverage
+```
+
+### 4.2 テストタイプ優先度
+
+**Priority 1 (Week 1) - 本番ブロッカー**:
+1. **ユニットテスト（High）**:
+   - `lib/` 配下の全関数（計算ロジック、バリデーション）
+   - 目標: 90%カバレッジ
+
+2. **APIインテグレーションテスト（High）**:
+   - 全33エンドポイント
+   - 正常系・異常系・境界値
+   - 目標: 80%カバレッジ
+
+**Priority 2 (Week 2) - 推奨**:
+3. **コンポーネントテスト（Medium）**:
+   - 主要ページ（トーナメント作成、スコア入力）
+   - ユーザーインタラクション（フォーム送信、ボタンクリック）
+   - 目標: 60%カバレッジ
+
+**Priority 3 (Post-MVP) - オプション**:
+4. **E2Eテスト（Low - 延期可能）**:
+   - Playwright または Cypress
+   - 主要フロー（トーナメント作成→スコア入力→結果表示）
+   - 目標: 主要3シナリオ
+
+### 4.3 本番デプロイゲート
+**必須条件**:
+- ✅ ユニットテスト: 90%カバレッジ
+- ✅ APIテスト: 80%カバレッジ
+- ✅ CI/CDパイプライン: テスト自動実行
+- ✅ 重大バグ0件
+
+**オプション（延期可能）**:
+- E2Eテスト（手動QAで代替）
+
+### 4.4 テストデータ
+**Seedデータ作成**:
+```typescript
+// prisma/seed.ts
+async function main() {
+  // テスト用プレイヤー作成
+  const players = await Promise.all([
+    prisma.player.create({ data: { name: 'Test Player 1' } }),
+    prisma.player.create({ data: { name: 'Test Player 2' } }),
+    // ...
+  ]);
+  
+  // テスト用トーナメント作成
+  const tournament = await prisma.tournament.create({
+    data: {
+      name: 'Test Tournament',
+      mode: 'BATTLE_MODE',
+      status: 'ACTIVE',
+      // ...
+    }
+  });
+}
+```
+
+**テスト分離**:
+- 専用テストデータベース（Neon Branch機能）
+- 環境変数: `DATABASE_URL_TEST`
+- トランザクションロールバック（テスト後クリーンアップ）
+
+---
+
+## 5. CAPTCHA実装仕様
+
+### 5.1 MVP判定
+**決定: MVP延期、Post-MVP実装**
+- 理由: 初回トーナメントはクローズド環境（リスク低）
+- 実装タイミング: 不正入力が検出された場合に追加
+
+### 5.2 トリガー条件（実装時）
+**段階的導入**:
+1. **Phase 1**: IP単位のレート制限超過時
+   - 1IPあたり20回/分超過 → CAPTCHA要求
+   
+2. **Phase 2**: 異常パターン検出
+   - 同一IPから短時間に異なるプレイヤーとして入力
+   - 明らかに不正なスコア（5-0を連続入力など）
+
+3. **Phase 3**: オプトイン設定
+   - トーナメント作成時に「CAPTCHA必須」オプション
+
+### 5.3 CAPTCHA プロバイダー
+**推奨: Cloudflare Turnstile**
+- 理由: 
+  - 無料（Vercelで使用可能）
+  - プライバシー重視（GDPR対応）
+  - ユーザー体験良好（1クリック）
+  
+**代替案: hCaptcha**
+- メリット: オープンソース寄り
+- デメリット: アクセシビリティ懸念
+
+**非推奨: Google reCAPTCHA**
+- 理由: Googleアカウント依存、プライバシー懸念
+
+### 5.4 適用範囲
+**対象エンドポイント**:
+- ✅ 参加者スコア入力（`POST /api/.../report`）
+- ❌ トーナメント作成（既に認証済み）
+- ❌ プレイヤー登録（レート制限で十分）
+
+---
+
+## 6. IP制限仕様
+
+### 6.1 MVP判定
+**決定: MVP延期、オプション機能**
+- 実装タイミング: 顧客要望があれば追加
+
+### 6.2 スコープレベル（実装時）
+**Tournament-level（推奨）**:
+- トーナメント作成時にIP制限を設定可能
+- 用途: 会場限定アクセス
+- 設定UI: トークン管理画面に追加
+
+**実装例**:
+```prisma
+model Tournament {
+  // ...
+  allowedIPs String[] // ["192.168.1.0/24", "10.0.0.5"]
+}
+```
+
+### 6.3 実装方針
+**IP範囲対応**:
+- CIDR表記サポート（例: `192.168.1.0/24`）
+- 個別IP指定（例: `203.0.113.42`）
+
+**動的IP対応**:
+- 会場Wi-FiのIPレンジを事前登録
+- 当日変更可能なUI提供
+
+---
+
+## 7. デプロイ戦略
+
+### 7.1 Staging環境
+**決定: Vercel Preview Deploymentsで代替**
+- 専用Staging環境: 不要（コスト削減）
+- 方法: Pull Request毎に自動プレビュー環境作成
+- テストデータベース: Neon Branch機能
+
+### 7.2 デプロイ方法
+**Direct Rollout（推奨）**:
+- `main` ブランチへのマージで自動本番デプロイ
+- 理由: シンプル、小規模プロジェクト向き
+
+**リスク軽減策**:
+- デプロイ前の必須チェック:
+  - ✅ CI/CDテスト全パス
+  - ✅ TypeScriptコンパイルエラー0
+  - ✅ Lighthouseスコア85以上
+
+### 7.3 ロールバック計画
+**Vercel Instant Rollback**:
+- 前回のデプロイに1クリックで復元
+- データベースロールバック: Prisma Migrate
+  - マイグレーションファイル削除 + 再マイグレーション
+
+**手順**:
+```bash
+# データベースロールバック
+git revert <migration-commit>
+npx prisma migrate deploy
+
+# アプリケーションロールバック
+# Vercel Dashboardで前回デプロイを選択 → "Promote to Production"
+```
+
+### 7.4 初回トーナメント
+**目標日程: 未定（TBD）**
+- 実装完了後、内部テストトーナメント実施
+- UAT（User Acceptance Testing）: 運営メンバー3-5名
+- 本番トーナメント: UAT完了後1週間以内
+
+**MVP完成タイムライン**:
+- Week 1-2: Testing Infrastructure + 残機能実装
+- Week 3: QA + Bug Fixes
+- Week 4: UAT + 調整
+- **= 4週間後に本番Ready**
+
+---
+
+## 8. 追加質問への回答
+
+### 8.1 タイムライン
+**目標ローンチ日: TBD（未定）**
+- ハードデッドライン: なし（品質優先）
+- 目安: 4週間後にMVP完成
+
+### 8.2 User Acceptance Testing
+**実施内容**:
+- ✅ 内部テストトーナメント（運営メンバー3-5名）
+- ✅ 全4モードの動作確認
+- ✅ 参加者スコア入力フローの検証
+- 回数: 最低1回、理想的には2回
+
+### 8.3 Feature Flags
+**決定: 不要（シンプル優先）**
+- 小規模プロジェクトのため、フル機能デプロイ
+- 問題発生時はVercel Instant Rollbackで対応
+
+### 8.4 Post-Launch Support
+**サポートモデル: Community-Driven**
+- GitHub Issues での報告受付
+- バグ修正SLA: なし（ベストエフォート）
+- 重大バグ: 24時間以内に対応目標
+- 軽微なバグ: 1週間以内
+
+---
+
+## 9. 実装優先順位の承認
+
+**Implementation Agentの提案を承認**:
+
+### Phase 1 (Week 1-2) - MVP Blockers ✅
+1. **Testing Infrastructure** 🔴 (CRITICAL) - 承認
+2. **Real-time Ranking Display** 🟡 (HIGH) - 承認、仕様明確化完了
+3. **Character Tracking** 🟢 (MEDIUM) - 承認、オプショナル実装
+
+### Phase 2 (Week 3-4) - Polish & Launch ✅
+4. **Enhanced Excel Export** 🟢 (MEDIUM) - Phase 2延期、MVP は基本版
+5. **Error Boundaries & UX** 🟢 (MEDIUM) - 承認
+6. **Documentation** 📝 (MEDIUM) - 承認
+
+### Phase 3 (Post-MVP) - Advanced Features ✅
+7. **CAPTCHA** 🔐 (OPTIONAL) - Post-MVP延期
+8. **IP Restrictions** 🔐 (OPTIONAL) - Post-MVP延期
+9. **Performance Optimization** ⚡ (ONGOING) - 継続的実施
+
+---
+
+## 10. 次のステップ（Implementation Agentへの指示）
+
+### 10.1 即座に開始
+1. **Testing Infrastructure セットアップ**
+   ```bash
+   cd jsmkc-app
+   npm install --save-dev jest @testing-library/react @testing-library/jest-dom @types/jest ts-jest
+   ```
+
+2. **Character Tracking 実装**
+   - `lib/constants.ts` にCHARACTERS定数追加
+   - Prisma Schema更新
+   - マイグレーション実行
+
+3. **Leaderboard ページ作成**
+   - `app/tournaments/[id]/leaderboard/page.tsx`
+   - `hooks/useLeaderboard.ts`
+
+### 10.2 実装ガイドライン
+- テスト駆動開発（TDD）推奨
+- 各機能実装後に必ずテスト追加
+- PRレビュー前にLighthouseスコア確認
+
+### 10.3 質問・不明点
+- 実装中の疑問点はGitHub Issueで報告
+- アーキテクチャ変更が必要な場合は再度相談
+
+---
+
+**本セクション追記日**: 2026-01-19  
+**対応者**: Architecture Agent  
+**ステータス**: ✅ 全質問回答完了、実装可能
+
+---
+
 ## 改訂履歴
 
 | バージョン | 日付 | 内容 |
 |------------|------|------|
+| 14.0 | 2026-01-19 | Implementation Agent質問20項目に回答：キャラクター記録、リアルタイム順位、Excel拡張、テスト戦略、CAPTCHA、IP制限、デプロイ戦略の詳細仕様を追加 |
+| 13.0 | 2026-01-19 | Issue #2, #4, #5対応：Redis除外しメモリベースレート制限採用、NextAuth.js SECRET設定追加、認証フロー修正、README追加 |
 | 12.0 | 2026-01-19 | レビュー指摘事項8項目を完全修正：JWT Refresh Token機構、Soft DeleteとAuditLog、XSS対策とCSP詳細化、ポーリング負荷最適化、競合処理（楽観的ロック）、トークン延長機能、レート制限柔軟化 |
 | 11.0 | 2026-01-19 | アーキテクチャ構造を再整理（機能要件、非機能要件、受け入れ基準、設計方針、アーキテクチャ決定、トレードオフ検討） |
 | 10.0 | 2026-01-18 | CSPヘッダー改善（unsafe-eval/unsafe-inline削除、本番環境ではnonce使用） |

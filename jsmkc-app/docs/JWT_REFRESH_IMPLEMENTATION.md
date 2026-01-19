@@ -203,44 +203,54 @@ export function usePolling(options: PollingOptions): UsePollingResult {
 
 ### 5. Rate Limiting
 
-Flexible rate limiting based on endpoint types:
+Memory-based rate limiting implementation:
 
 ```typescript
 // lib/rate-limit.ts
-const rateLimits = {
-  // Score input: high frequency allowed
-  scoreInput: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(20, '60 s'), // 20 requests/minute
-  }),
-  
-  // General polling: medium frequency
-  polling: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(12, '60 s'), // 12 requests/minute (5-second intervals)
-  }),
-  
-  // Token validation: low frequency
-  tokenValidation: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '60 s'), // 10 requests/minute
-  }),
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+const RATE_LIMITS = {
+  scoreInput: { max: 20, window: 60 * 1000 }, // 20 requests/minute
+  polling: { max: 12, window: 60 * 1000 },    // 12 requests/minute (5-second intervals)
+  tokenValidation: { max: 10, window: 60 * 1000 }, // 10 requests/minute
 };
 
 export async function checkRateLimit(
-  type: keyof typeof rateLimits, 
+  type: keyof typeof RATE_LIMITS,
   identifier: string
 ) {
-  const { success, limit, remaining, reset } = await rateLimits[type].limit(identifier)
-  
-  return {
-    success,
-    limit,
-    remaining,
-    reset,
-    retryAfter: success ? undefined : Math.ceil((reset - Date.now()) / 1000)
+  const now = Date.now();
+  const key = `${type}:${identifier}`;
+  const limit = RATE_LIMITS[type];
+
+  const record = rateLimitStore.get(key);
+
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + limit.window });
+    return { success: true, remaining: limit.max - 1 };
   }
+
+  if (record.count >= limit.max) {
+    return {
+      success: false,
+      remaining: 0,
+      retryAfter: Math.ceil((record.resetAt - now) / 1000)
+    };
+  }
+
+  record.count++;
+  return { success: true, remaining: limit.max - record.count };
 }
+
+// Periodic cleanup to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore.entries()) {
+    if (now > record.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // Every 5 minutes
 ```
 
 ### 6. Security Enhancements

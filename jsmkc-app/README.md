@@ -116,10 +116,32 @@ Super Mario Kart Championship の大会運営における点数計算・順位�
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
-- **Backend**: Prisma ORM
-- **Database**: Neon (Serverless PostgreSQL)
-- **Deployment**: Vercel
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | Next.js 15.x (App Router) | React framework |
+| | TypeScript | Type-safe development |
+| | Tailwind CSS | Styling |
+| | shadcn/ui | UI component library |
+| | Radix UI | Accessibility foundation |
+| | NextAuth.js | Authentication |
+| Backend | Next.js API Routes | REST API |
+| | Prisma ORM | Database access |
+| Database | PostgreSQL (Neon) | Data store |
+| Deployment | Vercel | Hosting |
+| Form Management | React Hook Form | Form handling |
+| Validation | Zod | Schema validation |
+| Excel Export | xlsx (SheetJS) | Data export |
+
+---
+
+## Prerequisites
+
+- Node.js 18.x or higher
+- npm or yarn
+- PostgreSQL database (Neon account recommended)
+- GitHub account (for OAuth)
+- Discord account (optional, for OAuth)
+- Google account (optional, for OAuth)
 
 ---
 
@@ -131,21 +153,69 @@ Super Mario Kart Championship の大会運営における点数計算・順位�
 npm install
 ```
 
-### 2. Setup Database
+### 2. Environment Variables Setup
 
-Create a [Neon](https://neon.tech/) account and project, then create `.env.local`:
+Copy `.env.example` to `.env.local`:
 
 ```bash
-DATABASE_URL="postgresql://user:password@ep-xxx.region.neon.tech/neondb?sslmode=require"
+cp .env.example .env.local
 ```
 
-### 3. Run migrations
+Then configure the following variables in `.env.local`:
+
+```bash
+# Database
+DATABASE_URL="postgresql://user:password@ep-xxx.region.neon.tech/neondb?sslmode=require"
+
+# Discord OAuth (Optional)
+DISCORD_CLIENT_ID=your_discord_client_id_here
+DISCORD_CLIENT_SECRET=your_discord_client_secret_here
+
+# GitHub OAuth (Required for admin authentication)
+GITHUB_CLIENT_ID=your_github_client_id_here
+GITHUB_CLIENT_SECRET=your_github_client_secret_here
+
+# Google OAuth (Optional, for JWT Refresh Token)
+AUTH_GOOGLE_ID=your_google_client_id_here
+AUTH_GOOGLE_SECRET=your_google_client_secret_here
+
+# NextAuth.js
+NEXTAUTH_URL=http://localhost:3000
+# Generate with: openssl rand -base64 32
+AUTH_SECRET=your_nextauth_secret_here
+```
+
+#### Generating AUTH_SECRET
+
+Generate a secure secret for NextAuth.js:
+
+```bash
+openssl rand -base64 32
+```
+
+Copy the output and paste it into your `.env.local` file as `AUTH_SECRET`.
+
+### 3. Setup Database
+
+Create a [Neon](https://neon.tech/) account and project, then update `DATABASE_URL` in `.env.local`.
+
+### 4. Run Database Migrations
 
 ```bash
 npx prisma migrate dev
 ```
 
-### 4. Start development server
+This will create all necessary database tables.
+
+### 5. (Optional) Seed Database
+
+If you want to populate the database with test data:
+
+```bash
+npx prisma db seed
+```
+
+### 6. Start Development Server
 
 ```bash
 npm run dev
@@ -155,24 +225,79 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Environment Configuration
+## Development Commands
 
-### Development vs Production Database
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npx prisma studio` | Open Prisma Studio (Database GUI) |
+| `npx prisma migrate dev --name <name>` | Create a new migration |
+| `npx prisma generate` | Generate Prisma Client |
 
-開発用と本番用で異なるデータベースを使用できます：
+---
 
-| Environment | File | Description |
-|-------------|------|-------------|
-| Development | `.env.local` | ローカル開発用（gitignore対象） |
-| Production | Vercel環境変数 | 本番用DB |
+## Database Management
 
-**本番用DBを別アカウントで設定する場合は、Vercelの環境変数に `DATABASE_URL` を設定するだけでOKです。**
+### Creating Migrations
+
+When you modify `prisma/schema.prisma`, create a migration:
+
+```bash
+npx prisma migrate dev --name add_new_feature
+```
+
+### Prisma Studio
+
+Prisma Studio provides a GUI for viewing and editing database data:
+
+```bash
+npx prisma studio
+```
+
+This will open a browser at `http://localhost:5555`.
+
+---
+
+## Deployment
 
 ### Vercel Deployment
 
-1. Vercel にプロジェクトをインポート
-2. Settings → Environment Variables で `DATABASE_URL` を設定
-3. Deploy
+1. **Create a Vercel Project**
+   - Import your GitHub repository to Vercel
+   - Vercel will automatically detect Next.js
+
+2. **Configure Environment Variables**
+   - Go to Settings → Environment Variables
+   - Add all variables from `.env.example`
+   - Generate a new `AUTH_SECRET` for production:
+     ```bash
+     openssl rand -base64 32
+     ```
+
+3. **Set Production Database**
+   - Create a production database on Neon
+   - Set `DATABASE_URL` in Vercel environment variables
+
+4. **Deploy**
+   - Push to main branch for automatic deployment
+   - Or click "Deploy" in Vercel dashboard
+
+### Environment Variables in Vercel
+
+Add these to Vercel → Settings → Environment Variables:
+
+- `DATABASE_URL`
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `AUTH_GOOGLE_ID`
+- `AUTH_GOOGLE_SECRET`
+- `NEXTAUTH_URL` (set to your production URL, e.g., `https://your-app.vercel.app`)
+- `AUTH_SECRET` (generate a new one for production)
 
 ---
 
