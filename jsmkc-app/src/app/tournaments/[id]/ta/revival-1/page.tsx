@@ -207,7 +207,7 @@ export default function RevivalRound1({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Loser's Revival Round 1</h1>
+          <h1 className="text-3xl font-bold">Loser&apos;s Revival Round 1</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
           </Button>
@@ -227,7 +227,7 @@ export default function RevivalRound1({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Loser's Revival Round 1</h1>
+            <h1 className="text-3xl font-bold">Loser&apos;s Revival Round 1</h1>
             <p className="text-muted-foreground">Sudden death - players 17-24</p>
           </div>
           <Button variant="outline" asChild>
