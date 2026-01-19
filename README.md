@@ -74,6 +74,7 @@ MIT
 - ✅ エクスポートルートTypeScriptコンパイルエラー修正（Issue #15）
 - ✅ usePollingフック互換性問題修正（Issue #16）
 - ✅ JWTコールバック型エラー修正（Issue #17）
+- ✅ ESLint 'any'型警告修正（Issue #18）
 
 ### 🚧 実装中
 - バトルモード・マッチレース ダブルエリミネーション（Issue #11）
