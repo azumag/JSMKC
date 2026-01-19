@@ -179,8 +179,8 @@ model BMMatch {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   tournamentId String
   matchNumber  Int
-  stage        String     @default("qualification") // qualification, finals
-  round        String? // For finals: "winners_r1", "losers_r1", etc.
+  stage        String     @default("qualification") // qualification, finals, grand_final
+  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
   player1      Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
   player1Id    String
@@ -192,6 +192,12 @@ model BMMatch {
   score2       Int        @default(0) // Player 2's wins
   completed    Boolean    @default(false)
   rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
+
+  // Double elimination fields
+  bracket      String?     // "winners", "losers", "grand_final"
+  bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
+  losses       Int        @default(0) // Losses in this stage
+  isGrandFinal Boolean    @default(false)
 
   // Player-reported scores (for participant score entry)
   player1ReportedScore1 Int? // Player 1's report: score for player 1
@@ -238,12 +244,12 @@ model MRMatch {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   tournamentId String
   matchNumber  Int
-  stage        String     @default("qualification")
-  round        String?
+  stage        String     @default("qualification") // qualification, finals, grand_final
+  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
   player1      Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
   player1Id    String
-  player1Side  Int        @default(1)
+  player1Side  Int        @default(1) // 1 or 2 (which controller)
   player2      Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
   player2Id    String
   player2Side  Int        @default(2)
@@ -252,10 +258,19 @@ model MRMatch {
   completed    Boolean    @default(false)
   rounds       Json? // [{course: "MC1", winner: 1}, ...]
 
-  player1ReportedScore1 Int? // Player 1's report: score for player 1
-  player1ReportedScore2 Int? // Player 1's report: score for player 2
-  player2ReportedScore1 Int? // Player 2's report: score for player 1
-  player2ReportedScore2 Int? // Player 2's report: score for player 2
+  // Double elimination fields
+  bracket      String?     // "winners", "losers", "grand_final"
+  bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
+  losses       Int        @default(0) // Losses in this stage
+  isGrandFinal Boolean    @default(false)
+
+  // Player-reported scores
+  player1ReportedPoints1 Int? // Player 1's report: points for player 1
+  player1ReportedPoints2 Int? // Player 1's report: points for player 2
+  player1ReportedRaces Json? // Player 1's report: races details
+  player2ReportedPoints1 Int? // Player 2's report: points for player 1
+  player2ReportedPoints2 Int? // Player 2's report: points for player 2
+  player2ReportedRaces Json? // Player 2's report: races details
 
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   version      Int        @default(0) // 楽観的ロック用
