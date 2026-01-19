@@ -324,126 +324,40 @@ export default function TimeAttackPage({
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Time Attack</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
+            <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
           </Button>
-        </div>
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={refetch}>Retry</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Time Attack</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Qualification round - {TOTAL_COURSES} courses total time
-          </p>
-          <div className="mt-2">
-            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          <div className="mt-4 pt-4 border-t">
+            <h3 className="font-semibold mb-3">Revival Rounds</h3>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                asChild
+              >
+                <Link href={`/tournaments/${tournamentId}/ta/revival-1`}>
+                  🔄 Loser's Revival Round 1
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    (Players 17-24)
+                  </span>
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                asChild
+              >
+                <Link href={`/tournaments/${tournamentId}/ta/revival-2`}>
+                  🔄 Loser's Revival Round 2
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    (Players 13-16 + Round 1 Survivors)
+                  </span>
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            {exporting ? "Exporting..." : "Export to Excel"}
-          </Button>
-          {finalsCount > 0 && (
-            <Button variant="default" asChild>
-              <Link href={`/tournaments/${tournamentId}/ta/finals`}>
-                Go to Finals
-              </Link>
-            </Button>
-          )}
-          <Dialog
-            open={isPromoteDialogOpen}
-            onOpenChange={(open) => {
-              setIsPromoteDialogOpen(open);
-              if (!open) {
-                setPromotionError(null);
-                setSelectedPlayerIds([]);
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button variant={finalsCount > 0 ? "outline" : "default"}>
-                {finalsCount > 0 ? "Manage Finals" : "Advance to Finals"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Advance to Finals</DialogTitle>
-                <DialogDescription>
-                  Select players to promote from qualification to finals.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                {promotionError && (
-                  <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
-                    <p className="text-destructive text-sm">{promotionError}</p>
-                  </div>
-                )}
-                <div className="flex gap-4 mb-4">
-                  <Button
-                    variant={promotionMode === "topN" ? "default" : "outline"}
-                    onClick={() => setPromotionMode("topN")}
-                  >
-                    Top N Qualifiers
-                  </Button>
-                  <Button
-                    variant={promotionMode === "manual" ? "default" : "outline"}
-                    onClick={() => setPromotionMode("manual")}
-                  >
-                    Manual Selection
-                  </Button>
-                </div>
 
-                {promotionMode === "topN" ? (
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Number of Qualifiers</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={32}
-                        value={topN}
-                        onChange={(e) => setTopN(parseInt(e.target.value) || 8)}
-                        className="w-24"
-                      />
-                    </div>
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">Top {topN} Qualifiers Preview</h4>
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {entries
-                          .filter((e) => e.totalTime !== null)
-                          .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity))
-                          .slice(0, topN)
-                          .map((entry) => (
-                            <div key={entry.id} className="flex items-center justify-between text-sm">
-                              <span>
-                                <span className="font-mono w-8 inline-block">#{entry.rank}</span>
-                                {entry.player.nickname}
-                              </span>
-                              <span className="font-mono">{msToDisplayTime(entry.totalTime)}</span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">Select Players</h4>
-                      {entries.length === 0 ? (
+      {entries.length === 0 ? (
                         <p className="text-muted-foreground text-sm">No players added yet</p>
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">

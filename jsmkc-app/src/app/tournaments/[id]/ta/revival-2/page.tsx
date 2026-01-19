@@ -27,18 +27,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO } from "@/lib/constants";
@@ -81,18 +71,7 @@ function timeToMs(time: string): number | null {
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
-function renderLives(lives: number, eliminated: boolean) {
-  if (eliminated) {
-    return <span className="text-gray-400">💀 Eliminated</span>;
-  }
-  const hearts = [];
-  for (let i = 0; i < lives; i++) {
-    hearts.push(<span key={i} className={lives === 1 ? "text-red-500" : "text-red-400"}>❤️</span>);
-  }
-  return <span>{hearts}</span>;
-}
-
-export default function TimeAttackFinals({
+export default function RevivalRound2({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -106,17 +85,14 @@ export default function TimeAttackFinals({
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [eliminating, setEliminating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [isEliminateDialogOpen, setIsEliminateDialogOpen] = useState(false);
-  const [entryToEliminate, setEntryToEliminate] = useState<TTEntry | null>(null);
 
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta?stage=finals`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta?stage=revival_2`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch finals data: ${response.status}`);
+        throw new Error(errorData.error || `Failed to fetch revival round 2 data: ${response.status}`);
       }
       const data = await response.json();
       setEntries(data.entries || []);
@@ -133,13 +109,6 @@ export default function TimeAttackFinals({
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchData();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
   const handleCourseStart = (course: string) => {
     const activeEntries = entries.filter((e) => !e.eliminated);
     const initialTimes: Record<string, string> = {};
@@ -149,7 +118,6 @@ export default function TimeAttackFinals({
     setCourseTimes(initialTimes);
     setSelectedCourse(course);
     setIsCourseDialogOpen(true);
-    setSaveError(null);
   };
 
   const handleTimeChange = (entryId: string, value: string) => {
@@ -218,80 +186,6 @@ export default function TimeAttackFinals({
     }
   };
 
-  const handleResetFinals = async () => {
-    try {
-      const activeEntries = entries.filter((e) => !e.eliminated);
-      const updatePromises = activeEntries.map((entry) =>
-        fetch(`/api/tournaments/${tournamentId}/ta`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            entryId: entry.id,
-            eliminated: false,
-            action: "eliminate",
-          }),
-        })
-      );
-
-      await Promise.all(updatePromises);
-      setIsResetDialogOpen(false);
-      fetchData();
-    } catch (err) {
-      console.error("Failed to reset finals:", err);
-      alert("Failed to reset finals");
-    }
-  };
-
-  const handleResetLives = async () => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "reset_lives",
-        }),
-      });
-
-      if (response.ok) {
-        fetchData();
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to reset lives");
-      }
-    } catch (err) {
-      console.error("Failed to reset lives:", err);
-      alert("Failed to reset lives");
-    }
-  };
-
-  const handleEliminatePlayer = async () => {
-    if (!entryToEliminate) return;
-
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entryId: entryToEliminate.id,
-          eliminated: true,
-          action: "eliminate",
-        }),
-      });
-
-      if (response.ok) {
-        setIsEliminateDialogOpen(false);
-        setEntryToEliminate(null);
-        fetchData();
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to eliminate player");
-      }
-    } catch (err) {
-      console.error("Failed to eliminate player:", err);
-      alert("Failed to eliminate player");
-    }
-  };
-
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
     if (!firstEntry) return COURSE_INFO.map((c) => ({ course: c.abbr, completed: false }));
@@ -305,8 +199,6 @@ export default function TimeAttackFinals({
   const eliminatedEntries = entries.filter((e) => e.eliminated);
   const isComplete = activeEntries.length <= 1 && entries.length > 0;
 
-  const canResetLives = [2, 4, 8].includes(activeEntries.length);
-
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
   }
@@ -315,7 +207,7 @@ export default function TimeAttackFinals({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Time Attack Finals</h1>
+          <h1 className="text-3xl font-bold">Loser's Revival Round 2</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
           </Button>
@@ -335,8 +227,8 @@ export default function TimeAttackFinals({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Time Attack Finals</h1>
-            <p className="text-muted-foreground">Elimination tournament</p>
+            <h1 className="text-3xl font-bold">Loser's Revival Round 2</h1>
+            <p className="text-muted-foreground">Sudden death - players 13-16 + round 1 survivors</p>
           </div>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
@@ -344,9 +236,9 @@ export default function TimeAttackFinals({
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Yet</CardTitle>
+            <CardTitle>No Players</CardTitle>
             <CardDescription>
-              Complete the qualification round and promote players to finals.
+              Complete qualification round and revival round 1, then promote players to revival round 2.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -358,50 +250,23 @@ export default function TimeAttackFinals({
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Time Attack Finals</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Loser's Revival Round 2</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            {isComplete ? "Tournament Complete" : `${activeEntries.length} players remaining`}
+            {isComplete ? "Round Complete" : `${activeEntries.length} players remaining`}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          {canResetLives && (
-            <Button variant="default" onClick={handleResetLives} disabled={isComplete}>
-              Reset Lives (All to 3)
-            </Button>
-          )}
-          <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline">Reset Finals</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Reset Finals?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will reset all eliminations and lives for all players in finals.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetFinals}>Reset</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
-          </Button>
-        </div>
+        <Button variant="outline" asChild>
+          <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
+        </Button>
       </div>
 
       {isComplete && activeEntries.length === 1 && (
-        <Card className="border-yellow-500 bg-yellow-500/10">
+        <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
-            <div className="text-4xl mb-2">🏆</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
-            <p className="text-3xl font-bold text-yellow-500 mt-2">
-              {activeEntries[0].player.nickname}
-            </p>
+            <div className="text-4xl mb-2">✓</div>
+            <h2 className="text-2xl font-bold">Finals Qualifiers (4)</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Lives remaining: {activeEntries[0].lives}
+              Advancing to finals
             </p>
           </CardContent>
         </Card>
@@ -411,13 +276,13 @@ export default function TimeAttackFinals({
         <TabsList>
           <TabsTrigger value="standings">Standings</TabsTrigger>
           <TabsTrigger value="courses">Course Progress</TabsTrigger>
-          {!isComplete && <TabsTrigger value="control">Tournament Control</TabsTrigger>}
+          {!isComplete && <TabsTrigger value="control">Round Control</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="standings">
           <Card>
             <CardHeader>
-              <CardTitle>Finals Standings</CardTitle>
+              <CardTitle>Standings</CardTitle>
               <CardDescription>
                 {activeEntries.length} active, {eliminatedEntries.length} eliminated
               </CardDescription>
@@ -428,9 +293,9 @@ export default function TimeAttackFinals({
                   <TableRow>
                     <TableHead className="w-16">Rank</TableHead>
                     <TableHead>Player</TableHead>
-                    <TableHead className="text-center">Lives</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">Total Time</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead>Source</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -445,23 +310,18 @@ export default function TimeAttackFinals({
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">{renderLives(entry.lives, entry.eliminated)}</TableCell>
+                      <TableCell className="text-center">
+                        {entry.eliminated ? (
+                          <span className="text-gray-400">💀 Out</span>
+                        ) : (
+                          <Badge className="bg-blue-500">Active</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-mono">
                         {msToDisplayTime(entry.totalTime)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {!entry.eliminated && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEntryToEliminate(entry);
-                              setIsEliminateDialogOpen(true);
-                            }}
-                          >
-                            Eliminate
-                          </Button>
-                        )}
+                      <TableCell className="text-xs">
+                        {entry.stage === "revival_1" ? "Revival 1" : "Qualification (13-16)"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -475,7 +335,7 @@ export default function TimeAttackFinals({
           <Card>
             <CardHeader>
               <CardTitle>Course Progress</CardTitle>
-              <CardDescription>Track completion and eliminations per course</CardDescription>
+              <CardDescription>Track completion per course</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -516,9 +376,9 @@ export default function TimeAttackFinals({
           <TabsContent value="control">
             <Card>
               <CardHeader>
-                <CardTitle>Tournament Control</CardTitle>
+                <CardTitle>Round Control</CardTitle>
                 <CardDescription>
-                  Start courses and manage the elimination tournament
+                  Start courses and manage elimination tournament
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -543,7 +403,7 @@ export default function TimeAttackFinals({
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">Tournament Status</h3>
+                    <h3 className="font-semibold mb-2">Round Status</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span>Active Players:</span>
@@ -553,16 +413,10 @@ export default function TimeAttackFinals({
                         <span>Eliminated Players:</span>
                         <span className="font-bold">{eliminatedEntries.length}</span>
                       </div>
-                      {canResetLives && (
-                        <div className="flex justify-between items-center bg-yellow-500/10 p-2 rounded border border-yellow-500">
-                          <span className="text-yellow-700 font-semibold">⚠️ Life Reset Available!</span>
-                          <span className="text-xs text-muted-foreground">
-                            {activeEntries.length === 2 ? "(Final 2 players)" :
-                             activeEntries.length === 4 ? "(Top 4 players)" :
-                             "(Top 8 players)"}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex justify-between">
+                        <span>Target Survivors:</span>
+                        <span className="font-bold text-blue-500">4</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -579,7 +433,7 @@ export default function TimeAttackFinals({
               {selectedCourse && COURSE_INFO.find((c) => c.abbr === selectedCourse)?.name} - Time Entry
             </DialogTitle>
             <DialogDescription>
-              Enter times for all remaining players. Slowest player(s) will lose a life.
+              Enter times for all remaining players. Slowest player(s) will be eliminated.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -593,9 +447,6 @@ export default function TimeAttackFinals({
                 <div key={entry.id} className="flex items-center gap-4">
                   <div className="flex-1">
                     <Label>{entry.player.nickname}</Label>
-                    <div className="text-xs text-muted-foreground">
-                      Lives: {entry.lives}
-                    </div>
                   </div>
                   <Input
                     type="text"
@@ -622,21 +473,6 @@ export default function TimeAttackFinals({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={isEliminateDialogOpen} onOpenChange={setIsEliminateDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminate Player?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will mark {entryToEliminate?.player.nickname} as eliminated. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleEliminatePlayer}>Eliminate</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
 
 interface RateLimitResult {
   success: boolean;
@@ -11,96 +9,20 @@ interface RateLimitResult {
   retryAfter?: number;
 }
 
-// Initialize Redis client only if environment variables are properly configured
-let redis: Redis | null = null;
-if (process.env.UPSTASH_REDIS_REST_URL && 
-    process.env.UPSTASH_REDIS_REST_URL !== 'your_upstash_redis_url_here' &&
-    process.env.UPSTASH_REDIS_REST_URL.startsWith('https://') &&
-    process.env.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
-
-// エンドポイント別の制限設定 as specified in ARCHITECTURE.md section 6.2
-const rateLimits = {
-  // スコア入力: 高頻度を許可
-  scoreInput: redis ? new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(20, '60 s'), // 1分に20回
-  }) : null,
-  
-  // 一般ポーリング: 中程度
-  polling: redis ? new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(12, '60 s'), // 1分に12回（5秒間隔）
-  }) : null,
-  
-  // トークン検証: 低頻度
-  tokenValidation: redis ? new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '60 s'), // 1分に10回
-  }) : null,
-
-  // Default general purpose limiter
-  general: redis ? new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '1 m'),
-    analytics: false,
-  }) : null,
+// Rate limit configurations
+const rateLimitConfigs = {
+  scoreInput: { limit: 20, windowMs: 60 * 1000 },      // 20 requests per minute
+  polling: { limit: 12, windowMs: 60 * 1000 },         // 12 requests per minute
+  tokenValidation: { limit: 10, windowMs: 60 * 1000 }, // 10 requests per minute
+  general: { limit: 10, windowMs: 60 * 1000 },         // 10 requests per minute
 };
 
-// Create a new ratelimiter that allows 10 requests per minute (fallback)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ratelimit = rateLimits.general;
-
 export async function checkRateLimit(
-  type: keyof typeof rateLimits, 
+  type: keyof typeof rateLimitConfigs,
   identifier: string
 ) {
-  const limiter = rateLimits[type];
-  
-  // If Redis is not configured or rate limit type is not available, use in-memory fallback
-  if (!limiter) {
-    console.warn(`Redis rate limiting not available for type ${type}, using in-memory fallback`);
-    const limit = getLimitForType(type);
-    const windowMs = getWindowForType(type);
-    return rateLimitInMemory(identifier, limit, windowMs);
-  }
-
-  try {
-    const { success, limit, remaining, reset } = await limiter.limit(identifier)
-    
-    return {
-      success,
-      limit,
-      remaining,
-      reset,
-      retryAfter: success ? undefined : Math.ceil((reset - Date.now()) / 1000)
-    }
-  } catch (error) {
-    console.warn(`Rate limiting failed for type ${type}, falling back to in-memory:`, error);
-    // Fallback to in-memory rate limiting
-    const limit = getLimitForType(type);
-    const windowMs = getWindowForType(type);
-    return rateLimitInMemory(identifier, limit, windowMs);
-  }
-}
-
-// Helper function to get limit values for different types
-function getLimitForType(type: keyof typeof rateLimits): number {
-  switch (type) {
-    case 'scoreInput': return 20;
-    case 'polling': return 12;
-    case 'tokenValidation': return 10;
-    default: return 10;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function getWindowForType(_type: keyof typeof rateLimits): number {
-  return 60 * 1000; // 1 minute for all types
+  const config = rateLimitConfigs[type] || rateLimitConfigs.general;
+  return rateLimitInMemory(identifier, config.limit, config.windowMs);
 }
 
 export async function rateLimit(
@@ -108,26 +30,10 @@ export async function rateLimit(
   limit: number = 10,
   windowMs: number = 60 * 1000 // 1 minute
 ): Promise<RateLimitResult> {
-  if (!rateLimits.general) {
-    console.warn('Redis rate limiting not available, using in-memory fallback');
-    return rateLimitInMemory(identifier, limit, windowMs);
-  }
-
-  try {
-    const result = await rateLimits.general.limit(identifier);
-    return {
-      success: result.success,
-      remaining: result.remaining,
-      reset: result.reset,
-    };
-  } catch (error) {
-    // Fallback to in-memory rate limiting if Redis is not available
-    console.warn('Redis rate limiting failed, falling back to in-memory:', error);
-    return rateLimitInMemory(identifier, limit, windowMs);
-  }
+  return rateLimitInMemory(identifier, limit, windowMs);
 }
 
-// Fallback in-memory rate limiting for development
+// In-memory rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
 
 // Maximum store size to prevent memory leaks in Edge Runtime
@@ -136,31 +42,31 @@ const MAX_STORE_SIZE = 10000
 function cleanupExpiredEntries(): number {
   const now = Date.now()
   let cleanedCount = 0
-  
+
   for (const [key, value] of rateLimitStore.entries()) {
     if (value.resetTime < now) {
       rateLimitStore.delete(key)
       cleanedCount++
     }
   }
-  
+
   return cleanedCount
 }
 
 function enforceStoreSizeLimit(): number {
   if (rateLimitStore.size <= MAX_STORE_SIZE) return 0
-  
+
   const entries = Array.from(rateLimitStore.entries())
   entries.sort((a, b) => a[1].resetTime - b[1].resetTime)
-  
+
   const toDelete = entries.slice(0, rateLimitStore.size - MAX_STORE_SIZE)
   let deletedCount = 0
-  
+
   for (const [key] of toDelete) {
     rateLimitStore.delete(key)
     deletedCount++
   }
-  
+
   return deletedCount
 }
 
@@ -172,23 +78,25 @@ function rateLimitInMemory(
   const now = Date.now();
 
   // Clean up expired entries on every request (Edge Runtime compatible)
+  // Optimization: maybe don't do this on EVERY request if high traffic, 
+  // but for this scale it's fine and ensures memory safety.
   const expiredCleaned = cleanupExpiredEntries();
   const sizeCleaned = enforceStoreSizeLimit();
-  
+
   if (expiredCleaned > 0 || sizeCleaned > 0) {
-    console.log(`[RateLimit] Cleaned up ${expiredCleaned} expired, ${sizeCleaned} size-limit entries`);
+    // console.log(`[RateLimit] Cleaned up ${expiredCleaned} expired, ${sizeCleaned} size-limit entries`);
   }
 
   const current = rateLimitStore.get(identifier);
-  
+
   if (!current || current.resetTime < now) {
     // First request or window expired
     rateLimitStore.set(identifier, {
       count: 1,
       resetTime: now + windowMs,
     });
-    return { 
-      success: true, 
+    return {
+      success: true,
       remaining: limit - 1,
       limit,
       retryAfter: undefined
@@ -196,8 +104,8 @@ function rateLimitInMemory(
   }
 
   if (current.count >= limit) {
-    return { 
-      success: false, 
+    return {
+      success: false,
       remaining: 0,
       reset: current.resetTime,
       limit,
@@ -206,8 +114,8 @@ function rateLimitInMemory(
   }
 
   current.count++;
-  return { 
-    success: true, 
+  return {
+    success: true,
     remaining: limit - current.count,
     limit,
     retryAfter: undefined

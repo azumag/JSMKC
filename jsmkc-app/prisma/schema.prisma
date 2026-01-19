@@ -400,8 +400,8 @@ model TTEntry {
   tournamentId String
   player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId     String
-  stage        String     @default("qualification") // qualification, finals
-  lives        Int        @default(3) // For finals
+  stage        String     @default("qualification") // qualification, revival_1, revival_2, finals
+  lives        Int        @default(3) // For revival rounds and finals
   eliminated   Boolean    @default(false)
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+
 import { isTokenValid, isValidTokenFormat } from '@/lib/token-utils';
-import { createAuditLog } from '@/lib/audit-log';
 import { getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
+import { createAuditLog } from '@/lib/audit-log';
+
+import prisma from '@/lib/prisma';
 
 /**
  * Validate tournament token from request
@@ -67,7 +69,7 @@ export async function validateTournamentToken(
   }
 }
 
-interface TournamentContext {
+interface TournamentContext extends Record<string, unknown> {
   tournament: { id: string; name: string; token: string | null; tokenExpiresAt: Date | null; status: string; date: Date };
   params: Promise<Record<string, string>>;
 }

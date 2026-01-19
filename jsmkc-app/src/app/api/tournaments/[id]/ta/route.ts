@@ -9,7 +9,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 
 // Zod schemas for input validation
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
-const StageSchema = z.enum(["qualification", "finals"]);
+const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
 
 const TimeStringSchema = z.string().refine(
   (val) => val === "" || timeFormatRegex.test(val),
@@ -21,7 +21,7 @@ const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
 const PostRequestSchema = z.object({
   playerId: z.string().uuid().optional(),
   players: z.array(z.string().uuid()).optional(),
-  action: z.enum(["add", "promote_to_finals"]).optional(),
+  action: z.enum(["add", "promote_to_finals", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
   topN: z.number().min(1).max(32).optional(),
 }).refine(
   (data) => data.playerId !== undefined || (data.players !== undefined && data.players.length > 0),
@@ -35,7 +35,7 @@ const PutRequestSchema = z.object({
   times: TimesObjectSchema.optional(),
   livesDelta: z.number().optional(),
   eliminated: z.boolean().optional(),
-  action: z.enum(["update_times", "update_lives", "eliminate"]).optional(),
+  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives"]).optional(),
 }).refine(
   (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
             data.action === "eliminate" ? data.eliminated !== undefined :
@@ -114,6 +114,11 @@ async function recalculateRanks(tournamentId: string, stage: string = "qualifica
       if (b.totalTime === null) return -1;
       return (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
     });
+  } else if (stage === "revival_1" || stage === "revival_2") {
+    // Revival rounds: Sort by total time (fastest first)
+    sorted = entriesWithTotal
+      .filter(e => e.totalTime !== null)
+      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
   } else {
     // Qualification: Sort by total time
     sorted = entriesWithTotal
@@ -223,6 +228,232 @@ export async function POST(
     }
 
     const { action, playerId, players, topN } = parseResult.data;
+
+    // Handle promoting to revival round 1 (players 17-24)
+    if (action === "promote_to_revival_1") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, error: "Authentication required for revival promotion" },
+          { status: 401 }
+        );
+      }
+
+      // Rate limiting
+      const identifier = getClientIdentifier(request);
+      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
+      if (!rateLimitResult.success) {
+        return NextResponse.json(
+          { success: false, error: "Rate limit exceeded. Please try again later." },
+          { status: 429 }
+        );
+      }
+
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+
+      // Get qualifiers ranked 17-24
+      const qualifiers = await prisma.tTEntry.findMany({
+        where: { tournamentId, stage: "qualification" },
+        include: { player: true },
+        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+        skip: 16,
+        take: 8,
+      });
+
+      if (qualifiers.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Not enough qualified players for revival round 1" },
+          { status: 400 }
+        );
+      }
+
+      const createdEntries = [];
+      const skippedEntries = [];
+
+      for (const qual of qualifiers) {
+        if (qual.totalTime === null) {
+          skippedEntries.push(qual.player.nickname);
+          continue;
+        }
+
+        const existingRevival = await prisma.tTEntry.findUnique({
+          where: {
+            tournamentId_playerId_stage: {
+              tournamentId,
+              playerId: qual.playerId,
+              stage: "revival_1",
+            },
+          },
+        });
+
+        if (!existingRevival) {
+          const entry = await prisma.tTEntry.create({
+            data: {
+              tournamentId,
+              playerId: qual.playerId,
+              stage: "revival_1",
+              lives: 1,
+              eliminated: false,
+              times: qual.times,
+              totalTime: qual.totalTime,
+              rank: qual.rank,
+            },
+            include: { player: true },
+          });
+          createdEntries.push(entry);
+
+          try {
+            await createAuditLog({
+              userId: session.user.id,
+              ipAddress,
+              userAgent,
+              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+              targetId: entry.id,
+              targetType: "TTEntry",
+              details: {
+                tournamentId,
+                playerId: qual.playerId,
+                playerNickname: entry.player.nickname,
+                qualRank: qual.rank,
+                promotedTo: "revival_1",
+              },
+            });
+          } catch (logError) {
+            console.error("Failed to create audit log:", logError);
+          }
+        }
+      }
+
+      await recalculateRanks(tournamentId, "revival_1");
+
+      return NextResponse.json(
+        {
+          message: "Players promoted to revival round 1",
+          entries: createdEntries,
+          skipped: skippedEntries,
+        },
+        { status: 201 }
+      );
+    }
+
+    // Handle promoting to revival round 2 (players 13-16 + revival_1 survivors)
+    if (action === "promote_to_revival_2") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, error: "Authentication required for revival promotion" },
+          { status: 401 }
+        );
+      }
+
+      // Rate limiting
+      const identifier = getClientIdentifier(request);
+      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
+      if (!rateLimitResult.success) {
+        return NextResponse.json(
+          { success: false, error: "Rate limit exceeded. Please try again later." },
+          { status: 429 }
+        );
+      }
+
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+
+      // Get qualifiers ranked 13-16
+      const qualifiers13to16 = await prisma.tTEntry.findMany({
+        where: { tournamentId, stage: "qualification" },
+        include: { player: true },
+        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+        skip: 12,
+        take: 4,
+      });
+
+      // Get survivors from revival round 1 (4 remaining)
+      const revival1Entries = await prisma.tTEntry.findMany({
+        where: { tournamentId, stage: "revival_1", eliminated: false },
+        include: { player: true },
+        orderBy: { rank: "asc" },
+        take: 4,
+      });
+
+      const allQualifiers = [...qualifiers13to16, ...revival1Entries];
+
+      if (allQualifiers.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "No players available for revival round 2" },
+          { status: 400 }
+        );
+      }
+
+      const createdEntries = [];
+      const skippedEntries = [];
+
+      for (const source of allQualifiers) {
+        if (source.totalTime === null) {
+          skippedEntries.push(source.player.nickname);
+          continue;
+        }
+
+        const existingRevival = await prisma.tTEntry.findUnique({
+          where: {
+            tournamentId_playerId_stage: {
+              tournamentId,
+              playerId: source.playerId,
+              stage: "revival_2",
+            },
+          },
+        });
+
+        if (!existingRevival) {
+          const entry = await prisma.tTEntry.create({
+            data: {
+              tournamentId,
+              playerId: source.playerId,
+              stage: "revival_2",
+              lives: 1,
+              eliminated: false,
+              times: source.times,
+              totalTime: source.totalTime,
+              rank: source.rank,
+            },
+            include: { player: true },
+          });
+          createdEntries.push(entry);
+
+          try {
+            await createAuditLog({
+              userId: session.user.id,
+              ipAddress,
+              userAgent,
+              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+              targetId: entry.id,
+              targetType: "TTEntry",
+              details: {
+                tournamentId,
+                playerId: source.playerId,
+                playerNickname: entry.player.nickname,
+                sourceStage: source.stage,
+                promotedTo: "revival_2",
+              },
+            });
+          } catch (logError) {
+            console.error("Failed to create audit log:", logError);
+          }
+        }
+      }
+
+      await recalculateRanks(tournamentId, "revival_2");
+
+      return NextResponse.json(
+        {
+          message: "Players promoted to revival round 2",
+          entries: createdEntries,
+          skipped: skippedEntries,
+        },
+        { status: 201 }
+      );
+    }
 
     // Handle promoting to finals
     if (action === "promote_to_finals") {
@@ -447,7 +678,7 @@ export async function PUT(
       );
     }
 
-    const { entryId, action, livesDelta, eliminated } = parseResult.data;
+    const { entryId, action, eliminated } = parseResult.data;
 
     // Handle elimination
     if (action === "eliminate") {
@@ -500,73 +731,6 @@ export async function PUT(
             playerNickname: updatedEntry.player.nickname,
             eliminated,
             manualUpdate: true,
-          },
-        });
-      } catch (logError) {
-        console.error("Failed to create audit log:", logError);
-      }
-
-      return NextResponse.json({ entry: updatedEntry });
-    }
-
-    // Handle lives update
-    if (action === "update_lives") {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "Authentication required for lives update" },
-          { status: 401 }
-        );
-      }
-
-      if (livesDelta === undefined) {
-        return NextResponse.json(
-          { success: false, error: "eliminated boolean is required for eliminate action" },
-          { status: 400 }
-        );
-      }
-
-      const entry = await prisma.tTEntry.findUnique({
-        where: { id: entryId },
-        include: { player: true },
-      });
-
-      if (!entry) {
-        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
-      }
-
-      const newLives = entry.lives + livesDelta;
-      const newEliminated = newLives <= 0;
-
-      const updatedEntry = await prisma.tTEntry.update({
-        where: { id: entryId },
-        data: {
-          lives: Math.max(0, newLives),
-          eliminated: newEliminated,
-        },
-        include: { player: true },
-      });
-
-      // Recalculate ranks
-      await recalculateRanks(tournamentId, entry.stage);
-
-      // Audit log
-      const ipAddress = getClientIdentifier(request);
-      const userAgent = getUserAgent(request);
-      try {
-        await createAuditLog({
-          userId: session.user.id,
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
-          targetId: entryId,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerNickname: updatedEntry.player.nickname,
-            oldLives: entry.lives,
-            newLives: updatedEntry.lives,
-            eliminated: updatedEntry.eliminated,
           },
         });
       } catch (logError) {

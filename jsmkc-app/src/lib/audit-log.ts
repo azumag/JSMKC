@@ -25,10 +25,16 @@ export async function createAuditLog(params: AuditLogParams) {
       },
     });
   } catch (error) {
-    console.error('Failed to create audit log:', error);
-    // Audit log failure should not break the main operation
-    // but we should log it for monitoring
-    throw new Error(`Audit log creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error(
+      'Audit log creation failed - Action: %s, User: %s, Target: %s/%s, IP: %s, Error: %s',
+      params.action,
+      params.userId || 'anonymous',
+      params.targetType || 'N/A',
+      params.targetId || 'N/A',
+      params.ipAddress,
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    return undefined;
   }
 }
 
