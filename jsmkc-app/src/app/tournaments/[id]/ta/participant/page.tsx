@@ -159,8 +159,8 @@ export default function TimeAttackParticipantPage({
     return response.json();
   }, [tournamentId, token, tokenValid]);
 
-  const { data: pollingData, error: pollingError } = usePolling({
-    fetchFn: fetchEntries,
+  const { data: pollingData, error: pollingError } = usePolling(
+    fetchEntries, {
     interval: 5000,
     enabled: tokenValid,
   });

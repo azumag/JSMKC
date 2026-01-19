@@ -165,8 +165,8 @@ export default function GrandPrixBParticipantPage({
     return response.json();
   }, [tournamentId, token, tokenValid]);
 
-  const { data: pollingData, error: pollingError } = usePolling({
-    fetchFn: fetchMatches,
+  const { data: pollingData, error: pollingError } = usePolling(
+    fetchMatches, {
     interval: 5000,
     enabled: tokenValid,
   });

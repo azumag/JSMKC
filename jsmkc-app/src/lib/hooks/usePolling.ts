@@ -114,7 +114,7 @@ export function usePolling<T>(
     data,
     isLoading,
     loading: isLoading,
-    error,
+    error: error?.message || null,
     lastETag,
     lastUpdated: lastETag ? new Date(lastETag) : null,
     isPolling: isLoading,

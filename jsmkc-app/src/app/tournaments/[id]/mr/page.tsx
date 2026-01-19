@@ -131,8 +131,8 @@ export default function MatchRacePage({
     };
   }, [tournamentId]);
 
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
-    fetchFn: fetchTournamentData,
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+    fetchTournamentData, {
     interval: 3000,
   });
 

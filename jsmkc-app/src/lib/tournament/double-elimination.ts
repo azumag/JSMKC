@@ -1,6 +1,6 @@
 export interface DoubleEliminationBracket {
-  winnerBracket: MatchNode[][];
-  loserBracket: MatchNode[][];
+  winnerBracket: MatchNode[];
+  loserBracket: MatchNode[];
   grandFinal?: MatchNode;
 }
 
@@ -10,7 +10,7 @@ export interface MatchNode {
   player2Id: string | null;
   player1Wins: number;
   player2Wins: number;
-  bracket: 'winners' | 'losers';
+  bracket: 'winners' | 'losers' | 'grand_final';
   bracketPosition: string; // e.g., "wb-r1", "wb-r2", "lb-r1", "lb-r2"
   round: string; // e.g., "wb-r1", "wb-r2"
   isGrandFinal: boolean;

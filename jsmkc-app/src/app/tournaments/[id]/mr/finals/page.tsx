@@ -128,8 +128,8 @@ export default function MatchRaceFinals({
     };
   }, [tournamentId]);
 
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling({
-    fetchFn: fetchFinalsData,
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+    fetchFinalsData, {
     interval: 3000,
   });
 

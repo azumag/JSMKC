@@ -119,8 +119,8 @@ export default function TimeAttackPage({
     };
   }, [tournamentId]);
 
-  const { data: pollData, loading: pollLoading, error: pollError, lastUpdated, isPolling, refetch } = usePolling({
-    fetchFn: fetchTournamentData,
+  const { data: pollData, loading: pollLoading, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
+    fetchTournamentData, {
     interval: 3000,
   });
 
