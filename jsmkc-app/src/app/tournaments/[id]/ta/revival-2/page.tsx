@@ -27,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -207,7 +206,7 @@ export default function RevivalRound2({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Loser's Revival Round 2</h1>
+          <h1 className="text-3xl font-bold">Loser&apos;s Revival Round 2</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
           </Button>

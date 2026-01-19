@@ -27,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -250,7 +249,7 @@ export default function RevivalRound1({
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Loser's Revival Round 1</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Loser&apos;s Revival Round 1</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete ? "Round Complete" : `${activeEntries.length} players remaining`}
           </p>

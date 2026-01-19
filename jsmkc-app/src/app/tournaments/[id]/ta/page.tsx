@@ -314,98 +314,9 @@ export default function TimeAttackPage({
     (p) => !entries.find((e) => e.playerId === p.id)
   );
 
-  const mainContent = () => {
-    if (loading) {
-      return <div className="text-center py-8">Loading...</div>;
-    }
-
-    if (error) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">Time Attack</h1>
-            <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-    }
-
-    if (entries.length === 0) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold">Time Attack</h1>
-              <p className="text-muted-foreground">
-                No players added yet. Click "Add Player" to begin.
-              </p>
-            </div>
-            <Button variant="default" asChild>
-              <Link href={`/tournaments/${tournamentId}/ta`}>Add Player</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-    }
-
-    return mainContent();
-
-  // Get available players (not yet added to this tournament)
-  const availablePlayers = allPlayers.filter(
-    (p) => !entries.find((e) => e.playerId === p.id)
-  );
-
-  const mainContent = () => {
-    if (loading) {
-      return <div className="text-center py-8">Loading...</div>;
-    }
-
-    if (error) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">Time Attack</h1>
-            <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
-            </Button>
-          </div>
-          <div className="mt-4 pt-4 border-t">
-            <h3 className="font-semibold mb-3">Revival Rounds</h3>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                asChild
-              >
-                <Link href={`/tournaments/${tournamentId}/ta/revival-1`}>
-                  🔄 Loser's Revival Round 1
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (Players 17-24)
-                  </span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                asChild
-              >
-                <Link href={`/tournaments/${tournamentId}/ta/revival-2`}>
-                  🔄 Loser's Revival Round 2
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (Players 13-16 + Round 1 Survivors)
-                  </span>
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
 
   if (error) {
     return (
@@ -413,40 +324,78 @@ export default function TimeAttackPage({
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Time Attack</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
+            <Link href={`/tournaments}/${tournamentId}`}>Back</Link>
           </Button>
-          <div className="mt-4 pt-4 border-t">
-            <h3 className="font-semibold mb-3">Revival Rounds</h3>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                asChild
-              >
-                <Link href={`/tournaments/${tournamentId}/ta/revival-1`}>
-                  🔄 Loser's Revival Round 1
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (Players 17-24)
-                  </span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                asChild
-              >
-                <Link href={`/tournaments/${tournamentId}/ta/revival-2`}>
-                  🔄 Loser's Revival Round 2
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (Players 13-16 + Round 1 Survivors)
-                  </span>
-                </Link>
-              </Button>
-            </div>
-          </div>
         </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={refetch}>Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-      {entries.length === 0 ? (
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Time Attack - Qualification</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Top 12 advance to finals • Players 13-16 to revival round 2 • Players 17-24 to revival round 1
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            {exporting ? "Exporting..." : "Export Excel"}
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => setIsPromoteDialogOpen(true)}
+            disabled={finalsCount === 0}
+          >
+            Promote to Finals ({finalsCount})
+          </Button>
+          <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Promote Players to Finals</DialogTitle>
+                <DialogDescription>
+                  Select players to promote to the finals stage
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div>
+                  <Label>Promotion Mode</Label>
+                  <Tabs defaultValue="topN" className="mt-2">
+                    <TabsList className="w-full">
+                      <TabsTrigger
+                        value="topN"
+                        onClick={() => setPromotionMode("topN")}
+                      >
+                        Top N Players
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="manual"
+                        onClick={() => setPromotionMode("manual")}
+                      >
+                        Manual Selection
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="topN" className="mt-4">
+                      <Label>Number of players to promote</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={topN}
+                        onChange={(e) => setTopN(parseInt(e.target.value) || 1)}
+                        className="mt-2"
+                      />
+                    </TabsContent>
+                    <TabsContent value="manual" className="mt-4">
+                      {entries.length === 0 ? (
                         <p className="text-muted-foreground text-sm">No players added yet</p>
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -479,12 +428,12 @@ export default function TimeAttackPage({
                             ))}
                         </div>
                       )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedPlayerIds.length} players selected
-                    </p>
-                  </div>
-                )}
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPlayerIds.length} players selected
+                      </p>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsPromoteDialogOpen(false)}>
