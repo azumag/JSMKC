@@ -36,6 +36,29 @@ export function downloadWorkbook(workbook: XLSX.WorkBook, filename: string) {
   XLSX.writeFile(workbook, filename);
 }
 
+export function downloadCSV(headers: string[], data: (string | number)[][], filename: string) {
+  // Add BOM for UTF-8 support in Excel
+  const BOM = '\uFEFF';
+  
+  const rows = [
+    headers.join(','),
+    ...data.map(row => row.join(','))
+  ];
+  
+  const csvContent = BOM + rows.join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 export function formatTime(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
@@ -45,4 +68,8 @@ export function formatTime(ms: number): string {
 
 export function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
+}
+
+export function getExportFormat(format?: string): 'xlsx' | 'csv' {
+  return (format === 'csv' ? 'csv' : 'xlsx');
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import * as XLSX from "xlsx";
-import { formatDate } from "@/lib/excel";
+import { createWorkbook, downloadWorkbook, downloadCSV, getExportFormat } from "@/lib/excel";
 
 export async function GET(
   request: NextRequest,
@@ -9,233 +8,86 @@ export async function GET(
 ) {
   try {
     const { id: tournamentId } = await params;
+    const { searchParams } = new URL(request.url);
+    const format = getExportFormat(searchParams.get('format'));
 
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
+      select: { name: true, date: true },
     });
 
     if (!tournament) {
-      return NextResponse.json({ success: false, error: "Tournament not found" }, { status: 404 });
+      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
     }
 
     const qualifications = await prisma.bMQualification.findMany({
       where: { tournamentId },
       include: { player: true },
-      orderBy: [{ group: "asc" }, { score: "desc" }, { points: "desc" }],
+      orderBy: [
+        { score: 'desc' },
+        { points: 'desc' },
+      ],
     });
 
-    const qualMatches = await prisma.bMMatch.findMany({
-      where: { tournamentId, stage: "qualification" },
+    const matches = await prisma.bMMatch.findMany({
+      where: { tournamentId },
       include: { player1: true, player2: true },
-      orderBy: { matchNumber: "asc" },
+      orderBy: { matchNumber: 'asc' },
     });
 
-    const finalsMatches = await prisma.bMMatch.findMany({
-      where: { tournamentId, stage: "finals" },
-      include: { player1: true, player2: true },
-      orderBy: { matchNumber: "asc" },
-    });
+    const qualificationHeaders = ['Rank', 'Player Name', 'Nickname', 'Matches', 'Wins', 'Ties', 'Losses', 'Win Rounds', 'Loss Rounds', 'Points', 'Score'];
+    const qualificationData = qualifications.map((q, index) => [
+      index + 1,
+      q.player.name,
+      q.player.nickname,
+      q.mp,
+      q.wins,
+      q.ties,
+      q.losses,
+      q.winRounds,
+      q.lossRounds,
+      q.points,
+      q.score,
+    ]);
 
-    const workbook = XLSX.utils.book_new();
+    const matchHeaders = ['Match #', 'Stage', 'Player 1', 'Player 2', 'Score 1', 'Score 2', 'Completed'];
+    const matchData = matches.map((m) => [
+      m.matchNumber,
+      m.stage,
+      `${m.player1.name} (${m.player1.nickname})`,
+      `${m.player2.name} (${m.player2.nickname})`,
+      m.score1,
+      m.score2,
+      m.completed ? 'Yes' : 'No',
+    ]);
 
-    const summaryData = [
-      ["Tournament Name", tournament.name],
-      ["Date", formatDate(new Date(tournament.date))],
-      ["Status", tournament.status],
-      ["Total Participants", qualifications.length],
-      ["Qualification Matches", qualMatches.length],
-      ["Finals Matches", finalsMatches.length],
-    ];
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
 
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    summarySheet["!cols"] = [{ wch: 20 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-
-    if (qualifications.length > 0) {
-      const groups = [...new Set(qualifications.map((q) => q.group))].sort();
-
-      groups.forEach((group) => {
-        const groupQualifications = qualifications
-          .filter((q) => q.group === group)
-          .sort((a, b) => b.score - a.score || b.points - a.points);
-
-        const qualHeaders = [
-          "Rank",
-          "Player",
-          "Nickname",
-          "Matches Played",
-          "Wins",
-          "Ties",
-          "Losses",
-          "Round Diff (+/-)",
-          "Points",
-        ];
-
-        const qualData = groupQualifications.map((q, index) => [
-          index + 1,
-          q.player.name,
-          q.player.nickname,
-          q.mp,
-          q.wins,
-          q.ties,
-          q.losses,
-          q.points > 0 ? `+${q.points}` : q.points,
-          q.score,
-        ]);
-
-        const qualSheet = XLSX.utils.aoa_to_sheet([qualHeaders, ...qualData]);
-        qualSheet["!cols"] = [
-          { wch: 6 },
-          { wch: 20 },
-          { wch: 15 },
-          { wch: 13 },
-          { wch: 5 },
-          { wch: 5 },
-          { wch: 6 },
-          { wch: 15 },
-          { wch: 7 },
-        ];
-        qualSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-
-        const sheetName = group === "A" ? "Qual Group A" : group === "B" ? "Qual Group B" : `Qual Group ${group}`;
-        XLSX.utils.book_append_sheet(workbook, qualSheet, sheetName);
-      });
+    if (format === 'csv') {
+      const csvFilename = `${tournament.name}_BM_${timestamp}.csv`;
+      downloadCSV(qualificationHeaders, qualificationData, csvFilename);
+      return NextResponse.json({ success: true, message: 'CSV export initiated' });
     }
 
-    if (qualMatches.length > 0) {
-      const matchHeaders = [
-        "Match #",
-        "Player 1",
-        "Nickname 1",
-        "Player 2",
-        "Nickname 2",
-        "Score",
-        "Completed",
-        "Rounds",
-      ];
-
-      const matchData = qualMatches.map((match) => {
-        const score = match.completed
-          ? `${match.score1} - ${match.score2}`
-          : "Not started";
-
-        let roundsInfo = "-";
-        if (match.rounds && Array.isArray(match.rounds)) {
-          roundsInfo = match.rounds
-            .map((r) => {
-              if (typeof r === "object" && r !== null && "arena" in r && "winner" in r) {
-                return `Arena ${(r as { arena: string; winner: number }).arena}: P${(r as { arena: string; winner: number }).winner} wins`;
-              }
-              return "";
-            })
-            .filter(Boolean)
-            .join(", ");
-        }
-
-        return [
-          match.matchNumber,
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          score,
-          match.completed ? "Yes" : "No",
-          roundsInfo,
-        ];
-      });
-
-      const matchSheet = XLSX.utils.aoa_to_sheet([matchHeaders, ...matchData]);
-      matchSheet["!cols"] = [
-        { wch: 8 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 40 },
-      ];
-      matchSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-      XLSX.utils.book_append_sheet(workbook, matchSheet, "Qual Matches");
-    }
-
-    if (finalsMatches.length > 0) {
-      const finalsHeaders = [
-        "Match #",
-        "Round",
-        "TV #",
-        "Player 1",
-        "Nickname 1",
-        "Player 2",
-        "Nickname 2",
-        "Score",
-        "Completed",
-        "Rounds",
-      ];
-
-      const finalsData = finalsMatches.map((match) => {
-        const score = match.completed
-          ? `${match.score1} - ${match.score2}`
-          : "Not started";
-
-        let roundsInfo = "-";
-        if (match.rounds && Array.isArray(match.rounds)) {
-          roundsInfo = match.rounds
-            .map((r) => {
-              if (typeof r === "object" && r !== null && "arena" in r && "winner" in r) {
-                return `Arena ${(r as { arena: string; winner: number }).arena}: P${(r as { arena: string; winner: number }).winner} wins`;
-              }
-              return "";
-            })
-            .filter(Boolean)
-            .join(", ");
-        }
-
-        return [
-          match.matchNumber,
-          match.round || "-",
-          match.tvNumber || "-",
-          match.player1.name,
-          match.player1.nickname,
-          match.player2.name,
-          match.player2.nickname,
-          score,
-          match.completed ? "Yes" : "No",
-          roundsInfo,
-        ];
-      });
-
-      const finalsSheet = XLSX.utils.aoa_to_sheet([finalsHeaders, ...finalsData]);
-      finalsSheet["!cols"] = [
-        { wch: 8 },
-        { wch: 15 },
-        { wch: 6 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 40 },
-      ];
-      finalsSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-      XLSX.utils.book_append_sheet(workbook, finalsSheet, "Finals Matches");
-    }
-
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-    const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, "_")}-bm-${formatDate(new Date(tournament.date))}.xlsx`;
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+    const workbook = createWorkbook([
+      {
+        name: 'Qualifications',
+        headers: qualificationHeaders,
+        data: qualificationData,
       },
-    });
+      {
+        name: 'Matches',
+        headers: matchHeaders,
+        data: matchData,
+      },
+    ]);
+
+    const xlsxFilename = `${tournament.name}_BM_${timestamp}.xlsx`;
+    downloadWorkbook(workbook, xlsxFilename);
+
+    return NextResponse.json({ success: true, message: 'Excel export initiated' });
   } catch (error) {
-    console.error("Failed to export battle mode:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to export battle mode data" },
-      { status: 500 }
-    );
+    console.error("Failed to export tournament:", error);
+    return NextResponse.json({ error: "Failed to export tournament" }, { status: 500 });
   }
 }
