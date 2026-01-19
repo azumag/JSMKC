@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,11 +39,16 @@ interface Player {
 }
 
 export default function PlayersPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user && session.user.role === 'admin';
+
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     nickname: "",
@@ -80,8 +86,16 @@ export default function PlayersPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
         setFormData({ name: "", nickname: "", country: "" });
         setIsAddDialogOpen(false);
+
+        // Show password dialog if password was generated
+        if (data.temporaryPassword) {
+          setTemporaryPassword(data.temporaryPassword);
+          setIsPasswordDialogOpen(true);
+        }
+
         fetchPlayers();
       } else {
         const data = await response.json();
@@ -160,12 +174,13 @@ export default function PlayersPage() {
             Manage tournament participants
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setFormData({ name: "", nickname: "", country: "" })}>
-              Add Player
-            </Button>
-          </DialogTrigger>
+        {isAdmin && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setFormData({ name: "", nickname: "", country: "" })}>
+                Add Player
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Player</DialogTitle>
@@ -220,6 +235,7 @@ export default function PlayersPage() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <Card>
@@ -241,7 +257,7 @@ export default function PlayersPage() {
                   <TableHead>Nickname</TableHead>
                   <TableHead>Full Name</TableHead>
                   <TableHead>Country</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {isAdmin && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -252,22 +268,24 @@ export default function PlayersPage() {
                     </TableCell>
                     <TableCell>{player.name}</TableCell>
                     <TableCell>{player.country || "-"}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(player)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDelete(player.id)}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(player)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(player.id)}
+                        >
+                          Delete
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -325,6 +343,47 @@ export default function PlayersPage() {
               <Button type="submit">Save Changes</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Display Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Player Created Successfully</DialogTitle>
+            <DialogDescription>
+              Save this password securely. It will only be shown once.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Temporary Password</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={temporaryPassword}
+                  readOnly
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(temporaryPassword);
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Please provide this password to the player. They can use it to log in with their nickname.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsPasswordDialogOpen(false)}>
+              I&apos;ve Saved It
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sanitizeInput } from "@/lib/sanitize";
+import { auth } from "@/lib/auth";
+import { generateSecurePassword, hashPassword } from "@/lib/password-utils";
+import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { getServerSideIdentifier } from "@/lib/rate-limit";
 
 // GET all players (excluding soft deleted)
 export async function GET() {
@@ -20,6 +24,15 @@ export async function GET() {
 
 // POST create new player
 export async function POST(request: NextRequest) {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Unauthorized: Admin access required' },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = sanitizeInput(await request.json());
     const { name, nickname, country } = body;
@@ -31,15 +44,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const plainPassword = generateSecurePassword(12);
+    const hashedPassword = await hashPassword(plainPassword);
+
     const player = await prisma.player.create({
       data: {
         name,
         nickname,
         country: country || null,
+        password: hashedPassword,
       },
     });
 
-    return NextResponse.json(player, { status: 201 });
+    // Audit log
+    try {
+      const ip = await getServerSideIdentifier();
+      const userAgent = request.headers.get('user-agent') || 'unknown';
+      await createAuditLog({
+        userId: session.user.id,
+        ipAddress: ip,
+        userAgent,
+        action: AUDIT_ACTIONS.CREATE_PLAYER,
+        targetId: player.id,
+        targetType: 'Player',
+        details: { name, nickname, country, passwordGenerated: true },
+      });
+    } catch (logError) {
+      console.error('Failed to create audit log:', logError);
+    }
+
+    return NextResponse.json({
+      player,
+      temporaryPassword: plainPassword,
+    }, { status: 201 });
   } catch (error: unknown) {
     console.error("Failed to create player:", error);
     if (

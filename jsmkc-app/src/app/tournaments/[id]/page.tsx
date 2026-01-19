@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,9 @@ export default function TournamentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const { data: session } = useSession();
+  const isAdmin = session?.user && session.user.role === 'admin';
+
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -100,17 +104,17 @@ export default function TournamentDetailPage({
           </p>
         </div>
         <div className="flex gap-2">
-          {tournament.status === "draft" && (
+          {isAdmin && tournament.status === "draft" && (
             <Button onClick={() => updateStatus("active")}>
               Start Tournament
             </Button>
           )}
-          {tournament.status === "active" && (
+          {isAdmin && tournament.status === "active" && (
             <Button onClick={() => updateStatus("completed")}>
               Complete Tournament
             </Button>
           )}
-          <ExportButton tournamentId={id} tournamentName={tournament.name} />
+          {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
           <Button variant="outline" asChild>
             <Link href="/tournaments">Back to List</Link>
           </Button>
@@ -118,11 +122,13 @@ export default function TournamentDetailPage({
       </div>
 
       {/* Token Management Section */}
-      <TournamentTokenManager
-        tournamentId={id}
-        initialToken={tournament.token}
-        initialTokenExpiresAt={tournament.tokenExpiresAt}
-      />
+      {isAdmin && (
+        <TournamentTokenManager
+          tournamentId={id}
+          initialToken={tournament.token}
+          initialTokenExpiresAt={tournament.tokenExpiresAt}
+        />
+      )}
 
       <Tabs defaultValue="bm" className="space-y-4">
         <TabsList>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,9 @@ export default function BattleModePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
+  const isAdmin = session?.user && session.user.role === 'admin';
+
   const [qualifications, setQualifications] = useState<BMQualification[]>([]);
   const [matches, setMatches] = useState<BMMatch[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -243,13 +247,15 @@ export default function BattleModePage({
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            {exporting ? "Exporting..." : "Export to Excel"}
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? "Exporting..." : "Export to Excel"}
+            </Button>
+          )}
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/bm/finals`}>
@@ -257,7 +263,8 @@ export default function BattleModePage({
               </Link>
             </Button>
           )}
-          <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
+          {isAdmin && (
+            <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
                 {qualifications.length > 0 ? "Reset Setup" : "Setup Groups"}
@@ -372,6 +379,7 @@ export default function BattleModePage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}`}>Back</Link>
           </Button>
@@ -501,13 +509,15 @@ export default function BattleModePage({
                               Share
                             </Link>
                           </Button>
-                          <Button
-                            variant={match.completed ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => openScoreDialog(match)}
-                          >
-                            {match.completed ? "Edit" : "Enter Score"}
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant={match.completed ? "outline" : "default"}
+                              size="sm"
+                              onClick={() => openScoreDialog(match)}
+                            >
+                              {match.completed ? "Edit" : "Enter Score"}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

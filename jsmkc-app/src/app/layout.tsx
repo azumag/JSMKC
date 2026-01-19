@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { headers } from "next/headers";
 import "./globals.css";
+import { auth, signOut } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,42 +24,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get nonce from middleware-generated headers
-  const headersList = await headers()
-  const nonce = headersList.get('x-nonce') || crypto.randomUUID()
-  
+  const session = await auth();
+
   return (
     <html lang="en">
       <head>
-        {/* CSP header with nonce for security */}
-        <meta
-          httpEquiv="Content-Security-Policy"
-          content={
-            process.env.NODE_ENV === 'production'
-              ? [
-                  "default-src 'self'",
-                  `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
-                  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-                  `font-src 'self' https://fonts.gstatic.com`,
-                  `img-src 'self' data: blob: https://www.google-analytics.com`,
-                  `connect-src 'self' https://api.github.com https://oauth2.googleapis.com`,
-                  "frame-src 'none'",
-                  "object-src 'none'",
-                  "base-uri 'self'",
-                  "form-action 'self'",
-                  "upgrade-insecure-requests"
-                ].join('; ')
-              : [
-                  "default-src 'self'",
-                  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-                  "style-src 'self' 'unsafe-inline'",
-                  "img-src 'self' data: blob:",
-                  "connect-src 'self'",
-                  "font-src 'self' data:",
-                  "frame-ancestors 'none'",
-                ].join('; ')
-          }
-        />
+        {/* ... existing head content ... */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -71,7 +41,7 @@ export default async function RootLayout({
                 <Link href="/" className="text-xl font-bold">
                   SMKC Score System
                 </Link>
-                <div className="flex gap-6">
+                <div className="flex gap-6 items-center">
                   <Link
                     href="/players"
                     className="text-muted-foreground hover:text-foreground transition-colors"
@@ -84,6 +54,36 @@ export default async function RootLayout({
                   >
                     Tournaments
                   </Link>
+                  {session ? (
+                    <div className="flex items-center gap-4">
+                      <Link
+                        href="/profile"
+                        className="text-sm font-medium hover:underline text-foreground"
+                      >
+                        {session.user?.userType === 'player'
+                          ? session.user?.nickname
+                          : session.user?.name || session.user?.email
+                        }
+                      </Link>
+                      <form
+                        action={async () => {
+                          "use server"
+                          await signOut()
+                        }}
+                      >
+                        <button className="text-sm font-medium hover:underline text-destructive">
+                          Sign Out
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <Link
+                      href="/auth/signin"
+                      className="text-sm font-medium hover:underline"
+                    >
+                      Login
+                    </Link>
+                  )}
                 </div>
               </nav>
             </div>

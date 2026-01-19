@@ -1,22 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
-import { createAuditLog } from "@/lib/audit-log";
+import { NextRequest } from "next/server";
+
+import { rateLimit, getClientIdentifier } from "@/lib/rate-limit";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleAuthError,
+  handleRateLimitError,
+  handleDatabaseError
+} from "@/lib/error-handling";
 import { sanitizeInput } from "@/lib/sanitize";
 import { validateTournamentToken } from "@/lib/token-validation";
+import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
+import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
+import {
+  RATE_LIMIT_SCORE_INPUT,
+  RATE_LIMIT_SCORE_INPUT_DURATION
+} from "@/lib/constants";
 
-// Helper function to calculate match result
-function calculateMatchResult(score1: number, score2: number) {
-  if (score1 >= 3) {
-    return { winner: 1, result1: "win" as const, result2: "loss" as const };
-  } else if (score2 >= 3) {
-    return { winner: 2, result1: "loss" as const, result2: "win" as const };
-  } else {
-    return { winner: null, result1: "tie" as const, result2: "tie" as const };
-  }
-}
+import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
-// POST report score from a player
+/**
+ * POST - Report score from a player
+ * Allows players to self-report their match scores with optimistic locking and validation
+ * @param request - NextRequest object
+ * @param params - Route parameters containing tournamentId and matchId
+ * @returns Response with score report status
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
@@ -24,95 +35,151 @@ export async function POST(
   try {
     const { id: tournamentId, matchId } = await params;
     const clientIp = getClientIdentifier(request);
-    const userAgent = getUserAgent(request);
 
-    const rateLimitResult = await rateLimit(clientIp, 10, 60 * 1000);
+    const rateLimitResult = await rateLimit(clientIp, RATE_LIMIT_SCORE_INPUT, RATE_LIMIT_SCORE_INPUT_DURATION);
     if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
-    }
-
-    // Validate tournament token for security
-    const tokenValidation = await validateTournamentToken(request, tournamentId);
-    if (!tokenValidation.tournament) {
-      return NextResponse.json(
-        { success: false, error: tokenValidation.error || 'Invalid or expired tournament token' },
-        { status: 401 }
-      );
+      return handleRateLimitError(rateLimitResult.retryAfter);
     }
 
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2 } = body;
 
-    // Validate input
-    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return NextResponse.json(
-        { error: "Invalid reporting player" },
-        { status: 400 }
-      );
-    }
-
-    if (score1 + score2 !== 4) {
-      return NextResponse.json(
-        { error: "Total rounds must equal 4" },
-        { status: 400 }
-      );
-    }
-
-    // Get current match
+    // Get match first to check players
     const match = await prisma.bMMatch.findUnique({
       where: { id: matchId },
-    });
-
-    if (!match) {
-      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
-    }
-
-    if (match.completed) {
-      return NextResponse.json(
-        { error: "Match already completed" },
-        { status: 400 }
-      );
-    }
-
-    // Update the reported scores
-    const updateData =
-      reportingPlayer === 1
-        ? {
-            player1ReportedScore1: score1,
-            player1ReportedScore2: score2,
-          }
-        : {
-            player2ReportedScore1: score1,
-            player2ReportedScore2: score2,
-          };
-
-    const updatedMatch = await prisma.bMMatch.update({
-      where: { id: matchId },
-      data: updateData,
-    });
-
-    await createAuditLog({
-      ipAddress: clientIp,
-      userAgent,
-      action: "REPORT_BM_SCORE",
-      targetId: matchId,
-      targetType: "BMMatch",
-      details: {
-        tournamentId,
-        reportingPlayer,
-        score1,
-        score2,
+      include: {
+        player1: true,
+        player2: true,
       },
     });
 
+    if (!match) {
+      return handleValidationError("Match not found", "matchId");
+    }
+
+    if (match.completed) {
+      return handleValidationError("Match already completed", "matchStatus");
+    }
+
+    // Check authorization
+    let isAuthorized = false;
+    const session = await auth();
+
+    // 1. Tournament token
+    const tokenValidation = await validateTournamentToken(request, tournamentId);
+    if (tokenValidation.tournament) {
+      isAuthorized = true;
+    }
+
+    // 2. Authenticated user
+    if (session?.user?.id) {
+      const userType = session.user.userType;
+
+      if (userType === 'admin' && session.user.role === 'admin') {
+        isAuthorized = true;
+      } else if (userType === 'player') {
+        const playerId = session.user.playerId;
+        if (reportingPlayer === 1 && match.player1Id === playerId) {
+          isAuthorized = true;
+        }
+        if (reportingPlayer === 2 && match.player2Id === playerId) {
+          isAuthorized = true;
+        }
+      } else {
+        // OAuth linked player
+        if (reportingPlayer === 1 && match.player1.userId === session.user.id) {
+          isAuthorized = true;
+        }
+        if (reportingPlayer === 2 && match.player2.userId === session.user.id) {
+          isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      return handleAuthError('Unauthorized: Invalid token or not authorized for this match');
+    }
+
+    // Validate input
+    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
+      return handleValidationError("Invalid reporting player", "reportingPlayer");
+    }
+
+    // Validate scores using centralized validation
+    const scoreValidation = validateBattleModeScores(score1, score2);
+    if (!scoreValidation.isValid) {
+      return handleValidationError(scoreValidation.error || "Invalid scores", "scores");
+    }
+
+    // Use optimistic locking to prevent race conditions
+    let result;
+    try {
+      result = await updateWithRetry(prisma, async (tx) => {
+        // Get fresh version for this attempt
+        const currentMatch = await tx.bMMatch.findUnique({
+          where: { id: matchId },
+          select: { version: true }
+        });
+
+        if (!currentMatch) {
+          throw new Error("Match not found");
+        }
+
+        // Update reported scores with version check
+        const updateData =
+          reportingPlayer === 1
+            ? {
+              player1ReportedScore1: score1,
+              player1ReportedScore2: score2,
+              version: { increment: 1 },
+            }
+            : {
+              player2ReportedScore1: score1,
+              player2ReportedScore2: score2,
+              version: { increment: 1 },
+            };
+
+        const updateResult = await tx.bMMatch.update({
+          where: {
+            id: matchId,
+            version: currentMatch.version,
+          },
+          data: updateData,
+          select: {
+            id: true,
+            player1ReportedScore1: true,
+            player1ReportedScore2: true,
+            player2ReportedScore1: true,
+            player2ReportedScore2: true,
+            completed: true,
+            version: true,
+          },
+        });
+
+        if (!updateResult) {
+          throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+        }
+
+        return updateResult;
+      });
+
+    } catch (error) {
+      if (error instanceof OptimisticLockError) {
+        return createErrorResponse(
+          "This match was updated by someone else. Please refresh and try again.",
+          409,
+          "OPTIMISTIC_LOCK_ERROR",
+          { requiresRefresh: true }
+        );
+      }
+      return handleDatabaseError(error, "score report update");
+    }
+
     // Check if both players have reported and scores match
-    const p1s1 = updatedMatch.player1ReportedScore1;
-    const p1s2 = updatedMatch.player1ReportedScore2;
-    const p2s1 = updatedMatch.player2ReportedScore1;
-    const p2s2 = updatedMatch.player2ReportedScore2;
+    const p1s1 = result?.player1ReportedScore1;
+    const p1s2 = result?.player1ReportedScore2;
+    const p2s1 = result?.player2ReportedScore1;
+    const p2s2 = result?.player2ReportedScore2;
 
     if (
       p1s1 !== null &&
@@ -122,26 +189,51 @@ export async function POST(
       p1s1 === p2s1 &&
       p1s2 === p2s2
     ) {
-      // Scores match - auto-confirm and update qualifications
-      const finalMatch = await prisma.bMMatch.update({
-        where: { id: matchId },
-        data: {
-          score1: p1s1,
-          score2: p1s2,
-          completed: true,
-        },
-        include: { player1: true, player2: true },
-      });
+      try {
+        // Scores match - auto-confirm and update qualifications with optimistic locking
+        const finalMatch = await updateWithRetry(prisma, async (tx) => {
+          // Get fresh version for this attempt
+          const currentMatch = await tx.bMMatch.findUnique({
+            where: { id: matchId },
+            select: { version: true }
+          });
 
-      // Recalculate qualifications for both players
-      await recalculatePlayerStats(tournamentId, finalMatch.player1Id);
-      await recalculatePlayerStats(tournamentId, finalMatch.player2Id);
+          if (!currentMatch) {
+            throw new Error("Match not found");
+          }
 
-      return NextResponse.json({
-        message: "Scores confirmed and match completed",
-        match: finalMatch,
-        autoConfirmed: true,
-      });
+          const finalResult = await tx.bMMatch.update({
+            where: {
+              id: matchId,
+              version: currentMatch.version,
+            },
+            data: {
+              score1: p1s1,
+              score2: p1s2,
+              completed: true,
+              version: { increment: 1 },
+            },
+            include: { player1: true, player2: true },
+          });
+
+          if (!finalResult) {
+            throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+          }
+
+          return finalResult;
+        });
+
+        // Recalculate qualifications for both players
+        await recalculatePlayerStats(tournamentId, finalMatch.player1Id);
+        await recalculatePlayerStats(tournamentId, finalMatch.player2Id);
+
+        return createSuccessResponse({
+          match: finalMatch,
+          autoConfirmed: true,
+        }, "Scores confirmed and match completed");
+      } catch (error) {
+        return handleDatabaseError(error, "match completion");
+      }
     }
 
     // If both reported but don't match, flag for admin review
@@ -151,30 +243,29 @@ export async function POST(
       p2s1 !== null &&
       p2s2 !== null
     ) {
-      return NextResponse.json({
-        message: "Score reported but mismatch detected - awaiting admin review",
-        match: updatedMatch,
+      return createSuccessResponse({
+        match: result!,
         mismatch: true,
         player1Report: { score1: p1s1, score2: p1s2 },
         player2Report: { score1: p2s1, score2: p2s2 },
-      });
+      }, "Score reported but mismatch detected - awaiting admin review");
     }
 
-    return NextResponse.json({
-      message: "Score reported successfully",
-      match: updatedMatch,
+    return createSuccessResponse({
+      match: result!,
       waitingFor: reportingPlayer === 1 ? "player2" : "player1",
-    });
+    }, "Score reported successfully");
   } catch (error) {
     console.error("Failed to report score:", error);
-    return NextResponse.json(
-      { error: "Failed to report score" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "score report");
   }
 }
 
-// Helper to recalculate player stats
+/**
+ * Recalculate player statistics after match completion
+ * @param tournamentId - ID of tournament
+ * @param playerId - ID of player to recalculate stats for
+ */
 async function recalculatePlayerStats(tournamentId: string, playerId: string) {
   const matches = await prisma.bMMatch.findMany({
     where: {

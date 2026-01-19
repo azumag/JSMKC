@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
-import { createAuditLog } from "@/lib/audit-log";
 import { sanitizeInput } from "@/lib/sanitize";
 import { validateTournamentToken } from "@/lib/token-validation";
+import { auth } from "@/lib/auth";
 
 const DRIVER_POINTS = [0, 1, 3, 6, 9];
 
@@ -29,18 +29,62 @@ export async function POST(
       );
     }
 
-    // Validate tournament token for security
+    const body = sanitizeInput(await request.json());
+    const { reportingPlayer, races } = body;
+
+    // Get match first to check players
+    const match = await prisma.gPMatch.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
+    }
+
+    // Check authorization
+    let isAuthorized = false;
+    const session = await auth();
+
+    // 1. Tournament token
     const tokenValidation = await validateTournamentToken(request, tournamentId);
-    if (!tokenValidation.tournament) {
+    if (tokenValidation.tournament) {
+      isAuthorized = true;
+    }
+
+    // 2. Authenticated user
+    if (session?.user?.id) {
+      const userType = session.user.userType;
+
+      if (userType === 'admin' && session.user.role === 'admin') {
+        isAuthorized = true;
+      } else if (userType === 'player') {
+        const playerId = session.user.playerId;
+        if (reportingPlayer === 1 && match.player1Id === playerId) {
+          isAuthorized = true;
+        }
+        if (reportingPlayer === 2 && match.player2Id === playerId) {
+          isAuthorized = true;
+        }
+      } else {
+        // OAuth linked player
+        if (reportingPlayer === 1 && match.player1.userId === session.user.id) {
+          isAuthorized = true;
+        }
+        if (reportingPlayer === 2 && match.player2.userId === session.user.id) {
+          isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
       return NextResponse.json(
-        { success: false, error: tokenValidation.error || 'Invalid or expired tournament token' },
+        { success: false, error: 'Unauthorized: Invalid token or not authorized for this match' },
         { status: 401 }
       );
     }
 
-    const body = sanitizeInput(await request.json());
-    const { reportingPlayer, races } = body;
-
+    // Validate input
     if (!reportingPlayer || !Array.isArray(races) || races.length === 0) {
       return NextResponse.json(
         { error: "reportingPlayer and races are required" },
@@ -62,15 +106,6 @@ export async function POST(
           { status: 400 }
         );
       }
-    }
-
-    const match = await prisma.gPMatch.findUnique({
-      where: { id: matchId },
-      include: { player1: true, player2: true },
-    });
-
-    if (!match) {
-      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
     }
 
     if (match.completed) {

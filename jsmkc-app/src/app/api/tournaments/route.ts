@@ -24,14 +24,14 @@ export async function GET() {
 // POST create new tournament (requires authentication)
 export async function POST(request: NextRequest) {
   const session = await auth();
-  
-  if (!session?.user) {
+
+  if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+      { success: false, error: 'Unauthorized: Admin access required' },
+      { status: 403 }
     );
   }
-  
+
   try {
     const body = sanitizeInput(await request.json());
     const { name, date } = body;

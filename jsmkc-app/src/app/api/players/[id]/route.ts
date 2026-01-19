@@ -30,17 +30,17 @@ export async function GET(
   }
 }
 
-// PUT update player (requires authentication)
+// PUT update player (requires admin)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  
-  if (!session?.user) {
+
+  if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+      { success: false, error: 'Unauthorized: Admin access required' },
+      { status: 403 }
     );
   }
   
@@ -115,17 +115,17 @@ export async function PUT(
   }
 }
 
-// DELETE player (requires authentication) - Soft Delete
+// DELETE player (requires admin) - Soft Delete
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  
-  if (!session?.user) {
+
+  if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+      { success: false, error: 'Unauthorized: Admin access required' },
+      { status: 403 }
     );
   }
   

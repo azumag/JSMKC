@@ -1,8 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { NextRequest } from "next/server";
+
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleDatabaseError
+} from "@/lib/error-handling";
 import { updateBMMatchScore, OptimisticLockError } from "@/lib/optimistic-locking";
 
-// GET single match
+import prisma from "@/lib/prisma";
+
+/**
+ * GET - Retrieve a single battle mode match
+ * @param request - NextRequest object
+ * @param params - Route parameters containing tournamentId and matchId
+ * @returns Response with match data
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
@@ -19,20 +32,22 @@ export async function GET(
     });
 
     if (!match) {
-      return NextResponse.json({ success: false, error: "Match not found" }, { status: 404 });
+      return handleValidationError("Match not found", "matchId");
     }
 
-    return NextResponse.json(match);
+    return createSuccessResponse(match);
   } catch (error) {
-    console.error("Failed to fetch match:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch match" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "fetch match");
   }
 }
 
-// PUT update match score with optimistic locking
+/**
+ * PUT - Update battle mode match score with optimistic locking
+ * Requires version parameter to prevent race conditions
+ * @param request - NextRequest object containing score data and version
+ * @param params - Route parameters containing tournamentId and matchId
+ * @returns Response with updated match data
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
@@ -44,17 +59,11 @@ export async function PUT(
     const { score1, score2, completed, rounds, version } = body;
 
     if (score1 === undefined || score2 === undefined) {
-      return NextResponse.json(
-        { success: false, error: "score1 and score2 are required" },
-        { status: 400 }
-      );
+      return handleValidationError("score1 and score2 are required", "scores");
     }
 
     if (typeof version !== 'number') {
-      return NextResponse.json(
-        { success: false, error: "version is required and must be a number" },
-        { status: 400 }
-      );
+      return handleValidationError("version is required and must be a number", "version");
     }
 
     const result = await updateBMMatchScore(
@@ -76,29 +85,20 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: updatedMatch,
+    return createSuccessResponse({
+      match: updatedMatch,
       version: result.version
     });
   } catch (error) {
-    console.error("Failed to update match:", error);
-    
     if (error instanceof OptimisticLockError) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: "Version conflict",
-          message: "The match was modified by another user. Please refresh and try again.",
-          currentVersion: error.currentVersion
-        },
-        { status: 409 }
+      return createErrorResponse(
+        "The match was modified by another user. Please refresh and try again.",
+        409,
+        "VERSION_CONFLICT",
+        { currentVersion: error.currentVersion }
       );
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to update match" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "update match");
   }
 }

@@ -1,94 +1,12 @@
 import NextAuth from 'next-auth'
 import GitHub from 'next-auth/providers/github'
 import Google from 'next-auth/providers/google'
+import Discord from 'next-auth/providers/discord'
+import Credentials from 'next-auth/providers/credentials'
+import bcrypt from 'bcrypt'
 
 import { prisma } from '@/lib/prisma'
 const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
-
-/**
- * Get OAuth provider configuration
- * @param provider - OAuth provider ('google' | 'github')
- * @returns Provider configuration object
- */
-interface OAuthConfig {
-  endpoint: string;
-  clientId: string;
-  clientSecret: string;
-  headers: Record<string, string>;
-}
-
-function getOAuthConfig(provider: 'google' | 'github'): OAuthConfig {
-  switch (provider) {
-    case 'google':
-      return {
-        endpoint: "https://oauth2.googleapis.com/token",
-        clientId: process.env.AUTH_GOOGLE_ID || '',
-        clientSecret: process.env.AUTH_GOOGLE_SECRET || '',
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      };
-    case 'github':
-      return {
-        endpoint: "https://github.com/login/oauth/access_token",
-        clientId: process.env.GITHUB_CLIENT_ID || '',
-        clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json"
-        },
-      };
-    default:
-      throw new Error(`Unsupported OAuth provider: ${provider}`);
-  }
-}
-
-/**
- * Refresh access token for OAuth provider
- * @param token - Current JWT token with refresh token
- * @param provider - OAuth provider ('google' | 'github')
- * @returns Updated token or token with error
- */
-async function refreshAccessToken(
-  token: import('next-auth/jwt').JWT,
-  provider: 'google' | 'github'
-) {
-  const config = getOAuthConfig(provider);
-
-  try {
-    const response = await fetch(config.endpoint, {
-      method: "POST",
-      headers: config.headers,
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken!,
-      }),
-    })
-
-    const refreshedTokens = await response.json()
-
-    if (!response.ok) {
-      throw refreshedTokens
-    }
-
-    return {
-      ...token,
-      accessToken: refreshedTokens.access_token,
-      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`Token refresh failed for ${provider}: [REDACTED ERROR]`);
-    return {
-      ...token,
-      error: "RefreshAccessTokenError",
-      errorDetails: errorMessage,
-    }
-  }
-}
-
-import Discord from 'next-auth/providers/discord'
 
 // Admin User IDs (Discord) - Hardcoded Whitelist
 const ADMIN_DISCORD_IDS = [
@@ -116,6 +34,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           response_type: "code",
           scope: "openid email profile https://www.googleapis.com/auth/userinfo.email"
         }
+      }
+    }),
+    Credentials({
+      id: 'player-credentials',
+      name: 'Player Login',
+      credentials: {
+        nickname: { label: "Nickname", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials): Promise<import('next-auth').User | null> {
+        if (!credentials?.nickname || !credentials?.password) {
+          return null;
+        }
+
+        const player = await prisma.player.findUnique({
+          where: { nickname: credentials.nickname as string }
+        });
+
+        if (!player || !player.password) {
+          return null;
+        }
+
+        const isValid = await bcrypt.compare(credentials.password as string, player.password);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          id: player.id,
+          email: `${player.nickname}@player.local`,
+          name: player.name,
+          image: null,
+          userType: 'player',
+          playerId: player.id,
+          nickname: player.nickname
+        };
       }
     }),
   ],
@@ -172,8 +126,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: import('next-auth/jwt').JWT }) {
       if (session.user && typeof token.sub === 'string') {
         session.user.id = token.sub;
-        // @ts-expect-error role is not typed in default session
-        session.user.role = token.role as string;
+        session.user.role = token.role;
+        session.user.userType = token.userType;
+
+        // Add player-specific fields if user is a player
+        if (token.userType === 'player') {
+          session.user.playerId = token.playerId;
+          session.user.nickname = token.nickname;
+        }
       }
 
       // Add error information to session for client-side handling
@@ -186,6 +146,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, account }: { token: import('next-auth/jwt').JWT; user?: import('next-auth').User; account?: import('next-auth').Account | null }) {
       // Initial sign in: store tokens and expiration
       if (account && user) {
+        // Handle player credentials (password-based login)
+        if (account.provider === 'player-credentials') {
+          return {
+            ...token,
+            sub: user.id,
+            userType: 'player',
+            playerId: user.playerId,
+            nickname: user.nickname,
+            role: 'player'
+          };
+        }
+
+        // Handle OAuth providers (Discord, GitHub, Google)
         // Fetch user role from DB to be sure
         const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
         const role = dbUser?.role || 'member';
@@ -193,12 +166,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return {
           ...token,
           sub: dbUser?.id,
+          userType: 'admin',
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           accessTokenExpires: Date.now() + (account.expires_in || 3600) * 1000,
           refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
           user: user,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           role: role,
         }
       }
