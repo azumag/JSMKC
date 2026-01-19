@@ -314,9 +314,98 @@ export default function TimeAttackPage({
     (p) => !entries.find((e) => e.playerId === p.id)
   );
 
-  if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
-  }
+  const mainContent = () => {
+    if (loading) {
+      return <div className="text-center py-8">Loading...</div>;
+    }
+
+    if (error) {
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">Time Attack</h1>
+            <Button variant="outline" asChild>
+              <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+    }
+
+    if (entries.length === 0) {
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold">Time Attack</h1>
+              <p className="text-muted-foreground">
+                No players added yet. Click "Add Player" to begin.
+              </p>
+            </div>
+            <Button variant="default" asChild>
+              <Link href={`/tournaments/${tournamentId}/ta`}>Add Player</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+    }
+
+    return mainContent();
+
+  // Get available players (not yet added to this tournament)
+  const availablePlayers = allPlayers.filter(
+    (p) => !entries.find((e) => e.playerId === p.id)
+  );
+
+  const mainContent = () => {
+    if (loading) {
+      return <div className="text-center py-8">Loading...</div>;
+    }
+
+    if (error) {
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">Time Attack</h1>
+            <Button variant="outline" asChild>
+              <Link href={`/tournaments/${tournamentId}/ta`}>Back</Link>
+            </Button>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <h3 className="font-semibold mb-3">Revival Rounds</h3>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                asChild
+              >
+                <Link href={`/tournaments/${tournamentId}/ta/revival-1`}>
+                  🔄 Loser's Revival Round 1
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    (Players 17-24)
+                  </span>
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                asChild
+              >
+                <Link href={`/tournaments/${tournamentId}/ta/revival-2`}>
+                  🔄 Loser's Revival Round 2
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    (Players 13-16 + Round 1 Survivors)
+                  </span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (error) {
     return (
