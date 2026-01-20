@@ -40,7 +40,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
-import { UpdateIndicator } from "@/components/ui/update-indicator";
 
 interface Player {
   id: string;
@@ -90,7 +89,6 @@ export default function TimeAttackPage({
   const [topN, setTopN] = useState(8);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
-  const [promotionError, setPromotionError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const fetchTournamentData = useCallback(async () => {
@@ -119,7 +117,7 @@ export default function TimeAttackPage({
     };
   }, [tournamentId]);
 
-  const { data: pollData, loading: pollLoading, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
+  const { data: pollData, loading: pollLoading, error: pollError, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
   });
@@ -167,7 +165,6 @@ export default function TimeAttackPage({
 
   const handlePromoteToFinals = async () => {
     setPromoting(true);
-    setPromotionError(null);
 
     try {
       const body = {
@@ -197,7 +194,7 @@ export default function TimeAttackPage({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to promote players";
       console.error("Failed to promote players:", err);
-      setPromotionError(errorMessage);
+      alert(errorMessage);
     } finally {
       setPromoting(false);
     }

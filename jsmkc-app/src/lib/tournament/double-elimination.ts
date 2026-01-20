@@ -27,6 +27,7 @@ export interface BracketPlayer {
 
 export function generateDoubleEliminationBracket(
   players: BracketPlayer[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _matchType: 'BM' | 'MR'
 ): DoubleEliminationBracket {
   const totalPlayers = players.length;
@@ -42,11 +43,9 @@ export function generateDoubleEliminationBracket(
   const bracketSize = isPowerOf2 ? totalPlayers : Math.pow(2, Math.floor(Math.log2(totalPlayers - 1)));
 
   const bracketPlayers = sortedPlayers.slice(0, bracketSize);
-  const remainingPlayers = sortedPlayers.slice(bracketSize);
 
   // Winner's bracket
   const winnerBracket: MatchNode[] = [];
-  const winnerBracketLosers: BracketPlayer[] = [];
 
   const generateWinnerMatch = (
     player1: BracketPlayer,

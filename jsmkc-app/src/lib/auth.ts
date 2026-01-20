@@ -1,4 +1,5 @@
 import NextAuth from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
 import GitHub from 'next-auth/providers/github'
 import Google from 'next-auth/providers/google'
 import Discord from 'next-auth/providers/discord'
@@ -12,18 +13,6 @@ const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 const ADMIN_DISCORD_IDS = [
   'YOUR_DISCORD_USER_ID_HERE', // Placeholder, user to update
 ];
-
-interface ExtendedJWT {
-  sub: string;
-  userType?: 'player' | 'admin' | 'member';
-  playerId?: string;
-  nickname?: string;
-  role?: string;
-  accessToken?: string;
-  refreshToken?: string;
-  accessTokenExpires?: number;
-  refreshTokenExpires?: number;
-}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET,
@@ -155,7 +144,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return session;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account }): Promise<JWT> {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         // Handle player credentials (password-based login)
@@ -167,7 +156,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             playerId: user.playerId,
             nickname: user.nickname,
             role: 'player'
-          } as ExtendedJWT;
+          } as JWT;
         }
 
         // Handle OAuth providers (Discord, GitHub, Google)
@@ -185,16 +174,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
           user: user,
           role: role,
-        } as ExtendedJWT;
+        } as JWT;
       }
 
       // Return previous token if still valid
       if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        return token as ExtendedJWT;
+        return token as JWT;
       }
 
       // Token refresh logic can be simplified or expanded as needed
-      return token as ExtendedJWT;
+      return token as JWT;
     },
   },
   pages: {
