@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-- SECURITY: Fix Denial of Service vulnerability in 'diff' package (Issue #48)
+なし
 
 ## 現在の実装状況 (2026-01-21)
 
