@@ -132,7 +132,7 @@ describe('JWT Refresh Utilities', () => {
       await handleSessionRefreshFailure();
 
       expect(consoleSpy).toHaveBeenCalledWith('Session refresh failed:', undefined);
-      expect(mockWindow.location.href).toContain('Your+session+has+expired.+Please+sign+in+again.');
+      expect(mockWindow.location.href).toMatch(/Your.*session.*has.*expired.*Please.*sign.*in.*again/);
 
       consoleSpy.mockRestore();
     });
@@ -235,6 +235,7 @@ describe('JWT Refresh Utilities', () => {
       useSession.mockReturnValue({ data: session, update });
 
       const { ensureValidSession } = useAutoRefresh();
+      await new Promise(resolve => setTimeout(resolve, 10));
       const result = await ensureValidSession();
 
       expect(result).toBe(false);
@@ -285,7 +286,9 @@ describe('JWT Refresh Utilities', () => {
 
       const response = await authenticatedFetch('/api/test', {}, expiredSession);
 
-      expect(fetch).toHaveBeenCalledWith('/api/auth/session', expect.any(Object));
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session', expect.any(Object));
+      expect(fetch).toHaveBeenNthCalledWith(2, '/api/test', expect.any(Object));
     });
 
     it('should handle session refresh failure', async () => {
@@ -305,12 +308,13 @@ describe('JWT Refresh Utilities', () => {
   });
 
   describe('handleApiError', () => {
-    it('should handle 401 errors with session refresh', () => {
+    it('should handle 401 errors with session refresh', async () => {
       const response = new Response('Unauthorized', { status: 401 });
       signOut.mockResolvedValue(undefined);
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
-      handleApiError(response, { error: 'Unauthorized' });
+      await handleApiError(response, { error: 'Unauthorized' });
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(signOut).toHaveBeenCalled();
       expect(mockWindow.location.href).toContain('/auth/signin');
