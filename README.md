@@ -64,8 +64,14 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-[Issue #58: standings-cache.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/58)
+[Issue #59: usePolling.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/59)
 - 現在のカバレッジ: 0% → 目標: 80%以上
+- 親Issue: #52 テストカバレッジの大幅な改善が必要
+
+## 完了したタスク (2026-01-21)
+✅ [Issue #58: standings-cache.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/58)
+- 達成カバレッジ: 100% statements, 100% branches, 100% functions, 100% lines（目標: 80%以上）
+- 全38テストがパス
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
