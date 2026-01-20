@@ -53,8 +53,13 @@ export function calculateEntryTotal(entry: {
  * @returns Sorted entries
  */
 export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWithTotal[] {
+  const result = entries.map(entry => ({
+    ...entry,
+    stage,
+  }));
+
   if (stage === "finals") {
-    return entries.sort((a, b) => {
+    return result.sort((a, b) => {
       // Eliminated players go last
       if (a.eliminated !== b.eliminated) {
         return a.eliminated ? 1 : -1;
@@ -70,12 +75,12 @@ export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWith
       return (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
     });
   } else if (stage === "revival_1" || stage === "revival_2") {
-    return entries
+    return result
       .filter((e) => e.totalTime !== null)
       .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
   } else {
     // Qualification: Sort by total time
-    return entries
+    return result
       .filter((e) => e.totalTime !== null)
       .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
   }
