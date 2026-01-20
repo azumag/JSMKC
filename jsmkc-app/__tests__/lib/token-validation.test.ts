@@ -37,7 +37,7 @@ describe('Token Validation', () => {
     });
 
     it('should reject null token', () => {
-      const result = validateToken(null as any);
+      const result = validateToken(null as unknown as string);
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
       expect(result.error).toBe('Token is required');
