@@ -64,8 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-[Issue #51: 依存パッケージの更新が必要](https://github.com/azumag/JSMKC/issues/51)
-- パッチアップデート（Next.js, Prisma, @types/react）の適用
+なし
 
 ## 現在の実装状況 (2026-01-21)
 
@@ -102,6 +101,12 @@ MIT
    - loading-types.tsによる型定義と状態管理
    - 18ページ以上のローディングUI改善（スケルトン表示、オーバーレイ対応）
 - ✅ スキップされたレート制限テストの完了（Issue #50）
+- ✅ 依存パッケージの更新（Issue #51）
+   - Next.js 16.1.1 → 16.1.4
+   - Prisma 6.19.1 → 6.19.2
+   - @types/react 19 → 19.2.9
+   - react-hook-form 7.70.0 → 7.71.1
+   - @testing-library/react 14.2.1 → 16.3.2
 
 ### ✅ 実装済み
 - E2Eテスト実装（Issue #32）
