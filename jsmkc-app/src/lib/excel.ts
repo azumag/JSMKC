@@ -1,62 +1,25 @@
-import * as XLSX from 'xlsx';
+export function escapeCSV(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
 
-export interface ExcelSheet {
-  name: string;
-  data: (string | number)[][];
-  headers: string[];
+  const stringValue = String(value);
+
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+
+  return stringValue;
 }
 
-export function createWorkbook(sheets: ExcelSheet[]): XLSX.WorkBook {
-  const workbook = XLSX.utils.book_new();
-
-  sheets.forEach((sheet) => {
-    const worksheetData = [
-      sheet.headers,
-      ...sheet.data,
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-
-    // Set column widths
-    const colWidths = sheet.headers.map((header) => ({
-      wch: Math.max(header.length, 15),
-    }));
-    ws['!cols'] = colWidths;
-
-    // Freeze header row
-    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
-
-    XLSX.utils.book_append_sheet(workbook, ws, sheet.name);
-  });
-
-  return workbook;
+export function csvRow<T>(values: T[]): string {
+  return values.map(v => escapeCSV(v as string | number | null)).join(',');
 }
 
-export function downloadWorkbook(workbook: XLSX.WorkBook, filename: string) {
-  XLSX.writeFile(workbook, filename);
-}
-
-export function downloadCSV(headers: string[], data: (string | number)[][], filename: string) {
-  // Add BOM for UTF-8 support in Excel
-  const BOM = '\uFEFF';
-  
-  const rows = [
-    headers.join(','),
-    ...data.map(row => row.join(','))
-  ];
-  
-  const csvContent = BOM + rows.join('\n');
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+export function createCSV(headers: string[], rows: (string | number)[][]): string {
+  const headerRow = csvRow(headers);
+  const dataRows = rows.map(row => csvRow(row));
+  return [headerRow, ...dataRows].join('\n');
 }
 
 export function formatTime(ms: number): string {
@@ -68,8 +31,4 @@ export function formatTime(ms: number): string {
 
 export function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
-}
-
-export function getExportFormat(format: string | null): 'xlsx' | 'csv' {
-  return (format === 'csv' ? 'csv' : 'xlsx');
 }

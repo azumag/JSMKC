@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createWorkbook, downloadWorkbook, downloadCSV, getExportFormat, formatTime } from "@/lib/excel";
+import { createCSV, formatTime } from "@/lib/excel";
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: tournamentId } = await params;
-    const { searchParams } = new URL(request.url);
-    const format = getExportFormat(searchParams.get('format'));
 
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -31,72 +29,24 @@ export async function GET(
       e.rank || '-',
       e.player.name,
       e.player.nickname,
-      e.totalTime || 0,
+      String(e.totalTime || 0),
       e.totalTime ? formatTime(e.totalTime) : '-',
-      e.lives,
+      String(e.lives),
       e.eliminated ? 'Yes' : 'No',
     ]);
 
-    // Get all course names
-    const courseTimes = new Map<string, (string | number)[]>();
-    entries.forEach((entry) => {
-      if (entry.times && typeof entry.times === 'object') {
-        const times = entry.times as Record<string, number>;
-        Object.keys(times).forEach((course) => {
-          if (!courseTimes.has(course)) {
-            courseTimes.set(course, []);
-          }
-          courseTimes.get(course)!.push(times[course]);
-        });
-      }
-    });
-
-    const courseHeaders = ['Rank', 'Player Name', 'Nickname', ...Array.from(courseTimes.keys()).sort()];
-    const courseData = entries.map((e) => {
-      const row: (string | number)[] = [
-        e.rank || '-',
-        e.player.name,
-        e.player.nickname,
-      ];
-      
-      if (e.times && typeof e.times === 'object') {
-        const times = e.times as Record<string, number>;
-        courseHeaders.slice(3).forEach((course) => {
-          const courseKey = course as string;
-          row.push(times[courseKey] ? formatTime(times[courseKey]) : '-');
-        });
-      } else {
-        courseHeaders.slice(3).forEach(() => row.push('-'));
-      }
-      
-      return row;
-    });
+    const bom = '\uFEFF';
+    const csvContent = bom + createCSV(entryHeaders, entryData);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const csvFilename = `${tournament.name}_TA_${timestamp}.csv`;
 
-    if (format === 'csv') {
-      const csvFilename = `${tournament.name}_TA_${timestamp}.csv`;
-      downloadCSV(entryHeaders, entryData, csvFilename);
-      return NextResponse.json({ success: true, message: 'CSV export initiated' });
-    }
-
-    const workbook = createWorkbook([
-      {
-        name: 'Qualifications',
-        headers: entryHeaders,
-        data: entryData,
+    return new NextResponse(csvContent, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${csvFilename}"`,
       },
-      {
-        name: 'Course Times',
-        headers: courseHeaders,
-        data: courseData,
-      },
-    ]);
-
-    const xlsxFilename = `${tournament.name}_TA_${timestamp}.xlsx`;
-    downloadWorkbook(workbook, xlsxFilename);
-
-    return NextResponse.json({ success: true, message: 'Excel export initiated' });
+    });
   } catch (error) {
     console.error("Failed to export tournament:", error);
     return NextResponse.json({ error: "Failed to export tournament" }, { status: 500 });

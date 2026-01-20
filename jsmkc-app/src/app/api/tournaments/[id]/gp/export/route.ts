@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createWorkbook, downloadWorkbook, downloadCSV, getExportFormat } from "@/lib/excel";
+import { createCSV } from "@/lib/excel";
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: tournamentId } = await params;
-    const { searchParams } = new URL(request.url);
-    const format = getExportFormat(searchParams.get('format'));
 
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -35,56 +33,49 @@ export async function GET(
       orderBy: { matchNumber: 'asc' },
     });
 
+    const bom = '\uFEFF';
+    let csvContent = bom;
+
     const qualificationHeaders = ['Rank', 'Player Name', 'Nickname', 'Matches', 'Wins', 'Ties', 'Losses', 'Driver Points', 'Score'];
     const qualificationData = qualifications.map((q, index) => [
-      index + 1,
+      String(index + 1),
       q.player.name,
       q.player.nickname,
-      q.mp,
-      q.wins,
-      q.ties,
-      q.losses,
-      q.points,
-      q.score,
+      String(q.mp),
+      String(q.wins),
+      String(q.ties),
+      String(q.losses),
+      String(q.points),
+      String(q.score),
     ]);
+
+    csvContent += 'QUALIFICATIONS\n';
+    csvContent += createCSV(qualificationHeaders, qualificationData);
 
     const matchHeaders = ['Match #', 'Stage', 'Cup', 'Player 1', 'Player 2', 'Points 1', 'Points 2', 'Completed'];
     const matchData = matches.map((m) => [
-      m.matchNumber,
+      String(m.matchNumber),
       m.stage,
       m.cup || '-',
       `${m.player1.name} (${m.player1.nickname})`,
       `${m.player2.name} (${m.player2.nickname})`,
-      m.points1,
-      m.points2,
+      String(m.points1),
+      String(m.points2),
       m.completed ? 'Yes' : 'No',
     ]);
 
+    csvContent += '\nMATCHES\n';
+    csvContent += createCSV(matchHeaders, matchData);
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const csvFilename = `${tournament.name}_GP_${timestamp}.csv`;
 
-    if (format === 'csv') {
-      const csvFilename = `${tournament.name}_GP_${timestamp}.csv`;
-      downloadCSV(qualificationHeaders, qualificationData, csvFilename);
-      return NextResponse.json({ success: true, message: 'CSV export initiated' });
-    }
-
-    const workbook = createWorkbook([
-      {
-        name: 'Qualifications',
-        headers: qualificationHeaders,
-        data: qualificationData,
+    return new NextResponse(csvContent, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${csvFilename}"`,
       },
-      {
-        name: 'Matches',
-        headers: matchHeaders,
-        data: matchData,
-      },
-    ]);
-
-    const xlsxFilename = `${tournament.name}_GP_${timestamp}.xlsx`;
-    downloadWorkbook(workbook, xlsxFilename);
-
-    return NextResponse.json({ success: true, message: 'Excel export initiated' });
+    });
   } catch (error) {
     console.error("Failed to export tournament:", error);
     return NextResponse.json({ error: "Failed to export tournament" }, { status: 500 });
