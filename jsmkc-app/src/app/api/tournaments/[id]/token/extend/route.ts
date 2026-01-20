@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit-log";
 import { extendTokenExpiry, getTokenTimeRemaining } from "@/lib/token-utils";
 import { checkRateLimit, getServerSideIdentifier } from "@/lib/rate-limit";
+import { sanitizeInput } from "@/lib/sanitize";
 
 // POST - Extend tournament token expiry
 export async function POST(
@@ -43,7 +44,7 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const { extensionHours = 24 } = await request.json();
+    const { extensionHours = 24 } = sanitizeInput(await request.json());
 
     // Validate input
     if (extensionHours < 1 || extensionHours > 168) { // Max 7 days

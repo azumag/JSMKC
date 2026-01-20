@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
+import { sanitizeInput } from "@/lib/sanitize";
 
 const CreateMatchSchema = z.object({
   player1Id: z.string().uuid(),
@@ -30,7 +31,7 @@ export async function POST(
 
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
 
     const parseResult = CreateMatchSchema.safeParse(body);
     if (!parseResult.success) {

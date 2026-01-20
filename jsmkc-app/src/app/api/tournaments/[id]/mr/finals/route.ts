@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { generateBracketStructure, roundNames } from "@/lib/double-elimination";
+import { sanitizeInput } from "@/lib/sanitize";
 
 export async function GET(
   request: NextRequest,
@@ -37,7 +38,7 @@ export async function POST(
 ) {
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { topN = 8 } = body;
 
     if (topN !== 8) {
@@ -127,7 +128,7 @@ export async function PUT(
 ) {
   try {
     const { id: tournamentId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     const { matchId, score1, score2, rounds } = body;
 
     if (!matchId || score1 === undefined || score2 === undefined) {

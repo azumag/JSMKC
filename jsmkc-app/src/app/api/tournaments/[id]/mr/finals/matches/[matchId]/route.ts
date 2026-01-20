@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
+import { sanitizeInput } from "@/lib/sanitize";
 
 const UpdateMatchSchema = z.object({
   score1: z.number().int().min(0).max(7),
@@ -36,7 +37,7 @@ export async function PUT(
 
   try {
     const { id: tournamentId, matchId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
 
     const parseResult = UpdateMatchSchema.safeParse(body);
     if (!parseResult.success) {

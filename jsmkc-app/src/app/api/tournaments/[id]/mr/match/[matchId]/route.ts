@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { updateMRMatchScore, OptimisticLockError } from "@/lib/optimistic-locking";
+import { sanitizeInput } from "@/lib/sanitize";
 
 export async function GET(
   request: NextRequest,
@@ -37,7 +38,7 @@ export async function PUT(
 ) {
   try {
     const { matchId } = await params;
-    const body = await request.json();
+    const body = sanitizeInput(await request.json());
     
     const { score1, score2, completed, rounds, version } = body;
 
