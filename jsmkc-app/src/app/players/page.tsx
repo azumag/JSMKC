@@ -29,6 +29,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TableSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -162,7 +164,26 @@ export default function PlayersPage() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading players...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-3">
+            <div className="h-9 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-10 w-32 bg-muted animate-pulse rounded" />
+        </div>
+        <Card>
+          <CardHeader>
+            <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-40 bg-muted animate-pulse rounded mt-2" />
+          </CardHeader>
+          <CardContent>
+            <TableSkeleton rows={5} columns={4} />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

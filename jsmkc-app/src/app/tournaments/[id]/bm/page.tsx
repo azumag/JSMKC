@@ -40,6 +40,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -231,7 +232,18 @@ export default function BattleModePage({
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div className="space-y-3">
+            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   return (

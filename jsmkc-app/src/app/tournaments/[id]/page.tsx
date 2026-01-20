@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
 import { ExportButton } from "@/components/tournament/export-button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Tournament {
   id: string;
@@ -85,7 +86,21 @@ export default function TournamentDetailPage({
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading tournament...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-start">
+          <div className="space-y-3">
+            <div className="h-9 w-3/4 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   if (!tournament) {

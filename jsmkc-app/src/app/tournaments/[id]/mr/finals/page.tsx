@@ -49,6 +49,7 @@ import { DoubleEliminationBracket } from "@/components/tournament/double-elimina
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -257,7 +258,18 @@ export default function MatchRaceFinals({
   const totalMatches = matches.length;
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div className="space-y-3">
+            <div className="h-9 w-40 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   return (

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, AlertTriangle, Trophy } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Tournament {
   id: string;
@@ -86,8 +87,8 @@ export default function ParticipantEntryPage({
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
-          <p className="text-lg">Validating access token...</p>
+          <LoadingSpinner size="lg" />
+          <p className="text-lg mt-4">Validating access token...</p>
         </div>
       </div>
     );

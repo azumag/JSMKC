@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { CardSkeleton } from "@/components/ui/loading-skeleton"
 
 interface Player {
     id: string
@@ -77,7 +78,17 @@ export default function ProfilePage() {
         }
     }
 
-    if (loading) return <div className="p-8">Loading...</div>
+    if (loading) {
+        return (
+            <div className="container max-w-2xl py-10 space-y-6">
+                <div className="space-y-3">
+                    <div className="h-9 w-24 bg-muted animate-pulse rounded" />
+                </div>
+                <CardSkeleton />
+                <CardSkeleton />
+            </div>
+        )
+    }
 
     return (
         <div className="container max-w-2xl py-10">

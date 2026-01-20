@@ -21,6 +21,7 @@ import {
 import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -196,7 +197,13 @@ export default function GPMatchPage({
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <div className="space-y-6 w-full max-w-2xl px-4">
+          <div className="space-y-3">
+            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <CardSkeleton />
+        </div>
       </div>
     );
   }

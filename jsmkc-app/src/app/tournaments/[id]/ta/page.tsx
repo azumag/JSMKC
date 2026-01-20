@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -312,7 +313,17 @@ export default function TimeAttackPage({
   );
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-3">
+            <div className="h-9 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   if (error) {
