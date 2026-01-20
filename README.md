@@ -64,8 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-[Issue #50: スキップされたレート制限テストの完了](https://github.com/azumag/JSMKC/issues/50)
-- rate-limit.test.ts でスキップされている3つのテストを完了させる
+なし
 
 ## 現在の実装状況 (2026-01-21)
 
@@ -101,6 +100,7 @@ MIT
    - LoadingSpinner、LoadingSkeleton、LoadingOverlayコンポーネント作成
    - loading-types.tsによる型定義と状態管理
    - 18ページ以上のローディングUI改善（スケルトン表示、オーバーレイ対応）
+- ✅ スキップされたレート制限テストの完了（Issue #50）
 
 ### ✅ 実装済み
 - E2Eテスト実装（Issue #32）
