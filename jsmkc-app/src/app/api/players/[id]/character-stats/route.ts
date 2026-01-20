@@ -24,16 +24,33 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
     });
 
-    const matchIds = characterUsages.map(u => u.matchId);
-    const uniqueMatchIds = [...new Set(matchIds)];
+    const usagesByType = new Map<string, Array<typeof characterUsages[0]>>();
+    for (const usage of characterUsages) {
+      const type = usage.matchType;
+      if (!usagesByType.has(type)) {
+        usagesByType.set(type, []);
+      }
+      usagesByType.get(type)!.push(usage);
+    }
 
-const matches = await prisma.mRMatch.findMany({
-       where: {
-         id: { in: uniqueMatchIds }
-       },
-     });
+    const matchMap = new Map<string, any>();
 
-    const matchMap = new Map(matches.map(m => [m.id, m]));
+    for (const [matchType, usages] of usagesByType.entries()) {
+      const matchIds = [...new Set(usages.map(u => u.matchId))];
+
+      let matches: any[] = [];
+      if (matchType === 'BM') {
+        matches = await prisma.bMMatch.findMany({ where: { id: { in: matchIds } } });
+      } else if (matchType === 'MR') {
+        matches = await prisma.mRMatch.findMany({ where: { id: { in: matchIds } } });
+      } else if (matchType === 'GP') {
+        matches = await prisma.gPMatch.findMany({ where: { id: { in: matchIds } } });
+      }
+
+      for (const match of matches) {
+        matchMap.set(match.id, { ...match, matchType });
+      }
+    }
 
     const characterStats = new Map<string, {
       character: string;

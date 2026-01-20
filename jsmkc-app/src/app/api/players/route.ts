@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
 
     const result = await paginate(
       {
-        findMany: prisma.player.findMany,
-        count: prisma.player.count,
+        findMany: prisma.player.findMany as any,
+        count: prisma.player.count as any,
       },
       {
         deletedAt: null,

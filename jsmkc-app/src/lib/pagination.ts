@@ -26,8 +26,8 @@ export function getPaginationParams(options: PaginationOptions = {}) {
 
 export async function paginate<T>(
   query: {
-    findMany: (args: Record<string, unknown>) => Promise<T[]>;
-    count: (args: Record<string, unknown>) => Promise<number>;
+    findMany: any;
+    count: any;
   },
   where: Record<string, unknown> = {},
   orderBy: Record<string, unknown> = {},
