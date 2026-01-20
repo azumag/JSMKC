@@ -5,14 +5,28 @@ import { auth } from "@/lib/auth";
 import { generateSecurePassword, hashPassword } from "@/lib/password-utils";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
+import { paginate } from "@/lib/pagination";
 
 // GET all players (excluding soft deleted)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const players = await prisma.player.findMany({
-      orderBy: { nickname: "asc" },
-    });
-    return NextResponse.json(players);
+    const { searchParams } = new URL(request.url);
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
+
+    const result = await paginate(
+      {
+        findMany: prisma.player.findMany,
+        count: prisma.player.count,
+      },
+      {
+        deletedAt: null,
+      },
+      { nickname: "asc" },
+      { page, limit }
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to fetch players:", error);
     return NextResponse.json(

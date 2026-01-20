@@ -4,14 +4,28 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { paginate } from "@/lib/pagination";
 
 // GET all tournaments (public access, excluding soft deleted)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const tournaments = await prisma.tournament.findMany({
-      orderBy: { date: "desc" },
-    });
-    return NextResponse.json(tournaments);
+    const { searchParams } = new URL(request.url);
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
+
+    const result = await paginate(
+      {
+        findMany: prisma.tournament.findMany,
+        count: prisma.tournament.count,
+      },
+      {
+        deletedAt: null,
+      },
+      { date: "desc" },
+      { page, limit }
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to fetch tournaments:", error);
     return NextResponse.json(
