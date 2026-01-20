@@ -15,8 +15,10 @@ export async function GET(request: NextRequest) {
 
     const result = await paginate(
       {
-        findMany: prisma.tournament.findMany,
-        count: prisma.tournament.count,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        findMany: prisma.tournament.findMany as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        count: prisma.tournament.count as any,
       },
       {
         deletedAt: null,
