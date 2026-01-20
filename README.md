@@ -64,8 +64,14 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-[Issue #57: optimistic-locking.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/57)
+[Issue #58: standings-cache.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/58)
 - 現在のカバレッジ: 0% → 目標: 80%以上
+- 親Issue: #52 テストカバレッジの大幅な改善が必要
+
+## 完了したタスク (2026-01-21)
+✅ [Issue #57: optimistic-locking.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/57)
+- 達成カバレッジ: 97.77% statements, 92.3% branches, 100% functions（目標: 80%以上）
+- 全28テストがパス
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
