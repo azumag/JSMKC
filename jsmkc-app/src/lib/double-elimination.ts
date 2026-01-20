@@ -1,15 +1,6 @@
 // Double Elimination Tournament Logic
 
-export interface BracketMatch {
-  matchNumber: number;
-  round: string;
-  bracket: "winners" | "losers" | "grand_final";
-  player1Seed?: number;
-  player2Seed?: number;
-  winnerGoesTo?: number; // matchNumber of next match
-  loserGoesTo?: number; // matchNumber in losers bracket
-  position?: 1 | 2; // which player slot in next match
-}
+import { BracketMatch } from '@/types/bracket';
 
 // Generate bracket structure for 8 players
 export function generateBracketStructure(playerCount: number): BracketMatch[] {
