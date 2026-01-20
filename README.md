@@ -64,7 +64,9 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-なし
+[Issue #54: promotion.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/54)
+- 現在のカバレッジ: 0% → 目標: 80%以上
+- 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 現在の実装状況 (2026-01-21)
 
