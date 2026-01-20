@@ -1,4 +1,30 @@
 import '@testing-library/jest-dom'
+import { TextEncoder, TextDecoder } from 'util'
+
+// Polyfill crypto.randomUUID for Jest environment
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    },
+  },
+  writable: true,
+})
+
+// Polyfill TextEncoder and TextDecoder
+Object.defineProperty(global, 'TextEncoder', {
+  value: TextEncoder,
+  writable: true,
+})
+
+Object.defineProperty(global, 'TextDecoder', {
+  value: TextDecoder,
+  writable: true,
+})
 
 // Mock Prisma client globally
 jest.mock('@/lib/prisma', () => ({
