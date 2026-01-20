@@ -95,7 +95,7 @@ MIT
 - ✅ N+1クエリ最適化（Issue #38）
 - ✅ ビルドエラー修正：重複するsearchParams宣言と型エラー（Issue #39）
 - ✅ ダブルエリミネーションブラケットUIアクセシビリティとレスポンシブ向上（Issue #40）
-- 🚧 prisma-middleware.ts、error-handling.ts他（未実装）
+- ✅ プリズマミドルウェアとエラーハンドリング実装済み（SoftDeleteManager、標準エラーレスポンス関数）
 
 ### ✅ 実装済み
 - E2Eテスト実装（Issue #32）
