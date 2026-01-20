@@ -24,6 +24,17 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
     });
 
+    const matchIds = characterUsages.map(u => u.matchId);
+    const uniqueMatchIds = [...new Set(matchIds)];
+
+    const matches = await prisma.match.findMany({
+      where: {
+        id: { in: uniqueMatchIds },
+      },
+    });
+
+    const matchMap = new Map(matches.map(m => [m.id, m]));
+
     const characterStats = new Map<string, {
       character: string;
       matchCount: number;
@@ -34,9 +45,33 @@ export async function GET(
     for (const usage of characterUsages) {
       const char = usage.character;
       const matchCount = (characterStats.get(char)?.matchCount || 0) + 1;
-      const isWin = await checkMatchWin(usage.matchId, usage.matchType, usage.playerId);
+      const match = matchMap.get(usage.matchId);
+      let isWin = false;
+
+      if (match) {
+        if (usage.matchType === 'BM') {
+          const bMMatch = match;
+          const isPlayer1 = bMMatch.player1Id === playerId;
+          const myScore = isPlayer1 ? bMMatch.score1 : bMMatch.score2;
+          const oppScore = isPlayer1 ? bMMatch.score2 : bMMatch.score1;
+          isWin = myScore > oppScore;
+        } else if (usage.matchType === 'MR') {
+          const mRMatch = match;
+          const isPlayer1 = mRMatch.player1Id === playerId;
+          const myScore = isPlayer1 ? mRMatch.score1 : mRMatch.score2;
+          const oppScore = isPlayer1 ? mRMatch.score2 : mRMatch.score1;
+          isWin = myScore > oppScore;
+        } else if (usage.matchType === 'GP') {
+          const gPMatch = match;
+          const isPlayer1 = gPMatch.player1Id === playerId;
+          const myPoints = isPlayer1 ? gPMatch.points1 : gPMatch.points2;
+          const oppPoints = isPlayer1 ? gPMatch.points2 : gPMatch.points1;
+          isWin = myPoints > oppPoints;
+        }
+      }
+
       const winCount = (characterStats.get(char)?.winCount || 0) + (isWin ? 1 : 0);
-      
+
       characterStats.set(char, {
         character: char,
         matchCount,
@@ -62,44 +97,5 @@ export async function GET(
       { error: "Failed to fetch character stats" },
       { status: 500 }
     );
-  }
-}
-
-async function checkMatchWin(matchId: string, matchType: string, playerId: string): Promise<boolean> {
-  try {
-    if (matchType === 'BM') {
-      const match = await prisma.bMMatch.findUnique({
-        where: { id: matchId },
-        select: { score1: true, score2: true, player1Id: true, player2Id: true },
-      });
-      if (!match) return false;
-      const isPlayer1 = match.player1Id === playerId;
-      const myScore = isPlayer1 ? match.score1 : match.score2;
-      const oppScore = isPlayer1 ? match.score2 : match.score1;
-      return myScore > oppScore;
-    } else if (matchType === 'MR') {
-      const match = await prisma.mRMatch.findUnique({
-        where: { id: matchId },
-        select: { score1: true, score2: true, player1Id: true, player2Id: true },
-      });
-      if (!match) return false;
-      const isPlayer1 = match.player1Id === playerId;
-      const myScore = isPlayer1 ? match.score1 : match.score2;
-      const oppScore = isPlayer1 ? match.score2 : match.score1;
-      return myScore > oppScore;
-    } else if (matchType === 'GP') {
-      const match = await prisma.gPMatch.findUnique({
-        where: { id: matchId },
-        select: { points1: true, points2: true, player1Id: true, player2Id: true },
-      });
-      if (!match) return false;
-      const isPlayer1 = match.player1Id === playerId;
-      const myPoints = isPlayer1 ? match.points1 : match.points2;
-      const oppPoints = isPlayer1 ? match.points2 : match.points1;
-      return myPoints > oppPoints;
-    }
-    return false;
-  } catch {
-    return false;
   }
 }
