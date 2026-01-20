@@ -14,7 +14,11 @@ const ADMIN_DISCORD_IDS = [
   'YOUR_DISCORD_USER_ID_HERE', // Placeholder, user to update
 ];
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+// Export for testing
+export const ADMIN_DISCORD_IDS_LIST = ADMIN_DISCORD_IDS;
+
+// Define auth configuration object for testing
+const authConfig = {
   secret: process.env.AUTH_SECRET,
   providers: [
     Discord({
@@ -190,4 +194,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: '/auth/signin',
     error: '/auth/error',
   },
-})
+};
+
+export const { handlers, signIn, signOut, auth } = NextAuth(authConfig);
+
+// Export configuration for testing
+export { authConfig };

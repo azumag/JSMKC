@@ -12,6 +12,11 @@ const customJestConfig: Config = {
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you based on your tsconfig.json paths)
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Mock next-auth providers
+    '^next-auth/providers/discord$': '<rootDir>/__mocks__/next-auth-providers/discord.js',
+    '^next-auth/providers/github$': '<rootDir>/__mocks__/next-auth-providers/github.js',
+    '^next-auth/providers/google$': '<rootDir>/__mocks__/next-auth-providers/google.js',
+    '^next-auth/providers/credentials$': '<rootDir>/__mocks__/next-auth-providers/credentials.js',
   },
   testEnvironment: 'jest-environment-jsdom',
   collectCoverageFrom: [
