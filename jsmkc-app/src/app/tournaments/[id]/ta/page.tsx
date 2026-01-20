@@ -321,7 +321,7 @@ export default function TimeAttackPage({
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Time Attack</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments}/${tournamentId}`}>Back</Link>
+            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
           </Button>
         </div>
         <Card>
