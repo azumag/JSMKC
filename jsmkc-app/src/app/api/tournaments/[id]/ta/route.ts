@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { auth as authenticate } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { z } from "zod";
+import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 
 // Zod schemas for input validation
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
