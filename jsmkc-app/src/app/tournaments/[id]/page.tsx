@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
 import { ExportButton } from "@/components/tournament/export-button";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface Tournament {
   id: string;
@@ -92,116 +93,118 @@ export default function TournamentDetailPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold">{tournament.name}</h1>
-            {getStatusBadge(tournament.status)}
+    <ErrorBoundary>
+      <div className="space-y-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold">{tournament.name}</h1>
+              {getStatusBadge(tournament.status)}
+            </div>
+            <p className="text-muted-foreground">
+              {new Date(tournament.date).toLocaleDateString()}
+            </p>
           </div>
-          <p className="text-muted-foreground">
-            {new Date(tournament.date).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {isAdmin && tournament.status === "draft" && (
-            <Button onClick={() => updateStatus("active")}>
-              Start Tournament
+          <div className="flex gap-2">
+            {isAdmin && tournament.status === "draft" && (
+              <Button onClick={() => updateStatus("active")}>
+                Start Tournament
+              </Button>
+            )}
+            {isAdmin && tournament.status === "active" && (
+              <Button onClick={() => updateStatus("completed")}>
+                Complete Tournament
+              </Button>
+            )}
+            {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
+            <Button variant="outline" asChild>
+              <Link href="/tournaments">Back to List</Link>
             </Button>
-          )}
-          {isAdmin && tournament.status === "active" && (
-            <Button onClick={() => updateStatus("completed")}>
-              Complete Tournament
-            </Button>
-          )}
-          {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
-          <Button variant="outline" asChild>
-            <Link href="/tournaments">Back to List</Link>
-          </Button>
+          </div>
         </div>
+
+        {/* Token Management Section */}
+        {isAdmin && (
+          <TournamentTokenManager
+            tournamentId={id}
+            initialToken={tournament.token}
+            initialTokenExpiresAt={tournament.tokenExpiresAt}
+          />
+        )}
+
+        <Tabs defaultValue="bm" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="tt">Time Trial</TabsTrigger>
+            <TabsTrigger value="bm">Battle Mode</TabsTrigger>
+            <TabsTrigger value="mr">Match Race</TabsTrigger>
+            <TabsTrigger value="gp">Grand Prix</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="tt">
+            <Card>
+              <CardHeader>
+                <CardTitle>Time Attack</CardTitle>
+                <CardDescription>Individual time-based competition - 20 courses total time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href={`/tournaments/${id}/ta`}>
+                    Manage Time Attack
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="bm">
+            <Card>
+              <CardHeader>
+                <CardTitle>Battle Mode</CardTitle>
+                <CardDescription>1v1 balloon battle qualification and finals</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href={`/tournaments/${id}/bm`}>
+                    Manage Battle Mode
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="mr">
+            <Card>
+              <CardHeader>
+                <CardTitle>Match Race</CardTitle>
+                <CardDescription>1v1 5-race competition</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href={`/tournaments/${id}/mr`}>
+                    Manage Match Race
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="gp">
+            <Card>
+              <CardHeader>
+                <CardTitle>Grand Prix</CardTitle>
+                <CardDescription>Cup-based driver points competition</CardDescription>
+            </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href={`/tournaments/${id}/gp`}>
+                    Manage Grand Prix
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-
-      {/* Token Management Section */}
-      {isAdmin && (
-        <TournamentTokenManager
-          tournamentId={id}
-          initialToken={tournament.token}
-          initialTokenExpiresAt={tournament.tokenExpiresAt}
-        />
-      )}
-
-      <Tabs defaultValue="bm" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="tt">Time Trial</TabsTrigger>
-          <TabsTrigger value="bm">Battle Mode</TabsTrigger>
-          <TabsTrigger value="mr">Match Race</TabsTrigger>
-          <TabsTrigger value="gp">Grand Prix</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tt">
-          <Card>
-            <CardHeader>
-              <CardTitle>Time Attack</CardTitle>
-              <CardDescription>Individual time-based competition - 20 courses total time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href={`/tournaments/${id}/ta`}>
-                  Manage Time Attack
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="bm">
-          <Card>
-            <CardHeader>
-              <CardTitle>Battle Mode</CardTitle>
-              <CardDescription>1v1 balloon battle qualification and finals</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href={`/tournaments/${id}/bm`}>
-                  Manage Battle Mode
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="mr">
-          <Card>
-            <CardHeader>
-              <CardTitle>Match Race</CardTitle>
-              <CardDescription>1v1 5-race competition</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href={`/tournaments/${id}/mr`}>
-                  Manage Match Race
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="gp">
-          <Card>
-            <CardHeader>
-              <CardTitle>Grand Prix</CardTitle>
-              <CardDescription>Cup-based driver points competition</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href={`/tournaments/${id}/gp`}>
-                  Manage Grand Prix
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+    </ErrorBoundary>
   );
 }
