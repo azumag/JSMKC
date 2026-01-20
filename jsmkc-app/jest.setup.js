@@ -1,5 +1,178 @@
 import '@testing-library/jest-dom'
 
+// Mock Prisma client globally
+jest.mock('@/lib/prisma', () => ({
+  __esModule: true,
+  default: {
+    tournament: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    accessToken: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    auditLog: {
+      create: jest.fn(),
+    },
+    player: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    account: {
+      findUnique: jest.fn(),
+    },
+    session: {
+      findUnique: jest.fn(),
+    },
+    bMMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    bMQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    mRMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    mRQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    gPMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    gPQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    tTEntry: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    scoreEntryLog: {
+      findMany: jest.fn(),
+    },
+    matchCharacterUsage: {
+      findMany: jest.fn(),
+    },
+  },
+  prisma: {
+    tournament: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    accessToken: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    auditLog: {
+      create: jest.fn(),
+    },
+    player: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    account: {
+      findUnique: jest.fn(),
+    },
+    session: {
+      findUnique: jest.fn(),
+    },
+    bMMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    bMQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    mRMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    mRQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    gPMatch: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    gPQualification: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    tTEntry: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    scoreEntryLog: {
+      findMany: jest.fn(),
+    },
+    matchCharacterUsage: {
+      findMany: jest.fn(),
+    },
+  },
+}))
+
 // Mock NextAuth.js
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),

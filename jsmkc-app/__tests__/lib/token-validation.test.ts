@@ -1,18 +1,5 @@
 import { validateToken, getAccessTokenExpiry, validateTournamentToken } from '@/lib/token-validation';
 
-jest.mock('@/lib/prisma', () => ({
-  __esModule: true,
-  default: {
-    tournament: {
-      findUnique: jest.fn(),
-    },
-    accessToken: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
-
 import { NextRequest } from 'next/server';
 
 describe('Token Validation', () => {

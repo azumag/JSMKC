@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-なし
+- BUG: Missing auditLog mock in token-validation.test.ts causes test console errors (Issue #46)
 
 ## 現在の実装状況 (2026-01-21)
 
