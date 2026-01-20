@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-20)
-なし
+- Issue #40: FRONTEND: Complete double-elimination bracket UI implementation (pending)
 
 ## 現在の実装状況 (2026-01-20)
 
