@@ -35,6 +35,8 @@ const customJestConfig: Config = {
     '/node_modules/',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load Next.js config which is async

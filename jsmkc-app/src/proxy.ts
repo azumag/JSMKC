@@ -19,10 +19,20 @@ export default auth(async (req) => {
     '/api/players',
   ]
 
+  // Frontend routes that require authentication
+  const protectedFrontendRoutes = [
+    '/players',
+    '/profile',
+    '/tournaments',
+  ]
+
   // Actions that require authentication
   const protectedMethods = ['POST', 'PUT', 'DELETE']
   const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route))
-  const requiresAuth = isProtectedApi && protectedMethods.includes(method)
+  const requiresAuthApi = isProtectedApi && protectedMethods.includes(method)
+  
+  const isProtectedFrontend = protectedFrontendRoutes.some(route => pathname.startsWith(route))
+  const requiresAuth = requiresAuthApi || isProtectedFrontend
 
   // Check authentication
   if (requiresAuth && !req.auth) {
@@ -43,6 +53,13 @@ export default auth(async (req) => {
       })
     } catch (error) {
       console.error('Failed to log unauthorized access:', error)
+    }
+
+    // Redirect to sign-in for frontend routes, return 401 for API routes
+    if (isProtectedFrontend) {
+      const signInUrl = new URL('/auth/signin', req.url)
+      signInUrl.searchParams.set('callbackUrl', pathname)
+      return NextResponse.redirect(signInUrl)
     }
 
     return NextResponse.json(
@@ -108,8 +125,11 @@ export default auth(async (req) => {
 
 export const config = {
   matcher: [
-    '/api/:path*', 
+    '/api/:path*',
     '/auth/:path*',
-    '/api/auth/:path*', // Added for session status endpoint
+    '/api/auth/:path*',
+    '/players/:path*',
+    '/profile/:path*',
+    '/tournaments/:path*',
   ]
 }
