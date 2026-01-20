@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-20)
-- Issue #41: IMPROVEMENT: Add Error Boundaries to prevent component crashes (pending)
+- Issue #41: IMPROVEMENT: Add Error Boundaries to prevent component crashes (in progress - 部分完了)
 
 ## 現在の実装状況 (2026-01-20)
 
