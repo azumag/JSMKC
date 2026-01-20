@@ -1,8 +1,11 @@
-import { validateToken } from '@/lib/token-validation';
+import { validateToken, getAccessTokenExpiry, validateTournamentToken } from '@/lib/token-validation';
 
 jest.mock('@/lib/prisma', () => ({
   __esModule: true,
   default: {
+    tournament: {
+      findUnique: jest.fn(),
+    },
     accessToken: {
       findUnique: jest.fn(),
       update: jest.fn(),
@@ -64,8 +67,20 @@ describe('Token Validation', () => {
 
   describe('validateTournamentToken', () => {
     it('should validate tournament token and return tournament data', async () => {
+      const mockPrisma = (await import('@/lib/prisma')).default;
+      (mockPrisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tournament-1',
+        name: 'Test Tournament',
+        token: '0123456789abcdef0123456789abcdef',
+        tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: 'ACTIVE',
+        date: new Date(),
+      });
+
       const request = new NextRequest('http://localhost:3000/api/tournaments/tournament-1/token', {
-        headers: new Headers(),
+        headers: new Headers({
+          'x-tournament-token': '0123456789abcdef0123456789abcdef',
+        }),
       });
 
       const result = await validateTournamentToken(request, 'tournament-1');

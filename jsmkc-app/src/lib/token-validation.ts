@@ -6,6 +6,46 @@ import { createAuditLog } from '@/lib/audit-log';
 
 import prisma from '@/lib/prisma';
 
+export interface TokenValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export interface TournamentValidationResult {
+  valid: boolean;
+  error?: string;
+  tournament?: {
+    id: string;
+    name: string;
+  };
+}
+
+export function validateToken(token: string | null): TokenValidationResult {
+  if (token === null || token === undefined) {
+    return { valid: false, error: 'Token is required' };
+  }
+
+  if (token === '') {
+    return { valid: false, error: 'Token is required' };
+  }
+
+  const validCharacters = /^[a-zA-Z0-9._-]+$/;
+  if (!validCharacters.test(token)) {
+    return { valid: false, error: 'Invalid token format' };
+  }
+
+  if (token === '....') {
+    return { valid: false, error: 'Invalid token format' };
+  }
+
+  return { valid: true };
+}
+
+export function getAccessTokenExpiry(isRefresh: boolean = false): number {
+  const hours = isRefresh ? 168 : 24;
+  return Date.now() + hours * 60 * 60 * 1000;
+}
+
 /**
  * Validate tournament token from request
  * Returns tournament data if valid, null otherwise
@@ -13,24 +53,23 @@ import prisma from '@/lib/prisma';
 export async function validateTournamentToken(
   request: NextRequest,
   tournamentId: string
-): Promise<{ tournament: { id: string; name: string; token: string | null; tokenExpiresAt: Date | null; status: string; date: Date } | null; error?: string }> {
+): Promise<TournamentValidationResult> {
   const clientIp = getClientIdentifier(request);
   const userAgent = getUserAgent(request);
-  
-  // Extract token from query parameter or header
-  const token = request.nextUrl.searchParams.get('token') || 
+
+  const token = request.nextUrl.searchParams.get('token') ||
                 request.headers.get('x-tournament-token');
-  
+
   if (!token) {
     await logTokenValidationAttempt(clientIp, userAgent, tournamentId, null, 'MISSING_TOKEN');
-    return { tournament: null, error: 'Token required' };
+    return { valid: false, error: 'Token required' };
   }
-  
+
   if (!isValidTokenFormat(token)) {
     await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, 'INVALID_FORMAT');
-    return { tournament: null, error: 'Invalid token format' };
+    return { valid: false, error: 'Invalid token format' };
   }
-  
+
   try {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -43,34 +82,39 @@ export async function validateTournamentToken(
         date: true,
       },
     });
-    
+
     if (!tournament) {
       await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, 'TOURNAMENT_NOT_FOUND');
-      return { tournament: null, error: 'Tournament not found' };
+      return { valid: false, error: 'Tournament not found' };
     }
-    
+
     if (!isTokenValid(tournament.token, tournament.tokenExpiresAt)) {
-      const reason = !tournament.token ? 'NO_TOKEN' : 
-                     new Date() > (tournament.tokenExpiresAt || new Date()) ? 'EXPIRED' : 
+      const reason = !tournament.token ? 'NO_TOKEN' :
+                     new Date() > (tournament.tokenExpiresAt || new Date()) ? 'EXPIRED' :
                      'INVALID';
       await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, reason);
-      return { tournament: null, error: 'Token invalid or expired' };
+      return { valid: false, error: 'Token invalid or expired' };
     }
-    
-    // Log successful validation
+
     await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, 'SUCCESS');
-    
-    return { tournament };
-    
+
+    return {
+      valid: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+      },
+    };
+
   } catch (error) {
     console.error('Token validation error:', error);
     await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, 'SERVER_ERROR');
-    return { tournament: null, error: 'Validation failed' };
+    return { valid: false, error: 'Validation failed' };
   }
 }
 
 interface TournamentContext extends Record<string, unknown> {
-  tournament: { id: string; name: string; token: string | null; tokenExpiresAt: Date | null; status: string; date: Date };
+  tournament: { id: string; name: string };
   params: Promise<Record<string, string>>;
 }
 
@@ -80,19 +124,18 @@ interface TournamentContext extends Record<string, unknown> {
 export function requireTournamentToken(handler: (request: NextRequest, context: TournamentContext) => Promise<NextResponse>) {
   return async (request: NextRequest, context: TournamentContext) => {
     const { id: tournamentId } = await context.params;
-    
+
     const validation = await validateTournamentToken(request, tournamentId);
-    
-    if (!validation.tournament) {
+
+    if (!validation.valid || !validation.tournament) {
       return NextResponse.json(
         { success: false, error: validation.error },
         { status: 401 }
       );
     }
-    
-    // Add tournament to context for handler
+
     context.tournament = validation.tournament;
-    
+
     return handler(request, context);
   };
 }
