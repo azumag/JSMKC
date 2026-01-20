@@ -64,7 +64,8 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-なし
+[Issue #51: 依存パッケージの更新が必要](https://github.com/azumag/JSMKC/issues/51)
+- パッチアップデート（Next.js, Prisma, @types/react）の適用
 
 ## 現在の実装状況 (2026-01-21)
 
