@@ -219,11 +219,11 @@ export default function BattleModeFinals({
         <div className="flex gap-2">
           {matches.length === 0 ? (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={creating}>
-                  {creating ? "Creating..." : "Generate Bracket"}
-                </Button>
-              </AlertDialogTrigger>
+               <AlertDialogTrigger asChild>
+                 <Button disabled={creating} aria-label="Generate finals bracket">
+                   {creating ? "Creating..." : "Generate Bracket"}
+                 </Button>
+               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Generate Finals Bracket?</AlertDialogTitle>
@@ -243,11 +243,11 @@ export default function BattleModeFinals({
             </AlertDialog>
           ) : (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={creating}>
-                  Reset Bracket
-                </Button>
-              </AlertDialogTrigger>
+               <AlertDialogTrigger asChild>
+                 <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
+                   Reset Bracket
+                 </Button>
+               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Reset Finals Bracket?</AlertDialogTitle>
@@ -345,7 +345,14 @@ export default function BattleModeFinals({
 
       {/* Score Entry Dialog */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+        <DialogContent
+          onOpenAutoFocus={(e) => {
+            // Focus on first score input when dialog opens
+            e.preventDefault();
+            const firstInput = document.getElementById(`score1-${selectedMatch?.id}`);
+            firstInput?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Enter Match Score</DialogTitle>
             <DialogDescription>
@@ -365,38 +372,46 @@ export default function BattleModeFinals({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
+               <div className="text-center">
+                 <Label htmlFor={`score1-${selectedMatch?.id}`}>
+                   {selectedMatch?.player1.nickname}
+                 </Label>
+                 <Input
+                   id={`score1-${selectedMatch?.id}`}
+                   type="number"
+                   min={0}
+                   max={4}
+                   value={scoreForm.score1}
+                   onChange={(e) =>
+                     setScoreForm({
+                       ...scoreForm,
+                       score1: parseInt(e.target.value) || 0,
+                     })
+                   }
+                   className="w-20 text-center text-2xl"
+                   aria-label={`${selectedMatch?.player1.nickname} score`}
+                 />
+               </div>
+               <span className="text-2xl" aria-hidden="true">-</span>
+               <div className="text-center">
+                 <Label htmlFor={`score2-${selectedMatch?.id}`}>
+                   {selectedMatch?.player2.nickname}
+                 </Label>
+                 <Input
+                   id={`score2-${selectedMatch?.id}`}
+                   type="number"
+                   min={0}
+                   max={4}
+                   value={scoreForm.score2}
+                   onChange={(e) =>
+                     setScoreForm({
+                       ...scoreForm,
+                       score2: parseInt(e.target.value) || 0,
+                     })
+                   }
+                   className="w-20 text-center text-2xl"
+                   aria-label={`${selectedMatch?.player2.nickname} score`}
+                 />
               </div>
             </div>
             {scoreForm.score1 + scoreForm.score2 > 0 &&
