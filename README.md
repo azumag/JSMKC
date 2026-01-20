@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-20)
-なし
+- Issue #42: IMPROVEMENT: Add Error Boundaries to remaining critical pages (pending)
 
 ## 現在の実装状況 (2026-01-20)
 
