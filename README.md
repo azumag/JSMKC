@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-20)
-- Issue #40: FRONTEND: Complete double-elimination bracket UI implementation (pending)
+なし
 
 ## 現在の実装状況 (2026-01-20)
 
@@ -94,6 +94,7 @@ MIT
 - ✅ データベースページネーション - 主要エンドポイント（Issue #36、#37 部分完了）
 - ✅ N+1クエリ最適化（Issue #38）
 - ✅ ビルドエラー修正：重複するsearchParams宣言と型エラー（Issue #39）
+- ✅ ダブルエリミネーションブラケットUIアクセシビリティとレスポンシブ向上（Issue #40）
 - 🚧 prisma-middleware.ts、error-handling.ts他（未実装）
 
 ### ✅ 実装済み
