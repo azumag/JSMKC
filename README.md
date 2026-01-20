@@ -63,8 +63,8 @@ jsmkc-app/
 
 MIT
 
-## 現在のタスク (2026-01-20)
-- Issue #43: IMPROVEMENT: Add comprehensive loading states across all pages (pending)
+## 現在のタスク (2026-01-21)
+なし
 
 ## 現在の実装状況 (2026-01-20)
 
@@ -96,6 +96,10 @@ MIT
 - ✅ ビルドエラー修正：重複するsearchParams宣言と型エラー（Issue #39）
 - ✅ ダブルエリミネーションブラケットUIアクセシビリティとレスポンシブ向上（Issue #40）
 - ✅ プリズマミドルウェアとエラーハンドリング実装済み（SoftDeleteManager、標準エラーレスポンス関数）
+- ✅ 全ページの読み込み状態改善（Issue #43）
+   - LoadingSpinner、LoadingSkeleton、LoadingOverlayコンポーネント作成
+   - loading-types.tsによる型定義と状態管理
+   - 18ページ以上のローディングUI改善（スケルトン表示、オーバーレイ対応）
 
 ### ✅ 実装済み
 - E2Eテスト実装（Issue #32）
