@@ -76,6 +76,7 @@ MIT
 - ✅ JWTコールバック型エラー修正（Issue #17）
 - ✅ ESLint 'any'型警告修正（Issue #18）
 - ✅ ESLint警告修正：未使用のインポートと変数を削除（Issue #20）
+- ✅ Next.js 16 proxy規約への移行（Issue #21）
 
 ### 🚧 実装中
 - バトルモード・マッチレース ダブルエリミネーション（Issue #11）
