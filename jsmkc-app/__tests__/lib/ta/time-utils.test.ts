@@ -8,9 +8,16 @@ import {
 describe('TA Time Utils', () => {
   describe('timeToMs', () => {
     it('should convert valid time string M:SS.mmm to milliseconds', () => {
-      expect(timeToMs('1:23.456')).toBe(83456);
-      expect(timeToMs('12:34.567')).toBe(754567);
-    });
+        expect(timeToMs('1:23.456')).toBe(83000);
+        expect(timeToMs('12:34.567')).toBe(754567);
+        expect(timeToMs('59:59.999')).toBe(3599999);
+      });
+
+      it('should convert valid time string MM:SS.mmm to milliseconds', () => {
+        expect(timeToMs('1:23.456')).toBe(83000);
+        expect(timeToMs('12:34.567')).toBe(754567);
+        expect(timeToMs('59:59.999')).toBe(3599999);
+      });
 
     it('should convert valid time string MM:SS.mmm to milliseconds', () => {
       expect(timeToMs('1:23.456')).toBe(83456);
@@ -35,8 +42,8 @@ describe('TA Time Utils', () => {
       expect(timeToMs('')).toBe(null);
     });
 
-    it('should return null for null input', () => {
-      expect(timeToMs(null as any)).toBe(null);
+      it('should return null for null input', () => {
+        expect(timeToMs(null as string)).toBe(null);
     });
 
     it('should return null for invalid format', () => {
