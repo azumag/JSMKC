@@ -12,32 +12,21 @@ interface ErrorBoundaryProps {
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
-interface ErrorInfo {
-  componentStack: string;
-  errorBoundary: string;
-}
-
-interface ErrorFallbackProps {
-  error: Error;
-  resetError?: () => void;
-}
-
-// Fallback UI component to display when an error occurs
-export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
+export function ErrorFallback({ error, resetError }: { error: Error; resetError?: () => void }) {
   // Determine if error is recoverable (network/data errors vs. programming errors)
   const isRecoverable = 
     error.message?.includes("fetch") ||
     error.message?.includes("network") ||
     error.message?.includes("timeout");
 
-  const getErrorMessage = (err: Error) => {
-    if (err.message?.includes("fetch")) {
+  const getErrorMessage = () => {
+    if (error.message?.includes("fetch")) {
       return "Unable to load data. Please refresh the page.";
     }
-    if (err.message?.includes("network")) {
+    if (error.message?.includes("network")) {
       return "Connection error. Please check your internet connection.";
     }
-    if (err.message?.includes("timeout")) {
+    if (error.message?.includes("timeout")) {
       return "Request timed out. Please try again.";
     }
     return "Something went wrong. Please try again.";
@@ -53,7 +42,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <CardDescription className="text-base">
-          {getErrorMessage(error)}
+          {getErrorMessage()}
         </CardDescription>
         
         <Alert variant="destructive">
@@ -82,7 +71,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   );
 }
 
-// Class-based Error Boundary following React's class component API
+// Class-based Error Boundary using React's Error Boundary API
 // This prevents creating components during render by keeping JSX outside render method
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasError: boolean; error: Error | null }> {
   constructor(props: ErrorBoundaryProps) {
