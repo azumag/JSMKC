@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ComponentType, ErrorInfo, ReactNode, useCallback, useState, Suspense } from "react";
+import React, { ErrorInfo, ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +79,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): { hasError: true } {
+  static getDerivedStateFromError(): { hasError: true } {
     // Update state so next render will show fallback UI
     return { hasError: true };
   }

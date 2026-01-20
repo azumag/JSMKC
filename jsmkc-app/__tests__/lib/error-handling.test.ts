@@ -16,13 +16,13 @@ jest.mock('@prisma/client', () => {
     Prisma: {
       ...Prisma,
       PrismaClientInitializationError: class extends Error {
-        constructor(message: Error, clientVersion?: { clientVersion?: string }) {
+        constructor(message: Error) {
           super(message.message);
           this.name = 'PrismaClientInitializationError';
         }
       },
       PrismaClientKnownRequestError: class extends Error {
-        constructor(message: string, { code, clientVersion }: { code: string; clientVersion: string }) {
+        constructor(message: string, { code }: { code: string; clientVersion: string }) {
           super(message);
           this.name = 'PrismaClientKnownRequestError';
           this.code = code;
@@ -45,8 +45,8 @@ jest.mock('next/server', () => {
 });
 
 describe('Error Handling Module', () => {
-  const { NextResponse } = require('next/server');
-  const { Prisma } = require('@prisma/client');
+  const { NextResponse } = jest.requireMock('next/server');
+  const { Prisma } = jest.requireMock('@prisma/client');
 
   describe('createErrorResponse', () => {
     beforeEach(() => {
@@ -186,11 +186,10 @@ describe('Error Handling Module', () => {
 
     it('should handle PrismaClientInitializationError', () => {
       const error = new Prisma.PrismaClientInitializationError(
-        new Error('Connection failed'),
-        { clientVersion: '5.0.0' }
+        new Error('Connection failed')
       );
 
-      const response = handleDatabaseError(error, 'test context');
+      handleDatabaseError(error, 'test context');
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
@@ -212,7 +211,7 @@ describe('Error Handling Module', () => {
         }
       );
 
-      const response = handleDatabaseError(error, 'test context');
+      handleDatabaseError(error, 'test context');
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
@@ -233,7 +232,7 @@ describe('Error Handling Module', () => {
         }
       );
 
-      const response = handleDatabaseError(error, 'test context');
+      handleDatabaseError(error, 'test context');
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
@@ -254,7 +253,7 @@ describe('Error Handling Module', () => {
         }
       );
 
-      const response = handleDatabaseError(error, 'test context');
+      handleDatabaseError(error, 'test context');
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
@@ -270,7 +269,7 @@ describe('Error Handling Module', () => {
     it('should handle unknown errors as generic errors', () => {
       const error = new Error('Unknown error');
 
-      const response = handleDatabaseError(error, 'test context');
+      handleDatabaseError(error, 'test context');
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {

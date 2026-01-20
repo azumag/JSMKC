@@ -29,7 +29,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
