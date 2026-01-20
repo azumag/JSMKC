@@ -1,7 +1,5 @@
 import {
-  BracketType,
   BracketMatch,
-  BracketRound,
 } from '@/types/bracket';
 
 describe('Bracket Types', () => {
