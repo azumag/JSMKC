@@ -41,10 +41,8 @@ export async function GET(
 
     const result = await paginate(
       {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        findMany: prisma.bMQualification.findMany as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        count: prisma.bMQualification.count as any,
+        findMany: prisma.bMQualification.findMany,
+        count: prisma.bMQualification.count,
       },
       { tournamentId },
       {},

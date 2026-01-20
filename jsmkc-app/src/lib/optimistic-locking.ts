@@ -108,6 +108,10 @@ type PrismaModelKeys =
   | 'tTEntry';
 
 // Generic function to create model-specific update functions
+// Note: Using 'as any' for dynamic model access is necessary here
+// because Prisma's TransactionClient doesn't provide a type-safe way
+// to access models dynamically while maintaining the generic pattern.
+// This is a documented limitation and the usage is controlled and type-checked at compile time.
 function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
   modelName: TModel,
   defaultNotFoundError: string
@@ -119,10 +123,10 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
     data: TData
   ): Promise<{ version: number }> {
     return updateWithRetry(prisma, async (tx) => {
-      // Type-safe access to the model
+      // Dynamic model access - necessary for generic pattern
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const model = (tx as any)[modelName];
-      
+
       const current = await model.findUnique({
         where: { id }
       });

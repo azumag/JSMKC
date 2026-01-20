@@ -38,10 +38,8 @@ export async function GET(
 
     const result = await paginate(
       {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        findMany: prisma.gPMatch.findMany as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        count: prisma.gPMatch.count as any,
+        findMany: prisma.gPMatch.findMany,
+        count: prisma.gPMatch.count,
       },
       { tournamentId },
       { matchNumber: "asc" },

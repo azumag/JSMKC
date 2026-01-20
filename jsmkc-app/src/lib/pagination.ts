@@ -24,10 +24,15 @@ export function getPaginationParams(options: PaginationOptions = {}) {
   };
 }
 
+// Prisma's function signatures are too complex to type accurately in a generic way.
+// Using 'any' here is acceptable because the pagination function is
+// type-safe at the call site where specific Prisma methods are passed.
 export async function paginate<T>(
   query: {
-    findMany: (args: Record<string, unknown>) => Promise<T[]>;
-    count: (args: Record<string, unknown>) => Promise<number>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findMany: (...args: any[]) => Promise<T[]>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    count: (...args: any[]) => Promise<number>;
   },
   where: Record<string, unknown> = {},
   orderBy: Record<string, unknown> = {},

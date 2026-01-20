@@ -64,7 +64,7 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-なし
+- IMPROVEMENT: Replace 'any' type assertions with proper TypeScript types (Issue #47)
 
 ## 現在の実装状況 (2026-01-21)
 

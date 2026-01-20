@@ -8,14 +8,14 @@ export class SoftDeleteManager {
   constructor(private prisma: PrismaClient) {}
 
   // ソフトデリート用のwhere句を生成
-  private addSoftDeleteClause(where: Record<string, unknown> = {}, includeDeleted = false): Record<string, unknown> {
+  private addSoftDeleteClause<T extends Record<string, unknown>>(where: T = {} as T, includeDeleted = false): T {
     if (includeDeleted) {
       return where;
     }
     return {
       ...where,
       deletedAt: null
-    };
+    } as T;
   }
 
   // Player操作
@@ -36,8 +36,7 @@ export class SoftDeleteManager {
   async findPlayer(id: string, options: Omit<import('@prisma/client').Prisma.PlayerFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.player.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 
@@ -59,8 +58,7 @@ export class SoftDeleteManager {
   async findTournament(id: string, options: Omit<import('@prisma/client').Prisma.TournamentFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.tournament.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 
@@ -82,8 +80,7 @@ export class SoftDeleteManager {
   async findBMMatch(id: string, options: Omit<import('@prisma/client').Prisma.BMMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.bMMatch.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 
@@ -105,8 +102,7 @@ export class SoftDeleteManager {
   async findMRMatch(id: string, options: Omit<import('@prisma/client').Prisma.MRMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.mRMatch.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 
@@ -128,8 +124,7 @@ export class SoftDeleteManager {
   async findGPMatch(id: string, options: Omit<import('@prisma/client').Prisma.GPMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.gPMatch.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 
@@ -151,8 +146,7 @@ export class SoftDeleteManager {
   async findTTEntry(id: string, options: Omit<import('@prisma/client').Prisma.TTEntryFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
     return this.prisma.tTEntry.findUnique({
       ...options,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: this.addSoftDeleteClause({ id }, includeDeleted) as any
+      where: this.addSoftDeleteClause({ id }, includeDeleted)
     });
   }
 

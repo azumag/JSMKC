@@ -16,10 +16,8 @@ export async function GET(request: NextRequest) {
 
     const result = await paginate(
       {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        findMany: prisma.player.findMany as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        count: prisma.player.count as any,
+        findMany: prisma.player.findMany,
+        count: prisma.player.count,
       },
       {
         deletedAt: null,

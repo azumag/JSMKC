@@ -10,7 +10,11 @@ export interface SoftDeleteOptions {
 interface PrismaMiddlewareParams {
   model?: string;
   action: string;
-  args: Record<string, unknown>;
+  args: Record<string, unknown> & {
+    data?: Record<string, unknown>;
+    where?: Record<string, unknown>;
+    includeDeleted?: boolean;
+  };
   dataPath?: string[];
   runInTransaction?: boolean;
 }
@@ -38,20 +42,18 @@ export function createSoftDeleteMiddleware() {
       if (params.action === 'deleteMany') {
         params.action = 'updateMany';
         if (params.args.data != undefined) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (params.args.data as any)['deletedAt'] = new Date();
+          params.args.data['deletedAt'] = new Date();
         } else {
           params.args['data'] = { deletedAt: new Date() };
         }
       }
-      
+
       // クエリ時に削除済みレコードを除外（明示的なincludeDeletedフラグがない場合）
       if (['findMany', 'findFirst', 'findUnique'].includes(params.action)) {
         // includeDeletedフラグがない場合はデフォルトで除外
         if (params.args?.includeDeleted !== true) {
           if (params.args.where) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (params.args.where as any)['deletedAt'] = null;
+            params.args.where['deletedAt'] = null;
           } else {
             params.args.where = { deletedAt: null };
           }
