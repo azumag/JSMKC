@@ -92,6 +92,7 @@ MIT
 - ✅ xlsxパッケージのセキュリティ脆弱性修正（Issue #34）
 - ✅ 認証バイパス修正（Issue #35）
 - ✅ データベースページネーション - 主要エンドポイント（Issue #36、#37 部分完了）
+- ✅ N+1クエリ最適化（Issue #38）
 - 🚧 prisma-middleware.ts、error-handling.ts他（未実装）
 
 ### ✅ 実装済み
