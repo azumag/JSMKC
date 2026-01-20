@@ -64,7 +64,8 @@ jsmkc-app/
 MIT
 
 ## 現在のタスク (2026-01-21)
-なし
+[Issue #50: スキップされたレート制限テストの完了](https://github.com/azumag/JSMKC/issues/50)
+- rate-limit.test.ts でスキップされている3つのテストを完了させる
 
 ## 現在の実装状況 (2026-01-21)
 

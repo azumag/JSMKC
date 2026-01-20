@@ -1,9 +1,10 @@
-import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
+import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore } from '@/lib/rate-limit';
 import { NextRequest } from 'next/server';
 
 describe('Rate Limiting', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    clearRateLimitStore();
   });
 
   afterEach(() => {
@@ -23,7 +24,7 @@ describe('Rate Limiting', () => {
       expect(result.retryAfter).toBeUndefined();
     });
 
-    it.skip('should allow multiple requests up to limit', async () => {
+    it('should allow multiple requests up to limit', async () => {
       const identifier = 'test-identifier';
       const limit = 10;
 
@@ -54,24 +55,31 @@ describe('Rate Limiting', () => {
       expect(result.retryAfter).toBeGreaterThan(0);
     });
 
-    it.skip('should allow requests after time window expires', async () => {
+    it('should allow requests after time window expires', async () => {
       const identifier = 'test-identifier';
       const limit = 3;
       const windowMs = 100;
+
+      // Mock Date.now() to control time for rate limiting
+      const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(0);
 
       for (let i = 0; i < limit; i++) {
         await rateLimit(identifier, limit, windowMs);
       }
 
-      jest.advanceTimersByTime(windowMs + 50);
+      // Advance time beyond the window
+      dateNowSpy.mockReturnValue(windowMs + 50);
 
       const result = await rateLimit(identifier, limit, windowMs);
 
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(limit - 1);
+
+      // Restore the original Date.now()
+      dateNowSpy.mockRestore();
     });
 
-    it.skip('should allow multiple requests up to limit', async () => {
+    it('should count down remaining requests correctly', async () => {
       const identifier = 'test-identifier';
       const limit = 10;
 

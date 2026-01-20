@@ -36,6 +36,11 @@ export async function rateLimit(
 // In-memory rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
 
+// Export function to clear the store (for testing)
+export function clearRateLimitStore() {
+  rateLimitStore.clear();
+}
+
 // Maximum store size to prevent memory leaks in Edge Runtime
 const MAX_STORE_SIZE = 10000
 
