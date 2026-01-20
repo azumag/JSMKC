@@ -75,6 +75,7 @@ MIT
 - ✅ usePollingフック互換性問題修正（Issue #16）
 - ✅ JWTコールバック型エラー修正（Issue #17）
 - ✅ ESLint 'any'型警告修正（Issue #18）
+- ✅ ESLint警告修正：未使用のインポートと変数を削除（Issue #20）
 
 ### 🚧 実装中
 - バトルモード・マッチレース ダブルエリミネーション（Issue #11）
@@ -83,5 +84,3 @@ MIT
 
 ### 📋 既知の問題
 - Time AttackページのJSX構造問題（Issue #13）
-- ESLint 'any'型警告（Issue #18）
-- 未使用変数の警告（コード品質向上）
