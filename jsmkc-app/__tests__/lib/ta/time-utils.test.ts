@@ -42,8 +42,8 @@ describe('TA Time Utils', () => {
       expect(timeToMs('')).toBe(null);
     });
 
-      it('should return null for null input', () => {
-        expect(timeToMs(null as string)).toBe(null);
+    it('should return null for null input', () => {
+      expect(timeToMs(null as unknown as string)).toBe(null);
     });
 
     it('should return null for invalid format', () => {
