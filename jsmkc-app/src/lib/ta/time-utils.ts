@@ -24,7 +24,7 @@ export function timeToMs(time: string): number | null {
 
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
-  let ms = match[3] || ''; // Handle missing milliseconds
+  const ms = match[3] || ''; // Handle missing milliseconds
 
   // Parse milliseconds as-is (don't pad or modify)
   // If empty, default to 0, otherwise parse the value

@@ -1,5 +1,6 @@
 import { COURSES } from "@/lib/constants";
-import type { Prisma } from "@prisma/client";
+import { timeToMs } from "@/lib/ta/time-utils";
+import { PrismaClient } from "@prisma/client";
 
 export interface EntryWithTotal {
   id: string;
@@ -19,6 +20,7 @@ export function calculateEntryTotal(entry: {
   lives: number;
   eliminated: boolean;
   id: string;
+  stage?: string;
 }): EntryWithTotal {
   const times = entry.times as Record<string, string> | null;
   let totalMs = 0;
@@ -27,7 +29,7 @@ export function calculateEntryTotal(entry: {
   if (times) {
     for (const course of COURSES) {
       const courseTime = times[course];
-      const ms = courseTime ? courseTimeToMs(courseTime) : null;
+      const ms = courseTime ? timeToMs(courseTime) : null;
       if (ms !== null) {
         totalMs += ms;
       } else {
@@ -43,6 +45,7 @@ export function calculateEntryTotal(entry: {
     totalTime: allTimesEntered ? totalMs : null,
     lives: entry.lives,
     eliminated: entry.eliminated,
+    stage: entry.stage ?? '',
   };
 }
 
@@ -55,15 +58,12 @@ export function calculateEntryTotal(entry: {
 export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWithTotal[] {
   if (stage === "finals") {
     return entries.sort((a, b) => {
-      // Eliminated players go last
       if (a.eliminated !== b.eliminated) {
         return a.eliminated ? 1 : -1;
       }
-      // More lives = better (descending)
       if (a.lives !== b.lives) {
         return b.lives - a.lives;
       }
-      // Less time = better (ascending), but eliminated or no time go to end
       if (a.eliminated || b.eliminated) return 0;
       if (a.totalTime === null) return 1;
       if (b.totalTime === null) return -1;
@@ -110,11 +110,19 @@ export async function recalculateRanks(
     include: { player: true },
   });
 
-  const entriesWithTotal = entries.map(calculateEntryTotal);
+  const entriesWithTotal = entries.map((entry) =>
+    calculateEntryTotal({
+      times: entry.times as Record<string, string> | null,
+      lives: entry.lives,
+      eliminated: entry.eliminated,
+      id: entry.id,
+      stage: entry.stage,
+    })
+  );
   const sorted = sortByStage(entriesWithTotal, stage);
   const rankMap = assignRanks(sorted);
 
-  const updateOperations = entriesWithTotal.map((entry) => {
+  const updateOperations = entriesWithTotal.map((entry: EntryWithTotal) => {
     const rank = rankMap.get(entry.id) ?? null;
     return prisma.tTEntry.update({
       where: { id: entry.id },
@@ -126,24 +134,4 @@ export async function recalculateRanks(
   });
 
   await prisma.$transaction(updateOperations);
-}
-
-/**
- * Course time to milliseconds conversion
- * Extracted from time-utils.ts for internal use
- * @param time - Time string in format M:SS.mmm or MM:SS.mmm
- * @returns Milliseconds or null
- */
-function courseTimeToMs(time: string): number | null {
-  if (!time || time === "") return null;
-
-  const match = time.match(/^(\d{1,2}):(\d{2})\.(\d{1,3})$/);
-  if (!match) return null;
-
-  const minutes = parseInt(match[1], 10);
-  const seconds = parseInt(match[2], 10);
-  const ms = match[3] || '0';
-  const milliseconds = ms === '' ? 0 : parseInt(ms, 10);
-
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }

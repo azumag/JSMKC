@@ -10,13 +10,29 @@ describe('TA Rank Calculation', () => {
           DP1: '1:12.345',
           GV1: '0:59.789',
           BC1: '2:34.567',
+          MC2: '1:00.000',
+          DP2: '1:00.000',
+          GV2: '1:00.000',
+          BC2: '1:00.000',
+          MC3: '1:00.000',
+          DP3: '1:00.000',
+          GV3: '1:00.000',
+          BC3: '1:00.000',
+          CI1: '1:00.000',
+          CI2: '1:00.000',
+          RR: '1:00.000',
+          VL1: '1:00.000',
+          VL2: '1:00.000',
+          KD: '1:00.000',
+          MC4: '1:00.000',
+          KB1: '1:00.000',
         },
         lives: 3,
         eliminated: false,
       };
 
       const result = calculateEntryTotal(entry);
-      expect(result.totalTime).toBe(290357);
+      expect(result.totalTime).toBe(1330157);
       expect(result.lives).toBe(3);
       expect(result.eliminated).toBe(false);
     });
@@ -103,10 +119,10 @@ describe('TA Rank Calculation', () => {
 
     const sorted = sortByStage(entries, 'qualification');
 
+    expect(sorted.length).toBe(3);
     expect(sorted[0].id).toBe('1');
     expect(sorted[1].id).toBe('2');
     expect(sorted[2].id).toBe('4');
-    expect(sorted[3].id).toBe('3');
   });
 
   describe('sortByStage - finals', () => {
@@ -176,9 +192,9 @@ describe('TA Rank Calculation', () => {
 
     const sorted = sortByStage(entries, 'revival_1');
 
+    expect(sorted.length).toBe(2);
     expect(sorted[0].id).toBe('1');
     expect(sorted[1].id).toBe('2');
-    expect(sorted[2].id).toBe('3');
   });
 
   describe('assignRanks', () => {

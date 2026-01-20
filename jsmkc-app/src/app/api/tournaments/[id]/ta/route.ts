@@ -4,11 +4,13 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
+import { recalculateRanks } from "@/lib/ta/rank-calculation";
+import { timeToMs } from "@/lib/ta/time-utils";
+import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
+import type { PromotionContext } from "@/lib/ta/promotion";
 
-// Zod schemas for input validation
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
 
@@ -44,111 +46,6 @@ const PutRequestSchema = z.object({
   { message: "Invalid request for action" }
 );
 
-// Convert time string (MM:SS.mmm or M:SS.mmm) to milliseconds
-function timeToMs(time: string): number | null {
-  if (!time || time === "") return null;
-
-  const match = time.match(timeFormatRegex);
-  if (!match) return null;
-
-  const minutes = parseInt(match[1], 10);
-  const seconds = parseInt(match[2], 10);
-  let ms = match[3];
-  // Pad milliseconds to 3 digits
-  while (ms.length < 3) ms += "0";
-  const milliseconds = parseInt(ms, 10);
-
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
-}
-
-// Calculate total time and update ranks for all entries using batch update
-async function recalculateRanks(tournamentId: string, stage: string = "qualification") {
-  const entries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage },
-    include: { player: true },
-  });
-
-  // Calculate total time for each entry
-  const entriesWithTotal = entries.map(entry => {
-    const times = entry.times as Record<string, string> | null;
-    let totalMs = 0;
-    let allTimesEntered = true;
-
-    if (times) {
-      for (const course of COURSES) {
-        const courseTime = times[course];
-        const ms = timeToMs(courseTime);
-        if (ms !== null) {
-          totalMs += ms;
-        } else {
-          allTimesEntered = false;
-        }
-      }
-    } else {
-      allTimesEntered = false;
-    }
-
-    return {
-      id: entry.id,
-      totalTime: allTimesEntered ? totalMs : null,
-      lives: entry.lives,
-      eliminated: entry.eliminated,
-    };
-  });
-
-  let sorted;
-
-  if (stage === "finals") {
-    // Finals ranking: Not eliminated first, then by lives (desc), then by totalTime (asc)
-    sorted = entriesWithTotal.sort((a, b) => {
-      // Eliminated players go last
-      if (a.eliminated !== b.eliminated) {
-        return a.eliminated ? 1 : -1;
-      }
-      // More lives = better (descending)
-      if (a.lives !== b.lives) {
-        return b.lives - a.lives;
-      }
-      // Less time = better (ascending), but eliminated or no time go to end
-      if (a.eliminated || b.eliminated) return 0;
-      if (a.totalTime === null) return 1;
-      if (b.totalTime === null) return -1;
-      return (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
-    });
-  } else if (stage === "revival_1" || stage === "revival_2") {
-    // Revival rounds: Sort by total time (fastest first)
-    sorted = entriesWithTotal
-      .filter(e => e.totalTime !== null)
-      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
-  } else {
-    // Qualification: Sort by total time
-    sorted = entriesWithTotal
-      .filter(e => e.totalTime !== null)
-      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
-  }
-
-  // Create a Map for O(1) rank lookup instead of O(N) findIndex
-  const rankMap = new Map<string, number>();
-  sorted.forEach((entry, index) => {
-    rankMap.set(entry.id, index + 1);
-  });
-
-  // Batch update all entries using transaction
-  const updateOperations = entriesWithTotal.map(entry => {
-    const rank = rankMap.get(entry.id) ?? null;
-    return prisma.tTEntry.update({
-      where: { id: entry.id },
-      data: {
-        totalTime: entry.totalTime,
-        rank,
-      },
-    });
-  });
-
-  await prisma.$transaction(updateOperations);
-}
-
-// GET time attack entries
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -156,7 +53,6 @@ export async function GET(
   try {
     const { id: tournamentId } = await params;
 
-    // Validate tournamentId is a valid UUID
     const uuidSchema = z.string().uuid();
     const parseResult = uuidSchema.safeParse(tournamentId);
     if (!parseResult.success) {
@@ -166,7 +62,6 @@ export async function GET(
       );
     }
 
-    // Get stage from query params, default to qualification
     const { searchParams } = new URL(request.url);
     const stage = StageSchema.safeParse(searchParams.get("stage"));
     const stageToQuery = stage.success ? stage.data : "qualification";
@@ -177,7 +72,6 @@ export async function GET(
       orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
     });
 
-    // Fetch both qualification and finals counts for status
     const [qualCount, finalsCount] = await Promise.all([
       prisma.tTEntry.count({ where: { tournamentId, stage: "qualification" } }),
       prisma.tTEntry.count({ where: { tournamentId, stage: "finals" } }),
@@ -199,7 +93,6 @@ export async function GET(
   }
 }
 
-// POST add player to time attack or promote to finals
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -207,7 +100,6 @@ export async function POST(
   try {
     const { id: tournamentId } = await params;
 
-    // Validate tournamentId
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -219,7 +111,6 @@ export async function POST(
 
     const body = sanitizeInput(await request.json());
 
-    // Validate request body with zod
     const parseResult = PostRequestSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -230,7 +121,6 @@ export async function POST(
 
     const { action, playerId, players, topN } = parseResult.data;
 
-    // Handle promoting to revival round 1 (players 17-24)
     if (action === "promote_to_revival_1") {
       const session = await auth();
       if (!session?.user) {
@@ -240,7 +130,6 @@ export async function POST(
         );
       }
 
-      // Rate limiting
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
       if (!rateLimitResult.success) {
@@ -250,104 +139,26 @@ export async function POST(
         );
       }
 
-      const ipAddress = getClientIdentifier(request);
-      const userAgent = getUserAgent(request);
+      const context: PromotionContext = {
+        tournamentId,
+        userId: session.user.id,
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+      };
 
-      // Get qualifiers ranked 17-24
-      const qualifiers = await prisma.tTEntry.findMany({
-        where: { tournamentId, stage: "qualification" },
-        include: { player: true },
-        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-        skip: 16,
-        take: 8,
-      });
-
-      if (qualifiers.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "Not enough qualified players for revival round 1" },
-          { status: 400 }
-        );
-      }
-
-      const createdEntries = [];
-      const skippedEntries = [];
-
-      for (const qual of qualifiers) {
-        if (qual.totalTime === null) {
-          skippedEntries.push(qual.player.nickname);
-          continue;
-        }
-
-        const existingRevival = await prisma.tTEntry.findUnique({
-          where: {
-            tournamentId_playerId_stage: {
-              tournamentId,
-              playerId: qual.playerId,
-              stage: "revival_1",
-            },
-          },
-        });
-
-        if (!existingRevival) {
-          const entryData: Prisma.TTEntryUncheckedCreateInput = {
-            tournamentId,
-            playerId: qual.playerId,
-            stage: "revival_1",
-            lives: 1,
-            eliminated: false,
-          };
-
-          if (qual.times !== null) {
-            entryData.times = qual.times;
-          }
-          if (qual.totalTime !== null) {
-            entryData.totalTime = qual.totalTime;
-          }
-          if (qual.rank !== null) {
-            entryData.rank = qual.rank;
-          }
-
-          const entry = await prisma.tTEntry.create({
-            data: entryData,
-            include: { player: true },
-          });
-          createdEntries.push(entry);
-
-          try {
-            await createAuditLog({
-              userId: session.user.id,
-              ipAddress,
-              userAgent,
-              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-              targetId: entry.id,
-              targetType: "TTEntry",
-              details: {
-                tournamentId,
-                playerId: qual.playerId,
-                playerNickname: entry.player.nickname,
-                qualRank: qual.rank,
-                promotedTo: "revival_1",
-              },
-            });
-          } catch (logError) {
-            console.error("Failed to create audit log:", logError);
-          }
-        }
-      }
-
-      await recalculateRanks(tournamentId, "revival_1");
+      const result = await promoteToRevival1(prisma, context);
+      await recalculateRanks(tournamentId, "revival_1", prisma);
 
       return NextResponse.json(
         {
           message: "Players promoted to revival round 1",
-          entries: createdEntries,
-          skipped: skippedEntries,
+          entries: result.entries,
+          skipped: result.skipped,
         },
         { status: 201 }
       );
     }
 
-    // Handle promoting to revival round 2 (players 13-16 + revival_1 survivors)
     if (action === "promote_to_revival_2") {
       const session = await auth();
       if (!session?.user) {
@@ -357,7 +168,6 @@ export async function POST(
         );
       }
 
-      // Rate limiting
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
       if (!rateLimitResult.success) {
@@ -367,114 +177,26 @@ export async function POST(
         );
       }
 
-      const ipAddress = getClientIdentifier(request);
-      const userAgent = getUserAgent(request);
+      const context: PromotionContext = {
+        tournamentId,
+        userId: session.user.id,
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+      };
 
-      // Get qualifiers ranked 13-16
-      const qualifiers13to16 = await prisma.tTEntry.findMany({
-        where: { tournamentId, stage: "qualification" },
-        include: { player: true },
-        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-        skip: 12,
-        take: 4,
-      });
-
-      // Get survivors from revival round 1 (4 remaining)
-      const revival1Entries = await prisma.tTEntry.findMany({
-        where: { tournamentId, stage: "revival_1", eliminated: false },
-        include: { player: true },
-        orderBy: { rank: "asc" },
-        take: 4,
-      });
-
-      const allQualifiers = [...qualifiers13to16, ...revival1Entries];
-
-      if (allQualifiers.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "No players available for revival round 2" },
-          { status: 400 }
-        );
-      }
-
-      const createdEntries = [];
-      const skippedEntries = [];
-
-      for (const source of allQualifiers) {
-        if (source.totalTime === null) {
-          skippedEntries.push(source.player.nickname);
-          continue;
-        }
-
-        const existingRevival = await prisma.tTEntry.findUnique({
-          where: {
-            tournamentId_playerId_stage: {
-              tournamentId,
-              playerId: source.playerId,
-              stage: "revival_2",
-            },
-          },
-        });
-
-        if (!existingRevival) {
-          const entryData: Prisma.TTEntryUncheckedCreateInput = {
-            tournamentId,
-            playerId: source.playerId,
-            stage: "revival_2",
-            lives: 1,
-            eliminated: false,
-          };
-
-          if (source.times !== null) {
-            entryData.times = source.times;
-          }
-          if (source.totalTime !== null) {
-            entryData.totalTime = source.totalTime;
-          }
-          if (source.rank !== null) {
-            entryData.rank = source.rank;
-          }
-
-          const entry = await prisma.tTEntry.create({
-            data: entryData,
-            include: { player: true },
-          });
-          createdEntries.push(entry);
-
-          try {
-            await createAuditLog({
-              userId: session.user.id,
-              ipAddress,
-              userAgent,
-              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-              targetId: entry.id,
-              targetType: "TTEntry",
-              details: {
-                tournamentId,
-                playerId: source.playerId,
-                playerNickname: entry.player.nickname,
-                sourceStage: source.stage,
-                promotedTo: "revival_2",
-              },
-            });
-          } catch (logError) {
-            console.error("Failed to create audit log:", logError);
-          }
-        }
-      }
-
-      await recalculateRanks(tournamentId, "revival_2");
+      const result = await promoteToRevival2(prisma, context);
+      await recalculateRanks(tournamentId, "revival_2", prisma);
 
       return NextResponse.json(
         {
           message: "Players promoted to revival round 2",
-          entries: createdEntries,
-          skipped: skippedEntries,
+          entries: result.entries,
+          skipped: result.skipped,
         },
         { status: 201 }
       );
     }
 
-    // Handle promoting to finals
     if (action === "promote_to_finals") {
       const session = await auth();
       if (!session?.user) {
@@ -484,120 +206,37 @@ export async function POST(
         );
       }
 
-      // Rate limiting for promotion
       const identifier = getClientIdentifier(request);
-      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000); // 5 requests per minute
+      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
       if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Rate limit exceeded. Please try again later." },
-        { status: 429 }
-      );
-      }
-
-      const ipAddress = getClientIdentifier(request);
-      const userAgent = getUserAgent(request);
-
-      // Get top N qualifiers
-      let qualifiers;
-      if (topN) {
-        qualifiers = await prisma.tTEntry.findMany({
-          where: { tournamentId, stage: "qualification" },
-          include: { player: true },
-          orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-          take: topN,
-        });
-      } else if (players && players.length > 0) {
-        qualifiers = await prisma.tTEntry.findMany({
-          where: { tournamentId, stage: "qualification", playerId: { in: players } },
-          include: { player: true },
-        });
-      } else {
-      return NextResponse.json(
-        { success: false, error: "Invalid tournament ID format" },
-        { status: 400 }
-      );
-      }
-
-      if (qualifiers.length === 0) {
         return NextResponse.json(
-          { success: false, error: "No qualifying players found" },
-          { status: 400 }
+          { success: false, error: "Rate limit exceeded. Please try again later." },
+          { status: 429 }
         );
       }
 
-      const createdEntries = [];
-      const skippedEntries = [];
+      const context: PromotionContext = {
+        tournamentId,
+        userId: session.user.id,
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+      };
 
-      for (const qual of qualifiers) {
-        if (qual.totalTime === null) {
-          skippedEntries.push(qual.player.nickname);
-          continue;
-        }
-
-        // Check if already in finals
-        const existingFinals = await prisma.tTEntry.findUnique({
-          where: {
-            tournamentId_playerId_stage: {
-              tournamentId,
-              playerId: qual.playerId,
-              stage: "finals",
-            },
-          },
-        });
-
-        if (!existingFinals) {
-          const entry = await prisma.tTEntry.create({
-            data: {
-              tournamentId,
-              playerId: qual.playerId,
-              stage: "finals",
-              lives: 3,
-              eliminated: false,
-              times: {},
-            },
-            include: { player: true },
-          });
-          createdEntries.push(entry);
-
-          // Audit log
-          try {
-            await createAuditLog({
-              userId: session.user.id,
-              ipAddress,
-              userAgent,
-              action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-              targetId: entry.id,
-              targetType: "TTEntry",
-              details: {
-                tournamentId,
-                playerId: qual.playerId,
-                playerNickname: entry.player.nickname,
-                qualRank: qual.rank,
-                promotedTo: "finals",
-              },
-            });
-          } catch (logError) {
-            console.error("Failed to create audit log:", logError);
-          }
-        }
-      }
-
-      // Recalculate finals ranks
-      await recalculateRanks(tournamentId, "finals");
+      const result = await promoteToFinals(prisma, context, topN, players);
+      await recalculateRanks(tournamentId, "finals", prisma);
 
       return NextResponse.json(
         {
           message: "Players promoted to finals",
-          entries: createdEntries,
-          skipped: skippedEntries,
+          entries: result.entries,
+          skipped: result.skipped,
         },
         { status: 201 }
       );
     }
 
-    // Handle adding players to qualification
     const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000); // 10 requests per minute
+    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Please try again later." },
@@ -606,13 +245,12 @@ export async function POST(
     }
 
     const playerIds = players || (playerId ? [playerId] : []);
-
-    const createdEntries = [];
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
+    const createdEntries = [];
+
     for (const pid of playerIds) {
-      // Check if player already exists in this tournament
       const existing = await prisma.tTEntry.findUnique({
         where: {
           tournamentId_playerId_stage: {
@@ -635,7 +273,6 @@ export async function POST(
         });
         createdEntries.push(entry);
 
-        // Audit log
         try {
           await createAuditLog({
             ipAddress,
@@ -662,13 +299,12 @@ export async function POST(
   } catch (error) {
     console.error("Failed to add player to TA:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to add player to time attack" },
+      { success: false, error: (error as Error).message || "Failed to add player to time attack" },
       { status: 500 }
     );
   }
 }
 
-// PUT update times, lives, or elimination status
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -676,7 +312,6 @@ export async function PUT(
   try {
     const { id: tournamentId } = await params;
 
-    // Validate tournamentId
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -688,7 +323,6 @@ export async function PUT(
 
     const body = sanitizeInput(await request.json());
 
-    // Validate request body with zod
     const parseResult = PutRequestSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -699,14 +333,13 @@ export async function PUT(
 
     const { entryId, action, eliminated } = parseResult.data;
 
-    // Handle elimination
     if (action === "eliminate") {
       const session = await auth();
       if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required for delete operations" },
-        { status: 401 }
-      );
+        return NextResponse.json(
+          { success: false, error: "Authentication required for delete operations" },
+          { status: 401 }
+        );
       }
 
       if (eliminated === undefined) {
@@ -731,10 +364,8 @@ export async function PUT(
         include: { player: true },
       });
 
-      // Recalculate ranks
-      await recalculateRanks(tournamentId, entry.stage);
+      await recalculateRanks(tournamentId, entry.stage, prisma);
 
-      // Audit log
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
       try {
@@ -759,12 +390,10 @@ export async function PUT(
       return NextResponse.json({ entry: updatedEntry });
     }
 
-    // Handle times update (default action)
     const { course, time, times: bulkTimes } = parseResult.data;
 
-    // Rate limiting
     const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000); // 10 requests per minute
+    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Please try again later." },
@@ -772,7 +401,6 @@ export async function PUT(
       );
     }
 
-    // Get current entry
     const entry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
     });
@@ -818,7 +446,7 @@ export async function PUT(
       data: { times: updatedTimes },
     });
 
-    await recalculateRanks(tournamentId, entry.stage);
+    await recalculateRanks(tournamentId, entry.stage, prisma);
 
     const finalEntry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
@@ -854,7 +482,6 @@ export async function PUT(
   }
 }
 
-// DELETE remove player from time attack
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -862,18 +489,16 @@ export async function DELETE(
   try {
     const { id: tournamentId } = await params;
 
-    // Get session for authentication (DELETE requires auth)
     const session = await auth();
     if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "livesDelta is required for update_lives action" },
-          { status: 400 }
-        );
+      return NextResponse.json(
+        { success: false, error: "Authentication required" },
+        { status: 401 }
+      );
     }
 
-    // Rate limiting
     const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000); // 5 delete requests per minute
+    const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Please try again later." },
@@ -881,7 +506,6 @@ export async function DELETE(
       );
     }
 
-    // Validate tournamentId
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -901,7 +525,6 @@ export async function DELETE(
       );
     }
 
-    // Validate entryId is a valid UUID
     const entryIdResult = uuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
       return NextResponse.json(
@@ -910,7 +533,6 @@ export async function DELETE(
       );
     }
 
-    // Get entry details for audit log before deletion
     const entryToDelete = await prisma.tTEntry.findUnique({
       where: { id: entryId },
       include: { player: true },
@@ -927,10 +549,8 @@ export async function DELETE(
       where: { id: entryId }
     });
 
-    // Recalculate ranks
-    await recalculateRanks(tournamentId);
+    await recalculateRanks(tournamentId, entryToDelete.stage, prisma);
 
-    // Audit log
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
     try {
@@ -954,7 +574,7 @@ export async function DELETE(
 
     return NextResponse.json({ 
       success: true,
-      message: "Entry deleted successfully (soft delete)",
+      message: "Entry deleted successfully",
       softDeleted: true 
     });
   } catch (error) {
