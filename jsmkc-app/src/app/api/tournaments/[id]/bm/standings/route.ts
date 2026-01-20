@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
+import { paginate } from "@/lib/pagination";
 
 export async function GET(
   request: NextRequest,
@@ -20,6 +21,10 @@ export async function GET(
     const { id: tournamentId } = await params;
     const ifNoneMatch = request.headers.get('if-none-match');
 
+    const { searchParams } = new URL(request.url);
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
+
     const cached = get(tournamentId, 'qualification');
 
     if (cached && !isExpired(cached) && ifNoneMatch !== '*') {
@@ -34,39 +39,26 @@ export async function GET(
       );
     }
 
-    const qualifications = await prisma.bMQualification.findMany({
-      where: { tournamentId },
-      include: { player: true },
-      orderBy: [
-        { score: 'desc' },
-        { points: 'desc' },
-      ],
-    });
+    const result = await paginate(
+      {
+        findMany: prisma.bMQualification.findMany,
+        count: prisma.bMQualification.count,
+      },
+      { tournamentId },
+      {},
+      { page, limit }
+    );
 
-    const etag = generateETag(qualifications);
+    const etag = generateETag(result.data);
     const lastUpdated = new Date().toISOString();
 
-    set(tournamentId, 'qualification', qualifications, etag);
+    set(tournamentId, 'qualification', result.data, etag);
 
     const response = NextResponse.json({
       tournamentId,
       stage: 'qualification',
       lastUpdated,
-      qualifications: qualifications.map((q, index) => ({
-        rank: index + 1,
-        playerId: q.playerId,
-        playerName: q.player.name,
-        playerNickname: q.player.nickname,
-        group: q.group,
-        matchesPlayed: q.mp,
-        wins: q.wins,
-        ties: q.ties,
-        losses: q.losses,
-        winRounds: q.winRounds,
-        lossRounds: q.lossRounds,
-        points: q.points,
-        score: q.score,
-      })),
+      ...result.data,
     });
 
     return response;

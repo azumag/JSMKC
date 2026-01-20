@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { generateBracketStructure, roundNames } from "@/lib/double-elimination";
+import { paginate } from "@/lib/pagination";
 
 export async function GET(
   request: NextRequest,
@@ -9,16 +10,24 @@ export async function GET(
   try {
     const { id: tournamentId } = await params;
 
-    const matches = await prisma.gPMatch.findMany({
-      where: { tournamentId, stage: "finals" },
-      include: { player1: true, player2: true },
-      orderBy: { matchNumber: "asc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
 
-    const bracketStructure = matches.length > 0 ? generateBracketStructure(8) : [];
+    const result = await paginate(
+      {
+        findMany: prisma.gPMatch.findMany,
+        count: prisma.gPMatch.count,
+      },
+      { tournamentId, stage: "finals" },
+      { matchNumber: "asc" },
+      { page, limit }
+    );
+
+    const bracketStructure = result.data.length > 0 ? generateBracketStructure(8) : [];
 
     return NextResponse.json({
-      matches,
+      ...result,
       bracketStructure,
       roundNames,
     });

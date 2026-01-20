@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { paginate } from "@/lib/pagination";
 
 // GET battle mode matches for polling
 export async function GET(
@@ -33,16 +34,21 @@ export async function GET(
       );
     }
 
-    const matches = await prisma.bMMatch.findMany({
-      where: { tournamentId },
-      include: {
-        player1: true,
-        player2: true
-      },
-      orderBy: { matchNumber: "asc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
 
-    return NextResponse.json({ matches });
+    const result = await paginate(
+      {
+        findMany: prisma.bMMatch.findMany,
+        count: prisma.bMMatch.count,
+      },
+      { tournamentId },
+      { matchNumber: "asc" },
+      { page, limit }
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to fetch BM matches:", error);
     return NextResponse.json(
