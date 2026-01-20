@@ -1,8 +1,7 @@
 import { SoftDeleteManager, getSoftDeleteManager, applySoftDeleteMiddleware } from '@/lib/prisma-middleware';
-import { PrismaClient } from '@prisma/client';
 
 describe('SoftDeleteManager', () => {
-  let mockPrisma: jest.Mocked<PrismaClient>;
+  let mockPrisma: { [key: string]: unknown };
   let softDeleteManager: SoftDeleteManager;
 
   beforeEach(() => {
@@ -49,7 +48,7 @@ describe('SoftDeleteManager', () => {
         update: jest.fn(),
         findMany: jest.fn(),
       },
-    } as unknown as jest.Mocked<PrismaClient>;
+    };
 
     softDeleteManager = new SoftDeleteManager(mockPrisma);
   });
@@ -111,7 +110,6 @@ describe('SoftDeleteManager', () => {
         await softDeleteManager.findPlayers();
 
         expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
-          where: undefined,
           where: { deletedAt: null },
         });
       });
@@ -703,12 +701,12 @@ describe('SoftDeleteManager', () => {
 });
 
 describe('getSoftDeleteManager', () => {
-  let mockPrisma1: jest.Mocked<PrismaClient>;
-  let mockPrisma2: jest.Mocked<PrismaClient>;
+  let mockPrisma1: { [key: string]: unknown };
+  let mockPrisma2: { [key: string]: unknown };
 
   beforeEach(() => {
-    mockPrisma1 = {} as jest.Mocked<PrismaClient>;
-    mockPrisma2 = {} as jest.Mocked<PrismaClient>;
+    mockPrisma1 = {};
+    mockPrisma2 = {};
   });
 
   it('should return a SoftDeleteManager instance', () => {
