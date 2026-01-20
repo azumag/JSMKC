@@ -27,11 +27,11 @@ export async function GET(
     const matchIds = characterUsages.map(u => u.matchId);
     const uniqueMatchIds = [...new Set(matchIds)];
 
-    const matches = await prisma.match.findMany({
-      where: {
-        id: { in: uniqueMatchIds },
-      },
-    });
+const matches = await prisma.mRMatch.findMany({
+       where: {
+         id: { in: uniqueMatchIds }
+       },
+     });
 
     const matchMap = new Map(matches.map(m => [m.id, m]));
 

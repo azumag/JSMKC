@@ -11,6 +11,8 @@ export async function GET(
     const { id: tournamentId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
+    const page = Number(searchParams.get('page')) || 1;
+    const limit = Number(searchParams.get('limit')) || 50;
 
     if (!token) {
       return NextResponse.json(
@@ -33,10 +35,6 @@ export async function GET(
         { status: 401 }
       );
     }
-
-    const { searchParams } = new URL(request.url);
-    const page = Number(searchParams.get('page')) || 1;
-    const limit = Number(searchParams.get('limit')) || 50;
 
     const result = await paginate(
       {
