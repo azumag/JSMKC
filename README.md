@@ -342,6 +342,13 @@ MIT
 ## 現在のタスク (2026-01-21)
 なし
 
+## 完了したタスク (2026-01-21)
+✅ [Issue #82: ESLint Errors: Incorrect eslint-disable comments in auth.test.ts](https://github.com/azumag/JSMKC/issues/82)
+- auth.test.ts: 52件のeslint-disableコメントを修正
+- `eslint/no-explicit-any`を`@typescript-eslint/no-explicit-any`に変更
+- ESLintエラーを解消（0 errors, 0 warnings）
+- 全691テストがパス
+
 ---
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #78: TypeScriptエラー: src/lib/auth.tsで'user'がundefinedの可能性あり](https://github.com/azumag/JSMKC/issues/78)
