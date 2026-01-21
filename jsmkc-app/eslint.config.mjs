@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "e2e/**", // Add e2e test files to ignore
+    "coverage/**", // Add coverage directory to ignore
   ]),
 ]);
 

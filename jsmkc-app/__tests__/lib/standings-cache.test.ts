@@ -20,8 +20,8 @@ describe('standings-cache', () => {
   });
 
   describe('get', () => {
-    it('should return null for non-existent key', () => {
-      const result = get('tournament-1', 'finals');
+    it('should return null for non-existent key', async () => {
+      const result = await get('tournament-1', 'finals');
 
       expect(result).toBeNull();
     });
@@ -89,30 +89,30 @@ it('should generate ISO string timestamp', async () => {
       expect(result?.lastUpdated).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     });
 
-    it('should overwrite existing cache entry', () => {
+    it('should overwrite existing cache entry', async () => {
       const mockData1 = [{ id: 1 }];
       const mockData2 = [{ id: 2 }];
 
-      set('tournament-1', 'finals', mockData1, 'etag1');
-      set('tournament-1', 'finals', mockData2, 'etag2');
+      await set('tournament-1', 'finals', mockData1, 'etag1');
+      await set('tournament-1', 'finals', mockData2, 'etag2');
 
-      const result = get('tournament-1', 'finals');
+      const result = await get('tournament-1', 'finals');
 
       expect(result?.data).toEqual(mockData2);
       expect(result?.etag).toBe('etag2');
     });
 
-    it('should handle empty data array', () => {
+    it('should handle empty data array', async () => {
       const mockData: unknown[] = [];
 
-      set('tournament-1', 'finals', mockData, 'etag1');
+      await set('tournament-1', 'finals', mockData, 'etag1');
 
-      const result = get('tournament-1', 'finals');
+      const result = await get('tournament-1', 'finals');
 
       expect(result?.data).toEqual([]);
     });
 
-    it('should handle complex data structures', () => {
+    it('should handle complex data structures', async () => {
       const mockData = [
         {
           id: 1,
@@ -121,9 +121,9 @@ it('should generate ISO string timestamp', async () => {
         },
       ];
 
-      set('tournament-1', 'finals', mockData, 'etag1');
+      await set('tournament-1', 'finals', mockData, 'etag1');
 
-      const result = get('tournament-1', 'finals');
+      const result = await get('tournament-1', 'finals');
 
       expect(result?.data).toEqual(mockData);
     });
@@ -265,40 +265,38 @@ it('should generate ISO string timestamp', async () => {
       expect(await get('tournament-2', 'finals')).not.toBeNull();
     });
 
-    it('should invalidate all stages for tournament when stage not provided', () => {
-      set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
-      set('tournament-1', 'prelims', [{ id: 2 }], 'etag2');
-      set('tournament-1', 'semifinals', [{ id: 3 }], 'etag3');
-      set('tournament-2', 'finals', [{ id: 4 }], 'etag4');
+    it('should invalidate all stages for tournament when stage not provided', async () => {
+      await set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
+      await set('tournament-1', 'prelims', [{ id: 2 }], 'etag2');
+      await set('tournament-1', 'semifinals', [{ id: 3 }], 'etag3');
+      await set('tournament-2', 'finals', [{ id: 4 }], 'etag4');
 
-      invalidate('tournament-1');
+      await invalidate('tournament-1');
 
-      expect(get('tournament-1', 'finals')).toBeNull();
-      expect(get('tournament-1', 'prelims')).toBeNull();
-      expect(get('tournament-1', 'semifinals')).toBeNull();
-      expect(get('tournament-2', 'finals')).not.toBeNull();
+      expect(await get('tournament-1', 'finals')).toBeNull();
+      expect(await get('tournament-1', 'prelims')).toBeNull();
+      expect(await get('tournament-1', 'semifinals')).toBeNull();
+      expect(await get('tournament-2', 'finals')).not.toBeNull();
     });
 
-    it('should handle invalidating non-existent key', () => {
-      expect(() => {
-        invalidate('tournament-999', 'finals');
-      }).not.toThrow();
+    it('should handle invalidating non-existent key', async () => {
+      await expect(invalidate('tournament-999', 'finals')).resolves.not.toThrow();
     });
 
-    it('should handle tournament with hyphen in name', () => {
-      set('tournament-1-2024', 'finals', [{ id: 1 }], 'etag1');
+    it('should handle tournament with hyphen in name', async () => {
+      await set('tournament-1-2024', 'finals', [{ id: 1 }], 'etag1');
 
-      invalidate('tournament-1-2024', 'finals');
+      await invalidate('tournament-1-2024', 'finals');
 
-      expect(get('tournament-1-2024', 'finals')).toBeNull();
+      expect(await get('tournament-1-2024', 'finals')).toBeNull();
     });
 
-    it('should handle special characters in tournament ID', () => {
-      set('tournament-abc-123', 'finals', [{ id: 1 }], 'etag1');
+    it('should handle special characters in tournament ID', async () => {
+      await set('tournament-abc-123', 'finals', [{ id: 1 }], 'etag1');
 
-      invalidate('tournament-abc-123', 'finals');
+      await invalidate('tournament-abc-123', 'finals');
 
-      expect(get('tournament-abc-123', 'finals')).toBeNull();
+      expect(await get('tournament-abc-123', 'finals')).toBeNull();
     });
   });
 
@@ -323,14 +321,14 @@ it('should generate ISO string timestamp', async () => {
       }).not.toThrow();
     });
 
-    it('should allow adding data after clearing', () => {
-      set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
+    it('should allow adding data after clearing', async () => {
+      await set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
 
       clear();
 
-      set('tournament-2', 'finals', [{ id: 2 }], 'etag2');
+      await set('tournament-2', 'finals', [{ id: 2 }], 'etag2');
 
-      expect(get('tournament-2', 'finals')).not.toBeNull();
+      expect(await get('tournament-2', 'finals')).not.toBeNull();
     });
   });
 
@@ -346,20 +344,22 @@ it('should generate ISO string timestamp', async () => {
       expect(await get('tournament-1', 'finals')).toBeNull();
     });
 
-    it('should handle multiple tournaments independently', () => {
+    it('should handle multiple tournaments independently', async () => {
       const data1 = [{ id: 1 }];
       const data2 = [{ id: 2 }];
 
-      set('tournament-1', 'finals', data1, 'etag1');
-      set('tournament-2', 'finals', data2, 'etag2');
+      await set('tournament-1', 'finals', data1, 'etag1');
+      await set('tournament-2', 'finals', data2, 'etag2');
 
-      expect(get('tournament-1', 'finals')?.data).toEqual(data1);
-      expect(get('tournament-2', 'finals')?.data).toEqual(data2);
+      const result1 = await get('tournament-1', 'finals');
+      const result2 = await get('tournament-2', 'finals');
+      expect(result1?.data).toEqual(data1);
+      expect(result2?.data).toEqual(data2);
 
-      invalidate('tournament-1');
+      await invalidate('tournament-1');
 
-      expect(get('tournament-1', 'finals')).toBeNull();
-      expect(get('tournament-2', 'finals')?.data).toEqual(data2);
+      expect(await get('tournament-1', 'finals')).toBeNull();
+      expect((await get('tournament-2', 'finals'))?.data).toEqual(data2);
     });
 
     it('should generate different ETags for different data', () => {
@@ -372,29 +372,29 @@ it('should generate ISO string timestamp', async () => {
       expect(etag1).not.toBe(etag2);
     });
 
-    it('should handle cache update with same key', () => {
+    it('should handle cache update with same key', async () => {
       const data1 = [{ id: 1 }];
       const data2 = [{ id: 2 }];
 
-      set('tournament-1', 'finals', data1, 'etag1');
-      set('tournament-1', 'finals', data2, 'etag2');
+      await set('tournament-1', 'finals', data1, 'etag1');
+      await set('tournament-1', 'finals', data2, 'etag2');
 
-      const retrieved = get('tournament-1', 'finals');
+      const retrieved = await get('tournament-1', 'finals');
 
       expect(retrieved?.data).toEqual(data2);
       expect(retrieved?.etag).toBe('etag2');
     });
 
-    it('should invalidate all tournament stages correctly', () => {
-      set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
-      set('tournament-1', 'prelims', [{ id: 2 }], 'etag2');
-      set('tournament-1', 'semifinals', [{ id: 3 }], 'etag3');
+    it('should invalidate all tournament stages correctly', async () => {
+      await set('tournament-1', 'finals', [{ id: 1 }], 'etag1');
+      await set('tournament-1', 'prelims', [{ id: 2 }], 'etag2');
+      await set('tournament-1', 'semifinals', [{ id: 3 }], 'etag3');
 
-      invalidate('tournament-1');
+      await invalidate('tournament-1');
 
-      expect(get('tournament-1', 'finals')).toBeNull();
-      expect(get('tournament-1', 'prelims')).toBeNull();
-      expect(get('tournament-1', 'semifinals')).toBeNull();
+      expect(await get('tournament-1', 'finals')).toBeNull();
+      expect(await get('tournament-1', 'prelims')).toBeNull();
+      expect(await get('tournament-1', 'semifinals')).toBeNull();
     });
   });
 
@@ -408,7 +408,7 @@ it('should generate ISO string timestamp', async () => {
       expect(typeof etag).toBe('string');
     });
 
-    it('should handle deeply nested data structures', () => {
+    it('should handle deeply nested data structures', async () => {
       const nestedData = [
         {
           id: 1,
@@ -422,19 +422,19 @@ it('should generate ISO string timestamp', async () => {
         },
       ];
 
-      set('tournament-1', 'finals', nestedData, 'etag1');
+      await set('tournament-1', 'finals', nestedData, 'etag1');
 
-      const result = get('tournament-1', 'finals');
+      const result = await get('tournament-1', 'finals');
 
       expect(result?.data).toEqual(nestedData);
     });
 
-    it('should handle null values in data array', () => {
+    it('should handle null values in data array', async () => {
       const dataWithNull = [{ id: 1 }, null, { id: 2 } as unknown];
 
-      set('tournament-1', 'finals', dataWithNull, 'etag1');
+      await set('tournament-1', 'finals', dataWithNull, 'etag1');
 
-      const result = get('tournament-1', 'finals');
+      const result = await get('tournament-1', 'finals');
 
       expect(result?.data).toEqual(dataWithNull);
     });

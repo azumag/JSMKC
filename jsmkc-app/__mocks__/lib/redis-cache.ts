@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logger';
 const log = createLogger('redis-cache');
 
 // Mock Redis client for testing
-let mockCache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
+const mockCache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
 
 export async function getRedisClient() {
   return {
