@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
+import { createLogger } from './logger';
+import { checkRateLimitByType, clearRateLimitData } from './redis-rate-limit';
 
 interface RateLimitResult {
   success: boolean;
@@ -21,8 +23,14 @@ export async function checkRateLimit(
   type: keyof typeof rateLimitConfigs,
   identifier: string
 ) {
-  const config = rateLimitConfigs[type] || rateLimitConfigs.general;
-  return rateLimitInMemory(identifier, config.limit, config.windowMs);
+  try {
+    return await checkRateLimitByType(type, identifier);
+  } catch (error) {
+    log.warn('Redis rate limiting failed, falling back to in-memory:', error);
+    // Fallback to in-memory rate limiting if Redis fails
+    const config = rateLimitConfigs[type] || rateLimitConfigs.general;
+    return rateLimitInMemory(identifier, config.limit, config.windowMs);
+  }
 }
 
 export async function rateLimit(
@@ -33,11 +41,14 @@ export async function rateLimit(
   return rateLimitInMemory(identifier, limit, windowMs);
 }
 
+const log = createLogger('rate-limit');
+
 // In-memory rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
 
 // Export function to clear the store (for testing)
-export function clearRateLimitStore() {
+export async function clearRateLimitStore() {
+  await clearRateLimitData();
   rateLimitStore.clear();
 }
 
@@ -89,7 +100,7 @@ function rateLimitInMemory(
   const sizeCleaned = enforceStoreSizeLimit();
 
   if (expiredCleaned > 0 || sizeCleaned > 0) {
-    // console.log(`[RateLimit] Cleaned up ${expiredCleaned} expired, ${sizeCleaned} size-limit entries`);
+    log.debug(`Cleaned up ${expiredCleaned} expired, ${sizeCleaned} size-limit entries`);
   }
 
   const current = rateLimitStore.get(identifier);

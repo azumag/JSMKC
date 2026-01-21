@@ -1,7 +1,11 @@
 // __tests__/lib/pagination.test.ts
 import { describe, it, expect, jest } from '@jest/globals';
 import { paginate, getPaginationParams } from '@/lib/pagination';
-import { PrismaClient } from '@prisma/client';
+
+interface MockQuery {
+  findMany: jest.Mock;
+  count: jest.Mock;
+}
 
 describe('Pagination Utilities', () => {
   describe('getPaginationParams', () => {
@@ -40,17 +44,17 @@ describe('Pagination Utilities', () => {
     });
 
     it('should handle non-numeric page values by setting to default of 1', () => {
-      const params = getPaginationParams({ page: 'abc' as any });
+      const params = getPaginationParams({ page: 'abc' as unknown as number });
       expect(params.page).toBe(1);
     });
 
     it('should handle string numeric page values', () => {
-      const params = getPaginationParams({ page: '3' as any });
+      const params = getPaginationParams({ page: '3' as unknown as number });
       expect(params.page).toBe(3);
     });
 
     it('should handle null and undefined values with defaults', () => {
-      const params = getPaginationParams({ page: null as any, limit: undefined });
+      const params = getPaginationParams({ page: null as unknown as number, limit: undefined });
       expect(params.page).toBe(1);
       expect(params.limit).toBe(50);
       expect(params.skip).toBe(0);
@@ -76,12 +80,12 @@ describe('Pagination Utilities', () => {
 
   describe('paginate', () => {
     it('should paginate data correctly with default parameters', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]),
         count: jest.fn().mockResolvedValue(2)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, {});
+
+      const result = await paginate(mockQuery, {}, {}, {});
       
       expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
       expect(result.meta.total).toBe(2);
@@ -92,12 +96,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should handle empty data set', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, {});
+
+      const result = await paginate(mockQuery, {}, {}, {});
       
       expect(result.data).toEqual([]);
       expect(result.meta.total).toBe(0);
@@ -107,12 +111,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should handle large dataset with multiple pages', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue(Array(50).fill({ id: 1 })),
         count: jest.fn().mockResolvedValue(101)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, { page: 2, limit: 50 });
+
+      const result = await paginate(mockQuery, {}, {}, { page: 2, limit: 50 });
       
       expect(result.data).toHaveLength(50);
       expect(result.meta.total).toBe(101);
@@ -123,15 +127,15 @@ describe('Pagination Utilities', () => {
     });
 
     it('should handle custom where and orderBy parameters', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }]),
         count: jest.fn().mockResolvedValue(1)
       };
-      
+
       const where = { status: 'active' };
       const orderBy = { createdAt: 'desc' };
-      
-      await paginate(mockQuery as any, where, orderBy, {});
+
+      await paginate(mockQuery, where, orderBy, {});
       
       expect(mockQuery.findMany).toHaveBeenCalledWith({ 
         where, 
@@ -143,12 +147,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should clamp page to minimum of 1 for invalid values', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }]),
         count: jest.fn().mockResolvedValue(1)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, { page: -5, limit: 50 });
+
+      const result = await paginate(mockQuery, {}, {}, { page: -5, limit: 50 });
       
       expect(result.data).toEqual([{ id: 1 }]);
       expect(result.meta.total).toBe(1);
@@ -158,12 +162,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should handle limit clamping to 100', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }]),
         count: jest.fn().mockResolvedValue(1)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, { limit: 150 });
+
+      const result = await paginate(mockQuery, {}, {}, { limit: 150 });
       
       expect(result.data).toEqual([{ id: 1 }]);
       expect(result.meta.total).toBe(1);
@@ -173,12 +177,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should return correct totalPages when total is exactly divisible by limit', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(100)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, { limit: 25 });
+
+      const result = await paginate(mockQuery, {}, {}, { limit: 25 });
       
       expect(result.meta.total).toBe(100);
       expect(result.meta.limit).toBe(25);
@@ -186,12 +190,12 @@ describe('Pagination Utilities', () => {
     });
 
     it('should call findMany and count in parallel using Promise.all', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }]),
         count: jest.fn().mockResolvedValue(1)
       };
-      
-      await paginate(mockQuery as any, {}, {}, {});
+
+      await paginate(mockQuery, {}, {}, {});
       
       expect(mockQuery.findMany).toHaveBeenCalled();
       expect(mockQuery.count).toHaveBeenCalled();
@@ -200,12 +204,12 @@ describe('Pagination Utilities', () => {
 
   describe('Prisma Pagination Integration', () => {
     it('should work with PrismaClient structure', async () => {
-      const mockQuery = {
+      const mockQuery: MockQuery = {
         findMany: jest.fn().mockResolvedValue([{ id: 1 }]),
         count: jest.fn().mockResolvedValue(1)
       };
-      
-      const result = await paginate(mockQuery as any, {}, {}, {});
+
+      const result = await paginate(mockQuery, {}, {}, {});
       
       expect(result.data).toBeInstanceOf(Array);
       expect(result.meta).toHaveProperty('total');

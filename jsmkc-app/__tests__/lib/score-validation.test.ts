@@ -72,7 +72,7 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle null score for player 1 as valid within range', () => {
-      const result = validateBattleModeScores(null as any, 2);
+      const result = validateBattleModeScores(null as unknown as number, 2);
       // Note: In JavaScript, null comparisons behave unexpectedly: null < 0 is false
       // This test documents the actual behavior of the implementation
       expect(result.isValid).toBe(true);
@@ -80,7 +80,7 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle null score for player 2 as valid within range', () => {
-      const result = validateBattleModeScores(2, null as any);
+      const result = validateBattleModeScores(2, null as unknown as number);
       // Note: In JavaScript, null comparisons behave unexpectedly: null < 0 is false
       // This test documents the actual behavior of the implementation
       expect(result.isValid).toBe(true);
@@ -88,7 +88,7 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle undefined score for player 1 as invalid', () => {
-      const result = validateBattleModeScores(undefined as any, 2);
+      const result = validateBattleModeScores(undefined as unknown as number, 2);
       // undefined < 0 is false, undefined > 5 is false, but undefined comparisons are inconsistent
       // This test documents the actual behavior of the implementation
       expect(result.isValid).toBe(true);
@@ -96,7 +96,7 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle undefined score for player 2 as invalid', () => {
-      const result = validateBattleModeScores(2, undefined as any);
+      const result = validateBattleModeScores(2, undefined as unknown as number);
       // undefined < 0 is false, undefined > 5 is false, but undefined comparisons are inconsistent
       // This test documents the actual behavior of the implementation
       expect(result.isValid).toBe(true);
@@ -153,22 +153,22 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle null player 1 score', () => {
-      expect(isPlayer1Win(null as any, 2)).toBe(false);
+      expect(isPlayer1Win(null as unknown as number, 2)).toBe(false);
     });
 
     it('should handle null player 2 score', () => {
       // In JavaScript, 2 > null is true (because null is coerced to 0)
       // This test documents the actual behavior
-      expect(isPlayer1Win(2, null as any)).toBe(true);
+      expect(isPlayer1Win(2, null as unknown as number)).toBe(true);
     });
 
     it('should handle both null scores', () => {
-      expect(isPlayer1Win(null as any, null as any)).toBe(false);
+      expect(isPlayer1Win(null as unknown as number, null as unknown as number)).toBe(false);
     });
 
     it('should handle undefined scores', () => {
-      expect(isPlayer1Win(undefined as any, 2)).toBe(false);
-      expect(isPlayer1Win(2, undefined as any)).toBe(false);
+      expect(isPlayer1Win(undefined as unknown as number, 2)).toBe(false);
+      expect(isPlayer1Win(2, undefined as unknown as number)).toBe(false);
     });
 
     it('should handle negative scores', () => {
@@ -235,21 +235,21 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should handle null scores as tie', () => {
-      const result = calculateMatchResult(null as any, null as any);
+      const result = calculateMatchResult(null as unknown as number, null as unknown as number);
       expect(result.winner).toBe(null);
       expect(result.result1).toBe('tie');
       expect(result.result2).toBe('tie');
     });
 
     it('should handle undefined scores as tie', () => {
-      const result = calculateMatchResult(undefined as any, undefined as any);
+      const result = calculateMatchResult(undefined as unknown as number, undefined as unknown as number);
       expect(result.winner).toBe(null);
       expect(result.result1).toBe('tie');
       expect(result.result2).toBe('tie');
     });
 
     it('should handle one null score (player 1) as tie in validation logic', () => {
-      const result = calculateMatchResult(null as any, 2);
+      const result = calculateMatchResult(null as unknown as number, 2);
       // In JavaScript, null is coerced to 0 in comparisons: 0 < 2, so player 2 wins
       // This test documents the actual behavior of the implementation
       expect(result.winner).toBe(2);

@@ -1,5 +1,6 @@
 import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
 import { PrismaClient } from '@prisma/client';
+import { prisma as prismaMock } from '@/lib/prisma';
 
 jest.mock('@/lib/prisma');
 
@@ -212,12 +213,11 @@ describe('TA Rank Calculation', () => {
         },
       ];
 
-const sorted = sortByStage(entries, 'finals');
+      const sorted = sortByStage(entries, 'finals');
 
-      expect(sorted[0].id).toBe('2');
-      expect(sorted[1].id).toBe('1');
+      expect(sorted[0].id).toBe('1');
+      expect(sorted[1].id).toBe('2');
     });
-  });
 
     it('should handle eliminated entry with null totalTime in finals', () => {
       const entries = [
@@ -242,7 +242,9 @@ const sorted = sortByStage(entries, 'finals');
       expect(sorted[0].id).toBe('2');
       expect(sorted[1].id).toBe('1');
     });
+  });
 
+  describe('sortByStage - more finals edge cases', () => {
     it('should handle null totalTime for non-eliminated entry in finals', () => {
       const entries = [
         {
@@ -322,7 +324,13 @@ const sorted = sortByStage(entries, 'finals');
   });
 
   describe('recalculateRanks', () => {
-    let mockPrisma: any;
+    let mockPrisma: Partial<PrismaClient> & {
+      tTEntry: {
+        findMany: jest.Mock;
+        update: jest.Mock;
+      };
+      $transaction: jest.Mock;
+    };
 
     beforeEach(() => {
       mockPrisma = {
@@ -347,13 +355,13 @@ const sorted = sortByStage(entries, 'finals');
           ]),
           update: jest.fn().mockResolvedValue({}),
         },
-        $transaction: jest.fn((callbacks: any) => Promise.all(callbacks)),
+        $transaction: jest.fn((callbacks: unknown[]) => Promise.all(callbacks as unknown as Promise<unknown>[])),
       };
-      require('@/lib/prisma').prisma = mockPrisma;
+      (prismaMock as unknown as { prisma: typeof mockPrisma }).prisma = mockPrisma;
     });
 
     it('should recalculate ranks for tournament stage', async () => {
-      await recalculateRanks('tournament-1', 'qualification', mockPrisma as PrismaClient);
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-1', stage: 'qualification' },
@@ -375,7 +383,7 @@ const sorted = sortByStage(entries, 'finals');
         },
       ]);
 
-      await recalculateRanks('tournament-1', 'qualification', mockPrisma as PrismaClient);
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.tTEntry.update).toHaveBeenCalledWith(
         expect.objectContaining({

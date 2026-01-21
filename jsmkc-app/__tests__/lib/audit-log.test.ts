@@ -1,21 +1,34 @@
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { sanitizeInput } from '@/lib/sanitize';
 
-jest.mock('@/lib/prisma');
 jest.mock('@/lib/sanitize');
+jest.mock('@/lib/prisma', () => {
+  const mockPrisma = {
+    auditLog: {
+      create: jest.fn(),
+    },
+  };
+  return { prisma: mockPrisma };
+});
+
+import { prisma as prismaMock } from '@/lib/prisma';
 
 describe('Audit Log', () => {
-  let mockPrisma: any;
-  let mockSanitizeInput: jest.Mock;
+  let mockSanitizeInput: jest.MockedFunction<typeof sanitizeInput>;
 
   beforeEach(() => {
-    mockPrisma = {
-      auditLog: {
-        create: jest.fn(),
-      },
-    };
-    mockSanitizeInput = require('@/lib/sanitize').sanitizeInput as jest.Mock;
+    prismaMock.auditLog.create.mockResolvedValue({
+      id: 'audit-1',
+      userId: 'user-123',
+      ipAddress: '192.168.1.1',
+      userAgent: 'Mozilla/5.0',
+      action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
+      targetId: 'tournament-456',
+      targetType: 'Tournament',
+      details: { test: 'data' },
+    });
+    mockSanitizeInput = sanitizeInput as jest.MockedFunction<typeof sanitizeInput>;
     mockSanitizeInput.mockImplementation((input) => input);
-    require('@/lib/prisma').prisma = mockPrisma;
   });
 
   afterEach(() => {
@@ -35,7 +48,7 @@ describe('Audit Log', () => {
 
     const result = await createAuditLog(params);
 
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: params.userId,
         ipAddress: params.ipAddress,
@@ -74,7 +87,7 @@ describe('Audit Log', () => {
 
     const result = await createAuditLog(params);
 
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: undefined,
         ipAddress: params.ipAddress,
@@ -95,7 +108,7 @@ describe('Audit Log', () => {
       action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
     };
 
-    mockPrisma.auditLog.create.mockRejectedValue(new Error('Database connection failed'));
+    prismaMock.auditLog.create.mockRejectedValue(new Error('Database connection failed'));
 
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const result = await createAuditLog(params);
@@ -133,14 +146,18 @@ describe('Audit Log', () => {
     };
 
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-    mockPrisma.auditLog.create.mockRejectedValue(new Error('DB error'));
+    prismaMock.auditLog.create.mockRejectedValue(new Error('DB error'));
 
     await createAuditLog(params);
 
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Audit log creation failed - Action: UNAUTHORIZED_ACCESS, User: anonymous'),
-      expect.stringContaining('IP: 192.168.1.1'),
-      expect.stringContaining('Error: DB error')
+      'Audit log creation failed - Action: %s, User: %s, Target: %s/%s, IP: %s, Error: %s',
+      AUDIT_ACTIONS.UNAUTHORIZED_ACCESS,
+      'anonymous',
+      'N/A',
+      'N/A',
+      '192.168.1.1',
+      'DB error'
     );
     consoleSpy.mockRestore();
   });

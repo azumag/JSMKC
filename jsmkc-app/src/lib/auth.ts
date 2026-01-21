@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth'
 import type { JWT } from 'next-auth/jwt'
+import type { User, Account } from 'next-auth'
 import GitHub from 'next-auth/providers/github'
 import Google from 'next-auth/providers/google'
 import Discord from 'next-auth/providers/discord'
@@ -7,13 +8,15 @@ import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcrypt'
 
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+const log = createLogger('auth')
 const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
-// Admin User IDs (Discord) - Hardcoded Whitelist
-const ADMIN_DISCORD_IDS = [
-  'YOUR_DISCORD_USER_ID_HERE', // Placeholder, user to update
-];
+// Admin User IDs (Discord) - Environment Variable
+const ADMIN_DISCORD_IDS = process.env.ADMIN_DISCORD_IDS?.split(',') || [];
+ 
 
+ 
 // Export for testing
 export const ADMIN_DISCORD_IDS_LIST = ADMIN_DISCORD_IDS;
 
@@ -79,10 +82,10 @@ const authConfig = {
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
   },
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account }: { user?: User; account?: Account | null }) {
       // Support Discord, GitHub and Google OAuth
       let role = 'member';
 
@@ -108,14 +111,8 @@ const authConfig = {
               role: role,
             },
           });
-        } else if (existingUser.role !== role && role === 'admin') {
-          // Upgrade to admin if whitelisted
-          await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { role: 'admin' }
-          });
         } else if (role === 'admin' && existingUser.role !== 'admin') {
-          // Ensure database reflects admin status if whitelisted
+          // Upgrade to admin if whitelisted
           await prisma.user.update({
             where: { id: existingUser.id },
             data: { role: 'admin' }
@@ -124,7 +121,7 @@ const authConfig = {
 
         return true;
       } catch (err) {
-        console.error(`Error during ${account?.provider} sign in:`, err);
+        log.error(`Error during ${account?.provider} sign in:`, err);
         return true;
       }
     },
@@ -148,7 +145,7 @@ const authConfig = {
 
       return session;
     },
-    async jwt({ token, user, account }): Promise<JWT> {
+    async jwt({ token, user, account }: { token: JWT; user?: User | undefined; account?: Account | null | undefined }): Promise<JWT> {
       // Initial sign in: store tokens and expiration
       if (account && user) {
         // Handle player credentials (password-based login)

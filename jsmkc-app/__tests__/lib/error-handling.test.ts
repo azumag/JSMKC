@@ -199,7 +199,9 @@ describe('Error Handling Module', () => {
         },
         { status: 502 }
       );
-      expect(console.error).toHaveBeenCalledWith('Database error in test context:', error);
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('[ERROR] error-handling: Database error in test context:')
+      );
     });
 
     it('should handle P2002 error (unique constraint violation)', () => {
@@ -287,7 +289,9 @@ describe('Error Handling Module', () => {
 
       handleDatabaseError(error, context);
 
-      expect(console.error).toHaveBeenCalledWith('Database error in players endpoint:', error);
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('[ERROR] error-handling: Database error in players endpoint:')
+      );
     });
   });
 

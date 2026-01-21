@@ -1,6 +1,17 @@
 import { createSoftDeleteMiddleware, SoftDeleteUtils } from '@/lib/soft-delete';
 import { PrismaClient } from '@prisma/client';
 
+interface MiddlewareParams {
+  model?: string;
+  action: string;
+  args: {
+    where?: Record<string, unknown>;
+    data?: Record<string, unknown>;
+    includeDeleted?: boolean;
+    [key: string]: unknown;
+  };
+}
+
 // Mock PrismaClient
 jest.mock('@prisma/client', () => {
   const mockPrisma = {
@@ -68,117 +79,117 @@ describe('createSoftDeleteMiddleware', () => {
 
   describe('DELETE operation conversion', () => {
     it('should convert DELETE to UPDATE for Player model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'delete',
         args: { where: { id: 'player-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for Tournament model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Tournament',
         action: 'delete',
         args: { where: { id: 'tournament-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for BMMatch model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'BMMatch',
         action: 'delete',
         args: { where: { id: 'bm-match-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for BMQualification model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'BMQualification',
         action: 'delete',
         args: { where: { id: 'bm-qual-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for MRMatch model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'MRMatch',
         action: 'delete',
         args: { where: { id: 'mr-match-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for MRQualification model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'MRQualification',
         action: 'delete',
         args: { where: { id: 'mr-qual-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for GPMatch model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'GPMatch',
         action: 'delete',
         args: { where: { id: 'gp-match-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for GPQualification model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'GPQualification',
         action: 'delete',
         args: { where: { id: 'gp-qual-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert DELETE to UPDATE for TTEntry model', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'TTEntry',
         action: 'delete',
         args: { where: { id: 'tt-entry-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('update');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
@@ -187,20 +198,20 @@ describe('createSoftDeleteMiddleware', () => {
 
   describe('deleteMany operation conversion', () => {
     it('should convert deleteMany to updateMany when data is undefined', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'deleteMany',
         args: { where: { id: 'player-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('updateMany');
       expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
     it('should convert deleteMany to updateMany when data exists', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'deleteMany',
         args: {
@@ -209,7 +220,7 @@ describe('createSoftDeleteMiddleware', () => {
         },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('updateMany');
       expect(params.args.data).toEqual({
@@ -221,13 +232,13 @@ describe('createSoftDeleteMiddleware', () => {
 
   describe('Query filtering', () => {
     it('should filter deleted records in findMany when includeDeleted is false', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findMany',
         args: { where: { name: 'John' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({
         name: 'John',
@@ -236,13 +247,13 @@ describe('createSoftDeleteMiddleware', () => {
     });
 
     it('should filter deleted records in findMany when includeDeleted is not set', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findMany',
         args: { where: { name: 'John' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({
         name: 'John',
@@ -251,7 +262,7 @@ describe('createSoftDeleteMiddleware', () => {
     });
 
     it('should NOT filter deleted records in findMany when includeDeleted is true', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findMany',
         args: {
@@ -260,31 +271,31 @@ describe('createSoftDeleteMiddleware', () => {
         },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({ name: 'John' });
     });
 
     it('should add where clause if missing in findMany', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findMany',
         args: {},
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({ deletedAt: null });
     });
 
     it('should filter deleted records in findFirst', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findFirst',
         args: { where: { name: 'John' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({
         name: 'John',
@@ -293,13 +304,13 @@ describe('createSoftDeleteMiddleware', () => {
     });
 
     it('should filter deleted records in findUnique', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findUnique',
         args: { where: { id: 'player-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({
         id: 'player-123',
@@ -308,7 +319,7 @@ describe('createSoftDeleteMiddleware', () => {
     });
 
     it('should NOT filter in findUnique when includeDeleted is true', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findUnique',
         args: {
@@ -317,7 +328,7 @@ describe('createSoftDeleteMiddleware', () => {
         },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({ id: 'player-123' });
     });
@@ -325,25 +336,25 @@ describe('createSoftDeleteMiddleware', () => {
 
   describe('Non-soft-delete models', () => {
     it('should NOT modify operations for non-soft-delete models', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'User',
         action: 'delete',
         args: { where: { id: 'user-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('delete');
       expect(params.args.data).toBeUndefined();
     });
 
     it('should NOT modify operations when model is undefined', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         action: 'delete',
         args: { where: { id: 'id-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('delete');
       expect(params.args.data).toBeUndefined();
@@ -352,25 +363,25 @@ describe('createSoftDeleteMiddleware', () => {
 
   describe('Edge cases', () => {
     it('should handle empty args object', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'findMany',
         args: {} as Record<string, unknown>,
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.args.where).toEqual({ deletedAt: null });
     });
 
     it('should call next with modified params', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'delete',
         args: { where: { id: 'player-123' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith({
         model: 'Player',
@@ -383,13 +394,13 @@ describe('createSoftDeleteMiddleware', () => {
     });
 
     it('should handle non-find operations (create, update, etc.)', async () => {
-      const params = {
+      const params: MiddlewareParams = {
         model: 'Player',
         action: 'create',
         args: { data: { name: 'John' } },
       };
 
-      await middleware(params as any, mockNext);
+      await middleware(params, mockNext);
 
       expect(params.action).toBe('create');
       expect(params.args.data).toEqual({ name: 'John' });
@@ -398,7 +409,20 @@ describe('createSoftDeleteMiddleware', () => {
 });
 
 describe('SoftDeleteUtils', () => {
-  let mockPrisma: any;
+  interface MockPrismaClient {
+    player: {
+      update: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+    };
+    tournament: {
+      update: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+    };
+  }
+
+  let mockPrisma: MockPrismaClient;
   let softDeleteUtils: SoftDeleteUtils;
 
   beforeEach(() => {
@@ -414,7 +438,7 @@ describe('SoftDeleteUtils', () => {
         findUnique: jest.fn(),
       },
     };
-    softDeleteUtils = new SoftDeleteUtils(mockPrisma as PrismaClient);
+    softDeleteUtils = new SoftDeleteUtils(mockPrisma as unknown as PrismaClient);
   });
 
   afterEach(() => {
@@ -456,7 +480,7 @@ describe('SoftDeleteUtils', () => {
       const options = { where: { name: 'John' } };
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayers(options as any);
+      await softDeleteUtils.getPlayers(options as unknown as { where: { name: string } });
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
         ...options,
@@ -470,7 +494,7 @@ describe('SoftDeleteUtils', () => {
     it('should get players with default empty options', async () => {
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayers();
+      await softDeleteUtils.getPlayers();
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
         where: {
@@ -485,7 +509,7 @@ describe('SoftDeleteUtils', () => {
       const options = { where: { name: 'Tournament 1' } };
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournaments(options as any);
+      await softDeleteUtils.getTournaments(options as unknown as { where: { name: string } });
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
         ...options,
@@ -499,7 +523,7 @@ describe('SoftDeleteUtils', () => {
     it('should get tournaments with default empty options', async () => {
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournaments();
+      await softDeleteUtils.getTournaments();
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
         where: {
@@ -544,7 +568,7 @@ describe('SoftDeleteUtils', () => {
       const options = { where: { name: 'John' } };
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayersWithDeleted(options as any);
+      await softDeleteUtils.getPlayersWithDeleted(options as unknown as { where: { name: string } });
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith(options);
     });
@@ -552,7 +576,7 @@ describe('SoftDeleteUtils', () => {
     it('should get players with deleted with default empty options', async () => {
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayersWithDeleted();
+      await softDeleteUtils.getPlayersWithDeleted();
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith({});
     });
@@ -563,7 +587,7 @@ describe('SoftDeleteUtils', () => {
       const options = { where: { name: 'Tournament 1' } };
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournamentsWithDeleted(options as any);
+      await softDeleteUtils.getTournamentsWithDeleted(options as unknown as { where: { name: string } });
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith(options);
     });
@@ -571,7 +595,7 @@ describe('SoftDeleteUtils', () => {
     it('should get tournaments with deleted with default empty options', async () => {
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournamentsWithDeleted();
+      await softDeleteUtils.getTournamentsWithDeleted();
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({});
     });
@@ -582,7 +606,7 @@ describe('SoftDeleteUtils', () => {
       const playerId = 'player-123';
       mockPrisma.player.findUnique.mockResolvedValue({ id: playerId });
 
-      const result = await softDeleteUtils.findPlayerWithDeleted(playerId);
+      await softDeleteUtils.findPlayerWithDeleted(playerId);
 
       expect(mockPrisma.player.findUnique).toHaveBeenCalledWith({
         where: { id: playerId },
@@ -595,7 +619,7 @@ describe('SoftDeleteUtils', () => {
       const tournamentId = 'tournament-123';
       mockPrisma.tournament.findUnique.mockResolvedValue({ id: tournamentId });
 
-      const result = await softDeleteUtils.findTournamentWithDeleted(tournamentId);
+      await softDeleteUtils.findTournamentWithDeleted(tournamentId);
 
       expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: tournamentId },
@@ -607,7 +631,7 @@ describe('SoftDeleteUtils', () => {
       const options = { select: { id: true, name: true } };
       mockPrisma.tournament.findUnique.mockResolvedValue({ id: tournamentId });
 
-      const result = await softDeleteUtils.findTournamentWithDeleted(tournamentId, options as any);
+      await softDeleteUtils.findTournamentWithDeleted(tournamentId, options as unknown as { select: { id: boolean; name: boolean } });
 
       expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: tournamentId },
@@ -619,7 +643,7 @@ describe('SoftDeleteUtils', () => {
       const tournamentId = 'tournament-123';
       mockPrisma.tournament.findUnique.mockResolvedValue({ id: tournamentId });
 
-      const result = await softDeleteUtils.findTournamentWithDeleted(tournamentId);
+      await softDeleteUtils.findTournamentWithDeleted(tournamentId);
 
       expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: tournamentId },
@@ -697,7 +721,7 @@ describe('SoftDeleteUtils', () => {
     it('should handle getPlayers with undefined options', async () => {
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayers(undefined as any);
+      await softDeleteUtils.getPlayers(undefined as unknown as { where: { name: string } });
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
         where: { deletedAt: null },
@@ -707,7 +731,7 @@ describe('SoftDeleteUtils', () => {
     it('should handle getTournaments with undefined options', async () => {
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournaments(undefined as any);
+      await softDeleteUtils.getTournaments(undefined as unknown as { where: { name: string } });
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
         where: { deletedAt: null },
@@ -717,7 +741,7 @@ describe('SoftDeleteUtils', () => {
     it('should handle getPlayersWithDeleted with undefined options', async () => {
       mockPrisma.player.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getPlayersWithDeleted(undefined as any);
+      await softDeleteUtils.getPlayersWithDeleted(undefined as unknown as { where: { name: string } });
 
       expect(mockPrisma.player.findMany).toHaveBeenCalledWith({});
     });
@@ -725,7 +749,7 @@ describe('SoftDeleteUtils', () => {
     it('should handle getTournamentsWithDeleted with undefined options', async () => {
       mockPrisma.tournament.findMany.mockResolvedValue([]);
 
-      const result = await softDeleteUtils.getTournamentsWithDeleted(undefined as any);
+      await softDeleteUtils.getTournamentsWithDeleted(undefined as unknown as { where: { name: string } });
 
       expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({});
     });
@@ -734,7 +758,7 @@ describe('SoftDeleteUtils', () => {
       const tournamentId = 'tournament-123';
       mockPrisma.tournament.findUnique.mockResolvedValue({ id: tournamentId });
 
-      const result = await softDeleteUtils.findTournamentWithDeleted(tournamentId, undefined as any);
+      await softDeleteUtils.findTournamentWithDeleted(tournamentId, undefined as unknown as { select: { id: boolean } });
 
       expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: tournamentId },

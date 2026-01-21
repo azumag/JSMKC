@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { createLogger } from './logger';
+import { sanitizeDatabaseError } from './sanitize-error';
 
 /**
  * Standardized error response interface
@@ -78,11 +80,14 @@ export function createSuccessResponse<T>(
  * @param context - Context description for logging
  * @returns NextResponse with appropriate error response
  */
+const log = createLogger('error-handling');
+
 export function handleDatabaseError(
   error: unknown,
   context: string
 ): NextResponse<ErrorResponse> {
-  console.error(`Database error in ${context}:`, error);
+  const sanitizedError = sanitizeDatabaseError(error, context);
+  log.error(`Database error in ${context}:`, sanitizedError);
 
   // Prisma initialization errors (502)
   if (error instanceof Prisma.PrismaClientInitializationError) {

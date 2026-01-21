@@ -1,6 +1,6 @@
-import { validateToken, getAccessTokenExpiry, validateTournamentToken, requireTournamentToken } from '@/lib/token-validation';
+import { validateToken, getAccessTokenExpiry, validateTournamentToken, requireTournamentToken, TournamentContext } from '@/lib/token-validation';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
 // Mock NextResponse.json for middleware tests
 jest.mock('next/server', () => ({
@@ -322,7 +322,7 @@ describe('Token Validation', () => {
 
       const context = {
         params: Promise.resolve({ id: 'tournament-1' }),
-      } as any;
+      } as TournamentContext;
 
       const response = await middleware(request, context);
 
@@ -357,7 +357,7 @@ describe('Token Validation', () => {
 
       const context = {
         params: Promise.resolve({ id: 'tournament-1' }),
-      } as any;
+      } as TournamentContext;
 
       await middleware(request, context);
 

@@ -1,7 +1,6 @@
 import {
   updateWithRetry,
   OptimisticLockError,
-  RetryConfig,
   updateBMMatchScore,
   updateMRMatchScore,
   updateGPMatchScore,
@@ -11,7 +10,7 @@ import {
   type GPRace,
   type TTEntryData,
 } from '@/lib/optimistic-locking';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client'; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Mock PrismaClient
 jest.mock('@prisma/client', () => {
@@ -48,11 +47,24 @@ describe('OptimisticLockError', () => {
 });
 
 describe('updateWithRetry', () => {
-  let mockPrisma: any;
-  let mockBMMatch: any;
-  let mockMRMatch: any;
-  let mockGPMatch: any;
-  let mockTTEntry: any;
+  interface MockModel {
+    findUnique: jest.Mock;
+    update: jest.Mock;
+  }
+
+  interface MockPrisma {
+    $transaction: jest.Mock;
+    bMMatch: MockModel;
+    mRMatch: MockModel;
+    gPMatch: MockModel;
+    tTEntry: MockModel;
+  }
+
+  let mockPrisma: MockPrisma;
+  let mockBMMatch: MockModel;
+  let mockMRMatch: MockModel;
+  let mockGPMatch: MockModel;
+  let mockTTEntry: MockModel;
 
   beforeEach(() => {
     mockBMMatch = {
@@ -106,7 +118,7 @@ describe('updateWithRetry', () => {
       .mockImplementationOnce(() => { throw lockError; })
       .mockImplementationOnce((fn) => fn(mockPrisma));
 
-    const result = await updateWithRetry(mockPrisma, async (tx) => 'success');
+    const result = await updateWithRetry(mockPrisma, async () => 'success');
 
     expect(result).toBe('success');
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
@@ -123,7 +135,7 @@ describe('updateWithRetry', () => {
       .mockImplementationOnce(() => { throw versionError; })
       .mockImplementationOnce((fn) => fn(mockPrisma));
 
-    const result = await updateWithRetry(mockPrisma, async (tx) => 'success');
+    const result = await updateWithRetry(mockPrisma, async () => 'success');
 
     expect(result).toBe('success');
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
@@ -140,7 +152,7 @@ describe('updateWithRetry', () => {
       .mockImplementationOnce(() => { throw notFoundError; })
       .mockImplementationOnce((fn) => fn(mockPrisma));
 
-    const result = await updateWithRetry(mockPrisma, async (tx) => 'success');
+    const result = await updateWithRetry(mockPrisma, async () => 'success');
 
     expect(result).toBe('success');
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
@@ -204,7 +216,7 @@ describe('updateWithRetry', () => {
       .mockImplementationOnce(() => { throw lockError; })
       .mockImplementationOnce((fn) => fn(mockPrisma));
 
-    await updateWithRetry(mockPrisma, async (tx) => 'success', { baseDelay: 10, maxDelay: 100 });
+    await updateWithRetry(mockPrisma, async () => 'success', { baseDelay: 10, maxDelay: 100 });
 
     const endTime = Date.now();
     const elapsedTime = endTime - startTime;
@@ -214,8 +226,8 @@ describe('updateWithRetry', () => {
 });
 
 describe('updateBMMatchScore', () => {
-  let mockPrisma: any;
-  let mockBMMatch: any;
+  let mockPrisma: MockPrisma;
+  let mockBMMatch: MockModel;
 
   beforeEach(() => {
     mockBMMatch = {
@@ -363,8 +375,8 @@ describe('updateBMMatchScore', () => {
 });
 
 describe('updateMRMatchScore', () => {
-  let mockPrisma: any;
-  let mockMRMatch: any;
+  let mockPrisma: MockPrisma;
+  let mockMRMatch: MockModel;
 
   beforeEach(() => {
     mockMRMatch = {
@@ -494,8 +506,8 @@ describe('updateMRMatchScore', () => {
 });
 
 describe('updateGPMatchScore', () => {
-  let mockPrisma: any;
-  let mockGPMatch: any;
+  let mockPrisma: MockPrisma;
+  let mockGPMatch: MockModel;
 
   beforeEach(() => {
     mockGPMatch = {
@@ -630,8 +642,8 @@ describe('updateGPMatchScore', () => {
 });
 
 describe('updateTTEntry', () => {
-  let mockPrisma: any;
-  let mockTTEntry: any;
+  let mockPrisma: MockPrisma;
+  let mockTTEntry: MockModel;
 
   beforeEach(() => {
     mockTTEntry = {

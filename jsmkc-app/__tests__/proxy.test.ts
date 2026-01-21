@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/rate-limit'
 import { auth as authLib } from '@/lib/auth'
@@ -10,21 +10,27 @@ jest.mock('@/lib/rate-limit')
 const mockCreateAuditLog = createAuditLog as jest.MockedFunction<typeof createAuditLog>
 const mockGetServerSideIdentifier = getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>
 
+interface MockRequest extends Partial<NextRequest> {
+  auth?: { user: { id: string } } | null
+}
+
 describe('Proxy Middleware', () => {
-  let middleware: any
+  let middleware: (req: NextRequest) => Promise<NextResponse>
+  let proxyModule: { default: typeof middleware; config: { matcher: string[] } }
 
   beforeAll(async () => {
     jest.clearAllMocks()
     process.env.NODE_ENV = 'test'
-    
-    authLib.mockImplementation((callback: any) => {
-      return async (req: any) => {
+
+    authLib.mockImplementation((callback: (req: NextRequest) => Promise<NextResponse>) => {
+      return async (req: NextRequest) => {
         return await callback(req)
       }
     })
-    
+
     const proxy = await import('@/proxy')
     middleware = proxy.default
+    proxyModule = proxy
   })
 
   afterEach(() => {
@@ -43,7 +49,7 @@ describe('Proxy Middleware', () => {
         auth: { user: { id: 'user-1' } },
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
       
@@ -57,10 +63,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -77,10 +83,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -94,10 +100,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -111,10 +117,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).not.toBe(401)
     })
@@ -123,18 +129,18 @@ describe('Proxy Middleware', () => {
   describe('Auth middleware - Protected frontend routes', () => {
     it('should redirect unauthenticated users from protected frontend routes', async () => {
       const mockReq = {
-        nextUrl: { 
-          pathname: '/players', 
-          searchParams: new URLSearchParams() 
+        nextUrl: {
+          pathname: '/players',
+          searchParams: new URLSearchParams()
         },
         method: 'GET',
         auth: null,
         url: 'http://localhost/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -144,18 +150,18 @@ describe('Proxy Middleware', () => {
 
     it('should include callbackUrl in redirect', async () => {
       const mockReq = {
-        nextUrl: { 
-          pathname: '/tournaments', 
-          searchParams: new URLSearchParams() 
+        nextUrl: {
+          pathname: '/tournaments',
+          searchParams: new URLSearchParams()
         },
         method: 'GET',
         auth: null,
         url: 'http://localhost/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -171,7 +177,7 @@ describe('Proxy Middleware', () => {
         auth: { user: { id: 'user-1' } },
         url: 'http://localhost/profile',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
       
@@ -188,10 +194,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       await middleware(mockReq)
       
@@ -215,10 +221,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       await middleware(mockReq)
       
@@ -236,14 +242,14 @@ describe('Proxy Middleware', () => {
 
     it('should handle audit log errors gracefully', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
-      
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'POST',
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
       mockCreateAuditLog.mockRejectedValue(new Error('Database error'))
@@ -264,10 +270,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response.headers.get('X-Frame-Options')).toBe('DENY')
     })
 
@@ -278,10 +284,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
     })
 
@@ -292,10 +298,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
     })
 
@@ -306,10 +312,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response.headers.get('Permissions-Policy')).toBe('camera=(), microphone=(), geolocation=()')
     })
   })
@@ -317,18 +323,18 @@ describe('Proxy Middleware', () => {
   describe('Auth middleware - CSP headers', () => {
     it('should set development CSP when NODE_ENV is not production', async () => {
       process.env.NODE_ENV = 'development'
-      
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
       const csp = response.headers.get('Content-Security-Policy')
-      
+
       expect(csp).toContain("default-src 'self'")
       expect(csp).toContain("script-src 'self' 'unsafe-eval' 'unsafe-inline'")
       expect(csp).toContain("style-src 'self' 'unsafe-inline'")
@@ -340,18 +346,18 @@ describe('Proxy Middleware', () => {
 
     it('should set production CSP when NODE_ENV is production', async () => {
       process.env.NODE_ENV = 'production'
-      
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
       const csp = response.headers.get('Content-Security-Policy')
-      
+
       expect(csp).toContain("default-src 'self'")
       expect(csp).toContain(`script-src 'self' 'nonce-`)
       expect(csp).toContain("'strict-dynamic'")
@@ -376,10 +382,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/auth/signin',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).not.toBe(401)
       expect(response.status).not.toBe(307)
@@ -392,10 +398,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       const response = await middleware(mockReq)
-      
+
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).not.toBe(401)
     })
@@ -407,10 +413,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({})
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -429,10 +435,10 @@ describe('Proxy Middleware', () => {
         auth: null,
         url: 'http://localhost/api/tournaments/123',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -441,18 +447,18 @@ describe('Proxy Middleware', () => {
 
     it('should handle protected frontend routes with nested paths', async () => {
       const mockReq = {
-        nextUrl: { 
-          pathname: '/tournaments/some-tournament', 
-          searchParams: new URLSearchParams() 
+        nextUrl: {
+          pathname: '/tournaments/some-tournament',
+          searchParams: new URLSearchParams()
         },
         method: 'GET',
         auth: null,
         url: 'http://localhost/tournaments/some-tournament',
         headers: new Headers({ 'user-agent': 'test-agent' })
-      }
+      } as MockRequest
 
       mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as any)
+      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
       
@@ -463,16 +469,14 @@ describe('Proxy Middleware', () => {
 
   describe('Config export', () => {
     it('should export config with matcher', () => {
-      const proxy = require('@/proxy')
-      
-      expect(proxy.config).toBeDefined()
-      expect(proxy.config.matcher).toBeInstanceOf(Array)
-      expect(proxy.config.matcher).toContain('/api/:path*')
-      expect(proxy.config.matcher).toContain('/auth/:path*')
-      expect(proxy.config.matcher).toContain('/api/auth/:path*')
-      expect(proxy.config.matcher).toContain('/players/:path*')
-      expect(proxy.config.matcher).toContain('/profile/:path*')
-      expect(proxy.config.matcher).toContain('/tournaments/:path*')
+      expect(proxyModule.config).toBeDefined()
+      expect(proxyModule.config.matcher).toBeInstanceOf(Array)
+      expect(proxyModule.config.matcher).toContain('/api/:path*')
+      expect(proxyModule.config.matcher).toContain('/auth/:path*')
+      expect(proxyModule.config.matcher).toContain('/api/auth/:path*')
+      expect(proxyModule.config.matcher).toContain('/players/:path*')
+      expect(proxyModule.config.matcher).toContain('/profile/:path*')
+      expect(proxyModule.config.matcher).toContain('/tournaments/:path*')
     })
   })
 })

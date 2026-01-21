@@ -20,7 +20,7 @@ export async function GET(
     const { id: tournamentId } = await params;
     const ifNoneMatch = request.headers.get('if-none-match');
 
-    const cached = get(tournamentId, 'qualification');
+    const cached = await get(tournamentId, 'qualification');
 
     if (cached && !isExpired(cached) && ifNoneMatch !== '*') {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function GET(
     const etag = generateETag(qualifications);
     const lastUpdated = new Date().toISOString();
 
-    set(tournamentId, 'qualification', qualifications, etag);
+    await set(tournamentId, 'qualification', qualifications, etag);
 
     const response = NextResponse.json({
       tournamentId,

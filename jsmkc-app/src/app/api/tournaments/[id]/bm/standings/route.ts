@@ -25,7 +25,7 @@ export async function GET(
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
 
-    const cached = get(tournamentId, 'qualification');
+    const cached = await get(tournamentId, 'qualification');
 
     if (cached && !isExpired(cached) && ifNoneMatch !== '*') {
       return NextResponse.json(
@@ -52,7 +52,7 @@ export async function GET(
     const etag = generateETag(result.data);
     const lastUpdated = new Date().toISOString();
 
-    set(tournamentId, 'qualification', result.data, etag);
+    await set(tournamentId, 'qualification', result.data, etag);
 
     const response = NextResponse.json({
       tournamentId,

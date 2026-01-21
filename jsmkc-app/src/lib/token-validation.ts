@@ -113,7 +113,7 @@ export async function validateTournamentToken(
   }
 }
 
-interface TournamentContext extends Record<string, unknown> {
+export interface TournamentContext extends Record<string, unknown> {
   tournament: { id: string; name: string };
   params: Promise<Record<string, string>>;
 }
