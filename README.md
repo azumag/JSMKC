@@ -363,6 +363,13 @@ MIT
 - Next.jsビルド警告を解消（0 warnings）
 - 全691テストがパス
 
+## 完了したタスク (2026-01-21)
+✅ [Issue #85: Remove unused use-polling-enhanced.ts file](https://github.com/azumag/JSMKC/issues/85)
+- 未使用の`use-polling-enhanced.ts`（314行）を削除
+- 0%カバレッジの問題を解決
+- ESLintエラーなし（0 errors, 0 warnings）
+- 全691テストがパス
+
 ---
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #78: TypeScriptエラー: src/lib/auth.tsで'user'がundefinedの可能性あり](https://github.com/azumag/JSMKC/issues/78)
