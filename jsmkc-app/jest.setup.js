@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom'
 import { TextEncoder, TextDecoder } from 'util'
 
-// Polyfill crypto.randomUUID for Jest environment
+// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
 Object.defineProperty(global, 'crypto', {
   value: {
     randomUUID: () => {
@@ -10,6 +10,12 @@ Object.defineProperty(global, 'crypto', {
         const v = c === 'x' ? r : (r & 0x3) | 0x8;
         return v.toString(16);
       });
+    },
+    getRandomValues: (arr) => {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = Math.floor(Math.random() * 256);
+      }
+      return arr;
     },
   },
   writable: true,
