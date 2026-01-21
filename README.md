@@ -187,3 +187,4 @@ MIT
 ## Development Workflow
 
 ### 0. find issues ✓
+- Retrieved issue #67: トークン関連ユーティリティのテストカバレッジ改善（token-utils, token-validation）
