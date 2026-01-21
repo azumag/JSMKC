@@ -29,6 +29,15 @@ jest.mock('bcrypt', () => ({
 import { compare as mockBcryptCompare } from 'bcrypt';
 import { prisma as prismaMock } from '@/lib/prisma';
 
+// Mock auth.ts to provide ADMIN_DISCORD_IDS_LIST for testing
+jest.mock('@/lib/auth', () => {
+  const actualAuth = jest.requireActual('@/lib/auth');
+  return {
+    ...actualAuth,
+    ADMIN_DISCORD_IDS_LIST: ['123456789012345678', '987654321098765432'],
+  };
+});
+
 // Now import auth.ts
 import { authConfig, ADMIN_DISCORD_IDS_LIST } from '@/lib/auth';
 import type { User } from 'next-auth';
@@ -67,6 +76,13 @@ describe('Auth Configuration', () => {
     prisma.user.findUnique.mockClear();
     prisma.user.create.mockClear();
     prisma.user.update.mockClear();
+
+    // Ensure environment variables are set
+    process.env.ADMIN_DISCORD_IDS = '123456789012345678,987654321098765432';
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterEach(() => {

@@ -184,6 +184,10 @@ describe('Error Handling Module', () => {
       jest.restoreAllMocks();
     });
 
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('should handle PrismaClientInitializationError', () => {
       const error = new Prisma.PrismaClientInitializationError(
         new Error('Connection failed')
@@ -200,7 +204,8 @@ describe('Error Handling Module', () => {
         { status: 502 }
       );
       expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining('[ERROR] error-handling: Database error in test context:')
+        '[ERROR] error-handling: Database error in test context:',
+        expect.any(String)
       );
     });
 
@@ -285,12 +290,20 @@ describe('Error Handling Module', () => {
 
     it('should log error with context', () => {
       const error = new Error('Test error');
-      const context = 'players endpoint';
 
-      handleDatabaseError(error, context);
+      handleDatabaseError(error, 'players endpoint');
 
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        {
+          success: false,
+          error: 'Internal server error',
+          code: 'INTERNAL_SERVER_ERROR',
+        },
+        { status: 500 }
+      );
       expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining('[ERROR] error-handling: Database error in players endpoint:')
+        '[ERROR] error-handling: Database error in players endpoint:',
+        expect.any(String)
       );
     });
   });

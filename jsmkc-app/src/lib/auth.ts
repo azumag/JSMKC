@@ -13,12 +13,14 @@ const log = createLogger('auth')
 const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 // Admin User IDs (Discord) - Environment Variable
-const ADMIN_DISCORD_IDS = process.env.ADMIN_DISCORD_IDS?.split(',') || [];
- 
+// Function to allow testing with different environment variable values
+const getAdminDiscordIds = () => process.env.ADMIN_DISCORD_IDS?.split(',') || [];
 
- 
 // Export for testing
-export const ADMIN_DISCORD_IDS_LIST = ADMIN_DISCORD_IDS;
+export const ADMIN_DISCORD_IDS_LIST = getAdminDiscordIds();
+
+// Export function for mocking in tests
+export { getAdminDiscordIds };
 
 // Define auth configuration object for testing
 const authConfig = {
@@ -90,7 +92,7 @@ const authConfig = {
       let role = 'member';
 
       if (account?.provider === 'discord') {
-        if (ADMIN_DISCORD_IDS.includes(account.providerAccountId)) {
+        if (getAdminDiscordIds().includes(account.providerAccountId)) {
           role = 'admin';
         }
       }
