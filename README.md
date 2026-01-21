@@ -349,6 +349,13 @@ MIT
 - ESLintエラーを解消（0 errors, 0 warnings）
 - 全691テストがパス
 
+## 完了したタスク (2026-01-21)
+✅ [Issue #83: React act() warnings in usePolling.test.ts](https://github.com/azumag/JSMKC/issues/83)
+- usePolling.test.ts: React状態更新を適切にact()でラップ
+- renderHook、jest.advanceTimersByTime、refetch呼び出しにact()ラッパーを追加
+- React act()警告を解消（0 warnings）
+- 全691テストがパス
+
 ---
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #78: TypeScriptエラー: src/lib/auth.tsで'user'がundefinedの可能性あり](https://github.com/azumag/JSMKC/issues/78)
