@@ -317,7 +317,7 @@ describe('JWT Refresh Utilities', () => {
       const response = await authenticatedFetch('/api/test', {}, expiredSession);
 
       expect(fetch).toHaveBeenCalledTimes(2);
-      expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session', expect.any(Object));
+      expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session');
       expect(fetch).toHaveBeenNthCalledWith(2, '/api/test', expect.objectContaining({
         headers: expect.any(Headers),
       }));

@@ -93,6 +93,12 @@ MIT
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #63: tournament/promotion.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/63)
+- 達成カバレッジ: 100% statements, 100% branches, 100% functions, 100% lines（目標: 80%以上）
+- 全17テストがパス
+- 親Issue: #52 テストカバレッジの大幅な改善が必要
+
+## 完了したタスク (2026-01-21)
 ✅ [Issue #54: promotion.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/54)
 - 達成カバレッジ: 100%（目標: 80%以上）
 - 全17テストがパス

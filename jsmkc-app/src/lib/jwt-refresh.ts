@@ -87,15 +87,15 @@ export function useAutoRefresh() {
       return false;
     }
 
-    // Check if access token needs refresh
-    if (isAccessTokenExpired(session)) {
-      return await refreshSession();
-    }
-
-    // Check if refresh token is expired (force re-auth)
+    // Check if refresh token is expired first (force re-auth)
     if (isRefreshTokenExpired(session)) {
       await handleSessionRefreshFailure('Your session has expired. Please sign in again.');
       return false;
+    }
+
+    // Check if access token needs refresh
+    if (isAccessTokenExpired(session)) {
+      return await refreshSession();
     }
 
     return true;

@@ -153,9 +153,9 @@ describe('JWT Refresh Utilities', () => {
     it('should return correct expiration status for session', () => {
       const now = Date.now();
       const session: ExtendedSession = {
-        accessTokenExpires: now + 100000,
+        accessTokenExpires: now + 600000,  // 10 minutes in future (more than 5-min buffer)
         refreshTokenExpires: now + 200000,
-        expires: new Date(now + 100000).toISOString(),
+        expires: new Date(now + 600000).toISOString(),
       };
       useSession.mockReturnValue({ data: session, update: jest.fn() });
 
@@ -183,7 +183,7 @@ describe('JWT Refresh Utilities', () => {
     it('should return refresh expired status when refresh token is expired', () => {
       const now = Date.now();
       const session: ExtendedSession = {
-        accessTokenExpires: now + 100000,
+        accessTokenExpires: now + 600000,  // 10 minutes in future (more than 5-min buffer)
         refreshTokenExpires: now - 1000,
         expires: new Date(now - 1000).toISOString(),
       };
@@ -287,7 +287,7 @@ describe('JWT Refresh Utilities', () => {
       const response = await authenticatedFetch('/api/test', {}, expiredSession);
 
       expect(fetch).toHaveBeenCalledTimes(2);
-      expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session', expect.any(Object));
+      expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session');
       expect(fetch).toHaveBeenNthCalledWith(2, '/api/test', expect.any(Object));
     });
 
