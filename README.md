@@ -100,6 +100,12 @@ MIT
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #67: トークン関連ユーティリティのテストカバレッジ改善（token-utils, token-validation）](https://github.com/azumag/JSMKC/issues/67)
+- token-utils.ts: 100% statements, 100% lines (56 tests)
+- token-validation.ts: 94.44% statements, 94.44% lines (30 tests)
+- 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
+
+## 完了したタスク (2026-01-21)
 ✅ [Issue #63: tournament/promotion.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/63)
 - 達成カバレッジ: 100% statements, 100% branches, 100% functions, 100% lines（目標: 80%以上）
 - 全17テストがパス
@@ -112,6 +118,11 @@ MIT
 - score-validation.ts: 100% statements, 100% lines (44 tests)
 - sanitize.ts: 100% statements, 100% lines (51 tests)
 - 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
+
+## 現在のタスク (2026-01-21)
+[Issue #68: プロキシミドルウェアのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/68)
+- proxy.tsのカバレッジを0%から80%以上に改善
+- 認証・認可機能およびセキュリティヘッダーのテスト実装
 
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #54: promotion.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/54)
@@ -213,3 +224,9 @@ MIT
 - Coverage results: token-utils (100% statements), token-validation (94.44% statements)
 - Comprehensive audit completed successfully
 - All 687 tests passing (including 86 new token-related tests)
+
+### 5. Commit and Close ✓
+- Committed and pushed changes to feature/next branch
+- Closed GitHub issue #67
+- Created new issue #68: プロキシミドルウェアのテストカバレッジ改善
+- Returned to step 0 to find new issues to develop
