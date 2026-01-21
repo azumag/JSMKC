@@ -62,9 +62,12 @@ export default auth(async (req) => {
       return NextResponse.redirect(signInUrl)
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+    return new NextResponse(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { 
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      }
     )
   }
 

@@ -1,5 +1,40 @@
-import '@testing-library/jest-dom'
 import { TextEncoder, TextDecoder } from 'util'
+
+// Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
+global.Response = class Response {
+  constructor(body, init = {}) {
+    this.body = body
+    this.status = init.status || 200
+    this.statusText = init.statusText || 'OK'
+    this.headers = new Headers(init.headers || {})
+    this.type = 'default'
+    this.url = ''
+    this.ok = this.status >= 200 && this.status < 300
+    this.redirected = false
+    this.used = false
+  }
+
+  static json(data, init = {}) {
+    const body = JSON.stringify(data)
+    return new Response(body, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    })
+  }
+
+  async json() {
+    return JSON.parse(this.body)
+  }
+
+  async text() {
+    return this.body
+  }
+}
+
+import '@testing-library/jest-dom'
 
 // Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
 Object.defineProperty(global, 'crypto', {
@@ -31,6 +66,53 @@ Object.defineProperty(global, 'TextDecoder', {
   value: TextDecoder,
   writable: true,
 })
+
+// Polyfill Response class and Response.json for Next.js
+if (!global.Response) {
+  global.Response = class Response {
+    constructor(body, init = {}) {
+      this.body = body
+      this.status = init.status || 200
+      this.statusText = init.statusText || 'OK'
+      this.headers = new Headers(init.headers || {})
+      this.type = 'default'
+      this.url = ''
+      this.ok = this.status >= 200 && this.status < 300
+      this.redirected = false
+      this.used = false
+    }
+
+    static json(data, init = {}) {
+      const body = JSON.stringify(data)
+      return new Response(body, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(init.headers || {}),
+        },
+      })
+    }
+
+    async json() {
+      return JSON.parse(this.body)
+    }
+
+    async text() {
+      return this.body
+    }
+  }
+} else if (!Response.json) {
+  Response.json = function (data, init = {}) {
+    const body = JSON.stringify(data)
+    return new Response(body, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    })
+  }
+}
 
 // Mock Prisma client globally
 jest.mock('@/lib/prisma', () => ({

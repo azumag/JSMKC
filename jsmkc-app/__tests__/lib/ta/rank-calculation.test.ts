@@ -1,4 +1,7 @@
-import { calculateEntryTotal, sortByStage, assignRanks } from '@/lib/ta/rank-calculation';
+import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
+import { PrismaClient } from '@prisma/client';
+
+jest.mock('@/lib/prisma');
 
 describe('TA Rank Calculation', () => {
   describe('calculateEntryTotal', () => {
@@ -165,6 +168,106 @@ describe('TA Rank Calculation', () => {
     expect(sorted[3].id).toBe('4');
   });
 
+  describe('sortByStage - finals edge cases', () => {
+    it('should handle both entries eliminated in finals', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: 290357,
+          lives: 3,
+          eliminated: true,
+          stage: 'finals',
+        },
+        {
+          id: '2',
+          totalTime: 754567,
+          lives: 2,
+          eliminated: true,
+          stage: 'finals',
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'finals');
+
+      expect(sorted[0].id).toBe('1');
+      expect(sorted[1].id).toBe('2');
+      expect(sorted.length).toBe(2);
+    });
+
+    it('should prioritize eliminated status over time in finals', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: 290357,
+          lives: 3,
+          eliminated: false,
+          stage: 'finals',
+        },
+        {
+          id: '2',
+          totalTime: 754567,
+          lives: 2,
+          eliminated: true,
+          stage: 'finals',
+        },
+      ];
+
+const sorted = sortByStage(entries, 'finals');
+
+      expect(sorted[0].id).toBe('2');
+      expect(sorted[1].id).toBe('1');
+    });
+  });
+
+    it('should handle eliminated entry with null totalTime in finals', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: null,
+          lives: 0,
+          eliminated: true,
+          stage: 'finals',
+        },
+        {
+          id: '2',
+          totalTime: 290357,
+          lives: 3,
+          eliminated: false,
+          stage: 'finals',
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'finals');
+
+      expect(sorted[0].id).toBe('2');
+      expect(sorted[1].id).toBe('1');
+    });
+
+    it('should handle null totalTime for non-eliminated entry in finals', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: 754567,
+          lives: 2,
+          eliminated: false,
+          stage: 'finals',
+        },
+        {
+          id: '2',
+          totalTime: null,
+          lives: 3,
+          eliminated: false,
+          stage: 'finals',
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'finals');
+
+      expect(sorted[0].id).toBe('2');
+      expect(sorted[1].id).toBe('1');
+    });
+  });
+
   describe('sortByStage - revival', () => {
     const entries = [
       {
@@ -215,6 +318,72 @@ describe('TA Rank Calculation', () => {
     it('should handle empty entries array', () => {
       const rankMap = assignRanks([]);
       expect(rankMap.size).toBe(0);
+    });
+  });
+
+  describe('recalculateRanks', () => {
+    let mockPrisma: any;
+
+    beforeEach(() => {
+      mockPrisma = {
+        tTEntry: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: '1',
+              times: { MC1: '1:23.456', DP1: '1:12.345' },
+              lives: 3,
+              eliminated: false,
+              stage: 'qualification',
+              player: { id: 'player-1' },
+            },
+            {
+              id: '2',
+              times: { MC1: '2:00.000', DP1: '2:00.000' },
+              lives: 2,
+              eliminated: false,
+              stage: 'qualification',
+              player: { id: 'player-2' },
+            },
+          ]),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        $transaction: jest.fn((callbacks: any) => Promise.all(callbacks)),
+      };
+      require('@/lib/prisma').prisma = mockPrisma;
+    });
+
+    it('should recalculate ranks for tournament stage', async () => {
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as PrismaClient);
+
+      expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tournament-1', stage: 'qualification' },
+        include: { player: true },
+      });
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('should handle entries with incomplete times', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValue([
+        {
+          id: '1',
+          times: { MC1: '1:23.456' }, // Incomplete
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          player: { id: 'player-1' },
+        },
+      ]);
+
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as PrismaClient);
+
+      expect(mockPrisma.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            totalTime: null,
+          }),
+        })
+      );
     });
   });
 });

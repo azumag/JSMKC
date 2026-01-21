@@ -32,13 +32,8 @@ const mockGoogle = jest.fn((options) => ({
   ...options,
 }));
 
-// Store the actual config to return it
-let actualConfig = null;
-
 // Mock NextAuth function
 const mockNextAuth = jest.fn((config) => {
-  actualConfig = config;
-
   // Create provider instances from the config
   const providers = [];
   if (config.providers) {

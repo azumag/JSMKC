@@ -10,12 +10,12 @@ import {
 } from '@/lib/jwt-refresh';
 
 // Mock next-auth
-jest.mock('next-auth/react', () => ({
-  signOut: jest.fn(),
-  useSession: jest.fn(),
-}));
+import { signOut as mockSignOut, useSession as mockUseSession } from 'next-auth/react';
 
-const { signOut, useSession } = require('next-auth/react');
+jest.mock('next-auth/react');
+
+const signOut = jest.mocked(mockSignOut);
+const useSession = jest.mocked(mockUseSession);
 
 // Mock window object
 const mockWindow = {
@@ -261,7 +261,7 @@ describe('JWT Refresh Utilities', () => {
     it('should add authorization header with access token', async () => {
       (fetch as jest.Mock).mockResolvedValue(new Response('OK', { status: 200 }));
 
-      const response = await authenticatedFetch('/api/test', {}, mockSession);
+      await authenticatedFetch('/api/test', {}, mockSession);
 
       expect(fetch).toHaveBeenCalledWith(
         '/api/test',
@@ -284,7 +284,7 @@ describe('JWT Refresh Utilities', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }))
         .mockResolvedValueOnce(new Response('OK', { status: 200 }));
 
-      const response = await authenticatedFetch('/api/test', {}, expiredSession);
+      await authenticatedFetch('/api/test', {}, expiredSession);
 
       expect(fetch).toHaveBeenCalledTimes(2);
       expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session');

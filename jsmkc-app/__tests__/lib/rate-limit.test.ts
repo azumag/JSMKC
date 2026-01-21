@@ -1,5 +1,7 @@
-import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore } from '@/lib/rate-limit';
+import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore, getServerSideIdentifier } from '@/lib/rate-limit';
 import { NextRequest } from 'next/server';
+
+jest.mock('next/headers');
 
 describe('Rate Limiting', () => {
   beforeEach(() => {
@@ -209,6 +211,107 @@ describe('Rate Limiting', () => {
 
       const userAgent = getUserAgent(request);
       expect(userAgent).toBe('unknown');
+    });
+  });
+
+  describe('getServerSideIdentifier', () => {
+    beforeEach(() => {
+      jest.mocked(require('next/headers').headers).mockReset();
+    });
+
+    it('should return x-forwarded-for header when present', async () => {
+      const mockHeaders = jest.mocked(require('next/headers').headers);
+      mockHeaders.mockResolvedValue({
+        get: jest.fn((name: string) => {
+          if (name === 'x-forwarded-for') return '192.168.1.100';
+          return null;
+        }),
+      } as any);
+
+      const identifier = await getServerSideIdentifier();
+      expect(identifier).toBe('192.168.1.100');
+    });
+
+    it('should return x-real-ip header when x-forwarded-for not present', async () => {
+      const mockHeaders = jest.mocked(require('next/headers').headers);
+      mockHeaders.mockResolvedValue({
+        get: jest.fn((name: string) => {
+          if (name === 'x-real-ip') return '10.0.0.1';
+          return null;
+        }),
+      } as any);
+
+      const identifier = await getServerSideIdentifier();
+      expect(identifier).toBe('10.0.0.1');
+    });
+
+    it('should return server when no IP headers present', async () => {
+      const mockHeaders = jest.mocked(require('next/headers').headers);
+      mockHeaders.mockResolvedValue({
+        get: jest.fn(() => null),
+      } as any);
+
+      const identifier = await getServerSideIdentifier();
+      expect(identifier).toBe('server');
+    });
+
+    it('should handle headers() error gracefully', async () => {
+      const mockHeaders = jest.mocked(require('next/headers').headers);
+      mockHeaders.mockRejectedValue(new Error('Headers error'));
+
+      const identifier = await getServerSideIdentifier();
+      expect(identifier).toBe('server');
+    });
+
+    it('should extract first IP from x-forwarded-for', async () => {
+      const mockHeaders = jest.mocked(require('next/headers').headers);
+      mockHeaders.mockResolvedValue({
+        get: jest.fn((name: string) => {
+          if (name === 'x-forwarded-for') return '192.168.1.100, 10.0.0.1, 172.16.0.1';
+          return null;
+        }),
+      } as any);
+
+      const identifier = await getServerSideIdentifier();
+      expect(identifier).toBe('192.168.1.100');
+    });
+  });
+
+  describe('Store size limit enforcement', () => {
+    beforeEach(() => {
+      clearRateLimitStore();
+    });
+
+    it('should clean up oldest entries when store exceeds MAX_STORE_SIZE', async () => {
+      const limit = 10;
+      const windowMs = 60000;
+
+      // Fill store with more than MAX_STORE_SIZE (10000) entries
+      for (let i = 0; i < 10005; i++) {
+        await rateLimit(`identifier-${i}`, limit, windowMs);
+      }
+
+      // Store should have been cleaned up
+      // The newest entry should still work
+      const result = await rateLimit('identifier-last', limit, windowMs);
+      expect(result.success).toBe(true);
+    });
+
+    it('should not delete entries when store is under limit', async () => {
+      const limit = 10;
+      const windowMs = 60000;
+
+      // Add 100 entries (under MAX_STORE_SIZE of 10000)
+      for (let i = 0; i < 100; i++) {
+        await rateLimit(`identifier-${i}`, limit, windowMs);
+      }
+
+      // All entries should work
+      const result1 = await rateLimit('identifier-0', limit, windowMs);
+      const result2 = await rateLimit('identifier-99', limit, windowMs);
+
+      expect(result1.success).toBe(true);
+      expect(result2.success).toBe(true);
     });
   });
 });

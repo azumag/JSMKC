@@ -6,32 +6,57 @@ jest.mock('next-auth/providers/google');
 jest.mock('next-auth/providers/credentials');
 
 jest.mock('@/lib/prisma', () => {
-  return {
-    prisma: {
-      player: {
-        findUnique: jest.fn(),
-      },
-      user: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-      },
+  const mockPrisma = {
+    player: {
+      findUnique: jest.fn(),
     },
-  } as any;
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+  return { prisma: mockPrisma };
 });
 
 jest.mock('bcrypt', () => ({
   compare: jest.fn(),
 }));
 
+import { compare as mockBcryptCompare } from 'bcrypt';
+import { prisma as prismaMock } from '@/lib/prisma';
+
 // Now import auth.ts
 import { authConfig, ADMIN_DISCORD_IDS_LIST } from '@/lib/auth';
-import type { JWT } from 'next-auth/jwt';
-import type { Session, User } from 'next-auth';
+import type { User } from 'next-auth';
+import type { OAuthConfig, CredentialsConfig } from 'next-auth/providers';
+import type { DefaultSession } from 'next-auth';
 
-const bcrypt = require('bcrypt');
-const mockBcryptCompare = bcrypt.compare as jest.Mock;
-const prisma = require('@/lib/prisma').prisma;
+type AuthProvider = OAuthConfig<Record<string, unknown>> | CredentialsConfig<Record<string, unknown>>;
+
+interface MockToken {
+  sub?: string;
+  role?: string;
+  userType?: string;
+  playerId?: string;
+  nickname?: string;
+  error?: string | null;
+  [key: string]: unknown;
+}
+
+interface MockSession {
+  user: DefaultSession['user'] & {
+    id?: string;
+    role?: string;
+    userType?: string;
+    playerId?: string;
+    nickname?: string;
+  };
+  error?: string;
+}
+
+const bcryptCompare = jest.mocked(mockBcryptCompare);
+const prisma = prismaMock;
 
 describe('Auth Configuration', () => {
   const mockEnvVars = {
@@ -78,7 +103,7 @@ describe('Auth Configuration', () => {
   describe('Credentials Provider Configuration', () => {
     it('should have credentials provider configured', () => {
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
 
       expect(credentialsProvider).toBeDefined();
@@ -100,7 +125,7 @@ describe('Auth Configuration', () => {
 
     it('should successfully authorize with valid credentials', async () => {
       prisma.player.findUnique.mockResolvedValue(mockPlayer);
-      mockBcryptCompare.mockResolvedValue(true);
+      bcryptCompare.mockResolvedValue(true);
 
       const credentials = {
         nickname: 'testplayer',
@@ -108,7 +133,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
@@ -124,7 +149,7 @@ describe('Auth Configuration', () => {
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { nickname: credentials.nickname },
       });
-      expect(mockBcryptCompare).toHaveBeenCalledWith(credentials.password, mockPlayer.password);
+      expect(bcryptCompare).toHaveBeenCalledWith(credentials.password, mockPlayer.password);
     });
 
     it('should return null when nickname is missing', async () => {
@@ -133,7 +158,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
@@ -147,7 +172,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
@@ -157,7 +182,7 @@ describe('Auth Configuration', () => {
 
     it('should return null when player does not exist', async () => {
       prisma.player.findUnique.mockResolvedValue(null);
-      mockBcryptCompare.mockResolvedValue(true);
+      bcryptCompare.mockResolvedValue(true);
 
       const credentials = {
         nickname: 'nonexistent',
@@ -165,7 +190,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
@@ -180,7 +205,7 @@ describe('Auth Configuration', () => {
         ...mockPlayer,
         password: null,
       });
-      mockBcryptCompare.mockResolvedValue(true);
+      bcryptCompare.mockResolvedValue(true);
 
       const credentials = {
         nickname: 'testplayer',
@@ -188,17 +213,17 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
       expect(result).toBeNull();
-      expect(mockBcryptCompare).not.toHaveBeenCalled();
+      expect(bcryptCompare).not.toHaveBeenCalled();
     });
 
     it('should return null when password does not match', async () => {
       prisma.player.findUnique.mockResolvedValue(mockPlayer);
-      mockBcryptCompare.mockResolvedValue(false);
+      bcryptCompare.mockResolvedValue(false);
 
       const credentials = {
         nickname: 'testplayer',
@@ -206,12 +231,12 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
       const result = await credentialsProvider?.authorize?.(credentials);
 
       expect(result).toBeNull();
-      expect(mockBcryptCompare).toHaveBeenCalledWith('wrongpassword', mockPlayer.password);
+      expect(bcryptCompare).toHaveBeenCalledWith('wrongpassword', mockPlayer.password);
     });
 
     it('should handle database errors gracefully', async () => {
@@ -223,7 +248,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        (p: any) => p.id === 'player-credentials'
+        (p: AuthProvider) => 'id' in p && p.id === 'player-credentials'
       );
 
       await expect(credentialsProvider?.authorize?.(credentials)).rejects.toThrow('Database error');
@@ -233,7 +258,7 @@ describe('Auth Configuration', () => {
   describe('OAuth Providers Configuration', () => {
     it('should have Discord provider configured', () => {
       const discordProvider = authConfig.providers.find(
-        (p: any) => p.id === 'discord'
+        (p: AuthProvider) => 'id' in p && p.id === 'discord'
       );
 
       expect(discordProvider).toBeDefined();
@@ -242,7 +267,7 @@ describe('Auth Configuration', () => {
 
     it('should have GitHub provider configured', () => {
       const githubProvider = authConfig.providers.find(
-        (p: any) => p.id === 'github'
+        (p: AuthProvider) => 'id' in p && p.id === 'github'
       );
 
       expect(githubProvider).toBeDefined();
@@ -251,7 +276,7 @@ describe('Auth Configuration', () => {
 
     it('should have Google provider configured with authorization params', () => {
       const googleProvider = authConfig.providers.find(
-        (p: any) => p.id === 'google'
+        (p: AuthProvider) => 'id' in p && p.id === 'google'
       );
 
       expect(googleProvider).toBeDefined();
@@ -460,7 +485,7 @@ describe('Auth Configuration', () => {
   });
 
   describe('session Callback', () => {
-    const mockToken: any = {
+    const mockToken: MockToken = {
       sub: 'user-1',
       role: 'admin',
       userType: 'admin',
@@ -469,7 +494,7 @@ describe('Auth Configuration', () => {
       error: null,
     };
 
-    const mockSession: any = {
+    const mockSession: MockSession = {
       user: {
         id: '',
         role: '',
@@ -533,7 +558,7 @@ describe('Auth Configuration', () => {
         userType: 'admin',
       };
 
-      const freshSession: any = {
+      const freshSession: MockSession = {
         user: {
           id: '',
           role: '',
@@ -565,7 +590,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle missing user in session', async () => {
-      const sessionWithoutUser: any = {
+      const sessionWithoutUser: { user?: unknown } = {
         user: undefined,
       };
 
@@ -592,9 +617,9 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle token.sub not being a string', async () => {
-      const tokenWithStringSub = {
+      const tokenWithStringSub: MockToken = {
         ...mockToken,
-        sub: '123' as any,
+        sub: '123',
       };
 
       const result = await authConfig.callbacks.session!({
@@ -832,7 +857,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle case where user.email is undefined', async () => {
-      const userWithoutEmail = { ...mockUser, email: undefined as any };
+      const userWithoutEmail: User = { ...mockUser, email: undefined as string | undefined };
       prisma.user.findUnique.mockResolvedValue(null);
 
       const existingToken = {};
@@ -880,7 +905,7 @@ describe('Auth Configuration', () => {
         account: mockAccount,
       });
 
-      expect((result as any).customProperty).toBe('custom-value');
+      expect((result as Record<string, unknown>).customProperty).toBe('custom-value');
     });
   });
 

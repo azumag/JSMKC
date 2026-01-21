@@ -10,12 +10,12 @@ import {
 } from '@/lib/jwt-refresh';
 
 // Mock next-auth
-jest.mock('next-auth/react', () => ({
-  signOut: jest.fn(),
-  useSession: jest.fn(),
-}));
+import { signOut as mockSignOut, useSession as mockUseSession } from 'next-auth/react';
 
-const { signOut, useSession } = require('next-auth/react');
+jest.mock('next-auth/react');
+
+const signOut = jest.mocked(mockSignOut);
+const useSession = jest.mocked(mockUseSession);
 
 // Mock window object
 const mockWindow = {
@@ -143,7 +143,7 @@ describe('JWT Refresh Utilities', () => {
   describe('useAutoRefresh', () => {
     it('should return null session status when no session exists', () => {
       const mockSession = { data: null, update: jest.fn() };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const result = useAutoRefresh();
 
@@ -151,8 +151,6 @@ describe('JWT Refresh Utilities', () => {
       expect(result.isRefreshExpired).toBe(true);
       expect(result.refreshSession).toBeDefined();
       expect(result.ensureValidSession).toBeDefined();
-
-      useSessionSpy.mockRestore();
     });
 
     it('should return correct expiration status for session', () => {
@@ -163,14 +161,12 @@ describe('JWT Refresh Utilities', () => {
         expires: new Date(now + 3600000).toISOString(),
       };
       const mockSession = { data: session, update: jest.fn() };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const result = useAutoRefresh();
 
       expect(result.isExpired).toBe(false);
       expect(result.isRefreshExpired).toBe(false);
-
-      useSessionSpy.mockRestore();
     });
 
     it('should return expired status when access token is expired', () => {
@@ -181,14 +177,12 @@ describe('JWT Refresh Utilities', () => {
         expires: new Date(now).toISOString(),
       };
       const mockSession = { data: session, update: jest.fn() };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const result = useAutoRefresh();
 
       expect(result.isExpired).toBe(true);
       expect(result.isRefreshExpired).toBe(false);
-
-      useSessionSpy.mockRestore();
     });
 
     it('should return refresh expired status when refresh token is expired', () => {
@@ -199,27 +193,23 @@ describe('JWT Refresh Utilities', () => {
         expires: new Date(now - 2000).toISOString(),
       };
       const mockSession = { data: session, update: jest.fn() };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const result = useAutoRefresh();
 
       expect(result.isExpired).toBe(false);
       expect(result.isRefreshExpired).toBe(true);
-
-      useSessionSpy.mockRestore();
     });
 
     it('should redirect to sign in when no session exists on ensureValidSession', async () => {
       const mockSession = { data: null, update: jest.fn() };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const { ensureValidSession } = useAutoRefresh();
       const result = await ensureValidSession();
 
       expect(result).toBe(false);
       expect(mockWindow.location.href).toBe('/auth/signin');
-
-      useSessionSpy.mockRestore();
     });
 
     it('should refresh session when access token is expired', async () => {
@@ -231,15 +221,13 @@ describe('JWT Refresh Utilities', () => {
       };
       const update = jest.fn().mockResolvedValue({});
       const mockSession = { data: session, update };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const { ensureValidSession } = useAutoRefresh();
       const result = await ensureValidSession();
 
       expect(update).toHaveBeenCalled();
       expect(result).toBe(true);
-
-      useSessionSpy.mockRestore();
     });
 
     it('should handle refresh token expiration gracefully', async () => {
@@ -253,7 +241,7 @@ describe('JWT Refresh Utilities', () => {
       signOut.mockResolvedValue(undefined);
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       const mockSession = { data: session, update };
-      const useSessionSpy = jest.spyOn(require('next-auth/react'), 'useSession').mockReturnValue(mockSession);
+      useSession.mockReturnValue(mockSession);
 
       const { ensureValidSession } = useAutoRefresh();
       const result = await ensureValidSession();
@@ -262,7 +250,6 @@ describe('JWT Refresh Utilities', () => {
       expect(mockWindow.location.href).toContain('/auth/signin');
 
       consoleSpy.mockRestore();
-      useSessionSpy.mockRestore();
     });
   });
 
@@ -282,7 +269,7 @@ describe('JWT Refresh Utilities', () => {
     it('should add authorization header with access token', async () => {
       (fetch as jest.Mock).mockResolvedValue(new Response('OK', { status: 200 }));
 
-      const response = await authenticatedFetch('/api/test', {}, mockSession);
+      await authenticatedFetch('/api/test', {}, mockSession);
 
       expect(fetch).toHaveBeenCalledWith(
         '/api/test',
@@ -314,7 +301,7 @@ describe('JWT Refresh Utilities', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify(mockRefreshedSession), { status: 200 }))
         .mockResolvedValueOnce(new Response('OK', { status: 200 }));
 
-      const response = await authenticatedFetch('/api/test', {}, expiredSession);
+      await authenticatedFetch('/api/test', {}, expiredSession);
 
       expect(fetch).toHaveBeenCalledTimes(2);
       expect(fetch).toHaveBeenNthCalledWith(1, '/api/auth/session');
