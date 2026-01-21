@@ -317,11 +317,30 @@ MIT
 - Returned to step 0 to find new issues to develop
 
 ---
+## 完了したタスク (2026-01-21)
+✅ [Issue #79: Build Error: Log Directory Creation Fails in Production Build](https://github.com/azumag/JSMKC/issues/79)
+- ログディレクトリ作成エラーを修正（process.cwd()を使用）
+- usePolling.tsのテストでact()警告を解消
+- 全23テストスイート、691テストがパス
+
+---
 ## 現在のタスク (2026-01-21)
-[Issue #74: Critical Test Failures and ESLint Errors](https://github.com/azumag/JSMKC/issues/74)
-- 🔴 test failures: audit-log.test.ts (6 tests failing - prisma not defined)
-- 🔴 syntax error: standings-cache.test.ts (missing closing brace)
-- 🔴 ESLint errors: 16 errors across 4 files (auth.test.ts, auth.ts, logger.ts, redis-rate-limit.ts)
+#80: Remove unused variable result in usePolling.test.ts
+
+---
+## 完了したタスク (2026-01-21)
+✅ [Issue #78: TypeScriptエラー: src/lib/auth.tsで'user'がundefinedの可能性あり](https://github.com/azumag/JSMKC/issues/78)
+- auth.ts: signInコールバックにuserのnullチェックを追加、jwtコールバックで型ガードを改善
+- logger.ts: fsモジュールのインポートとmkdirSyncの使用を修正
+- error-handling.ts, redis-rate-limit.ts, sanitize-error.ts, validation/middleware.ts:
+  - すべてのlog.error呼び出しでerrorパラメータをオブジェクト形式に変更
+  - TypeScriptコンパイルエラーを解消
+
+## 完了したタスク (2026-01-21)
+✅ [Issue #74: Critical Test Failures and ESLint Errors](https://github.com/azumag/JSMKC/issues/74)
+- test failures: audit-log.test.ts (6 tests failing - prisma not defined)
+- syntax error: standings-cache.test.ts (missing closing brace)
+- ESLint errors: 16 errors across 4 files (auth.test.ts, auth.ts, logger.ts, redis-rate-limit.ts)
 - 📋 Acceptance criteria: All tests pass, all ESLint errors resolved
 
 ### 0. find issues ✓

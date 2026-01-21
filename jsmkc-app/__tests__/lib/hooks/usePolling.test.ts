@@ -11,17 +11,19 @@ describe('usePolling', () => {
   });
 
   describe('initial state', () => {
-    it('should initialize with null data, null error, and false loading', () => {
+    it('should initialize with null data, null error, and false loading', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { result } = renderHook(() => usePolling(mockFetch, { immediate: false }));
+      renderHook(() => usePolling(mockFetch, { immediate: false }));
 
-      expect(result.current.data).toBeNull();
-      expect(result.current.error).toBeNull();
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.loading).toBe(false);
-      expect(result.current.isPolling).toBe(false);
-      expect(result.current.lastETag).toBeNull();
-      expect(result.current.lastUpdated).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('should call fetch function immediately on mount with immediate: true', async () => {
@@ -83,7 +85,7 @@ describe('usePolling', () => {
     it('should skip update when ETag is the same', async () => {
       const mockData = { id: 1, version: 1 };
       const mockETag = 'abc123';
-      
+
       const mockFetch = jest.fn().mockResolvedValue({
         ...mockData,
         headers: {

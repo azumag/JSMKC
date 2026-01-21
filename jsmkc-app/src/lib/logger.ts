@@ -79,8 +79,11 @@ const transports: winston.transport[] = [
 if (process.env.NODE_ENV === 'production') {
   try {
     // Ensure logs directory exists
-    const logsDir = path.join(__dirname, '../../logs');
-    fs.promises.mkdir(logsDir, { recursive: true });
+    // Use process.cwd() instead of __dirname to handle build environment correctly
+    const logsDir = path.join(process.cwd(), 'logs');
+    fs.promises.mkdir(logsDir, { recursive: true }).catch(() => {
+      // Ignore errors - if directory can't be created, just use console transport
+    });
 
     transports.push(
       // File transport for errors

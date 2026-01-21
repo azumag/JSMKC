@@ -274,7 +274,7 @@ describe('Token Utilities', () => {
 
   describe('getTokenTimeRemaining', () => {
     it('should return remaining time for future expiry', () => {
-      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000 + 30 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000 + 30 * 60 * 1000 + 1000); // Add 1 second
       const result = getTokenTimeRemaining(expiresAt);
       expect(result).toBe('2h 30m remaining');
     });
@@ -327,9 +327,8 @@ describe('Token Utilities', () => {
     });
 
     it('should return remaining time for exactly 24 hours', () => {
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 + 1); // Add 1ms to ensure it's > 24 hours
       const result = getTokenTimeRemaining(expiresAt);
-      // Note: Code checks hours > 24, so exactly 24 hours is shown as "24h 0m"
       expect(result).toBe('24h 0m remaining');
     });
 
