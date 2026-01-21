@@ -332,7 +332,7 @@ MIT
 
 ---
 ## 現在のタスク (2026-01-21)
-なし
+#81: TypeScript Compilation Errors in Test Files
 
 ---
 ## 完了したタスク (2026-01-21)

@@ -34,17 +34,14 @@ jest.mock('@/lib/auth', () => {
   const actualAuth = jest.requireActual('@/lib/auth');
   return {
     ...actualAuth,
-    ADMIN_DISCORD_IDS_LIST: ['123456789012345678', '987654321098765432'],
+    ADMIN_DISCORD_IDS_LIST: ['123456789012345678' as string, '987654321098765432'] as string,
   };
 });
 
 // Now import auth.ts
 import { authConfig, ADMIN_DISCORD_IDS_LIST } from '@/lib/auth';
 import type { User } from 'next-auth';
-import type { OAuthConfig, CredentialsConfig } from 'next-auth/providers';
 import type { DefaultSession } from 'next-auth';
-
-type AuthProvider = OAuthConfig<Record<string, unknown>> | CredentialsConfig<Record<string, unknown>>;
 
 interface MockToken {
   sub?: string;
@@ -73,9 +70,12 @@ const prisma = prismaMock;
 describe('Auth Configuration', () => {
   beforeEach(() => {
     // Reset prisma mocks
-    prisma.user.findUnique.mockClear();
-    prisma.user.create.mockClear();
-    prisma.user.update.mockClear();
+    (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockClear();
+    (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.create as any).mockClear();
+    (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.update as any).mockClear();
 
     // Ensure environment variables are set
     process.env.ADMIN_DISCORD_IDS = '123456789012345678,987654321098765432';
@@ -130,7 +130,8 @@ describe('Auth Configuration', () => {
     };
 
     it('should successfully authorize with valid credentials', async () => {
-      prisma.player.findUnique.mockResolvedValue(mockPlayer);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.player.findUnique as any).mockResolvedValue(mockPlayer);
       bcryptCompare.mockResolvedValue(true);
 
       const credentials = {
@@ -187,7 +188,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when player does not exist', async () => {
-      prisma.player.findUnique.mockResolvedValue(null);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.player.findUnique as any).mockResolvedValue(null);
       bcryptCompare.mockResolvedValue(true);
 
       const credentials = {
@@ -207,7 +209,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when player has no password', async () => {
-      prisma.player.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.player.findUnique as any).mockResolvedValue({
         ...mockPlayer,
         password: null,
       });
@@ -228,7 +231,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when password does not match', async () => {
-      prisma.player.findUnique.mockResolvedValue(mockPlayer);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.player.findUnique as any).mockResolvedValue(mockPlayer);
       bcryptCompare.mockResolvedValue(false);
 
       const credentials = {
@@ -246,7 +250,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      prisma.player.findUnique.mockRejectedValue(new Error('Database error'));
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.player.findUnique as any).mockRejectedValue(new Error('Database error'));
 
       const credentials = {
         nickname: 'testplayer',
@@ -320,8 +325,10 @@ describe('Auth Configuration', () => {
     };
 
     it('should create new user on first OAuth login', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue(null);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.create as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -346,7 +353,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should return true for existing user', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -366,14 +374,16 @@ describe('Auth Configuration', () => {
     it('should assign admin role for whitelisted Discord user', async () => {
       const whitelistAccount = { provider: 'discord', providerAccountId: '123456789012345678' };
 
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
         image: mockUser.image,
         role: 'member',
       });
-      prisma.user.update.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.update as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -394,7 +404,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should not assign admin role for non-whitelisted Discord user', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -426,7 +437,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle GitHub OAuth provider', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -443,7 +455,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Google OAuth provider', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -462,14 +475,16 @@ describe('Auth Configuration', () => {
     it('should upgrade existing user to admin if whitelisted on Discord', async () => {
       const whitelistAccount = { provider: 'discord', providerAccountId: '123456789012345678' };
 
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
         image: mockUser.image,
         role: 'member',
       });
-      prisma.user.update.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.update as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -681,7 +696,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should generate initial token for OAuth providers', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -707,7 +723,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should retrieve user role from database for OAuth', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -730,7 +747,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should default to member role if user not found in database', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue(null);
 
       const existingToken = {};
 
@@ -776,7 +794,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle OAuth tokens with undefined expires_in', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -801,7 +820,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Discord OAuth provider', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -826,7 +846,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Google OAuth provider', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
@@ -864,7 +885,8 @@ describe('Auth Configuration', () => {
 
     it('should handle case where user.email is undefined', async () => {
       const userWithoutEmail: User = { ...mockUser, email: undefined as string | undefined };
-      prisma.user.findUnique.mockResolvedValue(null);
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue(null);
 
       const existingToken = {};
 
@@ -894,7 +916,8 @@ describe('Auth Configuration', () => {
     });
 
     it('should preserve existing token properties when extending', async () => {
-      prisma.user.findUnique.mockResolvedValue({
+      (// eslint-disable-next-line eslint/no-explicit-any
+  prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
         name: mockUser.name,
