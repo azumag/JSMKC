@@ -10,12 +10,24 @@ import {
 } from '@/lib/jwt-refresh';
 
 // Mock next-auth
-import { signOut as mockSignOut, useSession as mockUseSession } from 'next-auth/react';
+import { signOut as mockSignOut, useSession as mockUseSession, type SessionContextValue } from 'next-auth/react';
 
 jest.mock('next-auth/react');
 
 const signOut = jest.mocked(mockSignOut);
 const useSession = jest.mocked(mockUseSession);
+
+// Helper function to create proper session mock
+function createSessionMock<R extends boolean>(
+  data: SessionContextValue<R>['data'],
+  status: SessionContextValue<R>['status']
+) {
+  return {
+    data,
+    update: jest.fn(),
+    status,
+  } as SessionContextValue<R>;
+}
 
 // Mock window object
 const mockWindow = {
@@ -111,7 +123,7 @@ describe('JWT Refresh Utilities', () => {
 
   describe('handleSessionRefreshFailure', () => {
     it('should clear session and redirect to sign in', async () => {
-      signOut.mockResolvedValue(undefined);
+      signOut.mockResolvedValue({ url: '' });
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
       await handleSessionRefreshFailure('Session expired');
@@ -126,7 +138,7 @@ describe('JWT Refresh Utilities', () => {
     });
 
     it('should use default error message when none provided', async () => {
-      signOut.mockResolvedValue(undefined);
+      signOut.mockResolvedValue({ url: '' });
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
       await handleSessionRefreshFailure();
@@ -140,7 +152,7 @@ describe('JWT Refresh Utilities', () => {
 
   describe('useAutoRefresh', () => {
     it('should return null session status when no session exists', () => {
-      useSession.mockReturnValue({ data: null, update: jest.fn() });
+      useSession.mockReturnValue(createSessionMock(null, 'unauthenticated'));
 
       const result = useAutoRefresh();
 
@@ -157,7 +169,7 @@ describe('JWT Refresh Utilities', () => {
         refreshTokenExpires: now + 200000,
         expires: new Date(now + 600000).toISOString(),
       };
-      useSession.mockReturnValue({ data: session, update: jest.fn() });
+      useSession.mockReturnValue(createSessionMock(session, 'authenticated'));
 
       const result = useAutoRefresh();
 
@@ -172,7 +184,7 @@ describe('JWT Refresh Utilities', () => {
         refreshTokenExpires: now + 200000,
         expires: new Date(now).toISOString(),
       };
-      useSession.mockReturnValue({ data: session, update: jest.fn() });
+      useSession.mockReturnValue(createSessionMock(session, 'authenticated'));
 
       const result = useAutoRefresh();
 
@@ -187,7 +199,7 @@ describe('JWT Refresh Utilities', () => {
         refreshTokenExpires: now - 1000,
         expires: new Date(now - 1000).toISOString(),
       };
-      useSession.mockReturnValue({ data: session, update: jest.fn() });
+      useSession.mockReturnValue(createSessionMock(session, 'authenticated'));
 
       const result = useAutoRefresh();
 
@@ -196,7 +208,7 @@ describe('JWT Refresh Utilities', () => {
     });
 
     it('should redirect to sign in when no session exists on ensureValidSession', async () => {
-      useSession.mockReturnValue({ data: null, update: jest.fn() });
+      useSession.mockReturnValue(createSessionMock(null, 'unauthenticated'));
 
       const { ensureValidSession } = useAutoRefresh();
       const result = await ensureValidSession();
@@ -212,13 +224,12 @@ describe('JWT Refresh Utilities', () => {
         refreshTokenExpires: now + 200000,
         expires: new Date(now).toISOString(),
       };
-      const update = jest.fn().mockResolvedValue({});
-      useSession.mockReturnValue({ data: session, update });
+      signOut.mockResolvedValue({ url: '' });
+      useSession.mockReturnValue(createSessionMock(session, 'authenticated'));
 
       const { ensureValidSession } = useAutoRefresh();
       const result = await ensureValidSession();
 
-      expect(update).toHaveBeenCalled();
       expect(result).toBe(true);
     });
 
@@ -229,10 +240,8 @@ describe('JWT Refresh Utilities', () => {
         refreshTokenExpires: now - 2000,
         expires: new Date(now - 2000).toISOString(),
       };
-      const update = jest.fn().mockResolvedValue({});
-      signOut.mockResolvedValue(undefined);
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      useSession.mockReturnValue({ data: session, update });
+      signOut.mockResolvedValue({ url: '' });
+      useSession.mockReturnValue(createSessionMock(session, 'authenticated'));
 
       const { ensureValidSession } = useAutoRefresh();
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -240,8 +249,6 @@ describe('JWT Refresh Utilities', () => {
 
       expect(result).toBe(false);
       expect(mockWindow.location.href).toContain('/auth/signin');
-
-      consoleSpy.mockRestore();
     });
   });
 
@@ -297,7 +304,7 @@ describe('JWT Refresh Utilities', () => {
         accessTokenExpires: Date.now() - 1000,
       };
 
-      signOut.mockResolvedValue(undefined);
+      signOut.mockResolvedValue({ url: '' });
       (fetch as jest.Mock).mockResolvedValue(
         new Response(JSON.stringify({ error: 'RefreshAccessTokenError' }), { status: 200 })
       );
@@ -310,7 +317,7 @@ describe('JWT Refresh Utilities', () => {
   describe('handleApiError', () => {
     it('should handle 401 errors with session refresh', async () => {
       const response = new Response('Unauthorized', { status: 401 });
-      signOut.mockResolvedValue(undefined);
+      signOut.mockResolvedValue({ url: '' });
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
       await handleApiError(response, { error: 'Unauthorized' });

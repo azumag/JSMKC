@@ -56,7 +56,7 @@ export async function getCache<T = unknown>(key: string): Promise<T | null> {
     log.debug(`Cache hit for key: ${key}`);
     return entry.data;
   } catch (error) {
-    log.error(`Cache get failed for key ${key}:`, error);
+    log.error(`Cache get failed for key ${key}:`, error as Record<string, unknown>);
     return null;
   }
 }
@@ -81,7 +81,7 @@ export async function setCache<T = unknown>(
 
     log.debug(`Cache set for key: ${key} with TTL: ${ttl}ms`);
   } catch (error) {
-    log.error(`Cache set failed for key ${key}:`, error);
+    log.error(`Cache set failed for key ${key}:`, error as Record<string, unknown>);
   }
 }
 
@@ -92,7 +92,7 @@ export async function deleteCache(key: string): Promise<void> {
     await client.del(key);
     log.debug(`Cache deleted for key: ${key}`);
   } catch (error) {
-    log.error(`Cache delete failed for key ${key}:`, error);
+    log.error(`Cache delete failed for key ${key}:`, error as Record<string, unknown>);
   }
 }
 
@@ -106,7 +106,7 @@ export async function clearAllCache(): Promise<void> {
     }
     log.debug('All cache cleared');
   } catch (error) {
-    log.error('Clear all cache failed:', error);
+    log.error('Clear all cache failed:', error as Record<string, unknown>);
   }
 }
 
@@ -159,7 +159,7 @@ export async function invalidateStandingsCache(
       log.debug(`Invalidated all standings cache for tournament ${tournamentId}`);
     }
   } catch (error) {
-    log.error('Failed to invalidate standings cache:', error);
+    log.error('Failed to invalidate standings cache:', error as Record<string, unknown>);
   }
 }
 
