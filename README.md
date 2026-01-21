@@ -356,6 +356,13 @@ MIT
 - React act()警告を解消（0 warnings）
 - 全691テストがパス
 
+## 完了したタスク (2026-01-21)
+✅ [Issue #84: Build Warning: Multiple lockfiles detected by Next.js](https://github.com/azumag/JSMKC/issues/84)
+- Redis依存パッケージをjsmkc-app/package.jsonに移動
+- ルートディレクトリのpackage-lock.jsonを削除
+- Next.jsビルド警告を解消（0 warnings）
+- 全691テストがパス
+
 ---
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #78: TypeScriptエラー: src/lib/auth.tsで'user'がundefinedの可能性あり](https://github.com/azumag/JSMKC/issues/78)
