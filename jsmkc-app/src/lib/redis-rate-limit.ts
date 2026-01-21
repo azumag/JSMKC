@@ -32,7 +32,7 @@ export async function getRedisClient() {
     });
 
     redisClient.on('error', (err) => {
-      log.error('Redis Client Error:', err);
+      log.error('Redis Client Error:', { error: err });
     });
 
     redisClient.on('connect', () => {
@@ -100,7 +100,7 @@ export async function checkRateLimit(
       retryAfter: undefined,
     };
   } catch (error) {
-    log.error('Rate limit check failed:', error);
+    log.error('Rate limit check failed:', { error });
     // Fallback to in-memory if Redis fails
     return {
       success: true,
@@ -142,6 +142,6 @@ export async function clearRateLimitData(identifier?: string) {
       }
     }
   } catch (error) {
-    log.error('Failed to clear rate limit data:', error);
+    log.error('Failed to clear rate limit data:', { error });
   }
 }

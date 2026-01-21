@@ -205,7 +205,7 @@ describe('Error Handling Module', () => {
       );
       expect(console.error).toHaveBeenCalledWith(
         '[ERROR] error-handling: Database error in test context:',
-        expect.any(String)
+        expect.objectContaining({ message: expect.any(String) })
       );
     });
 
@@ -303,7 +303,7 @@ describe('Error Handling Module', () => {
       );
       expect(console.error).toHaveBeenCalledWith(
         '[ERROR] error-handling: Database error in players endpoint:',
-        expect.any(String)
+        expect.objectContaining({ message: expect.any(String) })
       );
     });
   });

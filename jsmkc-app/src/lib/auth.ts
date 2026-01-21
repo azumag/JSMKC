@@ -88,6 +88,16 @@ const authConfig = {
   },
   callbacks: {
     async signIn({ user, account }: { user?: User; account?: Account | null }) {
+      // Return early if user is undefined (should not happen with OAuth providers)
+      if (!user) {
+        return true;
+      }
+
+      // Return early if user email is null (cannot identify user)
+      if (!user.email) {
+        return true;
+      }
+
       // Support Discord, GitHub and Google OAuth
       let role = 'member';
 
@@ -101,13 +111,13 @@ const authConfig = {
       try {
         // ユーザーが存在するか確認、なければ作成
         const existingUser = await prisma.user.findUnique({
-          where: { email: user.email! },
+          where: { email: user.email },
         });
 
         if (!existingUser) {
           await prisma.user.create({
             data: {
-              email: user.email!,
+              email: user.email,
               name: user.name,
               image: user.image,
               role: role,
@@ -123,7 +133,8 @@ const authConfig = {
 
         return true;
       } catch (err) {
-        log.error(`Error during ${account?.provider} sign in:`, err);
+        const errorMeta = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+        log.error(`Error during ${account?.provider} sign in:`, errorMeta);
         return true;
       }
     },
@@ -163,8 +174,16 @@ const authConfig = {
         }
 
         // Handle OAuth providers (Discord, GitHub, Google)
+        // Skip if user.email is null, return token with default role
+        if (!user.email) {
+          return {
+            ...token,
+            role: 'member'
+          } as JWT;
+        }
+
         // Fetch user role from DB to be sure
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
         const role = dbUser?.role || 'member';
 
         return {

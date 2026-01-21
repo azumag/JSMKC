@@ -46,7 +46,7 @@ export function withValidation<T>(
       // Call the original handler with validated data
       return await handler(req, validatedData);
     } catch (error) {
-      log.error('Validation error:', error);
+      log.error('Validation error:', { error });
       
       if (error instanceof ValidationError) {
         return handleValidationError(error.message);
@@ -99,7 +99,7 @@ export function withJsonValidation<T>(
       // Call the original handler with validated data
       return await handler(req, validatedData);
     } catch (error) {
-      log.error('JSON validation error:', error);
+      log.error('JSON validation error:', { error });
       
       if (error instanceof SyntaxError) {
         return handleValidationError('Invalid JSON format');
@@ -129,7 +129,7 @@ export function withQueryValidation<T>(
       // Call the original handler with validated data
       return await handler(req, validatedData);
     } catch (error) {
-      log.error('Query validation error:', error);
+      log.error('Query validation error:', { error });
       return handleValidationError('Invalid query parameters');
     }
   };

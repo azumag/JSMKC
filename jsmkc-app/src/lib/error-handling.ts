@@ -87,7 +87,7 @@ export function handleDatabaseError(
   context: string
 ): NextResponse<ErrorResponse> {
   const sanitizedError = sanitizeDatabaseError(error, context);
-  log.error(`Database error in ${context}:`, sanitizedError);
+  log.error(`Database error in ${context}:`, { message: sanitizedError });
 
   // Prisma initialization errors (502)
   if (error instanceof Prisma.PrismaClientInitializationError) {

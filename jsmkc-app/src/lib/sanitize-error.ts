@@ -90,7 +90,7 @@ export function sanitizeError(error: unknown, context?: string): string {
 
     return sanitized;
   } catch (sanitizationError) {
-    log.error('Failed to sanitize error:', sanitizationError);
+    log.error('Failed to sanitize error:', { error: sanitizationError });
     return 'An error occurred (sanitization failed)';
   }
 }

@@ -1,6 +1,6 @@
 import winston from 'winston'
 import path from 'path'
-import { promises as fs } from 'fs'
+import * as fs from 'fs'
 
 // Define log levels
 const levels = {
@@ -80,7 +80,7 @@ if (process.env.NODE_ENV === 'production') {
   try {
     // Ensure logs directory exists
     const logsDir = path.join(__dirname, '../../logs');
-    fs.mkdirSync(logsDir, { recursive: true });
+    fs.promises.mkdir(logsDir, { recursive: true });
 
     transports.push(
       // File transport for errors

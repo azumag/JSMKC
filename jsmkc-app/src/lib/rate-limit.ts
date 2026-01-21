@@ -26,7 +26,7 @@ export async function checkRateLimit(
   try {
     return await checkRateLimitByType(type, identifier);
   } catch (error) {
-    log.warn('Redis rate limiting failed, falling back to in-memory:', error);
+    log.warn('Redis rate limiting failed, falling back to in-memory:', { error });
     // Fallback to in-memory rate limiting if Redis fails
     const config = rateLimitConfigs[type] || rateLimitConfigs.general;
     return rateLimitInMemory(identifier, config.limit, config.windowMs);
