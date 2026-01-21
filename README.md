@@ -324,8 +324,15 @@ MIT
 - 全23テストスイート、691テストがパス
 
 ---
+## 完了したタスク (2026-01-21)
+✅ [Issue #80: Remove unused variable result in usePolling.test.ts](https://github.com/azumag/JSMKC/issues/80)
+- usePolling.test.ts: 未使用変数resultを削除
+- ESLint警告を解消（0 warnings, 0 errors）
+- 全691テストがパス
+
+---
 ## 現在のタスク (2026-01-21)
-#80: Remove unused variable result in usePolling.test.ts
+なし
 
 ---
 ## 完了したタスク (2026-01-21)
