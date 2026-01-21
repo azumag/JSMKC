@@ -120,11 +120,15 @@ MIT
 - 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
 
 ## 現在のタスク (2026-01-21)
-[Issue #69: ESLintエラーと重要なライブラリモジュールのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/69)
-- ESLintエラーの修正（29件）
-- 重要なライブラリモジュールのカバレッジを80%以上に改善
+なし
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #75: Standings-Cache Test Failures and ESLint Error](https://github.com/azumag/JSMKC/issues/75)
+- 16個のテスト失敗を修正（async/awaitの追加）
+- ESLintエラーを修正（mockCache: let → const）
+- coverageディレクトリをESLint ignoreに追加
+- 全38テストがパス
+
 ✅ [Issue #68: プロキシミドルウェアのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/68)
 - 達成カバレッジ: 100%（目標: 80%以上）
 - 全37テストがパス
