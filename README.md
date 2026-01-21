@@ -123,6 +123,12 @@ MIT
 なし
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #76: Failing Tests in auth.test.ts and error-handling.test.ts](https://github.com/azumag/JSMKC/issues/76)
+- auth.ts: ADMIN_DISCORD_IDSを関数に変更してテスト環境での動的読み取りを可能に
+- auth.test.ts: ADMIN_DISCORD_IDS_LISTを固定配列にMockしてテストの一貫性を確保
+- error-handling.test.ts: console.errorのテストアサーションを修正
+- 全729テストがパス
+
 ✅ [Issue #75: Standings-Cache Test Failures and ESLint Error](https://github.com/azumag/JSMKC/issues/75)
 - 16個のテスト失敗を修正（async/awaitの追加）
 - ESLintエラーを修正（mockCache: let → const）
