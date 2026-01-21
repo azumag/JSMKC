@@ -15,12 +15,16 @@ export interface PaginationOptions {
 
 export function getPaginationParams(options: PaginationOptions = {}) {
   const page = Math.max(1, Number(options.page) || 1);
-  const limit = Math.max(1, Math.min(100, Number(options.limit) || 50));
+  
+  const limit = Number(options.limit);
+  const finalLimit = limit && limit > 0 
+    ? Math.min(100, limit) 
+    : 50;
   
   return {
     page,
-    limit,
-    skip: (page - 1) * limit,
+    limit: finalLimit,
+    skip: (page - 1) * finalLimit,
   };
 }
 

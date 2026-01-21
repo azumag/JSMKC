@@ -63,10 +63,11 @@ jsmkc-app/
 
 MIT
 
-## 現在のタスク (2026-01-21)
-[Issue #59: usePolling.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/59)
-- 現在のカバレッジ: 0% → 目標: 80%以上
-- 親Issue: #52 テストカバレッジの大幅な改善が必要
+## 完了したタスク (2026-01-21)
+✅ [Issue #52: テストカバレッジの大幅な改善が必要](https://github.com/azumag/JSMKC/issues/52)
+- 優先度1および2のすべてのタスク完了
+- 中核機能のカバレッジ: 80%以上達成
+- 全テストパス: 475個
 
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #58: standings-cache.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/58)
@@ -93,6 +94,12 @@ MIT
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #64: jwt-refresh.test.tsの失敗テスト6件の修正](https://github.com/azumag/JSMKC/issues/64)
+- 全38テストがパス
+- カバレッジ: 88.88% statements, 82.05% branches, 100% functions, 90.69% lines（向上）
+- 親Issue: #52 テストカバレッジの大幅な改善が必要
+
+## 完了したタスク (2026-01-21)
 ✅ [Issue #63: tournament/promotion.tsのテストカバレッジ改善（Issue #52の一部）](https://github.com/azumag/JSMKC/issues/63)
 - 達成カバレッジ: 100% statements, 100% branches, 100% functions, 100% lines（目標: 80%以上）
 - 全17テストがパス
@@ -103,6 +110,11 @@ MIT
 - 達成カバレッジ: 100%（目標: 80%以上）
 - 全17テストがパス
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
+
+## 現在のタスク (2026-01-21)
+[Issue #65: コアラブラリモジュールの単体テスト実装（pagination, password-utils, score-validation, sanitize）](https://github.com/azumag/JSMKC/issues/65)
+- 4つのユーティリティモジュールのカバレッジを0%から80%以上に改善
+- 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
 
 ## 現在の実装状況 (2026-01-21)
 
