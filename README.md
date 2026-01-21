@@ -106,15 +106,18 @@ MIT
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
 
 ## 完了したタスク (2026-01-21)
+✅ [Issue #65: コアラブラリモジュールの単体テスト実装（pagination, password-utils, score-validation, sanitize）](https://github.com/azumag/JSMKC/issues/65)
+- pagination.ts: 100% statements, 100% lines (21 tests)
+- password-utils.ts: 94.11% statements, 93.75% lines (23 tests)
+- score-validation.ts: 100% statements, 100% lines (44 tests)
+- sanitize.ts: 100% statements, 100% lines (51 tests)
+- 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
+
+## 完了したタスク (2026-01-21)
 ✅ [Issue #54: promotion.tsのテストカバレッジ改善](https://github.com/azumag/JSMKC/issues/54)
 - 達成カバレッジ: 100%（目標: 80%以上）
 - 全17テストがパス
 - 親Issue: #52 テストカバレッジの大幅な改善が必要
-
-## 現在のタスク (2026-01-21)
-[Issue #65: コアラブラリモジュールの単体テスト実装（pagination, password-utils, score-validation, sanitize）](https://github.com/azumag/JSMKC/issues/65)
-- 4つのユーティリティモジュールのカバレッジを0%から80%以上に改善
-- 親Issue: #52 テストカバレッジの大幅な改善が必要（完了）
 
 ## 現在の実装状況 (2026-01-21)
 
@@ -184,27 +187,3 @@ MIT
 ## Development Workflow
 
 ### 0. find issues ✓
-- Retrieved issue #65: コアラブラリモジュールの単体テスト実装
-
-### 1. Design Architect ✓
-- High-level system design for implementing unit tests for 4 core library modules
-- Detailed technical specifications for each module's tests: pagination, password-utils, score-validation, sanitize
-
-### 2. Implementation ✓
-- Fixed existing test files for all 4 library modules
-- Corrected invalid test expectations, import paths, and edge case handling
-- Added crypto.getRandomValues mock to jest.setup.js for Web Crypto API support
-
-### 3. Review ✓
-- Fixed all identified issues in failing tests
-- No remaining issues to block progress
-
-### 4. Quality Review ✓
-- All acceptance criteria met: 80%+ coverage, all tests pass, no regressions
-- Coverage results: pagination (100% statements), password-utils (94.11% statements), score-validation (100% statements), sanitize (100% statements)
-- Comprehensive audit completed successfully
-
-### 5. Commit and Close
-- Commit and push changes to feature/next branch
-- Close GitHub issue #65
-- Return to step 0 to find new issues to develop
