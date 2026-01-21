@@ -28,7 +28,9 @@ describe('usePolling', () => {
 
     it('should call fetch function immediately on mount with immediate: true', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      renderHook(() => usePolling(mockFetch, { immediate: true }));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { immediate: true }));
+      });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
@@ -45,7 +47,9 @@ describe('usePolling', () => {
     it('should fetch and update data successfully', async () => {
       const mockData = { id: 1, name: 'Test' };
       const mockFetch = jest.fn().mockResolvedValue(mockData);
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
@@ -57,7 +61,7 @@ describe('usePolling', () => {
     it('should update data when ETag is different', async () => {
       const mockData1 = { id: 1, version: 1 };
       const mockData2 = { id: 1, version: 2 };
-      
+
       let callCount = 0;
       const mockFetch = jest.fn().mockImplementation(() => {
         callCount++;
@@ -68,14 +72,18 @@ describe('usePolling', () => {
         }
       });
 
-      const { result } = renderHook(() => usePolling(mockFetch, { immediate: true }));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { immediate: true }));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData1);
       });
 
       mockFetch.mockResolvedValue(mockData2);
-      jest.advanceTimersByTime(5000);
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData2);
@@ -93,7 +101,9 @@ describe('usePolling', () => {
         }
       });
 
-      const { result } = renderHook(() => usePolling(mockFetch, { immediate: true }));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { immediate: true }));
+      });
 
       await waitFor(() => {
         expect(result.current.lastETag).toBe(mockETag);
@@ -115,7 +125,9 @@ describe('usePolling', () => {
       const mockData = { id: 1 };
       const mockFetch = jest.fn().mockResolvedValue(mockData);
 
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
@@ -126,7 +138,7 @@ describe('usePolling', () => {
     it('should extract and store ETag from response headers', async () => {
       const mockData = { id: 1 };
       const mockETag = 'xyz789';
-      
+
       const mockFetch = jest.fn().mockResolvedValue({
         ...mockData,
         headers: {
@@ -134,7 +146,9 @@ describe('usePolling', () => {
         }
       });
 
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.lastETag).toBe(mockETag);
@@ -148,7 +162,9 @@ describe('usePolling', () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
       const interval = 5000;
 
-      renderHook(() => usePolling(mockFetch, { interval }));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { interval }));
+      });
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -167,7 +183,9 @@ describe('usePolling', () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
       const customInterval = 3000;
 
-      renderHook(() => usePolling(mockFetch, { interval: customInterval }));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { interval: customInterval }));
+      });
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -182,9 +200,11 @@ describe('usePolling', () => {
       });
     });
 
-    it('should stop polling on unmount', () => {
+    it('should stop polling on unmount', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { unmount } = renderHook(() => usePolling(mockFetch));
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       unmount();
 
@@ -214,7 +234,9 @@ describe('usePolling', () => {
     it('should handle network error and update error state', async () => {
       const mockError = new Error('Network error');
       const mockFetch = jest.fn().mockRejectedValue(mockError);
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.error).toBe('Network error');
@@ -227,7 +249,9 @@ describe('usePolling', () => {
       const mockFetch = jest.fn().mockRejectedValue(mockError);
       const onError = jest.fn();
 
-      renderHook(() => usePolling(mockFetch, { onError }));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { onError }));
+      });
 
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith(mockError);
@@ -236,7 +260,9 @@ describe('usePolling', () => {
 
     it('should handle non-Error objects in error case', async () => {
       const mockFetch = jest.fn().mockRejectedValue('String error');
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.error).toBe('Polling failed');
@@ -247,12 +273,14 @@ describe('usePolling', () => {
     it('should clear error on successful fetch', async () => {
       const mockError = new Error('Initial error');
       const mockData = { id: 1 };
-      
+
       const mockFetch = jest.fn()
         .mockRejectedValueOnce(mockError)
         .mockResolvedValueOnce(mockData);
 
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.error).toBe('Initial error');
@@ -321,7 +349,9 @@ describe('usePolling', () => {
       const mockFetch = jest.fn().mockResolvedValue(mockData);
       const onSuccess = jest.fn();
 
-      renderHook(() => usePolling(mockFetch, { onSuccess }));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { onSuccess }));
+      });
 
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalledWith(mockData);
@@ -330,7 +360,9 @@ describe('usePolling', () => {
 
     it('should use default options when not provided', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual({ id: 1 });
@@ -339,7 +371,9 @@ describe('usePolling', () => {
 
     it('should use default interval from constants', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      renderHook(() => usePolling(mockFetch));
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -359,7 +393,9 @@ describe('usePolling', () => {
     it('should trigger manual fetch with refetch function', async () => {
       const mockData = { id: 1 };
       const mockFetch = jest.fn().mockResolvedValue(mockData);
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
@@ -379,12 +415,14 @@ describe('usePolling', () => {
     it('should update data on manual refetch', async () => {
       const mockData1 = { id: 1, version: 1 };
       const mockData2 = { id: 1, version: 2 };
-      
+
       const mockFetch = jest.fn()
         .mockResolvedValueOnce(mockData1)
         .mockResolvedValueOnce(mockData2);
 
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData1);
@@ -401,9 +439,11 @@ describe('usePolling', () => {
   });
 
   describe('cleanup', () => {
-    it('should clear timeout on unmount', () => {
+    it('should clear timeout on unmount', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { unmount } = renderHook(() => usePolling(mockFetch));
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
 
@@ -415,7 +455,9 @@ describe('usePolling', () => {
 
     it('should prevent state updates after unmount', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { unmount } = renderHook(() => usePolling(mockFetch));
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -432,7 +474,9 @@ describe('usePolling', () => {
 
     it('should set isMounted to false on cleanup', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      const { unmount } = renderHook(() => usePolling(mockFetch));
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       unmount();
 
@@ -449,8 +493,12 @@ describe('usePolling', () => {
       const mockFetch1 = jest.fn().mockResolvedValue({ id: 1 });
       const mockFetch2 = jest.fn().mockResolvedValue({ id: 2 });
 
-      const { result: result1 } = renderHook(() => usePolling(mockFetch1));
-      const { result: result2 } = renderHook(() => usePolling(mockFetch2));
+      const { result: result1 } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch1));
+      });
+      const { result: result2 } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch2));
+      });
 
       await waitFor(() => {
         expect(result1.current.data).toEqual({ id: 1 });
@@ -462,10 +510,12 @@ describe('usePolling', () => {
       const mockFetch1 = jest.fn().mockResolvedValue({ id: 1 });
       const mockFetch2 = jest.fn().mockResolvedValue({ id: 2 });
 
-      const { result, rerender } = renderHook(
-        ({ fetchFn }) => usePolling(fetchFn),
-        { initialProps: { fetchFn: mockFetch1 } }
-      );
+      const { result, rerender } = await act(async () => {
+        return renderHook(
+          ({ fetchFn }) => usePolling(fetchFn),
+          { initialProps: { fetchFn: mockFetch1 } }
+        );
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual({ id: 1 });
@@ -486,7 +536,9 @@ describe('usePolling', () => {
       const mockFetch = jest.fn().mockImplementation(
         () => new Promise(resolve => setTimeout(() => resolve({ id: 1 }), 100))
       );
-      const { unmount } = renderHook(() => usePolling(mockFetch));
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       unmount();
 
@@ -498,7 +550,9 @@ describe('usePolling', () => {
     it('should handle concurrent refetch calls', async () => {
       const mockData = { id: 1 };
       const mockFetch = jest.fn().mockResolvedValue(mockData);
-      const { result } = renderHook(() => usePolling(mockFetch));
+      const { result } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch));
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
@@ -506,8 +560,10 @@ describe('usePolling', () => {
 
       mockFetch.mockClear();
 
-      result.current.refetch();
-      result.current.refetch();
+      await act(async () => {
+        result.current.refetch();
+        result.current.refetch();
+      });
 
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
