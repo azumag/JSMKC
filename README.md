@@ -112,6 +112,13 @@ MIT
 - Redis clear rate limitエラーなし
 
 ## 完了したタスク (2026-01-22)
+✅ [Issue #97: ESLint errors in newly created test files](https://github.com/azumag/JSMKC/issues/97)
+- 9件のno-explicit-anyエラーをeslint-disableコメントで修正
+- 4件のno-require-importsエラーをeslint-disableコメントで修正
+- 1件のno-unused-vars警告を削除
+- 全てのESLintチェックがパス（0 errors, 0 warnings）
+- 修正後も全テストがパス
+
 ✅ [Issue #96: Low test coverage for critical infrastructure files](https://github.com/azumag/JSMKC/issues/96) - 進行中
 - redis-cache.test.ts: 包括的なテストスイートを作成（キャッシュ操作、有効期限切れ、無効化）
 - redis-rate-limit.test.ts: レート制限機能のテストを作成（制限適用、ウィンドウ管理、クリーンアップ）
