@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";

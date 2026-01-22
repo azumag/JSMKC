@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
@@ -20,9 +21,9 @@ jest.mock("lucide-react", () => ({
 // Mock components
 jest.mock("@/components/ui/button", () => ({
   Button: ({ children, onClick, disabled, variant, size, dataTestId }: any) => (
-    <button 
-      onClick={onClick} 
-      disabled={disabled} 
+    <button
+      onClick={onClick}
+      disabled={disabled}
       data-variant={variant}
       data-size={size}
       data-testid={dataTestId || "button"}
@@ -55,6 +56,8 @@ jest.mock("@/components/ui/badge", () => ({
     </span>
   ),
 }));
+
+// Mock next-auth
 
 // Mock next-auth
 jest.mock("next-auth/react", () => ({

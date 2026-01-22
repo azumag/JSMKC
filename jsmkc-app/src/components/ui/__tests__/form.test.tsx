@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import {
   Form,
   FormField,
@@ -8,9 +9,8 @@ import {
   FormControl,
   FormDescription,
   FormMessage,
-  useFormField,
 } from "@/components/ui/form";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 
 // Mock Radix UI components
 jest.mock("@radix-ui/react-label", () => ({
@@ -28,9 +28,6 @@ jest.mock("@radix-ui/react-slot", () => ({
 }));
 
 // Mock react-hook-form
-const mockUseFormContext = jest.fn();
-const mockUseFormState = jest.fn();
-
 jest.mock("react-hook-form", () => ({
   ...jest.requireActual("react-hook-form"),
   useForm: jest.fn(),
@@ -38,7 +35,7 @@ jest.mock("react-hook-form", () => ({
     getFieldState: jest.fn().mockReturnValue({ error: null }),
   }),
   useFormState: () => ({}),
-  Controller: jest.fn(({ name, control, render, ...props }: any) => {
+  Controller: jest.fn(({ name, render, ...props }: any) => {
     const mockField = { onChange: jest.fn(), onBlur: jest.fn(), value: "", name };
     return (
       <div data-testid={`controller-${name}`}>

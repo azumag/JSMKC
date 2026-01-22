@@ -1,5 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -75,7 +74,7 @@ describe('AlertDialog Components', () => {
 
   describe('AlertDialogPortal', () => {
     it('should render content in portal', () => {
-      const { container } = render(
+      render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogContent>
@@ -91,7 +90,7 @@ describe('AlertDialog Components', () => {
 
   describe('AlertDialogOverlay', () => {
     it('should render overlay with correct classes', () => {
-      const { container } = render(
+      render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogOverlay data-testid="overlay" />
@@ -108,7 +107,7 @@ describe('AlertDialog Components', () => {
     });
 
     it('should accept custom className', () => {
-      const { container } = render(
+      render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogOverlay className="custom-overlay" />
@@ -140,7 +139,7 @@ describe('AlertDialog Components', () => {
     });
 
     it('should have correct positioning classes', () => {
-      const { container } = render(
+      render(
         <AlertDialog open={true}>
           <AlertDialogPortal>
             <AlertDialogContent data-testid="content">

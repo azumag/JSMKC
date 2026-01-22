@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import {
   Select,
   SelectContent,
@@ -22,20 +23,17 @@ jest.mock("lucide-react", () => ({
 
 // Mock Radix UI primitives
 jest.mock("@radix-ui/react-select", () => {
-  const mockOnValueChange = jest.fn();
-  const mockOnOpenChange = jest.fn();
-  
   return {
-    Root: ({ children, value, onValueChange, defaultValue, open, onOpenChange, ...props }: any) => {
+    Root: ({ children, value, defaultValue, open, ...props }: any) => {
       const finalValue = value || defaultValue;
       const finalOpen = open || false;
-      
+
       return (
-        <div 
-          data-testid="select-root" 
-          data-value={finalValue} 
-          data-open={finalOpen} 
-          {...props}
+        <div
+            data-testid="select-root"
+            data-value={finalValue}
+            data-open={finalOpen}
+            {...props}
         >
           {children}
         </div>
@@ -115,7 +113,7 @@ jest.mock("@radix-ui/react-select", () => {
         {children}
       </div>
     ),
-    Icon: ({ asChild, children, ...props }: any) => (
+    Icon: ({ children, ...props }: any) => (
       <div {...props}>{children}</div>
     ),
   };

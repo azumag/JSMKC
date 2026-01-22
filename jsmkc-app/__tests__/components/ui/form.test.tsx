@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
 import {
   Form,
@@ -79,7 +78,7 @@ describe('Form Components', () => {
     });
 
     it('should pass form context to child components', () => {
-      const { container } = render(<TestForm />);
+      render(<TestForm />);
 
       expect(screen.getByTestId('test-form')).toBeInTheDocument();
     });
@@ -272,10 +271,9 @@ describe('Form Components', () => {
 
       const description = screen.getByText('Enter your username');
       expect(description).toHaveAttribute('id');
-      
-      const formDescriptionId = description.getAttribute('id');
+
       const input = screen.getByTestId('username-input');
-      
+
       expect(input).toHaveAttribute('aria-describedby');
     });
 

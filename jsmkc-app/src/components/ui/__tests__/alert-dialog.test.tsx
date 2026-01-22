@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,15 +9,13 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogOverlay,
-  AlertDialogPortal,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 // Mock Radix UI primitives
 jest.mock("@radix-ui/react-alert-dialog", () => ({
-  Root: ({ children, open, onOpenChange }: any) => (
+  Root: ({ children, open }: any) => (
     <div data-testid="alert-dialog-root" data-open={open}>
       {children}
       {open && (
@@ -30,38 +29,6 @@ jest.mock("@radix-ui/react-alert-dialog", () => ({
         </div>
       )}
     </div>
-  ),
-  Trigger: ({ children, onClick }: any) => (
-    <button data-testid="alert-dialog-trigger" onClick={onClick}>
-      {children}
-    </button>
-  ),
-  Portal: ({ children }: any) => <div data-testid="alert-dialog-portal">{children}</div>,
-  Overlay: ({ children }: any) => <div data-testid="alert-dialog-overlay">{children}</div>,
-  Content: ({ children, ...props }: any) => (
-    <div data-testid="alert-dialog-content" {...props}>
-      {children}
-    </div>
-  ),
-  Title: ({ children, ...props }: any) => (
-    <div data-testid="alert-dialog-title" {...props}>
-      {children}
-    </div>
-  ),
-  Description: ({ children, ...props }: any) => (
-    <div data-testid="alert-dialog-description" {...props}>
-      {children}
-    </div>
-  ),
-  Action: ({ children, onClick, ...props }: any) => (
-    <button data-testid="alert-dialog-action" onClick={onClick} {...props}>
-      {children}
-    </button>
-  ),
-  Cancel: ({ children, onClick, ...props }: any) => (
-    <button data-testid="alert-dialog-cancel" onClick={onClick} {...props}>
-      {children}
-    </button>
   ),
 }));
 

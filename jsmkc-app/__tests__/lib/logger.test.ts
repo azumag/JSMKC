@@ -42,8 +42,6 @@ jest.mock('path', () => ({
 }));
 
 describe('Logger', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockWinstonLogger: any;
   let originalEnv: string | undefined;
 
   beforeEach(() => {
@@ -57,7 +55,7 @@ describe('Logger', () => {
     // Get mock logger instance
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const winston = require('winston');
-    mockWinstonLogger = winston.createLogger();
+    winston.createLogger();
   });
 
   afterEach(() => {

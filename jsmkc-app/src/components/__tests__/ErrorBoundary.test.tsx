@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ErrorBoundary, ErrorFallback } from "@/components/ErrorBoundary";
 
 // Mock lucide-react icons

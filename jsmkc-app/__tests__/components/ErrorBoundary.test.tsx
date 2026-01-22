@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 
 /**
@@ -126,7 +126,6 @@ describe('ErrorBoundary', () => {
   describe('ErrorCallback', () => {
     it('should call onError callback with error and errorInfo', () => {
       const onErrorSpy = jest.fn();
-      const testError = new Error('Test callback error');
 
       render(
         <ErrorBoundary onError={onErrorSpy}>
@@ -157,7 +156,9 @@ describe('ErrorBoundary', () => {
   describe('GoBack Button', () => {
     beforeEach(() => {
       const originalLocation = window.location;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).location;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).location = {
         reload: jest.fn(),
         ...originalLocation,
@@ -257,6 +258,7 @@ describe('ErrorFallback', () => {
 
     it('should reload page when Go Back is clicked', () => {
       const reloadSpy = jest.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).location = { reload: reloadSpy };
 
       render(<ErrorFallback error={testError} resetError={mockResetError} />);

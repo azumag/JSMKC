@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import TournamentTokenManager from "@/components/tournament/tournament-token-manager";
@@ -91,9 +92,6 @@ Object.defineProperty(navigator, "clipboard", {
 global.fetch = jest.fn();
 
 describe("TournamentTokenManager", () => {
-  const getToastSuccess = () => require("sonner").toast.success;
-  const getToastError = () => require("sonner").toast.error;
-
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset clipboard mock to default implementation
