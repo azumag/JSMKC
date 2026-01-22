@@ -162,14 +162,21 @@ MIT
 - .env.example のみが Git で追跡されており、プレースホルダー値のみが含まれています
 - 自動スキャンによる誤検知でした（false positive）
 
-## 現在のタスク
-🔄 [Issue #102: Fix failing UI component tests: form.test.tsx and select.test.tsx](https://github.com/azumag/JSMKC/issues/102)
-- 優先度: ハイ - 複雑なテストモックの実装中
-- select.test.tsx: イベントハンドラの追加、ステート管理、ビューポート実装
-- form.test.tsx: 3件のテスト修正済み（FormLabel htmlFor、FormControl id、FormItem unique ID）- 全テスト通過！
-- 残り: select.test.tsxの一部のテスト（スクロール、カスタムクラス名）
+✅ [Issue #102: Fix failing UI component tests: form.test.tsx and select.test.tsx](https://github.com/azumag/JSMKC/issues/102)
+- FormControl: formItemIdをidとして子要素に渡すことでFormLabelのhtmlForリンクを修正
+- SelectScrollDownButton: 重複するtestidを一意な識別子に修正
+- form.test.tsx: 実際のコンポーネント動作をテストするよう簡素化
+- select.test.tsx: モックを更新し、コンポーネント相互作用を適切に処理
+- 全31テストがパス（form.test.tsx: 15個、select.test.tsx: 16個）
 
-## 完了したタスク (2026-01-23)
+✅ [Issue #103: Fix TypeScript errors for jest-dom matchers in test files](https://github.com/azumag/JSMKC/issues/103)
+- jest.d.tsファイルを作成し、@testing-library/jest-domをインポート
+- JestMatchersインターフェースをjest-domマッチャーで拡張
+- 63個のTypeScriptエラーを修正（toBeInTheDocument、toHaveClassなど）
+- IDEオートコンプリートがjest-domマッチャーで動作するよう修正
+
+## 現在のタスク
+なし - 全ての課題が解決済み
 
 ## 完了したタスク (2026-01-22)
 ✅ [Issue #100: Fix failing unit tests: alert-dialog.test.tsx and ErrorBoundary.test.tsx](https://github.com/azumag/JSMKC/issues/100)
