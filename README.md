@@ -175,6 +175,13 @@ MIT
 - 63個のTypeScriptエラーを修正（toBeInTheDocument、toHaveClassなど）
 - IDEオートコンプリートがjest-domマッチャーで動作するよう修正
 
+✅ [Issue #104: Fix remaining TypeScript errors in test files](https://github.com/azumag/JSMKC/issues/104)
+- ErrorBoundary.test.tsx: 重複するreloadプロパティを修正（1エラー）
+- form.test.tsx: Formコンポーネントのタイプを更新し、useFormの型エラーを修正（12エラー）
+- select.test.tsx: React.cloneElementの型キャストを修正し、onValueChangeプロパティの型エラーを解決（3エラー）
+- @ts-expect-errorコメントを追加し、テスト特有なプロパティ使用を明示
+- 全21個のTypeScriptエラーを修正し、コンパイルエラーを完全に解消
+
 ## 現在のタスク
 なし - 全ての課題が解決済み
 
