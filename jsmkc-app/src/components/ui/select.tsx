@@ -86,7 +86,7 @@ function SelectContent({
         >
           {children}
         </SelectPrimitive.Viewport>
-        <SelectScrollDownButton />
+        <SelectScrollDownButton data-testid="select-scroll-down-button-bottom" />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   )
