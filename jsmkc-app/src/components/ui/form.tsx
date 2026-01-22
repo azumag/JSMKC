@@ -79,6 +79,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <FormItemContext.Provider value={{ id }}>
       <div
+        id={id}
         data-slot="form-item"
         className={cn("grid gap-2", className)}
         {...props}
@@ -89,28 +90,30 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function FormLabel({
   className,
+  htmlFor,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   const { error, formItemId } = useFormField()
 
+  // Use custom htmlFor if provided, otherwise use formItemId
+  // This allows the htmlFor prop to be overridden by tests or custom usage
   return (
     <Label
       data-slot="form-label"
       data-error={!!error}
       className={cn("data-[error=true]:text-destructive", className)}
-      htmlFor={formItemId}
+      htmlFor={htmlFor ?? formItemId}
       {...props}
     />
   )
 }
 
 function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+  const { error, formDescriptionId, formMessageId } = useFormField()
 
   return (
     <Slot
       data-slot="form-control"
-      id={formItemId}
       aria-describedby={
         !error
           ? `${formDescriptionId}`

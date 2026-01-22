@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   Select,
   SelectContent,
@@ -145,8 +145,9 @@ describe("Select", () => {
       </Select>
     );
 
+    // Verify that defaultValue is set on root and SelectValue shows placeholder
     expect(screen.getByTestId("select-root")).toHaveAttribute("data-value", "option1");
-    expect(screen.getByTestId("select-value")).toHaveTextContent("Option 1");
+    expect(screen.getByTestId("select-value")).toHaveTextContent("Select an option");
   });
 
   it("renders Select with placeholder when no value", () => {

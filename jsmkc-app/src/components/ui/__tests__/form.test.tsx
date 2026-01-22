@@ -22,9 +22,14 @@ jest.mock("@radix-ui/react-label", () => ({
 }));
 
 jest.mock("@radix-ui/react-slot", () => ({
-  Slot: ({ children, ...props }: any) => (
-    <div {...props}>{children}</div>
-  ),
+  Slot: ({ children, ...props }: any) => {
+    // Simulate Radix UI Slot behavior: clone child and merge props
+    const child = React.Children.only(children) as React.ReactElement;
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, { ...child.props, ...props });
+    }
+    return child;
+  },
 }));
 
 // Mock react-hook-form
@@ -290,14 +295,14 @@ describe("Form", () => {
     </FormItem>);
 
     const firstFormItem = screen.getByText("Content").parentElement;
-    const firstId = firstFormItem?.getAttribute("data-slot");
+    const firstId = firstFormItem?.getAttribute("id");
 
     rerender(<FormItem>
       <div>Content</div>
     </FormItem>);
 
     const secondFormItem = screen.getByText("Content").parentElement;
-    const secondId = secondFormItem?.getAttribute("data-slot");
+    const secondId = secondFormItem?.getAttribute("id");
 
     expect(firstId).not.toBe(secondId);
   });
