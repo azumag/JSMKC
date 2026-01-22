@@ -23,8 +23,8 @@ describe('Validation Middleware', () => {
       age: z.string().transform(Number),
     });
 
-    const mockHandler = jest.fn(async (req: NextRequest, data: any) => {
-      return NextResponse.json({ success: true, data });
+    const mockHandler = jest.fn(async (req: NextRequest, _data: unknown) => {
+      return NextResponse.json({ success: true, data: _data });
     });
 
     beforeEach(() => {
@@ -245,7 +245,8 @@ describe('Validation Middleware', () => {
           value: z.string(),
         });
 
-        const erroringHandler = jest.fn(async (req: NextRequest, data: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const erroringHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
           throw new ValidationError('Custom validation error');
         });
 
@@ -341,8 +342,8 @@ describe('Validation Middleware', () => {
           body,
         });
 
-        const complexHandler = jest.fn(async (req: NextRequest, data: any) => {
-          return NextResponse.json({ success: true, data });
+        const complexHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
+          return NextResponse.json({ success: true, data: _data });
         });
 
         const handler = withValidation(complexHandler, complexSchema);
@@ -366,8 +367,8 @@ describe('Validation Middleware', () => {
       password: z.string().min(8),
     });
 
-    const mockHandler = jest.fn(async (req: NextRequest, data: any) => {
-      return NextResponse.json({ success: true, data });
+    const mockHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
+      return NextResponse.json({ success: true, data: _data });
     });
 
     beforeEach(() => {
@@ -646,7 +647,7 @@ describe('Validation Middleware', () => {
       offset: z.string().transform(Number).default('0'),
     });
 
-    const mockHandler = jest.fn(async (req: NextRequest, data: any) => {
+    const mockHandler = jest.fn(async (req: NextRequest, data: unknown) => {
       return NextResponse.json({ success: true, data });
     });
 
