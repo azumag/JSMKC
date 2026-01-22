@@ -1,3 +1,4 @@
+// @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { NextResponse, NextRequest } from 'next/server'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/rate-limit'

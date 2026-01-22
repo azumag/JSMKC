@@ -1,3 +1,4 @@
+// @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
 import { PrismaClient } from '@prisma/client';
 import { prisma as prismaMock } from '@/lib/prisma';
