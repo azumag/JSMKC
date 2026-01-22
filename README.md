@@ -89,6 +89,13 @@ MIT
 - 全835テストがパス（2スキップ）
 - ESLintパースエラーなし
 
+## 完了したタスク (2026-01-22)
+✅ [Issue #91: Fix Redis Mock: clearRateLimitData() throws TypeError in test environment](https://github.com/azumag/JSMKC/issues/91)
+- redis-rate-limit.ts: null/undefinedチェックをkeys.lengthプロパティアクセス前に追加
+- テスト環境でclearRateLimitStore()呼び出し時のTypeErrorを解消
+- 全835テストがパス（2スキップ）
+- Redis clear rate limitエラーなし
+
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #70: テストファイルの修正とテスト失敗の解消](https://github.com/azumag/JSMKC/issues/70)
 - rank-calculation.test.ts: 構文エラー修正（余分な閉じ括弧削除とテスト構造整理）
