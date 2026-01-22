@@ -111,6 +111,16 @@ MIT
 - 全835テストがパス（2スキップ）
 - Redis clear rate limitエラーなし
 
+## 完了したタスク (2026-01-22)
+✅ [Issue #94: Low Test Coverage: Multiple critical files have 0% or insufficient test coverage](https://github.com/azumag/JSMKC/issues/94)
+- double-elimination.test.ts: 34個のテストを追加し、ダブルイリミネーショントーナメントのブラケット生成ロジックを網羅
+- excel.test.ts: 60個のテストを追加し、CSVエクスポート、時刻フォーマット、日付フォーマットユーティリティを網羅
+- utils.test.ts: 27個のテストを追加し、classNameマージユーティリティを網羅
+- 追加したテスト数: 121個
+- 対象ファイルのカバレッジを0%から100%に改善
+- libディレクトリのカバレッジ改善: 文73.27%→81.42%、分72.98%→79.38%、関74.58%→80.66%
+- 全956テストがパス（2スキップ）、リントエラーなし
+
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #70: テストファイルの修正とテスト失敗の解消](https://github.com/azumag/JSMKC/issues/70)
 - rank-calculation.test.ts: 構文エラー修正（余分な閉じ括弧削除とテスト構造整理）
