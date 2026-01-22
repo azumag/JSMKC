@@ -21,6 +21,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 describe('Redis Rate Limit', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRedisClient: any;
   let mockZRemRangeByScore: jest.Mock;
   let mockZCard: jest.Mock;
@@ -61,6 +62,7 @@ describe('Redis Rate Limit', () => {
       connect: jest.fn().mockResolvedValue(undefined),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const redis = require('redis');
     redis.createClient.mockReturnValue(mockRedisClient);
 
@@ -101,7 +103,7 @@ describe('Redis Rate Limit', () => {
     });
 
     it('should deny requests exceeding limit', async () => {
-      const now = Date.now();
+      Date.now();
       mockZCard.mockResolvedValue(5);
 
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
@@ -259,6 +261,7 @@ describe('Redis Rate Limit', () => {
     });
 
     it('should use general configuration for unknown type', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await checkRateLimitByType('unknown' as any, 'user123');
 
       expect(result.limit).toBe(10);

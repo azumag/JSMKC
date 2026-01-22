@@ -29,6 +29,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 describe('Redis Cache', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRedisClient: any;
   let mockGet: jest.Mock;
   let mockSet: jest.Mock;
@@ -54,6 +55,7 @@ describe('Redis Cache', () => {
       connect: jest.fn().mockResolvedValue(undefined),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const redis = require('redis');
     redis.createClient.mockReturnValue(mockRedisClient);
   });

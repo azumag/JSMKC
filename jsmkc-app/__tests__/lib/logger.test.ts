@@ -42,6 +42,7 @@ jest.mock('path', () => ({
 }));
 
 describe('Logger', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockWinstonLogger: any;
   let originalEnv: string | undefined;
 
@@ -54,6 +55,7 @@ describe('Logger', () => {
     process.env.NODE_ENV = 'test';
 
     // Get mock logger instance
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const winston = require('winston');
     mockWinstonLogger = winston.createLogger();
   });
@@ -166,6 +168,7 @@ describe('Logger', () => {
     });
 
     it('should not log when environment is not test', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const winston = require('winston');
       process.env.NODE_ENV = 'development';
 

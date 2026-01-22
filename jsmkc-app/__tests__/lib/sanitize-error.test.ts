@@ -125,6 +125,7 @@ describe('Error Sanitization', () => {
 
     it('should handle sanitization errors gracefully', () => {
       // Create an error that causes issues in sanitization
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const circular: any = { message: 'test' };
       circular.self = circular;
 
