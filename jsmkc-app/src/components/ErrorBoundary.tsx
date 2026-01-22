@@ -12,21 +12,22 @@ interface ErrorBoundaryProps {
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
-export function ErrorFallback({ error, resetError }: { error: Error; resetError?: () => void }) {
+export function ErrorFallback({ error, resetError }: { error: Error | null; resetError?: () => void }) {
   // Determine if error is recoverable (network/data errors vs. programming errors)
   const isRecoverable = 
-    error.message?.includes("fetch") ||
-    error.message?.includes("network") ||
-    error.message?.includes("timeout");
+    error?.message?.includes("fetch") ||
+    error?.message?.includes("network") ||
+    error?.message?.includes("timeout");
 
   const getErrorMessage = () => {
-    if (error.message?.includes("fetch")) {
+    if (!error?.message) return "An unexpected error occurred.";
+    if (error.message.includes("fetch")) {
       return "Unable to load data. Please refresh the page.";
     }
-    if (error.message?.includes("network")) {
+    if (error.message.includes("network")) {
       return "Connection error. Please check your internet connection.";
     }
-    if (error.message?.includes("timeout")) {
+    if (error.message.includes("timeout")) {
       return "Request timed out. Please try again.";
     }
     return "Something went wrong. Please try again.";
@@ -47,7 +48,7 @@ export function ErrorFallback({ error, resetError }: { error: Error; resetError?
         
         <Alert variant="destructive">
           <AlertDescription className="font-mono text-xs mt-2">
-            {error.message}
+            {error?.message || "No error message available"}
           </AlertDescription>
         </Alert>
 
@@ -79,9 +80,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(): { hasError: true } {
+  static getDerivedStateFromError(error: Error): { hasError: true; error: Error } {
     // Update state so next render will show fallback UI
-    return { hasError: true };
+    // Include error in derived state to ensure error is set synchronously
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {

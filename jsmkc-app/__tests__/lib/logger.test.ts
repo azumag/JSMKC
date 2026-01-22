@@ -139,20 +139,21 @@ describe('Logger', () => {
       consoleDebugSpy.mockRestore();
     });
 
-    it('should handle log without metadata', () => {
+it('should handle log without metadata', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       const logger = createLogger('test-service');
 
       logger.error('Error message');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[ERROR] test-service: Error message'
+        '[ERROR] test-service: Error message',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
     });
 
-    it('should create separate loggers for different services', () => {
+it('should create separate loggers for different services', () => {
       const logger1 = createLogger('service1');
       const logger2 = createLogger('service2');
 
@@ -161,8 +162,8 @@ describe('Logger', () => {
       logger1.error('Error from service1');
       logger2.error('Error from service2');
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] service1: Error from service1');
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] service2: Error from service2');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] service1: Error from service1', undefined);
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR] service2: Error from service2', undefined);
 
       consoleErrorSpy.mockRestore();
     });
@@ -170,19 +171,27 @@ describe('Logger', () => {
     it('should not log when environment is not test', async () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const winston = require('winston');
+
       process.env.NODE_ENV = 'development';
 
-      // Need to re-require module to apply new environment
+      // Reset module cache and re-import
       jest.resetModules();
+      jest.clearAllMocks();
       const { createLogger: createLoggerDev } = await import('@/lib/logger');
       const logger = createLoggerDev('test-service');
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const winstonErrorSpy = jest.spyOn(winston, 'error').mockImplementation();
 
       logger.error('Test error');
 
       // In development, should use Winston logger instead of console
-      expect(winston.createLogger).toHaveBeenCalled();
-      expect(mockWinstonLogger.error).toHaveBeenCalled();
+      expect(winstonErrorSpy).toHaveBeenCalledWith('test-service: Test error', undefined);
+      // Console should NOT be called in development
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
 
+      consoleErrorSpy.mockRestore();
+      winstonErrorSpy.mockRestore();
       process.env.NODE_ENV = 'test';
     });
   });
@@ -195,7 +204,8 @@ describe('Logger', () => {
       logger.error('Error message');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[ERROR] test-service:')
+        '[ERROR] test-service: Error message',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -208,7 +218,8 @@ describe('Logger', () => {
       logger.warn('Warning message');
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[WARN] test-service:')
+        '[WARN] test-service: Warning message',
+        undefined
       );
 
       consoleWarnSpy.mockRestore();
@@ -221,7 +232,8 @@ describe('Logger', () => {
       logger.info('Info message');
 
       expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[INFO] test-service:')
+        '[INFO] test-service: Info message',
+        undefined
       );
 
       consoleInfoSpy.mockRestore();
@@ -234,7 +246,8 @@ describe('Logger', () => {
       logger.debug('Debug message');
 
       expect(consoleDebugSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[DEBUG] test-service:')
+        '[DEBUG] test-service: Debug message',
+        undefined
       );
 
       consoleDebugSpy.mockRestore();
@@ -249,7 +262,8 @@ describe('Logger', () => {
       logger.error('Test error');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('my-service:')
+        '[ERROR] my-service: Test error',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -262,7 +276,8 @@ describe('Logger', () => {
       logger.error('Test error');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('service-name_with.special:')
+        '[ERROR] service-name_with.special: Test error',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -275,7 +290,8 @@ describe('Logger', () => {
       logger.error('Test error');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('サービス:')
+        '[ERROR] サービス: Test error',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -368,7 +384,8 @@ describe('Logger', () => {
       logger.error('');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[ERROR] test-service: '
+        '[ERROR] test-service: ',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -382,7 +399,8 @@ describe('Logger', () => {
       logger.error(longMessage);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `[ERROR] test-service: ${longMessage}`
+        `[ERROR] test-service: ${longMessage}`,
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -396,7 +414,8 @@ describe('Logger', () => {
       logger.error(specialMessage);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `[ERROR] test-service: ${specialMessage}`
+        `[ERROR] test-service: ${specialMessage}`,
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -410,7 +429,8 @@ describe('Logger', () => {
       logger.error(unicodeMessage);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `[ERROR] test-service: ${unicodeMessage}`
+        `[ERROR] test-service: ${unicodeMessage}`,
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -424,7 +444,8 @@ describe('Logger', () => {
       logger.error(emojiMessage);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `[ERROR] test-service: ${emojiMessage}`
+        `[ERROR] test-service: ${emojiMessage}`,
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -439,7 +460,8 @@ describe('Logger', () => {
       logger.error('Test error');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[ERROR] : Test error'
+        '[ERROR] : Test error',
+        undefined
       );
 
       consoleErrorSpy.mockRestore();
@@ -452,8 +474,11 @@ describe('Logger', () => {
 
       logger.error('Test error');
 
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(String), undefined);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining(`[ERROR] ${longServiceName}:`)
+        expect.stringContaining('Test error'),
+        undefined
       );
 
       consoleErrorSpy.mockRestore();

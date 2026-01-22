@@ -86,11 +86,6 @@ describe('Redis Rate Limit', () => {
       const config = { limit: 5, windowMs: 60000 };
       const result = await checkRateLimit('user123', config);
 
-      // Log result for debugging
-      // console.log('Result:', result);
-      // console.log('Config:', config);
-      // console.log('mockZCard calls:', mockZCard.mock.calls);
-
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(4);
       expect(result.limit).toBe(5);
