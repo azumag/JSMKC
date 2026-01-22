@@ -24,25 +24,27 @@ jest.mock("lucide-react", () => ({
 // Mock Radix UI primitives
 jest.mock("@radix-ui/react-select", () => {
   return {
-    Root: ({ children, value, defaultValue, open, ...props }: any) => {
+    Root: ({ children, value, defaultValue, open, disabled, ...props }: any) => {
       const finalValue = value || defaultValue;
       const finalOpen = open || false;
 
       return (
         <div
-            data-testid="select-root"
-            data-value={finalValue}
-            data-open={finalOpen}
-            {...props}
+              data-testid="select-root"
+              data-value={finalValue}
+              data-open={finalOpen}
+              data-disabled={disabled}
+              {...props}
         >
           {children}
         </div>
       );
     },
-    Trigger: ({ children, className, ...props }: any) => (
-      <button 
-        data-testid="select-trigger" 
+    Trigger: ({ children, className, disabled, ...props }: any) => (
+      <button
+        data-testid="select-trigger"
         className={className}
+        disabled={disabled}
         {...props}
       >
         {children}
@@ -54,8 +56,8 @@ jest.mock("@radix-ui/react-select", () => {
       </span>
     ),
     Content: ({ children, className, position, align, ...props }: any) => (
-      <div 
-        data-testid="select-content" 
+      <div
+        data-testid="select-content"
         className={className}
         data-position={position}
         data-align={align}

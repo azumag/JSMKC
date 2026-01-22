@@ -164,9 +164,10 @@ MIT
 
 ## 現在のタスク
 🔄 [Issue #102: Fix failing UI component tests: form.test.tsx and select.test.tsx](https://github.com/azumag/JSMKC/issues/102)
-- 優先度: ハイ - テストスイートをブロック
-- form.test.tsx: 5件のテスト失敗（FormLabel、FormControl、FormItem）
-- select.test.tsx: 5件以上のテスト失敗（import、SelectValue、disabled属性）
+- 優先度: ハイ - 進行中
+- form.test.tsx: 3件のテスト修正済み（FormLabel htmlFor、FormControl id、FormItem unique ID）
+- select.test.tsx: 1件のテスト修正済み（fireEvent import、Select defaultValue挙動）
+- 残り: select.test.tsxのReact警告、重複testid、disabled属性の問題を調査中
 
 ## 完了したタスク (2026-01-23)
 
