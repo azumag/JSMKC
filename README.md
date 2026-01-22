@@ -90,6 +90,15 @@ MIT
 - ESLintパースエラーなし
 
 ## 完了したタスク (2026-01-22)
+✅ [Issue #93: Clean up unused dependencies and add missing ones](https://github.com/azumag/JSMKC/issues/93)
+- 未使用の@hookform/resolversをdependenciesから削除
+- 未使用の@testing-library/user-eventをdevDependenciesから削除
+- 欠落しているdotenv依存関係をdependenciesに追加
+- 欠落している@jest/globals依存関係をdevDependenciesに追加
+- 全835テストがパス
+- リントとTypeScriptコンパイル成功
+
+## 完了したタスク (2026-01-22)
 ✅ [Issue #92: Add test-results/ to .gitignore to exclude Playwright artifacts](https://github.com/azumag/JSMKC/issues/92)
 - .gitignoreにtest-results/ディレクトリを追加
 - Playwright E2Eテストの出力成果物（レポート、スクリーンショット等）をGitから除外
