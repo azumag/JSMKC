@@ -97,23 +97,27 @@ describe('Validation Schemas', () => {
       });
 
       it('should accept player without email (optional)', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { email, ...playerWithoutEmail } = validPlayer;
         expect(() => createPlayerSchema.parse(playerWithoutEmail)).not.toThrow();
       });
 
       it('should reject missing name', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { name, ...playerWithoutName } = validPlayer;
         expect(() => createPlayerSchema.parse(playerWithoutName))
           .toThrow();
       });
 
       it('should reject missing nickname', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { nickname, ...playerWithoutNickname } = validPlayer;
         expect(() => createPlayerSchema.parse(playerWithoutNickname))
           .toThrow();
       });
 
       it('should reject missing discordId', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { discordId, ...playerWithoutDiscord } = validPlayer;
         expect(() => createPlayerSchema.parse(playerWithoutDiscord))
           .toThrow();
@@ -181,6 +185,7 @@ describe('Validation Schemas', () => {
       });
 
       it('should reject update without ID', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...updateWithoutId } = validUpdate;
         expect(() => updatePlayerSchema.parse(updateWithoutId)).toThrow();
       });
@@ -217,36 +222,42 @@ describe('Validation Schemas', () => {
       });
 
       it('should accept tournament without optional fields', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { description, location, ...minimalTournament } = validTournament;
         expect(() => createTournamentSchema.parse(minimalTournament)).not.toThrow();
       });
 
       it('should apply default maxPlayers value', () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { maxPlayers, ...tournamentWithoutMax } = validTournament;
         const result = createTournamentSchema.parse(tournamentWithoutMax);
         expect(result.maxPlayers).toBe(100);
       });
 
       it('should reject missing name', () => {
-        const { name, ...tournamentWithoutName } = validTournament;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { name: _name, ...tournamentWithoutName } = validTournament;
         expect(() => createTournamentSchema.parse(tournamentWithoutName))
           .toThrow();
       });
 
       it('should reject missing startDate', () => {
-        const { startDate, ...tournamentWithoutStart } = validTournament;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { startDate: _startDate, ...tournamentWithoutStart } = validTournament;
         expect(() => createTournamentSchema.parse(tournamentWithoutStart))
           .toThrow();
       });
 
       it('should reject missing endDate', () => {
-        const { endDate, ...tournamentWithoutEnd } = validTournament;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { endDate: _endDate, ...tournamentWithoutEnd } = validTournament;
         expect(() => createTournamentSchema.parse(tournamentWithoutEnd))
           .toThrow();
       });
 
       it('should reject missing gameMode', () => {
-        const { gameMode, ...tournamentWithoutMode } = validTournament;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { gameMode: _gameMode, ...tournamentWithoutMode } = validTournament;
         expect(() => createTournamentSchema.parse(tournamentWithoutMode)).toThrow();
       });
 
@@ -335,7 +346,8 @@ describe('Validation Schemas', () => {
       });
 
       it('should reject update without ID', () => {
-        const { id, ...updateWithoutId } = validUpdate;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: _id, ...updateWithoutId } = validUpdate;
         expect(() => updateTournamentSchema.parse(updateWithoutId)).toThrow();
       });
 
@@ -369,28 +381,33 @@ describe('Validation Schemas', () => {
       });
 
       it('should accept score entry without optional fields', () => {
-        const { character, isForfeit, notes, ...minimalEntry } = validScoreEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { character: _character, isForfeit: _isForfeit, notes: _notes, ...minimalEntry } = validScoreEntry;
         expect(() => scoreEntrySchema.parse(minimalEntry)).not.toThrow();
       });
 
       it('should apply default isForfeit value', () => {
-        const { isForfeit, ...entryWithoutForfeit } = validScoreEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { isForfeit: _isForfeit, ...entryWithoutForfeit } = validScoreEntry;
         const result = scoreEntrySchema.parse(entryWithoutForfeit);
         expect(result.isForfeit).toBe(false);
       });
 
       it('should reject missing playerId', () => {
-        const { playerId, ...entryWithoutPlayer } = validScoreEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { playerId: _playerId, ...entryWithoutPlayer } = validScoreEntry;
         expect(() => scoreEntrySchema.parse(entryWithoutPlayer)).toThrow();
       });
 
       it('should reject missing matchId', () => {
-        const { matchId, ...entryWithoutMatch } = validScoreEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { matchId: _matchId, ...entryWithoutMatch } = validScoreEntry;
         expect(() => scoreEntrySchema.parse(entryWithoutMatch)).toThrow();
       });
 
       it('should reject missing score', () => {
-        const { score, ...entryWithoutScore } = validScoreEntry;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { score: _score, ...entryWithoutScore } = validScoreEntry;
         expect(() => scoreEntrySchema.parse(entryWithoutScore)).toThrow();
       });
 
@@ -506,33 +523,39 @@ describe('Validation Schemas', () => {
       });
 
       it('should accept match without optional scheduledTime', () => {
-        const { scheduledTime, ...matchWithoutTime } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { scheduledTime: _scheduledTime, ...matchWithoutTime } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutTime)).not.toThrow();
       });
 
       it('should reject missing tournamentId', () => {
-        const { tournamentId, ...matchWithoutTournament } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { tournamentId: _tournamentId, ...matchWithoutTournament } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutTournament)).toThrow();
       });
 
       it('should reject missing player1Id', () => {
-        const { player1Id, ...matchWithoutPlayer1 } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { player1Id: _player1Id, ...matchWithoutPlayer1 } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutPlayer1)).toThrow();
       });
 
       it('should reject missing player2Id', () => {
-        const { player2Id, ...matchWithoutPlayer2 } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { player2Id: _player2Id, ...matchWithoutPlayer2 } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutPlayer2)).toThrow();
       });
 
       it('should reject missing round', () => {
-        const { round, ...matchWithoutRound } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { round: _round, ...matchWithoutRound } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutRound))
           .toThrow();
       });
 
       it('should reject missing stage', () => {
-        const { stage, ...matchWithoutStage } = validMatch;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { stage: _stage, ...matchWithoutStage } = validMatch;
         expect(() => createMatchSchema.parse(matchWithoutStage))
           .toThrow();
       });
@@ -666,33 +689,6 @@ describe('Validation Schemas', () => {
         expect(() => extendTokenSchema.parse({ tournamentId: 't-123', days: '90' })).not.toThrow();
         expect(() => extendTokenSchema.parse({ tournamentId: 't-123', days: '180' })).not.toThrow();
       });
-    });
-  });
-
-  describe('Exported Types', () => {
-    it('should export Player input types', () => {
-      expect(typeof require('@/lib/validation/schemas').CreatePlayerInput).toBeDefined();
-      expect(typeof require('@/lib/validation/schemas').UpdatePlayerInput).toBeDefined();
-    });
-
-    it('should export Tournament input types', () => {
-      expect(typeof require('@/lib/validation/schemas').CreateTournamentInput).toBeDefined();
-      expect(typeof require('@/lib/validation/schemas').UpdateTournamentInput).toBeDefined();
-    });
-
-    it('should export Score input types', () => {
-      expect(typeof require('@/lib/validation/schemas').ScoreEntryInput).toBeDefined();
-      expect(typeof require('@/lib/validation/schemas').BatchScoreEntryInput).toBeDefined();
-    });
-
-    it('should export Match input types', () => {
-      expect(typeof require('@/lib/validation/schemas').CreateMatchInput).toBeDefined();
-      expect(typeof require('@/lib/validation/schemas').UpdateMatchInput).toBeDefined();
-    });
-
-    it('should export Token input types', () => {
-      expect(typeof require('@/lib/validation/schemas').RegenerateTokenInput).toBeDefined();
-      expect(typeof require('@/lib/validation/schemas').ExtendTokenInput).toBeDefined();
     });
   });
 });
