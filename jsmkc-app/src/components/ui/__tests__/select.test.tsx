@@ -23,10 +23,46 @@ jest.mock("lucide-react", () => ({
 
 // Mock Radix UI primitives
 jest.mock("@radix-ui/react-select", () => {
+  // Track state across renders
+  let isOpen = false;
+  let currentValue: string | null = null;
+
   return {
-    Root: ({ children, value, defaultValue, open, disabled, ...props }: any) => {
+    Portal: ({ children, ...props }: any) => (
+      <div data-testid="select-portal" {...props}>
+        {children}
+      </div>
+    ),
+    Viewport: ({ children, ...props }: any) => {
+      // Track click outside to close
+      const handleClick = (e: React.MouseEvent) => {
+        // Close if clicking outside of content
+        if (e.target === document.body) {
+          isOpen = false;
+          if (mockOnOpenChange) {
+            mockOnOpenChange(false);
+          }
+        }
+      };
+
+      return (
+        <div data-testid="select-viewport" onClick={handleClick}>
+          {children}
+        </div>
+      );
+    },
+    Icon: ({ children }: any) => (
+      <div>{children}</div>
+    ),
+    Root: ({ children, value, defaultValue, disabled, open, onValueChange, onOpenChange, ...props }: any) => {
       const finalValue = value || defaultValue;
-      const finalOpen = open || false;
+      const finalOpen = open || isOpen;
+
+      // Update state from controlled props
+      if (open !== undefined) isOpen = open;
+      if (onValueChange) {
+        currentValue = value || defaultValue;
+      }
 
       return (
         <div
@@ -40,22 +76,119 @@ jest.mock("@radix-ui/react-select", () => {
         </div>
       );
     },
-    Trigger: ({ children, className, disabled, ...props }: any) => (
-      <button
-        data-testid="select-trigger"
+    Trigger: ({ children, className, disabled, ...props }: any) => {
+      // Handle click events from fireEvent
+      const handleClick = (e: React.MouseEvent) => {
+        if (!disabled && onValueChange) {
+          onValueChange?.(currentValue);
+          // Toggle open state
+          isOpen = !isOpen;
+          if (mockOnOpenChange) {
+            mockOnOpenChange(isOpen);
+          }
+        }
+      };
+
+      return (
+        <button
+          data-testid="select-trigger"
+          className={className}
+          disabled={disabled}
+          onClick={handleClick}
+          {...props}
+        >
+          {children}
+        </button>
+      );
+    },
+    Value: ({ children, placeholder, ...props }: any) => {
+      return (
+        <span data-testid="select-value" {...props}>
+          {children || placeholder}
+        </span>
+      );
+    },
+    Content: ({ children, className, position, align, onOpenChange, ...props }: any) => (
+      <div
+        data-testid="select-content"
         className={className}
-        disabled={disabled}
+        data-position={position}
+        data-align={align}
         {...props}
       >
         {children}
-      </button>
+      </div>
     ),
+    Group: ({ children, ...props }: any) => (
+      <div data-testid="select-group" {...props}>
+        {children}
+      </div>
+    ),
+    Label: ({ children, className, ...props }: any) => (
+      <div data-testid="select-label" className={className} {...props}>
+        {children}
+      </div>
+    ),
+    Item: ({ children, value, disabled, onValueChange, ...props }: any) => {
+      // Handle click events from fireEvent
+      const handleClick = (e: React.MouseEvent) => {
+        if (!disabled && onValueChange) {
+          onValueChange(value);
+          // Close select after selection
+          isOpen = false;
+          if (onOpenChange) {
+            onOpenChange(false);
+          }
+        }
+      };
+
+      return (
+        <div
+          data-testid="select-item"
+          data-value={value}
+          data-disabled={disabled}
+          onClick={handleClick}
+          {...props}
+        >
+          {children}
+        </div>
+      );
+    },
+    ItemIndicator: ({ children, ...props }: any) => (
+      <span {...props}>{children}</span>
+    ),
+    ItemText: ({ children, ...props }: any) => (
+      <span {...props}>{children}</span>
+    ),
+    Separator: ({ className, ...props }: any) => (
+      <div data-testid="select-separator" className={className} {...props} />
+    ),
+    ScrollUpButton: ({ children, className, ...props }: any) => (
+      <div data-testid="select-scroll-up-button" className={className} {...props}>
+        {children}
+      </div>
+    ),
+    ScrollDownButton: ({ children, className, ...props }: any) => (
+      <div data-testid="select-scroll-down-button" className={className} {...props}>
+        {children}
+      </div>
+    ),
+    Portal: ({ children, ...props }: any) => (
+      <div data-testid="select-portal" {...props}>
+        {children}
+      </div>
+    ),
+    Icon: ({ children, ...props }: any) => (
+      <div {...props}>{children}</div>
+    ),
+  };
+});
     Value: ({ children, placeholder, ...props }: any) => (
       <span data-testid="select-value" {...props}>
         {children || placeholder}
       </span>
     ),
-    Content: ({ children, className, position, align, ...props }: any) => (
+    Content: ({ children, className, position, align, onValueChange, ...props }: any) => (
       <div
         data-testid="select-content"
         className={className}
