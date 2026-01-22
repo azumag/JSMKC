@@ -112,6 +112,14 @@ MIT
 - Redis clear rate limitエラーなし
 
 ## 完了したタスク (2026-01-22)
+✅ [Issue #95: TypeScript compilation errors in excel.test.ts: type mismatches in escapeCSV and createCSV functions](https://github.com/azumag/JSMKC/issues/95)
+- escapeCSV関数にboolean型を追加
+- createCSV関数のrowsパラメータにnull/undefined型を追加
+- 全3件のTypeScriptコンパイルエラーを解消
+- 全956テストがパス（2スキップ）
+- ESLintエラーなし
+
+## 完了したタスク (2026-01-22)
 ✅ [Issue #94: Low Test Coverage: Multiple critical files have 0% or insufficient test coverage](https://github.com/azumag/JSMKC/issues/94)
 - double-elimination.test.ts: 34個のテストを追加し、ダブルイリミネーショントーナメントのブラケット生成ロジックを網羅
 - excel.test.ts: 60個のテストを追加し、CSVエクスポート、時刻フォーマット、日付フォーマットユーティリティを網羅
