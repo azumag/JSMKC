@@ -112,6 +112,15 @@ MIT
 - Redis clear rate limitエラーなし
 
 ## 完了したタスク (2026-01-22)
+✅ [Issue #96: Low test coverage for critical infrastructure files](https://github.com/azumag/JSMKC/issues/96) - 進行中
+- redis-cache.test.ts: 包括的なテストスイートを作成（キャッシュ操作、有効期限切れ、無効化）
+- redis-rate-limit.test.ts: レート制限機能のテストを作成（制限適用、ウィンドウ管理、クリーンアップ）
+- sanitize-error.test.ts: エラーのサニタイズ機能のテストを作成（機密情報の除去、メール/IP/DB接続文字列のマスキング）
+- logger.test.ts: ロガー機能のテストを作成（ログレベル、サービス名、メタデータ処理）
+- テストファイルを4つ追加（1,664行のコード）
+- 注: 一部のテストは複雑なモック要件によりデバッグと修正が必要
+- プルリクエスト: https://github.com/azumag/JSMKC/pull/xx
+
 ✅ [Issue #95: TypeScript compilation errors in excel.test.ts: type mismatches in escapeCSV and createCSV functions](https://github.com/azumag/JSMKC/issues/95)
 - escapeCSV関数にboolean型を追加
 - createCSV関数のrowsパラメータにnull/undefined型を追加
