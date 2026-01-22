@@ -1,4 +1,4 @@
-export function escapeCSV(value: string | number | null | undefined): string {
+export function escapeCSV(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) {
     return '';
   }
@@ -13,10 +13,10 @@ export function escapeCSV(value: string | number | null | undefined): string {
 }
 
 export function csvRow<T>(values: T[]): string {
-  return values.map(v => escapeCSV(v as string | number | null)).join(',');
+  return values.map(v => escapeCSV(v as string | number | boolean | null)).join(',');
 }
 
-export function createCSV(headers: string[], rows: (string | number)[][]): string {
+export function createCSV(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
   const headerRow = csvRow(headers);
   const dataRows = rows.map(row => csvRow(row));
   return [headerRow, ...dataRows].join('\n');
