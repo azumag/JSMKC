@@ -137,7 +137,8 @@ export async function clearRateLimitData(identifier?: string) {
       await client.del(`rate_limit:${identifier}`);
     } else {
       const keys = await client.keys('rate_limit:*');
-      if (keys.length > 0) {
+      // Add null/undefined check before accessing length property
+      if (keys && keys.length > 0) {
         await client.del(keys);
       }
     }
