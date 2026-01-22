@@ -119,6 +119,13 @@ MIT
 - 全てのESLintチェックがパス（0 errors, 0 warnings）
 - 修正後も全テストがパス
 
+✅ [Issue #98: 0% test coverage for all React components](https://github.com/azumag/JSMKC/issues/98)
+- 46個のReactコンポーネント（UIコンポーネント20個、ページコンポーネント26個）が0%のテストカバレッジ
+- Critical: ErrorBoundary, alert-dialog, form, select, token-manager
+- 推奨アプローチ: React Testing Libraryの使用、ユーザーインタラクションのテスト、依存関係のモック
+- フェーズ1（高優先度）: Critical UIコンポーネントのテスト追加
+- 優先度: Medium（インフラ/ビジネスロジックのテストの方が高優先度）
+
 ✅ [Issue #96: Low test coverage for critical infrastructure files](https://github.com/azumag/JSMKC/issues/96) - 進行中
 - redis-cache.test.ts: 包括的なテストスイートを作成（キャッシュ操作、有効期限切れ、無効化）
 - redis-rate-limit.test.ts: レート制限機能のテストを作成（制限適用、ウィンドウ管理、クリーンアップ）
