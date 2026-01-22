@@ -77,27 +77,6 @@ export const extendTokenSchema = z.object({
   days: z.string().transform(Number).refine(n => n > 0 && n <= 365, 'Days must be between 1 and 365').default(() => 7),
 });
 
-// Export validation middleware
-export function validateRequest<T>(schema: z.ZodSchema<T>) {
-  return (req: Request) => {
-    try {
-      if (req.method === 'GET') {
-        const url = new URL(req.url);
-        const searchParams = Object.fromEntries(url.searchParams);
-        return schema.parse(searchParams);
-      } else {
-        return schema.parse(req.body);
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessages = error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`);
-        throw new Error(`Validation failed: ${errorMessages.join(', ')}`);
-      }
-      throw error;
-    }
-  };
-}
-
 // Export type-safe validation functions
 export type CreatePlayerInput = z.infer<typeof createPlayerSchema>;
 export type UpdatePlayerInput = z.infer<typeof updatePlayerSchema>;
