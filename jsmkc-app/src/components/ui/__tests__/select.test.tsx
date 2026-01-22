@@ -51,7 +51,7 @@ jest.mock("@radix-ui/react-select", () => {
         >
           {React.Children.map(children, (child) => {
             if (React.isValidElement(child)) {
-              return React.cloneElement(child, {
+              return React.cloneElement(child as any, {
                 onValueChange,
                 onOpenChange,
                 disabled,
@@ -225,7 +225,9 @@ describe("Select", () => {
           <SelectValue placeholder="Select an option" />
         </SelectTrigger>
         <SelectContent>
+          {/* @ts-expect-error - onValueChange is used for testing, handled by mock */}
           <SelectItem value="option1" onValueChange={mockOnValueChange}>Option 1</SelectItem>
+          {/* @ts-expect-error - onValueChange is used for testing, handled by mock */}
           <SelectItem value="option2" onValueChange={mockOnValueChange}>Option 2</SelectItem>
         </SelectContent>
       </Select>

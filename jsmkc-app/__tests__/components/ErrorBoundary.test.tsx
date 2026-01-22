@@ -160,8 +160,10 @@ describe('ErrorBoundary', () => {
       delete (window as any).location;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).location = {
+        href: originalLocation.href,
         reload: jest.fn(),
-        ...originalLocation,
+        assign: jest.fn(),
+        replace: jest.fn(),
       };
     });
 
