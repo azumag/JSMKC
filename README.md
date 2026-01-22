@@ -90,6 +90,12 @@ MIT
 - ESLintパースエラーなし
 
 ## 完了したタスク (2026-01-22)
+✅ [Issue #92: Add test-results/ to .gitignore to exclude Playwright artifacts](https://github.com/azumag/JSMKC/issues/92)
+- .gitignoreにtest-results/ディレクトリを追加
+- Playwright E2Eテストの出力成果物（レポート、スクリーンショット等）をGitから除外
+- Gitステータスの表示を整理
+
+## 完了したタスク (2026-01-22)
 ✅ [Issue #91: Fix Redis Mock: clearRateLimitData() throws TypeError in test environment](https://github.com/azumag/JSMKC/issues/91)
 - redis-rate-limit.ts: null/undefinedチェックをkeys.lengthプロパティアクセス前に追加
 - テスト環境でclearRateLimitStore()呼び出し時のTypeErrorを解消
