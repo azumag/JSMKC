@@ -43,12 +43,8 @@ jest.mock('@/lib/auth', () => {
 
 // Now import auth.ts
 import { authConfig, ADMIN_DISCORD_IDS_LIST } from '@/lib/auth';
-import type { User, Account } from 'next-auth';
+import type { User } from 'next-auth';
 import type { DefaultSession } from 'next-auth';
-
-// Type union for all provider types (using any for test mocks to avoid complex type issues)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AuthProvider = any;
 
 interface MockToken {
   sub?: string;
@@ -78,11 +74,11 @@ const prisma = prismaMock;
 describe('Auth Configuration', () => {
   beforeEach(() => {
     // Reset prisma mocks
-    (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ( 
   prisma.user.findUnique as any).mockClear();
-    (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ( 
   prisma.user.create as any).mockClear();
-    (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ( 
   prisma.user.update as any).mockClear();
 
     // Ensure environment variables are set
@@ -117,13 +113,13 @@ describe('Auth Configuration', () => {
   describe('Credentials Provider Configuration', () => {
     it('should have credentials provider configured', () => {
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
 
       expect(credentialsProvider).toBeDefined();
       expect(credentialsProvider?.name).toBe('Player Login');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect((credentialsProvider as any)?.credentials).toEqual({
         nickname: { label: 'Nickname', type: 'text' },
         password: { label: 'Password', type: 'password' },
@@ -140,7 +136,7 @@ describe('Auth Configuration', () => {
     };
 
     it('should successfully authorize with valid credentials', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
    prisma.player.findUnique as any).mockResolvedValue(mockPlayer);
       bcryptCompare.mockResolvedValue(true);
 
@@ -150,10 +146,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toEqual({
@@ -177,10 +173,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
@@ -193,10 +189,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
@@ -204,7 +200,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when player does not exist', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.player.findUnique as any).mockResolvedValue(null);
       bcryptCompare.mockResolvedValue(true);
 
@@ -214,10 +210,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
@@ -227,7 +223,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when player has no password', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.player.findUnique as any).mockResolvedValue({
         ...mockPlayer,
         password: null,
@@ -240,10 +236,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
@@ -251,7 +247,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should return null when password does not match', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.player.findUnique as any).mockResolvedValue(mockPlayer);
       bcryptCompare.mockResolvedValue(false);
 
@@ -261,10 +257,10 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
@@ -272,7 +268,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.player.findUnique as any).mockRejectedValue(new Error('Database error'));
 
       const credentials = {
@@ -281,7 +277,7 @@ describe('Auth Configuration', () => {
       };
 
       const credentialsProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'player-credentials'
       );
 
@@ -292,7 +288,7 @@ describe('Auth Configuration', () => {
   describe('OAuth Providers Configuration', () => {
     it('should have Discord provider configured', () => {
       const discordProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'discord'
       );
 
@@ -302,7 +298,7 @@ describe('Auth Configuration', () => {
 
     it('should have GitHub provider configured', () => {
       const githubProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'github'
       );
 
@@ -312,7 +308,7 @@ describe('Auth Configuration', () => {
 
     it('should have Google provider configured with authorization params', () => {
       const googleProvider = authConfig.providers.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (p: any) => 'id' in p && p.id === 'google'
       );
 
@@ -351,9 +347,9 @@ describe('Auth Configuration', () => {
     };
 
     it('should create new user on first OAuth login', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue(null);
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.create as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -379,7 +375,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should return true for existing user', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -400,7 +396,7 @@ describe('Auth Configuration', () => {
     it('should assign admin role for whitelisted Discord user', async () => {
       const whitelistAccount = { provider: 'discord', providerAccountId: '123456789012345678', type: 'oauth' as const };
 
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
    prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -408,7 +404,7 @@ describe('Auth Configuration', () => {
         image: mockUser.image,
         role: 'member',
       });
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.update as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -430,7 +426,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should not assign admin role for non-whitelisted Discord user', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -449,7 +445,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle database errors and still allow login', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (prisma.user.findUnique as any).mockRejectedValue(new Error('Database error'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
@@ -464,7 +460,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle GitHub OAuth provider', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -482,7 +478,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Google OAuth provider', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -502,7 +498,7 @@ describe('Auth Configuration', () => {
     it('should upgrade existing user to admin if whitelisted on Discord', async () => {
       const whitelistAccount = { provider: 'discord', providerAccountId: '123456789012345678', type: 'oauth' as const };
 
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
    prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -510,7 +506,7 @@ describe('Auth Configuration', () => {
         image: mockUser.image,
         role: 'member',
       });
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.update as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -555,7 +551,7 @@ describe('Auth Configuration', () => {
     it('should assign user ID from token', async () => {
       mockSession.user.id = '';
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: mockToken as any,
@@ -565,29 +561,29 @@ describe('Auth Configuration', () => {
     });
 
     it('should assign role from token', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (mockSession.user as any).role = '';
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: mockToken as any,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.role).toBe(mockToken.role);
     });
 
     it('should assign userType from token', async () => {
       mockSession.user.userType = '';
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: mockToken as any,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.userType).toBe(mockToken.userType);
     });
 
@@ -597,15 +593,15 @@ describe('Auth Configuration', () => {
         userType: 'player',
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: playerToken as any,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.playerId).toBe(playerToken.playerId);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.nickname).toBe(playerToken.nickname);
     });
 
@@ -623,15 +619,15 @@ describe('Auth Configuration', () => {
         },
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: freshSession as any,
         token: adminToken as any,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.playerId).toBeUndefined();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.nickname).toBeUndefined();
     });
 
@@ -641,7 +637,7 @@ describe('Auth Configuration', () => {
         error: 'Session expired',
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: errorToken as any,
@@ -655,7 +651,7 @@ describe('Auth Configuration', () => {
         user: undefined,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: sessionWithoutUser as any,
         token: mockToken as any,
@@ -670,7 +666,7 @@ describe('Auth Configuration', () => {
         sub: undefined,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = await authConfig.callbacks.session!({
         session: mockSession as any,
         token: tokenWithoutSub as any,
@@ -690,7 +686,7 @@ describe('Auth Configuration', () => {
         token: tokenWithStringSub,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+       
       expect(result.user.id).toBe('123');
     });
   });
@@ -739,7 +735,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should generate initial token for OAuth providers', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -766,7 +762,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should retrieve user role from database for OAuth', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -790,7 +786,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should default to member role if user not found in database', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue(null);
 
       const existingToken = {};
@@ -837,7 +833,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle OAuth tokens with undefined expires_in', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -863,7 +859,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Discord OAuth provider', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -889,7 +885,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should handle Google OAuth provider', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
@@ -928,7 +924,7 @@ describe('Auth Configuration', () => {
 
     it('should handle case where user.email is undefined', async () => {
       const userWithoutEmail: User = { ...mockUser, email: undefined as string | undefined };
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue(null);
 
       const existingToken = {};
@@ -959,7 +955,7 @@ describe('Auth Configuration', () => {
     });
 
     it('should preserve existing token properties when extending', async () => {
-      (// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ( 
   prisma.user.findUnique as any).mockResolvedValue({
         id: 'user-1',
         email: mockUser.email,
