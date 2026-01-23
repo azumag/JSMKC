@@ -1,75 +1,8 @@
-import { TextEncoder, TextDecoder } from 'util'
-
-// Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
-global.Response = class Response {
-  constructor(body, init = {}) {
-    this.body = body
-    this.status = init.status || 200
-    this.statusText = init.statusText || 'OK'
-    this.headers = new Headers(init.headers || {})
-    this.type = 'default'
-    this.url = ''
-    this.ok = this.status >= 200 && this.status < 300
-    this.redirected = false
-    this.used = false
-  }
-
-  static json(data, init = {}) {
-    const body = JSON.stringify(data)
-    return new Response(body, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-    })
-  }
-
-  async json() {
-    return JSON.parse(this.body)
-  }
-
-  async text() {
-    return this.body
-  }
-}
-
 import '@testing-library/jest-dom'
 
-// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
-Object.defineProperty(global, 'crypto', {
-  value: {
-    randomUUID: () => {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      });
-    },
-    getRandomValues: (arr) => {
-      for (let i = 0; i < arr.length; i++) {
-        arr[i] = Math.floor(Math.random() * 256);
-      }
-      return arr;
-    },
-  },
-  writable: true,
-})
-
-// Polyfill TextEncoder and TextDecoder
-Object.defineProperty(global, 'TextEncoder', {
-  value: TextEncoder,
-  writable: true,
-})
-
-Object.defineProperty(global, 'TextDecoder', {
-  value: TextDecoder,
-  writable: true,
-})
-
-// Polyfill Response class and Response.json for Next.js
+// Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
 if (!global.Response) {
-  global.Response = class Response {
+  class Response {
     constructor(body, init = {}) {
       this.body = body
       this.status = init.status || 200
@@ -101,7 +34,11 @@ if (!global.Response) {
       return this.body
     }
   }
-} else if (!Response.json) {
+
+  global.Response = Response
+}
+
+if (!Response.json) {
   Response.json = function (data, init = {}) {
     const body = JSON.stringify(data)
     return new Response(body, {
@@ -114,178 +51,93 @@ if (!global.Response) {
   }
 }
 
-// Mock Prisma client globally
-jest.mock('@/lib/prisma', () => ({
-  __esModule: true,
-  default: {
-    tournament: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+// Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
     },
-    accessToken: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    auditLog: {
-      create: jest.fn(),
-    },
-    player: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    account: {
-      findUnique: jest.fn(),
-    },
-    session: {
-      findUnique: jest.fn(),
-    },
-    bMMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    bMQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    mRMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    mRQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    gPMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    gPQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    tTEntry: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    scoreEntryLog: {
-      findMany: jest.fn(),
-    },
-    matchCharacterUsage: {
-      findMany: jest.fn(),
+    getRandomValues: (arr) => {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = Math.floor(Math.random() * 256);
+      }
+      return arr;
     },
   },
-  prisma: {
-    tournament: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+  writable: true,
+})
+
+// Mock Element.prototype.scrollIntoView for Radix UI Select components
+// Radix UI uses scrollIntoView for positioning and focus management
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = jest.fn();
+}
+
+// Polyfill TextEncoder and TextDecoder using global util module
+// Note: require() is used here intentionally for Jest setup
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const util = require('util');
+if (!global.TextEncoder) {
+  global.TextEncoder = util.TextEncoder;
+}
+if (!global.TextDecoder) {
+  global.TextDecoder = util.TextDecoder;
+}
+
+// Mock Prisma client globally - optimized to minimize overhead
+jest.mock('@/lib/prisma', () => {
+  const createMockModel = () => ({
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  })
+
+  const createMockModelWithMethods = () => ({
+    ...createMockModel(),
+    count: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    groupBy: jest.fn(),
+  })
+
+  return {
+    __esModule: true,
+    default: {
+      tournament: createMockModelWithMethods(),
+      accessToken: createMockModel(),
+      auditLog: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+      },
+      player: createMockModelWithMethods(),
+      account: {
+        findUnique: jest.fn(),
+      },
+      session: {
+        findUnique: jest.fn(),
+      },
+      bMMatch: createMockModelWithMethods(),
+      bMQualification: createMockModelWithMethods(),
+      mRMatch: createMockModelWithMethods(),
+      mRQualification: createMockModelWithMethods(),
+      gPMatch: createMockModelWithMethods(),
+      gPQualification: createMockModelWithMethods(),
+      tTEntry: createMockModelWithMethods(),
+      scoreEntryLog: {
+        findMany: jest.fn(),
+      },
+      matchCharacterUsage: {
+        findMany: jest.fn(),
+      },
     },
-    accessToken: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    auditLog: {
-      create: jest.fn(),
-    },
-    player: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    account: {
-      findUnique: jest.fn(),
-    },
-    session: {
-      findUnique: jest.fn(),
-    },
-    bMMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    bMQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    mRMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    mRQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    gPMatch: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    gPQualification: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    tTEntry: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    scoreEntryLog: {
-      findMany: jest.fn(),
-    },
-    matchCharacterUsage: {
-      findMany: jest.fn(),
-    },
-  },
-}))
+  }
+})
 
 // Mock NextAuth.js
 jest.mock('next-auth/react', () => ({

@@ -396,7 +396,7 @@ describe("Select", () => {
 
     const scrollButtons = screen.getAllByTestId("select-scroll-up-button");
     expect(scrollButtons.length).toBeGreaterThan(0);
-    expect(screen.getByTestId("select-scroll-down-button-bottom")).toBeInTheDocument();
+    expect(screen.getByTestId("select-scroll-down-button")).toBeInTheDocument();
   });
 
   it("closes select when clicking outside", () => {

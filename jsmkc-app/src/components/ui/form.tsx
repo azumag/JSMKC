@@ -45,13 +45,23 @@ const FormField = <
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
   const itemContext = React.useContext(FormItemContext)
-  const { getFieldState } = useFormContext()
-  const formState = useFormState({ name: fieldContext.name })
-  const fieldState = getFieldState(fieldContext.name, formState)
 
+  // Validate fieldContext exists before using it in useFormState
+  // This prevents "Cannot read properties of undefined (reading '_formState')" error
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>")
   }
+
+  const formContext = useFormContext()
+  // Validate formContext exists before destructuring
+  // This prevents null reference error when not in FormProvider
+  if (!formContext) {
+    throw new Error("useFormField should be used within <Form>")
+  }
+
+  const { getFieldState } = formContext
+  const formState = useFormState({ name: fieldContext.name })
+  const fieldState = getFieldState(fieldContext.name, formState)
 
   const { id } = itemContext
 

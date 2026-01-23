@@ -32,6 +32,13 @@ const customJestConfig: Config = {
       statements: 70,
     },
   },
+  // Performance optimizations
+  maxWorkers: 4,
+  maxConcurrency: 4,
+  testTimeout: 10000,
+  // Enable Jest cache for faster subsequent runs
+  cache: true,
+  cacheDirectory: '<rootDir>/.jest-cache',
   // Handle TypeScript compilation for test files
   transform: {
     '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],

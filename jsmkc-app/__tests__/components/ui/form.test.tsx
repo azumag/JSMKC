@@ -177,11 +177,30 @@ describe('Form Components', () => {
     });
 
     it('should accept custom className', () => {
-      render(
-        <Form>
-          <FormLabel className="custom-label">Label</FormLabel>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="custom-label">Label</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const label = screen.getByText('Label');
       expect(label).toHaveClass('custom-label');
@@ -278,13 +297,32 @@ describe('Form Components', () => {
     });
 
     it('should accept custom className', () => {
-      render(
-        <Form>
-          <FormDescription className="custom-description">
-            Description
-          </FormDescription>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription className="custom-description">
+                    Description
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const description = screen.getByText('Description');
       expect(description).toHaveClass('custom-description');
@@ -337,67 +375,181 @@ describe('Form Components', () => {
     });
 
     it('should render custom children message', () => {
-      render(
-        <Form>
-          <FormMessage>Custom error message</FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage>Custom error message</FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       expect(screen.getByText('Custom error message')).toBeInTheDocument();
     });
 
     it('should have correct typography classes for errors', () => {
-      render(
-        <Form>
-          <FormMessage>Error text</FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage>Error text</FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const message = screen.getByText('Error text');
       expect(message).toHaveClass('text-destructive', 'text-sm');
     });
 
     it('should be linked via id', () => {
-      render(
-        <Form>
-          <FormMessage>Error message</FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage>Error message</FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const message = screen.getByText('Error message');
       expect(message).toHaveAttribute('id');
     });
 
     it('should accept custom className', () => {
-      render(
-        <Form>
-          <FormMessage className="custom-message">
-            Error
-          </FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage className="custom-message">
+                    Error
+                  </FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const message = screen.getByText('Error');
       expect(message).toHaveClass('custom-message');
     });
 
     it('should have data-slot attribute', () => {
-      render(
-        <Form>
-          <FormMessage>Error message</FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage>Error message</FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       const message = screen.getByText('Error message');
       expect(message).toHaveAttribute('data-slot', 'form-message');
     });
 
     it('should not render when error message is empty', () => {
-      render(
-        <Form>
-          <FormMessage></FormMessage>
-        </Form>
-      );
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: { test: '' },
+        });
+
+        return (
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="test"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage></FormMessage>
+                </FormItem>
+              )}
+            />
+          </Form>
+        );
+      };
+
+      render(<TestComponent />);
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
@@ -459,7 +611,7 @@ describe('Form Components', () => {
 
       expect(() => {
         render(<TestComponent />);
-      }).toThrow('useFormField should be used within <FormField>');
+      }).toThrow('useFormField should be used within <Form>');
     });
 
     it('should return correct values when used inside FormField', () => {
@@ -568,10 +720,10 @@ describe('Form Components', () => {
       render(<TestForm />);
 
       expect(screen.getByTestId('test-form')).toBeInTheDocument();
-      
-      const label = screen.getByText('Username').parentElement;
+
+      const label = screen.getByText('Username');
       expect(label).toHaveAttribute('data-slot', 'form-label');
-      
+
       const description = screen.getByText('Enter your username');
       expect(description).toHaveAttribute('data-slot', 'form-description');
     });

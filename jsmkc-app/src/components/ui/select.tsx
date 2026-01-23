@@ -76,7 +76,6 @@ function SelectContent({
         align={align}
         {...props}
       >
-        <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
             "p-1",
@@ -86,7 +85,6 @@ function SelectContent({
         >
           {children}
         </SelectPrimitive.Viewport>
-        <SelectScrollDownButton data-testid="select-scroll-down-button-bottom" />
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   )

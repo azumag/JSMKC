@@ -109,17 +109,18 @@ describe('AlertDialog Components', () => {
     it('should accept custom className', () => {
       render(
         <AlertDialog open={true}>
-          <AlertDialogPortal>
-            <AlertDialogOverlay className="custom-overlay" />
-            <AlertDialogContent>
-              <div>Content</div>
-            </AlertDialogContent>
-          </AlertDialogPortal>
+          <AlertDialogContent className="custom-content">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Title</AlertDialogTitle>
+              <AlertDialogDescription>Description</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div>Content</div>
+          </AlertDialogContent>
         </AlertDialog>
       );
 
-      const overlay = screen.getByRole('presentation', { hidden: true });
-      expect(overlay).toHaveClass('custom-overlay');
+      const content = screen.getByRole('alertdialog');
+      expect(content).toHaveClass('custom-content');
     });
   });
 
