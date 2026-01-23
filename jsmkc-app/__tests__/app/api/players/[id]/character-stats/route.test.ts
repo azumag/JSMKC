@@ -48,7 +48,7 @@ import * as characterStatsRoute from '@/app/api/players/[id]/character-stats/rou
 
 const logger = createLogger('character-stats-test');
 
-// Cast mocks to proper types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockAuth = auth as any;
 
 describe('GET /api/players/[id]/character-stats', () => {
