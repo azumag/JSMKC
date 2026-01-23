@@ -83,6 +83,18 @@ MIT
 - 全835テストがパス（2スキップ）
 - TypeScriptコンパイルエラーなし（0 errors）
 
+## 完了したタスク (2026-01-23)
+✅ [Issue #109: Fix TypeScript compilation errors in players page and logger](https://github.com/azumag/JSMKC/issues/109)
+- players/page.tsx: editingPlayerId状態変数を追加し、編集中のプレイヤーを追跡
+- players/page.tsx: setIsLoadingのタイプミスをsetLoadingに修正
+- players/page.tsx: handleUpdate関数でplayer.idの代わりにeditingPlayerIdを使用
+- players/page.tsx: handleUpdate関数でplayerの代わりにformDataを使用
+- players/page.tsx: handleEditDialogClose関数を追加し、ダイアログ閉じ時に状態をリセット
+- players/page.tsx: DialogのonOpenChangeをhandleEditDialogCloseに変更
+- logger.ts: createTestLogger関数に_serviceパラメータを追加
+- 全TypeScriptコンパイルエラーを解消（4エラー→0エラー）
+- 1つのリンタ警告（_serviceパラメータは意図的に使用されず）
+
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #88: Critical ESLint Parsing Error: Malformed test structure in middleware.test.ts](https://github.com/azumag/JSMKC/issues/88)
 - middleware.test.tsの構文解析エラーを確認し、問題なしを検証
@@ -189,8 +201,13 @@ MIT
 - players/page.tsx: 使用されていないeditingPlayer状態変数を削除
 - logger.ts: createTestLoggerの意図的に使用されないパラメータにeslint-disableコメントを追加
 - 全テストパス、リンタ警告なし（0 errors, 0 warnings）
-
-## 完了したタスク (2026-01-22)
+✅ [Issue #108: Fix failing redis-rate-limit.test.ts tests](https://github.com/azumag/JSMKC/issues/108)
+- redis-rate-limit.ts: setMockRedisClientForTesting()関数を追加し、テストが独自のモックを設定できるように修正
+- redis-rate-limit.ts: getRedisClient()でテストモックが設定されているかチェックするように変更
+- redis-rate-limit.ts: resetRedisClientForTest()でmockRedisClientForTestingもリセットするように変更
+- redis-rate-limit.test.ts: beforeEachでsetMockRedisClientForTesting()を呼び出すように変更
+- redis-rate-limit.test.ts: 複数リクエストのテストでzCardの戻り値を適切に更新するように修正
+- 全29テストがパス（100%成功率）
 ✅ [Issue #100: Fix failing unit tests: alert-dialog.test.tsx and ErrorBoundary.test.tsx](https://github.com/azumag/JSMKC/issues/100)
 - alert-dialog.test.tsx: displayNameプロパティをモックに追加し、コンポーネント構造を修正
 - alert-dialog.test.tsx: onAction/onCancelプロパティをonClickに変更し、適切なボタンイベント処理を実装

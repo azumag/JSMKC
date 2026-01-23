@@ -5,6 +5,8 @@ import {
   rateLimitConfigs,
   checkRateLimitByType,
   clearRateLimitData,
+  resetRedisClientForTest,
+  setMockRedisClientForTesting,
 } from '@/lib/redis-rate-limit';
 
 // Mock Redis module
@@ -35,13 +37,10 @@ describe('Redis Rate Limit', () => {
     // Reset all mocks before each test
     jest.clearAllMocks();
 
-    // Set environment to non-test value so actual mock is used
-    // The module creates a mock client when NODE_ENV is 'test'
-    // We want to use our mock instead
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    // Reset the cached Redis client so tests can provide their own mocks
+    resetRedisClientForTest();
 
-    // Create mock Redis client
+    // Create mock Redis client with proper implementations
     mockZRemRangeByScore = jest.fn().mockResolvedValue(0);
     mockZCard = jest.fn().mockResolvedValue(0);
     mockZRange = jest.fn().mockResolvedValue([]);
@@ -62,16 +61,8 @@ describe('Redis Rate Limit', () => {
       connect: jest.fn().mockResolvedValue(undefined),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const redis = require('redis');
-    redis.createClient.mockReturnValue(mockRedisClient);
-
-    // Restore environment
-    if (originalEnv) {
-      process.env.NODE_ENV = originalEnv;
-    } else {
-      delete process.env.NODE_ENV;
-    }
+    // Set the mock before any rate limit function is called
+    setMockRedisClientForTesting(mockRedisClient);
   });
 
   afterEach(() => {
@@ -127,22 +118,25 @@ describe('Redis Rate Limit', () => {
     it('should handle multiple requests within window', async () => {
       const config = { limit: 3, windowMs: 60000 };
 
-      // First request
+      // First request - count is 0, after adding becomes 1
+      mockZCard.mockResolvedValue(0);
       const result1 = await checkRateLimit('user123', config);
       expect(result1.success).toBe(true);
       expect(result1.remaining).toBe(2);
 
-      // Second request
+      // Second request - count is 1, after adding becomes 2
+      mockZCard.mockResolvedValue(1);
       const result2 = await checkRateLimit('user123', config);
       expect(result2.success).toBe(true);
       expect(result2.remaining).toBe(1);
 
-      // Third request
+      // Third request - count is 2, after adding becomes 3
+      mockZCard.mockResolvedValue(2);
       const result3 = await checkRateLimit('user123', config);
       expect(result3.success).toBe(true);
       expect(result3.remaining).toBe(0);
 
-      // Fourth request (exceeds limit)
+      // Fourth request (exceeds limit) - count is 3 (at limit)
       mockZCard.mockResolvedValue(3);
       const result4 = await checkRateLimit('user123', config);
       expect(result4.success).toBe(false);

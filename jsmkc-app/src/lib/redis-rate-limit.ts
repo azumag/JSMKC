@@ -10,30 +10,33 @@ let redisClient: RedisClientType | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let mockRedisClientForTesting: any = null;
 
+// Setter function for tests to provide their mock client
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function setMockRedisClientForTesting(mockClient: any) {
+  mockRedisClientForTesting = mockClient;
+}
+
 export async function getRedisClient() {
   if (!redisClient) {
     // Check if we're in test environment and use mock if needed
     if (process.env.NODE_ENV === 'test') {
-      // Create a mock Redis client for testing
-      // This mock has default implementations for all methods
-      // Tests can override these by accessing mockRedisClientForTesting
-      redisClient = {
-        connect: jest.fn().mockResolvedValue(undefined),
-        on: jest.fn(),
-        del: jest.fn().mockResolvedValue(1),
-        keys: jest.fn().mockResolvedValue([]),
-        get: jest.fn().mockResolvedValue(null),
-        set: jest.fn().mockResolvedValue('OK'),
-        zAdd: jest.fn().mockResolvedValue(1),
-        zCard: jest.fn().mockResolvedValue(0),
-        zRemRangeByScore: jest.fn().mockResolvedValue(0),
-        expire: jest.fn().mockResolvedValue(1),
-        zRange: jest.fn().mockResolvedValue([]),
-      } as unknown as RedisClientType;
+      // Check if a test mock was already provided by tests
+      // Tests can set mockRedisClientForTesting before calling getRedisClient()
+      if (mockRedisClientForTesting) {
+        redisClient = mockRedisClientForTesting as unknown as RedisClientType;
+        return redisClient;
+      }
+
+      // Create a mock Redis client for testing using redis.createClient
+      // This allows tests to mock redis.createClient to provide their own mock
+      redisClient = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+      }) as unknown as RedisClientType;
 
       // Store in global variable so tests can access and modify
       mockRedisClientForTesting = redisClient;
 
+      // Don't connect in test mode - tests should handle this
       return redisClient;
     }
 
@@ -57,6 +60,7 @@ export async function getRedisClient() {
 // Reset function for testing - allows tests to clear the cached Redis client
 export function resetRedisClientForTest() {
   redisClient = null;
+  mockRedisClientForTesting = null;
 }
 
 // Rate limiting with Redis
