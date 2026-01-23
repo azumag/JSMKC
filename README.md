@@ -63,14 +63,21 @@ jsmkc-app/
 
 MIT
 
-## 進行中のタスク (2026-01-23)
-🔄 [Issue #112: APIルートの単体テストを追加 - モック設定問題の根本原因を調査中](https://github.com/azumag/JSMKC/issues/112)
-- APIテストファイルは12個存在しているが、Jestモックシステムの設定問題でテストが実行されない
-- 現在のAPIカバレッジ: 14.79% statements（80%ターゲット未達）
-- 主要なブロッカー: `mockResolvedValue is not a function`エラーが一貫して発生
-- 新しいテストファイルを作成: __tests__/app/api/tournaments/[id]/ta/standings/route.test.ts (タイムアタック順位取得APIのテスト)
-- モック設定パターンの調査: 標準的なjest.mock()を使用しても、一部のモック関数で型認識問題が発生
-- 次のステップ: モック設定の根本的な問題を解決し、既存のすべてのAPIテストを実行可能にする
+## 完了したタスク (2026-01-23)
+🔄 [Issue #112: APIルートの単体テストを追加 - 根本的なモック設定問題を特定](https://github.com/azumag/JSMKC/issues/112)
+- APIテストファイルは12個存在している（当初の0個という記述は修正済み）
+- 34個のAPIルートが未テスト
+- 新しいテストファイルを作成: ta/standings/route.test.ts（タイムアタック順位取得API）
+- 重大なブロッカーを特定: Jestモックの設定問題で'mockResolvedValue is not a function'エラーが一貫して発生
+- 調査結果をコミット（commit 2fc9534）とGitHub issueで報告
+- APIカバレッジ: 14.79% statements（80%ターゲット未達）
+
+### 次の必要なステップ
+1. Jestモック設定の型認識問題を解決（モック関数でmockResolvedValueメソッドが使用可能にする）
+2. 影響を受けるモジュール: @/lib/standings-cache, @/lib/rate-limit, @/lib/audit-log, @/lib/sanitize, @/lib/password-utils
+3. 136個の失敗テストを修正
+4. 残りの34個の未テストAPIルートにテストを追加
+5. APIカバレッジを80%以上に改善
 
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #52: テストカバレッジの大幅な改善が必要](https://github.com/azumag/JSMKC/issues/52)
