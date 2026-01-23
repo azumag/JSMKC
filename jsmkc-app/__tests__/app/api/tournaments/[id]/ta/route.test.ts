@@ -75,11 +75,18 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { getClientIdentifier, getUserAgent, rateLimit } from '@/lib/rate-limit';
+
+// Type assertion for audit log
+const mockCreateAuditLog = createAuditLog as jest.MockedFunction<typeof createAuditLog>;
 import { sanitizeInput } from '@/lib/sanitize';
 import { recalculateRanks } from '@/lib/ta/rank-calculation';
 import * as taRoute from '@/app/api/tournaments/[id]/ta/route';
 
 const logger = createLogger('ta-route-test');
+
+// Type assertions for logger methods to make Jest happy
+const mockLoggerError = logger.error as jest.MockedFunction<typeof logger.error>;
+const mockLoggerWarn = logger.warn as jest.MockedFunction<typeof logger.warn>;
 
 describe('GET /api/tournaments/[id]/ta', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -214,7 +221,7 @@ describe('GET /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(mockLoggerError).toHaveBeenCalledWith(
         'Failed to fetch TA data',
         expect.any(Object)
       );
@@ -238,7 +245,7 @@ describe('GET /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(mockLoggerError).toHaveBeenCalledWith(
         'Failed to fetch TA data',
         expect.objectContaining({
           tournamentId: 't1',
@@ -499,7 +506,7 @@ describe('POST /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );
@@ -528,7 +535,7 @@ describe('POST /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(mockLoggerError).toHaveBeenCalledWith(
         'Failed to add player to TA',
         expect.any(Object)
       );
@@ -841,7 +848,7 @@ describe('PUT /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );
@@ -876,7 +883,7 @@ describe('PUT /api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(mockLoggerError).toHaveBeenCalledWith(
         'Failed to update times',
         expect.any(Object)
       );
@@ -1044,7 +1051,7 @@ describe('DELETE /api/tournaments/[id]/ta', () => {
         params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );
@@ -1073,7 +1080,7 @@ describe('DELETE /api/tournaments/[id]/ta', () => {
         params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(mockLoggerError).toHaveBeenCalledWith(
         'Failed to delete entry',
         expect.any(Object)
       );

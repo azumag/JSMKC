@@ -61,6 +61,7 @@ jest.mock('next/server', () => {
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
+import { paginate } from '@/lib/pagination';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';

@@ -1,41 +1,47 @@
 import '@testing-library/jest-dom'
 
 // Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
-if (typeof window !== 'undefined' && !window.Response) {
-  class Response {
-    constructor(body, init = {}) {
-      this.body = body
-      this.status = init.status || 200
-      this.statusText = init.statusText || 'OK'
-      this.headers = new Headers(init.headers || {})
-      this.type = 'default'
-      this.url = ''
-      this.ok = this.status >= 200 && this.status < 300
-      this.redirected = false
-      this.used = false
-    }
-
-    static json(data, init = {}) {
-      const body = JSON.stringify(data)
-      return new Response(body, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(init.headers || {}),
-        },
-      })
-    }
-
-    async json() {
-      return JSON.parse(this.body)
-    }
-
-    async text() {
-      return this.body
-    }
+class ResponsePolyfill {
+  constructor(body, init = {}) {
+    this.body = body
+    this.status = init.status || 200
+    this.statusText = init.statusText || 'OK'
+    this.headers = new Headers(init.headers || {})
+    this.type = 'default'
+    this.url = ''
+    this.ok = this.status >= 200 && this.status < 300
+    this.redirected = false
+    this.used = false
   }
 
-  global.Response = Response
+  static json(data, init = {}) {
+    const body = JSON.stringify(data)
+    return new ResponsePolyfill(body, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    })
+  }
+
+  async json() {
+    return JSON.parse(this.body)
+  }
+
+  async text() {
+    return this.body
+  }
+}
+
+// Add Response polyfill globally for Node.js environment
+if (typeof global.Response === 'undefined') {
+  global.Response = ResponsePolyfill
+}
+
+// Also add to window for browser-like environment
+if (typeof window !== 'undefined' && !window.Response) {
+  window.Response = ResponsePolyfill
 }
 
 // Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
@@ -155,6 +161,48 @@ Object.defineProperty(window, 'location', {
     replace: jest.fn(),
   },
   writable: true,
+})
+
+// Mock next/server to fix Response.json issue
+jest.mock('next/server', () => {
+  const mockJson = jest.fn((body, init) => {
+    const status = init?.status || 200
+    const response = new global.Response(JSON.stringify(body), {
+      status,
+      statusText: init?.statusText || 'OK',
+      headers: new Headers({
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      }),
+    })
+    return response
+  })
+
+  return {
+    NextResponse: {
+      json: mockJson,
+    },
+    NextRequest: class {
+      constructor(urlOrRequest, init) {
+        if (typeof urlOrRequest === 'string') {
+          this.url = urlOrRequest
+          this.headers = new Headers(init?.headers)
+          this.method = init?.method || 'GET'
+          this.body = init?.body
+        } else {
+          this.url = urlOrRequest.url
+          this.headers = urlOrRequest.headers
+          this.method = urlOrRequest.method
+          this.body = urlOrRequest.body
+        }
+      }
+
+      async json() {
+        return JSON.parse(this.body)
+      }
+    },
+    __esModule: true,
+  }
 })
 
 // Mock console methods to reduce noise in tests
