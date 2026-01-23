@@ -1,4 +1,3 @@
-// @ts-nocheck - This test file uses complex mock types for Next.js API routes
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
@@ -55,6 +54,10 @@ import { sanitizeInput } from '@/lib/sanitize';
 import { paginate } from '@/lib/pagination';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';
+
+type PrismaError = {
+  code: string;
+};
 
 describe('GET /api/players/[id]', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -303,7 +306,7 @@ describe('PUT /api/players/[id]', () => {
         nickname: 'updated',
       });
       (prisma.player.update as jest.Mock).mockRejectedValue(
-        { code: 'P2025' } as any
+        { code: 'P2025' } as PrismaError
       );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
@@ -331,7 +334,7 @@ describe('PUT /api/players/[id]', () => {
         nickname: 'existing-test',
       });
       (prisma.player.update as jest.Mock).mockRejectedValue(
-        { code: 'P2002' } as any
+        { code: 'P2002' } as PrismaError
       );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
@@ -449,7 +452,7 @@ describe('DELETE /api/players/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.player.delete as jest.Mock).mockRejectedValue(
-        { code: 'P2025' } as any
+        { code: 'P2025' } as PrismaError
       );
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {

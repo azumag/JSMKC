@@ -1,4 +1,3 @@
-// @ts-nocheck - This test file uses complex mock types for Next.js API routes
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
@@ -33,16 +32,6 @@ jest.mock('next/server', () => {
   };
 });
 
-jest.mock('next/server', () => {
-  const mockJson = jest.fn();
-  return {
-    NextResponse: {
-      json: mockJson,
-    },
-    __esModule: true,
-  };
-});
-
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
@@ -50,8 +39,15 @@ import * as standingsRoute from '@/app/api/tournaments/[id]/ta/standings/route';
 
 const logger = createLogger('ta-standings-api-test');
 
-const standingsCache = jest.requireMock('@/lib/standings-cache');
-const { get, set, isExpired, generateETag } = standingsCache as any;
+type StandingsCacheMock = {
+  get: jest.Mock;
+  set: jest.Mock;
+  isExpired: jest.Mock;
+  generateETag: jest.Mock;
+};
+
+const standingsCache = jest.requireMock('@/lib/standings-cache') as StandingsCacheMock;
+const { get, set, isExpired, generateETag } = standingsCache;
 
 describe('GET /api/tournaments/[id]/ta/standings', () => {
   const { NextResponse } = jest.requireMock('next/server');

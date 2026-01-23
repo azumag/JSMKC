@@ -1,4 +1,3 @@
-// @ts-nocheck - This test file uses complex mock types for Next.js API routes
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
@@ -58,6 +57,10 @@ jest.mock('next/server', () => {
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
+
+type PrismaError = {
+  code: string;
+};
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/sanitize';
 import { generateTournamentToken, getTokenExpiry, extendTokenExpiry } from '@/lib/token-utils';
@@ -748,7 +751,7 @@ describe('Token Management API Routes', () => {
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
         (prisma.tournament.update as jest.Mock).mockRejectedValue(
-          { code: 'P2025' } as any
+          { code: 'P2025' } as PrismaError
         );
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {

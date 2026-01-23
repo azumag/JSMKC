@@ -1,4 +1,3 @@
-// @ts-nocheck - This test file uses complex mock types for Next.js API routes
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
@@ -19,8 +18,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 jest.mock('@/lib/excel', () => ({
-  formatDate: jest.fn((date: Date) => '2024-01-15'),
-  formatTime: jest.fn((ms: number) => '1:23.456'),
+  formatTime: jest.fn(() => '1:23.456'),
 }));
 
 jest.mock('next/server', () => ({
@@ -32,10 +30,12 @@ jest.mock('next/server', () => ({
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
-import { formatDate, formatTime } from '@/lib/excel';
+import { formatTime } from '@/lib/excel';
 import * as exportRoute from '@/app/api/tournaments/[id]/export/route';
 
 const logger = createLogger('tournament-export-test');
+
+type MockCall = [unknown, Record<string, unknown>?];
 
 describe('GET /api/tournaments/[id]/export', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -127,8 +127,8 @@ describe('GET /api/tournaments/[id]/export', () => {
         },
       });
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string' && call[0].includes('TOURNAMENT SUMMARY')
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string' && call[0].includes('TOURNAMENT SUMMARY')
       );
 
       expect(responseCall).toBeDefined();
@@ -184,12 +184,12 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string' && call[0].includes('Match Race Matches')
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string'
       );
 
       expect(responseCall).toBeDefined();
-      const csvContent = responseCall[0];
+      const csvContent = responseCall[0] as string;
       expect(csvContent).toContain('Match Race Matches');
       expect(csvContent).toContain('Player 1');
       expect(csvContent).toContain('2 - 1');
@@ -237,8 +237,8 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string' && call[0].includes('Grand Prix Matches')
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string' && call[0].includes('Grand Prix Matches')
       );
 
       expect(responseCall).toBeDefined();
@@ -284,8 +284,8 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string' && call[0].includes('Time Attack Entries')
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string' && call[0].includes('Time Attack Entries')
       );
 
       expect(responseCall).toBeDefined();
@@ -315,14 +315,14 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[1] && call[1].headers
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[1] && typeof call[1] === 'object' && call[1] && 'headers' in call[1]
       );
 
       expect(responseCall).toBeDefined();
-      expect(responseCall[1].headers['Content-Type']).toBe('text/csv; charset=utf-8');
-      expect(responseCall[1].headers['Content-Disposition']).toContain('attachment');
-      expect(responseCall[1].headers['Content-Disposition']).toContain('Test_Tournament-full-2024-01-15.csv');
+      expect((responseCall[1] as Record<string, unknown>).headers['Content-Type']).toBe('text/csv; charset=utf-8');
+      expect((responseCall[1] as Record<string, unknown>).headers['Content-Disposition']).toContain('attachment');
+      expect((responseCall[1] as Record<string, unknown>).headers['Content-Disposition']).toContain('Test_Tournament-full-2024-01-15.csv');
     });
   });
 
@@ -347,12 +347,12 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[1] && call[1].headers
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[1] && typeof call[1] === 'object' && call[1] && 'headers' in call[1]
       );
 
       expect(responseCall).toBeDefined();
-      const filename = responseCall[1].headers['Content-Disposition'];
+      const filename = (responseCall[1] as Record<string, unknown>).headers['Content-Disposition'] as string;
       // Special characters should be replaced with underscores
       expect(filename).toContain('Test_Tournament_2024-full-');
       expect(filename).not.toContain('!');
@@ -379,12 +379,12 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string'
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string'
       );
 
       expect(responseCall).toBeDefined();
-      const csvContent = responseCall[0];
+      const csvContent = responseCall[0] as string;
       // BOM (Byte Order Mark) for UTF-8
       expect(csvContent.charCodeAt(0)).toBe(0xFEFF);
     });
@@ -428,12 +428,12 @@ describe('GET /api/tournaments/[id]/export', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const responseCall = (NextResponse as any).mock.calls.find(
-        (call: any) => call[0] && typeof call[0] === 'string'
+      const responseCall = (NextResponse as unknown as jest.Mocked<typeof NextResponse>).mock.calls.find(
+        (call: MockCall) => call[0] && typeof call[0] === 'string'
       );
 
       expect(responseCall).toBeDefined();
-      const csvContent = responseCall[0];
+      const csvContent = responseCall[0] as string;
       // Commas should be escaped with double quotes
       expect(csvContent).toContain('"Player, One"');
       expect(csvContent).toContain('"p,1"');
