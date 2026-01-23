@@ -6,24 +6,34 @@ const log = createLogger('redis');
 // Redis client instance
 let redisClient: RedisClientType | null = null;
 
+// Global mock client for testing - allows tests to access and modify mock methods
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export let mockRedisClientForTesting: any = null;
+
 export async function getRedisClient() {
   if (!redisClient) {
     // Check if we're in test environment and use mock if needed
     if (process.env.NODE_ENV === 'test') {
       // Create a mock Redis client for testing
+      // This mock has default implementations for all methods
+      // Tests can override these by accessing mockRedisClientForTesting
       redisClient = {
-        connect: jest.fn(),
+        connect: jest.fn().mockResolvedValue(undefined),
         on: jest.fn(),
-        del: jest.fn(),
-        keys: jest.fn(),
-        get: jest.fn(),
-        set: jest.fn(),
-        zAdd: jest.fn(),
-        zCard: jest.fn(),
-        zRemRangeByScore: jest.fn(),
-        expire: jest.fn(),
-        zRange: jest.fn(),
+        del: jest.fn().mockResolvedValue(1),
+        keys: jest.fn().mockResolvedValue([]),
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue('OK'),
+        zAdd: jest.fn().mockResolvedValue(1),
+        zCard: jest.fn().mockResolvedValue(0),
+        zRemRangeByScore: jest.fn().mockResolvedValue(0),
+        expire: jest.fn().mockResolvedValue(1),
+        zRange: jest.fn().mockResolvedValue([]),
       } as unknown as RedisClientType;
+
+      // Store in global variable so tests can access and modify
+      mockRedisClientForTesting = redisClient;
+
       return redisClient;
     }
 
@@ -42,6 +52,11 @@ export async function getRedisClient() {
     await redisClient.connect();
   }
   return redisClient;
+}
+
+// Reset function for testing - allows tests to clear the cached Redis client
+export function resetRedisClientForTest() {
+  redisClient = null;
 }
 
 // Rate limiting with Redis
