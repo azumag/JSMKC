@@ -2,21 +2,50 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
-// Note: prisma.player methods are mocked globally in jest.setup.js
-// Do not re-mock prisma here to avoid conflicts
+// Mock dependencies - using same pattern as working tournament tests
+jest.mock('@/lib/prisma', () => ({
+  default: {
+    player: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+    },
+  },
+}));
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({
-    error: jest.fn(),
-  })),
+jest.mock('@/lib/sanitize', () => ({
+  sanitizeInput: jest.fn((data) => data),
 }));
 
 jest.mock('@/lib/pagination', () => ({
   paginate: jest.fn(),
+}));
+
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({
+    error: jest.fn(),
+    warn: jest.fn(),
+  })),
+}));
+
+jest.mock('@/lib/password-utils', () => ({
+  generateSecurePassword: jest.fn(() => 'test-password'),
+  hashPassword: jest.fn(() => Promise.resolve('hashed-password')),
+}));
+
+jest.mock('@/lib/audit-log', () => ({
+  createAuditLog: jest.fn(),
+  AUDIT_ACTIONS: {
+    CREATE_PLAYER: 'CREATE_PLAYER',
+  },
+}));
+
+jest.mock('@/lib/rate-limit', () => ({
+  getServerSideIdentifier: jest.fn(() => Promise.resolve('127.0.0.1')),
 }));
 
 jest.mock('next/server', () => {
@@ -31,8 +60,11 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { sanitizeInput } from '@/lib/sanitize';
+import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
+import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
-import { paginate } from '@/lib/pagination';
 import * as playerRoute from '@/app/api/players/route';
 
 const logger = createLogger('players-route-test');
@@ -42,16 +74,6 @@ describe('GET /api/players', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Mock paginate to return pagination result
-    (paginate as jest.Mock).mockImplementation(async () => ({
-      data: [],
-      pagination: {
-        page: 1,
-        limit: 50,
-        total: 0,
-        totalPages: 0,
-      },
-    }));
   });
 
   afterEach(() => {
@@ -67,13 +89,76 @@ describe('GET /api/players', () => {
 
       (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
       (prisma.player.count as jest.Mock).mockResolvedValue(2);
+      (paginate as jest.Mock).mockResolvedValue({
+        data: mockPlayers,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 2,
+          totalPages: 1,
+        },
+      });
 
       await playerRoute.GET(
         new NextRequest('http://localhost:3000/api/players')
       );
 
-      expect(prisma.player.findMany).toHaveBeenCalled();
-      expect(NextResponse.json).toHaveBeenCalled();
+      expect(paginate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          findMany: prisma.player.findMany,
+          count: prisma.player.count,
+        }),
+        { deletedAt: null },
+        { nickname: 'asc' },
+        { page: 1, limit: 50 }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        data: mockPlayers,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 2,
+          totalPages: 1,
+        },
+      });
+    });
+
+    it('should return paginated list with custom page and limit', async () => {
+      const mockPlayers = [{ id: 'p1', name: 'Player 1', nickname: 'player1' }];
+
+      (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
+      (prisma.player.count as jest.Mock).mockResolvedValue(25);
+      (paginate as jest.Mock).mockResolvedValue({
+        data: mockPlayers,
+        pagination: {
+          page: 2,
+          limit: 10,
+          total: 25,
+          totalPages: 3,
+        },
+      });
+
+      await playerRoute.GET(
+        new NextRequest('http://localhost:3000/api/players?page=2&limit=10')
+      );
+
+      expect(paginate).toHaveBeenCalledWith(
+        expect.anything(),
+        { deletedAt: null },
+        { nickname: 'asc' },
+        { page: 2, limit: 10 }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        data: mockPlayers,
+        pagination: {
+          page: 2,
+          limit: 10,
+          total: 25,
+          totalPages: 3,
+        },
+      });
     });
 
     it('should filter out soft deleted players', async () => {
@@ -81,23 +166,42 @@ describe('GET /api/players', () => {
 
       (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
       (prisma.player.count as jest.Mock).mockResolvedValue(1);
+      (paginate as jest.Mock).mockResolvedValue({
+        data: mockPlayers,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 1,
+          totalPages: 1,
+        },
+      });
 
       await playerRoute.GET(
         new NextRequest('http://localhost:3000/api/players')
       );
 
-      expect(prisma.player.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { deletedAt: null },
-        })
+      expect(paginate).toHaveBeenCalledWith(
+        expect.anything(),
+        { deletedAt: null },
+        { nickname: 'asc' },
+        expect.anything()
       );
-      expect(NextResponse.json).toHaveBeenCalled();
+
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        data: mockPlayers,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 1,
+          totalPages: 1,
+        },
+      });
     });
   });
 
   describe('Error Cases', () => {
     it('should handle database errors gracefully', async () => {
-      (prisma.player.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (paginate as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await playerRoute.GET(
         new NextRequest('http://localhost:3000/api/players')
@@ -169,22 +273,73 @@ describe('POST /api/players', () => {
     });
   });
 
-  describe('Success Cases', () => {
-    it('should create player successfully with valid data', async () => {
-      const mockPlayer = {
-        id: 'player-1',
-        name: 'Test Player',
-        nickname: 'test',
-        country: 'JP',
-        password: 'hashed-password',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
+  describe('Validation', () => {
+    it('should return 400 when name is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
+      (sanitizeInput as jest.Mock).mockReturnValue({ nickname: 'test' });
+
+      const request = new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        body: JSON.stringify({ nickname: 'test' }),
+      });
+
+      await playerRoute.POST(request);
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.any(String),
+        }),
+        { status: 400 }
+      );
+    });
+
+    it('should return 400 when nickname is missing', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Player' });
+
+      const request = new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Player' }),
+      });
+
+      await playerRoute.POST(request);
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.any(String),
+        }),
+        { status: 400 }
+      );
+    });
+  });
+
+  describe('Successful Player Creation', () => {
+    const mockPlayer = {
+      id: 'player-1',
+      name: 'Test Player',
+      nickname: 'test',
+      country: 'JP',
+      password: 'hashed-password',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('should create player successfully with valid data', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+        country: 'JP',
+      });
+      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
       (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayer);
+      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players', {
         method: 'POST',
@@ -196,7 +351,7 @@ describe('POST /api/players', () => {
         }),
       });
 
-      const response = await playerRoute.POST(request);
+      await playerRoute.POST(request);
 
       expect(prisma.player.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -204,24 +359,75 @@ describe('POST /api/players', () => {
             name: 'Test Player',
             nickname: 'test',
             country: 'JP',
+            password: 'hashed-password',
           }),
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
+      expect(createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
+          userId: 'admin-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'test-agent',
+          action: AUDIT_ACTIONS.CREATE_PLAYER,
+          targetId: 'player-1',
+          targetType: 'Player',
+        })
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        {
           player: mockPlayer,
-        }),
+          temporaryPassword: 'generated-password',
+        },
         { status: 201 }
+      );
+    });
+
+    it('should create audit log on successful player creation', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+      });
+      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayer);
+      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+      const request = new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        headers: { 'user-agent': 'test-agent' },
+        body: JSON.stringify({ name: 'Test Player', nickname: 'test' }),
+      });
+
+      await playerRoute.POST(request);
+
+      expect(createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          ipAddress: '127.0.0.1',
+          action: AUDIT_ACTIONS.CREATE_PLAYER,
+          targetType: 'Player',
+        })
       );
     });
   });
 
-  describe('Error Cases', () => {
+  describe('Error Handling', () => {
     it('should handle database creation errors gracefully', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
+      (sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Player',
+        nickname: 'test',
+      });
+      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
       (prisma.player.create as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest('http://localhost:3000/api/players', {
@@ -234,6 +440,38 @@ describe('POST /api/players', () => {
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to create player',
         expect.any(Object)
+      );
+    });
+
+    it('should handle unique constraint violation (P2002) with 409 status', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Player',
+        nickname: 'existing-test',
+      });
+      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      const prismaError = new Error('Unique constraint failed') as Error & { code?: string };
+      prismaError.code = 'P2002';
+      (prisma.player.create as jest.Mock).mockRejectedValue(prismaError);
+
+      const request = new NextRequest('http://localhost:3000/api/players', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Player', nickname: 'existing-test' }),
+      });
+
+      await playerRoute.POST(request);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to create player',
+        expect.any(Object)
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { error: 'A player with this nickname already exists' },
+        { status: 409 }
       );
     });
   });
