@@ -29,7 +29,7 @@ const level = () => {
 }
 
 // Simple mock logger for tests
-const createTestLogger = () => {
+const createTestLogger = (_service: string) => {
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     error: (_message: string, _meta?: Record<string, unknown>) => {

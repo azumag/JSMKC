@@ -55,6 +55,7 @@ export default function PlayersPage() {
     nickname: "",
     country: "",
   });
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const fetchPlayers = useCallback(async () => {
@@ -113,13 +114,13 @@ export default function PlayersPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
+    setLoading(true);
 
     try {
-      const response = await fetch(`/api/players/${player.id}`, {
+      const response = await fetch(`/api/players/${editingPlayerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(player),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
@@ -156,8 +157,17 @@ export default function PlayersPage() {
       nickname: player.nickname,
       country: player.country || "",
     });
+    setEditingPlayerId(player.id);
     setError("");
     setIsEditDialogOpen(true);
+  };
+
+  const handleEditDialogClose = (open: boolean) => {
+    setIsEditDialogOpen(open);
+    if (!open) {
+      setEditingPlayerId(null);
+      setFormData({ name: "", nickname: "", country: "" });
+    }
   };
 
   if (loading) {
@@ -313,7 +323,7 @@ export default function PlayersPage() {
       </Card>
 
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Player</DialogTitle>
