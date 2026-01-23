@@ -63,6 +63,15 @@ jsmkc-app/
 
 MIT
 
+## 進行中のタスク (2026-01-23)
+🔄 [Issue #112: APIルートの単体テストを追加 - モック設定問題の根本原因を調査中](https://github.com/azumag/JSMKC/issues/112)
+- APIテストファイルは12個存在しているが、Jestモックシステムの設定問題でテストが実行されない
+- 現在のAPIカバレッジ: 14.79% statements（80%ターゲット未達）
+- 主要なブロッカー: `mockResolvedValue is not a function`エラーが一貫して発生
+- 新しいテストファイルを作成: __tests__/app/api/tournaments/[id]/ta/standings/route.test.ts (タイムアタック順位取得APIのテスト)
+- モック設定パターンの調査: 標準的なjest.mock()を使用しても、一部のモック関数で型認識問題が発生
+- 次のステップ: モック設定の根本的な問題を解決し、既存のすべてのAPIテストを実行可能にする
+
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #52: テストカバレッジの大幅な改善が必要](https://github.com/azumag/JSMKC/issues/52)
 - 優先度1および2のすべてのタスク完了

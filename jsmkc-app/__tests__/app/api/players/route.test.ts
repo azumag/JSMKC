@@ -70,8 +70,6 @@ import * as playerRoute from '@/app/api/players/route';
 
 const logger = createLogger('players-route-test');
 
-const logger = createLogger('players-route-test');
-
 describe('POST /api/players', () => {
   const { NextResponse } = jest.requireMock('next/server');
 
