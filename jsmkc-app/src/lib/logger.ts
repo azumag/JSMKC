@@ -29,28 +29,24 @@ const level = () => {
 }
 
 // Simple mock logger for tests
-const createTestLogger = (service: string) => {
+const createTestLogger = () => {
   return {
-    error: (message: string, meta?: Record<string, unknown>) => {
-      if (process.env.NODE_ENV === 'test') {
-        // Silent mode for tests - don't log to console to avoid noise
-        // This prevents console.error messages during test execution
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    error: (_message: string, _meta?: Record<string, unknown>) => {
+      // Silent mode for tests - don't log to console to avoid noise
+      // This prevents console.error messages during test execution
     },
-    warn: (message: string, meta?: Record<string, unknown>) => {
-      if (process.env.NODE_ENV === 'test') {
-        // Silent mode for tests
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    warn: (_message: string, _meta?: Record<string, unknown>) => {
+      // Silent mode for tests
     },
-    info: (message: string, meta?: Record<string, unknown>) => {
-      if (process.env.NODE_ENV === 'test') {
-        // Silent mode for tests
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    info: (_message: string, _meta?: Record<string, unknown>) => {
+      // Silent mode for tests
     },
-    debug: (message: string, meta?: Record<string, unknown>) => {
-      if (process.env.NODE_ENV === 'test') {
-        // Silent mode for tests
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    debug: (_message: string, _meta?: Record<string, unknown>) => {
+      // Silent mode for tests
     },
   }
 }

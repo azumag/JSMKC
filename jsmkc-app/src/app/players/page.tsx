@@ -49,7 +49,6 @@ export default function PlayersPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
-  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [formData, setFormData] = useState({
     name: "",
@@ -152,7 +151,6 @@ export default function PlayersPage() {
   };
 
   const openEditDialog = (player: Player) => {
-    setEditingPlayer(player);
     setFormData({
       name: player.name,
       nickname: player.nickname,
