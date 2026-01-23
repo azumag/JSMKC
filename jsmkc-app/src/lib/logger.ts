@@ -29,6 +29,7 @@ const level = () => {
 }
 
 // Simple mock logger for tests
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createTestLogger = (_service: string) => {
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
