@@ -64,20 +64,25 @@ jsmkc-app/
 MIT
 
 ## 完了したタスク (2026-01-23)
-🔄 [Issue #112: APIルートの単体テストを追加 - 根本的なモック設定問題を特定](https://github.com/azumag/JSMKC/issues/112)
+🔄 [Issue #112: APIルートの単体テストを追加 - モックパターンの解決策を特定](https://github.com/azumag/JSMKC/issues/112)
 - APIテストファイルは12個存在している（当初の0個という記述は修正済み）
 - 34個のAPIルートが未テスト
-- 新しいテストファイルを作成: ta/standings/route.test.ts（タイムアタック順位取得API）
-- 重大なブロッカーを特定: Jestモックの設定問題で'mockResolvedValue is not a function'エラーが一貫して発生
-- 調査結果をコミット（commit 2fc9534）とGitHub issueで報告
+- 新しいテストファイルを作成: ta/standings/route.test.ts
+- 重大なブロッカーを特定: Jestのローカルモックとグローバルモックの競合
+- 解決策を特定: 働くているテストファイル（tournaments/[id]/route.test.ts）がローカルmockを使用してグローバルmockを置換している
 - APIカバレッジ: 14.79% statements（80%ターゲット未達）
 
+### 調査結果
+- **jest.setup.js**でprismaがグローバルにモックされている
+- **テストファイル**でローカル`jest.mock('@/lib/prisma')`を呼び出すと競合が発生
+- **解決策**: 一貫したパターンを適用 - すべてのテストファイルで同じmockパターンを使用
+- 7個のテストが失敗中（修正により136個から減少）
+
 ### 次の必要なステップ
-1. Jestモック設定の型認識問題を解決（モック関数でmockResolvedValueメソッドが使用可能にする）
-2. 影響を受けるモジュール: @/lib/standings-cache, @/lib/rate-limit, @/lib/audit-log, @/lib/sanitize, @/lib/password-utils
-3. 136個の失敗テストを修正
-4. 残りの34個の未テストAPIルートにテストを追加
-5. APIカバレッジを80%以上に改善
+1. すべてのAPIテストファイルで一貫したmockパターンを適用
+2. 既存の7個の失敗テストを修正
+3. 残りの34個の未テストAPIルートにテストを追加
+4. APIカバレッジを80%以上に改善
 
 ## 完了したタスク (2026-01-21)
 ✅ [Issue #52: テストカバレッジの大幅な改善が必要](https://github.com/azumag/JSMKC/issues/52)
