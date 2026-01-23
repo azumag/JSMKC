@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 
-const Form = FormProvider
+const Form = FormProvider as unknown as React.ForwardRefExoticComponent<Record<string, unknown>>
 
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,
@@ -45,13 +45,23 @@ const FormField = <
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
   const itemContext = React.useContext(FormItemContext)
-  const { getFieldState } = useFormContext()
-  const formState = useFormState({ name: fieldContext.name })
-  const fieldState = getFieldState(fieldContext.name, formState)
 
+  // Validate fieldContext exists before using it in useFormState
+  // This prevents "Cannot read properties of undefined (reading '_formState')" error
   if (!fieldContext) {
     throw new Error("useFormField should be used within <FormField>")
   }
+
+  const formContext = useFormContext()
+  // Validate formContext exists before destructuring
+  // This prevents null reference error when not in FormProvider
+  if (!formContext) {
+    throw new Error("useFormField should be used within <Form>")
+  }
+
+  const { getFieldState } = formContext
+  const formState = useFormState({ name: fieldContext.name })
+  const fieldState = getFieldState(fieldContext.name, formState)
 
   const { id } = itemContext
 
@@ -79,6 +89,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <FormItemContext.Provider value={{ id }}>
       <div
+        id={id}
         data-slot="form-item"
         className={cn("grid gap-2", className)}
         {...props}
@@ -89,23 +100,26 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function FormLabel({
   className,
+  htmlFor,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   const { error, formItemId } = useFormField()
 
+  // Use custom htmlFor if provided, otherwise use formItemId
+  // This allows the htmlFor prop to be overridden by tests or custom usage
   return (
     <Label
       data-slot="form-label"
       data-error={!!error}
       className={cn("data-[error=true]:text-destructive", className)}
-      htmlFor={formItemId}
+      htmlFor={htmlFor ?? formItemId}
       {...props}
     />
   )
 }
 
 function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+  const { error, formDescriptionId, formMessageId, formItemId } = useFormField()
 
   return (
     <Slot

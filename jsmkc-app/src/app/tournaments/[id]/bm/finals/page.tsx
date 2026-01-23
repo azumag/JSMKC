@@ -33,6 +33,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -84,25 +88,37 @@ export default function BattleModeFinals({
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   const [champion, setChampion] = useState<Player | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
-      if (response.ok) {
-        const data = await response.json();
-        setMatches(data.matches || []);
-        setBracketStructure(data.bracketStructure || []);
-        setRoundNames(data.roundNames || {});
-      }
-    } catch (err) {
-      console.error("Failed to fetch finals data:", err);
-    } finally {
-      setLoading(false);
+  const fetchFinalsData = useCallback(async () => {
+    const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch BM finals data: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    return {
+      matches: data.matches || [],
+      bracketStructure: data.bracketStructure || [],
+      roundNames: data.roundNames || {},
+    };
   }, [tournamentId]);
 
+  const { data: pollData, isLoading: pollLoading, error, lastETag, refetch } = usePolling(fetchFinalsData, {
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setMatches(pollData.matches);
+      setBracketStructure(pollData.bracketStructure);
+      setRoundNames(pollData.roundNames);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleCreateBracket = async () => {
     setCreating(true);
@@ -118,7 +134,7 @@ export default function BattleModeFinals({
         setMatches(data.matches || []);
         setBracketStructure(data.bracketStructure || []);
         setSeededPlayers(data.seededPlayers || []);
-        fetchData();
+        refetch();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to create bracket");
@@ -156,7 +172,7 @@ export default function BattleModeFinals({
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
-        fetchData();
+        refetch();
 
         if (data.isComplete && data.champion) {
           // Find champion player
@@ -187,26 +203,42 @@ export default function BattleModeFinals({
   const totalMatches = matches.length;
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div className="space-y-3">
+            <div className="h-9 w-64 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-10 w-40 bg-muted animate-pulse rounded" />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <>
+      <LoadingOverlay isOpen={creating} message="Generating bracket... Please wait." />
+      <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Battle Mode Finals</h1>
           <p className="text-muted-foreground">
             Double Elimination Tournament
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={new Date(lastETag || 0)} isPolling={!error && pollLoading} />
+          </div>
         </div>
         <div className="flex gap-2">
           {matches.length === 0 ? (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={creating}>
-                  {creating ? "Creating..." : "Generate Bracket"}
-                </Button>
-              </AlertDialogTrigger>
+               <AlertDialogTrigger asChild>
+                 <Button disabled={creating} aria-label="Generate finals bracket">
+                   {creating ? "Creating..." : "Generate Bracket"}
+                 </Button>
+               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Generate Finals Bracket?</AlertDialogTitle>
@@ -226,11 +258,11 @@ export default function BattleModeFinals({
             </AlertDialog>
           ) : (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={creating}>
-                  Reset Bracket
-                </Button>
-              </AlertDialogTrigger>
+               <AlertDialogTrigger asChild>
+                 <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
+                   Reset Bracket
+                 </Button>
+               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Reset Finals Bracket?</AlertDialogTitle>
@@ -328,7 +360,14 @@ export default function BattleModeFinals({
 
       {/* Score Entry Dialog */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+        <DialogContent
+          onOpenAutoFocus={(e) => {
+            // Focus on first score input when dialog opens
+            e.preventDefault();
+            const firstInput = document.getElementById(`score1-${selectedMatch?.id}`);
+            firstInput?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Enter Match Score</DialogTitle>
             <DialogDescription>
@@ -348,38 +387,46 @@ export default function BattleModeFinals({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
-              </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 text-center text-2xl"
-                />
+               <div className="text-center">
+                 <Label htmlFor={`score1-${selectedMatch?.id}`}>
+                   {selectedMatch?.player1.nickname}
+                 </Label>
+                 <Input
+                   id={`score1-${selectedMatch?.id}`}
+                   type="number"
+                   min={0}
+                   max={4}
+                   value={scoreForm.score1}
+                   onChange={(e) =>
+                     setScoreForm({
+                       ...scoreForm,
+                       score1: parseInt(e.target.value) || 0,
+                     })
+                   }
+                   className="w-20 text-center text-2xl"
+                   aria-label={`${selectedMatch?.player1.nickname} score`}
+                 />
+               </div>
+               <span className="text-2xl" aria-hidden="true">-</span>
+               <div className="text-center">
+                 <Label htmlFor={`score2-${selectedMatch?.id}`}>
+                   {selectedMatch?.player2.nickname}
+                 </Label>
+                 <Input
+                   id={`score2-${selectedMatch?.id}`}
+                   type="number"
+                   min={0}
+                   max={4}
+                   value={scoreForm.score2}
+                   onChange={(e) =>
+                     setScoreForm({
+                       ...scoreForm,
+                       score2: parseInt(e.target.value) || 0,
+                     })
+                   }
+                   className="w-20 text-center text-2xl"
+                   aria-label={`${selectedMatch?.player2.nickname} score`}
+                 />
               </div>
             </div>
             {scoreForm.score1 + scoreForm.score2 > 0 &&
@@ -401,5 +448,6 @@ export default function BattleModeFinals({
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

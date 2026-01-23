@@ -1,0 +1,220 @@
+import NextAuth from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
+import type { User, Account } from 'next-auth'
+import GitHub from 'next-auth/providers/github'
+import Google from 'next-auth/providers/google'
+import Discord from 'next-auth/providers/discord'
+import Credentials from 'next-auth/providers/credentials'
+import bcrypt from 'bcrypt'
+
+import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+const log = createLogger('auth')
+const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+
+// Admin User IDs (Discord) - Environment Variable
+// Function to allow testing with different environment variable values
+const getAdminDiscordIds = () => process.env.ADMIN_DISCORD_IDS?.split(',') || [];
+
+// Export for testing
+export const ADMIN_DISCORD_IDS_LIST = getAdminDiscordIds();
+
+// Export function for mocking in tests
+export { getAdminDiscordIds };
+
+// Define auth configuration object for testing
+const authConfig = {
+  secret: process.env.AUTH_SECRET,
+  providers: [
+    Discord({
+      clientId: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    }),
+    GitHub({
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    }),
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+          scope: "openid email profile https://www.googleapis.com/auth/userinfo.email"
+        }
+      }
+    }),
+    Credentials({
+      id: 'player-credentials',
+      name: 'Player Login',
+      credentials: {
+        nickname: { label: "Nickname", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials): Promise<import('next-auth').User | null> {
+        if (!credentials?.nickname || !credentials?.password) {
+          return null;
+        }
+
+        const player = await prisma.player.findUnique({
+          where: { nickname: credentials.nickname as string }
+        });
+
+        if (!player || !player.password) {
+          return null;
+        }
+
+        const isValid = await bcrypt.compare(credentials.password as string, player.password);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          id: player.id,
+          email: `${player.nickname}@player.local`,
+          name: player.name,
+          image: null,
+          userType: 'player',
+          playerId: player.id,
+          nickname: player.nickname
+        };
+      }
+    }),
+  ],
+  session: {
+    strategy: "jwt" as const,
+  },
+  callbacks: {
+    async signIn({ user, account }: { user?: User; account?: Account | null }) {
+      // Return early if user is undefined (should not happen with OAuth providers)
+      if (!user) {
+        return true;
+      }
+
+      // Return early if user email is null (cannot identify user)
+      if (!user.email) {
+        return true;
+      }
+
+      // Support Discord, GitHub and Google OAuth
+      let role = 'member';
+
+      if (account?.provider === 'discord') {
+        if (getAdminDiscordIds().includes(account.providerAccountId)) {
+          role = 'admin';
+        }
+      }
+
+      // Allow login for all providers (GitHub/Google/Discord)
+      try {
+        // ユーザーが存在するか確認、なければ作成
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!existingUser) {
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name,
+              image: user.image,
+              role: role,
+            },
+          });
+        } else if (role === 'admin' && existingUser.role !== 'admin') {
+          // Upgrade to admin if whitelisted
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { role: 'admin' }
+          });
+        }
+
+        return true;
+      } catch (err) {
+        const errorMeta = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+        log.error(`Error during ${account?.provider} sign in:`, errorMeta);
+        return true;
+      }
+    },
+    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: import('next-auth/jwt').JWT }) {
+      if (session.user && typeof token.sub === 'string') {
+        session.user.id = token.sub;
+        session.user.role = token.role;
+        session.user.userType = token.userType;
+
+        // Add player-specific fields if user is a player
+        if (token.userType === 'player') {
+          session.user.playerId = token.playerId;
+          session.user.nickname = token.nickname;
+        }
+      }
+
+      // Add error information to session for client-side handling
+      if (token.error) {
+        session.error = token.error;
+      }
+
+      return session;
+    },
+    async jwt({ token, user, account }: { token: JWT; user?: User | undefined; account?: Account | null | undefined }): Promise<JWT> {
+      // Initial sign in: store tokens and expiration
+      if (account && user) {
+        // Handle player credentials (password-based login)
+        if (account.provider === 'player-credentials') {
+          return {
+            ...token,
+            sub: user.id,
+            userType: 'player',
+            playerId: user.playerId,
+            nickname: user.nickname,
+            role: 'player'
+          } as JWT;
+        }
+
+        // Handle OAuth providers (Discord, GitHub, Google)
+        // Skip if user.email is null, return token with default role
+        if (!user.email) {
+          return {
+            ...token,
+            role: 'member'
+          } as JWT;
+        }
+
+        // Fetch user role from DB to be sure
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
+        const role = dbUser?.role || 'member';
+
+        return {
+          ...token,
+          sub: dbUser?.id,
+          userType: 'admin',
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          accessTokenExpires: Date.now() + (account.expires_in || 3600) * 1000,
+          refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
+          user: user,
+          role: role,
+        } as JWT;
+      }
+
+      // Return previous token if still valid
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+        return token as JWT;
+      }
+
+      // Token refresh logic can be simplified or expanded as needed
+      return token as JWT;
+    },
+  },
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+};
+
+export const { handlers, signIn, signOut, auth } = NextAuth(authConfig);
+
+// Export configuration for testing
+export { authConfig };

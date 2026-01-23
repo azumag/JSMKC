@@ -73,10 +73,19 @@ function MatchCard({
   return (
     <div
       className={cn(
-        "border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors",
+        "border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary",
         match?.completed && "border-green-500/50"
       )}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || 'TBD'} vs ${player2?.nickname || 'TBD'}${showTBD ? ' (Pending)' : ''}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
     >
       <div className="text-xs text-muted-foreground mb-1">
         M{bracketMatch.matchNumber}
@@ -140,6 +149,7 @@ function BracketSection({
         variant === "losers" && "border-orange-500/30",
         variant === "final" && "border-yellow-500/50"
       )}
+      aria-label={`${title} Bracket`}
     >
       <CardHeader className="py-3">
         <CardTitle className="text-lg flex items-center gap-2">
@@ -164,7 +174,6 @@ function BracketSection({
 export function DoubleEliminationBracket({
   matches,
   bracketStructure,
-  roundNames,
   onMatchClick,
   seededPlayers,
 }: DoubleEliminationBracketProps) {
@@ -206,10 +215,10 @@ export function DoubleEliminationBracket({
   );
 
   return (
-    <div className="space-y-6">
-      {/* Winners Bracket */}
+    <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
+       {/* Winners Bracket */}
       <BracketSection title="Winners Bracket">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
           {/* QF */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
@@ -278,7 +287,7 @@ export function DoubleEliminationBracket({
 
       {/* Losers Bracket */}
       <BracketSection title="Losers Bracket" variant="losers">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
           {/* R1 */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
@@ -391,7 +400,7 @@ export function DoubleEliminationBracket({
 
       {/* Grand Final */}
       <BracketSection title="Grand Final" variant="final">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Grand Final

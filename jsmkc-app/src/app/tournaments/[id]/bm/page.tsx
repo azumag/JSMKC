@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -80,6 +84,9 @@ export default function BattleModePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
+  const isAdmin = session?.user && session.user.role === 'admin';
+
   const [qualifications, setQualifications] = useState<BMQualification[]>([]);
   const [matches, setMatches] = useState<BMMatch[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -91,34 +98,48 @@ export default function BattleModePage({
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string }[]
   >([]);
+  const [exporting, setExporting] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [bmResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/bm`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [bmResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/bm`),
+      fetch("/api/players"),
+    ]);
 
-      if (bmResponse.ok) {
-        const data = await bmResponse.json();
-        setQualifications(data.qualifications || []);
-        setMatches(data.matches || []);
-      }
-
-      if (playersResponse.ok) {
-        const players = await playersResponse.json();
-        setAllPlayers(players);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!bmResponse.ok) {
+      throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const bmData = await bmResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      qualifications: bmData.qualifications || [],
+      matches: bmData.matches || [],
+      allPlayers: players,
+    };
   }, [tournamentId]);
 
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+    fetchTournamentData, {
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setQualifications(pollData.qualifications);
+      setMatches(pollData.matches);
+      setAllPlayers(pollData.allPlayers);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
@@ -136,7 +157,7 @@ export default function BattleModePage({
       if (response.ok) {
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to setup:", err);
@@ -161,7 +182,7 @@ export default function BattleModePage({
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
-        fetchData();
+        refetch();
       }
     } catch (err) {
       console.error("Failed to update score:", err);
@@ -184,22 +205,69 @@ export default function BattleModePage({
     setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bm/export`);
+      if (!response.ok) {
+        throw new Error("Failed to export data");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Failed to export:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div className="space-y-3">
+            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Battle Mode</h1>
           <p className="text-muted-foreground">
             Qualification round-robin and finals
           </p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? "Exporting..." : "Export to Excel"}
+            </Button>
+          )}
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/bm/finals`}>
@@ -207,7 +275,8 @@ export default function BattleModePage({
               </Link>
             </Button>
           )}
-          <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
+          {isAdmin && (
+            <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
                 {qualifications.length > 0 ? "Reset Setup" : "Setup Groups"}
@@ -322,6 +391,7 @@ export default function BattleModePage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}`}>Back</Link>
           </Button>
@@ -451,13 +521,15 @@ export default function BattleModePage({
                               Share
                             </Link>
                           </Button>
-                          <Button
-                            variant={match.completed ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => openScoreDialog(match)}
-                          >
-                            {match.completed ? "Edit" : "Enter Score"}
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant={match.completed ? "outline" : "default"}
+                              size="sm"
+                              onClick={() => openScoreDialog(match)}
+                            >
+                              {match.completed ? "Edit" : "Enter Score"}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

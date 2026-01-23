@@ -37,7 +37,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -57,7 +60,6 @@ interface TTEntry {
   player: Player;
 }
 
-// Convert milliseconds to display time
 function msToDisplayTime(ms: number | null): string {
   if (ms === null) return "-";
   const minutes = Math.floor(ms / 60000);
@@ -82,42 +84,62 @@ export default function TimeAttackPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [finalsCount, setFinalsCount] = useState(0);
+  const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [topN, setTopN] = useState(8);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
+  const [exporting, setExporting] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setError(null);
-    try {
-      const [taResponse, playersResponse] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/ta`),
-        fetch("/api/players"),
-      ]);
+  const fetchTournamentData = useCallback(async () => {
+    const [taResponse, playersResponse] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+      fetch("/api/players"),
+    ]);
 
-      if (!taResponse.ok) {
-        const errorData = await taResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
-      }
-
-      if (!playersResponse.ok) {
-        const errorData = await playersResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
-      }
-
-      const taData = await taResponse.json();
-      const players = await playersResponse.json();
-
-      setEntries(taData.entries || []);
-      setAllPlayers(players);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch data";
-      console.error("Failed to fetch data:", err);
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+    if (!taResponse.ok) {
+      const errorData = await taResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
     }
+
+    if (!playersResponse.ok) {
+      const errorData = await playersResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
+    }
+
+    const taData = await taResponse.json();
+    const players = await playersResponse.json();
+
+    return {
+      entries: taData.entries || [],
+      allPlayers: players,
+      finalsCount: taData.finalsCount || 0,
+    };
   }, [tournamentId]);
 
+  const { data: pollData, loading: pollLoading, error: pollError, refetch } = usePolling(
+    fetchTournamentData, {
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setEntries(pollData.entries);
+      setAllPlayers(pollData.allPlayers);
+      setFinalsCount(pollData.finalsCount);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
+
+  useEffect(() => {
+    if (pollError) {
+      setError(pollError);
+    }
+  }, [pollError]);
 
   const handleAddPlayer = async (playerId: string) => {
     setSaveError(null);
@@ -134,12 +156,57 @@ export default function TimeAttackPage({
       }
 
       setIsAddPlayerDialogOpen(false);
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to add player";
       console.error("Failed to add player:", err);
       setSaveError(errorMessage);
     }
+  };
+
+  const handlePromoteToFinals = async () => {
+    setPromoting(true);
+
+    try {
+      const body = {
+        action: "promote_to_finals",
+        ...((promotionMode === "topN") ? { topN } : { players: selectedPlayerIds }),
+      };
+
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to promote players");
+      }
+
+      const data = await response.json();
+      setIsPromoteDialogOpen(false);
+      setSelectedPlayerIds([]);
+      refetch();
+
+      if (data.skipped && data.skipped.length > 0) {
+        alert(`Promoted ${data.entries.length} players. Skipped ${data.skipped.join(", ")} (incomplete times)`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to promote players";
+      console.error("Failed to promote players:", err);
+      alert(errorMessage);
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const togglePlayerSelection = (playerId: string) => {
+    setSelectedPlayerIds((prev) =>
+      prev.includes(playerId)
+        ? prev.filter((id) => id !== playerId)
+        : [...prev, playerId]
+    );
   };
 
   const openTimeEntryDialog = (entry: TTEntry) => {
@@ -176,7 +243,7 @@ export default function TimeAttackPage({
       setIsTimeEntryDialogOpen(false);
       setSelectedEntry(null);
       setTimeInputs({});
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save times";
       console.error("Failed to save times:", err);
@@ -200,11 +267,37 @@ export default function TimeAttackPage({
         throw new Error(errorData.error || "Failed to delete entry");
       }
 
-      fetchData();
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to delete entry";
       console.error("Failed to delete entry:", err);
       setError(errorMessage);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/export`);
+      if (!response.ok) {
+        throw new Error("Failed to export data");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `time-attack-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to export";
+      console.error("Failed to export:", err);
+      setError(errorMessage);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -220,7 +313,17 @@ export default function TimeAttackPage({
   );
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-3">
+            <div className="h-9 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+        <CardSkeleton />
+      </div>
+    );
   }
 
   if (error) {
@@ -235,7 +338,7 @@ export default function TimeAttackPage({
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
+            <Button onClick={refetch}>Retry</Button>
           </CardContent>
         </Card>
       </div>
@@ -244,14 +347,118 @@ export default function TimeAttackPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Time Attack</h1>
-          <p className="text-muted-foreground">
-            Qualification round - {TOTAL_COURSES} courses total time
+          <h1 className="text-3xl font-bold">Time Attack - Qualification</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Top 12 advance to finals • Players 13-16 to revival round 2 • Players 17-24 to revival round 1
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            {exporting ? "Exporting..." : "Export Excel"}
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => setIsPromoteDialogOpen(true)}
+            disabled={finalsCount === 0}
+          >
+            Promote to Finals ({finalsCount})
+          </Button>
+          <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Promote Players to Finals</DialogTitle>
+                <DialogDescription>
+                  Select players to promote to the finals stage
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div>
+                  <Label>Promotion Mode</Label>
+                  <Tabs defaultValue="topN" className="mt-2">
+                    <TabsList className="w-full">
+                      <TabsTrigger
+                        value="topN"
+                        onClick={() => setPromotionMode("topN")}
+                      >
+                        Top N Players
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="manual"
+                        onClick={() => setPromotionMode("manual")}
+                      >
+                        Manual Selection
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="topN" className="mt-4">
+                      <Label>Number of players to promote</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={topN}
+                        onChange={(e) => setTopN(parseInt(e.target.value) || 1)}
+                        className="mt-2"
+                      />
+                    </TabsContent>
+                    <TabsContent value="manual" className="mt-4">
+                      {entries.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No players added yet</p>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {entries
+                            .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity))
+                            .map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
+                                onClick={() => togglePlayerSelection(entry.playerId)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPlayerIds.includes(entry.playerId)}
+                                    onChange={() => togglePlayerSelection(entry.playerId)}
+                                    className="pointer-events-none"
+                                  />
+                                  <span>{entry.player.nickname}</span>
+                                  {entry.totalTime === null && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Incomplete
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="font-mono text-sm">
+                                  {msToDisplayTime(entry.totalTime)}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPlayerIds.length} players selected
+                      </p>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsPromoteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handlePromoteToFinals}
+                  disabled={
+                    promoting ||
+                    (promotionMode === "manual" && selectedPlayerIds.length === 0)
+                  }
+                >
+                  {promoting ? "Promoting..." : "Promote to Finals"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog
             open={isAddPlayerDialogOpen}
             onOpenChange={(open) => {
@@ -260,7 +467,7 @@ export default function TimeAttackPage({
             }}
           >
             <DialogTrigger asChild>
-              <Button>Add Player</Button>
+              <Button variant="outline" className="w-full sm:w-auto">Add Player</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

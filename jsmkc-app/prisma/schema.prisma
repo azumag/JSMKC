@@ -10,14 +10,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User model (for NextAuth.js)
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  role          String    @default("member") // member, admin
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // NextAuth.js relations
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Relations
+  auditLogs     AuditLog[]
+  player        Player?
+
+  @@index([email])
+}
+
+// NextAuth.js Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth.js Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth.js VerificationToken model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
 // Player model
 model Player {
   id        String   @id @default(cuid())
   name      String
   nickname  String   @unique
   country   String?
+  password  String?  // bcrypt hashed password for player authentication
+  deletedAt DateTime? // ソフトデリート用タイムスタンプ
+  version   Int      @default(0) // 楽観的ロック用
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // User relation (Optional, for linked users)
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
 
   // Battle Mode relations
   bmPlayer1Matches BMMatch[] @relation("BMPlayer1")
@@ -36,16 +102,26 @@ model Player {
 
   // Time Trial relations
   ttEntries TTEntry[]
+
+  // Score entry logs (all match types)
+  scoreEntryLogs ScoreEntryLog[]
+
+  // Character usage tracking
+  characterUsages MatchCharacterUsage[]
 }
 
 // Tournament model
 model Tournament {
-  id        String   @id @default(cuid())
-  name      String
-  date      DateTime
-  status    String   @default("draft") // draft, active, completed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  date          DateTime
+  status        String   @default("draft") // draft, active, completed
+  token         String?  @db.Text // 32-character hex string for participant score entry
+  tokenExpiresAt DateTime? // Token expiry time
+  deletedAt     DateTime? // ソフトデリート用タイムスタンプ
+  version       Int      @default(0) // 楽観的ロック用
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Related data
   bmMatches        BMMatch[]
@@ -92,6 +168,8 @@ model BMQualification {
   lossRounds   Int        @default(0)
   points       Int        @default(0) // Calculated: winRounds - lossRounds
   score        Int        @default(0) // Ranking score
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -101,8 +179,8 @@ model BMMatch {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   tournamentId String
   matchNumber  Int
-  stage        String     @default("qualification") // qualification, finals
-  round        String? // For finals: "winners_r1", "losers_r1", etc.
+  stage        String     @default("qualification") // qualification, finals, grand_final
+  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
   player1      Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
   player1Id    String
@@ -115,12 +193,20 @@ model BMMatch {
   completed    Boolean    @default(false)
   rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
 
+  // Double elimination fields
+  bracket      String?     // "winners", "losers", "grand_final"
+  bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
+  losses       Int        @default(0) // Losses in this stage
+  isGrandFinal Boolean    @default(false)
+
   // Player-reported scores (for participant score entry)
   player1ReportedScore1 Int? // Player 1's report: score for player 1
   player1ReportedScore2 Int? // Player 1's report: score for player 2
   player2ReportedScore1 Int? // Player 2's report: score for player 1
   player2ReportedScore2 Int? // Player 2's report: score for player 2
 
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -147,6 +233,8 @@ model MRQualification {
   lossRounds   Int        @default(0)
   points       Int        @default(0)
   score        Int        @default(0)
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -156,12 +244,12 @@ model MRMatch {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   tournamentId String
   matchNumber  Int
-  stage        String     @default("qualification")
-  round        String?
+  stage        String     @default("qualification") // qualification, finals, grand_final
+  round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
   player1      Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
   player1Id    String
-  player1Side  Int        @default(1)
+  player1Side  Int        @default(1) // 1 or 2 (which controller)
   player2      Player     @relation("MRPlayer2", fields: [player2Id], references: [id])
   player2Id    String
   player2Side  Int        @default(2)
@@ -169,6 +257,23 @@ model MRMatch {
   score2       Int        @default(0)
   completed    Boolean    @default(false)
   rounds       Json? // [{course: "MC1", winner: 1}, ...]
+
+  // Double elimination fields
+  bracket      String?     // "winners", "losers", "grand_final"
+  bracketPosition String? // "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2"
+  losses       Int        @default(0) // Losses in this stage
+  isGrandFinal Boolean    @default(false)
+
+  // Player-reported scores
+  player1ReportedPoints1 Int? // Player 1's report: points for player 1
+  player1ReportedPoints2 Int? // Player 1's report: points for player 2
+  player1ReportedRaces Json? // Player 1's report: races details
+  player2ReportedPoints1 Int? // Player 2's report: points for player 1
+  player2ReportedPoints2 Int? // Player 2's report: points for player 2
+  player2ReportedRaces Json? // Player 2's report: races details
+
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -193,6 +298,8 @@ model GPQualification {
   losses       Int        @default(0)
   points       Int        @default(0) // Driver points total
   score        Int        @default(0)
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -216,10 +323,86 @@ model GPMatch {
   points2      Int        @default(0) // Driver points for player 2
   completed    Boolean    @default(false)
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+
+  // Player-reported scores (for participant score entry)
+  player1ReportedPoints1 Int? // Player 1's report: points for player 1
+  player1ReportedPoints2 Int? // Player 1's report: points for player 2
+  player1ReportedRaces Json? // Player 1's report: races details
+  player2ReportedPoints1 Int? // Player 2's report: points for player 1
+  player2ReportedPoints2 Int? // Player 2's report: points for player 2
+  player2ReportedRaces Json? // Player 2's report: races details
+
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
+}
+
+// ==========================================
+// Time Trial Models
+// ==========================================
+
+// Audit Log model
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  // User ID (null for anonymous actions)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress   String
+  userAgent   String
+  action      String   // CREATE_TOURNAMENT, UPDATE_MATCH, etc.
+  targetId    String?  // Target resource ID
+  targetType  String?  // Target resource type: Tournament, Player, Match, etc.
+  timestamp   DateTime @default(now())
+  details     Json?    // Additional details
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+  @@index([targetType, targetId])
+}
+
+// Score Entry Log model - Tracks participant score submissions
+model ScoreEntryLog {
+  id           String   @id @default(cuid())
+  tournamentId  String
+  matchId      String
+  matchType    String   // BM, MR, GP
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+
+  // Reported data (varies by match type)
+  reportedData Json     // Flexible storage for different match types
+
+  // Metadata
+  ipAddress     String
+  userAgent     String
+  timestamp     DateTime @default(now())
+
+  @@index([matchId])
+  @@index([playerId])
+  @@index([timestamp])
+  @@index([tournamentId])
+}
+
+// Match Character Usage model - Tracks which characters players use in matches
+model MatchCharacterUsage {
+  id          String   @id @default(cuid())
+  matchId     String
+  matchType   String   // BM, MR, GP
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  // Character used
+  character   String   // Mario, Luigi, Peach, Toad, Yoshi, DK Jr., Bowser, Koopa
+
+  // Metadata
+  createdAt   DateTime @default(now())
+
+  @@unique([matchId, matchType, playerId])
+  @@index([playerId])
+  @@index([character])
 }
 
 // ==========================================
@@ -232,12 +415,14 @@ model TTEntry {
   tournamentId String
   player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId     String
-  stage        String     @default("qualification") // qualification, finals
-  lives        Int        @default(3) // For finals
+  stage        String     @default("qualification") // qualification, revival_1, revival_2, finals
+  lives        Int        @default(3) // For revival rounds and finals
   eliminated   Boolean    @default(false)
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds
   rank         Int?
+  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
+  version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

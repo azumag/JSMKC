@@ -1,0 +1,171 @@
+import { PrismaClient } from '@prisma/client';
+
+export function setupSoftDeleteMiddleware(prisma: any) {
+  // ソフトデリート用ミドルウェア
+  prisma.$use(async (params: any, next: (params: any) => Promise<any>) => {
+    // DELETE 操作のインターセプト
+    if (params.action === 'delete') {
+      // ソフトデリートに対応するモデル
+      const softDeletableModels = [
+        'Player',
+        'Tournament',
+        'BMMatch',
+        'MRMatch', 
+        'GPMatch',
+        'TTEntry',
+        'BMQualification',
+        'MRQualification',
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        // DELETE を update に変換
+        params.action = 'update';
+        params.args.data = { deletedAt: new Date() };
+      }
+    }
+
+    // findMany のインターセプト - ソフトデリートされたレコードを除外
+    if (params.action === 'findMany') {
+      const softDeletableModels = [
+        'Player',
+        'Tournament', 
+        'BMMatch',
+        'MRMatch',
+        'GPMatch', 
+        'TTEntry',
+        'BMQualification',
+        'MRQualification',
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        // 既存の where 条件を保持
+        if (params.args.where) {
+          // 既存の条件と AND で結合
+          params.args.where = {
+            AND: [
+              params.args.where,
+              { deletedAt: null }
+            ]
+          };
+        } else {
+          // where 条件がない場合は新規追加
+          params.args.where = { deletedAt: null };
+        }
+      }
+    }
+
+    // findFirst のインターセプト
+    if (params.action === 'findFirst') {
+      const softDeletableModels = [
+        'Player',
+        'Tournament',
+        'BMMatch', 
+        'MRMatch',
+        'GPMatch',
+        'TTEntry',
+        'BMQualification',
+        'MRQualification', 
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        if (params.args.where) {
+          params.args.where = {
+            AND: [
+              params.args.where,
+              { deletedAt: null }
+            ]
+          };
+        } else {
+          params.args.where = { deletedAt: null };
+        }
+      }
+    }
+
+    // findUnique のインターセプト
+    if (params.action === 'findUnique') {
+      const softDeletableModels = [
+        'Player',
+        'Tournament',
+        'BMMatch',
+        'MRMatch', 
+        'GPMatch',
+        'TTEntry',
+        'BMQualification',
+        'MRQualification',
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        if (params.args.where) {
+          params.args.where = {
+            ...params.args.where,
+            deletedAt: null
+          };
+        } else {
+          params.args.where = { deletedAt: null };
+        }
+      }
+    }
+
+    // update のインターセプト - ソフトデリートされたレコードの更新を防止
+    if (params.action === 'update') {
+      const softDeletableModels = [
+        'Player',
+        'Tournament',
+        'BMMatch',
+        'MRMatch',
+        'GPMatch',
+        'TTEntry', 
+        'BMQualification',
+        'MRQualification',
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        if (params.args.where) {
+          params.args.where = {
+            AND: [
+              params.args.where,
+              { deletedAt: null }
+            ]
+          };
+        } else {
+          params.args.where = { deletedAt: null };
+        }
+      }
+    }
+
+    // updateMany のインターセプト
+    if (params.action === 'updateMany') {
+      const softDeletableModels = [
+        'Player',
+        'Tournament',
+        'BMMatch',
+        'MRMatch',
+        'GPMatch',
+        'TTEntry',
+        'BMQualification',
+        'MRQualification',
+        'GPQualification'
+      ];
+
+      if (softDeletableModels.includes(params.model!)) {
+        if (params.args.where) {
+          params.args.where = {
+            AND: [
+              params.args.where,
+              { deletedAt: null }
+            ]
+          };
+        } else {
+          params.args.where = { deletedAt: null };
+        }
+      }
+    }
+
+    return next(params);
+  });
+}

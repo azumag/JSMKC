@@ -1,15 +1,6 @@
 // Double Elimination Tournament Logic
 
-export interface BracketMatch {
-  matchNumber: number;
-  round: string;
-  bracket: "winners" | "losers" | "grand_final";
-  player1Seed?: number;
-  player2Seed?: number;
-  winnerGoesTo?: number; // matchNumber of next match
-  loserGoesTo?: number; // matchNumber in losers bracket
-  position?: 1 | 2; // which player slot in next match
-}
+import { BracketMatch } from '@/types/bracket';
 
 // Generate bracket structure for 8 players
 export function generateBracketStructure(playerCount: number): BracketMatch[] {
@@ -163,8 +154,6 @@ export function getNextMatchInfo(
       position: match.position || 1,
     };
   } else if (!isWinner && match.loserGoesTo) {
-    // Losers always go to position based on the round structure
-    const loserMatch = matches.find((m) => m.matchNumber === match.loserGoesTo);
     // Determine position for loser
     if (match.round === "winners_qf") {
       // QF losers go to L_R1 as player 1 or 2 based on their original position

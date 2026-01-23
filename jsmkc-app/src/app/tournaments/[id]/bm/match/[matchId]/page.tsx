@@ -11,6 +11,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePolling } from "@/lib/hooks/usePolling";
+import { UpdateIndicator } from "@/components/ui/update-indicator";
+import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Player {
   id: string;
@@ -57,31 +60,44 @@ export default function MatchEntryPage({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [matchRes, tournamentRes] = await Promise.all([
-        fetch(`/api/tournaments/${tournamentId}/bm/match/${matchId}`),
-        fetch(`/api/tournaments/${tournamentId}`),
-      ]);
+  const fetchMatchData = useCallback(async () => {
+    const [matchRes, tournamentRes] = await Promise.all([
+      fetch(`/api/tournaments/${tournamentId}/bm/match/${matchId}`),
+      fetch(`/api/tournaments/${tournamentId}`),
+    ]);
 
-      if (matchRes.ok) {
-        const matchData = await matchRes.json();
-        setMatch(matchData);
-      }
-      if (tournamentRes.ok) {
-        const tournamentData = await tournamentRes.json();
-        setTournament(tournamentData);
-      }
-    } catch (err) {
-      console.error("Failed to fetch data:", err);
-    } finally {
-      setLoading(false);
+    if (!matchRes.ok) {
+      throw new Error(`Failed to fetch BM match data: ${matchRes.status}`);
     }
+
+    if (!tournamentRes.ok) {
+      throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
+    }
+
+    const matchData = await matchRes.json();
+    const tournamentData = await tournamentRes.json();
+
+    return {
+      match: matchData,
+      tournament: tournamentData,
+    };
   }, [tournamentId, matchId]);
 
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+    fetchMatchData, {
+    interval: 3000,
+  });
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pollData) {
+      setMatch(pollData.match);
+      setTournament(pollData.tournament);
+    }
+  }, [pollData]);
+
+  useEffect(() => {
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
@@ -112,7 +128,7 @@ export default function MatchEntryPage({
 
       if (response.ok) {
         setSubmitted(true);
-        fetchData();
+        refetch();
       } else {
         const data = await response.json();
         setError(data.error || "Failed to submit score");
@@ -128,7 +144,13 @@ export default function MatchEntryPage({
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <div className="space-y-6 w-full max-w-2xl px-4">
+          <div className="space-y-3">
+            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <CardSkeleton />
+        </div>
       </div>
     );
   }
@@ -148,6 +170,9 @@ export default function MatchEntryPage({
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
           <p className="text-muted-foreground">Battle Mode - Match #{match.matchNumber}</p>
+          <div className="mt-2">
+            <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+          </div>
         </div>
 
         {/* Match Info Card */}

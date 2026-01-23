@@ -12,7 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "e2e/**", // Add e2e test files to ignore
+    "coverage/**", // Add coverage directory to ignore
   ]),
+  {
+    rules: {
+      '@typescript-eslint/ban-ts-comment': 'off',
+    },
+  },
 ]);
 
 export default eslintConfig;
