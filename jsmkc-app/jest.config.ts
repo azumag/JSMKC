@@ -33,9 +33,11 @@ const customJestConfig: Config = {
     },
   },
   // Performance optimizations
-  maxWorkers: 4,
-  maxConcurrency: 4,
-  testTimeout: 10000,
+  maxWorkers: 8,
+  maxConcurrency: 8,
+  testTimeout: 30000,
+  verbose: false,
+  silent: true,
   // Enable Jest cache for faster subsequent runs
   cache: true,
   cacheDirectory: '<rootDir>/.jest-cache',

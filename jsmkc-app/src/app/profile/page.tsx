@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { createLogger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -43,7 +44,8 @@ export default function ProfilePage() {
                     }
                 }
             } catch (error) {
-                console.error("Failed to fetch players", error)
+                const log = createLogger('profile-page')
+                log.error("Failed to fetch players", error instanceof Error ? { message: error.message, stack: error.stack } : { error });
             } finally {
                 setLoading(false)
             }

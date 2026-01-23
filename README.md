@@ -183,13 +183,12 @@ MIT
 - 全21個のTypeScriptエラーを修正し、コンパイルエラーを完全に解消
 
 ## 現在のタスク
-🔄 [Issue #105: Optimize test suite performance - Full test run timing out](https://github.com/azumag/JSMKC/issues/105)
-- 優先度: ハイ - テストスイート全体が2分でタイムアウト
-- jest.setup.js: 重複するResponseポリフィルを削除し、Prismaモックを最適化（340行→200行、約40%削減）
-- jest.config.ts: パフォーマンス設定を追加（キャッシュ、ワーカー数制限、タイムアウト）
-- src/components/ui/__tests__: 0.67秒で実行可能（前回は約0.76秒）
-- __tests__/components: 137テストのうち57個が失敗（jest.setup.jsのモックと互換性なし）
-- 次のフェーズ: __tests__/componentsのテスト失敗を修正する必要あり
+🔄 [Issue #106: Investigate test suite performance and console errors](https://github.com/azumag/JSMKC/issues/106)
+- テストスイートのパフォーマンス問題とコンソールエラーメッセージの調査
+- テストスイート全体が120秒でタイムアウト
+- Validation middlewareとErrorBoundaryのコンソールエラー
+- テストパターンの不整合（__tests__/componentsとsrc/components/__tests__）
+- 218個のテストファイル全体でのパフォーマンス問題
 
 ## 完了したタスク (2026-01-22)
 ✅ [Issue #100: Fix failing unit tests: alert-dialog.test.tsx and ErrorBoundary.test.tsx](https://github.com/azumag/JSMKC/issues/100)

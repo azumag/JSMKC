@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom'
 
 // Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
-if (!global.Response) {
+if (typeof window !== 'undefined' && !window.Response) {
   class Response {
     constructor(body, init = {}) {
       this.body = body
@@ -38,19 +38,6 @@ if (!global.Response) {
   global.Response = Response
 }
 
-if (!Response.json) {
-  Response.json = function (data, init = {}) {
-    const body = JSON.stringify(data)
-    return new Response(body, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-    })
-  }
-}
-
 // Polyfill crypto.randomUUID and crypto.getRandomValues for Jest environment
 Object.defineProperty(global, 'crypto', {
   value: {
@@ -73,7 +60,7 @@ Object.defineProperty(global, 'crypto', {
 
 // Mock Element.prototype.scrollIntoView for Radix UI Select components
 // Radix UI uses scrollIntoView for positioning and focus management
-if (!Element.prototype.scrollIntoView) {
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = jest.fn();
 }
 
@@ -81,10 +68,10 @@ if (!Element.prototype.scrollIntoView) {
 // Note: require() is used here intentionally for Jest setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const util = require('util');
-if (!global.TextEncoder) {
+if (typeof global.TextEncoder === 'undefined') {
   global.TextEncoder = util.TextEncoder;
 }
-if (!global.TextDecoder) {
+if (typeof global.TextDecoder === 'undefined') {
   global.TextDecoder = util.TextDecoder;
 }
 

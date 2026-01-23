@@ -2,6 +2,7 @@
 
 import { Session } from 'next-auth';
 import { signOut, useSession } from 'next-auth/react';
+import { createLogger } from './logger'
 
 /**
  * Client-side JWT refresh utilities
@@ -41,7 +42,8 @@ export function isRefreshTokenExpired(session: ExtendedSession | null): boolean 
  * Redirects to sign in page with appropriate message
  */
 export async function handleSessionRefreshFailure(error?: string) {
-  console.error('Session refresh failed:', error);
+  const log = createLogger('jwt-refresh')
+  log.error('Session refresh failed:', { error });
   
   // Clear the current session
   await signOut({ redirect: false });
@@ -74,7 +76,8 @@ export function useAutoRefresh() {
       
       return true;
     } catch {
-      console.error('Manual session refresh failed');
+      const log = createLogger('jwt-refresh')
+      log.error('Manual session refresh failed');
       await handleSessionRefreshFailure('Session refresh failed. Please sign in again.');
       return false;
     }

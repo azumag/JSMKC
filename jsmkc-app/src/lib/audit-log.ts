@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { sanitizeInput } from '@/lib/sanitize';
+import { createLogger } from '@/lib/logger'
 
 export interface AuditLogParams {
   userId?: string;
@@ -25,15 +26,15 @@ export async function createAuditLog(params: AuditLogParams) {
       },
     });
   } catch (error) {
-    console.error(
-      'Audit log creation failed - Action: %s, User: %s, Target: %s/%s, IP: %s, Error: %s',
-      params.action,
-      params.userId || 'anonymous',
-      params.targetType || 'N/A',
-      params.targetId || 'N/A',
-      params.ipAddress,
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+    const log = createLogger('audit-log')
+    log.error('Audit log creation failed', {
+      action: params.action,
+      userId: params.userId || 'anonymous',
+      targetType: params.targetType || 'N/A',
+      targetId: params.targetId || 'N/A',
+      ipAddress: params.ipAddress,
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : { error }
+    });
     return undefined;
   }
 }

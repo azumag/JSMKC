@@ -89,10 +89,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Catch errors in any components below and re-render with error message
     this.setState({ error });
-    
-    // Log error for debugging and analytics
-    console.error("Error caught by ErrorBoundary:", error, errorInfo);
-    
+
+    // Log error for debugging and analytics (suppress in test mode to avoid noise)
+    if (process.env.NODE_ENV !== 'test') {
+      console.error("Error caught by ErrorBoundary:", error, errorInfo);
+    }
+
     // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo);

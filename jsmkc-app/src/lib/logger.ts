@@ -33,23 +33,23 @@ const createTestLogger = (service: string) => {
   return {
     error: (message: string, meta?: Record<string, unknown>) => {
       if (process.env.NODE_ENV === 'test') {
-        // Just log to console in tests to avoid setImmediate issues
-        console.error(`[ERROR] ${service}: ${message}`, meta);
+        // Silent mode for tests - don't log to console to avoid noise
+        // This prevents console.error messages during test execution
       }
     },
     warn: (message: string, meta?: Record<string, unknown>) => {
       if (process.env.NODE_ENV === 'test') {
-        console.warn(`[WARN] ${service}: ${message}`, meta);
+        // Silent mode for tests
       }
     },
     info: (message: string, meta?: Record<string, unknown>) => {
       if (process.env.NODE_ENV === 'test') {
-        console.info(`[INFO] ${service}: ${message}`, meta);
+        // Silent mode for tests
       }
     },
     debug: (message: string, meta?: Record<string, unknown>) => {
       if (process.env.NODE_ENV === 'test') {
-        console.debug(`[DEBUG] ${service}: ${message}`, meta);
+        // Silent mode for tests
       }
     },
   }

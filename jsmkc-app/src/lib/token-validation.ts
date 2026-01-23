@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isTokenValid, isValidTokenFormat } from '@/lib/token-utils';
 import { getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
 import { createAuditLog } from '@/lib/audit-log';
+import { createLogger } from '@/lib/logger';
 
 import prisma from '@/lib/prisma';
 
@@ -107,7 +108,8 @@ export async function validateTournamentToken(
     };
 
   } catch (error) {
-    console.error('Token validation error:', error);
+    const log = createLogger('token-validation')
+    log.error('Token validation error', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
     await logTokenValidationAttempt(clientIp, userAgent, tournamentId, token, 'SERVER_ERROR');
     return { valid: false, error: 'Validation failed' };
   }
@@ -165,6 +167,7 @@ async function logTokenValidationAttempt(
       },
     });
   } catch (error) {
-    console.error('Failed to log token validation:', error);
+    const log = createLogger('token-validation')
+    log.error('Failed to log token validation', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
   }
 }

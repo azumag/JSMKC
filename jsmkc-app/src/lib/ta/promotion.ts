@@ -1,5 +1,6 @@
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { TTEntry, PrismaClient, Prisma } from "@prisma/client";
+import { createLogger } from "@/lib/logger"
 
 export interface PromotionResult {
   entries: TTEntry[];
@@ -97,13 +98,14 @@ export async function promoteToFinals(
             playerNickname: entry.player.nickname,
             qualRank: qual.rank,
             promotedTo: "finals",
-          },
-        });
-      } catch (logError) {
-        console.error("Failed to create audit log:", logError);
-      }
-    }
-  }
+           },
+         });
+       } catch (logError) {
+         const log = createLogger('promotion')
+         log.error("Failed to create audit log", logError instanceof Error ? { message: logError.message, stack: logError.stack } : { error: logError });
+       }
+     }
+   }
 
   return {
     entries: createdEntries,
@@ -184,13 +186,14 @@ export async function promoteToRevival1(
             playerNickname: entry.player.nickname,
             qualRank: qual.rank,
             promotedTo: "revival_1",
-          },
-        });
-      } catch (logError) {
-        console.error("Failed to create audit log:", logError);
-      }
-    }
-  }
+           },
+         });
+       } catch (logError) {
+         const log = createLogger('promotion')
+         log.error("Failed to create audit log", logError instanceof Error ? { message: logError.message, stack: logError.stack } : { error: logError });
+       }
+     }
+   }
 
   return {
     entries: createdEntries,
@@ -280,13 +283,14 @@ export async function promoteToRevival2(
             playerNickname: entry.player.nickname,
             sourceStage: source.stage,
             promotedTo: "revival_2",
-          },
-        });
-      } catch (logError) {
-        console.error("Failed to create audit log:", logError);
-      }
-    }
-  }
+           },
+         });
+       } catch (logError) {
+         const log = createLogger('promotion')
+         log.error("Failed to create audit log", logError instanceof Error ? { message: logError.message, stack: logError.stack } : { error: logError });
+       }
+     }
+   }
 
   return {
     entries: createdEntries,
