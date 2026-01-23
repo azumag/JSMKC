@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('gp-standings-api');
 
 export async function GET(
   request: NextRequest,
@@ -16,8 +20,8 @@ export async function GET(
     );
   }
 
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const ifNoneMatch = request.headers.get('if-none-match');
 
     const cached = await get(tournamentId, 'qualification');
@@ -68,7 +72,8 @@ export async function GET(
 
     return response;
   } catch (error) {
-    console.error("Failed to fetch GP standings:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch GP standings", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch GP standings" },
       { status: 500 }

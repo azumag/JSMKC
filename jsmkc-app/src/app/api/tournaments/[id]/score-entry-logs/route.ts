@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('score-entry-logs-api');
 
 /**
  * GET - Retrieve score entry logs for a tournament (admin only)
@@ -22,8 +26,8 @@ export async function GET(
     );
   }
 
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     // Get score entry logs for this tournament
     const logs = await prisma.scoreEntryLog.findMany({
@@ -59,7 +63,8 @@ export async function GET(
       totalCount: logs.length,
     });
   } catch (error) {
-    console.error("Failed to fetch score entry logs:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch score entry logs", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch score entry logs" },
       { status: 500 }

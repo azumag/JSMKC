@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
+import { createLogger } from '@/lib/logger';
+
+// Create logger for auth session-status module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('auth-session');
 
 /**
  * GET /api/auth/session-status
@@ -62,7 +68,9 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Session status check failed:', error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error('Session status check failed', { error });
     return NextResponse.json(
       { success: false, error: 'Failed to check session status' },
       { status: 500 }

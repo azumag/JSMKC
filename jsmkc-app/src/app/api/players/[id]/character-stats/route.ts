@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+// Create logger for players [id]/character-stats API module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('players-character-stats-api');
 
 interface MatchWithInfo {
   id: string;
@@ -121,7 +127,9 @@ export async function GET(
       characterUsage: characterUsages,
     });
   } catch (error) {
-    console.error("Failed to fetch character stats:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to fetch character stats", { error, playerId: (await params).id });
     return NextResponse.json(
       { error: "Failed to fetch character stats" },
       { status: 500 }

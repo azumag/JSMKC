@@ -6,6 +6,12 @@ import { generateSecurePassword, hashPassword } from "@/lib/password-utils";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { paginate } from "@/lib/pagination";
+import { createLogger } from "@/lib/logger";
+
+// Create logger for players API module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('players-api');
 
 // GET all players (excluding soft deleted)
 export async function GET(request: NextRequest) {
@@ -28,7 +34,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Failed to fetch players:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to fetch players", { error });
     return NextResponse.json(
       { error: "Failed to fetch players" },
       { status: 500 }
@@ -84,7 +92,9 @@ export async function POST(request: NextRequest) {
         details: { name, nickname, country, passwordGenerated: true },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Log audit log failures with error context for monitoring
+      // Audit log failures shouldn't prevent the main operation from completing
+      logger.warn('Failed to create audit log', { error: logError, playerId: player.id, action: 'create_player' });
     }
 
     return NextResponse.json({
@@ -92,7 +102,9 @@ export async function POST(request: NextRequest) {
       temporaryPassword: plainPassword,
     }, { status: 201 });
   } catch (error: unknown) {
-    console.error("Failed to create player:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to create player", { error });
     if (
       error &&
       typeof error === "object" &&

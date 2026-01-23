@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { paginate } from "@/lib/pagination";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('mr-matches-api');
 
 // GET match race matches for polling
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const page = Number(searchParams.get('page')) || 1;
@@ -48,7 +52,8 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Failed to fetch MR matches:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch MR matches", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch match race matches" },
       { status: 500 }

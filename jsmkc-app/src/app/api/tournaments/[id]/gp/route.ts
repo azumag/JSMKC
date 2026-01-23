@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('gp-api');
 
 function calculateDriverPoints(position1: number, position2: number) {
   const points1 = position1 === 1 ? 9 : position1 === 2 ? 6 : 0;
@@ -23,8 +27,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const qualifications = await prisma.gPQualification.findMany({
       where: { tournamentId },
@@ -40,7 +44,8 @@ export async function GET(
 
     return NextResponse.json({ qualifications, matches });
   } catch (error) {
-    console.error("Failed to fetch GP data:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch GP data", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch grand prix data" },
       { status: 500 }
@@ -61,8 +66,8 @@ export async function POST(
     );
   }
 
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = sanitizeInput(await request.json());
     const { players } = body;
 
@@ -123,7 +128,8 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error("Failed to setup GP:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to setup GP", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to setup grand prix" },
       { status: 500 }
@@ -135,8 +141,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = await request.json();
     const { matchId, cup, races } = body;
 
@@ -247,7 +253,8 @@ export async function PUT(
 
     return NextResponse.json({ match, result1, result2 });
   } catch (error) {
-    console.error("Failed to update match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update match", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to update match" },
       { status: 500 }

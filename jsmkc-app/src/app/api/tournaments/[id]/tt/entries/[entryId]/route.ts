@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('tt-entry-api');
 
 // GET single Time Trial entry
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; entryId: string }> }
 ) {
+  const { entryId } = await params;
   try {
-    const { entryId } = await params;
 
     const entry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
@@ -27,7 +31,8 @@ export async function GET(
 
     return NextResponse.json(entry);
   } catch (error) {
-    console.error("Failed to fetch entry:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch entry", { error, entryId });
     return NextResponse.json(
       { success: false, error: "Failed to fetch time trial entry" },
       { status: 500 }
@@ -40,8 +45,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; entryId: string }> }
 ) {
+  const { entryId } = await params;
   try {
-    const { entryId } = await params;
     const body = await request.json();
     
     const { times, totalTime, rank, eliminated, lives, version } = body;
@@ -80,7 +85,8 @@ export async function PUT(
       version: result.version
     });
   } catch (error) {
-    console.error("Failed to update entry:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update entry", { error, entryId });
     
     if (error instanceof OptimisticLockError) {
       return NextResponse.json(

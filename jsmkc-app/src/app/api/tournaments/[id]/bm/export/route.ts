@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createCSV } from "@/lib/excel";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('bm-export-api');
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -78,7 +82,8 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Failed to export tournament:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to export tournament", { error, tournamentId });
     return NextResponse.json({ error: "Failed to export tournament" }, { status: 500 });
   }
 }

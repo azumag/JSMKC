@@ -10,6 +10,10 @@ import { recalculateRanks } from "@/lib/ta/rank-calculation";
 import { timeToMs } from "@/lib/ta/time-utils";
 import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('ta-api');
 
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
@@ -50,8 +54,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const uuidSchema = z.string().uuid();
     const parseResult = uuidSchema.safeParse(tournamentId);
@@ -85,7 +89,8 @@ export async function GET(
       finalsCount,
     });
   } catch (error) {
-    console.error("Failed to fetch TA data:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch TA data", { error, tournamentId });
     return NextResponse.json(
       { success: false, error: "Failed to fetch time attack data" },
       { status: 500 }
@@ -97,8 +102,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
@@ -287,7 +292,8 @@ export async function POST(
             },
           });
         } catch (logError) {
-          console.error("Failed to create audit log:", logError);
+          // Audit log failure is non-critical but should be logged for security tracking
+          logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId: entry?.id, action: 'CREATE_TA_ENTRY' });
         }
       }
     }
@@ -297,7 +303,8 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error("Failed to add player to TA:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to add player to TA", { error, tournamentId });
     return NextResponse.json(
       { success: false, error: (error as Error).message || "Failed to add player to time attack" },
       { status: 500 }
@@ -309,8 +316,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
@@ -384,7 +391,8 @@ export async function PUT(
           },
         });
       } catch (logError) {
-        console.error("Failed to create audit log:", logError);
+        // Audit log failure is non-critical but should be logged for security tracking
+        logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_ELIMINATE' });
       }
 
       return NextResponse.json({ entry: updatedEntry });
@@ -467,14 +475,16 @@ export async function PUT(
           updatedTimes: updatedTimes,
           playerNickname: finalEntry?.player.nickname,
         },
-      });
+        });
     } catch (logError) {
-      console.error("Failed to create audit log:", logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' });
     }
 
     return NextResponse.json({ entry: finalEntry });
   } catch (error) {
-    console.error("Failed to update times:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update times", { error, tournamentId });
     return NextResponse.json(
       { success: false, error: "Failed to update times" },
       { status: 500 }
@@ -486,8 +496,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const session = await auth();
     if (!session?.user) {
@@ -567,18 +577,20 @@ export async function DELETE(
           deletedBy: session.user.email,
           softDeleted: true,
         },
-      });
+        });
     } catch (logError) {
-      console.error("Failed to create audit log:", logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'DELETE_TA_ENTRY' });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: "Entry deleted successfully",
       softDeleted: true 
     });
   } catch (error) {
-    console.error("Failed to delete entry:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to delete entry", { error, tournamentId });
     return NextResponse.json(
       { success: false, error: "Failed to delete entry" },
       { status: 500 }

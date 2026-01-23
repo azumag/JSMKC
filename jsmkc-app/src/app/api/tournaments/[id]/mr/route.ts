@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('mr-api');
 
 function calculateMatchResult(score1: number, score2: number) {
   const totalRounds = score1 + score2;
@@ -21,8 +25,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const qualifications = await prisma.mRQualification.findMany({
       where: { tournamentId },
@@ -38,7 +42,8 @@ export async function GET(
 
     return NextResponse.json({ qualifications, matches });
   } catch (error) {
-    console.error("Failed to fetch MR data:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch MR data", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch match race data" },
       { status: 500 }
@@ -50,8 +55,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = sanitizeInput(await request.json());
     const { players } = body;
 
@@ -112,7 +117,8 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error("Failed to setup MR:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to setup MR", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to setup match race" },
       { status: 500 }
@@ -124,8 +130,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = await request.json();
     const { matchId, score1, score2, rounds } = body;
 
@@ -224,7 +230,8 @@ export async function PUT(
 
     return NextResponse.json({ match, result1, result2 });
   } catch (error) {
-    console.error("Failed to update match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update match", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to update match" },
       { status: 500 }

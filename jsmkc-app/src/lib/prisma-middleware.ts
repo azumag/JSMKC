@@ -2,6 +2,12 @@
 // 設計書の「6.6 ソフトデリートの実装」に基づき実装
 
 import { PrismaClient } from '@prisma/client';
+import { createLogger } from '@/lib/logger';
+
+// Create logger for prisma-middleware module
+// Using structured logging to provide consistent warning tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('prisma-middleware');
 
 // ソフトデリート用のユーティリティ関数
 export class SoftDeleteManager {
@@ -247,9 +253,12 @@ export function getSoftDeleteManager(prisma: PrismaClient): SoftDeleteManager {
     softDeleteManager = new SoftDeleteManager(prisma);
   }
   return softDeleteManager;
-}
+ }
 
 // 互換性のための関数（ミドルウェアが使えない場合の代替）
 export function applySoftDeleteMiddleware(): void {
-  console.warn('Using SoftDeleteManager instead of middleware due to Prisma version limitations.');
+  // Log warning about using SoftDeleteManager instead of middleware
+  // This is expected behavior due to Prisma version limitations
+  // Structured logging helps track when this alternative approach is used
+  logger.warn('Using SoftDeleteManager instead of middleware due to Prisma version limitations.');
 }

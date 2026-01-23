@@ -4,6 +4,12 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Create logger for players [id] API module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('players-id-api');
 
 // GET single player (public access)
 export async function GET(
@@ -22,7 +28,10 @@ export async function GET(
 
     return NextResponse.json(player);
   } catch (error) {
-    console.error("Failed to fetch player:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    const { id } = await params;
+    logger.error("Failed to fetch player", { error, playerId: id });
     return NextResponse.json(
       { success: false, error: "Failed to fetch player" },
       { status: 500 }
@@ -36,6 +45,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
+  const { id } = await params;
 
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
@@ -83,12 +93,16 @@ export async function PUT(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Log audit log failures with error context for monitoring
+      // Audit log failures shouldn't prevent the main operation from completing
+      logger.warn('Failed to create audit log', { error: logError, playerId: id, action: 'update_player' });
     }
 
     return NextResponse.json(player);
   } catch (error: unknown) {
-    console.error("Failed to update player:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to update player", { error, playerId: id });
     if (
       error &&
       typeof error === "object" &&
@@ -121,6 +135,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
+  const { id } = await params;
 
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
@@ -153,7 +168,9 @@ export async function DELETE(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Log audit log failures with error context for monitoring
+      // Audit log failures shouldn't prevent the main operation from completing
+      logger.warn('Failed to create audit log', { error: logError, playerId: id, action: 'delete_player' });
     }
 
     return NextResponse.json({ 
@@ -162,7 +179,9 @@ export async function DELETE(
       softDeleted: true 
     });
   } catch (error: unknown) {
-    console.error("Failed to delete player:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to delete player", { error, playerId: id });
     if (
       error &&
       typeof error === "object" &&

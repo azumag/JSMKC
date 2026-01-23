@@ -4,6 +4,10 @@ import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { SMK_CHARACTERS } from "@/lib/constants";
 import { createAuditLog } from "@/lib/audit-log";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('gp-score-report-api');
 
 const DRIVER_POINTS = [0, 1, 3, 6, 9];
 
@@ -16,8 +20,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const { id: tournamentId, matchId } = await params;
   try {
-    const { id: tournamentId, matchId } = await params;
     const clientIp = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
@@ -89,9 +93,10 @@ export async function POST(
           ipAddress: clientIp,
           userAgent: userAgent,
         },
-      });
+        });
     } catch (logError) {
-      console.error('Failed to create score entry log:', logError);
+      // Score entry log failure is non-critical but should be logged for debugging
+      logger.warn('Failed to create score entry log', { error: logError, tournamentId, matchId, playerId: reportingPlayerId });
     }
 
     // Log character usage if character is provided
@@ -106,7 +111,8 @@ export async function POST(
           },
         });
       } catch (charError) {
-        console.error('Failed to create character usage log:', charError);
+        // Character usage log failure is non-critical but should be logged for debugging
+        logger.warn('Failed to create character usage log', { error: charError, tournamentId, matchId, playerId: reportingPlayerId, character });
       }
     }
 
@@ -206,7 +212,8 @@ export async function POST(
       waitingFor: reportingPlayer === 1 ? "player2" : "player1",
     });
   } catch (error) {
-    console.error("Failed to report score:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to report score", { error, tournamentId, matchId });
     return NextResponse.json(
       { error: "Failed to report score" },
       { status: 500 }

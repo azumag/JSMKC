@@ -4,6 +4,10 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('bm-api');
 
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
@@ -26,8 +30,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const qualifications = await prisma.bMQualification.findMany({
       where: { tournamentId },
@@ -43,7 +47,8 @@ export async function GET(
 
     return NextResponse.json({ qualifications, matches });
   } catch (error) {
-    console.error("Failed to fetch BM data:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch BM data", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch battle mode data" },
       { status: 500 }
@@ -65,8 +70,8 @@ export async function POST(
     );
   }
   
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = sanitizeInput(await request.json());
     const { players } = body; // Array of { playerId, group, seeding }
 
@@ -144,7 +149,8 @@ export async function POST(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_BM_MATCH' });
     }
 
     return NextResponse.json(
@@ -152,7 +158,8 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error("Failed to setup BM:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to setup BM", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to setup battle mode" },
       { status: 500 }
@@ -165,8 +172,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
     const body = await request.json();
     const { matchId, score1, score2, rounds } = body;
 
@@ -272,7 +279,8 @@ export async function PUT(
 
     return NextResponse.json({ match, result1, result2 });
   } catch (error) {
-    console.error("Failed to update match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update match", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to update match" },
       { status: 500 }

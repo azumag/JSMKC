@@ -21,6 +21,10 @@ import {
 
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('bm-score-report-api');
 
 /**
  * POST - Report score from a player
@@ -33,8 +37,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const { id: tournamentId, matchId } = await params;
   try {
-    const { id: tournamentId, matchId } = await params;
     const clientIp = getClientIdentifier(request);
 
     const rateLimitResult = await rateLimit(clientIp, RATE_LIMIT_SCORE_INPUT, RATE_LIMIT_SCORE_INPUT_DURATION);
@@ -138,7 +142,8 @@ export async function POST(
         },
       });
     } catch (logError) {
-      console.error('Failed to create score entry log:', logError);
+      // Score entry log failure is non-critical but should be logged for debugging
+      logger.warn('Failed to create score entry log', { error: logError, tournamentId, matchId, playerId: reportingPlayerId });
     }
 
     // Log character usage if character is provided
@@ -153,7 +158,8 @@ export async function POST(
           },
         });
       } catch (charError) {
-        console.error('Failed to create character usage log:', charError);
+        // Character usage log failure is non-critical but should be logged for debugging
+        logger.warn('Failed to create character usage log', { error: charError, tournamentId, matchId, playerId: reportingPlayerId, character });
       }
     }
 
@@ -302,7 +308,8 @@ export async function POST(
       waitingFor: reportingPlayer === 1 ? "player2" : "player1",
     }, "Score reported successfully");
   } catch (error) {
-    console.error("Failed to report score:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to report score", { error, tournamentId, matchId });
     return handleDatabaseError(error, "score report");
   }
 }

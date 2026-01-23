@@ -5,6 +5,12 @@ import { createAuditLog } from "@/lib/audit-log";
 import { generateTournamentToken, getTokenExpiry } from "@/lib/token-utils";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Create logger for token regenerate API module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('token-regenerate-api');
 
 // POST - Generate new tournament token
 export async function POST(
@@ -12,6 +18,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
+  const { id } = await params;
+  const { expiresInHours = 24 } = sanitizeInput(await request.json());
   
   if (!session?.user) {
     return NextResponse.json(
@@ -21,9 +29,6 @@ export async function POST(
   }
 
   try {
-    const { id } = await params;
-    const { expiresInHours = 24 } = sanitizeInput(await request.json());
-
     // Validate input
     if (expiresInHours < 1 || expiresInHours > 168) { // Max 7 days
       return NextResponse.json(
@@ -69,7 +74,9 @@ export async function POST(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Log audit log failures with error context for monitoring
+      // Audit log failures shouldn't prevent main operation from completing
+      logger.warn('Failed to create audit log', { error: logError, tournamentId: id, action: 'regenerate_token' });
     }
 
     return NextResponse.json({
@@ -81,7 +88,9 @@ export async function POST(
       },
     });
   } catch (error: unknown) {
-    console.error("Failed to regenerate token:", error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error("Failed to regenerate token", { error, tournamentId: id, expiresInHours });
     if (
       error &&
       typeof error === "object" &&

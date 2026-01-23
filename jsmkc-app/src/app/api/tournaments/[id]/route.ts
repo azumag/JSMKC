@@ -4,14 +4,18 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('tournament-api');
 
 // GET single tournament with related data (public access)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
     const tournament = await prisma.tournament.findUnique({
       where: { id },
       select: {
@@ -47,7 +51,8 @@ export async function GET(
 
     return NextResponse.json(tournament);
   } catch (error) {
-    console.error("Failed to fetch tournament:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch tournament", { error, id });
     return NextResponse.json(
       { error: "Failed to fetch tournament" },
       { status: 500 }
@@ -69,8 +74,8 @@ export async function PUT(
     );
   }
   
+  const { id } = await params;
   try {
-    const { id } = await params;
     const body = sanitizeInput(await request.json());
     const { name, date, status } = body;
 
@@ -101,12 +106,14 @@ export async function PUT(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn('Failed to create audit log', { error: logError, id, action: 'UPDATE_TOURNAMENT' });
     }
 
     return NextResponse.json(tournament);
   } catch (error: unknown) {
-    console.error("Failed to update tournament:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update tournament", { error, id });
     if (
       error &&
       typeof error === "object" &&
@@ -139,8 +146,8 @@ export async function DELETE(
     );
   }
   
+  const { id } = await params;
   try {
-    const { id } = await params;
     // Use soft delete instead of hard delete
     await prisma.tournament.delete({
       where: { id }
@@ -163,7 +170,8 @@ export async function DELETE(
         },
       });
     } catch (logError) {
-      console.error('Failed to create audit log:', logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn('Failed to create audit log', { error: logError, id, action: 'DELETE_TOURNAMENT' });
     }
 
     return NextResponse.json({ 
@@ -172,7 +180,8 @@ export async function DELETE(
       softDeleted: true 
     });
   } catch (error: unknown) {
-    console.error("Failed to delete tournament:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to delete tournament", { error, id });
     if (
       error &&
       typeof error === "object" &&

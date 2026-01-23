@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
+import { createLogger } from '@/lib/logger';
+
+// Create logger for monitor module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('monitor');
 
 /**
  * GET /api/monitor/polling-stats
@@ -86,7 +92,9 @@ export async function GET() {
       data: stats,
     });
   } catch (error) {
-    console.error('Failed to get polling stats:', error);
+    // Log error with structured metadata for better debugging and monitoring
+    // The error object is passed as metadata to maintain error stack traces
+    logger.error('Failed to get polling stats', { error });
     return NextResponse.json(
       { success: false, error: 'Failed to retrieve polling statistics' },
       { status: 500 }
@@ -96,14 +104,18 @@ export async function GET() {
 
 // Mock implementation functions - in a real app these would query actual data
 async function getPollingRequestCount(startDate: Date, endDate: Date): Promise<number> {
-  console.debug('Querying request count from', startDate, 'to', endDate);
+  // Log debug information for development and troubleshooting
+  // Structured logging provides better filtering and analysis capabilities
+  logger.debug('Querying request count', { startDate, endDate });
   // This would query your analytics database or service
   // For now, return a mock number that demonstrates the pattern
   return Math.floor(Math.random() * 1000) + 500;
 }
 
 async function getAverageResponseTime(startDate: Date, endDate: Date): Promise<number> {
-  console.debug('Calculating average response time from', startDate, 'to', endDate);
+  // Log debug information for performance monitoring
+  // Structured logging helps track performance trends over time
+  logger.debug('Calculating average response time', { startDate, endDate });
   // This would calculate actual average response time from logs
   return Math.floor(Math.random() * 500) + 100; // 100-600ms range
 }
@@ -114,7 +126,9 @@ async function getActiveConnectionCount(): Promise<number> {
 }
 
 async function getErrorRate(startDate: Date, endDate: Date): Promise<number> {
-  console.debug('Calculating error rate from', startDate, 'to', endDate);
+  // Log debug information for error rate monitoring
+  // Structured logging helps identify error patterns and trends
+  logger.debug('Calculating error rate', { startDate, endDate });
   // This would calculate actual error rate from error logs
   return Math.random() * 5; // 0-5% error rate
 }
@@ -125,7 +139,9 @@ async function getRateLimitStats(type: string, startDate: Date, endDate: Date): 
   allowed: number;
   rate: number;
 }> {
-  console.debug('Getting rate limit stats for type:', type, 'from', startDate, 'to', endDate);
+  // Log debug information for rate limit monitoring
+  // Structured logging helps identify rate limit patterns and potential abuse
+  logger.debug('Getting rate limit stats', { type, startDate, endDate });
   const total = Math.floor(Math.random() * 200) + 100;
   const blocked = Math.floor(Math.random() * 20); // 0-20 blocked requests
   const allowed = total - blocked;
@@ -170,7 +186,8 @@ async function generateWarnings(): Promise<string[]> {
 
 async function sendAlert(message: string): Promise<void> {
   // This would send an alert to monitoring service, email, Slack, etc.
-  console.warn('ALERT:', message);
+  // Using structured logging for alerts to ensure proper handling and monitoring
+  logger.warn('ALERT', { message });
   
   // In a real implementation, you might:
   // - Send to a monitoring service like DataDog, New Relic
@@ -187,6 +204,8 @@ async function sendAlert(message: string): Promise<void> {
     //   timestamp: new Date().toISOString(),
     // });
   } catch (error) {
-    console.error('Failed to send alert:', error);
+    // Log alert sending failures with proper error context
+    // Structured logging helps track alert system health and reliability
+    logger.error('Failed to send alert', { error, message });
   }
 }

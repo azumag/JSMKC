@@ -3,13 +3,17 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generateDoubleEliminationBracket, BracketPlayer } from "@/lib/tournament/double-elimination";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('bm-bracket-api');
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
 
     const matches = await prisma.bMMatch.findMany({
       where: { tournamentId, stage: "finals" },
@@ -38,7 +42,8 @@ export async function GET(
       totalPlayers: players.length,
     });
   } catch (error) {
-    console.error("Failed to fetch bracket:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch bracket", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch bracket" },
       { status: 500 }
@@ -59,9 +64,8 @@ export async function POST(
     );
   }
 
+  const { id: tournamentId } = await params;
   try {
-    const { id: tournamentId } = await params;
-
     const qualifications = await prisma.bMQualification.findMany({
       where: { tournamentId },
       include: { player: true },
@@ -111,12 +115,14 @@ export async function POST(
         details: auditLogData,
       });
     } catch (logError) {
-      console.error("Failed to create audit log:", logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_BRACKET' });
     }
 
     return NextResponse.json(bracketData);
   } catch (error) {
-    console.error("Failed to generate bracket:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to generate bracket", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to generate bracket" },
       { status: 500 }

@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('bm-finals-match-api');
 
 const UpdateMatchSchema = z.object({
   score1: z.number().int().min(0).max(5),
@@ -34,8 +38,8 @@ export async function PUT(
     );
   }
 
+  const { id: tournamentId, matchId } = await params;
   try {
-    const { id: tournamentId, matchId } = await params;
     const body = await request.json();
 
     const parseResult = UpdateMatchSchema.safeParse(body);
@@ -97,7 +101,8 @@ export async function PUT(
         },
       });
     } catch (logError) {
-      console.error("Failed to create audit log:", logError);
+      // Audit log failure is non-critical but should be logged for security tracking
+      logger.warn('Failed to create audit log', { error: logError, tournamentId, matchId, action: 'UPDATE_BM_MATCH' });
     }
 
     return NextResponse.json({
@@ -105,7 +110,8 @@ export async function PUT(
       match: updatedMatch,
     });
   } catch (error) {
-    console.error("Failed to update match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update match", { error, tournamentId, matchId });
     return NextResponse.json(
       { error: "Failed to update match" },
       { status: 500 }

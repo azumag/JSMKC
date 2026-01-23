@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { updateMRMatchScore, OptimisticLockError } from "@/lib/optimistic-locking";
 import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+// Initialize logger for structured logging
+const logger = createLogger('mr-match-api');
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const { matchId } = await params;
   try {
-    const { matchId } = await params;
 
     const match = await prisma.mRMatch.findUnique({
       where: { id: matchId },
@@ -24,7 +28,8 @@ export async function GET(
 
     return NextResponse.json(match);
   } catch (error) {
-    console.error("Failed to fetch match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to fetch match", { error, matchId });
     return NextResponse.json(
       { error: "Failed to fetch match" },
       { status: 500 }
@@ -36,8 +41,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const { matchId } = await params;
   try {
-    const { matchId } = await params;
     const body = sanitizeInput(await request.json());
     
     const { score1, score2, completed, rounds, version } = body;
@@ -77,7 +82,8 @@ export async function PUT(
       version: result.version
     });
   } catch (error) {
-    console.error("Failed to update match:", error);
+    // Use structured logging for error tracking and debugging
+    logger.error("Failed to update match", { error, matchId });
     
     if (error instanceof OptimisticLockError) {
       return NextResponse.json(

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { createLogger } from "@/lib/logger";
+
+// Create logger for players [id]/link API module
+// Using structured logging to provide consistent error tracking and debugging capabilities
+// The logger provides proper log levels (error, warn, info, debug) and includes service name context
+const logger = createLogger('players-link-api');
 
 export async function POST(
     request: NextRequest,
@@ -57,7 +63,9 @@ export async function POST(
 
         return NextResponse.json(updatedPlayer);
     } catch (error) {
-        console.error("Failed to link player:", error);
+        // Log error with structured metadata for better debugging and monitoring
+        // The error object is passed as metadata to maintain error stack traces
+        logger.error("Failed to link player", { error, playerId: id, userId: session.user.id });
         return NextResponse.json(
             { error: "Failed to link player" },
             { status: 500 }
