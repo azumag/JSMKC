@@ -589,3 +589,153 @@ Commit: 8afaca7
 **現在の全体進捗状況**: ~53%パス率 (171/318)
 **目標**: 100%パス率
 **ギャップ**: 147テストの修正が必要
+
+## 完了したタスク (2026-01-24)
+✅ [Issue #121: Fix test expectation mismatches - Phase 3 Complete](https://github.com/azumag/JSMKC/issues/121)
+
+### Phase 3 実装完了 - Logger Mockパターンの調査
+
+#### 調査結果
+
+**根本原因**: APIルートでのモジュールレベルのloggerインスタンス化によるタイミングの不一致
+
+```typescript
+// APIルートにはモジュールレベルで以下がある（インポート時に実行される）
+const logger = createLogger('gp-finals-api');
+
+export async function GET(...) {
+  try {
+    // モジュールインポート時に作成されたloggerインスタンス
+    logger.error('Failed to fetch GP finals data', { error, tournamentId });
+    return NextResponse.json({ error: 'Failed to fetch grand prix finals data' }, { status: 500 });
+  }
+}
+```
+
+**タイミングの問題**:
+1. テストファイルがAPIルートをインポートする → `logger = createLogger()` が即座に呼ばれる
+2. テストの `jest.mock` 設定が実行される → 遅すぎる、loggerはすでに作成済み
+3. テストの `beforeEach` が実行される → さらに遅い、loggerインスタンスはすでに確立
+4. テストが `loggerMock.error` が呼ばれることを期待 → 間違ったインスタンスをチェック
+
+**GP Finals Testsの例**:
+- テストが期待: `loggerMock.error` が呼ばれること
+- 実際: APIルートのloggerインスタンスには独自の `error: jest.fn()` がある
+- 結果: "Number of calls: 0" でテスト失敗
+
+#### 試みた修正
+
+**試み 1: シングルトンLogger Mock**
+`__mocks__/lib/logger.ts` を変更し、常に同じインスタンスを返すようにした
+
+```typescript
+const mockLogger = {
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+};
+
+export const createLogger = jest.fn(() => mockLogger);
+```
+
+**結果**: ❌ 改善なし - タイミングの問題が持続
+
+**試み 2: 直接的なMockインポート**
+テストファイルを変更し、mockを直接インポート:
+
+```typescript
+import { createLogger as createLoggerMock } from '@/lib/logger';
+
+describe('GP Finals API Route', () => {
+  const logger = createLoggerMock() as { error: jest.Mock, warn: jest.Mock };
+  // logger.error ではなく loggerMock.error を使用
+});
+```
+
+**結果**: ❌ 改善なし - 17/21テストパス（変更なし）
+
+#### 現在のステータス
+
+- **GP Finals**: 17/21 パス（変更なし）
+- **他のモジュール**: GP、BM、MR、TT、TAモジュール全体でlogger問題が影響
+- **推定影響**: 100+テストがこの問題でブロックされている
+
+#### 推奨される解決策
+
+**解決策 A: 関数レベルのLogger作成**（推奨）
+APIルートを変更し、logger作成を遅延させる:
+
+```typescript
+// モジュールレベルから関数レベルへ変更
+export async function GET(request, { params }) {
+  const logger = createLogger('gp-finals-api'); // 関数内に移動
+  
+  try {
+    logger.error('Failed to fetch...', { error, tournamentId });
+  }
+}
+```
+
+**メリット**:
+- タイミングの問題を完全に解決
+- テストがloggerが作成される前にモックできるようにする
+- テストファイルの変更が不要
+
+**デメリット**:
+- 多くのAPIルートファイルを修正する必要がある（40+ファイル）
+- わずかに効率が悪い（リクエストごとに新しいloggerインスタンス）
+
+**解決策 B: jest.spyOnパターン**
+実際のloggerインスタンスを追跡するためにspyOnを使用:
+
+```typescript
+describe('GP Finals API Route', () => {
+  let logger: { error: jest.Mock, warn: jest.Mock };
+  
+  beforeEach(() => {
+    // モジュールロード時に作成されたloggerインスタンスを取得
+    logger = require('@/lib/logger').createLogger() as any;
+    
+    // そのメソッドをspy
+    jest.spyOn(logger, 'error');
+    jest.spyOn(logger, 'warn');
+  });
+});
+```
+
+**メリット**:
+- 現在のモジュールレベルloggerパターンで動作
+- テストファイルへの変更が最小限
+
+**デメリット**:
+- 全てのテストファイルでの実装が複雑
+- jest.spyOnの構文はモック関数と組み合わせる場合に扱いにくい
+
+### 推定される作業
+
+**解決策 A（関数レベルのLogger作成）**:
+- 40+個のAPIルートファイルを修正: 3-4時間
+- テスト検証: 1-2時間
+- **合計**: 4-6時間
+
+**解決策 B（jest.spyOnパターン）**:
+- 20+個のテストファイルを修正: 2-3時間
+- テスト検証: 1-2時間
+- **合計**: 3-5時間
+
+### 推奨
+
+**解決策 A（関数レベルのLogger作成）**を進行する:
+1. クリーナなアーキテクチャ
+2. より良いテスト容易性
+3. すべての将来のルートに対して一度に問題を解決
+
+### 推定される作業
+
+1. 解決策 A（関数レベルのLogger作成）の実装 - 4-6時間
+2. 影響を受けるすべてのテストの検証 - 1-2時間  
+3. 残りの47個の期待値の不一致の解決 - 2-3時間
+4. 最終検証とドキュメント化 - 1時間
+
+**推定残り作業時間**: 8-12時間

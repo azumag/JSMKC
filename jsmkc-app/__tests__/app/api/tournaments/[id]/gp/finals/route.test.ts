@@ -24,7 +24,6 @@ import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 
-import { createLogger as createLoggerMock } from '@/lib/logger';
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;
 
@@ -46,11 +45,20 @@ class MockNextRequest {
 }
 
 describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
-  const logger = createLoggerMock() as { error: jest.Mock, warn: jest.Mock };
+  let logger: { error: jest.Mock, warn: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     jsonMock.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    
+    // Spy on createLogger to get the logger instance used by API routes
+    const createLoggerSpy = jest.spyOn(require('@/lib/logger'), 'createLogger');
+    logger = createLoggerSpy('gp-finals-api') as { error: jest.Mock, warn: jest.Mock };
+  });
+
+  afterEach(() => {
+    // Restore all spies
+    jest.restoreAllMocks();
   });
 
   describe('GET - Fetch grand prix finals data', () => {
