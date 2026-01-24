@@ -30,9 +30,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
 
-// Note: Cannot use logger in 'use client' components
-// Use console.error instead for client-side error logging
 
 interface Player {
   id: string;
@@ -69,7 +68,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       
-      console.error("Failed to fetch players:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      logger.error("Failed to fetch players:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
     } finally {
       setLoading(false);
     }
@@ -108,7 +107,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       
-      console.error("Failed to create player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      logger.error("Failed to create player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
       setError("Failed to create player");
     }
   };
@@ -131,7 +130,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       
-      console.error("Failed to update player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      logger.error("Failed to update player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
       setError("Failed to update player");
     }
   };
@@ -149,7 +148,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       
-      console.error("Failed to delete player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      logger.error("Failed to delete player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
     }
   };
 

@@ -40,6 +40,9 @@ import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-gp' })
 
 interface Player {
   id: string;
@@ -180,7 +183,7 @@ export default function GrandPrixPage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to setup:", err);
+      logger.error("Failed to setup:", err);
     }
   };
 
@@ -240,7 +243,7 @@ export default function GrandPrixPage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to update match:", err);
+      logger.error("Failed to update match:", err);
     }
   };
 
@@ -272,7 +275,7 @@ export default function GrandPrixPage({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error("Failed to export:", err);
+      logger.error("Failed to export:", err);
     } finally {
       setExporting(false);
     }

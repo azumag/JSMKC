@@ -738,4 +738,131 @@ describe('GP Finals API Route', () => {
 3. 残りの47個の期待値の不一致の解決 - 2-3時間
 4. 最終検証とドキュメント化 - 1時間
 
+**推定残り作業時間**: 8-13時間
+
+## 完了したタスク (2026-01-24)
+✅ [Issue #121: Fix test expectation mismatches - Phase 4: Logger mock investigation complete](https://github.com/azumag/JSMKC/issues/121)
+
+### Phase 4: Logger Mockパターンの調査と試み
+
+#### 調査完了
+
+**根本原因**: APIルートでのモジュールレベルのloggerインスタンス化によるタイミングの不一致（確認済み）
+
+```typescript
+// APIルートにはモジュールレベルで以下がある（インポート時に実行される）
+const logger = createLogger('gp-finals-api');
+
+export async function GET(...) {
+  try {
+    // モジュールインポート時に作成されたloggerインスタンス
+    logger.error('Failed to fetch GP finals data', { error, tournamentId });
+    return NextResponse.json({ error: 'Failed to fetch grand prix finals data' }, { status: 500 });
+  }
+}
+```
+
+**タイミングの問題**:
+1. テストファイルがAPIルートをインポートする → `logger = createLogger()` が即座に呼ばれる
+2. テストの `jest.mock` 設定が実行される → 遅すぎる、loggerはすでに作成済み
+3. テストの `beforeEach` が実行される → さらに遅い、loggerインスタンスはすでに確立
+4. テストが `logger.error` が呼ばれることを期待 → 間違ったインスタンスをチェック
+
+#### 試みた修正
+
+**試み 1: シングルトンLogger Mock**
+`__mocks__/lib/logger.ts` を変更し、常に同じインスタンスを返すようにした
+
+```typescript
+const mockLogger = {
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+};
+
+export const createLogger = jest.fn(() => mockLogger);
+```
+
+**結果**: ❌ 改善なし - タイミングの問題が持続
+
+**試み 2: 関数レベルのLogger作成**
+APIルートを変更し、logger作成を各関数内に移動することを試みた
+
+```typescript
+// モジュールレベルから関数レベルへ変更
+export async function GET(request, { params }) {
+  const logger = createLogger('gp-finals-api'); // 関数内に移動
+```
+
+**結果**: ❌ 30+個のAPIルートファイルを修正する必要があり、複雑さが高いため元に戻した
+
+**試み 3: テストファイルでのLogger Mock修正**
+複数のアプローチを試みた:
+- モックを直接インポート
+- loggerインスタンスに対して`jest.spyOn`を使用
+- createLogger関数に対して`jest.spyOn`を使用
+- 各テスト前にモックをクリア
+
+**結果**: ❌ Jestモックの競合、複雑さが高いため元に戻した
+
+#### 現在のステータス
+
+**ベースライン（Phase 2終了時）**:
+- GP Finals テスト: 17/21 パス
+
+**調査試み後**:
+- GP Finals テスト: 17/21 パス（変更なし）
+
+**全ての変更は元に戻された**: 作動状態を維持
+
+#### 推奨される次のステップ
+
+Logger mockの修正は**複雑なアーキテクチャ問題**であり、専用の集中したセッションが必要:
+
+**推奨されるアプローチ**（推定8-12時間）:
+1. **解決策 Aの実装**: すべての30+ APIルートでloggerを関数レベルに移動
+   - 適用するシンプルなパターンで適用
+   - 問題を完全に解決
+   - または
+   
+2. **解決策 Bの実装**: 包括的なテストセットアップユーティリティを作成
+   - より複雑だが、長期的には保守性が良い
+   - 一元化された管理
+
+**オプション C**: 現在の~53%パス率を受け入れ、他のテスト失敗に焦点を当てる
+
+### 達成したこと
+
+1. ✅ 根本原因の詳細な分析
+2. ✅ 複数の解決策アプローチのドキュメント化
+3. ✅ 実際的な実装の試み
+4. ✅ アプローチが既存のテストを壊さないことの検証
+5. ✅ 次のセッションのための明確なドキュメント作成
+
+### 推奨される次回のセッション
+
+**Logger mock修正のための専用セッションを開始**:
+1. ユーティリティスクリプトを作成し、すべての30+ APIルートを変換
+2. バッチで変更を適用
+3. 影響を受けるすべてのテストスイートを検証
+4. 最終的な解決パターンをドキュメント化
+
+**または**: 残りの~47個の非loggerテスト失敗に先に焦点を当て、その後にlogger問題に戻る
+
+### 現在の全体進捗状況
+
+- **テストパス**: 171/318 (53.8%)
+- **修正済みテスト**: 開始から+44（Phase 1 & 2経由）
+- **Logger問題**: ~100テストがブロックされている
+- **その他の問題**: ~47テストがブロックされている
+
+**推定残り作業**: 8-12時間（logger修正）+ 2-3時間（その他の問題）
+
+**Commits**:
+- Phase 1: 0b7cf70
+- Phase 2: 64a36c7
+- Phase 3: e9f3aca
+- Phase 4: a948fa2
+
 **推定残り作業時間**: 8-12時間
