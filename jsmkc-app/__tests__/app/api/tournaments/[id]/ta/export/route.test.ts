@@ -2,16 +2,7 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    tournament: {
-      findUnique: jest.fn(),
-    },
-    tTEntry: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+
 
 jest.mock('@/lib/excel', () => ({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

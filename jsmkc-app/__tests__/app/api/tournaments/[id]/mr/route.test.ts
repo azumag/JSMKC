@@ -1,11 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    mRQualification: { findMany: jest.fn(), updateMany: jest.fn() },
-    mRMatch: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-    tournament: { findUnique: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));

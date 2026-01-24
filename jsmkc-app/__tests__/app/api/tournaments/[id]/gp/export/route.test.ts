@@ -1,11 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    tournament: { findUnique: jest.fn() },
-    gPQualification: { findMany: jest.fn() },
-    gPMatch: { findMany: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/excel', () => ({
   createCSV: jest.fn((headers, data) => {

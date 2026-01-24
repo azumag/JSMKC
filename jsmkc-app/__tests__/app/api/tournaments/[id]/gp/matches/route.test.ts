@@ -1,10 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    gPMatch: { findMany: jest.fn(), count: jest.fn() },
-    tournament: { findFirst: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/pagination', () => ({
   paginate: jest.fn(),

@@ -1,10 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    bMQualification: { findMany: jest.fn() },
-    bMMatch: { findMany: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));

@@ -1,10 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    mRMatch: { findFirst: jest.fn(), create: jest.fn() },
-    player: { findUnique: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' } }));

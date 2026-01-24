@@ -1,11 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    tournament: { findUnique: jest.fn() },
-    mRQualification: { findMany: jest.fn() },
-    mRMatch: { findMany: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/excel', () => ({ createCSV: jest.fn((headers, data) => 'header1,header2\ndata1,data2') }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn() })) }));

@@ -1,11 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    mRMatch: { findUnique: jest.fn(), update: jest.fn() },
-    scoreEntryLog: { create: jest.fn() },
-    matchCharacterUsage: { create: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/rate-limit', () => ({ 

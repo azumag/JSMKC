@@ -11,23 +11,7 @@ jest.mock('next-auth/providers/github');
 jest.mock('next-auth/providers/google');
 jest.mock('next-auth/providers/credentials');
 
-jest.mock('@/lib/prisma', () => {
-  const mockPrisma = {
-    player: {
-      findUnique: jest.fn(),
-    },
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
-  };
-  return { prisma: mockPrisma };
-});
 
-jest.mock('bcrypt', () => ({
-  compare: jest.fn(),
-}));
 
 import { compare as mockBcryptCompare } from 'bcrypt';
 import { prisma as prismaMock } from '@/lib/prisma';

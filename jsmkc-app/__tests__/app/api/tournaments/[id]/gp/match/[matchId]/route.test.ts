@@ -1,9 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    gPMatch: { findUnique: jest.fn(), update: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateGPMatchScore: jest.fn(),

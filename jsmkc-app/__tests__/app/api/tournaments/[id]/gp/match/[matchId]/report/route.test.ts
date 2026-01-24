@@ -1,12 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    gPMatch: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
-    gPQualification: { updateMany: jest.fn() },
-    scoreEntryLog: { create: jest.fn() },
-    matchCharacterUsage: { create: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/rate-limit', () => ({
   rateLimit: jest.fn(),

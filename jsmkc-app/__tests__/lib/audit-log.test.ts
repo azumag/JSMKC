@@ -2,14 +2,7 @@ import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 
 jest.mock('@/lib/sanitize');
-jest.mock('@/lib/prisma', () => {
-  const mockPrisma = {
-    auditLog: {
-      create: jest.fn(),
-    },
-  };
-  return { prisma: mockPrisma };
-});
+
 
 import { prisma as prismaMock } from '@/lib/prisma';
 

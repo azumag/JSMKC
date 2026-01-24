@@ -1,10 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    gPMatch: { findMany: jest.fn(), findFirst: jest.fn(), deleteMany: jest.fn(), create: jest.fn(), update: jest.fn() },
-    gPQualification: { findMany: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/double-elimination', () => ({
   generateBracketStructure: jest.fn(),

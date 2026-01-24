@@ -1,9 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    bMMatch: { findUnique: jest.fn(), update: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateBMMatchScore: jest.fn(),

@@ -2,16 +2,7 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';
 
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    player: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),

@@ -97,6 +97,10 @@ jest.mock('@/lib/prisma', () => {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     groupBy: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
   })
 
   return {
@@ -124,9 +128,11 @@ jest.mock('@/lib/prisma', () => {
       tTEntry: createMockModelWithMethods(),
       scoreEntryLog: {
         findMany: jest.fn(),
+        create: jest.fn(),
       },
       matchCharacterUsage: {
         findMany: jest.fn(),
+        create: jest.fn(),
       },
     },
   }

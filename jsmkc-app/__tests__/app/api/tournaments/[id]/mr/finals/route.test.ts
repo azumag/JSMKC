@@ -1,10 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    mRMatch: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    mRQualification: { findMany: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/double-elimination', () => ({
   generateBracketStructure: jest.fn(() => []),

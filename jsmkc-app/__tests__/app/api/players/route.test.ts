@@ -3,15 +3,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { NextRequest } from 'next/server';
 
 // Mock dependencies - using same pattern as working tournament tests
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    player: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-      create: jest.fn(),
-    },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),

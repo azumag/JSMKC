@@ -1,13 +1,5 @@
 // @ts-nocheck
-jest.mock('@/lib/prisma', () => ({
-  default: {
-    bMMatch: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
-    bMQualification: { updateMany: jest.fn() },
-    scoreEntryLog: { create: jest.fn() },
-    matchCharacterUsage: { create: jest.fn() },
-    tournament: { findFirst: jest.fn() },
-  },
-}));
+
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
