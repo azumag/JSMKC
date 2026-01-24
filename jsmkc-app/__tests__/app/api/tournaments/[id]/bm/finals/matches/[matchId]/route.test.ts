@@ -17,18 +17,23 @@ const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIde
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock, AUDIT_ACTIONS: { UPDATE_BM_MATCH: string } };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const jsonMock = NextResponseMock.NextResponse.json;
 
 // Mock NextRequest class
 class MockNextRequest {
+  private _headers: Map<string, string>;
+
   constructor(
     private url: string,
     private body?: any,
-    private headers: Map<string, string> = new Map()
-  ) {}
+    headers?: Map<string, string>
+  ) {
+    this._headers = headers || new Map();
+  }
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
+  get header() { return { get: (key: string) => this._headers.get(key) }; }
   headers = {
-    get: (key: string) => this.headers.get(key)
+    get: (key: string) => this._headers.get(key)
   };
 }
 
@@ -38,8 +43,7 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    jsonMock.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
   });
 

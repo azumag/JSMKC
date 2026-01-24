@@ -102,6 +102,7 @@ jest.mock('@/lib/prisma', () => {
     update: jest.fn(),
     updateMany: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   })
 
   return {
