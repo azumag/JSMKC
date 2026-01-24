@@ -266,3 +266,23 @@ MIT
 - standings-cache.test.ts: タイムスタンプ比較を正規表現パターンマッチに変更
 - audit-log.test.ts: モックPrismaが値を返すように修正、console.errorテストの期待値修正
 - 全24テストスイート、729テストがパス
+
+## 進行中のタスク (2026-01-24)
+🔍 [Issue #112: APIルートの単体テストを追加 - モック設定問題の調査完了](https://github.com/azumag/JSMKC/issues/112)
+
+### 現在の状態
+- ✅ 46個のAPIルートファイルが存在
+- ✅ 16個のAPIテストファイルが存在（35%カバレッジ）
+- ❌ 30個のAPIルートが未テスト（65%未達）
+- 目標: APIルートのテストカバレッジ80%
+
+### 調査結果
+- **Jestモック設定アーキテクチャ問題を特定**: \`checkRateLimit\`モックで\`mockResolvedValue is not a function\`エラーが発生
+- 新しい課題 #117 を作成: Jest Mock Issues with checkRateLimit Function
+- 30個の未テストAPIルートを特定
+- 3つの重複する古いissue (#114, #115, #116) をクローズ
+
+### 次のステップ
+1. Issue #117でJestモック問題を解決
+2. 残りの30個のAPIルートにテストを追加
+3. 80%カバレッジ目標を達成
