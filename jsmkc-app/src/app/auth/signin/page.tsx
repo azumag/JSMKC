@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useRouter } from 'next/navigation'
-import { createLogger } from '@/lib/logger'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -34,8 +33,8 @@ export default function SignInPage() {
         router.push('/tournaments')
       }
     } catch (error) {
-      const log = createLogger('signin-page')
-      log.error('Player login error:', error instanceof Error ? { message: error.message, stack: error.stack } : { error })
+      // Use console.error for client-side logging (can't use logger in 'use client' components)
+      console.error('Player login error:', error instanceof Error ? { message: error.message, stack: error.stack } : { error })
       setPlayerError('An error occurred during login')
     } finally {
       setIsLoading(false)

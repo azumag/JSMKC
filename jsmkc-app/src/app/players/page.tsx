@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createLogger } from "@/lib/logger"
 import {
   Card,
   CardContent,
@@ -31,6 +30,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
+
+// Note: Cannot use logger in 'use client' components
+// Use console.error instead for client-side error logging
 
 interface Player {
   id: string;
@@ -66,8 +68,8 @@ export default function PlayersPage() {
         setPlayers(data);
       }
     } catch (err) {
-      const log = createLogger('players-page')
-      log.error("Failed to fetch players:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      
+      console.error("Failed to fetch players:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
     } finally {
       setLoading(false);
     }
@@ -105,8 +107,8 @@ export default function PlayersPage() {
         setError(data.error || "Failed to create player");
       }
     } catch (err) {
-      const log = createLogger('players-page')
-      log.error("Failed to create player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      
+      console.error("Failed to create player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
       setError("Failed to create player");
     }
   };
@@ -128,8 +130,8 @@ export default function PlayersPage() {
         setError(data.error || "Failed to update player");
       }
     } catch (err) {
-      const log = createLogger('players-page')
-      log.error("Failed to update player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      
+      console.error("Failed to update player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
       setError("Failed to update player");
     }
   };
@@ -146,8 +148,8 @@ export default function PlayersPage() {
         fetchPlayers();
       }
     } catch (err) {
-      const log = createLogger('players-page')
-      log.error("Failed to delete player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      
+      console.error("Failed to delete player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
     }
   };
 

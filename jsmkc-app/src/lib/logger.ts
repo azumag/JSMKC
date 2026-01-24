@@ -1,6 +1,4 @@
 import winston from 'winston'
-import path from 'path'
-import * as fs from 'fs'
 
 // Define log levels
 const levels = {
@@ -62,8 +60,10 @@ const format = winston.format.combine(
 )
 
 // Define transports (where logs go)
+// For now, only use console transport to avoid fs bundling issues
+// File transports will be added in a future update with proper server-side configuration
 const transports: winston.transport[] = [
-  // Console transport for development
+  // Console transport for development and production
   new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
@@ -71,35 +71,6 @@ const transports: winston.transport[] = [
     ),
   }),
 ];
-
-// Only add file transports in production or when logs directory exists
-if (process.env.NODE_ENV === 'production') {
-  try {
-    // Ensure logs directory exists
-    // Use process.cwd() instead of __dirname to handle build environment correctly
-    const logsDir = path.join(process.cwd(), 'logs');
-    fs.promises.mkdir(logsDir, { recursive: true }).catch(() => {
-      // Ignore errors - if directory can't be created, just use console transport
-    });
-
-    transports.push(
-      // File transport for errors
-      new winston.transports.File({
-        filename: path.join(logsDir, 'error.log'),
-        level: 'error',
-        format: winston.format.json(),
-      }) as winston.transport,
-      // File transport for all logs
-      new winston.transports.File({
-        filename: path.join(logsDir, 'combined.log'),
-        format: winston.format.json(),
-      }) as winston.transport,
-    );
-  } catch (error) {
-    // If logs directory can't be created, just use console transport
-    console.warn('Could not create logs directory, using console transport only:', error);
-  }
-}
 
 // Create logger instance
 const logger = winston.createLogger({
