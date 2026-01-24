@@ -9,7 +9,7 @@ import { createLogger } from "@/lib/logger";
 // Initialize logger for structured logging
 const logger = createLogger('gp-score-report-api');
 
-const DRIVER_POINTS = [0, 1, 3, 6, 9];
+const DRIVER_POINTS = [0, 9, 6, 3, 1];
 
 function getPointsFromPosition(position: number): number {
   if (position < 1 || position > 4) return 0;

@@ -20,17 +20,22 @@ import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
 
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const jsonMock = NextResponseMock.NextResponse.json;
 
 class MockNextRequest {
+  private _headers: Map<string, string>;
+
   constructor(
     private url: string,
     private body?: unknown,
-    private headers: Map<string, string> = new Map()
-  ) {}
+    headers?: Map<string, string>
+  ) {
+    this._headers = headers || new Map();
+  }
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
+  get header() { return { get: (key: string) => this._headers.get(key) }; }
   headers = {
-    get: (key: string) => this.headers.get(key)
+    get: (key: string) => this._headers.get(key)
   };
 }
 
@@ -40,7 +45,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    NextResponseMock.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
+    jsonMock.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
   });
 
   describe('GET - Fetch single Time Trial entry', () => {

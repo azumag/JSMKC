@@ -62,15 +62,18 @@ const {
 
 // Mock NextRequest class
 class MockNextRequest {
+  private _headers: Map<string, string>;
+
   constructor(
     private body?: any,
-    private headers: Map<string, string> = new Map()
+    headers?: Map<string, string>
   ) {
-    this.headers.set('user-agent', 'test-agent');
+    this._headers = headers || new Map();
+    this._headers.set('user-agent', 'test-agent');
   }
   async json() { return this.body; }
   headers = {
-    get: (key: string) => this.headers.get(key)
+    get: (key: string) => this._headers.get(key)
   };
 }
 
