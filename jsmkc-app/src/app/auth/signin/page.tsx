@@ -37,7 +37,8 @@ export default function SignInPage() {
       }
     } catch (error) {
       // Use structured client-side logging for better error tracking
-      logger.error('Player login error', error instanceof Error ? { message: error.message, stack: error.stack } : { error })
+      const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
+      logger.error('Player login error', metadata as any)
       setPlayerError('An error occurred during login')
     } finally {
       setIsLoading(false)

@@ -57,7 +57,8 @@ export function ExportButton({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      logger.error("Export failed", error instanceof Error ? { message: error.message, stack: error.stack } : { error });
+      const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
+      logger.error("Export failed", metadata as any);
       // You could add a toast notification here
     }
   };

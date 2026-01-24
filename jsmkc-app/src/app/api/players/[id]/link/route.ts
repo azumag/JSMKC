@@ -8,10 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('players-link-api');
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    const session = await auth();
+  const session = await auth();
 
     if (!session?.user?.id) {
         return NextResponse.json(

@@ -32,6 +32,7 @@ import {
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
+const logger = createLogger({ serviceName: 'players' });
 
 interface Player {
   id: string;
@@ -67,8 +68,8 @@ export default function PlayersPage() {
         setPlayers(data);
       }
     } catch (err) {
-      
-      logger.error("Failed to fetch players:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to fetch players:", metadata as any);
     } finally {
       setLoading(false);
     }
@@ -106,8 +107,8 @@ export default function PlayersPage() {
         setError(data.error || "Failed to create player");
       }
     } catch (err) {
-      
-      logger.error("Failed to create player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to create player:", metadata as any);
       setError("Failed to create player");
     }
   };
@@ -129,8 +130,8 @@ export default function PlayersPage() {
         setError(data.error || "Failed to update player");
       }
     } catch (err) {
-      
-      logger.error("Failed to update player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to update player:", metadata as any);
       setError("Failed to update player");
     }
   };
@@ -147,8 +148,8 @@ export default function PlayersPage() {
         fetchPlayers();
       }
     } catch (err) {
-      
-      logger.error("Failed to delete player:", err instanceof Error ? { message: err.message, stack: err.stack } : { error: err });
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to delete player:", metadata as any);
     }
   };
 

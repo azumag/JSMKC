@@ -20,9 +20,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('players-character-stats-api');
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {

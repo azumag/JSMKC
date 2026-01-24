@@ -3,12 +3,13 @@ import { auth } from '@/lib/auth';
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 
+const logger = createLogger('monitor');
+
 /**
  * GET /api/monitor/polling-stats
  * Returns polling statistics for monitoring resource usage
  */
 export async function GET() {
-  const logger = createLogger('monitor');
   try {
     // Apply rate limiting
     const identifier = await getServerSideIdentifier();

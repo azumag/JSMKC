@@ -8,9 +8,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('tournament-export-api');
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
   const { id: tournamentId } = await params;
   try {
 

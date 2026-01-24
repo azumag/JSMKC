@@ -99,7 +99,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
       message: error.message,
       stack: error.stack,
       componentStack: errorInfo.componentStack
-    });
+    } as any);
 
     // Call custom error handler if provided
     if (this.props.onError) {

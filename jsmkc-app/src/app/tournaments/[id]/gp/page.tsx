@@ -183,7 +183,8 @@ export default function GrandPrixPage({
         refetch();
       }
     } catch (err) {
-      logger.error("Failed to setup:", err);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to setup:", metadata as any);
     }
   };
 
@@ -243,7 +244,8 @@ export default function GrandPrixPage({
         refetch();
       }
     } catch (err) {
-      logger.error("Failed to update match:", err);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to update match:", metadata as any);
     }
   };
 
@@ -275,7 +277,8 @@ export default function GrandPrixPage({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      logger.error("Failed to export:", err);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to export:", metadata as any);
     } finally {
       setExporting(false);
     }
