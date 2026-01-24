@@ -14,9 +14,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('score-entry-logs-api');
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
   const session = await auth();
 
   // Admin check
