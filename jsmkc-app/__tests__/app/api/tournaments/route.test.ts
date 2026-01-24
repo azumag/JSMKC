@@ -48,14 +48,21 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { sanitizeInput } from '@/lib/sanitize';
-import { paginate } from '@/lib/pagination';
-import { createAuditLog } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
-import { createLogger } from '@/lib/logger';
 import * as tournamentsRoute from '@/app/api/tournaments/route';
 
-const logger = createLogger('tournaments-route-test');
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
+
+const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
+  sanitizeInput: jest.Mock;
+};
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
 
 describe('GET /api/tournaments', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -82,7 +89,7 @@ describe('GET /api/tournaments', () => {
         method: 'GET',
       });
 
-      const response = await tournamentsRoute.GET(request);
+      await tournamentsRoute.GET(request);
 
       expect(paginate).toHaveBeenCalledWith(
         {
@@ -114,7 +121,7 @@ describe('GET /api/tournaments', () => {
         method: 'GET',
       });
 
-      const response = await tournamentsRoute.GET(request);
+      await tournamentsRoute.GET(request);
 
       expect(paginate).toHaveBeenCalledWith(
         expect.any(Object),
@@ -133,8 +140,9 @@ describe('GET /api/tournaments', () => {
         method: 'GET',
       });
 
-      const response = await tournamentsRoute.GET(request);
+      await tournamentsRoute.GET(request);
 
+      const logger = createLogger('tournaments-route-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to fetch tournaments',
         expect.any(Object)
@@ -170,7 +178,7 @@ describe('POST /api/tournaments', () => {
         body: JSON.stringify({ name: 'Test Tournament', date: '2024-01-01' }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -190,7 +198,7 @@ describe('POST /api/tournaments', () => {
         body: JSON.stringify({ name: 'Test Tournament', date: '2024-01-01' }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -206,14 +214,14 @@ describe('POST /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ date: '2024-01-01' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ date: '2024-01-01' });
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
         body: JSON.stringify({ date: '2024-01-01' }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -227,14 +235,14 @@ describe('POST /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
         body: JSON.stringify({ name: 'Test Tournament' }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -259,13 +267,13 @@ describe('POST /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Tournament',
         date: '2024-01-01',
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -276,7 +284,7 @@ describe('POST /api/tournaments', () => {
         }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
       expect(prisma.tournament.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -288,7 +296,7 @@ describe('POST /api/tournaments', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
@@ -306,13 +314,13 @@ describe('POST /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Tournament',
         date: '2024-01-01',
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -325,20 +333,20 @@ describe('POST /api/tournaments', () => {
 
       await tournamentsRoute.POST(request);
 
-      expect(createAuditLog).toHaveBeenCalled();
+      expect(auditLogMock.createAuditLog).toHaveBeenCalled();
     });
 
     it('should handle audit log failures gracefully', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Tournament',
         date: '2024-01-01',
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log error'));
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -348,8 +356,9 @@ describe('POST /api/tournaments', () => {
         }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
+      const logger = createLogger('tournaments-route-test');
       expect(logger.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
@@ -364,7 +373,7 @@ describe('POST /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Tournament',
         date: '2024-01-01',
       });
@@ -378,8 +387,9 @@ describe('POST /api/tournaments', () => {
         }),
       });
 
-      const response = await tournamentsRoute.POST(request);
+      await tournamentsRoute.POST(request);
 
+      const logger = createLogger('tournaments-route-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to create tournament',
         expect.any(Object)

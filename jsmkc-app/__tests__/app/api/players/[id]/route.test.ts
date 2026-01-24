@@ -50,10 +50,24 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { sanitizeInput } from '@/lib/sanitize';
-import { paginate } from '@/lib/pagination';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
+
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
+
+const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
+  sanitizeInput: jest.Mock;
+};
+
+const paginationMock = jest.requireMock('@/lib/pagination') as {
+  paginate: jest.Mock;
+};
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
 
 type PrismaError = {
   code: string;
@@ -170,7 +184,7 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ nickname: 'updated' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ nickname: 'updated' });
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -192,7 +206,7 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Updated Name' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Updated Name' });
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -223,14 +237,14 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Updated Name',
         nickname: 'updated',
         country: 'US',
       });
       (prisma.player.update as jest.Mock).mockResolvedValue(mockPlayer);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -256,7 +270,7 @@ describe('PUT /api/players/[id]', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
@@ -273,15 +287,15 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Updated Name',
         nickname: 'updated',
       });
       (prisma.player.update as jest.Mock).mockResolvedValue({
         id: 'player-1',
       });
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'PUT',
@@ -292,7 +306,7 @@ describe('PUT /api/players/[id]', () => {
       const route = (await import('@/app/api/players/[id]/route')).PUT;
       await route(request, { params: Promise.resolve({ id: 'player-1' }) });
 
-      expect(createAuditLog).toHaveBeenCalled();
+      expect(auditLogMock.createAuditLog).toHaveBeenCalled();
     });
   });
 
@@ -301,7 +315,7 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Updated Name',
         nickname: 'updated',
       });
@@ -329,7 +343,7 @@ describe('PUT /api/players/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Updated Name',
         nickname: 'existing-test',
       });
@@ -392,7 +406,7 @@ describe('DELETE /api/players/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.player.delete as jest.Mock).mockResolvedValue({});
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
@@ -407,7 +421,7 @@ describe('DELETE /api/players/[id]', () => {
         where: { id: 'player-1' }
       });
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
@@ -431,8 +445,8 @@ describe('DELETE /api/players/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.player.delete as jest.Mock).mockResolvedValue({});
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players/player-1', {
         method: 'DELETE',
@@ -442,7 +456,7 @@ describe('DELETE /api/players/[id]', () => {
       const route = (await import('@/app/api/players/[id]/route')).DELETE;
       await route(request, { params: Promise.resolve({ id: 'player-1' }) });
 
-      expect(createAuditLog).toHaveBeenCalled();
+      expect(auditLogMock.createAuditLog).toHaveBeenCalled();
     });
   });
 

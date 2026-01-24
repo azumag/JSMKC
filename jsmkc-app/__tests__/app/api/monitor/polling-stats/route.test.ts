@@ -29,9 +29,13 @@ jest.mock('next/server', () => {
 });
 
 import { auth } from '@/lib/auth';
-import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import * as pollingStatsRoute from '@/app/api/monitor/polling-stats/route';
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
 
 const logger = createLogger('monitor-test');
 
@@ -56,8 +60,8 @@ describe('GET /api/monitor/polling-stats', () => {
 
   describe('Success Cases', () => {
     it('should return polling statistics', async () => {
-      (checkRateLimit as jest.MockedFunction<typeof checkRateLimit>).mockResolvedValue({ success: true });
-      (getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>).mockResolvedValue('127.0.0.1');
+      rateLimitMock.checkRateLimit.mockResolvedValue({ success: true });
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
@@ -76,8 +80,8 @@ describe('GET /api/monitor/polling-stats', () => {
     });
 
     it('should return empty stats when no activity', async () => {
-      (checkRateLimit as jest.MockedFunction<typeof checkRateLimit>).mockResolvedValue({ success: true });
-      (getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>).mockResolvedValue('127.0.0.1');
+      rateLimitMock.checkRateLimit.mockResolvedValue({ success: true });
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
@@ -98,10 +102,8 @@ describe('GET /api/monitor/polling-stats', () => {
 
   describe('Error Cases', () => {
     it('should return empty stats when no activity', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (checkRateLimit as any).mockResolvedValue({ success: true });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (getServerSideIdentifier as any).mockResolvedValue('127.0.0.1');
+      rateLimitMock.checkRateLimit.mockResolvedValue({ success: true });
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
@@ -133,8 +135,8 @@ describe('GET /api/monitor/polling-stats', () => {
         remaining: 0,
         reset: Date.now() + 60000,
       };
-      (checkRateLimit as jest.MockedFunction<typeof checkRateLimit>).mockResolvedValue(rateLimitResult);
-      (getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>).mockResolvedValue('127.0.0.1');
+      rateLimitMock.checkRateLimit.mockResolvedValue(rateLimitResult);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       await pollingStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/monitor/polling-stats')

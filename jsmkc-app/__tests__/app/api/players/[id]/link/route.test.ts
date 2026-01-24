@@ -36,8 +36,12 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import * as linkRoute from '@/app/api/players/[id]/link/route';
+
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
 
 describe('POST /api/players/[id]/link', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -179,7 +183,7 @@ describe('POST /api/players/[id]/link', () => {
         .mockResolvedValue([mockPlayerLink])
         .mockResolvedValueOnce([mockPlayerLink]);
       (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayerLink);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
       await linkRoute.POST(
         new NextRequest('http://localhost:3000/api/players/player-1/link', {
@@ -217,9 +221,9 @@ describe('POST /api/players/[id]/link', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: AUDIT_ACTIONS.CREATE_PLAYER_LINK,
+          action: auditLogMock.AUDIT_ACTIONS.CREATE_PLAYER_LINK,
           targetId: 'link-1',
           targetType: 'PlayerLink',
         })
@@ -271,7 +275,7 @@ describe('POST /api/players/[id]/link', () => {
       (prisma.player.findMany as jest.Mock).mockResolvedValueOnce([]);
       (prisma.player.findMany as jest.Mock).mockResolvedValue([mockPlayerLink]);
       (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayerLink);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
       await linkRoute.POST(
         new NextRequest('http://localhost:3000/api/players/player-1/link', {

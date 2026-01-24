@@ -6,10 +6,14 @@ jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
-jest.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: jest.fn(),
-  getServerSideIdentifier: jest.fn(),
-}));
+jest.mock('@/lib/rate-limit', () => {
+  const mockCheckRateLimit = jest.fn();
+  const mockGetServerSideIdentifier = jest.fn();
+  return {
+    checkRateLimit: mockCheckRateLimit,
+    getServerSideIdentifier: mockGetServerSideIdentifier,
+  };
+});
 
 jest.mock('@/lib/logger', () => ({
   createLogger: jest.fn(() => ({
@@ -30,9 +34,14 @@ jest.mock('next/server', () => {
 });
 
 import { auth } from '@/lib/auth';
-import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import * as sessionStatusRoute from '@/app/api/auth/session-status/route';
+
+// Use requireMock to get the mocked module
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
 
 const logger = createLogger('auth-session-test');
 
@@ -90,16 +99,14 @@ describe('GET /api/auth/session-status', () => {
         expires: '2025-01-01T00:00:00Z',
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (checkRateLimit as any).mockResolvedValue({
+      rateLimitMock.checkRateLimit.mockResolvedValue({
         success: false,
         retryAfter: 60,
         limit: 100,
         remaining: 0,
         reset: Date.now() + 60000,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (getServerSideIdentifier as any).mockResolvedValue('127.0.0.1');
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       await sessionStatusRoute.GET(
         new NextRequest('http://localhost:3000/api/auth/session-status')
@@ -131,16 +138,14 @@ describe('GET /api/auth/session-status', () => {
         expires: '2025-01-01T00:00:00Z',
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (checkRateLimit as any).mockResolvedValue({
+      rateLimitMock.checkRateLimit.mockResolvedValue({
         success: true,
         retryAfter: 60,
         limit: 100,
         remaining: 5,
         reset: Date.now() + 60000,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (getServerSideIdentifier as any).mockResolvedValue('127.0.0.1');
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       await sessionStatusRoute.GET(
         new NextRequest('http://localhost:3000/api/auth/session-status')

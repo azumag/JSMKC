@@ -34,10 +34,7 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
 import * as standingsRoute from '@/app/api/tournaments/[id]/ta/standings/route';
-
-const logger = createLogger('ta-standings-api-test');
 
 type StandingsCacheMock = {
   get: jest.Mock;
@@ -307,6 +304,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      const logger = createLogger('ta-standings-api-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to fetch TA standings',
         expect.any(Object)
@@ -342,7 +340,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       (set as jest.Mock).mockRejectedValue(new Error('Cache error'));
       (generateETag as jest.Mock).mockReturnValue('new-etag');
 
-      const response = await standingsRoute.GET(
+      await standingsRoute.GET(
         new NextRequest('http://localhost:3000/api/tournaments/t1/ta/standings'),
         { params: Promise.resolve({ id: 't1' }) }
       );

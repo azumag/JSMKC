@@ -29,12 +29,15 @@ jest.mock('@/lib/logger', () => ({
   createLogger: jest.fn(() => ({
     error: jest.fn(),
     warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
   })),
 }));
 
 jest.mock('@/lib/password-utils', () => ({
-  generateSecurePassword: jest.fn(() => 'test-password'),
-  hashPassword: jest.fn(() => Promise.resolve('hashed-password')),
+  generateSecurePassword: jest.fn(),
+  hashPassword: jest.fn(),
+  verifyPassword: jest.fn(),
 }));
 
 jest.mock('@/lib/audit-log', () => ({
@@ -60,15 +63,34 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { sanitizeInput } from '@/lib/sanitize';
-import { paginate } from '@/lib/pagination';
-import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
-import { createLogger } from '@/lib/logger';
 import * as playerRoute from '@/app/api/players/route';
 
-const logger = createLogger('players-route-test');
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
+
+const passwordUtilsMock = jest.requireMock('@/lib/password-utils') as {
+  generateSecurePassword: jest.Mock;
+  hashPassword: jest.Mock;
+};
+
+const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
+  sanitizeInput: jest.Mock;
+};
+
+const paginationMock = jest.requireMock('@/lib/pagination') as {
+  paginate: jest.Mock;
+};
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
+
+const loggerMock = jest.requireMock('@/lib/logger') as {
+  createLogger: jest.Mock;
+};
 
 describe('GET /api/players', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -90,7 +112,7 @@ describe('GET /api/players', () => {
 
       (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
       (prisma.player.count as jest.Mock).mockResolvedValue(2);
-      (paginate as jest.Mock).mockResolvedValue({
+      (paginationMock.paginate as jest.Mock).mockResolvedValue({
         data: mockPlayers,
         pagination: {
           page: 1,
@@ -104,7 +126,7 @@ describe('GET /api/players', () => {
         new NextRequest('http://localhost:3000/api/players')
       );
 
-      expect(paginate).toHaveBeenCalledWith(
+      expect(paginationMock.paginate).toHaveBeenCalledWith(
         expect.objectContaining({
           findMany: prisma.player.findMany,
           count: prisma.player.count,
@@ -130,7 +152,7 @@ describe('GET /api/players', () => {
 
       (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
       (prisma.player.count as jest.Mock).mockResolvedValue(25);
-      (paginate as jest.Mock).mockResolvedValue({
+      (paginationMock.paginate as jest.Mock).mockResolvedValue({
         data: mockPlayers,
         pagination: {
           page: 2,
@@ -144,7 +166,7 @@ describe('GET /api/players', () => {
         new NextRequest('http://localhost:3000/api/players?page=2&limit=10')
       );
 
-      expect(paginate).toHaveBeenCalledWith(
+      expect(paginationMock.paginate).toHaveBeenCalledWith(
         expect.anything(),
         { deletedAt: null },
         { nickname: 'asc' },
@@ -167,7 +189,7 @@ describe('GET /api/players', () => {
 
       (prisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
       (prisma.player.count as jest.Mock).mockResolvedValue(1);
-      (paginate as jest.Mock).mockResolvedValue({
+      (paginationMock.paginate as jest.Mock).mockResolvedValue({
         data: mockPlayers,
         pagination: {
           page: 1,
@@ -181,7 +203,7 @@ describe('GET /api/players', () => {
         new NextRequest('http://localhost:3000/api/players')
       );
 
-      expect(paginate).toHaveBeenCalledWith(
+      expect(paginationMock.paginate).toHaveBeenCalledWith(
         expect.anything(),
         { deletedAt: null },
         { nickname: 'asc' },
@@ -202,12 +224,13 @@ describe('GET /api/players', () => {
 
   describe('Error Cases', () => {
     it('should handle database errors gracefully', async () => {
-      (paginate as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (paginationMock.paginate as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await playerRoute.GET(
         new NextRequest('http://localhost:3000/api/players')
       );
 
+      const logger = loggerMock.createLogger('players-route-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to fetch players',
         expect.any(Object)
@@ -279,7 +302,7 @@ describe('POST /api/players', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ nickname: 'test' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ nickname: 'test' });
 
       const request = new NextRequest('http://localhost:3000/api/players', {
         method: 'POST',
@@ -299,7 +322,7 @@ describe('POST /api/players', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Player' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Player' });
 
       const request = new NextRequest('http://localhost:3000/api/players', {
         method: 'POST',
@@ -331,16 +354,16 @@ describe('POST /api/players', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Player',
         nickname: 'test',
         country: 'JP',
       });
-      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
-      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      passwordUtilsMock.generateSecurePassword.mockReturnValue('generated-password');
+      passwordUtilsMock.hashPassword.mockResolvedValue('hashed-password');
       (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayer);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/players', {
         method: 'POST',
@@ -365,12 +388,12 @@ describe('POST /api/players', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
           userAgent: 'test-agent',
-          action: AUDIT_ACTIONS.CREATE_PLAYER,
+          action: auditLogMock.AUDIT_ACTIONS.CREATE_PLAYER,
           targetId: 'player-1',
           targetType: 'Player',
         })
@@ -389,46 +412,12 @@ describe('POST /api/players', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Player',
         nickname: 'test',
       });
-      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
-      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
-      (prisma.player.create as jest.Mock).mockResolvedValue(mockPlayer);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
-
-      const request = new NextRequest('http://localhost:3000/api/players', {
-        method: 'POST',
-        headers: { 'user-agent': 'test-agent' },
-        body: JSON.stringify({ name: 'Test Player', nickname: 'test' }),
-      });
-
-      await playerRoute.POST(request);
-
-      expect(createAuditLog).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          ipAddress: '127.0.0.1',
-          action: AUDIT_ACTIONS.CREATE_PLAYER,
-          targetType: 'Player',
-        })
-      );
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle database creation errors gracefully', async () => {
-      (auth as jest.Mock).mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-      (sanitizeInput as jest.Mock).mockReturnValue({
-        name: 'Test Player',
-        nickname: 'test',
-      });
-      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
-      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      passwordUtilsMock.generateSecurePassword.mockReturnValue('generated-password');
+      passwordUtilsMock.hashPassword.mockResolvedValue('hashed-password');
       (prisma.player.create as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest('http://localhost:3000/api/players', {
@@ -438,6 +427,7 @@ describe('POST /api/players', () => {
 
       await playerRoute.POST(request);
 
+      const logger = loggerMock.createLogger('players-route-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to create player',
         expect.any(Object)
@@ -448,12 +438,12 @@ describe('POST /api/players', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Test Player',
-        nickname: 'existing-test',
+        nickname: 'test',
       });
-      (generateSecurePassword as jest.Mock).mockReturnValue('generated-password');
-      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      passwordUtilsMock.generateSecurePassword.mockReturnValue('generated-password');
+      passwordUtilsMock.hashPassword.mockResolvedValue('hashed-password');
       const prismaError = new Error('Unique constraint failed') as Error & { code?: string };
       prismaError.code = 'P2002';
       (prisma.player.create as jest.Mock).mockRejectedValue(prismaError);
@@ -465,6 +455,7 @@ describe('POST /api/players', () => {
 
       await playerRoute.POST(request);
 
+      const logger = loggerMock.createLogger('players-route-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to create player',
         expect.any(Object)

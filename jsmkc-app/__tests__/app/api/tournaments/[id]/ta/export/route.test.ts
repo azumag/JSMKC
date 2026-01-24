@@ -14,7 +14,9 @@ jest.mock('@/lib/prisma', () => ({
 }));
 
 jest.mock('@/lib/excel', () => ({
-  createCSV: jest.fn((headers, data) => 'mock,csv,content'),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  createCSV: jest.fn((headers, _data) => 'mock,csv,content'),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   formatTime: jest.fn((ms) => '1:23.456'),
 }));
 
@@ -36,11 +38,12 @@ jest.mock('next/server', () => {
 });
 
 import prisma from '@/lib/prisma';
-import { createCSV, formatTime } from '@/lib/excel';
-import { createLogger } from '@/lib/logger';
 import * as taExportRoute from '@/app/api/tournaments/[id]/ta/export/route';
 
-const logger = createLogger('ta-export-test');
+const excelMock = jest.requireMock('@/lib/excel') as {
+  createCSV: jest.Mock;
+  formatTime: jest.Mock;
+};
 
 describe('GET /api/tournaments/[id]/ta/export', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -92,8 +95,8 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      (createCSV as jest.Mock).mockReturnValue('mock,csv,content');
-      (formatTime as jest.Mock).mockReturnValue('1:23.456');
+      excelMock.createCSV.mockReturnValue('mock,csv,content');
+      excelMock.formatTime.mockReturnValue('1:23.456');
 
       const request = new NextRequest(
         'http://localhost:3000/api/tournaments/t1/ta/export'
@@ -114,7 +117,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         orderBy: { rank: 'asc' },
       });
 
-      expect(createCSV).toHaveBeenCalledWith(
+      expect(excelMock.createCSV).toHaveBeenCalledWith(
         [
           'Rank',
           'Player Name',
@@ -176,7 +179,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (createCSV as jest.Mock).mockReturnValue('mock,csv,empty');
+      excelMock.createCSV.mockReturnValue('mock,csv,empty');
 
       const request = new NextRequest(
         'http://localhost:3000/api/tournaments/t1/ta/export'
@@ -186,7 +189,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
-      expect(createCSV).toHaveBeenCalledWith(
+      expect(excelMock.createCSV).toHaveBeenCalledWith(
         expect.arrayContaining(['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated']),
         [[]]
       );
@@ -217,6 +220,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
+      const logger = createLogger('ta-export-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to export tournament',
         { error: mockError, tournamentId: 't1' }

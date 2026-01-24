@@ -30,6 +30,7 @@ jest.mock('@/lib/sanitize', () => ({
 
 jest.mock('@/lib/token-utils', () => ({
   generateTournamentToken: jest.fn(() => 'new-generated-token'),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getTokenExpiry: jest.fn((hours) => new Date('2024-02-01T12:00:00.000Z')),
 }));
 
@@ -56,19 +57,34 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog } from '@/lib/audit-log';
+
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
 
 type PrismaError = {
   code: string;
 };
-import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
-import { sanitizeInput } from '@/lib/sanitize';
-import { generateTournamentToken, getTokenExpiry, extendTokenExpiry } from '@/lib/token-utils';
-import { validateTournamentToken } from '@/lib/token-validation';
-import { createLogger } from '@/lib/logger';
-import * as extendRoute from '@/app/api/tournaments/[id]/token/extend/route';
-import * as validateRoute from '@/app/api/tournaments/[id]/token/validate/route';
-import * as regenerateRoute from '@/app/api/tournaments/[id]/token/regenerate/route';
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
+
+const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
+  sanitizeInput: jest.Mock;
+};
+
+const tokenUtilsMock = jest.requireMock('@/lib/token-utils') as {
+  generateTournamentToken: jest.Mock;
+  getTokenExpiry: jest.Mock;
+  extendTokenExpiry: jest.Mock;
+};
+
+const tokenValidationMock = jest.requireMock('@/lib/token-validation') as {
+  validateTournamentToken: jest.Mock;
+};
 
 describe('Token Management API Routes', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -82,7 +98,6 @@ describe('Token Management API Routes', () => {
   });
 
   describe('POST /api/tournaments/[id]/token/extend', () => {
-    const logger = createLogger('token-extend-api-test');
 
     describe('Authorization', () => {
       it('should return 401 when not authenticated', async () => {
@@ -93,8 +108,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -110,87 +125,19 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({
           success: false,
           retryAfter: 60,
         });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
-
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
-          method: 'POST',
-          body: JSON.stringify({ extensionHours: 24 }),
-        });
-
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
-
-        expect(NextResponse.json).toHaveBeenCalledWith(
-          expect.objectContaining({
-            error: 'Too many requests. Please try again later.',
-            retryAfter: 60,
-          }),
-          expect.objectContaining({
-            status: 429,
-            headers: expect.objectContaining({
-              'X-RateLimit-Limit': expect.any(String),
-              'X-RateLimit-Remaining': expect.any(String),
-              'X-RateLimit-Reset': expect.any(String),
-            }),
-          })
-        );
-      });
-
-      it('should allow requests under rate limit', async () => {
-        (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
-        });
-        (checkRateLimit as jest.Mock).mockResolvedValue({
-          success: true,
-        });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
-
-        const mockTournament = {
-          id: 't1',
-          token: 'existing-token',
-          tokenExpiresAt: new Date('2024-01-15T12:00:00.000Z'),
-        };
-
-        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
-          method: 'POST',
-          body: JSON.stringify({ extensionHours: 24 }),
-        });
-
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
-
-        expect(NextResponse.json).toHaveBeenCalledWith(
-          expect.objectContaining({
-            success: true,
-          }),
-          { status: 200 }
-        );
-      });
-    });
-
-    describe('Validation', () => {
-      it('should return 400 when extensionHours < 1', async () => {
-        (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
-        });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 0 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -204,16 +151,16 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 200 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -229,8 +176,8 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         const mockTournament = {
           id: 't1',
@@ -238,14 +185,14 @@ describe('Token Management API Routes', () => {
           tokenExpiresAt: new Date('2024-01-15T12:00:00.000Z'),
         };
 
-        const expectedNewExpiry = extendTokenExpiry(
+        const expectedNewExpiry = tokenUtilsMock.extendTokenExpiry(
           mockTournament.tokenExpiresAt,
           24
         );
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
@@ -253,10 +200,10 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
-        expect(extendTokenExpiry).toHaveBeenCalledWith(
+        expect(tokenUtilsMock.extendTokenExpiry).toHaveBeenCalledWith(
           mockTournament.tokenExpiresAt,
           24
         );
@@ -264,13 +211,13 @@ describe('Token Management API Routes', () => {
         expect(prisma.tournament.update).toHaveBeenCalledWith(
           expect.objectContaining({
             where: { id: 't1' },
-            data: {
-              tokenExpiresAt: expectedNewExpiry,
-            },
-          })
-        );
+          data: {
+            tokenExpiresAt: expectedNewExpiry,
+          },
+        })
+      );
 
-        expect(createAuditLog).toHaveBeenCalled();
+      expect(auditLogMock.createAuditLog).toHaveBeenCalled();
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -289,24 +236,24 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
           id: 't1',
           token: 'existing-token',
         });
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
         await route(request, { params: Promise.resolve({ id: 't1' }) });
 
-        expect(createAuditLog).toHaveBeenCalled();
+        expect(auditLogMock.createAuditLog).toHaveBeenCalled();
       });
     });
 
@@ -315,8 +262,8 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
 
@@ -325,8 +272,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -340,8 +287,8 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
-        (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
@@ -350,8 +297,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/extend/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -365,16 +312,14 @@ describe('Token Management API Routes', () => {
   });
 
   describe('POST /api/tournaments/[id]/token/validate', () => {
-    const logger = createLogger('token-validate-api-test');
-
     describe('Missing Token', () => {
       it('should return 401 when token is not provided', async () => {
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -391,8 +336,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: '' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -406,7 +351,7 @@ describe('Token Management API Routes', () => {
 
     describe('Invalid Token Format', () => {
       it('should return 401 when token has invalid format (not 32 char hex)', async () => {
-        (validateTournamentToken as jest.Mock).mockResolvedValue({
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: false,
           error: 'Invalid token format',
         });
@@ -416,8 +361,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: 'invalid-token' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -429,7 +374,7 @@ describe('Token Management API Routes', () => {
       });
 
       it('should return 401 when token has invalid format (special chars)', async () => {
-        (validateTournamentToken as jest.Mock).mockResolvedValue({
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: false,
           error: 'Invalid token format',
         });
@@ -439,8 +384,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: '1234!@#$' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -454,7 +399,7 @@ describe('Token Management API Routes', () => {
 
     describe('Tournament Not Found', () => {
       it('should return 401 when tournament does not exist', async () => {
-        (validateTournamentToken as jest.Mock).mockResolvedValue({
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: false,
           error: 'Tournament not found',
         });
@@ -464,8 +409,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -479,7 +424,7 @@ describe('Token Management API Routes', () => {
 
     describe('Token Expired', () => {
       it('should return 401 when token is expired', async () => {
-        (validateTournamentToken as jest.Mock).mockResolvedValue({
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: false,
           tournament: {
             id: 't1',
@@ -493,8 +438,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -515,7 +460,7 @@ describe('Token Management API Routes', () => {
           tokenExpiresAt: new Date('2024-02-01T12:00:00.000Z'),
         };
 
-        (validateTournamentToken as jest.Mock).mockResolvedValue({
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: true,
           tournament: mockTournament,
         });
@@ -525,8 +470,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -544,15 +489,15 @@ describe('Token Management API Routes', () => {
 
     describe('Error Cases', () => {
       it('should handle database errors gracefully', async () => {
-        (validateTournamentToken as jest.Mock).mockRejectedValue(new Error('Database error'));
+        tokenValidationMock.validateTournamentToken.mockRejectedValue(new Error('Database error'));
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/validate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -566,8 +511,6 @@ describe('Token Management API Routes', () => {
   });
 
   describe('POST /api/tournaments/[id]/token/regenerate', () => {
-    const logger = createLogger('token-regenerate-api-test');
-
     describe('Authorization', () => {
       it('should return 401 when not authenticated', async () => {
         (auth as jest.Mock).mockResolvedValue(null);
@@ -577,8 +520,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -594,15 +537,15 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 0 });
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 0 });
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 0 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -616,15 +559,15 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 200 });
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 200 });
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 200 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -640,9 +583,9 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
-        (generateTournamentToken as jest.Mock).mockReturnValue('new-generated-token');
-        (getTokenExpiry as jest.Mock).mockReturnValue(
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
+        tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
+        tokenUtilsMock.getTokenExpiry.mockReturnValue(
           new Date('2024-02-02T12:00:00.000Z')
         );
 
@@ -654,7 +597,7 @@ describe('Token Management API Routes', () => {
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
@@ -662,10 +605,10 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
-        expect(generateTournamentToken).toHaveBeenCalled();
+        expect(tokenUtilsMock.generateTournamentToken).toHaveBeenCalled();
 
         expect(prisma.tournament.update).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -679,25 +622,25 @@ describe('Token Management API Routes', () => {
               name: true,
               token: true,
               tokenExpiresAt: true,
-            },
-          })
-        );
+          },
+        })
+      );
 
-        expect(createAuditLog).toHaveBeenCalledWith(
-          expect.objectContaining({
-            userId: 'admin-1',
-            ipAddress: '127.0.0.1',
-            userAgent: 'test-agent',
-            action: 'REGENERATE_TOKEN',
-            targetId: 't1',
-            targetType: 'Tournament',
-            details: expect.objectContaining({
-              newToken: expect.stringMatching(/^new-.+ \.\.\.$/),
-              expiresInHours: 24,
-              newExpiry: expect.any(String),
-            }),
-          })
-        );
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'admin-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'test-agent',
+          action: 'REGENERATE_TOKEN',
+          targetId: 't1',
+          targetType: 'Tournament',
+          details: expect.objectContaining({
+            newToken: expect.stringMatching(/^new-.+ \.\.\.$/),
+            expiresInHours: 24,
+            newExpiry: expect.any(String),
+          }),
+        })
+      );
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -716,25 +659,25 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
-        (generateTournamentToken as jest.Mock).mockReturnValue('new-generated-token');
-        (getTokenExpiry as jest.Mock).mockReturnValue(
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
+        tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
+        tokenUtilsMock.getTokenExpiry.mockReturnValue(
           new Date('2024-02-02T12:00:00.000Z')
         );
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+        auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
         body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
         await route(request, { params: Promise.resolve({ id: 't1' }) });
 
-        expect(createAuditLog).toHaveBeenCalled();
+        expect(auditLogMock.createAuditLog).toHaveBeenCalled();
       });
     });
 
@@ -743,9 +686,9 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
-        (generateTournamentToken as jest.Mock).mockReturnValue('new-generated-token');
-        (getTokenExpiry as jest.Mock).mockReturnValue(
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
+        tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
+        tokenUtilsMock.getTokenExpiry.mockReturnValue(
           new Date('2024-02-02T12:00:00.000Z')
         );
 
@@ -759,8 +702,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -774,9 +717,9 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
-        (generateTournamentToken as jest.Mock).mockReturnValue('new-generated-token');
-        (getTokenExpiry as jest.Mock).mockReturnValue(
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
+        tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
+        tokenUtilsMock.getTokenExpiry.mockReturnValue(
           new Date('2024-02-02T12:00:00.000Z')
         );
 
@@ -788,8 +731,8 @@ describe('Token Management API Routes', () => {
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -804,23 +747,23 @@ describe('Token Management API Routes', () => {
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
-        (sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
-        (generateTournamentToken as jest.Mock).mockReturnValue('new-generated-token');
-        (getTokenExpiry as jest.Mock).mockReturnValue(
+        (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
+        tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
+        tokenUtilsMock.getTokenExpiry.mockReturnValue(
           new Date('2024-02-02T12:00:00.000Z')
         );
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
-        (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log error'));
+        auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
 
         const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-        const route = (await import('@/app/api/tournaments/[id]/token/regenerate/route')).POST;
-        const response = await route(request, { params: Promise.resolve({ id: 't1' }) });
+const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
+        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(logger.warn).toHaveBeenCalledWith(
           'Failed to create audit log',

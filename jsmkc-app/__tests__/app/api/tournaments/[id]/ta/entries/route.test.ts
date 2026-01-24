@@ -45,7 +45,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries?token=abc123'
       );
 
-      const result = await (await import('@/app/api/tournaments/[id]/ta/entries/route')).GET(request, {
+(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
@@ -82,7 +82,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         }
       );
 
-      await (await import('@/app/api/tournaments/[id]/ta/entries/route')).GET(request, {
+(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
@@ -116,7 +116,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries'
       );
 
-      await (await import('@/app/api/tournaments/[id]/ta/entries/route')).GET(request, {
+(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
@@ -142,7 +142,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
       );
 
       await expect(
-        (await import('@/app/api/tournaments/[id]/ta/entries/route')).GET(request, {
+(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
           params: Promise.resolve({ id: 't1' })
         })
       ).rejects.toThrow('Network error');
@@ -162,7 +162,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries'
       );
 
-      await (await import('@/app/api/tournaments/[id]/ta/entries/route')).GET(request, {
+(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 

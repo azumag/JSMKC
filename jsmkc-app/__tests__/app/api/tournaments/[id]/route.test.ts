@@ -33,12 +33,7 @@ jest.mock('@/lib/rate-limit', () => ({
   getServerSideIdentifier: jest.fn(() => Promise.resolve('127.0.0.1')),
 }));
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({
-    error: jest.fn(),
-    warn: jest.fn(),
-  })),
-}));
+jest.mock('@/lib/logger');
 
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
@@ -52,13 +47,25 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { sanitizeInput } from '@/lib/sanitize';
-import { createAuditLog } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
-import { createLogger } from '@/lib/logger';
 import * as tournamentRoute from '@/app/api/tournaments/[id]/route';
 
-const logger = createLogger('tournament-id-test');
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
+};
+
+const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
+  sanitizeInput: jest.Mock;
+};
+
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
+  getServerSideIdentifier: jest.Mock;
+};
+
+const loggerMock = jest.requireMock('@/lib/logger') as {
+  createLogger: jest.Mock;
+};
 
 describe('GET /api/tournaments/[id]', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -123,6 +130,7 @@ describe('GET /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      const logger = loggerMock.createLogger('tournament-id-test');
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to fetch tournament',
         expect.any(Object)
@@ -205,12 +213,12 @@ describe('PUT /api/tournaments/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         name: 'Updated Tournament',
       });
       (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1', {
         method: 'PUT',
@@ -227,7 +235,7 @@ describe('PUT /api/tournaments/[id]', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
@@ -252,12 +260,12 @@ describe('PUT /api/tournaments/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
         status: 'completed',
       });
       (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       await tournamentRoute.PUT(
         new NextRequest('http://localhost:3000/api/tournaments/t1', {
@@ -281,10 +289,10 @@ describe('PUT /api/tournaments/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
       (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
-      (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log error'));
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       await tournamentRoute.PUT(
         new NextRequest('http://localhost:3000/api/tournaments/t1', {
@@ -294,6 +302,7 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      const logger = loggerMock.createLogger('tournament-id-test');
       expect(logger.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
@@ -310,10 +319,10 @@ describe('PUT /api/tournaments/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ name: 'Test Tournament' });
       (prisma.tournament.update as jest.Mock).mockRejectedValue(prismaError);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       await tournamentRoute.PUT(
         new NextRequest('http://localhost:3000/api/tournaments/t1', {
@@ -388,8 +397,8 @@ describe('DELETE /api/tournaments/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.delete as jest.Mock).mockResolvedValue(undefined);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1', {
         headers: { 'user-agent': 'test-agent' },
@@ -403,7 +412,7 @@ describe('DELETE /api/tournaments/[id]', () => {
         })
       );
 
-      expect(createAuditLog).toHaveBeenCalledWith(
+      expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin-1',
           ipAddress: '127.0.0.1',
@@ -434,14 +443,15 @@ describe('DELETE /api/tournaments/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.delete as jest.Mock).mockResolvedValue(undefined);
-      (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log error'));
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       await tournamentRoute.DELETE(
         new NextRequest('http://localhost:3000/api/tournaments/t1'),
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      const logger = loggerMock.createLogger('tournament-id-test');
       expect(logger.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
@@ -465,8 +475,8 @@ describe('DELETE /api/tournaments/[id]', () => {
         user: { id: 'admin-1', role: 'admin' },
       });
       (prisma.tournament.delete as jest.Mock).mockRejectedValue(prismaError);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-      (getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
       await tournamentRoute.DELETE(
         new NextRequest('http://localhost:3000/api/tournaments/t1'),
