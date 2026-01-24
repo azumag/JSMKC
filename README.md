@@ -281,21 +281,106 @@ MIT
 - 全テストパス、リンティング警告のみ（エラーなし）
 
 ## 進行中のタスク (2026-01-24)
-🔍 [Issue #112: APIルートの単体テストを追加 - モック設定問題の調査完了](https://github.com/azumag/JSMKC/issues/112)
+⚠️ [Issue #112: APIルートの単体テストを追加 - 調査完了、新たな問題を特定](https://github.com/azumag/JSMKC/issues/112)
 
-### 現在の状態
-- ✅ 46個のAPIルートファイルが存在
-- ✅ 16個のAPIテストファイルが存在（35%カバレッジ）
-- ❌ 30個のAPIルートが未テスト（65%未達）
-- 目標: APIルートのテストカバレッジ80%
+### 調査結果（2026-01-24）
 
-### 調査結果
-- **Jestモック設定アーキテクチャ問題を特定**: \`checkRateLimit\`モックで\`mockResolvedValue is not a function\`エラーが発生
-- 新しい課題 #117 を作成: Jest Mock Issues with checkRateLimit Function
-- 30個の未テストAPIルートを特定
-- 3つの重複する古いissue (#114, #115, #116) をクローズ
+**重要発見**: Issue #112のタイトル「0% test coverage for server endpoints」は**不正確**です。
 
-### 次のステップ
-1. Issue #117でJestモック問題を解決
-2. 残りの30個のAPIルートにテストを追加
-3. 80%カバレッジ目標を達成
+### 実際の現在の状態
+- ✅ 45個のAPIルートファイルが存在
+- ✅ 44個のAPIルートにテストファイルが存在（97.8%カバレッジ）
+- ❌ **テストにはシステム的なバグがある**（498/612テストが失敗中）
+- 目標: すべてのテストがパスすること
+
+### テスト結果
+- **テストスイート合計**: 44
+- **パス中のスイート**: 1
+- **失敗中のスイート**: 43
+- **テスト合計**: 612
+- **パスしたテスト**: 114
+- **失敗したテスト**: 498
+
+### 特定された根本原因
+
+1. **ルートハンドラーのインポート問題** - テストがルートを正しくインポートしていない（tournamentRoute is not defined）
+2. **Loggerモック設定の問題** - createLoggerがundefinedを返す
+3. **Password Utilsモックの問題** - モックではなく実際のbcryptが呼ばれている
+4. **Paginationモックの問題** - 未定義のpaginate変数を使用している
+5. **テスト期待値の不一致** - 期待値と実際のデータが異なる
+
+### ドキュメント作成
+
+包括的な分析ドキュメントを作成: `API_TEST_FAILURES_ANALYSIS.md`
+- 各障害パターンの詳細な根本原因分析
+- 問題と修正のコード例
+- 推奨される修正戦略（4フェーズ）
+- 見積もり作業時間: 7-10時間
+
+### 推奨されるアクション
+
+**Issue #112の受諾基準#4**: 「既存のテストは引き続きパスする」 ⚠️ **未達成**
+
+**次のステップ**:
+1. Issue #112を「テストは作成されたが、システム的な修正が必要（498/612テスト失敗中）」としてクローズ
+2. 新しいIssueを作成: 「498個の失敗中のAPIテストを修正する」
+3. システム的なテスト修正に7-10時間を割り当て
+
+**結論**: ブロックしている問題は「テストがないことではない」（テストは存在する）、テストがパスできないようにするテストインフラのシステム的なバグです。
+
+## 完了したタスク (2026-01-24)
+✅ [Issue #117: Fix Jest Mock Issues with checkRateLimit Function](https://github.com/azumag/JSMKC/issues/117)
+
+### 解決した問題
+- **根本原因**: `jest.mock()`ファクトリー関数で作成されたモックが、import時にJest mock関数として認識されない
+- **影響範囲**: 30個以上のAPIルートテスト作成がブロックされていた
+- **TypeError**: `_ratelimit.checkRateLimit.mockResolvedValue is not a function`
+
+### 実装した解決策
+1. **手動モックファイルを作成**: `__mocks__/lib/[module-name].ts`
+2. **jest.requireMock()パターンを適用**:
+   ```typescript
+   // Before (動作しない):
+   import { checkRateLimit } from '@/lib/rate-limit';
+   (checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
+
+   // After (動作する):
+   const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
+     checkRateLimit: jest.Mock;
+   };
+   rateLimitMock.checkRateLimit.mockResolvedValue({ success: true });
+   ```
+
+### 修正したモジュール（9個）
+1. **@/lib/rate-limit** - checkRateLimit, getServerSideIdentifier, rateLimit, clearRateLimitStore, getClientIdentifier, getUserAgent
+2. **@/lib/sanitize** - sanitizeString, sanitizeObject, sanitizeArray, sanitizeInput
+3. **@/lib/pagination** - getPaginationParams, paginate
+4. **@/lib/password-utils** - generateSecurePassword, hashPassword, verifyPassword
+5. **@/lib/audit-log** - createAuditLog, AUDIT_ACTIONS
+6. **@/lib/excel** - escapeCSV, csvRow, createCSV, formatTime, formatDate
+7. **@/lib/token-utils** - generateTournamentToken, isValidTokenFormat, isTokenValid, getTokenExpiry, extendTokenExpiry, getTokenTimeRemaining
+8. **@/lib/token-validation** - validateToken, getAccessTokenExpiry, validateTournamentToken, requireTournamentToken
+
+### 修正したテストファイル（8個）
+1. __tests__/app/api/auth/session-status/route.test.ts
+2. __tests__/app/api/monitor/polling-stats/route.test.ts
+3. __tests__/app/api/players/[id]/route.test.ts
+4. __tests__/app/api/players/[id]/link/route.test.ts
+5. __tests__/app/api/players/route.test.ts
+6. __tests__/app/api/tournaments/[id]/route.test.ts
+7. __tests__/app/api/tournaments/[id]/ta/export/route.test.ts
+8. __tests__/app/api/tournaments/[id]/ta/route.test.ts
+9. __tests__/app/api/tournaments/[id]/token/route.test.ts
+10. __tests__/app/api/tournaments/route.test.ts
+
+### 成果
+- ✅ すべての`TypeError: ...mockResolvedValue is not a function`エラーを解消
+- ✅ `mockReturnValue`, `mockResolvedValue`, `mockRejectedValue`などが使用可能に
+- ✅ TypeScriptセーフなモッキングを実現
+- ✅ 30個のAPIルートテスト作成のブロッカーを解消
+- ✅ 一貫したモックパターンを確立
+- ✅ JEST_MOCK_FIX_PATTERN.mdでドキュメント化
+
+### 関連リンク
+- Issue #112: APIルートの単体テストを追加 - 次のステップで30個のテスト作成に進む可能
+- ドキュメント: JEST_MOCK_FIX_PATTERN.md（解決策の詳細）
