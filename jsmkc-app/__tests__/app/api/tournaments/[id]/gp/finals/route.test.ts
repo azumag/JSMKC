@@ -17,15 +17,14 @@ jest.mock('@/lib/double-elimination', () => ({
 jest.mock('@/lib/pagination', () => ({
   paginate: jest.fn(),
 }));
-jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
-import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 
+import { createLogger as createLoggerMock } from '@/lib/logger';
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;
 
@@ -47,11 +46,10 @@ class MockNextRequest {
 }
 
 describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
-  const loggerMock = { error: jest.fn(), warn: jest.fn() };
+  const logger = createLoggerMock() as { error: jest.Mock, warn: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (createLogger as jest.Mock).mockReturnValue(loggerMock);
     jsonMock.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
   });
 
@@ -142,7 +140,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       
       expect(result.data).toEqual({ error: 'Failed to fetch grand prix finals data' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP finals data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to fetch GP finals data', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -154,7 +152,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await GET(request, { params });
       
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 
@@ -240,7 +238,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       
       expect(result.data).toEqual({ error: 'Failed to create grand prix finals bracket' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to create GP finals', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to create GP finals', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Uses default topN of 8 when not provided
@@ -511,7 +509,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       
       expect(result.data).toEqual({ error: 'Failed to update match' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update GP finals match', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to update GP finals match', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Updates loser position correctly

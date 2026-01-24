@@ -507,4 +507,85 @@ Commit: 8afaca7
 4. **GP残りの39失敗テストの分析と修正**
 5. **TT残りの5失敗テストの分析と修正**
 
-**推定残り作業時間**: 6-8時間
+**推定残り作業時間**: 8-13時間
+
+## 完了したタスク (2026-01-24)
+✅ [Issue #121: Fix test expectation mismatches - Phase 2 Complete](https://github.com/azumag/JSMKC/issues/121)
+
+### Phase 2 実装完了 - Mock機能の改善
+
+#### 修正した内容
+
+1. **Prisma Mock Enhancement** (`jest.setup.js`)
+   - `createMockModelWithMethods()`に`deleteMany`メソッドを追加
+   - `prisma.x.deleteMany()`呼び出し時のTypeErrorを解消
+   - 影響: deleteMany操作のモックセットアップを有効化
+
+2. **MockNextRequest Class Fixes** (4個のファイル)
+   - MockNextRequestクラスのheadersプロパティのシャドーイング問題を修正
+   - プライベート`_headers`プロパティを使用してシャドーイングを回避
+   - 修正したファイル:
+     - `__tests__/app/api/tournaments/[id]/bm/finals/matches/[matchId]/route.test.ts`
+     - `__tests__/app/api/tournaments/[id]/bm/finals/route.test.ts`
+     - `__tests__/app/api/tournaments/[id]/gp/finals/route.test.ts`
+     - `__tests__/app/api/tournaments/[id]/gp/standings/route.test.ts`
+
+3. **NextResponseMock.json Access Fixes** (4個のファイル)
+   - NextResponseMock構造を修正し、jsonモックを適切にアクセス
+   - `NextResponseMock.NextResponse.json`から`jsonMock`を抽出
+   - `beforeEach`を更新し`NextResponse.json`ではなく`jsonMock`を使用
+
+### テスト結果改善
+
+| モジュール | Phase 1 | Phase 2 | Phase 2 改善 | 総テスト数 | パス率 |
+|---------|----------|----------|------------------|-----------|-------|
+| GP (グランプリ) | 68 | 77 | +9 | 107 | 72.0% |
+| BM (バトルモード) | 83 | 85 | +2 | 197 | 43.1% |
+| TT (タイムトライアル) | 9 | 9 | 0 | 14 | 64.3% |
+| 合計 | 160 | 171 | +11 | 318 | 53.8% |
+
+**総改善**: Phase 2で+11テストパス（開始から累計+44）
+
+### 分析結果
+
+**残りのテスト失敗パターン**:
+1. **Logger Mock Calls Not Recorded**: テストが`loggerMock.error`または`loggerMock.warn`が呼ばれることを期待しているが、これらの呼び出しが記録されていない。これはAPIルートのloggerインスタンスがテストのloggerMockと異なることを示唆している。
+2. **Expectation Mismatches**: 多くのテストに期待値と実際のAPI動作の不一致があり、以下のいずれかを示唆：
+   - テスト期待値を正しいビジネスロジックに合わせて更新する必要がある
+   - APIルートに修正が必要なバグがある
+3. **Timeout Issues**: TAモジュールのテストがタイムアウトしており、パフォーマンスの問題または無限ループを示唆している
+
+**推定残り失敗テスト**:
+- GP: 30個残り
+- BM: 112個残り
+- TT: 5個残り
+- MR: TBD
+- TA: TBD (タイムアウト)
+- **合計**: ~250+失敗テスト残り
+
+### 次のステップ
+
+100%のテストパス率を達成するため、以下の作業が必要:
+
+1. **Logger Mock Investigation** (2-3時間)
+   - loggerMockの呼び出しが記録されない原因を調査
+   - 全テストファイルでloggerモックパターンを修正
+
+2. **Systematic Expectation Mismatch Resolution** (4-6時間)
+   - 各失敗テストを分析し、テストかAPIのどちらが間違っているかを判定
+   - テスト期待値またはAPIバグを修正
+   - 高影響の修正を優先
+
+3. **TA Module Timeout Investigation** (1-2時間)
+   - TAテストのパフォーマンス問題を調査
+   - 無限ループまたは高コスト操作を特定し修正
+
+4. **Final Validation** (1-2時間)
+   - 完全なテストスイートを実行し全修正を検証
+   - 残りの問題をドキュメント化
+
+**推定残り作業時間**: 8-13時間
+
+**現在の全体進捗状況**: ~53%パス率 (171/318)
+**目標**: 100%パス率
+**ギャップ**: 147テストの修正が必要
