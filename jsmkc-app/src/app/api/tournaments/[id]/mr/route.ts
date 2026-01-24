@@ -3,9 +3,6 @@ import prisma from "@/lib/prisma";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('mr-api');
-
 function calculateMatchResult(score1: number, score2: number) {
   const totalRounds = score1 + score2;
   if (totalRounds === 0) {
@@ -25,6 +22,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('mr-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -55,6 +53,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('mr-api');
   const { id: tournamentId } = await params;
   try {
     const body = sanitizeInput(await request.json());
@@ -130,6 +129,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('mr-api');
   const { id: tournamentId } = await params;
   try {
     const body = await request.json();

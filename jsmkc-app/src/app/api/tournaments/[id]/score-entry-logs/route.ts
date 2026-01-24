@@ -3,9 +3,6 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('score-entry-logs-api');
-
 /**
  * GET - Retrieve score entry logs for a tournament (admin only)
  * @param request - NextRequest object
@@ -13,6 +10,10 @@ const logger = createLogger('score-entry-logs-api');
  * @returns Response with score entry logs
  */
 export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const logger = createLogger('score-entry-logs-api');
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {

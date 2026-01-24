@@ -3,13 +3,11 @@ import prisma from "@/lib/prisma";
 import { updateGPMatchScore, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('gp-match-api');
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('gp-match-api');
   const { matchId } = await params;
   try {
 
@@ -37,6 +35,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('gp-match-api');
   const { matchId } = await params;
   try {
     const body = await request.json();

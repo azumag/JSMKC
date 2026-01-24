@@ -1,9 +1,6 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { NextRequest } from 'next/server';
 
 // Mock dependencies
-
-
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
@@ -25,6 +22,11 @@ jest.mock('@/lib/token-utils', () => ({
   generateTournamentToken: jest.fn(() => 'new-generated-token'),
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getTokenExpiry: jest.fn((hours) => new Date('2024-02-01T12:00:00.000Z')),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  extendTokenExpiry: jest.fn((currentExpiry, extensionHours) => {
+    const newDate = new Date(currentExpiry.getTime() + (extensionHours * 60 * 60 * 1000));
+    return newDate;
+  }),
 }));
 
 jest.mock('@/lib/token-validation', () => ({
@@ -38,18 +40,15 @@ jest.mock('@/lib/logger', () => ({
   })),
 }));
 
-jest.mock('next/server', () => {
-  const mockJson = jest.fn();
-  return {
-    NextResponse: {
-      json: mockJson,
-    },
-    __esModule: true,
-  };
-});
+jest.mock('next/server', () => ({
+  NextResponse: { json: jest.fn() },
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { POST as TokenExtendPOST } from '@/app/api/tournaments/[id]/token/extend/route';
+import { POST as TokenValidatePOST } from '@/app/api/tournaments/[id]/token/validate/route';
+import { POST as TokenRegeneratePOST } from '@/app/api/tournaments/[id]/token/regenerate/route';
 
 const auditLogMock = jest.requireMock('@/lib/audit-log') as {
   createAuditLog: jest.Mock;
@@ -79,11 +78,38 @@ const tokenValidationMock = jest.requireMock('@/lib/token-validation') as {
   validateTournamentToken: jest.Mock;
 };
 
+const loggerMock = jest.requireMock('@/lib/logger') as {
+  createLogger: jest.Mock;
+};
+
+// Mock NextRequest class
+class MockNextRequest {
+  constructor(
+    private url: string,
+    private options?: { method?: string; body?: string; headers?: Map<string, string> }
+  ) {}
+  async json() {
+    if (this.options?.body) {
+      return JSON.parse(this.options.body);
+    }
+    return {};
+  }
+  get header() { return { get: (key: string) => this.options?.headers?.get(key) }; }
+  headers = {
+    get: (key: string) => this.options?.headers?.get(key)
+  };
+}
+
 describe('Token Management API Routes', () => {
   const { NextResponse } = jest.requireMock('next/server');
+  const loggerInstance = { error: jest.fn(), warn: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset NextResponse.json mock implementation
+    NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
+    // Setup logger mock to return consistent instance
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
   });
 
   afterEach(() => {
@@ -96,13 +122,13 @@ describe('Token Management API Routes', () => {
       it('should return 401 when not authenticated', async () => {
         (auth as jest.Mock).mockResolvedValue(null);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -124,13 +150,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
         });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 0 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -147,13 +173,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 200 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -187,14 +213,14 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           headers: { 'user-agent': 'test-agent' },
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(tokenUtilsMock.extendTokenExpiry).toHaveBeenCalledWith(
           mockTournament.tokenExpiresAt,
@@ -239,12 +265,12 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(auditLogMock.createAuditLog).toHaveBeenCalled();
       });
@@ -260,13 +286,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -285,13 +311,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
 
         (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
           body: JSON.stringify({ extensionHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -307,12 +333,12 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/extend/route')
   describe('POST /api/tournaments/[id]/token/validate', () => {
     describe('Missing Token', () => {
       it('should return 401 when token is not provided', async () => {
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -324,13 +350,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
       });
 
       it('should return 401 when token is empty string', async () => {
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: '' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -349,13 +375,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
           error: 'Invalid token format',
         });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'invalid-token' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -372,13 +398,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
           error: 'Invalid token format',
         });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: '1234!@#$' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -397,13 +423,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
           error: 'Tournament not found',
         });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -426,13 +452,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
           error: 'Token invalid or expired',
         });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -458,13 +484,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
           tournament: mockTournament,
         });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -484,13 +510,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
       it('should handle database errors gracefully', async () => {
         tokenValidationMock.validateTournamentToken.mockRejectedValue(new Error('Database error'));
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: 'valid-token-32chars' }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -508,13 +534,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/validate/route
       it('should return 401 when not authenticated', async () => {
         (auth as jest.Mock).mockResolvedValue(null);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -532,13 +558,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 0 });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 0 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -554,13 +580,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 200 });
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 200 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -592,14 +618,14 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           headers: { 'user-agent': 'test-agent' },
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(tokenUtilsMock.generateTournamentToken).toHaveBeenCalled();
 
@@ -662,13 +688,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
         body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(auditLogMock.createAuditLog).toHaveBeenCalled();
       });
@@ -690,13 +716,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
           { code: 'P2025' } as PrismaError
         );
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -719,13 +745,13 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
         (prisma.tournament.update as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -750,15 +776,15 @@ const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/rou
         (prisma.tournament.update as jest.Mock).mockResolvedValue({});
         auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
 
-        const request = new NextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
           method: 'POST',
           body: JSON.stringify({ expiresInHours: 24 }),
         });
 
-const route = (jest.requireMock('@/app/api/tournaments/[id]/token/regenerate/route') as any).POST;
-        await route(request, { params: Promise.resolve({ id: 't1' }) });
 
-        expect(logger.warn).toHaveBeenCalledWith(
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
+
+        expect(loggerInstance.warn).toHaveBeenCalledWith(
           'Failed to create audit log',
           expect.any(Object)
         );

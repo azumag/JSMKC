@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'export-button' });
 
 interface ExportButtonProps {
   tournamentId: string;
@@ -54,7 +57,7 @@ export function ExportButton({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Export failed:", error);
+      logger.error("Export failed", error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       // You could add a toast notification here
     }
   };

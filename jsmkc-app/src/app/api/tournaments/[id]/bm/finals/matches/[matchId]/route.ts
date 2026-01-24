@@ -5,9 +5,6 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-finals-match-api');
-
 const UpdateMatchSchema = z.object({
   score1: z.number().int().min(0).max(5),
   score2: z.number().int().min(0).max(5),
@@ -29,6 +26,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('bm-finals-match-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== "admin") {

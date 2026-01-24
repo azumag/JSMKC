@@ -3,13 +3,11 @@ import prisma from "@/lib/prisma";
 import { createCSV } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-export-api');
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-export-api');
   const { id: tournamentId } = await params;
   try {
 

@@ -5,13 +5,11 @@ import { generateDoubleEliminationBracket, BracketPlayer } from "@/lib/tournamen
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-bracket-api');
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-bracket-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -55,6 +53,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-bracket-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== "admin") {

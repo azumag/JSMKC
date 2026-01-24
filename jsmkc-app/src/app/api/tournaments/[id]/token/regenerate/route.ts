@@ -7,16 +7,12 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for token regenerate API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('token-regenerate-api');
-
 // POST - Generate new tournament token
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('token-regenerate-api');
   const session = await auth();
   const { id } = await params;
   const { expiresInHours = 24 } = sanitizeInput(await request.json());

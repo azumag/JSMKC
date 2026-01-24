@@ -8,13 +8,11 @@ import { SMK_CHARACTERS } from "@/lib/constants";
 import { createAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('mr-score-report-api');
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('mr-score-report-api');
   const { id: tournamentId, matchId } = await params;
   try {
     const clientIp = getClientIdentifier(request);

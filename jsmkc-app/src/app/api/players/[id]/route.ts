@@ -6,16 +6,12 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for players [id] API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('players-id-api');
-
 // GET single player (public access)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('players-id-api');
   try {
     const { id } = await params;
     const player = await prisma.player.findUnique({
@@ -44,6 +40,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('players-id-api');
   const session = await auth();
   const { id } = await params;
 
@@ -134,6 +131,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('players-id-api');
   const session = await auth();
   const { id } = await params;
 

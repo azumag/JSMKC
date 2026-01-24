@@ -6,9 +6,6 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-api');
-
 // Helper function to calculate match result
 function calculateMatchResult(score1: number, score2: number) {
   const totalRounds = score1 + score2;
@@ -30,6 +27,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -61,6 +59,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-api');
   const session = await auth();
   
   if (!session?.user) {
@@ -172,6 +171,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-api');
   const { id: tournamentId } = await params;
   try {
     const body = await request.json();

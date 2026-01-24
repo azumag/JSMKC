@@ -3,11 +3,6 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for players [id]/character-stats API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('players-character-stats-api');
-
 interface MatchWithInfo {
   id: string;
   matchType?: string;
@@ -21,6 +16,10 @@ interface MatchWithInfo {
 }
 
 export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const logger = createLogger('players-character-stats-api');
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {

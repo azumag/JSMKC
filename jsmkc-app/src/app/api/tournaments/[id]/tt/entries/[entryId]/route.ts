@@ -3,14 +3,12 @@ import prisma from "@/lib/prisma";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('tt-entry-api');
-
 // GET single Time Trial entry
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; entryId: string }> }
 ) {
+  const logger = createLogger('tt-entry-api');
   const { entryId } = await params;
   try {
 
@@ -45,6 +43,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; entryId: string }> }
 ) {
+  const logger = createLogger('tt-entry-api');
   const { entryId } = await params;
   try {
     const body = await request.json();

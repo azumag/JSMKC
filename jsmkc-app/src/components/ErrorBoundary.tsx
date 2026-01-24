@@ -5,6 +5,9 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'error-boundary' });
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -90,10 +93,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
     // Catch errors in any components below and re-render with error message
     this.setState({ error });
 
-    // Log error for debugging and analytics (suppress in test mode to avoid noise)
-    if (process.env.NODE_ENV !== 'test') {
-      console.error("Error caught by ErrorBoundary:", error, errorInfo);
-    }
+    // Log error for debugging and analytics using client-logger
+    // Note: client-logger automatically suppresses logs in test mode
+    logger.error("Error caught by ErrorBoundary", {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack
+    });
 
     // Call custom error handler if provided
     if (this.props.onError) {

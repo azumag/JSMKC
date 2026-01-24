@@ -3,14 +3,12 @@ import prisma from "@/lib/prisma";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('gp-matches-api');
-
 // GET grand prix matches for polling
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('gp-matches-api');
   const { id: tournamentId } = await params;
   try {
     const { searchParams } = new URL(request.url);

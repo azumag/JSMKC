@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/rate-limit'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('proxy-middleware')
 
 function generateNonce(): string {
   const array = new Uint8Array(16)
@@ -52,7 +55,7 @@ export default auth(async (req) => {
         },
       })
     } catch (error) {
-      console.error('Failed to log unauthorized access:', error)
+      logger.error('Failed to log unauthorized access', error instanceof Error ? { message: error.message, stack: error.stack } : { error })
     }
 
     // Redirect to sign-in for frontend routes, return 401 for API routes

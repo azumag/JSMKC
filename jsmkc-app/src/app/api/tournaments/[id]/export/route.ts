@@ -3,10 +3,11 @@ import prisma from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('tournament-export-api');
-
 export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const logger = createLogger('tournament-export-api');
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {

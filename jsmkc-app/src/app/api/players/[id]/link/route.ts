@@ -3,12 +3,11 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for players [id]/link API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('players-link-api');
-
 export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const logger = createLogger('players-link-api');
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {

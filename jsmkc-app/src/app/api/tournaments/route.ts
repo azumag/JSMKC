@@ -7,13 +7,9 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for tournaments API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('tournaments-api');
-
 // GET all tournaments (public access, excluding soft deleted)
 export async function GET(request: NextRequest) {
+  const logger = createLogger('tournaments-api');
   try {
     const { searchParams } = new URL(request.url);
     const page = Number(searchParams.get('page')) || 1;
@@ -45,6 +41,7 @@ export async function GET(request: NextRequest) {
 
 // POST create new tournament (requires authentication)
 export async function POST(request: NextRequest) {
+  const logger = createLogger('tournaments-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {

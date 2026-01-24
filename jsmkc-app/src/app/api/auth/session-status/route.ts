@@ -3,16 +3,12 @@ import { auth } from '@/lib/auth';
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 
-// Create logger for auth session-status module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('auth-session');
-
 /**
  * GET /api/auth/session-status
  * Returns the current session status with token expiration info
  */
 export async function GET() {
+  const logger = createLogger('auth-session');
   try {
     // Apply rate limiting
     const identifier = await getServerSideIdentifier();

@@ -6,9 +6,6 @@ import { SMK_CHARACTERS } from "@/lib/constants";
 import { createAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('gp-score-report-api');
-
 const DRIVER_POINTS = [0, 9, 6, 3, 1];
 
 function getPointsFromPosition(position: number): number {
@@ -20,6 +17,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('gp-score-report-api');
   const { id: tournamentId, matchId } = await params;
   try {
     const clientIp = getClientIdentifier(request);

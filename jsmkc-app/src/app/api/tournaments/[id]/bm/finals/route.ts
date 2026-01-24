@@ -3,14 +3,12 @@ import prisma from "@/lib/prisma";
 import { generateBracketStructure, roundNames } from "@/lib/double-elimination";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-finals-api');
-
 // GET finals tournament data
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-finals-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -57,6 +55,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-finals-api');
   const { id: tournamentId } = await params;
   try {
     const body = await request.json();
@@ -158,6 +157,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-finals-api');
   const { id: tournamentId } = await params;
   try {
     const body = await request.json();

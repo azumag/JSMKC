@@ -6,9 +6,6 @@ import { z } from "zod";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('mr-finals-match-api');
-
 const UpdateMatchSchema = z.object({
   score1: z.number().int().min(0).max(7),
   score2: z.number().int().min(0).max(7),
@@ -30,6 +27,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('mr-finals-match-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== "admin") {

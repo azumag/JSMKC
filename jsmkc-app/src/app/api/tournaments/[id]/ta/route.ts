@@ -12,9 +12,6 @@ import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('ta-api');
-
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
 
@@ -54,6 +51,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -102,6 +100,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -316,6 +315,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -496,6 +496,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 

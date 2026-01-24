@@ -7,16 +7,12 @@ import { checkRateLimit, getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for token extend API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('token-extend-api');
-
 // POST - Extend tournament token expiry
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('token-extend-api');
   const session = await auth();
   const { id } = await params;
   const { extensionHours = 24 } = sanitizeInput(await request.json());
@@ -54,7 +50,7 @@ export async function POST(
     // Validate input
     if (extensionHours < 1 || extensionHours > 168) { // Max 7 days
       return NextResponse.json(
-        { success: false, error: 'Extension hours must be between1 and 168' },
+        { success: false, error: 'Extension hours must be between 1 and 168' },
         { status: 400 }
       );
     }

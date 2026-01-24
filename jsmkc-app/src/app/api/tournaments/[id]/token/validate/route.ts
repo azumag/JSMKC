@@ -2,15 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateTournamentToken } from "@/lib/token-validation";
 import { createLogger } from "@/lib/logger";
 
-// Create logger for token validation API module
-// Using structured logging to provide consistent error tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('token-validate-api');
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('token-validate-api');
   try {
     const { id: tournamentId } = await params;
     

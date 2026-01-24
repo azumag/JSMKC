@@ -22,6 +22,32 @@ interface LogMetadata extends Record<string, unknown> {
 }
 
 /**
+ * Creates a test logger that suppresses all output to avoid noise in tests
+ * This mirrors the server-side test logger behavior
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const createTestLogger = (_serviceName: string) => {
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    error: (_message: string, _meta?: LogMetadata) => {
+      // Silent mode for tests - don't log to console to avoid noise
+    },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    warn: (_message: string, _meta?: LogMetadata) => {
+      // Silent mode for tests
+    },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    info: (_message: string, _meta?: LogMetadata) => {
+      // Silent mode for tests
+    },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    debug: (_message: string, _meta?: LogMetadata) => {
+      // Silent mode for tests
+    },
+  };
+};
+
+/**
  * Creates a logger instance for a specific service/component
  * @param options - Logger configuration options
  * @returns Logger object with error, warn, info, and debug methods
@@ -32,6 +58,11 @@ export const createLogger = (options: LoggerOptions) => {
     enableServerAggregation = false,
     serverEndpoint = '/api/client-errors' 
   } = options;
+
+  // Return silent test logger in test environment to avoid noise
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+    return createTestLogger(serviceName);
+  }
 
   /**
    * Format log message with service context

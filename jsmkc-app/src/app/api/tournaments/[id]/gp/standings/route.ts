@@ -4,13 +4,11 @@ import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('gp-standings-api');
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('gp-standings-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {

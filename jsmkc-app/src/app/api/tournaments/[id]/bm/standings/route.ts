@@ -5,13 +5,11 @@ import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-standings-api');
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('bm-standings-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {

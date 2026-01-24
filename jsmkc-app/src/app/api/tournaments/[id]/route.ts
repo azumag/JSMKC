@@ -6,14 +6,12 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('tournament-api');
-
 // GET single tournament with related data (public access)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('tournament-api');
   const { id } = await params;
   try {
     const tournament = await prisma.tournament.findUnique({
@@ -65,6 +63,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('tournament-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {
@@ -137,6 +136,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('tournament-api');
   const session = await auth();
 
   if (!session?.user || session.user.role !== 'admin') {

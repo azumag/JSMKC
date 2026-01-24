@@ -4,9 +4,6 @@ import { auth } from "@/lib/auth";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('gp-api');
-
 function calculateDriverPoints(position1: number, position2: number) {
   const points1 = position1 === 1 ? 9 : position1 === 2 ? 6 : 0;
   const points2 = position2 === 1 ? 9 : position2 === 2 ? 6 : 0;
@@ -27,6 +24,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('gp-api');
   const { id: tournamentId } = await params;
   try {
 
@@ -57,6 +55,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('gp-api');
   const session = await auth();
   
   if (!session?.user) {
@@ -141,6 +140,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const logger = createLogger('gp-api');
   const { id: tournamentId } = await params;
   try {
     const body = await request.json();

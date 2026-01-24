@@ -23,9 +23,6 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 
-// Initialize logger for structured logging
-const logger = createLogger('bm-score-report-api');
-
 /**
  * POST - Report score from a player
  * Allows players to self-report their match scores with optimistic locking and validation
@@ -37,6 +34,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  const logger = createLogger('bm-score-report-api');
   const { id: tournamentId, matchId } = await params;
   try {
     const clientIp = getClientIdentifier(request);
