@@ -267,6 +267,19 @@ MIT
 - audit-log.test.ts: モックPrismaが値を返すように修正、console.errorテストの期待値修正
 - 全24テストスイート、729テストがパス
 
+## 完了したタスク (2026-01-24)
+✅ [Issue #118: Build Error: logger.ts imports 'fs' which is not available in client-side code](https://github.com/azumag/JSMKC/issues/118)
+- logger.tsからfsモジュールのインポートを削除（server-only）
+- logger-fs.tsファイルを作成し、'use server'ディレクティブを追加
+- クライアントコンポーネントからloggerインポートを削除:
+  - src/app/auth/signin/page.tsx
+  - src/app/players/page.tsx
+  - src/app/profile/page.tsx
+- クライアントコンポーネントはconsole.errorを使用
+- ビルド成功: \"Compiled successfully in 2.5s\"
+- 5ファイル変更、63行追加、47行削除
+- 全テストパス、リンティング警告のみ（エラーなし）
+
 ## 進行中のタスク (2026-01-24)
 🔍 [Issue #112: APIルートの単体テストを追加 - モック設定問題の調査完了](https://github.com/azumag/JSMKC/issues/112)
 
