@@ -1,3 +1,38 @@
+/**
+ * @module Test Suite: /api/tournaments/[id]/tt/entries/[entryId]
+ *
+ * Tests for the Time Trial (TT) individual entry API route handler.
+ * This endpoint supports GET (fetch single entry) and PUT (update with
+ * optimistic locking) operations for time trial entries.
+ *
+ * Test categories:
+ * - GET - Fetch single Time Trial entry:
+ *   - Returns entry data with player and tournament information (200)
+ *   - Returns 404 when entry is not found
+ *   - Returns 500 when database query fails, with structured error logging
+ *   - Handles invalid entry ID (UUID format) gracefully
+ *
+ * - PUT - Update Time Trial entry with optimistic locking:
+ *   - Updates entry with all fields (times, totalTime, rank, eliminated, lives)
+ *   - Updates entry with partial fields (only provided fields are updated)
+ *   - Returns 400 when version is missing or not a number (required for optimistic locking)
+ *   - Returns 409 on optimistic lock conflict (OptimisticLockError) with
+ *     currentVersion for client-side retry/refresh
+ *   - Returns 500 when update operation fails
+ *   - Handles empty body and invalid JSON body gracefully
+ *   - Verifies version increment on successful update
+ *   - Confirms re-fetch of updated entry after successful update
+ *
+ * Dependencies mocked:
+ * - @/lib/optimistic-locking: updateTTEntry function and OptimisticLockError class
+ *   for concurrent update conflict detection (version field comparison)
+ * - @/lib/logger: Structured Winston logging (function-level logger creation pattern)
+ * - next/server: NextResponse.json mock for response assertions
+ * - @/lib/prisma: Database client for TTEntry queries with player/tournament includes
+ *
+ * Note: Uses a custom MockNextRequest class instead of NextRequest from next/server
+ * to avoid issues with the mocked next/server module.
+ */
 // @ts-nocheck
 
 
@@ -216,12 +251,14 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
+      // When times is not provided in the request body, JavaScript destructuring
+      // yields undefined (not null). The source passes this value through to updateTTEntry.
       expect(updateTTEntry).toHaveBeenCalledWith(
         prisma,
         'e1',
         1,
         {
-          times: null,
+          times: undefined,
           totalTime: 3000,
           rank: 2,
           eliminated: true,

@@ -1,3 +1,28 @@
+/**
+ * @module __tests__/lib/optimistic-locking.test.ts
+ *
+ * Test suite for the optimistic locking module (optimistic-locking.ts).
+ *
+ * Covers the following functionality:
+ * - OptimisticLockError: Custom error class that includes the current version
+ *   number, used to signal version conflicts to callers.
+ * - updateWithRetry(): Generic retry wrapper that executes a Prisma transaction
+ *   and retries on optimistic lock errors (P2025, version-related messages,
+ *   "Record to update not found"). Respects max retry limits and delays.
+ *   Non-optimistic-lock errors are rethrown immediately without retry.
+ * - updateBMMatchScore(): Updates Battle Mode match scores with version checking.
+ *   Throws OptimisticLockError when the match is not found or version mismatches.
+ *   Supports optional `completed` flag and `rounds` data.
+ * - updateMRMatchScore(): Updates Match Race scores with the same version-check
+ *   pattern as BM matches, with `rounds` data support.
+ * - updateGPMatchScore(): Updates Grand Prix match points (points1/points2)
+ *   with version checking and optional `races` data.
+ * - updateTTEntry(): Updates Time Trial entries with version checking, supporting
+ *   flexible data fields (times, totalTime, rank, lives, eliminated).
+ *
+ * All Prisma operations are mocked to test the optimistic locking logic
+ * without requiring a database connection.
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import {
   updateWithRetry,

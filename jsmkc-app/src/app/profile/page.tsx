@@ -1,3 +1,28 @@
+/**
+ * profile/page.tsx - User Profile Page
+ *
+ * This page displays the authenticated user's profile and allows
+ * them to link their account to a player profile. It provides:
+ * 1. User information display (name, email, role)
+ * 2. Player association management (link/claim a player profile)
+ *
+ * Player association workflow:
+ * - When a user first visits their profile, they see a dropdown of
+ *   all unlinked player profiles (players without a userId).
+ * - The user selects their player profile and clicks "Claim Profile"
+ *   to create the association via POST /api/players/:id/link.
+ * - Once linked, the page shows a confirmation with the player's
+ *   nickname and name, and the user can submit scores for that player.
+ *
+ * This page is protected by the middleware (proxy.ts), which requires
+ * authentication for all /profile routes. Unauthenticated users are
+ * redirected to the sign-in page.
+ *
+ * Note: Ideally there would be a dedicated /api/user/me/player endpoint
+ * to fetch the current user's linked player directly. Currently, the
+ * page fetches all players and filters client-side by userId match,
+ * which works but is less efficient for large player lists.
+ */
 "use client"
 
 import { useSession } from "next-auth/react"
@@ -9,21 +34,52 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { CardSkeleton } from "@/components/ui/loading-skeleton"
 
+/**
+ * Player data model for profile association.
+ * Includes the optional userId field which indicates
+ * whether the player has been claimed by a user account.
+ */
 interface Player {
     id: string
     name: string
     nickname: string
+    /** If set, this player is already linked to a user account */
     userId?: string | null
 }
 
+/**
+ * ProfilePage - User profile display and player association management.
+ *
+ * Fetches the player list on mount and checks if the current user
+ * already has a linked player. If not, shows a selection dropdown
+ * with all unclaimed player profiles.
+ */
 export default function ProfilePage() {
     const { data: session } = useSession()
+
+    /* Loading state for initial data fetch */
     const [loading, setLoading] = useState(true)
+
+    /* Full player list from the API */
     const [players, setPlayers] = useState<Player[]>([])
+
+    /* The player profile linked to the current user (null if not linked) */
     const [linkedPlayer, setLinkedPlayer] = useState<Player | null>(null)
+
+    /* ID of the player selected in the dropdown for linking */
     const [selectedPlayerId, setSelectedPlayerId] = useState<string>("")
+
+    /* Loading state for the link/claim operation */
     const [isLinking, setIsLinking] = useState(false)
 
+    /**
+     * Fetches the player list and checks for an existing association.
+     * Only runs when a valid session exists (user is authenticated).
+     *
+     * Current approach: fetches all players and filters by userId.
+     * Future improvement: use a dedicated /api/user/me/player endpoint
+     * for a single query instead of fetching the entire player list.
+     */
     useEffect(() => {
         async function fetchData() {
             try {
@@ -32,18 +88,18 @@ export default function ProfilePage() {
                     const data: Player[] = await res.json()
                     setPlayers(data)
 
-                    // Find if user is already linked
-                    // Note: In a real app, we should have an endpoint /api/user/me/player
-                    // For now, we filter the list if we can identify the user, but since we distribute
-                    // the list publicly, we probably need a dedicated endpoint to see "my" player.
-                    // Or we check session.user.id against player.userId locally if exposed.
+                    /*
+                     * Check if the current user already has a linked player.
+                     * This filters the player list by matching the session
+                     * user ID against the player's userId field.
+                     */
                     const myPlayer = data.find(p => p.userId === session?.user?.id)
                     if (myPlayer) {
                         setLinkedPlayer(myPlayer)
                     }
                 }
             } catch (error) {
-                
+                /* Silently handle fetch errors - the user will see an empty state */
             } finally {
                 setLoading(false)
             }
@@ -54,6 +110,12 @@ export default function ProfilePage() {
         }
     }, [session])
 
+    /**
+     * Handles the player profile claim/link action.
+     * Sends a POST request to /api/players/:id/link to associate
+     * the selected player profile with the current user account.
+     * On success, updates the local state and shows a toast notification.
+     */
     const handleLink = async () => {
         if (!selectedPlayerId) return
         setIsLinking(true)
@@ -65,6 +127,7 @@ export default function ProfilePage() {
 
             if (res.ok) {
                 toast.success("Linked successfully!")
+                /* Update local state to show the linked player immediately */
                 const player = players.find(p => p.id === selectedPlayerId)
                 if (player) setLinkedPlayer(player)
             } else {
@@ -78,6 +141,7 @@ export default function ProfilePage() {
         }
     }
 
+    /* Loading skeleton with placeholder cards while data is fetched */
     if (loading) {
         return (
             <div className="container max-w-2xl py-10 space-y-6">
@@ -94,6 +158,7 @@ export default function ProfilePage() {
         <div className="container max-w-2xl py-10">
             <h1 className="text-3xl font-bold mb-8">Profile</h1>
 
+            {/* User Information Card - displays session data */}
             <Card className="mb-8">
                 <CardHeader>
                     <CardTitle>User Information</CardTitle>
@@ -110,6 +175,13 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
 
+            {/*
+             * Player Association Card
+             * Two states:
+             * 1. Linked: Shows green success banner with player info
+             * 2. Unlinked: Shows dropdown of available (unclaimed) players
+             *    with a "Claim Profile" button
+             */}
             <Card>
                 <CardHeader>
                     <CardTitle>Player Association</CardTitle>
@@ -119,6 +191,7 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardContent>
                     {linkedPlayer ? (
+                        /* Success state: player is linked to this account */
                         <div className="bg-green-50 p-4 rounded-md border border-green-200">
                             <p className="font-medium text-green-800">
                                 Encoded as: {linkedPlayer.nickname} ({linkedPlayer.name})
@@ -128,6 +201,11 @@ export default function ProfilePage() {
                             </p>
                         </div>
                     ) : (
+                        /*
+                         * Unlinked state: show a player selection dropdown.
+                         * Only players without a userId (unclaimed) are shown
+                         * to prevent two accounts from claiming the same player.
+                         */
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="player">Select your player profile</Label>
@@ -147,6 +225,7 @@ export default function ProfilePage() {
                         </div>
                     )}
                 </CardContent>
+                {/* Claim button shown only when no player is linked yet */}
                 {!linkedPlayer && (
                     <CardFooter>
                         <Button onClick={handleLink} disabled={!selectedPlayerId || isLinking}>

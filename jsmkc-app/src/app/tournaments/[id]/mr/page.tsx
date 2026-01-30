@@ -1,3 +1,19 @@
+/**
+ * Match Race Qualification Page
+ *
+ * Main admin page for managing MR qualification rounds.
+ * Features:
+ * - Group standings with Win/Tie/Loss/Points columns
+ * - Match list with score entry dialogs
+ * - Group setup dialog for assigning players
+ * - CSV export functionality
+ * - Real-time polling for live tournament updates
+ *
+ * MR uses a 5-race course-selection format where each race
+ * winner is tracked individually. First to 3 wins takes the match.
+ *
+ * @route /tournaments/[id]/mr
+ */
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -41,12 +57,14 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** MR qualification standing record */
 interface MRQualification {
   id: string;
   playerId: string;
@@ -63,6 +81,7 @@ interface MRQualification {
   player: Player;
 }
 
+/** MR match record with player details */
 interface MRMatch {
   id: string;
   matchNumber: number;
@@ -78,6 +97,7 @@ interface MRMatch {
   player2: Player;
 }
 
+/** Individual race result in a match */
 interface Round {
   course: CourseAbbr | "";
   winner: number | null;
@@ -96,6 +116,7 @@ export default function MatchRacePage({
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
+  /* Initialize 5 empty rounds for the match result dialog */
   const [rounds, setRounds] = useState<Round[]>([
     { course: "", winner: null },
     { course: "", winner: null },
@@ -108,6 +129,10 @@ export default function MatchRacePage({
   >([]);
   const [exporting, setExporting] = useState(false);
 
+  /**
+   * Fetch MR data and player list concurrently.
+   * Called by the polling hook for real-time updates.
+   */
   const fetchTournamentData = useCallback(async () => {
     const [mrResponse, playersResponse] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/mr`),
@@ -132,11 +157,13 @@ export default function MatchRacePage({
     };
   }, [tournamentId]);
 
+  /* Poll every 3 seconds for live tournament updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
   });
 
+  /* Update local state when polling data arrives */
   useEffect(() => {
     if (pollData) {
       setQualifications(pollData.qualifications);
@@ -149,6 +176,10 @@ export default function MatchRacePage({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Submit group setup with player assignments.
+   * Creates qualification records and round-robin matches.
+   */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
       alert("Please add at least one player");
@@ -172,6 +203,9 @@ export default function MatchRacePage({
     }
   };
 
+  /**
+   * Open the match result entry dialog with existing data or empty rounds.
+   */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
     if (match.rounds && match.rounds.length === 5) {
@@ -188,18 +222,25 @@ export default function MatchRacePage({
     setIsMatchDialogOpen(true);
   };
 
+  /**
+   * Submit match result after validating 5 unique courses and a winner.
+   * Score is calculated from the number of race wins per player.
+   */
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
+    /* Validate that exactly 5 unique courses are selected */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
     if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
       alert("Please select 5 unique courses");
       return;
     }
 
+    /* Count wins per player from individual race results */
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
 
+    /* Match must have a definitive winner (first to 3) */
     if (winnerCount < 3 && loserCount < 3) {
       alert("Match must have a winner (3 out of 5)");
       return;
@@ -234,16 +275,19 @@ export default function MatchRacePage({
     }
   };
 
+  /** Add a player to the setup list with default group A */
   const addPlayerToSetup = (playerId: string, group: string) => {
     if (!setupPlayers.find((p) => p.playerId === playerId)) {
       setSetupPlayers([...setupPlayers, { playerId, group }]);
     }
   };
 
+  /** Remove a player from the setup list */
   const removePlayerFromSetup = (playerId: string) => {
     setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
   };
 
+  /** Export MR data as CSV download */
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -252,6 +296,7 @@ export default function MatchRacePage({
         throw new Error("Failed to export data");
       }
 
+      /* Trigger file download via blob URL */
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -268,8 +313,10 @@ export default function MatchRacePage({
     }
   };
 
+  /* Extract unique groups for tab display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
+  /* Loading skeleton while initial data is being fetched */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -287,6 +334,7 @@ export default function MatchRacePage({
 
   return (
     <div className="space-y-6">
+      {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Match Race</h1>
@@ -312,6 +360,7 @@ export default function MatchRacePage({
               </Link>
             </Button>
           )}
+          {/* Setup/Reset dialog */}
           <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
@@ -355,6 +404,7 @@ export default function MatchRacePage({
                   </div>
                 </div>
 
+                {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
                     Selected Players ({setupPlayers.length})
@@ -433,6 +483,7 @@ export default function MatchRacePage({
         </div>
       </div>
 
+      {/* Empty state when no groups are set up */}
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -440,12 +491,14 @@ export default function MatchRacePage({
           </CardContent>
         </Card>
       ) : (
+        /* Standings and Matches tabs */
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">Standings</TabsTrigger>
             <TabsTrigger value="matches">Matches</TabsTrigger>
           </TabsList>
 
+          {/* Group standings tab */}
           <TabsContent value="standings">
             <div className="grid gap-6">
               {groups.map((group) => (
@@ -500,6 +553,7 @@ export default function MatchRacePage({
             </div>
           </TabsContent>
 
+          {/* Match list tab */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -574,6 +628,7 @@ export default function MatchRacePage({
         </Tabs>
       )}
 
+      {/* Match result entry dialog */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -636,7 +691,7 @@ export default function MatchRacePage({
                             setRounds(newRounds);
                           }}
                         >
-                          {round.winner === 1 ? "✓" : "-"}
+                          {round.winner === 1 ? "\u2713" : "-"}
                         </Button>
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
@@ -647,7 +702,7 @@ export default function MatchRacePage({
                             setRounds(newRounds);
                           }}
                         >
-                          {round.winner === 2 ? "✓" : "-"}
+                          {round.winner === 2 ? "\u2713" : "-"}
                         </Button>
                         <span className="text-sm w-12">
                           {selectedMatch?.player2.nickname}

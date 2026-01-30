@@ -1,24 +1,73 @@
+/**
+ * @module Character Stats Route Tests
+ *
+ * Test suite for the GET /api/players/[id]/character-stats endpoint.
+ * This route retrieves per-character usage statistics for a specific player,
+ * including match counts, win counts, win rates, and most-used character identification.
+ * Character stats are derived from MatchCharacterUsage records and correlated with
+ * BM (Battle Mode), MR (Match Race), and GP (Grand Prix) match results to calculate
+ * win/loss data.
+ *
+ * Covers:
+ * - Authorization: Admin-only access enforcement (403 for non-admin/unauthenticated)
+ * - Data retrieval: Fetching character usages and match data for the player
+ * - Statistics calculation: Correct win rates per character, most-used character identification
+ * - Error handling: Graceful handling of database errors with structured logging
+ * - Empty results: Handling players with no character usage records
+ *
+ * IMPORTANT: Uses @ts-nocheck and global jest (not @jest/globals).
+ * jest.mock factory functions run in the global jest context due to hoisting.
+ * Using global jest throughout avoids mock identity mismatches.
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { NextRequest } from 'next/server';
 
 // Mock dependencies
-
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
+// Logger mock: stable reference to shared logger instance so tests can
+// verify logger calls even after clearAllMocks resets call history.
+const mockLoggerInstance = {
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+};
+
 jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({
-    error: jest.fn(),
-    warn: jest.fn(),
-  })),
+  createLogger: jest.fn(() => mockLoggerInstance),
 }));
 
+// Custom next/server mock matching the pattern used in working tournament tests.
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+  class MockNextRequest {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this._body = init.body;
+      const h = init.headers || {};
+      this.headers = {
+        get: (key) => {
+          if (h instanceof Headers) return h.get(key);
+          if (h instanceof Map) return h.get(key);
+          return h[key] || null;
+        },
+        forEach: (cb) => {
+          if (h instanceof Headers) { h.forEach(cb); return; }
+          Object.entries(h).forEach(([k, v]) => cb(v, k));
+        },
+      };
+    }
+    async json() {
+      if (typeof this._body === 'string') return JSON.parse(this._body);
+      return this._body;
+    }
+  }
   return {
+    NextRequest: MockNextRequest,
     NextResponse: {
       json: mockJson,
     },
@@ -26,23 +75,22 @@ jest.mock('next/server', () => {
   };
 });
 
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
 import * as characterStatsRoute from '@/app/api/players/[id]/character-stats/route';
 
-const logger = createLogger('character-stats-test');
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockAuth = auth as any;
+const loggerMock = jest.requireMock('@/lib/logger');
 
 describe('GET /api/players/[id]/character-stats', () => {
   const { NextResponse } = jest.requireMock('next/server');
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Set up default mock behaviors
-    mockAuth.mockResolvedValue({
+    // Re-wire createLogger after clearAllMocks clears call history.
+    loggerMock.createLogger.mockReturnValue(mockLoggerInstance);
+    // Set up default admin auth for most tests
+    auth.mockResolvedValue({
       user: { id: 'admin-1', role: 'admin' },
     });
   });
@@ -53,7 +101,7 @@ describe('GET /api/players/[id]/character-stats', () => {
 
   describe('Authorization', () => {
     it('should return 403 when not authenticated', async () => {
-      mockAuth.mockResolvedValue(null);
+      auth.mockResolvedValue(null);
 
       await characterStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/players/p1/character-stats'),
@@ -69,7 +117,7 @@ describe('GET /api/players/[id]/character-stats', () => {
     });
 
     it('should return 403 when authenticated user is not admin', async () => {
-      mockAuth.mockResolvedValue({
+      auth.mockResolvedValue({
         user: { id: 'user-1', role: 'user' },
       });
 
@@ -87,10 +135,7 @@ describe('GET /api/players/[id]/character-stats', () => {
     });
 
     it('should allow access for admin users', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue([]);
+      prisma.matchCharacterUsage.findMany.mockResolvedValue([]);
 
       await characterStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/players/p1/character-stats'),
@@ -107,10 +152,6 @@ describe('GET /api/players/[id]/character-stats', () => {
 
   describe('Data Retrieval', () => {
     it('should fetch character usages for the player', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-
       const mockUsages = [
         {
           id: 'u1',
@@ -132,8 +173,8 @@ describe('GET /api/players/[id]/character-stats', () => {
         },
       ];
 
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue(mockUsages);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([
+      prisma.matchCharacterUsage.findMany.mockResolvedValue(mockUsages);
+      prisma.bMMatch.findMany.mockResolvedValue([
         { id: 'm1', player1Id: 'p1', player2Id: 'p2', score1: 3, score2: 1, completed: true },
         { id: 'm2', player1Id: 'p2', player2Id: 'p1', score1: 0, score2: 4, completed: true },
       ]);
@@ -153,10 +194,6 @@ describe('GET /api/players/[id]/character-stats', () => {
     });
 
     it('should query BM matches when BM match type is present', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-
       const mockUsages = [
         {
           id: 'u1',
@@ -169,8 +206,8 @@ describe('GET /api/players/[id]/character-stats', () => {
         },
       ];
 
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue(mockUsages);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([
+      prisma.matchCharacterUsage.findMany.mockResolvedValue(mockUsages);
+      prisma.bMMatch.findMany.mockResolvedValue([
         { id: 'm1', player1Id: 'p1', player2Id: 'p2', score1: 3, score2: 1, completed: true },
       ]);
 
@@ -189,10 +226,6 @@ describe('GET /api/players/[id]/character-stats', () => {
 
   describe('Statistics Calculation', () => {
     it('should calculate correct win rates for characters', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-
       const mockUsages = [
         {
           id: 'u1',
@@ -223,8 +256,8 @@ describe('GET /api/players/[id]/character-stats', () => {
         },
       ];
 
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue(mockUsages);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([
+      prisma.matchCharacterUsage.findMany.mockResolvedValue(mockUsages);
+      prisma.bMMatch.findMany.mockResolvedValue([
         { id: 'm1', player1Id: 'p1', player2Id: 'p2', score1: 3, score2: 1, completed: true }, // Mario win
         { id: 'm2', player1Id: 'p2', player2Id: 'p1', score1: 0, score2: 4, completed: true }, // Mario win
         { id: 'm3', player1Id: 'p1', player2Id: 'p2', score1: 1, score2: 3, completed: true }, // Luigi loss
@@ -245,7 +278,7 @@ describe('GET /api/players/[id]/character-stats', () => {
         })
       );
 
-      const callArgs = (NextResponse.json as jest.Mock).mock.calls[0];
+      const callArgs = NextResponse.json.mock.calls[0];
       const characterStats = callArgs[0].characterStats;
 
       // Mario should have 2 wins out of 2 matches (100%)
@@ -264,10 +297,6 @@ describe('GET /api/players/[id]/character-stats', () => {
     });
 
     it('should identify most used character', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-
       const mockUsages = [
         {
           id: 'u1',
@@ -298,25 +327,22 @@ describe('GET /api/players/[id]/character-stats', () => {
         },
       ];
 
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue(mockUsages);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
+      prisma.matchCharacterUsage.findMany.mockResolvedValue(mockUsages);
+      prisma.bMMatch.findMany.mockResolvedValue([]);
 
       await characterStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/players/p1/character-stats'),
         { params: Promise.resolve({ id: 'p1' }) }
       );
 
-      const callArgs = (NextResponse.json as jest.Mock).mock.calls[0];
+      const callArgs = NextResponse.json.mock.calls[0];
       expect(callArgs[0].mostUsedCharacter).toBe('Mario');
     });
   });
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockRejectedValue(
+      prisma.matchCharacterUsage.findMany.mockRejectedValue(
         new Error('Database error')
       );
 
@@ -325,7 +351,8 @@ describe('GET /api/players/[id]/character-stats', () => {
         { params: Promise.resolve({ id: 'p1' }) }
       );
 
-      expect(logger.error).toHaveBeenCalledWith(
+      // Verify the shared logger instance received the error call
+      expect(mockLoggerInstance.error).toHaveBeenCalledWith(
         'Failed to fetch character stats',
         expect.any(Object)
       );
@@ -341,10 +368,7 @@ describe('GET /api/players/[id]/character-stats', () => {
 
   describe('Empty Results', () => {
     it('should handle player with no character usages', async () => {
-      mockAuth.mockResolvedValue({
-        user: { id: 'admin-1', role: 'admin' },
-      });
-      (prisma.matchCharacterUsage.findMany as jest.Mock).mockResolvedValue([]);
+      prisma.matchCharacterUsage.findMany.mockResolvedValue([]);
 
       await characterStatsRoute.GET(
         new NextRequest('http://localhost:3000/api/players/p1/character-stats'),

@@ -1,3 +1,28 @@
+/**
+ * Battle Mode Finals Page
+ *
+ * Admin-facing page for managing the BM double-elimination finals bracket.
+ * Displays the bracket visualization and provides controls for:
+ * - Generating the finals bracket from qualification results
+ * - Resetting the bracket to regenerate from current standings
+ * - Entering/editing match scores within the bracket
+ * - Detecting and displaying tournament completion and champion
+ *
+ * The double-elimination bracket structure:
+ * - Winners Bracket: Players advance until they lose once
+ * - Losers Bracket: Eliminated players get a second chance
+ * - Grand Final: Winners champion vs Losers champion
+ * - Reset Match: If losers champion wins Grand Final, a deciding match is played
+ *
+ * Features:
+ * - Real-time polling (3s) for bracket updates
+ * - Confirmation dialogs for destructive actions (generate/reset)
+ * - Score entry dialog with round-based validation
+ * - Champion announcement when tournament completes
+ * - Loading overlay during bracket generation
+ * - Client-side logging for error tracking
+ */
+
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -39,14 +64,21 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
+/**
+ * Client-side logger for the finals page.
+ * Used for tracking bracket generation and score update errors.
+ * Note: Client logger is created at module level (unlike server API loggers).
+ */
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** BM Match data with player relations */
 interface BMMatch {
   id: string;
   matchNumber: number;
@@ -60,6 +92,7 @@ interface BMMatch {
   player2: Player;
 }
 
+/** Bracket position definition */
 interface BracketMatch {
   matchNumber: number;
   round: string;
@@ -68,29 +101,46 @@ interface BracketMatch {
   player2Seed?: number;
 }
 
+/** Seeded player with qualification ranking */
 interface SeededPlayer {
   seed: number;
   playerId: string;
   player: Player;
 }
 
+/**
+ * Battle Mode Finals page component.
+ * Uses React 19's `use()` hook to unwrap the async params.
+ */
 export default function BattleModeFinals({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /* Bracket data state */
   const [matches, setMatches] = useState<BMMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
   const [seededPlayers, setSeededPlayers] = useState<SeededPlayer[]>([]);
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
+
+  /* UI state */
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+
+  /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+
+  /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
 
+  /**
+   * Fetch finals data including matches, bracket structure, and round names.
+   * This is the polling function called every 3 seconds.
+   */
   const fetchFinalsData = useCallback(async () => {
     const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
 
@@ -107,10 +157,12 @@ export default function BattleModeFinals({
     };
   }, [tournamentId]);
 
+  /* Set up polling with 3-second interval */
   const { data: pollData, isLoading: pollLoading, error, lastETag, refetch } = usePolling(fetchFinalsData, {
     interval: 3000,
   });
 
+  /* Update bracket state when polling data changes */
   useEffect(() => {
     if (pollData) {
       setMatches(pollData.matches);
@@ -119,10 +171,16 @@ export default function BattleModeFinals({
     }
   }, [pollData]);
 
+  /* Sync loading state with polling status */
   useEffect(() => {
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Generate or regenerate the finals bracket.
+   * Creates an 8-player double-elimination bracket from qualification standings.
+   * Uses a loading overlay since bracket generation can take a moment.
+   */
   const handleCreateBracket = async () => {
     setCreating(true);
     try {
@@ -143,6 +201,7 @@ export default function BattleModeFinals({
         alert(error.error || "Failed to create bracket");
       }
     } catch (err) {
+      /* Log the error with structured metadata for debugging */
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to create bracket:", metadata as any);
       alert("Failed to create bracket");
@@ -151,12 +210,18 @@ export default function BattleModeFinals({
     }
   };
 
+  /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
     setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsScoreDialogOpen(true);
   };
 
+  /**
+   * Submit updated score for a finals match.
+   * After successful update, checks if the tournament is complete
+   * and sets the champion if a winner is determined.
+   */
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
@@ -178,6 +243,7 @@ export default function BattleModeFinals({
         setScoreForm({ score1: 0, score2: 0 });
         refetch();
 
+        /* Check if the tournament is complete and set champion */
         if (data.isComplete && data.champion) {
           const winnerMatch = matches.find(
             (m) =>
@@ -202,9 +268,11 @@ export default function BattleModeFinals({
     }
   };
 
+  /* Calculate progress counters for the progress badge */
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
 
+  /* Loading skeleton for initial page load */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -222,8 +290,10 @@ export default function BattleModeFinals({
 
   return (
     <>
+      {/* Full-screen loading overlay during bracket generation */}
       <LoadingOverlay isOpen={creating} message="Generating bracket... Please wait." />
       <div className="space-y-6">
+      {/* Page header with title, update indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Battle Mode Finals</h1>
@@ -235,6 +305,7 @@ export default function BattleModeFinals({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Generate or Reset bracket buttons with confirmation dialogs */}
           {matches.length === 0 ? (
             <AlertDialog>
                <AlertDialogTrigger asChild>
@@ -283,6 +354,7 @@ export default function BattleModeFinals({
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/bm`}>
               Back to Qualification
@@ -291,6 +363,7 @@ export default function BattleModeFinals({
         </div>
       </div>
 
+      {/* Champion announcement card - shown when tournament is complete */}
       {champion && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
@@ -303,6 +376,7 @@ export default function BattleModeFinals({
         </Card>
       )}
 
+      {/* Progress badges showing match completion status */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
@@ -314,6 +388,7 @@ export default function BattleModeFinals({
         </div>
       )}
 
+      {/* Main content: empty state with instructions or bracket visualization */}
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
@@ -349,6 +424,7 @@ export default function BattleModeFinals({
           </CardContent>
         </Card>
       ) : (
+        /* Render the full double-elimination bracket visualization */
         <DoubleEliminationBracket
           matches={matches}
           bracketStructure={bracketStructure}
@@ -358,9 +434,11 @@ export default function BattleModeFinals({
         />
       )}
 
+      {/* Score Entry Dialog for individual finals matches */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent
           onOpenAutoFocus={(e) => {
+            /* Auto-focus the first score input for keyboard usability */
             e.preventDefault();
             const firstInput = document.getElementById(`score1-${selectedMatch?.id}`);
             firstInput?.focus();
@@ -374,6 +452,7 @@ export default function BattleModeFinals({
                   Match #{selectedMatch.matchNumber}:{" "}
                   {selectedMatch.player1.nickname} vs{" "}
                   {selectedMatch.player2.nickname}
+                  {/* Show the round name if available */}
                   {selectedMatch.round && (
                     <span className="block text-xs mt-1">
                       {roundNames[selectedMatch.round] || selectedMatch.round}
@@ -385,6 +464,7 @@ export default function BattleModeFinals({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
+               {/* Player 1 score input with accessible label */}
                <div className="text-center">
                  <Label htmlFor={`score1-${selectedMatch?.id}`}>
                    {selectedMatch?.player1.nickname}
@@ -406,6 +486,7 @@ export default function BattleModeFinals({
                  />
                </div>
                <span className="text-2xl" aria-hidden="true">-</span>
+               {/* Player 2 score input with accessible label */}
                <div className="text-center">
                  <Label htmlFor={`score2-${selectedMatch?.id}`}>
                    {selectedMatch?.player2.nickname}
@@ -427,6 +508,7 @@ export default function BattleModeFinals({
                  />
               </div>
             </div>
+            {/* Validation warning: finals matches need a winner (first to 3) */}
             {scoreForm.score1 + scoreForm.score2 > 0 &&
               scoreForm.score1 < 3 &&
               scoreForm.score2 < 3 && (
@@ -436,6 +518,7 @@ export default function BattleModeFinals({
               )}
           </div>
           <DialogFooter>
+            {/* Submit button disabled until a valid winner score is entered */}
             <Button
               onClick={handleScoreSubmit}
               disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}

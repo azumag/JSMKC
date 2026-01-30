@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * Grand Prix (GP) Qualification Page
+ *
+ * Admin page for managing GP qualification rounds.
+ * GP uses cup-based races with driver points (1st=9, 2nd=6).
+ * Players compete in round-robin groups, and standings are
+ * calculated by match score (wins×2 + ties×1) with driver points as tiebreaker.
+ *
+ * Features:
+ * - Group standings display with sortable columns
+ * - Match list with completion tracking
+ * - Setup dialog for creating groups and round-robin matches
+ * - Match result dialog with cup selection and race position entry
+ * - CSV/Excel export
+ * - Real-time polling (3s interval)
+ * - Navigation to finals bracket
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,12 +62,14 @@ import { createLogger } from "@/lib/client-logger";
 
 const logger = createLogger({ serviceName: 'tournaments-gp' })
 
+/** Player data from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** GP qualification standing entry with group assignment and stats */
 interface GPQualification {
   id: string;
   playerId: string;
@@ -64,6 +84,7 @@ interface GPQualification {
   player: Player;
 }
 
+/** GP match with race details and player information */
 interface GPMatch {
   id: string;
   matchNumber: number;
@@ -86,6 +107,7 @@ interface GPMatch {
   player2: Player;
 }
 
+/** Individual race entry in the match result form */
 interface Race {
   course: CourseAbbr | "";
   position1: number | null;
@@ -106,6 +128,7 @@ export default function GrandPrixPage({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [selectedCup, setSelectedCup] = useState<string>("");
+  /* GP matches have exactly 4 races per cup */
   const [races, setRaces] = useState<Race[]>([
     { course: "", position1: null, position2: null },
     { course: "", position1: null, position2: null },
@@ -117,12 +140,18 @@ export default function GrandPrixPage({
   >([]);
   const [exporting, setExporting] = useState(false);
 
+  /** SMK has 4 cups, each with 5 courses */
   const CUPS = ["Mushroom", "Flower", "Star", "Special"] as const;
 
+  /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
+  /**
+   * Fetch tournament GP data and player list in parallel.
+   * Returns qualification standings, matches, and all registered players.
+   */
   const fetchTournamentData = useCallback(async () => {
     const [gpResponse, playersResponse] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/gp`),
@@ -147,11 +176,13 @@ export default function GrandPrixPage({
     };
   }, [tournamentId]);
 
+  /* Poll for updates every 3 seconds */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
   });
 
+  /* Update local state when polling data arrives */
   useEffect(() => {
     if (pollData) {
       setQualifications(pollData.qualifications);
@@ -164,6 +195,10 @@ export default function GrandPrixPage({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Submit group setup to create qualification round-robin matches.
+   * Sends player list with group assignments to the POST endpoint.
+   */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
       alert("Please add at least one player");
@@ -188,12 +223,18 @@ export default function GrandPrixPage({
     }
   };
 
+  /**
+   * Open the match result dialog pre-populated with existing data.
+   * If the match already has results, load them into the form.
+   */
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
     if (match.cup && match.races && match.races.length === 4) {
+      /* Pre-fill form with existing match data for editing */
       setSelectedCup(match.cup);
       setRaces(match.races as Race[]);
     } else {
+      /* Reset form for new result entry */
       setSelectedCup("");
       setRaces([
         { course: "", position1: null, position2: null },
@@ -205,12 +246,17 @@ export default function GrandPrixPage({
     setIsMatchDialogOpen(true);
   };
 
+  /**
+   * Submit match result with cup and 4 race positions.
+   * Validates all 4 races are complete before submission.
+   */
   const handleMatchSubmit = async () => {
     if (!selectedMatch || !selectedCup) {
       alert("Please select a cup");
       return;
     }
 
+    /* All 4 races must have course and positions filled */
     const completedRaces = races.filter(
       (r) => r.course !== "" && r.position1 !== null && r.position2 !== null
     );
@@ -249,16 +295,19 @@ export default function GrandPrixPage({
     }
   };
 
+  /** Add a player to the setup list (prevents duplicates) */
   const addPlayerToSetup = (playerId: string, group: string) => {
     if (!setupPlayers.find((p) => p.playerId === playerId)) {
       setSetupPlayers([...setupPlayers, { playerId, group }]);
     }
   };
 
+  /** Remove a player from the setup list */
   const removePlayerFromSetup = (playerId: string) => {
     setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
   };
 
+  /** Export GP data as CSV/Excel file */
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -267,6 +316,7 @@ export default function GrandPrixPage({
         throw new Error("Failed to export data");
       }
 
+      /* Create download link from response blob */
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -284,6 +334,7 @@ export default function GrandPrixPage({
     }
   };
 
+  /* Extract unique groups from qualifications for tab display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
   if (loading) {
@@ -303,6 +354,7 @@ export default function GrandPrixPage({
 
   return (
     <div className="space-y-6">
+      {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Grand Prix</h1>
@@ -328,6 +380,7 @@ export default function GrandPrixPage({
               </Link>
             </Button>
           )}
+          {/* Setup/Reset dialog for group configuration */}
           <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
@@ -342,6 +395,7 @@ export default function GrandPrixPage({
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Player selection dropdown */}
                 <div className="flex gap-4">
                   <div className="flex-1">
                     <Label>Select Player</Label>
@@ -371,6 +425,7 @@ export default function GrandPrixPage({
                   </div>
                 </div>
 
+                {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
                     Selected Players ({setupPlayers.length})
@@ -449,6 +504,7 @@ export default function GrandPrixPage({
         </div>
       </div>
 
+      {/* Empty state when no groups are set up */}
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -456,12 +512,14 @@ export default function GrandPrixPage({
           </CardContent>
         </Card>
       ) : (
+        /* Tabs for standings and match list views */
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">Standings</TabsTrigger>
             <TabsTrigger value="matches">Matches</TabsTrigger>
           </TabsList>
 
+          {/* Standings tab: group-by-group qualification tables */}
           <TabsContent value="standings">
             <div className="grid gap-6">
               {groups.map((group) => (
@@ -512,6 +570,7 @@ export default function GrandPrixPage({
             </div>
           </TabsContent>
 
+          {/* Matches tab: all qualification matches */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -586,6 +645,7 @@ export default function GrandPrixPage({
         </Tabs>
       )}
 
+      {/* Match result entry dialog */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -601,6 +661,7 @@ export default function GrandPrixPage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Cup selection - determines which 5 courses are available */}
             <div>
               <Label>Select Cup</Label>
               <Select value={selectedCup} onValueChange={setSelectedCup}>
@@ -617,6 +678,7 @@ export default function GrandPrixPage({
               </Select>
             </div>
 
+            {/* Race-by-race entry table (4 races per cup) */}
             {selectedCup && (
               <Table>
                 <TableHeader>
@@ -704,6 +766,7 @@ export default function GrandPrixPage({
               </Table>
             )}
 
+            {/* Live driver points calculation preview */}
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm font-medium mb-2">
                 Driver Points: 1st = 9pts, 2nd = 6pts

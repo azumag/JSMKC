@@ -1,745 +1,551 @@
+/**
+ * @module __tests__/lib/prisma-middleware.test.ts
+ *
+ * Test suite for the Prisma soft-delete middleware layer (prisma-middleware.ts).
+ *
+ * Covers the following functionality:
+ * - createSoftDeleteMiddleware: intercepts delete/deleteMany and converts to
+ *   soft deletes, and automatically filters soft-deleted records from find queries.
+ * - SoftDeleteUtils class: explicit soft-delete, find, and restore operations
+ *   for Player and Tournament models, plus "withDeleted" query variants.
+ *
+ * These tests use in-memory mock Prisma clients with jest.fn() stubs to verify
+ * that the correct Prisma operations (update, findMany, findUnique) are called
+ * with the expected arguments, including the deletedAt filter logic.
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
-import { SoftDeleteManager, getSoftDeleteManager, applySoftDeleteMiddleware } from '@/lib/prisma-middleware';
+import { createSoftDeleteMiddleware, SoftDeleteUtils } from '@/lib/prisma-middleware';
 
-describe('SoftDeleteManager', () => {
-  let mockPrisma: { [key: string]: unknown };
-  let softDeleteManager: SoftDeleteManager;
+// ============================================================
+// createSoftDeleteMiddleware tests
+// ============================================================
+describe('createSoftDeleteMiddleware', () => {
+  let middleware: ReturnType<typeof createSoftDeleteMiddleware>;
+  let nextFn: jest.Mock;
 
   beforeEach(() => {
-    mockPrisma = {
-      player: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      tournament: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      bMMatch: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      mRMatch: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      gPMatch: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      tTEntry: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-      },
-      bMQualification: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-      },
-      mRQualification: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-      },
-      gPQualification: {
-        update: jest.fn(),
-        findMany: jest.fn(),
-      },
-    };
-
-    softDeleteManager = new SoftDeleteManager(mockPrisma);
+    middleware = createSoftDeleteMiddleware();
+    nextFn = jest.fn().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('Player operations', () => {
-    describe('softDeletePlayer', () => {
-      it('should soft delete a player by id', async () => {
-        const playerId = 'player-123';
-        mockPrisma.player.update.mockResolvedValue({ id: playerId, deletedAt: new Date() });
+  // ---------- delete -> update conversion ----------
 
-        await softDeleteManager.softDeletePlayer(playerId);
+  describe('delete action conversion', () => {
+    it('should convert delete to update with deletedAt for soft-delete models', async () => {
+      // Verify that a "delete" action on a supported model is intercepted
+      // and rewritten to "update" with a deletedAt timestamp.
+      const params = {
+        model: 'Player',
+        action: 'delete',
+        args: { where: { id: 'player-1' } },
+      };
 
-        expect(mockPrisma.player.update).toHaveBeenCalledWith({
-          where: { id: playerId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
+      await middleware(params as any, nextFn);
 
-      it('should throw error when update fails', async () => {
-        const playerId = 'player-123';
-        mockPrisma.player.update.mockRejectedValue(new Error('Database error'));
-
-        await expect(softDeleteManager.softDeletePlayer(playerId)).rejects.toThrow('Database error');
-      });
+      // The middleware mutates params in place: action becomes 'update',
+      // and args.data is set with a deletedAt Date.
+      expect(params.action).toBe('update');
+      expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
+      expect(nextFn).toHaveBeenCalledWith(params);
     });
 
-    describe('findPlayers', () => {
-      it('should find players with soft delete filter by default', async () => {
-        const options = { where: { name: 'Test' } };
-        mockPrisma.player.findMany.mockResolvedValue([]);
+    it('should convert delete to update for Tournament model', async () => {
+      const params = {
+        model: 'Tournament',
+        action: 'delete',
+        args: { where: { id: 'tournament-1' } },
+      };
 
-        await softDeleteManager.findPlayers(options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find players including deleted when includeDeleted is true', async () => {
-        const options = { where: { name: 'Test' } };
-        mockPrisma.player.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findPlayers(options, true);
-
-        expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-
-      it('should handle empty options', async () => {
-        mockPrisma.player.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findPlayers();
-
-        expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
-          where: { deletedAt: null },
-        });
-      });
+      expect(params.action).toBe('update');
+      expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
-    describe('findPlayer', () => {
-      it('should find unique player with soft delete filter by default', async () => {
-        const playerId = 'player-123';
-        const options = { select: { id: true } };
-        mockPrisma.player.findUnique.mockResolvedValue(null);
+    it('should NOT convert delete for non-soft-delete models', async () => {
+      // Models not in the softDeleteModels list should pass through unchanged.
+      const params = {
+        model: 'SomeOtherModel',
+        action: 'delete',
+        args: { where: { id: 'other-1' } },
+      };
 
-        await softDeleteManager.findPlayer(playerId, options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.player.findUnique).toHaveBeenCalledWith({
-          ...options,
-          where: { id: playerId, deletedAt: null },
-        });
-      });
-
-      it('should find unique player including deleted when includeDeleted is true', async () => {
-        const playerId = 'player-123';
-        const options = { select: { id: true } };
-        mockPrisma.player.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findPlayer(playerId, options, true);
-
-        expect(mockPrisma.player.findUnique).toHaveBeenCalledWith({
-          ...options,
-          where: { id: playerId },
-        });
-      });
-
-      it('should handle empty options', async () => {
-        const playerId = 'player-123';
-        mockPrisma.player.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findPlayer(playerId);
-
-        expect(mockPrisma.player.findUnique).toHaveBeenCalledWith({
-          where: { id: playerId, deletedAt: null },
-        });
-      });
-    });
-
-    describe('restorePlayer', () => {
-      it('should restore a deleted player', async () => {
-        const playerId = 'player-123';
-        mockPrisma.player.update.mockResolvedValue({ id: playerId, deletedAt: null });
-
-        await softDeleteManager.restorePlayer(playerId);
-
-        expect(mockPrisma.player.update).toHaveBeenCalledWith({
-          where: { id: playerId },
-          data: { deletedAt: null },
-        });
-      });
+      expect(params.action).toBe('delete');
+      expect(params.args.data).toBeUndefined();
     });
   });
 
-  describe('Tournament operations', () => {
-    describe('softDeleteTournament', () => {
-      it('should soft delete a tournament by id', async () => {
-        const tournamentId = 'tournament-123';
-        mockPrisma.tournament.update.mockResolvedValue({ id: tournamentId, deletedAt: new Date() });
+  // ---------- deleteMany -> updateMany conversion ----------
 
-        await softDeleteManager.softDeleteTournament(tournamentId);
+  describe('deleteMany action conversion', () => {
+    it('should convert deleteMany to updateMany with deletedAt for soft-delete models', async () => {
+      const params = {
+        model: 'BMMatch',
+        action: 'deleteMany',
+        args: { where: { tournamentId: 't-1' } },
+      };
 
-        expect(mockPrisma.tournament.update).toHaveBeenCalledWith({
-          where: { id: tournamentId },
-          data: { deletedAt: expect.any(Date) },
-        });
+      await middleware(params as any, nextFn);
+
+      expect(params.action).toBe('updateMany');
+      expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
+    });
+
+    it('should merge deletedAt into existing data for deleteMany', async () => {
+      // When args.data already exists, deletedAt should be merged into it.
+      const params = {
+        model: 'MRMatch',
+        action: 'deleteMany',
+        args: {
+          where: { tournamentId: 't-1' },
+          data: { someField: 'value' },
+        },
+      };
+
+      await middleware(params as any, nextFn);
+
+      expect(params.action).toBe('updateMany');
+      expect(params.args.data).toEqual({
+        someField: 'value',
+        deletedAt: expect.any(Date),
       });
     });
 
-    describe('findTournaments', () => {
-      it('should find tournaments with soft delete filter by default', async () => {
-        const options = { where: { name: 'Test Tournament' } };
-        mockPrisma.tournament.findMany.mockResolvedValue([]);
+    it('should NOT convert deleteMany for non-soft-delete models', async () => {
+      const params = {
+        model: 'UnknownModel',
+        action: 'deleteMany',
+        args: { where: {} },
+      };
 
-        await softDeleteManager.findTournaments(options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find tournaments including deleted when includeDeleted is true', async () => {
-        const options = { where: { name: 'Test Tournament' } };
-        mockPrisma.tournament.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findTournaments(options, true);
-
-        expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
-
-    describe('findTournament', () => {
-      it('should find unique tournament with soft delete filter by default', async () => {
-        const tournamentId = 'tournament-123';
-        const options = { select: { id: true } };
-        mockPrisma.tournament.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findTournament(tournamentId, options);
-
-        expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
-          ...options,
-          where: { id: tournamentId, deletedAt: null },
-        });
-      });
-
-      it('should find unique tournament including deleted when includeDeleted is true', async () => {
-        const tournamentId = 'tournament-123';
-        const options = { select: { id: true } };
-        mockPrisma.tournament.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findTournament(tournamentId, options, true);
-
-        expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
-          ...options,
-          where: { id: tournamentId },
-        });
-      });
-    });
-
-    describe('restoreTournament', () => {
-      it('should restore a deleted tournament', async () => {
-        const tournamentId = 'tournament-123';
-        mockPrisma.tournament.update.mockResolvedValue({ id: tournamentId, deletedAt: null });
-
-        await softDeleteManager.restoreTournament(tournamentId);
-
-        expect(mockPrisma.tournament.update).toHaveBeenCalledWith({
-          where: { id: tournamentId },
-          data: { deletedAt: null },
-        });
-      });
+      expect(params.action).toBe('deleteMany');
     });
   });
 
-  describe('BMMatch operations', () => {
-    describe('softDeleteBMMatch', () => {
-      it('should soft delete a BMMatch by id', async () => {
-        const matchId = 'bm-match-123';
-        mockPrisma.bMMatch.update.mockResolvedValue({ id: matchId, deletedAt: new Date() });
+  // ---------- find queries auto-filter ----------
 
-        await softDeleteManager.softDeleteBMMatch(matchId);
+  describe('find query auto-filtering', () => {
+    it('should add deletedAt filter to findMany for soft-delete models', async () => {
+      const params = {
+        model: 'Player',
+        action: 'findMany',
+        args: { where: { name: 'Test' } },
+      };
 
-        expect(mockPrisma.bMMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
+      await middleware(params as any, nextFn);
+
+      expect(params.args.where).toEqual({ name: 'Test', deletedAt: null });
     });
 
-    describe('findBMMatches', () => {
-      it('should find BMMatches with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.bMMatch.findMany.mockResolvedValue([]);
+    it('should add deletedAt filter to findFirst for soft-delete models', async () => {
+      const params = {
+        model: 'Tournament',
+        action: 'findFirst',
+        args: { where: { status: 'active' } },
+      };
 
-        await softDeleteManager.findBMMatches(options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.bMMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find BMMatches including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.bMMatch.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findBMMatches(options, true);
-
-        expect(mockPrisma.bMMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
+      expect(params.args.where).toEqual({ status: 'active', deletedAt: null });
     });
 
-    describe('findBMMatch', () => {
-      it('should find unique BMMatch with soft delete filter by default', async () => {
-        const matchId = 'bm-match-123';
-        mockPrisma.bMMatch.findUnique.mockResolvedValue(null);
+    it('should add deletedAt filter to findUnique for soft-delete models', async () => {
+      const params = {
+        model: 'GPMatch',
+        action: 'findUnique',
+        args: { where: { id: 'gp-1' } },
+      };
 
-        await softDeleteManager.findBMMatch(matchId);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.bMMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId, deletedAt: null },
-        });
-      });
-
-      it('should find unique BMMatch including deleted when includeDeleted is true', async () => {
-        const matchId = 'bm-match-123';
-        mockPrisma.bMMatch.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findBMMatch(matchId, {}, true);
-
-        expect(mockPrisma.bMMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId },
-        });
-      });
+      expect(params.args.where).toEqual({ id: 'gp-1', deletedAt: null });
     });
 
-    describe('restoreBMMatch', () => {
-      it('should restore a deleted BMMatch', async () => {
-        const matchId = 'bm-match-123';
-        mockPrisma.bMMatch.update.mockResolvedValue({ id: matchId, deletedAt: null });
+    it('should create where clause with deletedAt when where is missing', async () => {
+      const params = {
+        model: 'Player',
+        action: 'findMany',
+        args: {},
+      };
 
-        await softDeleteManager.restoreBMMatch(matchId);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.bMMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: null },
-        });
-      });
-    });
-  });
-
-  describe('MRMatch operations', () => {
-    describe('softDeleteMRMatch', () => {
-      it('should soft delete an MRMatch by id', async () => {
-        const matchId = 'mr-match-123';
-        mockPrisma.mRMatch.update.mockResolvedValue({ id: matchId, deletedAt: new Date() });
-
-        await softDeleteManager.softDeleteMRMatch(matchId);
-
-        expect(mockPrisma.mRMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
+      expect(params.args.where).toEqual({ deletedAt: null });
     });
 
-    describe('findMRMatches', () => {
-      it('should find MRMatches with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.mRMatch.findMany.mockResolvedValue([]);
+    it('should skip filter when includeDeleted is true', async () => {
+      // The middleware respects args.includeDeleted to bypass auto-filtering.
+      const params = {
+        model: 'Player',
+        action: 'findMany',
+        args: { where: { name: 'Test' }, includeDeleted: true },
+      };
 
-        await softDeleteManager.findMRMatches(options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.mRMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find MRMatches including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.mRMatch.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findMRMatches(options, true);
-
-        expect(mockPrisma.mRMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
+      // deletedAt should NOT be added because includeDeleted is true
+      expect(params.args.where).toEqual({ name: 'Test' });
     });
 
-    describe('findMRMatch', () => {
-      it('should find unique MRMatch with soft delete filter by default', async () => {
-        const matchId = 'mr-match-123';
-        mockPrisma.mRMatch.findUnique.mockResolvedValue(null);
+    it('should NOT add filter for non-soft-delete models', async () => {
+      const params = {
+        model: 'OtherModel',
+        action: 'findMany',
+        args: { where: { foo: 'bar' } },
+      };
 
-        await softDeleteManager.findMRMatch(matchId);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.mRMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId, deletedAt: null },
-        });
-      });
-
-      it('should find unique MRMatch including deleted when includeDeleted is true', async () => {
-        const matchId = 'mr-match-123';
-        mockPrisma.mRMatch.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findMRMatch(matchId, {}, true);
-
-        expect(mockPrisma.mRMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId },
-        });
-      });
+      expect(params.args.where).toEqual({ foo: 'bar' });
     });
 
-    describe('restoreMRMatch', () => {
-      it('should restore a deleted MRMatch', async () => {
-        const matchId = 'mr-match-123';
-        mockPrisma.mRMatch.update.mockResolvedValue({ id: matchId, deletedAt: null });
+    it('should NOT add filter for non-find actions', async () => {
+      const params = {
+        model: 'Player',
+        action: 'create',
+        args: { data: { name: 'New' } },
+      };
 
-        await softDeleteManager.restoreMRMatch(matchId);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.mRMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: null },
-        });
-      });
+      // where should not be created for 'create' actions
+      expect(params.args.where).toBeUndefined();
     });
   });
 
-  describe('GPMatch operations', () => {
-    describe('softDeleteGPMatch', () => {
-      it('should soft delete a GPMatch by id', async () => {
-        const matchId = 'gp-match-123';
-        mockPrisma.gPMatch.update.mockResolvedValue({ id: matchId, deletedAt: new Date() });
+  // ---------- all soft-delete model coverage ----------
 
-        await softDeleteManager.softDeleteGPMatch(matchId);
+  describe('all soft-delete models are handled', () => {
+    const softDeleteModels = [
+      'Player', 'Tournament', 'BMMatch', 'BMQualification',
+      'MRMatch', 'MRQualification', 'GPMatch', 'GPQualification', 'TTEntry',
+    ];
 
-        expect(mockPrisma.gPMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
+    it.each(softDeleteModels)('should handle delete for model %s', async (model) => {
+      const params = {
+        model,
+        action: 'delete',
+        args: { where: { id: 'test-id' } },
+      };
+
+      await middleware(params as any, nextFn);
+
+      expect(params.action).toBe('update');
+      expect(params.args.data).toEqual({ deletedAt: expect.any(Date) });
     });
 
-    describe('findGPMatches', () => {
-      it('should find GPMatches with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.gPMatch.findMany.mockResolvedValue([]);
+    it.each(softDeleteModels)('should handle findMany for model %s', async (model) => {
+      const params = {
+        model,
+        action: 'findMany',
+        args: { where: {} },
+      };
 
-        await softDeleteManager.findGPMatches(options);
+      await middleware(params as any, nextFn);
 
-        expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find GPMatches including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.gPMatch.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findGPMatches(options, true);
-
-        expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
-
-    describe('findGPMatch', () => {
-      it('should find unique GPMatch with soft delete filter by default', async () => {
-        const matchId = 'gp-match-123';
-        mockPrisma.gPMatch.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findGPMatch(matchId);
-
-        expect(mockPrisma.gPMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId, deletedAt: null },
-        });
-      });
-
-      it('should find unique GPMatch including deleted when includeDeleted is true', async () => {
-        const matchId = 'gp-match-123';
-        mockPrisma.gPMatch.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findGPMatch(matchId, {}, true);
-
-        expect(mockPrisma.gPMatch.findUnique).toHaveBeenCalledWith({
-          where: { id: matchId },
-        });
-      });
-    });
-
-    describe('restoreGPMatch', () => {
-      it('should restore a deleted GPMatch', async () => {
-        const matchId = 'gp-match-123';
-        mockPrisma.gPMatch.update.mockResolvedValue({ id: matchId, deletedAt: null });
-
-        await softDeleteManager.restoreGPMatch(matchId);
-
-        expect(mockPrisma.gPMatch.update).toHaveBeenCalledWith({
-          where: { id: matchId },
-          data: { deletedAt: null },
-        });
-      });
+      expect(params.args.where).toEqual({ deletedAt: null });
     });
   });
 
-  describe('TTEntry operations', () => {
-    describe('softDeleteTTEntry', () => {
-      it('should soft delete a TTEntry by id', async () => {
-        const entryId = 'tt-entry-123';
-        mockPrisma.tTEntry.update.mockResolvedValue({ id: entryId, deletedAt: new Date() });
+  // ---------- next function is always called ----------
 
-        await softDeleteManager.softDeleteTTEntry(entryId);
+  it('should always call next with the (possibly mutated) params', async () => {
+    const params = {
+      model: 'Player',
+      action: 'delete',
+      args: { where: { id: 'x' } },
+    };
 
-        expect(mockPrisma.tTEntry.update).toHaveBeenCalledWith({
-          where: { id: entryId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
-    });
+    const result = { id: 'x' };
+    nextFn.mockResolvedValue(result);
 
-    describe('findTTEntries', () => {
-      it('should find TTEntries with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.tTEntry.findMany.mockResolvedValue([]);
+    const returnValue = await middleware(params as any, nextFn);
 
-        await softDeleteManager.findTTEntries(options);
-
-        expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find TTEntries including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.tTEntry.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findTTEntries(options, true);
-
-        expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
-
-    describe('findTTEntry', () => {
-      it('should find unique TTEntry with soft delete filter by default', async () => {
-        const entryId = 'tt-entry-123';
-        mockPrisma.tTEntry.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findTTEntry(entryId);
-
-        expect(mockPrisma.tTEntry.findUnique).toHaveBeenCalledWith({
-          where: { id: entryId, deletedAt: null },
-        });
-      });
-
-      it('should find unique TTEntry including deleted when includeDeleted is true', async () => {
-        const entryId = 'tt-entry-123';
-        mockPrisma.tTEntry.findUnique.mockResolvedValue(null);
-
-        await softDeleteManager.findTTEntry(entryId, {}, true);
-
-        expect(mockPrisma.tTEntry.findUnique).toHaveBeenCalledWith({
-          where: { id: entryId },
-        });
-      });
-    });
-
-    describe('restoreTTEntry', () => {
-      it('should restore a deleted TTEntry', async () => {
-        const entryId = 'tt-entry-123';
-        mockPrisma.tTEntry.update.mockResolvedValue({ id: entryId, deletedAt: null });
-
-        await softDeleteManager.restoreTTEntry(entryId);
-
-        expect(mockPrisma.tTEntry.update).toHaveBeenCalledWith({
-          where: { id: entryId },
-          data: { deletedAt: null },
-        });
-      });
-    });
-  });
-
-  describe('BMQualification operations', () => {
-    describe('softDeleteBMQualification', () => {
-      it('should soft delete a BMQualification by id', async () => {
-        const qualId = 'bm-qual-123';
-        mockPrisma.bMQualification.update.mockResolvedValue({ id: qualId, deletedAt: new Date() });
-
-        await softDeleteManager.softDeleteBMQualification(qualId);
-
-        expect(mockPrisma.bMQualification.update).toHaveBeenCalledWith({
-          where: { id: qualId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
-    });
-
-    describe('findBMQualifications', () => {
-      it('should find BMQualifications with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.bMQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findBMQualifications(options);
-
-        expect(mockPrisma.bMQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find BMQualifications including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.bMQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findBMQualifications(options, true);
-
-        expect(mockPrisma.bMQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
-  });
-
-  describe('MRQualification operations', () => {
-    describe('softDeleteMRQualification', () => {
-      it('should soft delete an MRQualification by id', async () => {
-        const qualId = 'mr-qual-123';
-        mockPrisma.mRQualification.update.mockResolvedValue({ id: qualId, deletedAt: new Date() });
-
-        await softDeleteManager.softDeleteMRQualification(qualId);
-
-        expect(mockPrisma.mRQualification.update).toHaveBeenCalledWith({
-          where: { id: qualId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
-    });
-
-    describe('findMRQualifications', () => {
-      it('should find MRQualifications with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.mRQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findMRQualifications(options);
-
-        expect(mockPrisma.mRQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find MRQualifications including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.mRQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findMRQualifications(options, true);
-
-        expect(mockPrisma.mRQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
-  });
-
-  describe('GPQualification operations', () => {
-    describe('softDeleteGPQualification', () => {
-      it('should soft delete a GPQualification by id', async () => {
-        const qualId = 'gp-qual-123';
-        mockPrisma.gPQualification.update.mockResolvedValue({ id: qualId, deletedAt: new Date() });
-
-        await softDeleteManager.softDeleteGPQualification(qualId);
-
-        expect(mockPrisma.gPQualification.update).toHaveBeenCalledWith({
-          where: { id: qualId },
-          data: { deletedAt: expect.any(Date) },
-        });
-      });
-    });
-
-    describe('findGPQualifications', () => {
-      it('should find GPQualifications with soft delete filter by default', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.gPQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findGPQualifications(options);
-
-        expect(mockPrisma.gPQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: { ...options.where, deletedAt: null },
-        });
-      });
-
-      it('should find GPQualifications including deleted when includeDeleted is true', async () => {
-        const options = { where: { tournamentId: 'tournament-123' } };
-        mockPrisma.gPQualification.findMany.mockResolvedValue([]);
-
-        await softDeleteManager.findGPQualifications(options, true);
-
-        expect(mockPrisma.gPQualification.findMany).toHaveBeenCalledWith({
-          ...options,
-          where: options.where,
-        });
-      });
-    });
+    expect(nextFn).toHaveBeenCalledTimes(1);
+    expect(returnValue).toBe(result);
   });
 });
 
-describe('getSoftDeleteManager', () => {
-  let mockPrisma1: { [key: string]: unknown };
-  let mockPrisma2: { [key: string]: unknown };
+// ============================================================
+// SoftDeleteUtils tests
+// ============================================================
+describe('SoftDeleteUtils', () => {
+  let mockPrisma: Record<string, any>;
+  let utils: SoftDeleteUtils;
 
   beforeEach(() => {
-    mockPrisma1 = {};
-    mockPrisma2 = {};
+    // Build a mock PrismaClient with the model delegates used by SoftDeleteUtils.
+    mockPrisma = {
+      player: {
+        update: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      tournament: {
+        update: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      bMMatch: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bMQualification: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      mRMatch: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      mRQualification: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      gPMatch: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      gPQualification: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    utils = new SoftDeleteUtils(mockPrisma as any);
   });
 
-  it('should return a SoftDeleteManager instance', () => {
-    const manager = getSoftDeleteManager(mockPrisma1);
-    expect(manager).toBeInstanceOf(SoftDeleteManager);
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('should return the same instance for the same prisma client', () => {
-    const manager1 = getSoftDeleteManager(mockPrisma1);
-    const manager2 = getSoftDeleteManager(mockPrisma1);
+  // ---------- Soft delete operations ----------
 
-    expect(manager1).toBe(manager2);
+  describe('softDeletePlayer', () => {
+    it('should soft delete a player by setting deletedAt', async () => {
+      const id = 'player-123';
+      await utils.softDeletePlayer(id);
+
+      expect(mockPrisma.player.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+
+    it('should propagate errors from prisma', async () => {
+      mockPrisma.player.update.mockRejectedValue(new Error('DB error'));
+      await expect(utils.softDeletePlayer('x')).rejects.toThrow('DB error');
+    });
   });
 
-  it('should return a new instance for a different prisma client', () => {
-    const manager1 = getSoftDeleteManager(mockPrisma1);
-    const manager2 = getSoftDeleteManager(mockPrisma2);
+  describe('softDeleteTournament', () => {
+    it('should soft delete a tournament by setting deletedAt', async () => {
+      const id = 'tournament-123';
+      await utils.softDeleteTournament(id);
 
-    expect(manager1).not.toBe(manager2);
+      expect(mockPrisma.tournament.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
   });
-});
 
-describe('applySoftDeleteMiddleware', () => {
-  it('should log a warning message', () => {
-    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  describe('softDeleteBMMatch', () => {
+    it('should soft delete a BMMatch by setting deletedAt', async () => {
+      const id = 'bm-match-123';
+      await utils.softDeleteBMMatch(id);
 
-    applySoftDeleteMiddleware();
+      expect(mockPrisma.bMMatch.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
 
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      'Using SoftDeleteManager instead of middleware due to Prisma version limitations.'
-    );
+  describe('softDeleteBMQualification', () => {
+    it('should soft delete a BMQualification by setting deletedAt', async () => {
+      const id = 'bm-qual-123';
+      await utils.softDeleteBMQualification(id);
 
-    consoleWarnSpy.mockRestore();
+      expect(mockPrisma.bMQualification.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('softDeleteMRMatch', () => {
+    it('should soft delete an MRMatch by setting deletedAt', async () => {
+      const id = 'mr-match-123';
+      await utils.softDeleteMRMatch(id);
+
+      expect(mockPrisma.mRMatch.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('softDeleteMRQualification', () => {
+    it('should soft delete an MRQualification by setting deletedAt', async () => {
+      const id = 'mr-qual-123';
+      await utils.softDeleteMRQualification(id);
+
+      expect(mockPrisma.mRQualification.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('softDeleteGPMatch', () => {
+    it('should soft delete a GPMatch by setting deletedAt', async () => {
+      const id = 'gp-match-123';
+      await utils.softDeleteGPMatch(id);
+
+      expect(mockPrisma.gPMatch.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('softDeleteGPQualification', () => {
+    it('should soft delete a GPQualification by setting deletedAt', async () => {
+      const id = 'gp-qual-123';
+      await utils.softDeleteGPQualification(id);
+
+      expect(mockPrisma.gPQualification.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  // ---------- Query operations ----------
+
+  describe('getPlayers', () => {
+    it('should query players excluding soft-deleted records by default', async () => {
+      await utils.getPlayers();
+
+      expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+      });
+    });
+
+    it('should merge deletedAt filter with existing where clause', async () => {
+      const options = { where: { name: 'Test' } };
+      await utils.getPlayers(options as any);
+
+      expect(mockPrisma.player.findMany).toHaveBeenCalledWith({
+        where: { name: 'Test', deletedAt: null },
+      });
+    });
+  });
+
+  describe('getTournaments', () => {
+    it('should query tournaments excluding soft-deleted records by default', async () => {
+      await utils.getTournaments();
+
+      expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+      });
+    });
+
+    it('should merge deletedAt filter with existing where clause', async () => {
+      const options = { where: { name: 'Cup' } };
+      await utils.getTournaments(options as any);
+
+      expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({
+        where: { name: 'Cup', deletedAt: null },
+      });
+    });
+  });
+
+  // ---------- Restore operations ----------
+
+  describe('restorePlayer', () => {
+    it('should restore a soft-deleted player by setting deletedAt to null', async () => {
+      const id = 'player-123';
+      await utils.restorePlayer(id);
+
+      expect(mockPrisma.player.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+  });
+
+  describe('restoreTournament', () => {
+    it('should restore a soft-deleted tournament by setting deletedAt to null', async () => {
+      const id = 'tournament-123';
+      await utils.restoreTournament(id);
+
+      expect(mockPrisma.tournament.update).toHaveBeenCalledWith({
+        where: { id },
+        data: { deletedAt: null },
+      });
+    });
+  });
+
+  // ---------- "WithDeleted" query variants ----------
+
+  describe('getPlayersWithDeleted', () => {
+    it('should query players without filtering soft-deleted records', async () => {
+      await utils.getPlayersWithDeleted();
+
+      // No deletedAt filter should be applied -- passes options as-is.
+      expect(mockPrisma.player.findMany).toHaveBeenCalledWith({});
+    });
+
+    it('should pass through options without adding deletedAt filter', async () => {
+      const options = { where: { name: 'Admin' }, take: 10 };
+      await utils.getPlayersWithDeleted(options as any);
+
+      expect(mockPrisma.player.findMany).toHaveBeenCalledWith(options);
+    });
+  });
+
+  describe('getTournamentsWithDeleted', () => {
+    it('should query tournaments without filtering soft-deleted records', async () => {
+      await utils.getTournamentsWithDeleted();
+
+      expect(mockPrisma.tournament.findMany).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe('findPlayerWithDeleted', () => {
+    it('should find a specific player by id including soft-deleted', async () => {
+      const id = 'player-123';
+      await utils.findPlayerWithDeleted(id);
+
+      expect(mockPrisma.player.findUnique).toHaveBeenCalledWith({
+        where: { id },
+      });
+    });
+  });
+
+  describe('findTournamentWithDeleted', () => {
+    it('should find a specific tournament by id including soft-deleted', async () => {
+      const id = 'tournament-123';
+      await utils.findTournamentWithDeleted(id);
+
+      expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
+        where: { id },
+      });
+    });
+
+    it('should pass additional options to findUnique', async () => {
+      const id = 'tournament-123';
+      const options = { include: { players: true } };
+      await utils.findTournamentWithDeleted(id, options as any);
+
+      expect(mockPrisma.tournament.findUnique).toHaveBeenCalledWith({
+        where: { id },
+        ...options,
+      });
+    });
   });
 });

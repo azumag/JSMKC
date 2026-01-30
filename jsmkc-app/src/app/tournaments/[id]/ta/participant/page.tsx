@@ -1,5 +1,27 @@
 'use client';
 
+/**
+ * Time Attack Participant Score Entry Page
+ *
+ * Public-facing page for tournament participants to enter their own TA times.
+ * Access is controlled via a tournament token (no OAuth login required).
+ *
+ * Flow:
+ * 1. Token Validation: Validates the tournament access token from URL query params
+ * 2. Player Selection: Participant selects their player profile from the list
+ * 3. Time Entry: Participant enters times for each of the 20 courses
+ * 4. Submission: Times are saved via the TA API with token authentication
+ *
+ * Security:
+ * - Token-based access (no user authentication needed)
+ * - Token is validated on page load and passed with all API calls
+ * - All score entries are audit-logged server-side
+ *
+ * Real-time Updates:
+ * - Entry data is polled every 5 seconds to show ranking changes
+ * - Participants can see their current rank and total time
+ */
+
 import { useState, useEffect, useCallback, use } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { usePolling } from '@/lib/hooks/usePolling';
@@ -13,12 +35,14 @@ import { Shield, AlertTriangle, Trophy, Users, Timer } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, TOTAL_COURSES } from '@/lib/constants';
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** Time Trial entry data structure */
 interface TTEntry {
   id: string;
   playerId: string;
@@ -31,6 +55,7 @@ interface TTEntry {
   player: Player;
 }
 
+/** Tournament data structure */
 interface Tournament {
   id: string;
   name: string;
@@ -38,6 +63,10 @@ interface Tournament {
   status: string;
 }
 
+/**
+ * Convert milliseconds to display format (M:SS.mmm).
+ * Returns "-" for null values.
+ */
 function msToDisplayTime(ms: number | null): string {
   if (ms === null) return "-";
   const minutes = Math.floor(ms / 60000);
@@ -46,17 +75,22 @@ function msToDisplayTime(ms: number | null): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
+/**
+ * Convert display time string to milliseconds for preview calculation.
+ * Handles the M:SS.mmm format used in input fields.
+ */
 function displayTimeToMs(timeStr: string): number {
   if (!timeStr) return 0;
-  
+
   const parts = timeStr.split(':');
   if (parts.length !== 2) return 0;
-  
+
   const minutes = parseInt(parts[0]) || 0;
   const secondsParts = parts[1].split('.');
   const seconds = parseInt(secondsParts[0]) || 0;
+  // Pad milliseconds to 3 digits (e.g., "12" -> "120") for consistent conversion
   const milliseconds = parseInt(secondsParts[1]?.padEnd(3, '0').slice(0, 3)) || 0;
-  
+
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
@@ -69,6 +103,7 @@ export default function TimeAttackParticipantPage({
   const { id: tournamentId } = use(params);
   const token = searchParams.get('token');
 
+  // === State Management ===
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -80,7 +115,8 @@ export default function TimeAttackParticipantPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Initial data fetch
+  // === Initial Data Fetch ===
+  // Validate token and fetch tournament data on mount
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
@@ -90,7 +126,7 @@ export default function TimeAttackParticipantPage({
       }
 
       try {
-        // First validate token
+        // Step 1: Validate the tournament access token
         const validateResponse = await fetch(`/api/tournaments/${tournamentId}/token/validate`, {
           method: 'POST',
           headers: {
@@ -115,7 +151,7 @@ export default function TimeAttackParticipantPage({
 
         setTokenValid(true);
 
-        // Fetch tournament data
+        // Step 2: Fetch tournament, entries, and player data in parallel
         const [tournamentResponse, entriesResponse, playersResponse] = await Promise.all([
           fetch(`/api/tournaments/${tournamentId}?token=${token}`),
           fetch(`/api/tournaments/${tournamentId}/ta?token=${token}`),
@@ -147,7 +183,8 @@ export default function TimeAttackParticipantPage({
     validateTokenAndFetchData();
   }, [tournamentId, token]);
 
-  // Real-time polling for entry data
+  // === Real-time Polling ===
+  // Poll entry data every 5 seconds to show ranking updates
   const fetchEntries = useCallback(async () => {
     if (!tokenValid) {
       return { entries: [] };
@@ -175,11 +212,13 @@ export default function TimeAttackParticipantPage({
     }
   }, [pollingData, pollingError]);
 
+  // Sync selected player's entry from the entries list
   useEffect(() => {
     if (selectedPlayer && entries.length > 0) {
       const entry = entries.find(e => e.playerId === selectedPlayer.id && e.stage === 'qualification');
       setMyEntry(entry || null);
-      
+
+      // Pre-fill time inputs from existing entry data
       if (entry && entry.times) {
         setTimeInputs(entry.times);
       } else {
@@ -188,6 +227,9 @@ export default function TimeAttackParticipantPage({
     }
   }, [selectedPlayer, entries]);
 
+  // === Event Handlers ===
+
+  /** Handle individual course time input change */
   const handleTimeChange = (course: string, value: string) => {
     setTimeInputs(prev => ({
       ...prev,
@@ -195,10 +237,11 @@ export default function TimeAttackParticipantPage({
     }));
   };
 
+  /** Submit all entered times to the server */
   const handleSubmitTimes = async () => {
     if (!myEntry || !selectedPlayer) return;
 
-    // Validate all time inputs
+    // Validate all time inputs before submission
     const validTimes: Record<string, string> = {};
     const totalTimes: number[] = [];
 
@@ -206,7 +249,7 @@ export default function TimeAttackParticipantPage({
       const timeStr = timeInputs[course.abbr];
       if (!timeStr) continue;
 
-      // Validate format M:SS.mmm
+      // Validate format M:SS.mmm (strict format for data integrity)
       const timeRegex = /^\d+:[0-5]\d\.\d{3}$/;
       if (!timeRegex.test(timeStr)) {
         setError(`Invalid time format for ${course.abbr}. Please use M:SS.mmm format (e.g., 1:23.456)`);
@@ -248,14 +291,14 @@ export default function TimeAttackParticipantPage({
       }
 
       const data = await response.json();
-      
-      // Update the entry in local state
-      setEntries(prev => prev.map(e => 
+
+      // Update local state with server response
+      setEntries(prev => prev.map(e =>
         e.id === myEntry.id ? { ...e, ...data.entry } : e
       ));
       setMyEntry({ ...myEntry, ...data.entry });
 
-      // Show success message
+      // Show success message to participant
       alert("Time trial times submitted successfully!");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit times';
@@ -265,18 +308,21 @@ export default function TimeAttackParticipantPage({
     }
   };
 
-  // Get count of entered times
+  // === Helper Functions ===
+
+  /** Count the number of course times entered in the input fields */
   const getEnteredTimesCount = (): number => {
     return Object.values(timeInputs).filter((t) => t && t !== "").length;
   };
 
-  // Calculate total time
+  /** Calculate preview total time from current input values */
   const getTotalTime = (): number => {
     return Object.entries(timeInputs)
       .filter(([, timeStr]) => timeStr && timeStr !== "")
       .reduce((total, [, timeStr]) => total + displayTimeToMs(timeStr), 0);
   };
 
+  // === Loading State ===
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -288,6 +334,7 @@ export default function TimeAttackParticipantPage({
     );
   }
 
+  // === Error / Invalid Token State ===
   if (error || !tokenValid) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -319,6 +366,7 @@ export default function TimeAttackParticipantPage({
     );
   }
 
+  // === Tournament Not Found State ===
   if (!tournament) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -335,10 +383,11 @@ export default function TimeAttackParticipantPage({
     );
   }
 
+  // === Main Render ===
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+        {/* Header with tournament info */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="h-8 w-8 text-green-600" />
@@ -355,7 +404,7 @@ export default function TimeAttackParticipantPage({
           </p>
         </div>
 
-        {/* Player Selection */}
+        {/* Player Selection (shown before player is selected) */}
         {!selectedPlayer && (
           <Card className="max-w-2xl mx-auto mb-8">
             <CardHeader>
@@ -384,9 +433,10 @@ export default function TimeAttackParticipantPage({
           </Card>
         )}
 
-        {/* Selected Player Info */}
+        {/* Selected Player Info and Time Entry */}
         {selectedPlayer && (
           <div className="max-w-4xl mx-auto">
+            {/* Player profile header */}
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -419,7 +469,7 @@ export default function TimeAttackParticipantPage({
               </Alert>
             )}
 
-            {/* Time Entry */}
+            {/* Time Entry Form (shown if player has a qualification entry) */}
             {myEntry ? (
               <Card>
                 <CardHeader>
@@ -443,7 +493,7 @@ export default function TimeAttackParticipantPage({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {/* Current Stats */}
+                    {/* Current Stats: Rank and Total Time */}
                     <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                       <div className="text-center">
                         <div className="text-2xl font-bold font-mono">
@@ -459,7 +509,7 @@ export default function TimeAttackParticipantPage({
                       </div>
                     </div>
 
-                    {/* Time Input Grid */}
+                    {/* Time Input Grid: Organized by cup */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                         <Card key={cup}>
@@ -486,7 +536,7 @@ export default function TimeAttackParticipantPage({
                       ))}
                     </div>
 
-                    {/* Preview Total */}
+                    {/* Preview Total Time (calculated from current inputs) */}
                     <div className="p-4 bg-blue-50 rounded-lg">
                       <div className="font-medium text-center mb-2">Preview Total Time</div>
                       <div className="text-2xl font-bold font-mono text-center">
@@ -505,6 +555,7 @@ export default function TimeAttackParticipantPage({
                 </CardContent>
               </Card>
             ) : (
+              /* Not Registered message (no qualification entry found) */
               <Card>
                 <CardContent className="py-12 text-center">
                   <Timer className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -521,7 +572,7 @@ export default function TimeAttackParticipantPage({
           </div>
         )}
 
-        {/* Navigation */}
+        {/* Navigation back to game selection */}
         <div className="text-center mt-8">
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/participant?token=${token}`}>

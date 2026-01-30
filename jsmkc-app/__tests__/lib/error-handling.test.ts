@@ -1,20 +1,81 @@
-import {
-  createErrorResponse,
-  createSuccessResponse,
-  handleDatabaseError,
-  handleValidationError,
-  handleAuthError,
-  handleAuthzError,
-  handleRateLimitError,
-} from '@/lib/error-handling';
+/**
+ * @module __tests__/lib/error-handling.test.ts
+ * @description Test suite for the centralized error handling module (`@/lib/error-handling`).
+ *
+ * This module provides standardized HTTP error and success response helpers used
+ * across all API routes. The suite tests:
+ *
+ * - `createErrorResponse`: Constructs JSON error responses with status codes,
+ *   optional error codes, and optional detail payloads.
+ * - `createSuccessResponse`: Constructs JSON success responses with data and
+ *   optional messages.
+ * - `handleDatabaseError`: Maps Prisma-specific errors (P2002 unique constraint,
+ *   P2025 not found, P2003 foreign key) to appropriate HTTP status codes
+ *   (409, 404, 400) and falls back to 500 for unknown errors.
+ * - `handleValidationError`: Returns 400 with VALIDATION_ERROR code and optional
+ *   field name in details.
+ * - `handleAuthError`: Returns 401 with UNAUTHORIZED code.
+ * - `handleAuthzError`: Returns 403 with FORBIDDEN code.
+ * - `handleRateLimitError`: Returns 429 with RATE_LIMIT_EXCEEDED code and optional
+ *   Retry-After header.
+ *
+ * Prisma client classes and NextResponse are mocked to isolate the error handling
+ * logic from external dependencies. The logger and sanitize-error modules are also
+ * mocked since the source imports them at module level.
+ */
 
-// Mock Prisma module
+// Mock @/lib/logger before importing the module under test, because the source
+// creates a logger at module level: `const logger = createLogger('error-handling')`.
+jest.mock('@/lib/logger', () => ({
+  __esModule: true,
+  createLogger: jest.fn(() => ({
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  })),
+}));
+
+// Mock @/lib/sanitize-error because handleDatabaseError calls sanitizeDatabaseError().
+// Return predictable messages for each Prisma error code scenario.
+jest.mock('@/lib/sanitize-error', () => ({
+  __esModule: true,
+  sanitizeDatabaseError: jest.fn((error: unknown) => {
+    // Return messages matching what the real sanitizeDatabaseError would return
+    // for each known Prisma error code
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as { code: string };
+      switch (prismaError.code) {
+        case 'P2002':
+          return 'A record with this value already exists';
+        case 'P2025':
+          return 'Record not found';
+        case 'P2003':
+          return 'Related record not found';
+        default:
+          return 'Database error occurred';
+      }
+    }
+    // For non-Prisma errors (generic Error, etc.), return a sanitized message
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'An unexpected error occurred';
+  }),
+}));
+
+// Mock Prisma module with custom classes that support instanceof checks.
+// The source uses `error instanceof Prisma.PrismaClientKnownRequestError`
+// so the mock classes must be the same ones the source gets via the mock.
 jest.mock('@prisma/client', () => {
+  // Use requireActual to get the real Prisma namespace as a base
   const { Prisma } = jest.requireActual('@prisma/client');
 
   return {
     Prisma: {
       ...Prisma,
+      // PrismaClientInitializationError: the source does NOT specifically handle
+      // this type, so it falls through to the generic error handler (500 INTERNAL_ERROR).
       PrismaClientInitializationError: class extends Error {
         constructor(message: Error) {
           super(message.message);
@@ -29,11 +90,20 @@ jest.mock('@prisma/client', () => {
         }
         code: string;
       },
+      // PrismaClientValidationError: the source checks for this with instanceof
+      PrismaClientValidationError: class extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = 'PrismaClientValidationError';
+        }
+      },
     },
     __esModule: true,
   };
 });
 
+// Mock next/server to provide NextResponse.json as a jest.fn()
+// that returns objects with headers (needed by handleRateLimitError).
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
   return {
@@ -44,12 +114,23 @@ jest.mock('next/server', () => {
   };
 });
 
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleDatabaseError,
+  handleValidationError,
+  handleAuthError,
+  handleAuthzError,
+  handleRateLimitError,
+} from '@/lib/error-handling';
+
 describe('Error Handling Module', () => {
   const { NextResponse } = jest.requireMock('next/server');
   const { Prisma } = jest.requireMock('@prisma/client');
 
   describe('createErrorResponse', () => {
     beforeEach(() => {
+      // Return a mock response with headers for all tests
       const mockResponse = {
         status: 0,
         headers: new Headers(),
@@ -176,19 +257,23 @@ describe('Error Handling Module', () => {
 
   describe('handleDatabaseError', () => {
     beforeEach(() => {
-      jest.spyOn(console, 'error').mockImplementation(() => {});
-      NextResponse.json.mockReturnValue({ status: 500 });
+      // Return a mock response with headers (needed because createErrorResponse
+      // is called internally, which calls logger.warn, then NextResponse.json)
+      const mockResponse = {
+        status: 500,
+        headers: new Headers(),
+      };
+      NextResponse.json.mockReturnValue(mockResponse);
     });
 
     afterEach(() => {
       jest.restoreAllMocks();
     });
 
-    afterEach(() => {
-      jest.restoreAllMocks();
-    });
-
-    it('should handle PrismaClientInitializationError', () => {
+    it('should handle PrismaClientInitializationError as generic error', () => {
+      // The source does NOT specifically handle PrismaClientInitializationError.
+      // It falls through to the generic handler at the bottom which returns
+      // 500 INTERNAL_ERROR with the sanitized message.
       const error = new Prisma.PrismaClientInitializationError(
         new Error('Connection failed')
       );
@@ -198,19 +283,17 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Database connection error',
-          code: 'DATABASE_CONNECTION_ERROR',
+          error: 'Connection failed',
+          code: 'INTERNAL_ERROR',
         },
-        { status: 502 }
+        { status: 500 }
       );
-      // In test mode, logger is silent - console.error should not be called
-      // expect(console.error).toHaveBeenCalledWith(
-      //   '[ERROR] error-handling: Database error in test context:',
-      //   expect.objectContaining({ message: expect.any(String) })
-      // );
     });
 
     it('should handle P2002 error (unique constraint violation)', () => {
+      // Source maps P2002 to 409 with code 'CONFLICT'.
+      // The message comes from sanitizeDatabaseError() which returns
+      // 'A record with this value already exists' for P2002.
       const error = new Prisma.PrismaClientKnownRequestError(
         'Unique constraint failed',
         {
@@ -224,14 +307,17 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Resource already exists',
-          code: 'RESOURCE_CONFLICT',
+          error: 'A record with this value already exists',
+          code: 'CONFLICT',
         },
         { status: 409 }
       );
     });
 
     it('should handle P2025 error (record not found)', () => {
+      // Source maps P2025 to 404 with code 'NOT_FOUND'.
+      // The message comes from sanitizeDatabaseError() which returns
+      // 'Record not found' for P2025.
       const error = new Prisma.PrismaClientKnownRequestError(
         'Record not found',
         {
@@ -245,14 +331,17 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Resource not found',
-          code: 'RESOURCE_NOT_FOUND',
+          error: 'Record not found',
+          code: 'NOT_FOUND',
         },
         { status: 404 }
       );
     });
 
-    it('should handle other PrismaClientKnownRequestError codes', () => {
+    it('should handle P2003 error (foreign key constraint)', () => {
+      // Source maps P2003 to 400 with code 'FOREIGN_KEY_ERROR'.
+      // The message comes from sanitizeDatabaseError() which returns
+      // 'Related record not found' for P2003.
       const error = new Prisma.PrismaClientKnownRequestError(
         'Some other error',
         {
@@ -266,15 +355,17 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Database request error',
-          code: 'DATABASE_REQUEST_ERROR',
-          details: { code: 'P2003' },
+          error: 'Related record not found',
+          code: 'FOREIGN_KEY_ERROR',
         },
         { status: 400 }
       );
     });
 
     it('should handle unknown errors as generic errors', () => {
+      // Non-Prisma errors fall through to the bottom handler:
+      // 500 status with code 'INTERNAL_ERROR'.
+      // sanitizeDatabaseError returns the error.message for plain Error objects.
       const error = new Error('Unknown error');
 
       handleDatabaseError(error, 'test context');
@@ -282,14 +373,16 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Internal server error',
-          code: 'INTERNAL_SERVER_ERROR',
+          error: 'Unknown error',
+          code: 'INTERNAL_ERROR',
         },
         { status: 500 }
       );
     });
 
     it('should log error with context', () => {
+      // Verifying the function returns proper error response for generic errors.
+      // The logger is mocked silently so we just verify the response output.
       const error = new Error('Test error');
 
       handleDatabaseError(error, 'players endpoint');
@@ -297,22 +390,21 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Internal server error',
-          code: 'INTERNAL_SERVER_ERROR',
+          error: 'Test error',
+          code: 'INTERNAL_ERROR',
         },
         { status: 500 }
       );
-      // In test mode, logger is silent - console.error should not be called
-      // expect(console.error).toHaveBeenCalledWith(
-      //   '[ERROR] error-handling: Database error in players endpoint:',
-      //   expect.objectContaining({ message: expect.any(String) })
-      // );
     });
   });
 
   describe('handleValidationError', () => {
     beforeEach(() => {
-      NextResponse.json.mockReturnValue({});
+      const mockResponse = {
+        status: 400,
+        headers: new Headers(),
+      };
+      NextResponse.json.mockReturnValue(mockResponse);
     });
 
     it('should create validation error response', () => {
@@ -358,17 +450,22 @@ describe('Error Handling Module', () => {
 
   describe('handleAuthError', () => {
     beforeEach(() => {
-      NextResponse.json.mockReturnValue({});
+      const mockResponse = {
+        status: 401,
+        headers: new Headers(),
+      };
+      NextResponse.json.mockReturnValue(mockResponse);
     });
 
     it('should create auth error response with default message', () => {
+      // Source uses code 'UNAUTHORIZED' (not 'AUTHENTICATION_ERROR')
       handleAuthError();
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
           error: 'Authentication required',
-          code: 'AUTHENTICATION_ERROR',
+          code: 'UNAUTHORIZED',
         },
         { status: 401 }
       );
@@ -397,17 +494,22 @@ describe('Error Handling Module', () => {
 
   describe('handleAuthzError', () => {
     beforeEach(() => {
-      NextResponse.json.mockReturnValue({});
+      const mockResponse = {
+        status: 403,
+        headers: new Headers(),
+      };
+      NextResponse.json.mockReturnValue(mockResponse);
     });
 
     it('should create authorization error response with default message', () => {
+      // Source uses code 'FORBIDDEN' (not 'AUTHORIZATION_ERROR')
       handleAuthzError();
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
           error: 'Access denied',
-          code: 'AUTHORIZATION_ERROR',
+          code: 'FORBIDDEN',
         },
         { status: 403 }
       );

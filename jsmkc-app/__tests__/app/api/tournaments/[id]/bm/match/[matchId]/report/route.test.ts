@@ -1,9 +1,35 @@
+/**
+ * @module BM Match Report API Route Tests
+ *
+ * Test suite for the Battle Mode player score report endpoint:
+ * /api/tournaments/[id]/bm/match/[matchId]/report
+ *
+ * This file covers the POST method which allows players to self-report their match scores.
+ * The system supports dual-reporting: both players report independently, and results are
+ * compared for automatic confirmation or flagged for admin review on mismatch.
+ *
+ * Key behaviors tested:
+ *   - Score reporting as player1 and player2 with valid authentication (OAuth and token-based)
+ *   - Character usage tracking for SMK characters (mario, luigi, peach, yoshi, toad, bowser,
+ *     donkey-kong, koopa)
+ *   - Admin score reporting via tournament token and admin role
+ *   - Auto-confirmation when both players report matching scores (triggers qualification update)
+ *   - Score mismatch detection and flagging for admin review
+ *   - Rate limiting enforcement (429 responses)
+ *   - Input validation: invalid characters, missing matches, completed matches,
+ *     invalid reportingPlayer values, invalid score combinations
+ *   - Authentication: unauthorized users, OAuth-linked players
+ *   - Optimistic locking conflict handling (409 responses)
+ *   - Non-critical logging: score entry log and character usage log failures are warned but
+ *     do not block the response
+ *   - Database error handling with structured error responses
+ */
 // @ts-nocheck
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('@/lib/rate-limit', () => ({ 
+jest.mock('@/lib/rate-limit', () => ({
   rateLimit: jest.fn(),
   getClientIdentifier: jest.fn()
 }));
@@ -86,6 +112,17 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     (getClientIdentifier as jest.Mock).mockReturnValue('test-client-ip');
     (validateBattleModeScores as jest.Mock).mockReturnValue({ isValid: true });
     (sanitizeInput as jest.Mock).mockImplementation((data) => data);
+    /* Default: no tournament token authorization (returns object with no tournament) */
+    (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: null });
+    /* Default: no auth session */
+    (auth as jest.Mock).mockResolvedValue(null);
+    /* Reset Prisma mocks to prevent cross-test contamination from mockRejectedValue */
+    (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
+    (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
+    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    (updateWithRetry as jest.Mock).mockResolvedValue(null);
   });
 
   describe('POST - Report score from a player', () => {
@@ -127,14 +164,17 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
         status: 200
       });
       expect(updateWithRetry).toHaveBeenCalled();
+      /* Source wraps the create argument in a `data` key per Prisma conventions */
       expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith({
-        tournamentId: 't1',
-        matchId: 'm1',
-        matchType: 'BM',
-        playerId: 'p1',
-        reportedData: { reportingPlayer: 1, score1: 3, score2: 1 },
-        ipAddress: 'test-client-ip',
-        userAgent: 'test-agent',
+        data: {
+          tournamentId: 't1',
+          matchId: 'm1',
+          matchType: 'BM',
+          playerId: 'p1',
+          reportedData: { reportingPlayer: 1, score1: 3, score2: 1 },
+          ipAddress: 'test-client-ip',
+          userAgent: 'test-agent',
+        },
       });
     });
 
@@ -172,11 +212,14 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result.status).toBe(200);
+      /* Source wraps the create argument in a `data` key per Prisma conventions */
       expect(prisma.matchCharacterUsage.create).toHaveBeenCalledWith({
-        matchId: 'm1',
-        matchType: 'BM',
-        playerId: 'p1',
-        character: 'mario',
+        data: {
+          matchId: 'm1',
+          matchType: 'BM',
+          playerId: 'p1',
+          character: 'mario',
+        },
       });
     });
 
@@ -291,6 +334,8 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([mockFinalMatch]);
       (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      /* recalculatePlayerStats calls calculateMatchResult for each completed match */
+      (calculateMatchResult as jest.Mock).mockReturnValue({ result1: 'win', result2: 'loss' });
 
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -446,11 +491,15 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     // Validation error case - Returns 400 when reportingPlayer is invalid
     it('should return 400 when reportingPlayer is not 1 or 2', async () => {
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
+      /* Need valid token to pass auth check before reaching reportingPlayer validation */
+      (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: { id: 't1' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
         completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
       });
 
       const request = new MockNextRequest({ reportingPlayer: 3, score1: 3, score2: 1 });
@@ -466,11 +515,15 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     // Validation error case - Returns 400 when scores are invalid
     it('should return 400 when scores are invalid', async () => {
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
+      /* Need valid token to pass auth check before reaching score validation */
+      (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: { id: 't1' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
         completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
       });
       (validateBattleModeScores as jest.Mock).mockReturnValue({ isValid: false, error: 'Invalid score combination' });
 
@@ -650,7 +703,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     // Edge case - Handles all valid SMK characters
     it('should accept all valid SMK characters', async () => {
       const validCharacters = ['mario', 'luigi', 'peach', 'yoshi', 'toad', 'bowser', 'donkey-kong', 'koopa'];
-      
+
       for (const character of validCharacters) {
         const mockMatch = {
           id: 'm1',

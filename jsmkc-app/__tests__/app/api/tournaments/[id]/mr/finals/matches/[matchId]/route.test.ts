@@ -1,3 +1,29 @@
+/**
+ * @module MR Finals Match Update API Route Tests
+ *
+ * Test suite for the Match Race (MR) individual finals match update endpoint:
+ * /api/tournaments/[id]/mr/finals/matches/[matchId]
+ *
+ * Covers the PUT method for updating a specific finals match score:
+ * - Success cases: Updates match with valid scores and rounds data, updates match
+ *   without rounds data, and automatically sets completed=true when score reaches 7
+ *   (best of 13 format: first to 7).
+ * - Authentication failure cases: Returns 401 when user is not authenticated,
+ *   session has no user object, or user role is not admin.
+ * - Error cases: Returns 404 when match does not exist, returns 500 when database
+ *   operation fails.
+ * - Validation error cases: Returns 400 for invalid request body (non-numeric scores),
+ *   negative scores, or scores exceeding 7.
+ * - Edge cases: Handles zero scores correctly, allows setting completed explicitly
+ *   to false (for score corrections), and handles non-critical audit log creation
+ *   failures gracefully.
+ *
+ * The rounds data is an array of objects containing course and winner information
+ * for each individual race within the match.
+ *
+ * Dependencies mocked: @/lib/auth, @/lib/audit-log, @/lib/sanitize, @/lib/logger,
+ *   next/server, @/lib/prisma
+ */
 // @ts-nocheck
 
 
@@ -94,6 +120,7 @@ describe('MR Finals Match API Route - /api/tournaments/[id]/mr/finals/matches/[m
     });
 
     // Success case - Updates match without rounds data
+    // Auto-complete triggers at score >= 7 (MR finals target wins), so scores 3/1 result in completed: false
     it('should update match without rounds data', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
@@ -103,7 +130,7 @@ describe('MR Finals Match API Route - /api/tournaments/[id]/mr/finals/matches/[m
         stage: 'finals',
         score1: 3,
         score2: 1,
-        completed: true,
+        completed: false,
         player1: { id: 'p1', name: 'Player 1', nickname: 'P1' },
         player2: { id: 'p2', name: 'Player 2', nickname: 'P2' },
       };
@@ -120,12 +147,13 @@ describe('MR Finals Match API Route - /api/tournaments/[id]/mr/finals/matches/[m
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
+      // Auto-complete only triggers at score >= 7, so completed is false for score 3/1
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
         data: {
           score1: 3,
           score2: 1,
-          completed: true,
+          completed: false,
         },
         include: { player1: true, player2: true },
       });

@@ -1,3 +1,27 @@
+/**
+ * Battle Mode Participant Page
+ *
+ * Token-authenticated page for tournament participants to self-report their
+ * Battle Mode match scores. This page does not require OAuth login -
+ * participants access it via a URL with a tournament token.
+ *
+ * Flow:
+ * 1. Validate the tournament token from URL query parameters
+ * 2. Display player selection for the participant to identify themselves
+ * 3. Show the participant's pending (incomplete) matches
+ * 4. Allow score reporting for each pending match
+ * 5. Display previous score reports (both players' reported scores)
+ *
+ * Security:
+ * - Tournament token is validated against the database before any data is shown
+ * - Token expiration is enforced server-side
+ * - Score reports go through the /report API which has rate limiting
+ *
+ * Real-time updates:
+ * - Matches are polled every 5 seconds when the token is valid
+ * - Match completion and score changes are reflected in real-time
+ */
+
 'use client';
 
 import { useState, useEffect, useCallback, use } from 'react';
@@ -12,12 +36,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, AlertTriangle, Trophy, CheckCircle, Clock, Users } from 'lucide-react';
 import Link from 'next/link';
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** BM Match data with player relations and reported scores */
 interface BMMatch {
   id: string;
   matchNumber: number;
@@ -31,12 +57,17 @@ interface BMMatch {
   score2: number;
   completed: boolean;
   rounds?: { arena: string; winner: number }[];
+  /** Player 1's self-reported score for player 1 */
   player1ReportedScore1?: number;
+  /** Player 1's self-reported score for player 2 */
   player1ReportedScore2?: number;
+  /** Player 2's self-reported score for player 1 */
   player2ReportedScore1?: number;
+  /** Player 2's self-reported score for player 2 */
   player2ReportedScore2?: number;
 }
 
+/** Tournament metadata for display */
 interface Tournament {
   id: string;
   name: string;
@@ -44,6 +75,10 @@ interface Tournament {
   status: string;
 }
 
+/**
+ * Participant-facing Battle Mode score entry page.
+ * Accessed via token URL (e.g., /tournaments/[id]/bm/participant?token=xxx).
+ */
 export default function BattleModeParticipantPage({
   params,
 }: {
@@ -51,20 +86,33 @@ export default function BattleModeParticipantPage({
 }) {
   const searchParams = useSearchParams();
   const { id: tournamentId } = use(params);
+  /* Extract tournament token from URL query parameters */
   const token = searchParams.get('token');
 
+  /* Core state for tournament data */
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [matches, setMatches] = useState<BMMatch[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tokenValid, setTokenValid] = useState(false);
+
+  /* State for player identification and match display */
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [myMatches, setMyMatches] = useState<BMMatch[]>([]);
+
+  /* State for score reporting form */
   const [reportingScores, setReportingScores] = useState<{ [key: string]: { score1: string; score2: string } }>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
 
-  // Initial data fetch
+  /**
+   * Initial data fetch: validate token and load tournament data.
+   * This runs once on mount and handles the full initialization sequence:
+   * 1. Validate the tournament token
+   * 2. Fetch tournament metadata
+   * 3. Fetch match data
+   * 4. Fetch player list
+   */
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
@@ -74,7 +122,7 @@ export default function BattleModeParticipantPage({
       }
 
       try {
-        // First validate token
+        /* Step 1: Validate the tournament access token */
         const validateResponse = await fetch(`/api/tournaments/${tournamentId}/token/validate`, {
           method: 'POST',
           headers: {
@@ -99,7 +147,7 @@ export default function BattleModeParticipantPage({
 
         setTokenValid(true);
 
-        // Fetch tournament data
+        /* Step 2-4: Fetch tournament, matches, and players in parallel */
         const [tournamentResponse, matchesResponse, playersResponse] = await Promise.all([
           fetch(`/api/tournaments/${tournamentId}?token=${token}`),
           fetch(`/api/tournaments/${tournamentId}/bm?token=${token}`),
@@ -131,7 +179,10 @@ export default function BattleModeParticipantPage({
     validateTokenAndFetchData();
   }, [tournamentId, token]);
 
-  // Real-time polling for match data
+  /**
+   * Polling function for real-time match updates.
+   * Only polls when the token has been validated.
+   */
   const fetchMatches = useCallback(async () => {
     if (!tokenValid) {
       return { matches: [] };
@@ -143,13 +194,14 @@ export default function BattleModeParticipantPage({
     return response.json();
   }, [tournamentId, token, tokenValid]);
 
+  /* Poll every 5 seconds for match updates (slower than admin view) */
   const { data: pollingData, error: pollingError } = usePolling(
     fetchMatches, {
     interval: 5000,
     enabled: tokenValid,
   });
 
-  // Update matches when polling data is received
+  /* Update matches when polling data arrives */
   useEffect(() => {
     if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as BMMatch[]);
@@ -159,15 +211,19 @@ export default function BattleModeParticipantPage({
     }
   }, [pollingData, pollingError]);
 
+  /**
+   * Filter matches for the selected player and initialize score forms.
+   * Only shows incomplete matches - completed matches don't need reporting.
+   */
   useEffect(() => {
     if (selectedPlayer && matches.length > 0) {
-      const playerMatches = matches.filter(match => 
+      const playerMatches = matches.filter(match =>
         !match.completed &&
         (match.player1.id === selectedPlayer.id || match.player2.id === selectedPlayer.id)
       );
       setMyMatches(playerMatches);
 
-      // Initialize reporting scores
+      /* Pre-initialize empty score forms for each pending match */
       const initialScores: { [key: string]: { score1: string; score2: string } } = {};
       playerMatches.forEach(match => {
         initialScores[match.id] = {
@@ -179,6 +235,7 @@ export default function BattleModeParticipantPage({
     }
   }, [selectedPlayer, matches]);
 
+  /** Update a specific match's score form value */
   const handleScoreChange = (matchId: string, player: 'score1' | 'score2', value: string) => {
     setReportingScores(prev => ({
       ...prev,
@@ -189,6 +246,11 @@ export default function BattleModeParticipantPage({
     }));
   };
 
+  /**
+   * Submit a score report for a match.
+   * Validates input before sending to the API.
+   * The API handles dual-confirmation logic (both players must report matching scores).
+   */
   const handleSubmitScore = async (match: BMMatch) => {
     const scores = reportingScores[match.id];
     if (!scores || !scores.score1 || !scores.score2) {
@@ -199,11 +261,13 @@ export default function BattleModeParticipantPage({
     const score1 = parseInt(scores.score1);
     const score2 = parseInt(scores.score2);
 
+    /* Client-side validation for score range */
     if (isNaN(score1) || isNaN(score2) || score1 < 0 || score2 < 0 || score1 > 5 || score2 > 5) {
       setError('Scores must be between 0 and 5.');
       return;
     }
 
+    /* BM matches cannot end in a tie */
     if (score1 === score2) {
       setError('Scores cannot be equal. Battle mode matches cannot end in a tie.');
       return;
@@ -230,19 +294,19 @@ export default function BattleModeParticipantPage({
       }
 
       const data = await response.json();
-      
-      // Clear the form for this match
+
+      /* Clear the form for this match after successful submission */
       setReportingScores(prev => ({
         ...prev,
         [match.id]: { score1: '', score2: '' },
       }));
 
-      // Update the match in local state
-      setMatches(prev => prev.map(m => 
+      /* Update the match in local state with the API response */
+      setMatches(prev => prev.map(m =>
         m.id === match.id ? { ...m, ...data.match } : m
       ));
 
-      // Show success message
+      /* Inform the user about the dual-confirmation system */
       alert("Scores reported successfully! Both players must report matching scores for confirmation.");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit scores';
@@ -252,6 +316,7 @@ export default function BattleModeParticipantPage({
     }
   };
 
+  /* Loading state with animated shield icon */
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -263,6 +328,7 @@ export default function BattleModeParticipantPage({
     );
   }
 
+  /* Error state - shown when token is invalid or data fetch fails */
   if (error || !tokenValid) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -294,6 +360,7 @@ export default function BattleModeParticipantPage({
     );
   }
 
+  /* Tournament not found state */
   if (!tournament) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -313,7 +380,7 @@ export default function BattleModeParticipantPage({
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+        {/* Header with security badge and tournament info */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="h-8 w-8 text-green-600" />
@@ -330,7 +397,7 @@ export default function BattleModeParticipantPage({
           </p>
         </div>
 
-        {/* Player Selection */}
+        {/* Player Selection - shown before a player is selected */}
         {!selectedPlayer && (
           <Card className="max-w-2xl mx-auto mb-8">
             <CardHeader>
@@ -359,9 +426,10 @@ export default function BattleModeParticipantPage({
           </Card>
         )}
 
-        {/* Selected Player Info */}
+        {/* Selected Player's Match View */}
         {selectedPlayer && (
           <div className="max-w-4xl mx-auto">
+            {/* Player identity card with change option */}
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -385,7 +453,7 @@ export default function BattleModeParticipantPage({
               </CardContent>
             </Card>
 
-            {/* Error Alert */}
+            {/* Error alert for score submission failures */}
             {error && (
               <Alert variant="destructive" className="mb-6">
                 <AlertTriangle className="h-4 w-4" />
@@ -393,7 +461,7 @@ export default function BattleModeParticipantPage({
               </Alert>
             )}
 
-            {/* Matches */}
+            {/* Pending matches list or empty state */}
             {myMatches.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
@@ -421,6 +489,7 @@ export default function BattleModeParticipantPage({
                             TV {match.tvNumber} • {match.stage === 'qualification' ? 'Qualification' : 'Finals'}
                           </CardDescription>
                         </div>
+                        {/* Match status badge */}
                         {match.completed ? (
                           <Badge variant="default" className="bg-green-600">
                             <CheckCircle className="h-3 w-3 mr-1" />
@@ -436,7 +505,7 @@ export default function BattleModeParticipantPage({
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {/* Match Info */}
+                        {/* Player cards with "You" badge for the selected player */}
                         <div className="grid grid-cols-2 gap-4">
                           <div className={`p-3 rounded-lg border ${match.player1.id === selectedPlayer.id ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                             <div className="font-medium">
@@ -462,7 +531,7 @@ export default function BattleModeParticipantPage({
                           </div>
                         </div>
 
-                        {/* Score Reporting */}
+                        {/* Score reporting form for incomplete matches */}
                         {!match.completed && (
                           <div className="border-t pt-4">
                             <h4 className="font-medium mb-3">Report Match Result</h4>
@@ -500,7 +569,7 @@ export default function BattleModeParticipantPage({
                           </div>
                         )}
 
-                        {/* Previous Reports */}
+                        {/* Display of previous score reports from both players */}
                         {(match.player1ReportedScore1 !== undefined || match.player2ReportedScore1 !== undefined) && (
                           <div className="border-t pt-4">
                             <h4 className="font-medium mb-2">Previous Reports</h4>
@@ -529,7 +598,7 @@ export default function BattleModeParticipantPage({
           </div>
         )}
 
-        {/* Navigation */}
+        {/* Navigation back to game selection */}
         <div className="text-center mt-8">
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/participant?token=${token}`}>

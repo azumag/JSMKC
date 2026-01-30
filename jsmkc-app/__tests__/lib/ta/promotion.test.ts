@@ -1,3 +1,27 @@
+/**
+ * @module promotion.test
+ *
+ * Test suite for TA (Time Attack) promotion functions (`@/lib/ta/promotion`).
+ *
+ * Covers:
+ * - promoteToFinals:
+ *   - Promoting top N qualifying players to finals stage
+ *   - Promoting specific players by ID
+ *   - Error handling: missing parameters, no qualifying players found
+ *   - Skipping players with null totalTime (incomplete course times)
+ *   - Skipping players already in finals (duplicate prevention)
+ *   - Graceful handling of audit log creation errors
+ * - promoteToRevival1:
+ *   - Promoting qualification ranks 17-24 to revival round 1 with 1 life
+ *   - Error on insufficient qualified players
+ *   - Skipping null-totalTime players and already-promoted players
+ *   - Audit log error resilience
+ * - promoteToRevival2:
+ *   - Promoting qualification ranks 13-16 + revival round 1 survivors
+ *   - Error on no available players
+ *   - Skipping null-totalTime players and already-promoted players
+ *   - Audit log error resilience
+ */
 jest.mock('@/lib/audit-log', () => ({
   AUDIT_ACTIONS: {
     CREATE_TA_ENTRY: 'CREATE_TA_ENTRY',

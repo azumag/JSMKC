@@ -1,3 +1,18 @@
+/**
+ * @module GP Standings API Route Tests - /api/tournaments/[id]/gp/standings
+ *
+ * Test suite for the GP standings endpoint that provides ranked qualification
+ * data with server-side caching and ETag-based conditional responses.
+ *
+ * Covers:
+ * - GET: Fetching standings with cache hit/miss/expiry logic, ETag generation,
+ *   cache bypass via if-none-match wildcard header, admin-only access control
+ *   (403 for non-admin users), proper sorting by score then driver points,
+ *   and empty standings handling.
+ *
+ * The standings cache reduces database load during live tournaments where
+ * many clients poll for updated rankings simultaneously.
+ */
 // @ts-nocheck
 
 
@@ -77,15 +92,15 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         },
         expiresAt: new Date(Date.now() + 3600000),
       };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(false);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ ...mockCachedData.data, _cached: true });
       expect(result.status).toBe(200);
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
@@ -131,16 +146,16 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           },
         },
       ];
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({
         tournamentId: 't1',
         stage: 'qualification',
@@ -207,17 +222,17 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           player: { id: 'p1', name: 'Player 1', nickname: 'nick1' },
         },
       ];
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(true);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data.tournamentId).toBe('t1');
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalled();
@@ -246,13 +261,13 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           player: { id: 'p1', name: 'Player 1', nickname: 'nick1' },
         },
       ];
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(mockCachedData);
       (isExpired as jest.Mock).mockReturnValue(false);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest(
         'http://localhost:3000/api/tournaments/t1/gp/standings',
         undefined,
@@ -260,7 +275,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       );
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data.tournamentId).toBe('t1');
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalled();
@@ -269,16 +284,16 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Success case - Returns empty standings when no qualifications exist
     it('should return empty standings when no qualifications exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({
         tournamentId: 't1',
         stage: 'qualification',
@@ -291,11 +306,11 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Authentication failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.findMany).not.toHaveBeenCalled();
@@ -304,13 +319,13 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Authentication failure case - Returns 403 when user is authenticated but not admin
     it('should return 403 when user is authenticated but not admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.findMany).not.toHaveBeenCalled();
@@ -319,11 +334,11 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Authentication failure case - Returns 403 when session exists but user is missing
     it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({});
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
@@ -331,13 +346,13 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Authentication failure case - Returns 403 when user exists but role is missing
     it('should return 403 when user exists but role is missing', async () => {
       const mockAuth = { user: { id: 'admin1' } };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
@@ -345,15 +360,15 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Error case - Returns 500 when database query fails
     it('should return 500 when database query fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to fetch GP standings' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP standings', { error: expect.any(Error), tournamentId: 't1' });
@@ -362,15 +377,15 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     // Edge case - Handles invalid tournament ID gracefully
     it('should handle invalid tournament ID gracefully', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/invalid-id/gp/standings');
       const params = Promise.resolve({ id: 'invalid-id' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
@@ -393,17 +408,17 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           player: { id: 'p1', name: 'Player 1', nickname: 'nick1' },
         },
       ];
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (generateETag as jest.Mock).mockReturnValue('generated-etag');
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(generateETag).toHaveBeenCalledWith(mockQualifications);
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'generated-etag');
@@ -453,16 +468,16 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           player: { id: 'p3', name: 'Player 3', nickname: 'nick3' },
         },
       ];
-      
+
       (auth as jest.Mock).mockResolvedValue(mockAuth);
       (get as jest.Mock).mockResolvedValue(null);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/standings');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(result.data.qualifications[0].playerId).toBe('p1');
       expect(result.data.qualifications[1].playerId).toBe('p2');

@@ -1,3 +1,27 @@
+/**
+ * @module __tests__/lib/standings-cache.test.ts
+ *
+ * Test suite for the in-memory standings cache module (standings-cache.ts).
+ *
+ * Covers the following functionality:
+ * - get(): Retrieves cached standings by tournament ID and stage name.
+ *   Returns null for non-existent keys or different tournaments.
+ * - set(): Stores standings data with an ETag and ISO timestamp.
+ *   Supports overwriting existing entries and handles empty/complex data.
+ * - generateETag(): Produces deterministic hexadecimal hash strings from data
+ *   arrays. Same data yields the same ETag; different data yields different
+ *   ETags. Handles empty arrays, nested objects, large arrays, and special
+ *   characters (e.g., Japanese text, emoji).
+ * - isExpired(): Checks whether a cache entry has exceeded its TTL (5 minutes).
+ *   Tests fresh entries, expired entries, and boundary cases.
+ * - invalidate(): Removes cache entries for a specific tournament+stage or
+ *   all stages of a tournament. Handles non-existent keys gracefully.
+ * - clear(): Removes all cache entries and allows fresh data after clearing.
+ * - Integration tests: Full cache lifecycle, independent tournament handling,
+ *   ETag consistency, and multi-stage invalidation.
+ * - Edge cases: Large data arrays, deeply nested structures, null values,
+ *   numeric tournament IDs, and empty stage names.
+ */
 jest.mock('@/lib/redis-cache');
 
 import {
@@ -189,7 +213,7 @@ it('should generate ISO string timestamp', async () => {
     });
 
     it('should handle special characters in data', () => {
-      const data = [{ name: 'テスト', emoji: '🎮' }];
+      const data = [{ name: '\u30c6\u30b9\u30c8', emoji: '\ud83c\udfae' }];
 
       const etag = generateETag(data);
 

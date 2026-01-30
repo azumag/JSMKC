@@ -1,5 +1,35 @@
 "use client";
 
+/**
+ * Time Attack Qualification Page
+ *
+ * Main admin page for managing the TA (Time Attack) qualification round.
+ * This page provides:
+ *
+ * 1. Player Management:
+ *    - Add players to the qualification round from the registered players list
+ *    - Remove players from the qualification round
+ *
+ * 2. Time Entry:
+ *    - Enter/edit individual course times for each player (20 courses)
+ *    - Times are entered in M:SS.mmm format (e.g., 1:23.456)
+ *    - Total times and rankings are automatically calculated on save
+ *
+ * 3. Standings View:
+ *    - Live standings sorted by rank with progress indicators
+ *    - Shows completion status (N/20 courses entered)
+ *
+ * 4. Promotion:
+ *    - Promote top N players or manually selected players to finals
+ *    - Supports both automatic (top N by rank) and manual selection modes
+ *
+ * 5. Export:
+ *    - Download qualification data as Excel/CSV file
+ *
+ * Data is refreshed every 3 seconds via polling for real-time updates
+ * during live tournament operation.
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -42,12 +72,14 @@ import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data structure from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** Time Trial entry data structure from the API */
 interface TTEntry {
   id: string;
   playerId: string;
@@ -60,6 +92,10 @@ interface TTEntry {
   player: Player;
 }
 
+/**
+ * Convert milliseconds to human-readable display format (M:SS.mmm).
+ * Returns "-" for null values (no time recorded).
+ */
 function msToDisplayTime(ms: number | null): string {
   if (ms === null) return "-";
   const minutes = Math.floor(ms / 60000);
@@ -74,24 +110,34 @@ export default function TimeAttackPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Dialog states
   const [isAddPlayerDialogOpen, setIsAddPlayerDialogOpen] = useState(false);
   const [isTimeEntryDialogOpen, setIsTimeEntryDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TTEntry | null>(null);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Promotion states
   const [finalsCount, setFinalsCount] = useState(0);
   const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [topN, setTopN] = useState(8);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
+
+  // Export state
   const [exporting, setExporting] = useState(false);
 
+  // === Data Fetching ===
+  // Fetch tournament data and player list in parallel
   const fetchTournamentData = useCallback(async () => {
     const [taResponse, playersResponse] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
@@ -118,11 +164,13 @@ export default function TimeAttackPage({
     };
   }, [tournamentId]);
 
+  // Poll for updates every 3 seconds during live tournament operation
   const { data: pollData, loading: pollLoading, error: pollError, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
   });
 
+  // Sync polling data to component state
   useEffect(() => {
     if (pollData) {
       setEntries(pollData.entries);
@@ -141,6 +189,9 @@ export default function TimeAttackPage({
     }
   }, [pollError]);
 
+  // === Event Handlers ===
+
+  /** Add a player to the qualification round */
   const handleAddPlayer = async (playerId: string) => {
     setSaveError(null);
     try {
@@ -164,6 +215,7 @@ export default function TimeAttackPage({
     }
   };
 
+  /** Promote players to finals using selected mode (topN or manual) */
   const handlePromoteToFinals = async () => {
     setPromoting(true);
 
@@ -189,6 +241,7 @@ export default function TimeAttackPage({
       setSelectedPlayerIds([]);
       refetch();
 
+      // Alert user about skipped players (incomplete times)
       if (data.skipped && data.skipped.length > 0) {
         alert(`Promoted ${data.entries.length} players. Skipped ${data.skipped.join(", ")} (incomplete times)`);
       }
@@ -201,6 +254,7 @@ export default function TimeAttackPage({
     }
   };
 
+  /** Toggle player selection for manual promotion mode */
   const togglePlayerSelection = (playerId: string) => {
     setSelectedPlayerIds((prev) =>
       prev.includes(playerId)
@@ -209,6 +263,7 @@ export default function TimeAttackPage({
     );
   };
 
+  /** Open the time entry dialog for a specific player */
   const openTimeEntryDialog = (entry: TTEntry) => {
     setSelectedEntry(entry);
     setTimeInputs(entry.times || {});
@@ -216,10 +271,12 @@ export default function TimeAttackPage({
     setIsTimeEntryDialogOpen(true);
   };
 
+  /** Handle individual course time input change */
   const handleTimeChange = (course: string, value: string) => {
     setTimeInputs((prev) => ({ ...prev, [course]: value }));
   };
 
+  /** Save all entered times for the selected player */
   const handleSaveTimes = async () => {
     if (!selectedEntry) return;
 
@@ -253,6 +310,7 @@ export default function TimeAttackPage({
     }
   };
 
+  /** Delete an entry from the qualification round (with confirmation) */
   const handleDeleteEntry = async (entryId: string) => {
     if (!confirm("Are you sure you want to remove this player?")) return;
 
@@ -275,6 +333,7 @@ export default function TimeAttackPage({
     }
   };
 
+  /** Export qualification data as downloadable Excel/CSV file */
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -283,6 +342,7 @@ export default function TimeAttackPage({
         throw new Error("Failed to export data");
       }
 
+      // Create download link and trigger browser download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -301,17 +361,20 @@ export default function TimeAttackPage({
     }
   };
 
-  // Get count of entered times for an entry
+  // === Helper Functions ===
+
+  /** Count how many course times have been entered for an entry */
   const getEnteredTimesCount = (entry: TTEntry): number => {
     if (!entry.times) return 0;
     return Object.values(entry.times).filter((t) => t && t !== "").length;
   };
 
-  // Get available players (not yet added to this tournament)
+  /** Filter to players not yet added to this tournament's TA qualification */
   const availablePlayers = allPlayers.filter(
     (p) => !entries.find((e) => e.playerId === p.id)
   );
 
+  // === Loading State ===
   if (loading) {
     return (
       <div className="space-y-6">
@@ -326,6 +389,7 @@ export default function TimeAttackPage({
     );
   }
 
+  // === Error State ===
   if (error) {
     return (
       <div className="space-y-6">
@@ -345,8 +409,10 @@ export default function TimeAttackPage({
     );
   }
 
+  // === Main Render ===
   return (
     <div className="space-y-6">
+      {/* Header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Time Attack - Qualification</h1>
@@ -365,6 +431,7 @@ export default function TimeAttackPage({
           >
             Promote to Finals ({finalsCount})
           </Button>
+          {/* Promotion Dialog */}
           <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -459,6 +526,7 @@ export default function TimeAttackPage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          {/* Add Player Dialog */}
           <Dialog
             open={isAddPlayerDialogOpen}
             onOpenChange={(open) => {
@@ -502,6 +570,7 @@ export default function TimeAttackPage({
         </div>
       </div>
 
+      {/* Main Content: Empty state or tabbed view */}
       {entries.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -515,6 +584,7 @@ export default function TimeAttackPage({
             <TabsTrigger value="times">Time Entry</TabsTrigger>
           </TabsList>
 
+          {/* Standings Tab: Ranked list of players */}
           <TabsContent value="standings">
             <Card>
               <CardHeader>
@@ -564,6 +634,7 @@ export default function TimeAttackPage({
             </Card>
           </TabsContent>
 
+          {/* Time Entry Tab: Edit times for each player */}
           <TabsContent value="times">
             <Card>
               <CardHeader>
@@ -619,7 +690,7 @@ export default function TimeAttackPage({
         </Tabs>
       )}
 
-      {/* Time Entry Dialog */}
+      {/* Time Entry Dialog: Course-by-course time input */}
       <Dialog
         open={isTimeEntryDialogOpen}
         onOpenChange={(open) => {
@@ -642,6 +713,7 @@ export default function TimeAttackPage({
                 <p className="text-destructive text-sm">{saveError}</p>
               </div>
             )}
+            {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
             <div className="grid grid-cols-2 gap-4">
               {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                 <Card key={cup}>

@@ -1,3 +1,20 @@
+/**
+ * @module rank-calculation.test
+ *
+ * Test suite for TA (Time Attack) rank calculation functions (`@/lib/ta/rank-calculation`).
+ *
+ * Covers:
+ * - calculateEntryTotal: computing total time from all 20 course time strings,
+ *   handling incomplete times (returns null), and null times object
+ * - sortByStage:
+ *   - Qualification stage: sorts by total time ascending, excludes null-time entries
+ *   - Finals stage: sorts active (non-eliminated) players by lives then time,
+ *     pushes eliminated players to the end; handles both-eliminated, null totalTime
+ *   - Revival stage: sorts by total time ascending, excludes null-time entries
+ * - assignRanks: assigns sequential 1-based ranks to sorted entries, handles empty input
+ * - recalculateRanks: end-to-end recalculation using Prisma mocks, verifying findMany
+ *   query parameters, $transaction usage, and handling of incomplete times
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
 import { PrismaClient } from '@prisma/client';

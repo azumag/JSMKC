@@ -1,3 +1,21 @@
+/**
+ * @module MR API Route Tests
+ *
+ * Test suite for the Match Race (MR) main API route: /api/tournaments/[id]/mr
+ *
+ * Covers the following HTTP methods and scenarios:
+ * - GET: Fetches match race qualification data and matches for a given tournament.
+ *   Tests include success cases (valid tournament, empty data), error cases (database failures),
+ *   and edge cases (invalid tournament ID).
+ * - POST: Sets up match race qualification by creating player qualifications and
+ *   generating round-robin matches across groups. Tests include success cases (valid players,
+ *   multiple groups), validation errors (missing/invalid/empty players array), and error cases.
+ * - PUT: Updates an individual match score and recalculates qualification stats for both
+ *   players involved. Tests include success cases (win/loss, tie, rounds data), validation
+ *   errors (missing matchId or scores), error cases, and edge cases (multiple match recalculation).
+ *
+ * Dependencies mocked: @/lib/logger, @/lib/sanitize, next/server, @/lib/prisma
+ */
 // @ts-nocheck
 
 
@@ -46,14 +64,14 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const mockMatches = [
         { id: 'm1', tournamentId: 't1', matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Player 1' }, player2: { id: 'p2', name: 'Player 2' } },
       ];
-      
+
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches });
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
@@ -72,11 +90,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     it('should return empty arrays when no qualifications or matches exist', async () => {
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ qualifications: [], matches: [] });
       expect(result.status).toBe(200);
     });
@@ -84,11 +102,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     // Error case - Returns 500 when database query fails
     it('should return 500 error when database query fails', async () => {
       (prisma.mRQualification.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to fetch match race data' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR data', { error: expect.any(Error), tournamentId: 't1' });
@@ -97,11 +115,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     // Edge case - Handles invalid tournament ID gracefully
     it('should handle invalid tournament ID gracefully', async () => {
       (prisma.mRQualification.findMany as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/invalid-id/mr');
       const params = Promise.resolve({ id: 'invalid-id' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
@@ -115,14 +133,14 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
       const mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
-      
+
       (prisma.mRQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.data).toEqual({ message: 'Match race setup complete', qualifications: expect.any(Array) });
       expect(result.status).toBe(201);
       expect(prisma.mRQualification.create).toHaveBeenCalledTimes(2);
@@ -137,14 +155,14 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         { playerId: 'p3', group: 'B' },
         { playerId: 'p4', group: 'B' },
       ];
-      
+
       (prisma.mRQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.status).toBe(201);
       expect(prisma.mRMatch.create).toHaveBeenCalledTimes(2);
     });
@@ -154,7 +172,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {});
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
@@ -164,7 +182,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: 'not-an-array' });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
@@ -174,19 +192,21 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
     // Error case - Returns 500 when database operation fails
+    // Mock mRQualification.create to reject since it's called before mRMatch.create
+    // (for a single player in a group, no matches are generated, so mRMatch.create is never called)
     it('should return 500 when database operation fails', async () => {
-      (prisma.mRMatch.create as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+      (prisma.mRQualification.create as jest.Mock).mockRejectedValue(new Error('Database error'));
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [{ playerId: 'p1', group: 'A' }] });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to setup match race' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup MR', { error: expect.any(Error), tournamentId: 't1' });
@@ -205,18 +225,18 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         player1: { id: 'p1' },
         player2: { id: 'p2' },
       };
-      
+
       const mockPlayer1Matches = [mockMatch];
       const mockPlayer2Matches = [mockMatch];
-      
+
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ match: mockMatch, result1: 'win', result2: 'loss' });
       expect(result.status).toBe(200);
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
@@ -236,15 +256,15 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         player1: { id: 'p1' },
         player2: { id: 'p2' },
       };
-      
+
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 2, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
       expect(result.status).toBe(200);
     });
@@ -258,15 +278,15 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         player1: { id: 'p1' },
         player2: { id: 'p2' },
       };
-      
+
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1, rounds: [1, 2, 3, 4] });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
         data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
@@ -279,7 +299,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
@@ -289,7 +309,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
@@ -299,7 +319,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
@@ -307,11 +327,11 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (prisma.mRMatch.update as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), tournamentId: 't1' });
@@ -326,7 +346,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       const mockPlayer1Matches = [
         { ...mockMatch, id: 'm1', score1: 3, score2: 1, player1Id: 'p1', player2Id: 'p2' },
         { id: 'm2', score1: 2, score2: 2, player1Id: 'p1', player2Id: 'p3' },
@@ -334,17 +354,17 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const mockPlayer2Matches = [
         { id: 'm1', score1: 3, score2: 1, player1Id: 'p1', player2Id: 'p2' },
       ];
-      
+
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock)
         .mockResolvedValueOnce(mockPlayer1Matches)
         .mockResolvedValueOnce(mockPlayer2Matches);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.updateMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', playerId: 'p1' },

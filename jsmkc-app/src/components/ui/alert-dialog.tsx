@@ -1,3 +1,24 @@
+/**
+ * AlertDialog UI Component
+ *
+ * A modal confirmation dialog built on Radix UI's AlertDialog primitive.
+ * Unlike the standard Dialog, AlertDialog is specifically designed for
+ * confirmation workflows where the user MUST make an explicit choice
+ * (confirm or cancel) -- clicking the overlay does NOT dismiss the dialog.
+ *
+ * This is critical for JSMKC operations like:
+ * - Deleting tournament data (irreversible action)
+ * - Resetting player scores
+ * - Confirming finals bracket progression
+ *
+ * Marked as "use client" because Radix AlertDialog manages internal state
+ * and requires browser APIs for portal rendering and focus trapping.
+ *
+ * Key difference from Dialog:
+ * - AlertDialog does NOT close on overlay click (requires explicit action)
+ * - AlertDialog has Action + Cancel buttons (not just a Close button)
+ * - AlertDialog uses alertdialog ARIA role for screen reader semantics
+ */
 "use client"
 
 import * as React from "react"
@@ -6,12 +27,32 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
+/**
+ * AlertDialog root component.
+ * Directly re-exports Radix's Root -- no additional styling needed
+ * as it only manages open/closed state context.
+ */
 const AlertDialog = AlertDialogPrimitive.Root
 
+/**
+ * AlertDialog trigger component.
+ * The element that opens the alert dialog when clicked.
+ */
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
+/**
+ * AlertDialog portal component.
+ * Renders content into document.body to avoid z-index/overflow issues.
+ */
 const AlertDialogPortal = AlertDialogPrimitive.Portal
 
+/**
+ * AlertDialog overlay component.
+ * Semi-transparent backdrop with fade animation.
+ * Uses bg-black/80 (80% opacity) which is intentionally darker than
+ * the standard Dialog overlay (50%) to emphasize the urgency of the
+ * confirmation and draw focus to the dialog content.
+ */
 const AlertDialogOverlay = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
@@ -27,6 +68,16 @@ const AlertDialogOverlay = React.forwardRef<
 ))
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
+/**
+ * AlertDialog content component.
+ * The main container for the confirmation dialog body.
+ * Centered using fixed positioning with translate transforms.
+ * Includes slide + zoom animations for polished entrance/exit.
+ *
+ * The slide-out-to-left-1/2 and slide-out-to-top-[48%] animations
+ * create a slight upward movement on close, providing directional
+ * feedback that the dialog is being dismissed.
+ */
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
@@ -45,6 +96,11 @@ const AlertDialogContent = React.forwardRef<
 ))
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
+/**
+ * AlertDialog header layout component.
+ * Arranges title and description vertically with centered text on mobile
+ * and left-aligned text on sm+ screens.
+ */
 const AlertDialogHeader = ({
   className,
   ...props
@@ -59,6 +115,12 @@ const AlertDialogHeader = ({
 )
 AlertDialogHeader.displayName = "AlertDialogHeader"
 
+/**
+ * AlertDialog footer layout component.
+ * Arranges action buttons in reversed column on mobile (primary at bottom)
+ * and a horizontal row on sm+ screens with end alignment.
+ * The sm:space-x-2 provides consistent spacing between buttons.
+ */
 const AlertDialogFooter = ({
   className,
   ...props
@@ -73,6 +135,11 @@ const AlertDialogFooter = ({
 )
 AlertDialogFooter.displayName = "AlertDialogFooter"
 
+/**
+ * AlertDialog title component.
+ * Uses Radix's Title primitive for automatic aria-labelledby binding.
+ * Styled as large semibold text for visual prominence.
+ */
 const AlertDialogTitle = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
@@ -85,6 +152,11 @@ const AlertDialogTitle = React.forwardRef<
 ))
 AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName
 
+/**
+ * AlertDialog description component.
+ * Uses Radix's Description primitive for automatic aria-describedby binding.
+ * Styled with muted color and smaller text for secondary information.
+ */
 const AlertDialogDescription = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
@@ -98,6 +170,12 @@ const AlertDialogDescription = React.forwardRef<
 AlertDialogDescription.displayName =
   AlertDialogPrimitive.Description.displayName
 
+/**
+ * AlertDialog action button component.
+ * The primary confirmation button (e.g., "Delete", "Confirm", "Continue").
+ * Uses the default buttonVariants style (primary color) to indicate
+ * that this is the primary action path.
+ */
 const AlertDialogAction = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
@@ -110,6 +188,14 @@ const AlertDialogAction = React.forwardRef<
 ))
 AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName
 
+/**
+ * AlertDialog cancel button component.
+ * The secondary dismissal button (e.g., "Cancel", "Go Back").
+ * Uses the outline buttonVariant to visually de-emphasize compared
+ * to the Action button. Adds top margin on mobile (mt-2) for spacing
+ * in the reversed column layout, removed on sm+ (sm:mt-0) where
+ * horizontal layout handles spacing via space-x-2.
+ */
 const AlertDialogCancel = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>

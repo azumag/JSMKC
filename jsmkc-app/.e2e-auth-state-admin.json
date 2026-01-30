@@ -1,0 +1,231 @@
+{
+  "cookies": [
+    {
+      "name": "authjs.csrf-token",
+      "value": "f0549fae8f9b4ef0ae1eed6f850e451204559f6d86607ef54d4227bf76b8b032%7C566792ecdc73812db1e262bdb565ba929c33c1cbb4629a44e39bf57a8c37d9f8",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "authjs.callback-url",
+      "value": "http%3A%2F%2Flocalhost%3A3000%2Ftournaments",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__dcfduid",
+      "value": "efa6702cfd3711f0bdb4ed27563b9dcd",
+      "domain": "discord.com",
+      "path": "/",
+      "expires": 1804267713.51236,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__sdcfduid",
+      "value": "efa6702cfd3711f0bdb4ed27563b9dcd36b883d82500fa2ee86f7c0ecc9546ce67467a5f6c89a0609fd1a57cde8c4524",
+      "domain": "discord.com",
+      "path": "/",
+      "expires": 1804267713.512387,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_cfuvid",
+      "value": "mAq1mCbKu_qpi4XdzuhEX3wNIq54oK7ZPtW3HbeKgHQ-1769707713.3013542-1.0.1.1-GV9qc_pGU0AQCaQ9LtHeP9T65sSn3f3wOjW2STYXB3A",
+      "domain": ".discord.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "authjs.session-token",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIiwia2lkIjoiQnFVWXNwWUlnOE81b1YzeEIxWThBX1ZPbWpvRGI5TS1JT2hQeWNhV3hyS1YzTUFha1hJUDJCODZBNkNSdzl6VFBKcFlBMnllUVN1enJpSC14ZGthWGcifQ..Ymh3YUVtt4NAQ6pZ8lSYxQ.cdEpYyxaRZ48ft5z8OWObMC9wVs_23ix6zhf38rIhEmswbA8iV7nvejK9oSxSKN-X_O6OgBGrwAT8qyu3g4pc0FEzCjwlMWWynLUd14pkBAKjgja_3TDR5I7owcCzS3NAppCSJA84IBzK43_oRr9-s-mhETlmaeANM_tNiqjPXhmQyaRdkZuhhuzsBAIB4Bls1YaV2APbuD9NgMIQCxH4_31wOSNtidb5w_WBT7kxJNcR5KRmTwAFdBNyuyNB1Pj1RrZBvoxE-B1bm33yoG5kYKUOcRR7puq_xmB7Dh-X3NcwQLzvhnGm_7hiDznDvWhnaRfNHG-kJ8509E-QCmc5u32N1IP0-_XuwU9sYM9Z4l9XcTk2F8djmZs_NeXAFj1y-pT8Py6q3PV-KQJarVASK77Lfor2D4O0Wu_cntRpePQTMF4ou5gGvn1eVzHtmxniwc37z6vIDydhf5q6fE2NUb8OvZn6gBBR4p1Nu0SEfqfcW8YL88JoroBDMsygjcU4OGsh2J33_DfVRxUkNjnRJB24hAJON5yKgMRB0JYcF4kzCEmRWuFWRhoMM9CIZQUcC3weSTC_Cyip3w7uFdtgaA_5NoBgXhd6PywICY7Lp64Y_wZMuHz5Hky18lDjsCDnX093qF_AP9o3zG9f6lJ6b97NH6bColgfDDoJJW3-Kn30l6zA1nKN3MJvmQjl-V2bVa4oo8zzNRhx1vSYnT2jtR_JJHJb_ZtTuszf_c5sM4K-HEn-IIZkx8Gd5RrVW_gLLq4G_foIqiJY7kGmc5s_X3JWNH-SkVJwHN8PExlcpz8sRWK_b5Ird_bCXAa_qzn_Vkr559ZjSIs8RauQVMogvVYBQk8yJ6iAtADfSZsQZsSCvmLr1JkJlG6ks9CAGEtkmhnKYrJ896ZB3_afH8-RNxJJY8JpBH8mbLGN0cU9LTQz5yROK2GCVha-CJRhAlk.HoOu-mdnmRY3uWM-beej1e8hSGodnJ-3frSEuecS4Fg",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1772299721.266898,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://discord.com",
+      "localStorage": [
+        {
+          "name": "fingerprint",
+          "value": "\"1466485190196068404.34rby8MmJWt1gZ8sEZBVc7-Yl3U\""
+        },
+        {
+          "name": "StreamerModeStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "UserSettingsOverridesStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "keyboard-layout-map",
+          "value": "{\"0\":48,\"1\":49,\"2\":50,\"3\":51,\"4\":52,\"5\":53,\"6\":54,\"7\":55,\"8\":56,\"9\":57,\"backspace\":8,\"tab\":9,\"enter\":13,\"shift\":16,\"ctrl\":17,\"alt\":18,\"pause/break\":19,\"caps lock\":20,\"esc\":27,\"space\":32,\"page up\":33,\"page down\":34,\"end\":35,\"home\":36,\"left\":37,\"up\":38,\"right\":39,\"down\":40,\"insert\":45,\"delete\":46,\"command\":91,\"left command\":91,\"right command\":93,\"numpad *\":106,\"numpad +\":107,\"numpad -\":109,\"numpad .\":110,\"numpad /\":111,\"num lock\":144,\"scroll lock\":145,\"my computer\":182,\"my calculator\":183,\";\":186,\"=\":187,\",\":188,\"-\":189,\".\":190,\"/\":191,\"`\":192,\"[\":219,\"\\\\\":220,\"]\":221,\"'\":222,\"a\":65,\"b\":66,\"c\":67,\"d\":68,\"e\":69,\"f\":70,\"g\":71,\"h\":72,\"i\":73,\"j\":74,\"k\":75,\"l\":76,\"m\":77,\"n\":78,\"o\":79,\"p\":80,\"q\":81,\"r\":82,\"s\":83,\"t\":84,\"u\":85,\"v\":86,\"w\":87,\"x\":88,\"y\":89,\"z\":90,\"f1\":112,\"f2\":113,\"f3\":114,\"f4\":115,\"f5\":116,\"f6\":117,\"f7\":118,\"f8\":119,\"f9\":120,\"f10\":121,\"f11\":122,\"f12\":123,\"numpad 0\":96,\"numpad 1\":97,\"numpad 2\":98,\"numpad 3\":99,\"numpad 4\":100,\"numpad 5\":101,\"numpad 6\":102,\"numpad 7\":103,\"numpad 8\":104,\"numpad 9\":105,\"windows\":91,\"⇧\":16,\"⌥\":18,\"⌃\":17,\"⌘\":91,\"ctl\":17,\"control\":17,\"option\":18,\"pause\":19,\"break\":19,\"caps\":20,\"return\":13,\"escape\":27,\"spc\":32,\"spacebar\":32,\"pgup\":33,\"pgdn\":34,\"ins\":45,\"del\":46,\"cmd\":91}"
+        },
+        {
+          "name": "HangStatusStore",
+          "value": "{\"_state\":{\"recentStatuses\":[\"chilling\",\"gaming\",\"focusing\",\"brb\",\"watching\"],\"favoritedStatuses\":[],\"currentDefaultStatus\":null},\"_version\":3}"
+        },
+        {
+          "name": "UnsyncedUserSettingsStore",
+          "value": "{\"_state\":{\"darkSidebar\":false,\"hdrDynamicRange\":\"no-limit\"},\"_version\":2}"
+        },
+        {
+          "name": "OverlayStore6",
+          "value": "{\"legacyEnabled\":false,\"oopEnabled\":false}"
+        },
+        {
+          "name": "DeviceFrecencyStore",
+          "value": "{\"_state\":{\"audioinput\":{},\"audiooutput\":{},\"videoinput\":{}},\"_version\":1}"
+        },
+        {
+          "name": "RTCRegionStore",
+          "value": "{\"_state\":{\"preferredRegions\":null},\"_version\":1}"
+        },
+        {
+          "name": "scientist:triggered",
+          "value": "{\"v\":1,\"e\":{\"user|2025-07_desktop_high_contrast_mode|RootThemeContextProvider\":{\"time\":1769707715516,\"hash\":3695065393}}}"
+        },
+        {
+          "name": "OverridePremiumTypeStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "hotspots",
+          "value": "{\"_state\":{\"hiddenHotspots\":[],\"hotspotOverrides\":{}},\"_version\":1}"
+        },
+        {
+          "name": "AccessibilityStore",
+          "value": "{\"_state\":{\"fontSize\":16,\"zoom\":100,\"keyboardModeEnabled\":false,\"contrastMode\":\"default\",\"colorblindMode\":false,\"lowContrastMode\":false,\"saturation\":1,\"contrast\":1,\"desaturateUserColors\":false,\"forcedColorsModalSeen\":false,\"keyboardNavigationExplainerModalSeen\":false,\"messageGroupSpacing\":null,\"systemPrefersReducedMotion\":\"no-preference\",\"systemPrefersCrossfades\":false,\"prefersReducedMotion\":\"auto\",\"systemForcedColors\":\"none\",\"syncForcedColors\":true,\"systemPrefersContrast\":\"no-preference\",\"alwaysShowLinkDecorations\":false,\"roleStyle\":\"username\",\"displayNameStylesEnabled\":true,\"submitButtonEnabled\":false,\"syncProfileThemeWithUserTheme\":false,\"enableCustomCursor\":true,\"switchIconsEnabled\":false,\"darkSidebar\":false},\"_version\":10}"
+        },
+        {
+          "name": "PictureInPictureStore",
+          "value": "{\"_state\":{\"openPosition\":\"bottom-right\",\"pipWidths\":{\"0\":320,\"1\":160,\"2\":320}},\"_version\":1}"
+        },
+        {
+          "name": "PremiumGiftingIntentStore",
+          "value": "{\"_state\":{\"messageGiftIntentLastShownMap\":{},\"lastShownFriendsListGiftIntents\":[],\"friendsTabBadgeLastDismissedTime\":null,\"giftUnreadNotificationLastDismissedTimes\":[],\"profilePopoutGiftIntentsDismissMap\":{}},\"_version\":3}"
+        },
+        {
+          "name": "SelectivelySyncedUserSettingsStore",
+          "value": "{\"_state\":{},\"_version\":2}"
+        },
+        {
+          "name": "GameStore",
+          "value": "{\"_state\":{\"detectableGamesEtag\":\"\",\"detectableGames\":[],\"blocklistEtag\":\"\",\"blocklistExecutables\":[],\"blocklistPatterns\":[]},\"_version\":4}"
+        },
+        {
+          "name": "NewlyAddedEmojiStore",
+          "value": "{\"_state\":{\"lastSeenNewlyAddedEmojiIds\":{}},\"_version\":1}"
+        },
+        {
+          "name": "QuickSwitcherStore",
+          "value": "{\"_state\":{\"channelHistory\":[]},\"_version\":0}"
+        },
+        {
+          "name": "GuildPowerupsStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "DismissibleContentFrameworkStore",
+          "value": "{\"_state\":{\"numberOfDCsShownToday\":0,\"dismissibleContentSeenDuringSession\":[],\"dailyCapOverridden\":false,\"newUserMinAgeRequiredOverridden\":false,\"renderedAtTimestamps\":[],\"lastDCDismissed\":null,\"seenForGuildId\":[]},\"_version\":1}"
+        },
+        {
+          "name": "DeveloperActivityShelfStore",
+          "value": "{\"_state\":{\"lastUsedObject\":{},\"useActivityUrlOverride\":false,\"activityUrlOverride\":null,\"filter\":\"\"},\"_version\":1}"
+        },
+        {
+          "name": "ClipsStore",
+          "value": "{\"_state\":{\"clipsSettings\":{\"clipsEnabled\":false,\"storageLocation\":\"default\",\"clipsQuality\":{\"resolution\":1080,\"frameRate\":30},\"clipsLength\":30000,\"remindersEnabled\":true,\"decoupledClipsEnabled\":false,\"viewerClipsEnabled\":true,\"viewerConnectivity\":0,\"maxAutoClips\":20,\"clipSignals\":{\"enableDistributedSignals\":true,\"enablePhraseSignals\":true,\"enableGameSignals\":true},\"mlPipelinesEnabled\":{\"emotionClassifier\":true,\"wakeWordDetector\":false,\"yellDetector\":true,\"whisperTranscription\":true},\"autoClipPhrases\":[\"clip that\",\"clip it\",\"clip clip\"]},\"newClipsCount\":0,\"newClipIds\":[],\"hardwareClassification\":null,\"hardwareClassificationVersion\":0,\"hasClips\":false,\"hardwareClassificationForDecoupled\":null,\"hasTakenDecoupledClip\":false,\"clipsEducationState\":{\"dismissedAt\":null,\"numberOfGamesLaunchedSinceDismissal\":0,\"numberOfTimesDismissed\":0}},\"_version\":14}"
+        },
+        {
+          "name": "PromotionsPersistedStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "DefaultRouteStore",
+          "value": "{\"_state\":{\"lastViewedPath\":null},\"_version\":1}"
+        },
+        {
+          "name": "UserOfferStore",
+          "value": "{\"_state\":{\"userTrialOffers\":{},\"userDiscountOffers\":{},\"isFetching\":false,\"lastFetchSuccessful\":false},\"_version\":3}"
+        },
+        {
+          "name": "deviceProperties",
+          "value": "{\"os\":\"Mac OS X\",\"browser\":\"Chrome\",\"device\":\"\",\"system_locale\":\"ja\",\"has_client_mods\":false}"
+        },
+        {
+          "name": "ThemeStore",
+          "value": "{\"_state\":{\"theme\":\"darker\",\"preferences\":{\"dark\":\"darker\",\"light\":\"light\",\"unknown\":\"darker\"},\"status\":0},\"_version\":2}"
+        },
+        {
+          "name": "analytics_installation",
+          "value": "\"1466485190250725531.orJjj3fWATvtsQ4FHPY9uAVmnEc\""
+        },
+        {
+          "name": "ApexExperimentStore",
+          "value": "{\"_state\":{\"version\":3,\"evaluatedExperiments\":{\"user\":{},\"guild\":{},\"installation\":{\"1466485190250725531\":{\"evaluationId\":\"e8403b67\",\"assignments\":{\"3364568771\":{\"hashedName\":3364568771,\"variantId\":0,\"isOverride\":false,\"revision\":1,\"exposureTrackingEnabled\":true}}}}},\"clientOverrides\":{}},\"_version\":0}"
+        },
+        {
+          "name": "OverlayStoreV2",
+          "value": "{\"_state\":{},\"_version\":2}"
+        },
+        {
+          "name": "keybinds",
+          "value": "{\"_state\":{},\"_version\":5}"
+        },
+        {
+          "name": "LayoutStore",
+          "value": "{\"_state\":{\"layouts\":{},\"widgets\":{}},\"_version\":4}"
+        },
+        {
+          "name": "EmbeddedActivities",
+          "value": "{\"_state\":{\"seenNewActivities\":{},\"seenUpdatedActivities\":{},\"everLaunchedActivities\":[],\"lastCheckedForBadgeableActivities\":null,\"dateRangesForSurfaces\":{}},\"_version\":10}"
+        },
+        {
+          "name": "EmojiStoreV2",
+          "value": "{\"_state\":{\"pendingUsages\":[],\"emojiReactionPendingUsages\":[],\"expandedSectionsByGuildIds\":[]},\"_version\":1}"
+        },
+        {
+          "name": "referralProperties",
+          "value": "{\"referrer\":\"http://localhost:3000/\",\"referring_domain\":\"localhost:3000\"}"
+        },
+        {
+          "name": "notifications",
+          "value": "{\"_state\":{\"desktopType\":\"NEVER\",\"disableAllSounds\":false,\"disabledSounds\":[],\"ttsType\":\"NEVER\",\"disableUnreadBadge\":false,\"taskbarFlash\":true,\"notifyMessagesInSelectedChannel\":false},\"_version\":1}"
+        },
+        {
+          "name": "PendingReplyStore",
+          "value": "{\"_state\":{},\"_version\":1}"
+        },
+        {
+          "name": "DraftStore",
+          "value": "{\"_state\":{},\"_version\":2}"
+        },
+        {
+          "name": "ApplicationStoreUserSettingsStore",
+          "value": "{\"_state\":{\"hasAcceptedEulaIds\":[]},\"_version\":1}"
+        }
+      ]
+    }
+  ]
+}

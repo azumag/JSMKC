@@ -1,27 +1,53 @@
+/**
+ * Session Status API Route
+ *
+ * GET /api/auth/session-status
+ *
+ * Returns the current authentication session status including user details
+ * and token expiration information. This endpoint is used by the frontend
+ * to check whether the user is authenticated and to display session info.
+ *
+ * Security:
+ *   - Rate-limited using the 'tokenValidation' bucket to prevent abuse
+ *   - Returns rate limit headers (X-RateLimit-*) on 429 responses
+ *   - Does not expose sensitive token values in the response
+ *
+ * Response format:
+ *   Success (authenticated):
+ *     { success: true, data: { authenticated: true, user: {...}, tokenInfo: {...} } }
+ *   Failure (no session):
+ *     { success: false, error: 'No active session', requiresAuth: true }
+ *   Rate limited:
+ *     { success: false, error: '...', retryAfter: <seconds> } (HTTP 429)
+ */
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 
-/**
- * GET /api/auth/session-status
- * Returns the current session status with token expiration info
- */
 export async function GET() {
+  // Logger is created inside the function (not at module level) to ensure
+  // proper test mocking. Module-level loggers are resolved at import time,
+  // before jest.mock() calls take effect.
   const logger = createLogger('auth-session');
+
   try {
-    // Apply rate limiting
+    // Rate limiting: Prevent brute-force or excessive polling of session status.
+    // Uses the 'tokenValidation' bucket which has a generous limit for normal use
+    // but blocks rapid automated requests.
     const identifier = await getServerSideIdentifier();
     const rateLimitResult = await checkRateLimit('tokenValidation', identifier);
-    
+
     if (!rateLimitResult.success) {
+      // Return 429 with standard rate limit headers so clients can implement
+      // proper backoff behavior.
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: 'Too many requests. Please try again later.',
           retryAfter: rateLimitResult.retryAfter
         },
-        { 
+        {
           status: 429,
           headers: {
             'X-RateLimit-Limit': (rateLimitResult.limit ?? 0).toString(),
@@ -32,9 +58,13 @@ export async function GET() {
       );
     }
 
+    // Retrieve the current session from NextAuth.
+    // Returns null if the user is not authenticated.
     const session = await auth();
-    
+
     if (!session) {
+      // Return a structured response indicating no active session.
+      // The requiresAuth flag tells the frontend to redirect to sign-in.
       return NextResponse.json({
         success: false,
         error: 'No active session',
@@ -42,8 +72,10 @@ export async function GET() {
       });
     }
 
-    // For more detailed session info, we'd need to access the JWT callback data
-    // This is a simplified version that works with NextAuth's session
+    // Return authenticated session data.
+    // Token expiration info is structured as placeholders; in a full
+    // implementation these values would be populated from the JWT callback
+    // where access/refresh token lifetimes are tracked.
     return NextResponse.json({
       success: true,
       data: {
@@ -54,18 +86,18 @@ export async function GET() {
           email: session.user?.email,
           image: session.user?.image,
         },
-        // Note: Access token info would need to be added to the session callback
-        // This is a placeholder for the structure
+        // Token expiration fields are placeholders for future JWT callback integration.
+        // When implemented, these will reflect actual OAuth token lifetimes.
         tokenInfo: {
-          // These would be populated from the JWT callback
-          accessTokenExpires: null, // Would be set from JWT callback
-          refreshTokenExpires: null, // Would be set from JWT callback
+          accessTokenExpires: null,
+          refreshTokenExpires: null,
         },
       },
     });
   } catch (error) {
-    // Log error with structured metadata for better debugging and monitoring
-    // The error object is passed as metadata to maintain error stack traces
+    // Log error with structured metadata for debugging and alerting.
+    // The error object is passed as metadata to preserve stack traces
+    // in Winston's structured logging output.
     logger.error('Session status check failed', { error });
     return NextResponse.json(
       { success: false, error: 'Failed to check session status' },

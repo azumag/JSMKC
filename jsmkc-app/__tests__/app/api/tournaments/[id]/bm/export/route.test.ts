@@ -1,16 +1,50 @@
+/**
+ * @module BM Export API Route Tests
+ *
+ * Test suite for the Battle Mode CSV export endpoint: /api/tournaments/[id]/bm/export
+ *
+ * This file covers the GET method which exports tournament BM data (qualifications and matches)
+ * as a downloadable CSV file with UTF-8 BOM for Excel compatibility.
+ *
+ * Key behaviors tested:
+ *   - Successful CSV export with qualifications and matches data
+ *   - Correct data ordering: qualifications by score/points descending, matches by matchNumber ascending
+ *   - CSV filename generation with tournament name and timestamp
+ *   - Empty data handling (no qualifications or matches)
+ *   - CSV field formatting: qualification fields (Rank, Player Name, Nickname, Matches, Wins,
+ *     Ties, Losses, Win Rounds, Loss Rounds, Points, Score) and match fields (Match #, Stage,
+ *     Player 1, Player 2, Score 1, Score 2, Completed)
+ *   - Player name and nickname inclusion in match export
+ *   - Completed status formatting as Yes/No
+ *   - Tournament not found (404) handling
+ *   - Database error handling for tournament, qualification, and match queries
+ *   - Invalid tournament ID handling
+ *   - UTF-8 BOM inclusion for CSV encoding compatibility
+ *   - Correct Content-Type and Content-Disposition headers for file download
+ */
 // @ts-nocheck
 
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/excel', () => ({ createCSV: jest.fn(() => 'csv,header1,header2\nrow1col1,row1col2') }));
-jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('next/server', () => {
+  /**
+   * Mock NextResponse constructor for CSV export (new NextResponse(body, { headers }))
+   * and NextResponse.json for JSON error responses.
+   */
+  const MockNextResponse = function(body: any, init?: any) {
+    return { data: body, headers: init?.headers || {}, status: init?.status || 200 };
+  };
+  MockNextResponse.json = jest.fn();
+  return { NextResponse: MockNextResponse };
+});
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 import { createCSV } from '@/lib/excel';
 import { GET } from '@/app/api/tournaments/[id]/bm/export/route';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const NextResponseMock = jest.requireMock('next/server') as { NextResponse: jest.Mock & { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {
@@ -26,7 +60,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    NextResponseMock.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    NextResponseMock.NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
   });
 
   describe('GET - Export BM tournament data as CSV', () => {
@@ -37,7 +71,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament 2024',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockQualifications = [
         {
           id: 'q1',
@@ -78,7 +112,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
           },
         },
       ];
-      
+
       const mockMatches = [
         {
           id: 'm1',
@@ -100,16 +134,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
           },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
       (createCSV as jest.Mock).mockReturnValueOnce('csv,header1,header2\nrow1col1,row1col2').mockReturnValueOnce('csv,matchHeader1,matchHeader2\nmatchRow1col1,matchRow1col2');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toBeDefined();
       expect(result.data.startsWith('\uFEFF')).toBe(true);
       expect(result.data).toContain('QUALIFICATIONS');
@@ -141,22 +175,22 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockQualifications = [
         { playerId: 'p1', score: 10, points: 20, player: { name: 'Player 1', nickname: 'P1' } },
         { playerId: 'p2', score: 10, points: 18, player: { name: 'Player 2', nickname: 'P2' } },
         { playerId: 'p3', score: 9, points: 20, player: { name: 'Player 3', nickname: 'P3' } },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: true },
@@ -174,22 +208,22 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockMatches = [
         { matchNumber: 3, player1: { name: 'P1', nickname: 'P1' }, player2: { name: 'P2', nickname: 'P2' } },
         { matchNumber: 1, player1: { name: 'P1', nickname: 'P1' }, player2: { name: 'P2', nickname: 'P2' } },
         { matchNumber: 2, player1: { name: 'P1', nickname: 'P1' }, player2: { name: 'P2', nickname: 'P2' } },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player1: true, player2: true },
@@ -204,16 +238,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament 2024',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.headers).toBeDefined();
       expect(result.headers['Content-Disposition']).toContain('Test Tournament 2024_BM_');
       expect(result.headers['Content-Disposition']).toContain('.csv');
@@ -227,16 +261,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,header\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toBeDefined();
       expect(result.data).toContain('QUALIFICATIONS');
       expect(result.data).toContain('MATCHES');
@@ -249,7 +283,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockQualifications = [
         {
           playerId: 'p1',
@@ -264,16 +298,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
           player: { name: 'Player 1', nickname: 'P1' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const qualCall = (createCSV as jest.Mock).mock.calls[0];
       const headers = qualCall[0];
       expect(headers).toContain('Rank');
@@ -296,7 +330,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockMatches = [
         {
           matchNumber: 1,
@@ -308,16 +342,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
           player2: { name: 'Player 2', nickname: 'P2' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const headers = matchCall[0];
       expect(headers).toContain('Match #');
@@ -336,7 +370,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockMatches = [
         {
           matchNumber: 1,
@@ -345,16 +379,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
           player2: { name: 'Player 2', nickname: 'P2' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const data = matchCall[1];
       expect(data[0][2]).toContain('Player 1');
@@ -370,21 +404,21 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       const mockMatches = [
         { matchNumber: 1, completed: true, player1: { name: 'P1', nickname: 'P1' }, player2: { name: 'P2', nickname: 'P2' } },
         { matchNumber: 2, completed: false, player1: { name: 'P1', nickname: 'P1' }, player2: { name: 'P2', nickname: 'P2' } },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const data = matchCall[1];
       expect(data[0][6]).toBe('Yes');
@@ -394,11 +428,11 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
     // Not found case - Returns 404 when tournament not found
     it('should return 404 when tournament is not found', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Tournament not found' });
       expect(result.status).toBe(404);
     });
@@ -406,11 +440,11 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database query fails', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to export tournament' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
@@ -423,14 +457,14 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to export tournament' });
       expect(result.status).toBe(500);
     });
@@ -442,15 +476,15 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to export tournament' });
       expect(result.status).toBe(500);
     });
@@ -458,11 +492,11 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
     // Edge case - Handles invalid tournament ID gracefully
     it('should handle invalid tournament ID gracefully', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/invalid-id/bm/export');
       const params = Promise.resolve({ id: 'invalid-id' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
@@ -474,16 +508,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const bom = '\uFEFF';
       expect(result.data.startsWith(bom)).toBe(true);
     });
@@ -495,16 +529,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.headers['Content-Type']).toBe('text/csv; charset=utf-8');
     });
 
@@ -515,16 +549,16 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-15'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
       (createCSV as jest.Mock).mockReturnValue('csv,data\n');
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.headers['Content-Disposition']).toContain('attachment');
       expect(result.headers['Content-Disposition']).toContain('.csv');
     });

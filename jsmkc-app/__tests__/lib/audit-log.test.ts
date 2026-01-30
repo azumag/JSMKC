@@ -1,3 +1,22 @@
+/**
+ * @module __tests__/lib/audit-log.test.ts
+ * @description Test suite for the audit logging utility from `@/lib/audit-log`.
+ *
+ * This suite validates the `createAuditLog` function which records administrative
+ * actions (tournament creation, unauthorized access attempts, etc.) to the database
+ * via Prisma. Tests cover:
+ *
+ * - Successful audit log creation with all fields (userId, ipAddress, userAgent,
+ *   action, targetId, targetType, details).
+ * - Input sanitization of the `details` field via `sanitizeInput` to prevent XSS
+ *   or injection attacks being persisted in audit records.
+ * - Creation of audit logs without optional fields (userId, targetId, targetType,
+ *   details).
+ * - Graceful error handling: returns undefined (instead of throwing) when the
+ *   database write fails, ensuring audit log failures never crash the main flow.
+ * - Verification that `sanitizeInput` is not called when `details` is not provided.
+ * - Anonymous user identification when userId is absent in error scenarios.
+ */
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 
@@ -53,7 +72,10 @@ describe('Audit Log', () => {
         details: JSON.parse(JSON.stringify(mockSanitizeInput(params.details))),
       },
     });
-    expect(result).toBeDefined();
+    // createAuditLog returns Promise<void> (fire-and-forget pattern),
+    // so result is undefined on success. We verify success by checking
+    // that prisma.auditLog.create was called above.
+    expect(result).toBeUndefined();
   });
 
   it('should sanitize details before creating log', async () => {
@@ -81,9 +103,10 @@ describe('Audit Log', () => {
 
     const result = await createAuditLog(params);
 
+    // Source uses `params.userId || null` so missing userId becomes null
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
       data: {
-        userId: undefined,
+        userId: null,
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
         action: params.action,
@@ -92,7 +115,8 @@ describe('Audit Log', () => {
         details: undefined,
       },
     });
-    expect(result).toBeDefined();
+    // createAuditLog returns Promise<void>, so result is always undefined
+    expect(result).toBeUndefined();
   });
 
   it('should handle errors gracefully and return undefined', async () => {
@@ -123,7 +147,9 @@ describe('Audit Log', () => {
     consoleSpy.mockRestore();
   });
 
-  it('should not call sanitizeInput when details is not provided', async () => {
+  // sanitizeInput is called on ipAddress, userAgent, action (always)
+  // but NOT on details when details is not provided
+  it('should not call sanitizeInput on details when details is not provided', async () => {
     const params = {
       ipAddress: '192.168.1.1',
       userAgent: 'Mozilla/5.0',
@@ -132,7 +158,12 @@ describe('Audit Log', () => {
 
     await createAuditLog(params);
 
-    expect(mockSanitizeInput).not.toHaveBeenCalled();
+    // sanitizeInput is called for ipAddress, userAgent, and action (3 times)
+    // but NOT for details since it's undefined
+    expect(mockSanitizeInput).toHaveBeenCalledTimes(3);
+    expect(mockSanitizeInput).toHaveBeenCalledWith('192.168.1.1');
+    expect(mockSanitizeInput).toHaveBeenCalledWith('Mozilla/5.0');
+    expect(mockSanitizeInput).toHaveBeenCalledWith(AUDIT_ACTIONS.CREATE_TOURNAMENT);
   });
 
   it('should log user as anonymous when userId not provided', async () => {

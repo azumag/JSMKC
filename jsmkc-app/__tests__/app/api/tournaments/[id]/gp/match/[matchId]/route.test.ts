@@ -1,3 +1,15 @@
+/**
+ * @module GP Match API Route Tests - /api/tournaments/[id]/gp/match/[matchId]
+ *
+ * Test suite for the individual Grand Prix match endpoint. Covers:
+ * - GET: Fetching a single GP match by ID with player details.
+ * - PUT: Updating match scores using optimistic locking (version field)
+ *   to prevent concurrent update conflicts. Returns 409 when the match
+ *   has been modified by another user since it was last read.
+ *
+ * Optimistic locking is critical for tournament operations where multiple
+ * admins may be entering scores simultaneously.
+ */
 // @ts-nocheck
 
 
@@ -57,13 +69,13 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         points2: 6,
         completed: true,
       };
-      
+
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1');
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual(mockMatch);
       expect(result.status).toBe(200);
       expect(prisma.gPMatch.findUnique).toHaveBeenCalledWith({
@@ -75,11 +87,11 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Not found case - Returns 404 when match is not found
     it('should return 404 when match is not found', async () => {
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/nonexistent');
       const params = Promise.resolve({ id: 't1', matchId: 'nonexistent' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'Match not found' });
       expect(result.status).toBe(404);
     });
@@ -87,11 +99,11 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Error case - Returns 500 when database query fails
     it('should return 500 when database query fails', async () => {
       (prisma.gPMatch.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1');
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch grand prix match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP match', { error: expect.any(Error), matchId: 'm1' });
@@ -100,11 +112,11 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Edge case - Handles invalid match ID gracefully
     it('should handle invalid match ID gracefully', async () => {
       (prisma.gPMatch.findUnique as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/invalid-id');
       const params = Promise.resolve({ id: 't1', matchId: 'invalid-id' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
@@ -123,7 +135,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       const mockUpdateResult = { version: 2 };
       const races = [
         { course: 'Mario Circuit 1', position1: 1, position2: 2, points1: 9, points2: 6 },
@@ -131,10 +143,10 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         { course: 'Ghost Valley 1', position1: 1, position2: 2, points1: 9, points2: 6 },
         { course: 'Bowser Castle 1', position1: 1, position2: 2, points1: 9, points2: 6 },
       ];
-      
+
       (updateGPMatchScore as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 18,
         points2: 6,
@@ -144,7 +156,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({
         success: true,
         data: mockMatch,
@@ -174,12 +186,12 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       const mockUpdateResult = { version: 3 };
-      
+
       (updateGPMatchScore as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 12,
         points2: 12,
@@ -187,7 +199,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data.success).toBe(true);
       expect(result.status).toBe(200);
       expect(updateGPMatchScore).toHaveBeenCalledWith(
@@ -204,9 +216,9 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Version conflict case - Returns 409 when version mismatch occurs
     it('should return 409 conflict error when version mismatch occurs', async () => {
       const conflictError = new OptimisticLockError(5);
-      
+
       (updateGPMatchScore as jest.Mock).mockRejectedValue(conflictError);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 18,
         points2: 6,
@@ -215,7 +227,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({
         success: false,
         error: 'Version conflict',
@@ -233,7 +245,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'points1 and points2 are required' });
       expect(result.status).toBe(400);
     });
@@ -246,7 +258,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'points1 and points2 are required' });
       expect(result.status).toBe(400);
     });
@@ -258,7 +270,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'points1 and points2 are required' });
       expect(result.status).toBe(400);
     });
@@ -271,7 +283,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
@@ -285,7 +297,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
@@ -299,7 +311,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
@@ -307,7 +319,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (updateGPMatchScore as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 18,
         points2: 6,
@@ -316,7 +328,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), matchId: 'm1' });
@@ -334,12 +346,12 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       const mockUpdateResult = { version: 2 };
-      
+
       (updateGPMatchScore as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 0,
         points2: 0,
@@ -348,7 +360,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data.success).toBe(true);
       expect(result.status).toBe(200);
     });
@@ -365,12 +377,12 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       const mockUpdateResult = { version: 2 };
-      
+
       (updateGPMatchScore as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
         points1: 18,
         points2: 6,
@@ -380,7 +392,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data.success).toBe(true);
       expect(result.status).toBe(200);
       expect(updateGPMatchScore).toHaveBeenCalledWith(

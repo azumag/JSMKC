@@ -1,3 +1,25 @@
+/**
+ * @module Select Component Tests
+ *
+ * Tests for the Radix UI Select wrapper components.
+ * Select allows users to choose a value from a list of options.
+ *
+ * Covers all subcomponents:
+ * - Select: root rendering, placeholder, open state, prop passing
+ * - SelectTrigger: children, ChevronDown icon, size variants (default, sm),
+ *   custom className, data-slot attribute, focus styles, disabled state
+ * - SelectValue: placeholder text, selected value display
+ * - SelectContent: children rendering, portal rendering, custom className,
+ *   positioning classes, position/align props
+ * - SelectGroup: children rendering, data-slot attribute
+ * - SelectLabel: label text, typography classes, custom className, data-slot
+ * - SelectItem: item text, check icon for selected, data-slot attribute
+ * - SelectSeparator: rendering, custom className, data-slot, border styling
+ * - SelectScrollUpButton / SelectScrollDownButton: rendering, icons,
+ *   custom className, data-slot
+ * - Integration: complete Select with all subcomponents, multiple groups
+ * - Accessibility: combobox role, disabled item ARIA attributes
+ */
 import { render, screen } from '@testing-library/react';
 import {
   Select,
@@ -12,12 +34,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-/**
- * Select Component Tests
- * 
- * Tests for the Radix UI Select wrapper components.
- * Select allows users to choose a value from a list of options.
- */
 describe('Select Components', () => {
   /**
    * Helper component to render a complete Select

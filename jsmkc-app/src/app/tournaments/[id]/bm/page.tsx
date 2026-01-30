@@ -1,3 +1,26 @@
+/**
+ * Battle Mode Qualification Page
+ *
+ * Main page for managing BM qualification rounds within a tournament.
+ * Displays group standings and match lists with admin controls for:
+ * - Setting up groups (assigning players to groups A, B, C)
+ * - Entering match scores
+ * - Exporting data to Excel/CSV
+ * - Navigating to finals bracket
+ *
+ * Features:
+ * - Real-time polling (3s interval) for live tournament updates
+ * - Tabbed view switching between Standings and Matches
+ * - Admin-only controls gated by session role
+ * - Score entry dialog for individual matches
+ * - Loading skeleton for initial page load
+ *
+ * Data flow:
+ * - Fetches BM qualification data + all players via usePolling hook
+ * - Standings are displayed per-group, sorted by score then point differential
+ * - Matches show completion status and allow score entry/editing
+ */
+
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -42,28 +65,31 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** BM Qualification record with player stats and group assignment */
 interface BMQualification {
   id: string;
   playerId: string;
   group: string;
   seeding: number | null;
-  mp: number;
-  wins: number;
-  ties: number;
-  losses: number;
-  winRounds: number;
-  lossRounds: number;
-  points: number;
-  score: number;
+  mp: number;        // Matches played
+  wins: number;      // Match wins (3+ rounds won)
+  ties: number;      // Match ties (2-2 split)
+  losses: number;    // Match losses
+  winRounds: number; // Total rounds won
+  lossRounds: number; // Total rounds lost
+  points: number;    // Round differential (winRounds - lossRounds)
+  score: number;     // Match points (wins*2 + ties)
   player: Player;
 }
 
+/** BM Match record with player relations */
 interface BMMatch {
   id: string;
   matchNumber: number;
@@ -78,6 +104,10 @@ interface BMMatch {
   player2: Player;
 }
 
+/**
+ * Battle Mode qualification page component.
+ * Uses React 19's `use()` hook to unwrap the async params.
+ */
 export default function BattleModePage({
   params,
 }: {
@@ -85,21 +115,33 @@ export default function BattleModePage({
 }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
+  /* Check admin role for conditional UI rendering */
   const isAdmin = session?.user && session.user.role === 'admin';
 
+  /* State for qualification data, matches, and available players */
   const [qualifications, setQualifications] = useState<BMQualification[]>([]);
   const [matches, setMatches] = useState<BMMatch[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
-  const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string }[]
   >([]);
+
+  /* State for score entry dialog */
+  const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
+  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+
+  /* State for CSV export */
   const [exporting, setExporting] = useState(false);
 
+  /**
+   * Fetch both BM qualification data and all players in parallel.
+   * This is the polling function called every 3 seconds for live updates.
+   */
   const fetchTournamentData = useCallback(async () => {
     const [bmResponse, playersResponse] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/bm`),
@@ -124,11 +166,13 @@ export default function BattleModePage({
     };
   }, [tournamentId]);
 
+  /* Set up polling with 3-second interval for real-time updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
   });
 
+  /* Update local state when polling data changes */
   useEffect(() => {
     if (pollData) {
       setQualifications(pollData.qualifications);
@@ -137,10 +181,16 @@ export default function BattleModePage({
     }
   }, [pollData]);
 
+  /* Sync loading state with polling status */
   useEffect(() => {
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Handle group setup submission.
+   * Sends the player-group assignments to the API which generates
+   * round-robin matches for each group.
+   */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
       alert("Please add at least one player");
@@ -164,6 +214,10 @@ export default function BattleModePage({
     }
   };
 
+  /**
+   * Handle score submission for a match.
+   * Sends score data via PUT which also recalculates player standings.
+   */
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
@@ -189,22 +243,30 @@ export default function BattleModePage({
     }
   };
 
+  /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
     setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsScoreDialogOpen(true);
   };
 
+  /** Add a player to the setup list (prevents duplicates) */
   const addPlayerToSetup = (playerId: string, group: string) => {
     if (!setupPlayers.find((p) => p.playerId === playerId)) {
       setSetupPlayers([...setupPlayers, { playerId, group }]);
     }
   };
 
+  /** Remove a player from the setup list */
   const removePlayerFromSetup = (playerId: string) => {
     setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
   };
 
+  /**
+   * Handle CSV/Excel export.
+   * Downloads the export file via the BM export API endpoint.
+   * Creates a temporary link element to trigger the browser download.
+   */
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -229,8 +291,10 @@ export default function BattleModePage({
     }
   };
 
+  /* Extract unique group names for tabbed display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
+  /* Loading skeleton shown during initial data fetch */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -248,6 +312,7 @@ export default function BattleModePage({
 
   return (
     <div className="space-y-6">
+      {/* Page header with title, polling indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Battle Mode</h1>
@@ -259,6 +324,7 @@ export default function BattleModePage({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Admin-only export button */}
           {isAdmin && (
             <Button
               variant="outline"
@@ -268,6 +334,8 @@ export default function BattleModePage({
               {exporting ? "Exporting..." : "Export to Excel"}
             </Button>
           )}
+
+          {/* Link to finals page (only shown when groups are set up) */}
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/bm/finals`}>
@@ -275,6 +343,8 @@ export default function BattleModePage({
               </Link>
             </Button>
           )}
+
+          {/* Admin-only group setup/reset dialog */}
           {isAdmin && (
             <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
@@ -290,6 +360,7 @@ export default function BattleModePage({
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Player selection dropdown */}
                 <div className="flex gap-4">
                   <div className="flex-1">
                     <Label>Select Player</Label>
@@ -319,6 +390,7 @@ export default function BattleModePage({
                   </div>
                 </div>
 
+                {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
                     Selected Players ({setupPlayers.length})
@@ -392,12 +464,15 @@ export default function BattleModePage({
             </DialogContent>
           </Dialog>
           )}
+
+          {/* Back navigation to tournament overview */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}`}>Back</Link>
           </Button>
         </div>
       </div>
 
+      {/* Main content area - empty state or tabbed view */}
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -411,6 +486,7 @@ export default function BattleModePage({
             <TabsTrigger value="matches">Matches</TabsTrigger>
           </TabsList>
 
+          {/* Standings Tab - Group-by-group qualification standings */}
           <TabsContent value="standings">
             <div className="grid gap-6">
               {groups.map((group) => (
@@ -465,6 +541,7 @@ export default function BattleModePage({
             </div>
           </TabsContent>
 
+          {/* Matches Tab - Full match list with score entry */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -512,6 +589,7 @@ export default function BattleModePage({
                           {match.player2.nickname}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
+                          {/* Share link for participant score entry page */}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -521,6 +599,7 @@ export default function BattleModePage({
                               Share
                             </Link>
                           </Button>
+                          {/* Admin-only score entry/edit button */}
                           {isAdmin && (
                             <Button
                               variant={match.completed ? "outline" : "default"}
@@ -541,7 +620,7 @@ export default function BattleModePage({
         </Tabs>
       )}
 
-      {/* Score Entry Dialog */}
+      {/* Score Entry Dialog - Admin interface for entering/editing match scores */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -558,6 +637,7 @@ export default function BattleModePage({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
+              {/* Player 1 score input */}
               <div className="text-center">
                 <Label>{selectedMatch?.player1.nickname}</Label>
                 <Input
@@ -575,6 +655,7 @@ export default function BattleModePage({
                 />
               </div>
               <span className="text-2xl">-</span>
+              {/* Player 2 score input */}
               <div className="text-center">
                 <Label>{selectedMatch?.player2.nickname}</Label>
                 <Input
@@ -592,6 +673,7 @@ export default function BattleModePage({
                 />
               </div>
             </div>
+            {/* Validation warning when total rounds != 4 */}
             {scoreForm.score1 + scoreForm.score2 !== 4 && (
               <p className="text-sm text-yellow-600 text-center">
                 Total rounds should equal 4

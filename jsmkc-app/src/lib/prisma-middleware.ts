@@ -1,30 +1,83 @@
-// Soft Delete Utilities for Prisma
-// 設計書の「6.6 ソフトデリートの実装」に基づき実装
+// Soft Delete Middleware for Prisma
+// Provides automatic soft delete functionality for specified models
+// Instead of physically deleting records, sets deletedAt timestamp
 
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '@/lib/logger';
 
-// Create logger for prisma-middleware module
-// Using structured logging to provide consistent warning tracking and debugging capabilities
-// The logger provides proper log levels (error, warn, info, debug) and includes service name context
-const logger = createLogger('prisma-middleware');
+export interface SoftDeleteOptions {
+  includeDeleted?: boolean;
+}
 
-// ソフトデリート用のユーティリティ関数
-export class SoftDeleteManager {
+interface PrismaMiddlewareParams {
+  model?: string;
+  action: string;
+  args: Record<string, unknown> & {
+    data?: Record<string, unknown>;
+    where?: Record<string, unknown>;
+    includeDeleted?: boolean;
+  };
+  dataPath?: string[];
+  runInTransaction?: boolean;
+}
+
+interface PrismaNextFunction {
+  (params: PrismaMiddlewareParams): Promise<unknown>;
+}
+
+/**
+ * Creates middleware that intercepts delete operations and converts them to soft deletes.
+ * Also automatically filters out soft-deleted records from find queries.
+ */
+export function createSoftDeleteMiddleware() {
+  return async (params: PrismaMiddlewareParams, next: PrismaNextFunction) => {
+    // Models that support soft delete via deletedAt field
+    const softDeleteModels = [
+      'Player', 'Tournament', 'BMMatch', 'BMQualification',
+      'MRMatch', 'MRQualification', 'GPMatch', 'GPQualification', 'TTEntry'
+    ];
+
+    if (params.model && softDeleteModels.includes(params.model)) {
+      // Convert DELETE to UPDATE with deletedAt timestamp
+      if (params.action === 'delete') {
+        params.action = 'update';
+        params.args['data'] = { deletedAt: new Date() };
+      }
+
+      // Convert deleteMany to updateMany with deletedAt timestamp
+      if (params.action === 'deleteMany') {
+        params.action = 'updateMany';
+        if (params.args.data != undefined) {
+          params.args.data['deletedAt'] = new Date();
+        } else {
+          params.args['data'] = { deletedAt: new Date() };
+        }
+      }
+
+      // Automatically exclude soft-deleted records from queries
+      // unless explicitly requested with includeDeleted flag
+      if (['findMany', 'findFirst', 'findUnique'].includes(params.action)) {
+        if (params.args?.includeDeleted !== true) {
+          if (params.args.where) {
+            params.args.where['deletedAt'] = null;
+          } else {
+            params.args.where = { deletedAt: null };
+          }
+        }
+      }
+    }
+
+    return next(params);
+  };
+}
+
+/**
+ * Utility class providing explicit soft delete operations for each model.
+ * Used when middleware approach is not available or when explicit control is needed.
+ */
+export class SoftDeleteUtils {
   constructor(private prisma: PrismaClient) {}
 
-  // ソフトデリート用のwhere句を生成
-  private addSoftDeleteClause<T extends Record<string, unknown>>(where: T = {} as T, includeDeleted = false): T {
-    if (includeDeleted) {
-      return where;
-    }
-    return {
-      ...where,
-      deletedAt: null
-    } as T;
-  }
-
-  // Player操作
+  // Soft delete operations for each model type
   async softDeletePlayer(id: string) {
     return this.prisma.player.update({
       where: { id },
@@ -32,21 +85,6 @@ export class SoftDeleteManager {
     });
   }
 
-  async findPlayers(options: import('@prisma/client').Prisma.PlayerFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.player.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findPlayer(id: string, options: Omit<import('@prisma/client').Prisma.PlayerFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.player.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // Tournament操作
   async softDeleteTournament(id: string) {
     return this.prisma.tournament.update({
       where: { id },
@@ -54,21 +92,6 @@ export class SoftDeleteManager {
     });
   }
 
-  async findTournaments(options: import('@prisma/client').Prisma.TournamentFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.tournament.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findTournament(id: string, options: Omit<import('@prisma/client').Prisma.TournamentFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.tournament.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // BMMatch操作
   async softDeleteBMMatch(id: string) {
     return this.prisma.bMMatch.update({
       where: { id },
@@ -76,87 +99,6 @@ export class SoftDeleteManager {
     });
   }
 
-  async findBMMatches(options: import('@prisma/client').Prisma.BMMatchFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.bMMatch.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findBMMatch(id: string, options: Omit<import('@prisma/client').Prisma.BMMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.bMMatch.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // MRMatch操作
-  async softDeleteMRMatch(id: string) {
-    return this.prisma.mRMatch.update({
-      where: { id },
-      data: { deletedAt: new Date() }
-    });
-  }
-
-  async findMRMatches(options: import('@prisma/client').Prisma.MRMatchFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.mRMatch.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findMRMatch(id: string, options: Omit<import('@prisma/client').Prisma.MRMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.mRMatch.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // GPMatch操作
-  async softDeleteGPMatch(id: string) {
-    return this.prisma.gPMatch.update({
-      where: { id },
-      data: { deletedAt: new Date() }
-    });
-  }
-
-  async findGPMatches(options: import('@prisma/client').Prisma.GPMatchFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.gPMatch.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findGPMatch(id: string, options: Omit<import('@prisma/client').Prisma.GPMatchFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.gPMatch.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // TTEntry操作
-  async softDeleteTTEntry(id: string) {
-    return this.prisma.tTEntry.update({
-      where: { id },
-      data: { deletedAt: new Date() }
-    });
-  }
-
-  async findTTEntries(options: import('@prisma/client').Prisma.TTEntryFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.tTEntry.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
-    });
-  }
-
-  async findTTEntry(id: string, options: Omit<import('@prisma/client').Prisma.TTEntryFindUniqueArgs, 'where'> = {}, includeDeleted = false) {
-    return this.prisma.tTEntry.findUnique({
-      ...options,
-      where: this.addSoftDeleteClause({ id }, includeDeleted)
-    });
-  }
-
-  // BMQualification操作
   async softDeleteBMQualification(id: string) {
     return this.prisma.bMQualification.update({
       where: { id },
@@ -164,14 +106,13 @@ export class SoftDeleteManager {
     });
   }
 
-  async findBMQualifications(options: import('@prisma/client').Prisma.BMQualificationFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.bMQualification.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
+  async softDeleteMRMatch(id: string) {
+    return this.prisma.mRMatch.update({
+      where: { id },
+      data: { deletedAt: new Date() }
     });
   }
 
-  // MRQualification操作
   async softDeleteMRQualification(id: string) {
     return this.prisma.mRQualification.update({
       where: { id },
@@ -179,14 +120,13 @@ export class SoftDeleteManager {
     });
   }
 
-  async findMRQualifications(options: import('@prisma/client').Prisma.MRQualificationFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.mRQualification.findMany({
-      ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
+  async softDeleteGPMatch(id: string) {
+    return this.prisma.gPMatch.update({
+      where: { id },
+      data: { deletedAt: new Date() }
     });
   }
 
-  // GPQualification操作
   async softDeleteGPQualification(id: string) {
     return this.prisma.gPQualification.update({
       where: { id },
@@ -194,14 +134,28 @@ export class SoftDeleteManager {
     });
   }
 
-  async findGPQualifications(options: import('@prisma/client').Prisma.GPQualificationFindManyArgs = {}, includeDeleted = false) {
-    return this.prisma.gPQualification.findMany({
+  // Query functions that automatically exclude soft-deleted records
+  async getPlayers(options: import('@prisma/client').Prisma.PlayerFindManyArgs = {}) {
+    return this.prisma.player.findMany({
       ...options,
-      where: this.addSoftDeleteClause(options.where, includeDeleted)
+      where: {
+        ...options.where,
+        deletedAt: null
+      }
     });
   }
 
-  // 復元操作
+  async getTournaments(options: import('@prisma/client').Prisma.TournamentFindManyArgs = {}) {
+    return this.prisma.tournament.findMany({
+      ...options,
+      where: {
+        ...options.where,
+        deletedAt: null
+      }
+    });
+  }
+
+  // Recovery operations to restore soft-deleted records
   async restorePlayer(id: string) {
     return this.prisma.player.update({
       where: { id },
@@ -216,49 +170,25 @@ export class SoftDeleteManager {
     });
   }
 
-  async restoreBMMatch(id: string) {
-    return this.prisma.bMMatch.update({
-      where: { id },
-      data: { deletedAt: null }
+  // Include deleted records in queries (for admin views)
+  async getPlayersWithDeleted(options: import('@prisma/client').Prisma.PlayerFindManyArgs = {}) {
+    return this.prisma.player.findMany(options);
+  }
+
+  async getTournamentsWithDeleted(options: import('@prisma/client').Prisma.TournamentFindManyArgs = {}) {
+    return this.prisma.tournament.findMany(options);
+  }
+
+  async findPlayerWithDeleted(id: string) {
+    return this.prisma.player.findUnique({
+      where: { id }
     });
   }
 
-  async restoreMRMatch(id: string) {
-    return this.prisma.mRMatch.update({
+  async findTournamentWithDeleted(id: string, options: Omit<import('@prisma/client').Prisma.TournamentFindUniqueArgs, 'where'> = {}) {
+    return this.prisma.tournament.findUnique({
       where: { id },
-      data: { deletedAt: null }
+      ...options
     });
   }
-
-  async restoreGPMatch(id: string) {
-    return this.prisma.gPMatch.update({
-      where: { id },
-      data: { deletedAt: null }
-    });
-  }
-
-  async restoreTTEntry(id: string) {
-    return this.prisma.tTEntry.update({
-      where: { id },
-      data: { deletedAt: null }
-    });
-  }
-}
-
-// デフォルトインスタンスをエクスポート（互換性のため）
-let softDeleteManager: SoftDeleteManager | null = null;
-
-export function getSoftDeleteManager(prisma: PrismaClient): SoftDeleteManager {
-  if (!softDeleteManager || softDeleteManager['prisma'] !== prisma) {
-    softDeleteManager = new SoftDeleteManager(prisma);
-  }
-  return softDeleteManager;
- }
-
-// 互換性のための関数（ミドルウェアが使えない場合の代替）
-export function applySoftDeleteMiddleware(): void {
-  // Log warning about using SoftDeleteManager instead of middleware
-  // This is expected behavior due to Prisma version limitations
-  // Structured logging helps track when this alternative approach is used
-  logger.warn('Using SoftDeleteManager instead of middleware due to Prisma version limitations.');
 }

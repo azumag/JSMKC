@@ -1,3 +1,16 @@
+/**
+ * @module GP Matches API Route Tests - /api/tournaments/[id]/gp/matches
+ *
+ * Test suite for the Grand Prix matches listing endpoint used for polling.
+ * This endpoint provides paginated GP match data and is secured via
+ * tournament token-based authentication (not OAuth), allowing player
+ * devices to poll for match updates without requiring login.
+ *
+ * Covers:
+ * - GET: Fetching paginated GP matches with token validation,
+ *   custom pagination parameters, expired/invalid token handling,
+ *   and database error scenarios.
+ */
 // @ts-nocheck
 
 
@@ -53,14 +66,14 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         data: mockMatches,
         pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
       };
-      
+
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=valid-token');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual(mockPaginatedResult);
       expect(result.status).toBe(200);
       expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
@@ -92,14 +105,14 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         data: [],
         pagination: { page: 2, limit: 20, total: 0, totalPages: 0 },
       };
-      
+
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=valid-token&page=2&limit=20');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(
         expect.any(Object),
@@ -114,7 +127,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Token required' });
       expect(result.status).toBe(401);
       expect(prisma.tournament.findFirst).not.toHaveBeenCalled();
@@ -125,7 +138,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Token required' });
       expect(result.status).toBe(401);
     });
@@ -133,11 +146,11 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
     // Authentication failure case - Returns 401 when token is invalid
     it('should return 401 when token is invalid', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=invalid-token');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Invalid or expired token' });
       expect(result.status).toBe(401);
       expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
@@ -152,11 +165,11 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
     // Authentication failure case - Returns 401 when token is expired
     it('should return 401 when token is expired', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=expired-token');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Invalid or expired token' });
       expect(result.status).toBe(401);
     });
@@ -168,14 +181,14 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         token: 'valid-token',
         tokenExpiresAt: new Date(Date.now() + 3600000),
       };
-      
+
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (paginate as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=valid-token');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to fetch grand prix matches' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP matches', { error: expect.any(Error), tournamentId: 't1' });
@@ -184,16 +197,17 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
     // Edge case - Handles invalid tournament ID gracefully
     it('should handle invalid tournament ID gracefully', async () => {
       (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(new Error('Invalid UUID'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/invalid-id/gp/matches?token=valid-token');
       const params = Promise.resolve({ id: 'invalid-id' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
 
     // Edge case - Handles non-numeric page and limit parameters
+    // Source uses `Number(searchParams.get('page')) || 1` which converts NaN to defaults (1, 50)
     it('should use default values when page and limit are non-numeric', async () => {
       const mockTournament = {
         id: 't1',
@@ -204,20 +218,21 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         data: [],
         pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
       };
-      
+
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=valid-token&page=abc&limit=xyz');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.status).toBe(200);
+      /* Number('abc') is NaN, and NaN || 1 evaluates to 1; NaN || 50 evaluates to 50 */
       expect(paginate).toHaveBeenCalledWith(
         expect.any(Object),
         expect.any(Object),
         expect.any(Object),
-        { page: NaN, limit: NaN }
+        { page: 1, limit: 50 }
       );
     });
 
@@ -232,14 +247,14 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         data: [],
         pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
       };
-      
+
       (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/matches?token=valid-token');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual(mockPaginatedResult);
       expect(result.data.data).toEqual([]);
       expect(result.status).toBe(200);

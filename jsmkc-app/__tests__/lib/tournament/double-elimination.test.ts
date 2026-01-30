@@ -1,3 +1,23 @@
+/**
+ * @module double-elimination.test
+ *
+ * Test suite for double elimination bracket generation and match progression
+ * (`@/lib/tournament/double-elimination`).
+ *
+ * Covers:
+ * - generateDoubleEliminationBracket:
+ *   - Error when fewer than 2 players
+ *   - Bracket generation for even, odd, power-of-2, and non-power-of-2 player counts
+ *   - Qualifying rank-based seeding (highest seed vs second seed, etc.)
+ *   - Unique match IDs, correct bracket positions, round names, bracket type
+ *   - Initial win counts (both zero), BM and MR match types
+ *   - Large player counts (32 players) and minimal (2 players)
+ * - calculateMatchProgression:
+ *   - Regular matches: ongoing when below 5 wins, complete at 5+ wins for either player
+ *   - Grand final matches: same win thresholds, ongoing at 4-4 tie
+ *   - Edge cases: null player IDs return ongoing, both players at 5 wins in grand final
+ *   - Exceeding target wins (6 wins still returns complete)
+ */
 import { generateDoubleEliminationBracket, calculateMatchProgression, type MatchNode, type BracketPlayer } from '@/lib/tournament/double-elimination';
 
 describe('Double Elimination Bracket Functions', () => {

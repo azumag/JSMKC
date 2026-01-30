@@ -1,15 +1,39 @@
+/**
+ * Double Elimination Bracket Component
+ *
+ * Renders a complete double-elimination tournament bracket for Battle Mode finals.
+ * The bracket displays three sections:
+ * 1. Winners Bracket (QF -> SF -> Final)
+ * 2. Losers Bracket (R1 -> R2 -> R3 -> SF -> Final)
+ * 3. Grand Final (Grand Final + optional Reset match)
+ *
+ * Each match is displayed as a clickable card showing:
+ * - Match number and seed numbers
+ * - Player nicknames with "TBD" for undetermined matchups
+ * - Scores for completed matches
+ * - Visual highlighting for winners (green background)
+ *
+ * Accessibility features:
+ * - Keyboard navigation (Enter/Space to click)
+ * - ARIA labels for screen readers
+ * - Live region for bracket updates
+ * - Proper role and tabIndex attributes
+ */
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/** Player data structure used throughout the bracket */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** BM match data from the database including player relations */
 interface BMMatch {
   id: string;
   matchNumber: number;
@@ -23,6 +47,7 @@ interface BMMatch {
   player2: Player;
 }
 
+/** Bracket structure definition for a single match position */
 interface BracketMatch {
   matchNumber: number;
   round: string;
@@ -31,14 +56,31 @@ interface BracketMatch {
   player2Seed?: number;
 }
 
+/** Props for the main DoubleEliminationBracket component */
 interface DoubleEliminationBracketProps {
+  /** All finals matches from the database */
   matches: BMMatch[];
+  /** Bracket structure defining match positions and connections */
   bracketStructure: BracketMatch[];
+  /** Human-readable round names mapping (e.g., "winners_qf" -> "Quarter Finals") */
   roundNames: Record<string, string>;
+  /** Optional callback when a match card is clicked (for score entry) */
   onMatchClick?: (match: BMMatch) => void;
+  /** Optional seeded player data for displaying seed numbers */
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
 }
 
+/**
+ * Individual match card within the bracket.
+ * Displays two player rows with their nicknames, seed numbers, and scores.
+ * Completed matches show a green border; winners have highlighted rows.
+ *
+ * @param match - Actual match data (may be undefined for unfilled bracket positions)
+ * @param bracketMatch - Bracket structure definition for this position
+ * @param seededPlayers - Seeded player data for seed number display
+ * @param onClick - Click handler for score entry
+ * @param isTBD - Whether this match has undetermined players
+ */
 function MatchCard({
   match,
   bracketMatch,
@@ -52,6 +94,7 @@ function MatchCard({
   onClick?: () => void;
   isTBD: boolean;
 }) {
+  /* Look up seeded players for displaying seed numbers in first-round matches */
   const seededPlayer1 = bracketMatch.player1Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
     : undefined;
@@ -59,13 +102,19 @@ function MatchCard({
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)?.player
     : undefined;
 
+  /* Use actual match players if available, fall back to seeded player data */
   const player1: Player | undefined = match?.player1 || seededPlayer1;
   const player2: Player | undefined = match?.player2 || seededPlayer2;
 
+  /* Determine winners for visual highlighting (3 wins needed in BM finals) */
   const isWinner1 = match?.completed && match.score1 >= 3;
   const isWinner2 = match?.completed && match.score2 >= 3;
 
-  // Check if this is a future match (players not yet determined from previous rounds)
+  /*
+   * Determine if this match should show "TBD" for players.
+   * First-round matches (winners_qf, losers_r1) always show actual players.
+   * Later rounds show TBD until players are determined from previous results.
+   */
   const isFirstRound =
     bracketMatch.round === "winners_qf" || bracketMatch.round === "losers_r1";
   const showTBD = !isFirstRound && isTBD;
@@ -81,15 +130,19 @@ function MatchCard({
       tabIndex={0}
       aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || 'TBD'} vs ${player2?.nickname || 'TBD'}${showTBD ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
+        /* Support keyboard activation for accessibility */
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onClick?.();
         }
       }}
     >
+      {/* Match number label */}
       <div className="text-xs text-muted-foreground mb-1">
         M{bracketMatch.matchNumber}
       </div>
+
+      {/* Player 1 row with optional seed number and score */}
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
@@ -110,6 +163,8 @@ function MatchCard({
           {match?.completed ? match.score1 : "-"}
         </span>
       </div>
+
+      {/* Player 2 row with optional seed number and score */}
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
@@ -134,6 +189,17 @@ function MatchCard({
   );
 }
 
+/**
+ * Section wrapper for grouping bracket matches by type.
+ * Applies visual theming based on the bracket variant:
+ * - default: Standard border for winners bracket
+ * - losers: Orange border accent for losers bracket
+ * - final: Gold/yellow border accent for grand final
+ *
+ * @param title - Section heading text
+ * @param children - Match cards to render inside the section
+ * @param variant - Visual variant for theming
+ */
 function BracketSection({
   title,
   children,
@@ -154,6 +220,7 @@ function BracketSection({
       <CardHeader className="py-3">
         <CardTitle className="text-lg flex items-center gap-2">
           {title}
+          {/* Badge indicators for losers and final brackets */}
           {variant === "losers" && (
             <Badge variant="outline" className="text-orange-500 border-orange-500">
               Losers
@@ -171,44 +238,59 @@ function BracketSection({
   );
 }
 
+/**
+ * Main Double Elimination Bracket component.
+ * Renders the complete bracket with winners, losers, and grand final sections.
+ * Each section displays matches grouped by round in a horizontal layout
+ * that scrolls on mobile and displays inline on desktop.
+ *
+ * The bracket uses aria-live="polite" to announce updates to screen readers
+ * when match results change during real-time polling.
+ */
 export function DoubleEliminationBracket({
   matches,
   bracketStructure,
   onMatchClick,
   seededPlayers,
 }: DoubleEliminationBracketProps) {
+  /** Look up a match by its bracket match number */
   const getMatch = (matchNumber: number) =>
     matches.find((m) => m.matchNumber === matchNumber);
 
+  /** Look up a bracket position by match number */
   const getBracketMatch = (matchNumber: number) =>
     bracketStructure.find((b) => b.matchNumber === matchNumber);
 
-  // Check if a match should show TBD (players not yet determined)
+  /**
+   * Determine if a match should display "TBD" for its players.
+   * A match is TBD when:
+   * - No match data exists for this position
+   * - It's not a first-round match AND both player IDs are the same
+   *   (indicating placeholder players that haven't been filled in yet)
+   */
   const isTBD = (matchNumber: number) => {
     const match = getMatch(matchNumber);
     if (!match) return true;
-    // For first round matches, never TBD
     const bracket = getBracketMatch(matchNumber);
+    /* First round matches always have real players from seeding */
     if (bracket?.round === "winners_qf") return false;
-    // For other matches, check if both players are actually set from previous results
+    /* Later rounds: check if both player IDs are the same (placeholder state) */
     return !match.completed && match.player1Id === match.player2Id;
   };
 
-  // Winners Bracket rounds
+  /* Group bracket positions by round for organized display */
   const winnersQF = bracketStructure.filter((b) => b.round === "winners_qf");
   const winnersSF = bracketStructure.filter((b) => b.round === "winners_sf");
   const winnersFinal = bracketStructure.filter(
     (b) => b.round === "winners_final"
   );
 
-  // Losers Bracket rounds
   const losersR1 = bracketStructure.filter((b) => b.round === "losers_r1");
   const losersR2 = bracketStructure.filter((b) => b.round === "losers_r2");
   const losersR3 = bracketStructure.filter((b) => b.round === "losers_r3");
   const losersSF = bracketStructure.filter((b) => b.round === "losers_sf");
   const losersFinal = bracketStructure.filter((b) => b.round === "losers_final");
 
-  // Grand Final
   const grandFinal = bracketStructure.filter((b) => b.round === "grand_final");
   const grandFinalReset = bracketStructure.filter(
     (b) => b.round === "grand_final_reset"
@@ -216,10 +298,10 @@ export function DoubleEliminationBracket({
 
   return (
     <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
-       {/* Winners Bracket */}
+      {/* Winners Bracket - Players with no losses */}
       <BracketSection title="Winners Bracket">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
-          {/* QF */}
+          {/* Quarter Finals - First round of 8-player bracket */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Quarter Finals
@@ -241,7 +323,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* SF */}
+          {/* Semi Finals - Winners of QF matches */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Semi Finals
@@ -263,7 +345,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* Final */}
+          {/* Winners Final - Winner proceeds to Grand Final undefeated */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">Final</h4>
             <div className="flex flex-col gap-2 justify-center h-full">
@@ -285,10 +367,10 @@ export function DoubleEliminationBracket({
         </div>
       </BracketSection>
 
-      {/* Losers Bracket */}
+      {/* Losers Bracket - Players with one loss get a second chance */}
       <BracketSection title="Losers Bracket" variant="losers">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
-          {/* R1 */}
+          {/* Losers Round 1 - First matchups of eliminated players */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Round 1
@@ -310,7 +392,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* R2 */}
+          {/* Losers Round 2 */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Round 2
@@ -332,7 +414,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* R3 */}
+          {/* Losers Round 3 */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Round 3
@@ -354,7 +436,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* SF */}
+          {/* Losers Semi Final */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Semi Final
@@ -376,7 +458,7 @@ export function DoubleEliminationBracket({
             </div>
           </div>
 
-          {/* Final */}
+          {/* Losers Final - Winner advances to Grand Final */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">Final</h4>
             <div className="flex flex-col gap-2">
@@ -398,9 +480,10 @@ export function DoubleEliminationBracket({
         </div>
       </BracketSection>
 
-      {/* Grand Final */}
+      {/* Grand Final - Winners champion vs Losers champion */}
       <BracketSection title="Grand Final" variant="final">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
+          {/* Grand Final match */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Grand Final
@@ -420,6 +503,11 @@ export function DoubleEliminationBracket({
             ))}
           </div>
 
+          {/*
+           * Reset match - only played if the losers bracket champion wins
+           * the Grand Final, since the winners bracket champion hasn't lost yet.
+           * In true double elimination, both players must lose to be eliminated.
+           */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Reset (if needed)

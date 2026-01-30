@@ -1,3 +1,15 @@
+/**
+ * Player Detail API Route
+ *
+ * GET    /api/players/:id - Retrieve a single player (public)
+ * PUT    /api/players/:id - Update a player (admin only)
+ * DELETE /api/players/:id - Soft-delete a player (admin only)
+ *
+ * All mutation operations (PUT, DELETE) require admin authentication and
+ * create audit log entries for accountability. The DELETE operation uses
+ * soft-delete (setting deletedAt) rather than permanent removal, allowing
+ * data recovery and maintaining referential integrity with tournament records.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,26 +18,45 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// GET single player (public access)
+/**
+ * GET /api/players/:id
+ *
+ * Retrieves a single player by their unique ID. This endpoint is publicly
+ * accessible because player information (name, nickname) is displayed in
+ * tournament brackets and results.
+ *
+ * Response:
+ *   200 - Player object
+ *   404 - Player not found
+ *   500 - Server error
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
+
   try {
+    // Await params as required by Next.js App Router dynamic route convention
     const { id } = await params;
+
+    // Look up the player by primary key
     const player = await prisma.player.findUnique({
       where: { id }
     });
 
     if (!player) {
-      return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Player not found" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(player);
   } catch (error) {
-    // Log error with structured metadata for better debugging and monitoring
-    // The error object is passed as metadata to maintain error stack traces
+    // Await params again in catch block since it may not have been resolved
+    // before the error occurred. This ensures we can log the player ID.
     const { id } = await params;
     logger.error("Failed to fetch player", { error, playerId: id });
     return NextResponse.json(
@@ -35,12 +66,32 @@ export async function GET(
   }
 }
 
-// PUT update player (requires admin)
+/**
+ * PUT /api/players/:id
+ *
+ * Updates a player's profile information. Requires admin authentication.
+ *
+ * Request body:
+ *   - name     (string, required) - Player's full name
+ *   - nickname (string, required) - Unique display name
+ *   - country  (string, optional) - Player's country code
+ *
+ * Response:
+ *   200 - Updated player object
+ *   400 - Missing required fields
+ *   403 - Not authorized (non-admin)
+ *   404 - Player not found (Prisma P2025)
+ *   409 - Duplicate nickname (Prisma P2002)
+ *   500 - Server error
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
+
+  // Admin authentication check before any data access
   const session = await auth();
   const { id } = await params;
 
@@ -50,12 +101,17 @@ export async function PUT(
       { status: 403 }
     );
   }
-  
+
   try {
+    // Re-await params for the id inside try block (mirrors original behavior).
+    // This is safe because Promise.resolve on an already-resolved promise is instant.
     const { id } = await params;
+
+    // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
     const { name, nickname, country } = body;
 
+    // Validate required fields
     if (!name || !nickname) {
       return NextResponse.json(
         { success: false, error: "Name and nickname are required" },
@@ -63,6 +119,7 @@ export async function PUT(
       );
     }
 
+    // Update the player record in the database
     const player = await prisma.player.update({
       where: { id },
       data: {
@@ -72,7 +129,8 @@ export async function PUT(
       },
     });
 
-    // Create audit log
+    // Create audit log for the update operation.
+    // Wrapped in try/catch so audit failures don't block the main response.
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -90,24 +148,33 @@ export async function PUT(
         },
       });
     } catch (logError) {
-      // Log audit log failures with error context for monitoring
-      // Audit log failures shouldn't prevent the main operation from completing
-      logger.warn('Failed to create audit log', { error: logError, playerId: id, action: 'update_player' });
+      // Audit log failures are non-critical; log for monitoring but don't fail the request
+      logger.warn('Failed to create audit log', {
+        error: logError,
+        playerId: id,
+        action: 'update_player',
+      });
     }
 
     return NextResponse.json(player);
   } catch (error: unknown) {
-    // Log error with structured metadata for better debugging and monitoring
-    // The error object is passed as metadata to maintain error stack traces
+    // Log error with structured metadata for debugging
     logger.error("Failed to update player", { error, playerId: id });
+
+    // P2025: Record not found - the player ID doesn't exist
     if (
       error &&
       typeof error === "object" &&
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Player not found" },
+        { status: 404 }
+      );
     }
+
+    // P2002: Unique constraint violation - nickname already taken by another player
     if (
       error &&
       typeof error === "object" &&
@@ -119,6 +186,7 @@ export async function PUT(
         { status: 409 }
       );
     }
+
     return NextResponse.json(
       { success: false, error: "Failed to update player" },
       { status: 500 }
@@ -126,12 +194,34 @@ export async function PUT(
   }
 }
 
-// DELETE player (requires admin) - Soft Delete
+/**
+ * DELETE /api/players/:id
+ *
+ * Soft-deletes a player by setting their deletedAt timestamp.
+ * Requires admin authentication.
+ *
+ * Soft delete is used instead of hard delete because:
+ *   1. Tournament history references player records
+ *   2. Allows recovery of accidentally deleted players
+ *   3. Maintains data integrity for statistical analysis
+ *
+ * The Prisma middleware intercepts the delete() call and converts it
+ * to an update({ deletedAt: new Date() }) operation.
+ *
+ * Response:
+ *   200 - { success: true, message: "...", softDeleted: true }
+ *   403 - Not authorized (non-admin)
+ *   404 - Player not found (Prisma P2025)
+ *   500 - Server error
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
+
+  // Admin authentication check before any data modification
   const session = await auth();
   const { id } = await params;
 
@@ -141,15 +231,20 @@ export async function DELETE(
       { status: 403 }
     );
   }
-  
+
   try {
+    // Re-await params inside try block (mirrors original behavior)
     const { id } = await params;
-    // Use soft delete instead of hard delete
+
+    // Perform soft delete via Prisma middleware.
+    // The middleware intercepts delete() and sets deletedAt instead of
+    // actually removing the record from the database.
     await prisma.player.delete({
       where: { id }
     });
 
-    // Create audit log
+    // Create audit log for the deletion.
+    // Important for security tracking: who deleted which player and when.
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -166,28 +261,36 @@ export async function DELETE(
         },
       });
     } catch (logError) {
-      // Log audit log failures with error context for monitoring
-      // Audit log failures shouldn't prevent the main operation from completing
-      logger.warn('Failed to create audit log', { error: logError, playerId: id, action: 'delete_player' });
+      // Audit log failures are non-critical; log for monitoring but don't fail the request
+      logger.warn('Failed to create audit log', {
+        error: logError,
+        playerId: id,
+        action: 'delete_player',
+      });
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "Player deleted successfully (soft delete)",
-      softDeleted: true 
+      softDeleted: true
     });
   } catch (error: unknown) {
-    // Log error with structured metadata for better debugging and monitoring
-    // The error object is passed as metadata to maintain error stack traces
+    // Log error with structured metadata for debugging
     logger.error("Failed to delete player", { error, playerId: id });
+
+    // P2025: Record not found - cannot delete a non-existent player
     if (
       error &&
       typeof error === "object" &&
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json({ success: false, error: "Player not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Player not found" },
+        { status: 404 }
+      );
     }
+
     return NextResponse.json(
       { success: false, error: "Failed to delete player" },
       { status: 500 }

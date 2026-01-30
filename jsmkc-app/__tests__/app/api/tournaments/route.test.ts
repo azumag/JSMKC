@@ -1,23 +1,61 @@
+/**
+ * @module Tournaments Route Tests
+ *
+ * Test suite for the /api/tournaments endpoint covering both GET and POST methods.
+ *
+ * GET /api/tournaments:
+ * - Returns a paginated list of tournaments sorted by date (descending)
+ * - Supports custom page and limit query parameters (defaults: page=1, limit=50)
+ * - Filters out soft-deleted tournaments (deletedAt: null)
+ * - Uses real paginate() function which calls prisma.tournament.findMany/count
+ * - Returns { data, meta: { total, page, limit, totalPages } }
+ * - Handles database errors gracefully with 500 status
+ *
+ * POST /api/tournaments:
+ * - Creates a new tournament with draft status
+ * - Requires admin authentication (returns 403 for non-admin/unauthenticated)
+ * - Validates required fields (name, date) with 400 status
+ * - Creates audit log entries on successful creation
+ * - Handles audit log failures gracefully (tournament still created)
+ * - Sanitizes input data before processing
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+// NOTE: Do NOT import from @jest/globals. Mock factories run with the global jest,
+// so using the imported jest causes mock identity mismatches (see mock-debug2.test.ts).
 import { NextRequest } from 'next/server';
 
-// Mock dependencies
-
+// Mock dependencies - NOTE: pagination is NOT mocked; the real paginate()
+// function runs and calls prisma.tournament.findMany/count which are mocked via jest.setup.js
+//
+// IMPORTANT: Most modules (auth, sanitize, logger, audit-log, rate-limit) have manual mock
+// files in __mocks__/lib/. Those manual mocks are used by the source code, NOT the factory
+// mocks defined here. We only need jest.mock() for modules where we want to override the
+// __mocks__ behavior or for modules without __mocks__ files.
+// We use jest.requireMock() to access and configure the manual mock functions.
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
 jest.mock('@/lib/sanitize', () => ({
-  sanitizeInput: jest.fn((data) => data),
+  sanitizeInput: jest.fn((data: unknown) => data),
 }));
 
-jest.mock('@/lib/pagination', () => ({
-  paginate: jest.fn(),
-}));
+jest.mock('@/lib/logger', () => {
+  const mockLoggerInstance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    createLogger: jest.fn(() => mockLoggerInstance),
+  };
+});
 
 jest.mock('@/lib/audit-log', () => ({
+  __esModule: true,
   createAuditLog: jest.fn(),
   AUDIT_ACTIONS: {
     CREATE_TOURNAMENT: 'CREATE_TOURNAMENT',
@@ -25,42 +63,36 @@ jest.mock('@/lib/audit-log', () => ({
 }));
 
 jest.mock('@/lib/rate-limit', () => ({
+  __esModule: true,
   getServerSideIdentifier: jest.fn(() => Promise.resolve('127.0.0.1')),
 }));
-
-jest.mock('next/server', () => {
-  const mockJson = jest.fn();
-  return {
-    NextResponse: {
-      json: mockJson,
-    },
-    __esModule: true,
-  };
-});
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import * as tournamentsRoute from '@/app/api/tournaments/route';
 
-const auditLogMock = jest.requireMock('@/lib/audit-log') as {
-  createAuditLog: jest.Mock;
-  AUDIT_ACTIONS: typeof import('@/lib/audit-log').AUDIT_ACTIONS;
-};
-
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as {
-  sanitizeInput: jest.Mock;
-};
-
-const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
-  checkRateLimit: jest.Mock;
-  getServerSideIdentifier: jest.Mock;
-};
+// Access mocks via jest.requireMock() to get the same module references the source uses.
+const auditLogMock = jest.requireMock('@/lib/audit-log');
+const sanitizeMock = jest.requireMock('@/lib/sanitize');
+const rateLimitMock = jest.requireMock('@/lib/rate-limit');
+const loggerMock = jest.requireMock('@/lib/logger');
+// Pre-capture the logger instance returned by the mock factory for assertions.
+// After clearAllMocks(), createLogger loses its return value, so we re-set it in beforeEach.
+const loggerInstance = loggerMock.createLogger('initial');
 
 describe('GET /api/tournaments', () => {
   const { NextResponse } = jest.requireMock('next/server');
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Re-configure manual mock functions after clearAllMocks resets them:
+    // - createLogger must return the shared logger instance for assertion verification
+    // - getServerSideIdentifier must resolve for audit log creation
+    // - sanitizeInput must pass through data (default behavior)
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
+
   });
 
   afterEach(() => {
@@ -69,11 +101,13 @@ describe('GET /api/tournaments', () => {
 
   describe('Success Cases', () => {
     it('should return tournaments with pagination', async () => {
+      // Mock data: two tournaments that paginate() will return via findMany
       const mockTournaments = [
         { id: 't1', name: 'Tournament 1', date: '2024-01-01' },
         { id: 't2', name: 'Tournament 2', date: '2024-01-02' },
       ];
 
+      // The real paginate() calls prisma.tournament.findMany and count in parallel
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
       (prisma.tournament.count as jest.Mock).mockResolvedValue(2);
 
@@ -83,21 +117,28 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      expect(paginate).toHaveBeenCalledWith(
-        {
-          findMany: prisma.tournament.findMany,
-          count: prisma.tournament.count,
-        },
-        { deletedAt: null },
-        { date: 'desc' },
-        { page: 1, limit: 10 }
-      );
+      // Verify prisma.tournament.findMany was called with pagination parameters
+      expect(prisma.tournament.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+        orderBy: { date: 'desc' },
+        skip: 0,
+        take: 10,
+      });
 
+      // Verify prisma.tournament.count was called with the same where clause
+      expect(prisma.tournament.count).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+      });
+
+      // The real paginate() returns { data, meta: { total, page, limit, totalPages } }
       expect(NextResponse.json).toHaveBeenCalledWith({
-        items: mockTournaments,
-        page: 1,
-        limit: 10,
-        total: 2,
+        data: mockTournaments,
+        meta: {
+          total: 2,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+        },
       });
     });
 
@@ -115,18 +156,21 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      expect(paginate).toHaveBeenCalledWith(
-        expect.any(Object),
-        { deletedAt: null },
-        expect.any(Object),
-        { page: 1, limit: 50 }
-      );
+      // Default pagination: page=1, limit=50
+      expect(prisma.tournament.findMany).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+        orderBy: { date: 'desc' },
+        skip: 0,
+        take: 50,
+      });
     });
   });
 
   describe('Error Cases', () => {
     it('should return 500 on database error', async () => {
+      // When findMany rejects, paginate() will throw and the route catches it
       (prisma.tournament.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.tournament.count as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'GET',
@@ -134,8 +178,9 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      const logger = createLogger('tournaments-route-test');
-      expect(logger.error).toHaveBeenCalledWith(
+      // Verify the shared logger instance logged the error
+      const loggerInstance = loggerMock.createLogger('test');
+      expect(loggerInstance.error).toHaveBeenCalledWith(
         'Failed to fetch tournaments',
         expect.any(Object)
       );
@@ -155,6 +200,10 @@ describe('POST /api/tournaments', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Re-configure manual mock functions after clearAllMocks resets them
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
   });
 
   afterEach(() => {
@@ -265,7 +314,7 @@ describe('POST /api/tournaments', () => {
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
-      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -312,7 +361,7 @@ describe('POST /api/tournaments', () => {
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
-      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -337,8 +386,9 @@ describe('POST /api/tournaments', () => {
         date: '2024-01-01',
       });
       (prisma.tournament.create as jest.Mock).mockResolvedValue(mockTournament);
-      auditLogMock.createAuditLog.mockResolvedValue(undefined);
-      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+      // Audit log fails but tournament creation should still succeed
+      auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
 
       const request = new NextRequest('http://localhost:3000/api/tournaments', {
         method: 'POST',
@@ -350,12 +400,14 @@ describe('POST /api/tournaments', () => {
 
       await tournamentsRoute.POST(request);
 
-      const logger = createLogger('tournaments-route-test');
-      expect(logger.warn).toHaveBeenCalledWith(
+      // The shared logger singleton should have logged the warning
+      const loggerInstance = loggerMock.createLogger('test');
+      expect(loggerInstance.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );
 
+      // Tournament should still be returned successfully despite audit log failure
       expect(NextResponse.json).toHaveBeenCalledWith(mockTournament, { status: 201 });
     });
   });
@@ -381,8 +433,9 @@ describe('POST /api/tournaments', () => {
 
       await tournamentsRoute.POST(request);
 
-      const logger = createLogger('tournaments-route-test');
-      expect(logger.error).toHaveBeenCalledWith(
+      // The shared logger singleton should have logged the error
+      const loggerInstance = loggerMock.createLogger('test');
+      expect(loggerInstance.error).toHaveBeenCalledWith(
         'Failed to create tournament',
         expect.any(Object)
       );

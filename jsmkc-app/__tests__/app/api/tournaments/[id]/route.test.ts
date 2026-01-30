@@ -1,5 +1,30 @@
+/**
+ * @module Tournament [id] Route Tests
+ *
+ * Test suite for the /api/tournaments/[id] endpoint covering GET, PUT, and DELETE methods.
+ *
+ * GET /api/tournaments/[id]:
+ * - Returns tournament details including related BM qualifications and matches
+ * - Returns 404 when tournament not found
+ * - Handles database errors with 500 status and structured logging
+ *
+ * PUT /api/tournaments/[id]:
+ * - Updates tournament fields (name, status, etc.)
+ * - Requires admin authentication (returns 403 for non-admin/unauthenticated)
+ * - Creates audit log entries on successful updates
+ * - Handles audit log failures gracefully (tournament still updated)
+ * - Handles not found (P2025) with 404
+ *
+ * DELETE /api/tournaments/[id]:
+ * - Performs soft delete on the tournament record
+ * - Requires admin authentication (returns 403 for non-admin/unauthenticated)
+ * - Creates audit log entries with soft delete details
+ * - Handles audit log failures gracefully (tournament still deleted)
+ * - Handles not found (P2025) with 404
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+// NOTE: Do NOT import from @jest/globals. Mock factories run with the global jest,
+// so using the imported jest causes mock identity mismatches (see mock-debug2.test.ts).
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -25,11 +50,46 @@ jest.mock('@/lib/rate-limit', () => ({
   getServerSideIdentifier: jest.fn(() => Promise.resolve('127.0.0.1')),
 }));
 
-jest.mock('@/lib/logger');
+// Logger mock returns a shared instance so tests can verify calls on the same object
+jest.mock('@/lib/logger', () => {
+  const mockLoggerInstance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => mockLoggerInstance),
+  };
+});
 
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+  class MockNextRequest {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this._body = init.body;
+      const h = init.headers || {};
+      this.headers = {
+        get: (key) => {
+          if (h instanceof Headers) return h.get(key);
+          if (h instanceof Map) return h.get(key);
+          return h[key] || null;
+        },
+        forEach: (cb) => {
+          if (h instanceof Headers) { h.forEach(cb); return; }
+          Object.entries(h).forEach(([k, v]) => cb(v, k));
+        },
+      };
+    }
+    async json() {
+      if (typeof this._body === 'string') return JSON.parse(this._body);
+      return this._body;
+    }
+  }
   return {
+    NextRequest: MockNextRequest,
     NextResponse: {
       json: mockJson,
     },
@@ -58,16 +118,22 @@ const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
 const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
 };
+// Pre-capture the logger instance for assertions.
+// After clearAllMocks(), createLogger loses its return value, so we re-set it in beforeEach.
+const loggerInstance = loggerMock.createLogger('initial');
 
 describe('GET /api/tournaments/[id]', () => {
   const { NextResponse } = jest.requireMock('next/server');
 
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    // Re-configure mocks that clearAllMocks() reset:
+    // - createLogger must return the shared logger instance for assertion verification
+    // - getServerSideIdentifier must resolve for audit log creation
+    // - sanitizeInput must pass through data (default behavior)
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
   });
 
   describe('Success Cases', () => {
@@ -122,8 +188,9 @@ describe('GET /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const logger = loggerMock.createLogger('tournament-id-test');
-      expect(logger.error).toHaveBeenCalledWith(
+      // Verify the pre-captured logger instance logged the error.
+      // loggerInstance is the same object returned by createLogger inside the source.
+      expect(loggerInstance.error).toHaveBeenCalledWith(
         'Failed to fetch tournament',
         expect.any(Object)
       );
@@ -143,10 +210,10 @@ describe('PUT /api/tournaments/[id]', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    // Re-configure mocks after clearAllMocks resets return values
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
   });
 
   describe('Authorization', () => {
@@ -294,8 +361,8 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const logger = loggerMock.createLogger('tournament-id-test');
-      expect(logger.warn).toHaveBeenCalledWith(
+      // Verify the pre-captured logger instance logged the warning
+      expect(loggerInstance.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );
@@ -339,10 +406,10 @@ describe('DELETE /api/tournaments/[id]', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    // Re-configure mocks after clearAllMocks resets return values
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
   });
 
   describe('Authorization', () => {
@@ -443,8 +510,8 @@ describe('DELETE /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const logger = loggerMock.createLogger('tournament-id-test');
-      expect(logger.warn).toHaveBeenCalledWith(
+      // Verify the pre-captured logger instance logged the warning
+      expect(loggerInstance.warn).toHaveBeenCalledWith(
         'Failed to create audit log',
         expect.any(Object)
       );

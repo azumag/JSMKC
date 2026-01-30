@@ -1,3 +1,22 @@
+/**
+ * Match Race Participant Score Entry Page
+ *
+ * Token-authenticated page for participants to self-report MR match results.
+ * Validates the tournament token, shows the participant's pending matches,
+ * and allows them to enter race-by-race results.
+ *
+ * Both players must independently report matching scores for auto-confirmation.
+ *
+ * Features:
+ * - Token validation before showing any data
+ * - Player profile selection
+ * - Race result entry with course selection
+ * - Auto-calculated scores from race results
+ * - Previous report display
+ * - Real-time polling for match updates
+ *
+ * @route /tournaments/[id]/mr/participant?token=xxx
+ */
 'use client';
 
 import { useState, useEffect, useCallback, use } from 'react';
@@ -13,12 +32,14 @@ import { Shield, AlertTriangle, Trophy, CheckCircle, Clock, Users, Flag } from '
 import Link from 'next/link';
 import { COURSE_INFO } from '@/lib/constants';
 
+/** Player data from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** MR match with full details including reported scores */
 interface MRMatch {
   id: string;
   matchNumber: number;
@@ -39,6 +60,7 @@ interface MRMatch {
   player2ReportedScore2?: number;
 }
 
+/** Tournament metadata */
 interface Tournament {
   id: string;
   name: string;
@@ -46,6 +68,7 @@ interface Tournament {
   status: string;
 }
 
+/** Individual race result with course and positions */
 interface RaceResult {
   course: string;
   position1: number;
@@ -72,7 +95,10 @@ export default function MatchRaceParticipantPage({
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [raceResults, setRaceResults] = useState<{ [key: string]: RaceResult[] }>({});
 
-  // Initial data fetch
+  /**
+   * Validate tournament token and fetch initial data on mount.
+   * Token validation is performed first to prevent data leakage.
+   */
   useEffect(() => {
     const validateTokenAndFetchData = async () => {
       if (!token) {
@@ -82,7 +108,7 @@ export default function MatchRaceParticipantPage({
       }
 
       try {
-        // First validate token
+        /* Validate token before fetching any tournament data */
         const validateResponse = await fetch(`/api/tournaments/${tournamentId}/token/validate`, {
           method: 'POST',
           headers: {
@@ -107,7 +133,7 @@ export default function MatchRaceParticipantPage({
 
         setTokenValid(true);
 
-        // Fetch tournament data
+        /* Fetch tournament, matches, and players data concurrently */
         const [tournamentResponse, matchesResponse, playersResponse] = await Promise.all([
           fetch(`/api/tournaments/${tournamentId}?token=${token}`),
           fetch(`/api/tournaments/${tournamentId}/mr?token=${token}`),
@@ -139,7 +165,10 @@ export default function MatchRaceParticipantPage({
     validateTokenAndFetchData();
   }, [tournamentId, token]);
 
-  // Real-time polling for match data
+  /**
+   * Real-time polling for match data updates.
+   * Only polls when token is validated.
+   */
   const fetchMatches = useCallback(async () => {
     if (!tokenValid) {
       return { matches: [] };
@@ -157,7 +186,7 @@ export default function MatchRaceParticipantPage({
     enabled: tokenValid,
   });
 
-  // Update matches when polling data is received
+  /* Update matches from polling data */
   useEffect(() => {
     if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as MRMatch[]);
@@ -167,15 +196,16 @@ export default function MatchRaceParticipantPage({
     }
   }, [pollingData, pollingError]);
 
+  /* Filter matches for the selected player (only pending ones) */
   useEffect(() => {
     if (selectedPlayer && matches.length > 0) {
-      const playerMatches = matches.filter(match => 
+      const playerMatches = matches.filter(match =>
         !match.completed &&
         (match.player1.id === selectedPlayer.id || match.player2.id === selectedPlayer.id)
       );
       setMyMatches(playerMatches);
 
-      // Initialize race results
+      /* Initialize empty race results for each pending match */
       const initialResults: { [key: string]: RaceResult[] } = {};
       playerMatches.forEach(match => {
         initialResults[match.id] = [];
@@ -184,6 +214,7 @@ export default function MatchRaceParticipantPage({
     }
   }, [selectedPlayer, matches]);
 
+  /** Add an empty race result slot for a match */
   const addRaceResult = (matchId: string) => {
     setRaceResults(prev => ({
       ...prev,
@@ -194,15 +225,17 @@ export default function MatchRaceParticipantPage({
     }));
   };
 
+  /** Update a specific field in a race result */
   const updateRaceResult = (matchId: string, index: number, field: keyof RaceResult, value: string | number) => {
     setRaceResults(prev => ({
       ...prev,
-      [matchId]: prev[matchId].map((result, i) => 
+      [matchId]: prev[matchId].map((result, i) =>
         i === index ? { ...result, [field]: value } : result
       ),
     }));
   };
 
+  /** Remove a race result at the given index */
   const removeRaceResult = (matchId: string, index: number) => {
     setRaceResults(prev => ({
       ...prev,
@@ -210,10 +243,14 @@ export default function MatchRaceParticipantPage({
     }));
   };
 
+  /**
+   * Calculate match scores from race results.
+   * Each race where position1 < position2 counts as a win for player 1.
+   */
   const calculateScores = (raceResults: RaceResult[]): { score1: number; score2: number } => {
     let score1 = 0;
     let score2 = 0;
-    
+
     raceResults.forEach(result => {
       if (result.position1 < result.position2) {
         score1++;
@@ -225,15 +262,16 @@ export default function MatchRaceParticipantPage({
     return { score1, score2 };
   };
 
+  /** Submit a match result report for the selected player */
   const handleSubmitMatch = async (match: MRMatch) => {
     const matchRaceResults = raceResults[match.id] || [];
-    
+
     if (matchRaceResults.length === 0) {
       setError('Please add at least one race result.');
       return;
     }
 
-    // Validate all race results
+    /* Validate all race fields are complete */
     for (const result of matchRaceResults) {
       if (!result.course || result.position1 === 0 || result.position2 === 0) {
         setError('Please complete all race fields.');
@@ -269,19 +307,18 @@ export default function MatchRaceParticipantPage({
       }
 
       const data = await response.json();
-      
-      // Clear the form for this match
+
+      /* Clear the form for this match after successful submission */
       setRaceResults(prev => ({
         ...prev,
         [match.id]: [],
       }));
 
-      // Update the match in local state
-      setMatches(prev => prev.map(m => 
+      /* Update the match in local state with server response */
+      setMatches(prev => prev.map(m =>
         m.id === match.id ? { ...m, ...data.match } : m
       ));
 
-      // Show success message
       alert("Match result reported successfully! Both players must report matching results for confirmation.");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit match result';
@@ -291,6 +328,7 @@ export default function MatchRaceParticipantPage({
     }
   };
 
+  /* Loading state */
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -302,6 +340,7 @@ export default function MatchRaceParticipantPage({
     );
   }
 
+  /* Error/unauthorized state */
   if (error || !tokenValid) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -333,6 +372,7 @@ export default function MatchRaceParticipantPage({
     );
   }
 
+  /* Tournament not found state */
   if (!tournament) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -352,14 +392,14 @@ export default function MatchRaceParticipantPage({
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+        {/* Header with tournament info */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="h-8 w-8 text-green-600" />
             <h1 className="text-3xl font-bold">Match Race Score Entry</h1>
           </div>
           <Badge variant="default" className="mb-4">
-            ✓ Secure Access Verified
+            &#10003; Secure Access Verified
           </Badge>
           <p className="text-lg text-muted-foreground">
             {tournament.name}
@@ -369,7 +409,7 @@ export default function MatchRaceParticipantPage({
           </p>
         </div>
 
-        {/* Player Selection */}
+        {/* Player selection (shown when no player is selected) */}
         {!selectedPlayer && (
           <Card className="max-w-2xl mx-auto mb-8">
             <CardHeader>
@@ -398,9 +438,10 @@ export default function MatchRaceParticipantPage({
           </Card>
         )}
 
-        {/* Selected Player Info */}
+        {/* Selected player view with pending matches */}
         {selectedPlayer && (
           <div className="max-w-6xl mx-auto">
+            {/* Player info card */}
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -424,7 +465,7 @@ export default function MatchRaceParticipantPage({
               </CardContent>
             </Card>
 
-            {/* Error Alert */}
+            {/* Error alert */}
             {error && (
               <Alert variant="destructive" className="mb-6">
                 <AlertTriangle className="h-4 w-4" />
@@ -432,7 +473,7 @@ export default function MatchRaceParticipantPage({
               </Alert>
             )}
 
-            {/* Matches */}
+            {/* Pending matches or empty state */}
             {myMatches.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
@@ -461,7 +502,7 @@ export default function MatchRaceParticipantPage({
                           <div>
                             <CardTitle className="text-lg">Match #{match.matchNumber}</CardTitle>
                             <CardDescription>
-                              TV {match.tvNumber} • {match.stage === 'qualification' ? 'Qualification' : 'Finals'}
+                              TV {match.tvNumber} &bull; {match.stage === 'qualification' ? 'Qualification' : 'Finals'}
                             </CardDescription>
                           </div>
                           {match.completed ? (
@@ -479,7 +520,7 @@ export default function MatchRaceParticipantPage({
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-4">
-                          {/* Match Info */}
+                          {/* Match players info */}
                           <div className="grid grid-cols-2 gap-4">
                             <div className={`p-3 rounded-lg border ${match.player1.id === selectedPlayer.id ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                               <div className="font-medium">
@@ -505,7 +546,7 @@ export default function MatchRaceParticipantPage({
                             </div>
                           </div>
 
-                          {/* Race Results */}
+                          {/* Race result entry form */}
                           {!match.completed && (
                             <div className="border-t pt-4">
                               <div className="flex items-center justify-between mb-3">
@@ -578,7 +619,7 @@ export default function MatchRaceParticipantPage({
                                     </div>
                                   ))}
 
-                                  {/* Current Score */}
+                                  {/* Current score display */}
                                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                                     <div className="font-medium text-center">
                                       Current Score: {score1} - {score2}
@@ -597,7 +638,7 @@ export default function MatchRaceParticipantPage({
                             </div>
                           )}
 
-                          {/* Previous Reports */}
+                          {/* Previous report display */}
                           {(match.player1ReportedScore1 !== undefined || match.player2ReportedScore1 !== undefined) && (
                             <div className="border-t pt-4">
                               <h4 className="font-medium mb-2">Previous Reports</h4>
@@ -627,7 +668,7 @@ export default function MatchRaceParticipantPage({
           </div>
         )}
 
-        {/* Navigation */}
+        {/* Navigation back to game selection */}
         <div className="text-center mt-8">
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/participant?token=${token}`}>

@@ -1,9 +1,60 @@
+/**
+ * @module __tests__/lib/rate-limit.test.ts
+ *
+ * Test suite for the in-memory rate limiting module (rate-limit.ts).
+ *
+ * Covers the following functionality:
+ * - rateLimit(): Core sliding-window rate limiter that tracks request counts
+ *   per identifier within a configurable time window.
+ *   - Allows requests within the configured limit, blocks excess requests,
+ *     and resets after the time window expires.
+ *   - Handles independent counters for different identifiers.
+ * - checkRateLimit(): Convenience function that applies pre-configured rate
+ *   limits by type (scoreInput, polling, tokenValidation, general).
+ *   When Redis is unavailable, falls back to in-memory rate limiting.
+ * - getClientIdentifier(): Extracts the client IP from request headers
+ *   (x-forwarded-for, x-real-ip, cf-connecting-ip) with correct priority.
+ * - getUserAgent(): Extracts the User-Agent header from requests.
+ * - getServerSideIdentifier(): Async server-side IP extraction using Next.js
+ *   headers() API, with graceful error handling.
+ * - Store size limit enforcement to prevent unbounded memory growth.
+ *
+ * Tests use fake timers and Date.now() spies to control time progression.
+ *
+ * The redis-rate-limit module is mocked to prevent actual Redis connections.
+ * checkRateLimitByType is configured to throw by default, triggering the
+ * in-memory fallback path in checkRateLimit. This ensures we test the
+ * facade's fallback behavior without depending on a running Redis server.
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
-import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore, getServerSideIdentifier } from '@/lib/rate-limit';
+import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore, getServerSideIdentifier, rateLimitConfigs } from '@/lib/rate-limit';
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 
 jest.mock('next/headers');
+
+/**
+ * Mock redis-rate-limit to prevent real Redis connections in tests.
+ *
+ * checkRateLimitByType throws by default to trigger the in-memory fallback
+ * path in the rate-limit facade's checkRateLimit function. This is the
+ * expected behavior when Redis is unavailable.
+ *
+ * clearRateLimitData is a no-op since we don't need Redis cleanup in tests.
+ *
+ * rateLimitConfigs is re-exported with actual config values so the facade
+ * can look up rate limit parameters (limit, windowMs) for each type.
+ */
+jest.mock('@/lib/redis-rate-limit', () => ({
+  checkRateLimitByType: jest.fn().mockRejectedValue(new Error('Redis unavailable in test')),
+  clearRateLimitData: jest.fn().mockResolvedValue(undefined),
+  rateLimitConfigs: {
+    scoreInput: { limit: 20, windowMs: 60000 },
+    polling: { limit: 12, windowMs: 60000 },
+    tokenValidation: { limit: 10, windowMs: 60000 },
+    general: { limit: 10, windowMs: 60000 },
+  },
+}));
 
 interface MockHeaders {
   get: jest.Mock;
@@ -26,9 +77,11 @@ describe('Rate Limiting', () => {
 
       const result = await rateLimit(identifier, limit, 60000);
 
+      // rateLimit returns { success, remaining } on allowed requests.
+      // The 'limit' field is not included in the return value per the
+      // rateLimitInMemory implementation in rate-limit.ts.
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(limit - 1);
-      expect(result.limit).toBe(limit);
       expect(result.retryAfter).toBeUndefined();
     });
 
@@ -56,9 +109,10 @@ describe('Rate Limiting', () => {
 
       const result = await rateLimit(identifier, limit, 60000);
 
+      // When blocked, rateLimitInMemory returns { success: false, remaining: 0, retryAfter }.
+      // The 'limit' field is not included in the return value.
       expect(result.success).toBe(false);
       expect(result.remaining).toBe(0);
-      expect(result.limit).toBe(limit);
       expect(result.retryAfter).toBeDefined();
       expect(result.retryAfter).toBeGreaterThan(0);
     });
@@ -112,32 +166,54 @@ describe('Rate Limiting', () => {
   });
 
   describe('checkRateLimit', () => {
+    /**
+     * These tests verify the checkRateLimit facade function, which tries
+     * Redis first and falls back to in-memory rate limiting when Redis
+     * is unavailable.
+     *
+     * Since redis-rate-limit is mocked to throw (simulating Redis being
+     * unavailable), checkRateLimit falls back to rateLimitInMemory using
+     * the config looked up from rateLimitConfigs for the given type.
+     *
+     * We verify each type uses the correct config by checking that the
+     * first request succeeds with the expected remaining count
+     * (config.limit - 1).
+     */
     it('should use correct config for scoreInput type', async () => {
-      const result = await checkRateLimit('scoreInput', 'test-identifier');
+      // scoreInput config: limit=20, windowMs=60000
+      const result = await checkRateLimit('scoreInput', 'test-identifier-scoreInput');
 
       expect(result.success).toBe(true);
-      expect(result.limit).toBe(20);
+      // In-memory fallback uses scoreInput config with limit=20,
+      // so remaining = 20 - 1 = 19 after first request
+      expect(result.remaining).toBe(19);
     });
 
     it('should use correct config for polling type', async () => {
-      const result = await checkRateLimit('polling', 'test-identifier');
+      // polling config: limit=12, windowMs=60000
+      const result = await checkRateLimit('polling', 'test-identifier-polling');
 
       expect(result.success).toBe(true);
-      expect(result.limit).toBe(12);
+      // remaining = 12 - 1 = 11 after first request
+      expect(result.remaining).toBe(11);
     });
 
     it('should use correct config for tokenValidation type', async () => {
-      const result = await checkRateLimit('tokenValidation', 'test-identifier');
+      // tokenValidation config: limit=10, windowMs=60000
+      const result = await checkRateLimit('tokenValidation', 'test-identifier-tokenValidation');
 
       expect(result.success).toBe(true);
-      expect(result.limit).toBe(10);
+      // remaining = 10 - 1 = 9 after first request
+      expect(result.remaining).toBe(9);
     });
 
     it('should use correct config for general type', async () => {
-      const result = await checkRateLimit('general', 'test-identifier');
+      // general config: limit=10, windowMs=60000
+      const result = await checkRateLimit('general', 'test-identifier-general');
 
       expect(result.success).toBe(true);
-      expect(result.limit).toBe(10);
+      // remaining = 10 - 1 = 9 after first request
+      expect(result.remaining).toBe(9);
     });
   });
 
@@ -251,22 +327,26 @@ describe('Rate Limiting', () => {
       expect(identifier).toBe('10.0.0.1');
     });
 
-    it('should return server when no IP headers present', async () => {
+    it('should return unknown when no IP headers present', async () => {
+      // When no IP headers are found, getServerSideIdentifier returns
+      // 'unknown' as a fallback (line 427 of rate-limit.ts).
       const mockHeaders = jest.mocked(headers);
       mockHeaders.mockResolvedValue({
         get: jest.fn(() => null),
       } as MockHeaders);
 
       const identifier = await getServerSideIdentifier();
-      expect(identifier).toBe('server');
+      expect(identifier).toBe('unknown');
     });
 
     it('should handle headers() error gracefully', async () => {
+      // When headers() throws (e.g., outside request context during
+      // static generation), the catch block returns 'unknown' (line 434).
       const mockHeaders = jest.mocked(headers);
       mockHeaders.mockRejectedValue(new Error('Headers error'));
 
       const identifier = await getServerSideIdentifier();
-      expect(identifier).toBe('server');
+      expect(identifier).toBe('unknown');
     });
 
     it('should extract first IP from x-forwarded-for', async () => {

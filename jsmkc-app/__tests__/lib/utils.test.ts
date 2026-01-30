@@ -1,3 +1,17 @@
+/**
+ * @module __tests__/lib/utils.test.ts
+ * @description Test suite for the `cn` className utility function from `@/lib/utils`.
+ *
+ * This suite validates the behavior of `cn`, which combines `clsx` for conditional
+ * class name merging with `tailwind-merge` for deduplicating and resolving conflicting
+ * Tailwind CSS utility classes. Tests cover:
+ *
+ * - Basic class name concatenation and conditional class inclusion
+ * - Tailwind CSS utility conflict resolution (e.g., `px-4` vs `px-2`)
+ * - Handling of responsive, dark mode, hover/focus, and arbitrary value prefixes
+ * - Edge cases: null, undefined, empty inputs, arrays, objects, template literals
+ * - Preservation of non-conflicting and non-Tailwind class names
+ */
 // __tests__/lib/utils.test.ts
 // Test for utility functions
 import { describe, it, expect } from '@jest/globals';

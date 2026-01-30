@@ -1,3 +1,21 @@
+/**
+ * Match Race Finals Page
+ *
+ * Double elimination tournament bracket page for MR finals.
+ * Features:
+ * - Visual bracket display using DoubleEliminationBracket component
+ * - Bracket generation from top 8 qualifiers
+ * - Match result entry via dialog
+ * - Champion announcement
+ * - Real-time polling for live tournament updates
+ * - Bracket reset with confirmation dialog
+ *
+ * MR finals use best-of-5 races with course selection.
+ * The bracket follows standard double elimination with
+ * winners bracket, losers bracket, grand final, and reset.
+ *
+ * @route /tournaments/[id]/mr/finals
+ */
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -52,14 +70,17 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
+/** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
 
+/** Player data from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** MR finals match record */
 interface MRMatch {
   id: string;
   matchNumber: number;
@@ -74,6 +95,7 @@ interface MRMatch {
   player2: Player;
 }
 
+/** Abstract bracket match structure */
 interface BracketMatch {
   matchNumber: number;
   round: string;
@@ -82,12 +104,14 @@ interface BracketMatch {
   player2Seed?: number;
 }
 
+/** Player with seed number from qualification */
 interface SeededPlayer {
   seed: number;
   playerId: string;
   player: Player;
 }
 
+/** Individual race round entry */
 interface Round {
   course: CourseAbbr | "";
   winner: number | null;
@@ -107,6 +131,7 @@ export default function MatchRaceFinals({
   const [creating, setCreating] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
+  /* Initialize 5 empty rounds for match result dialog */
   const [rounds, setRounds] = useState<Round[]>([
     { course: "", winner: null },
     { course: "", winner: null },
@@ -116,6 +141,10 @@ export default function MatchRaceFinals({
   ]);
   const [champion, setChampion] = useState<Player | null>(null);
 
+  /**
+   * Fetch finals bracket data including matches,
+   * bracket structure, and round display names.
+   */
   const fetchFinalsData = useCallback(async () => {
     const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`);
 
@@ -132,11 +161,13 @@ export default function MatchRaceFinals({
     };
   }, [tournamentId]);
 
+  /* Poll every 3 seconds for live tournament updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchFinalsData, {
     interval: 3000,
   });
 
+  /* Update local state from polling data */
   useEffect(() => {
     if (pollData) {
       setMatches(pollData.matches);
@@ -149,6 +180,10 @@ export default function MatchRaceFinals({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Generate the finals bracket from top 8 qualification results.
+   * Shows confirmation dialog before creation.
+   */
   const handleCreateBracket = async () => {
     setCreating(true);
     try {
@@ -177,6 +212,9 @@ export default function MatchRaceFinals({
     }
   };
 
+  /**
+   * Open match result dialog, pre-filling existing round data if available.
+   */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
     if (match.rounds && match.rounds.length === 5) {
@@ -193,15 +231,22 @@ export default function MatchRaceFinals({
     setIsMatchDialogOpen(true);
   };
 
+  /**
+   * Submit match result for a finals match.
+   * Validates courses and winner, then updates via API.
+   * Checks response for tournament completion.
+   */
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
+    /* Validate 5 unique courses */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
     if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
       alert("Please select 5 unique courses");
       return;
     }
 
+    /* Count wins and validate a winner */
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
 
@@ -235,6 +280,7 @@ export default function MatchRaceFinals({
         ]);
         refetch();
 
+        /* Check if tournament is complete and announce champion */
         if (data.isComplete && data.champion) {
           const winnerMatch = matches.find(
             (m) =>
@@ -259,9 +305,11 @@ export default function MatchRaceFinals({
     }
   };
 
+  /* Track tournament progress */
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
 
+  /* Loading skeleton */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -279,6 +327,7 @@ export default function MatchRaceFinals({
 
   return (
     <div className="space-y-6">
+      {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Match Race Finals</h1>
@@ -290,6 +339,7 @@ export default function MatchRaceFinals({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Generate or Reset bracket with confirmation */}
           {matches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -346,10 +396,11 @@ export default function MatchRaceFinals({
         </div>
       </div>
 
+      {/* Champion announcement banner */}
       {champion && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
-            <div className="text-4xl mb-2">🏆</div>
+            <div className="text-4xl mb-2">&#127942;</div>
             <h2 className="text-2xl font-bold">Champion</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {champion.nickname}
@@ -358,6 +409,7 @@ export default function MatchRaceFinals({
         </Card>
       )}
 
+      {/* Progress indicator */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
@@ -369,6 +421,7 @@ export default function MatchRaceFinals({
         </div>
       )}
 
+      {/* Empty state or bracket display */}
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
@@ -410,6 +463,7 @@ export default function MatchRaceFinals({
           </CardContent>
         </Card>
       ) : (
+        /* Visual bracket display component */
         <DoubleEliminationBracket
           matches={matches}
           bracketStructure={bracketStructure}
@@ -419,6 +473,7 @@ export default function MatchRaceFinals({
         />
       )}
 
+      {/* Match result entry dialog */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -486,7 +541,7 @@ export default function MatchRaceFinals({
                             setRounds(newRounds);
                           }}
                         >
-                          {round.winner === 1 ? "✓" : "-"}
+                          {round.winner === 1 ? "\u2713" : "-"}
                         </Button>
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
@@ -497,7 +552,7 @@ export default function MatchRaceFinals({
                             setRounds(newRounds);
                           }}
                         >
-                          {round.winner === 2 ? "✓" : "-"}
+                          {round.winner === 2 ? "\u2713" : "-"}
                         </Button>
                         <span className="text-sm w-12">
                           {selectedMatch?.player2.nickname}

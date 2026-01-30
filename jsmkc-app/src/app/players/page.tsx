@@ -1,3 +1,27 @@
+/**
+ * players/page.tsx - Player Management Page
+ *
+ * This page provides CRUD operations for tournament participants:
+ * 1. View all registered players in a table format
+ * 2. Add new players (admin only) with name, nickname, and country
+ * 3. Edit existing player details (admin only)
+ * 4. Delete players with confirmation (admin only)
+ * 5. Display temporary passwords for newly created players
+ *
+ * Role-based access:
+ * - All users can view the player list (public read access)
+ * - Only admin users see Add/Edit/Delete controls
+ * - Admin detection uses session.user.role === 'admin'
+ *
+ * API integration:
+ * - GET /api/players: Fetch paginated player list
+ * - POST /api/players: Create a new player (returns temporaryPassword)
+ * - PUT /api/players/:id: Update player details
+ * - DELETE /api/players/:id: Soft-delete a player
+ *
+ * The API returns paginated responses with shape { data: Player[], meta: {...} },
+ * so the fetch handler extracts the data array from the response.
+ */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -32,8 +56,16 @@ import {
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
+/**
+ * Client-side logger for the players page.
+ * Uses structured logging for consistent error tracking.
+ */
 const logger = createLogger({ serviceName: 'players' });
 
+/**
+ * Player data model matching the API response shape.
+ * Represents a tournament participant with optional country.
+ */
 interface Player {
   id: string;
   name: string;
@@ -42,30 +74,66 @@ interface Player {
   createdAt: string;
 }
 
+/**
+ * PlayersPage - Main component for player management.
+ *
+ * Manages multiple dialog states (add, edit, password display)
+ * and coordinates with the players API for CRUD operations.
+ * Admin actions are conditionally rendered based on session role.
+ */
 export default function PlayersPage() {
   const { data: session } = useSession();
+
+  /**
+   * Admin role check: only OAuth-authenticated users with admin role
+   * can create, edit, or delete players. Regular users and anonymous
+   * visitors can only view the player list.
+   */
   const isAdmin = session?.user && session.user.role === 'admin';
 
+  /* Player list and loading state */
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* Dialog visibility states for add, edit, and password display modals */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+
+  /**
+   * Temporary password storage: When a new player is created, the API
+   * generates a one-time password. This is displayed in a separate
+   * dialog and must be saved by the admin before closing, as it
+   * cannot be retrieved again (passwords are hashed in the database).
+   */
   const [temporaryPassword, setTemporaryPassword] = useState("");
+
+  /* Shared form data used by both add and edit dialogs */
   const [formData, setFormData] = useState({
     name: "",
     nickname: "",
     country: "",
   });
+
+  /* Currently editing player ID (null when adding a new player) */
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+
+  /* Form validation error message */
   const [error, setError] = useState("");
 
+  /**
+   * Fetches the player list from the API.
+   * Handles both array responses and paginated responses
+   * (shape: { data: Player[], meta: {...} }) for backward compatibility.
+   * Wrapped in useCallback to prevent unnecessary re-renders.
+   */
   const fetchPlayers = useCallback(async () => {
     try {
       const response = await fetch("/api/players");
       if (response.ok) {
-        const data = await response.json();
-        setPlayers(data);
+        const result = await response.json();
+        /* Handle both direct array and paginated response formats */
+        setPlayers(Array.isArray(result) ? result : result.data || []);
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -75,10 +143,17 @@ export default function PlayersPage() {
     }
   }, []);
 
+  /* Fetch players on component mount */
   useEffect(() => {
     fetchPlayers();
   }, [fetchPlayers]);
 
+  /**
+   * Handles new player creation form submission.
+   * On success, clears the form, closes the dialog, and optionally
+   * shows the temporary password dialog if a password was generated.
+   * Then refreshes the player list to show the new entry.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -95,7 +170,11 @@ export default function PlayersPage() {
         setFormData({ name: "", nickname: "", country: "" });
         setIsAddDialogOpen(false);
 
-        // Show password dialog if password was generated
+        /*
+         * If the API returned a temporary password, show it in a
+         * dedicated dialog. The admin must save this password because
+         * it is only displayed once (hashed in DB, not retrievable).
+         */
         if (data.temporaryPassword) {
           setTemporaryPassword(data.temporaryPassword);
           setIsPasswordDialogOpen(true);
@@ -113,6 +192,11 @@ export default function PlayersPage() {
     }
   };
 
+  /**
+   * Handles player update form submission.
+   * Sends a PUT request to update the player identified by editingPlayerId.
+   * On failure, displays the error message from the API response.
+   */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -136,6 +220,12 @@ export default function PlayersPage() {
     }
   };
 
+  /**
+   * Handles player deletion with confirmation dialog.
+   * Uses browser confirm() as a simple guard against accidental deletion.
+   * The API performs a soft delete (sets deletedAt) rather than
+   * permanently removing the record, preserving tournament history.
+   */
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this player?")) return;
 
@@ -153,6 +243,11 @@ export default function PlayersPage() {
     }
   };
 
+  /**
+   * Opens the edit dialog pre-populated with the selected player's data.
+   * Resets the error state and sets the editing player ID for the
+   * update handler to reference.
+   */
   const openEditDialog = (player: Player) => {
     setFormData({
       name: player.name,
@@ -164,6 +259,10 @@ export default function PlayersPage() {
     setIsEditDialogOpen(true);
   };
 
+  /**
+   * Handles edit dialog close: resets form data and editing state
+   * when the dialog is dismissed without saving.
+   */
   const handleEditDialogClose = (open: boolean) => {
     setIsEditDialogOpen(open);
     if (!open) {
@@ -172,6 +271,7 @@ export default function PlayersPage() {
     }
   };
 
+  /* Loading skeleton: shows animated placeholders while data is fetched */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -197,13 +297,16 @@ export default function PlayersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page header with title and Add Player button (admin only) */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Players</h1>
+          {/* Role-appropriate subtitle text */}
           <p className="text-muted-foreground">
-            Manage tournament participants
+            {isAdmin ? "Manage tournament participants" : "View tournament participants"}
           </p>
         </div>
+        {/* Add Player dialog - only rendered for admin users */}
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
@@ -268,6 +371,7 @@ export default function PlayersPage() {
         )}
       </div>
 
+      {/* Player list table wrapped in a card */}
       <Card>
         <CardHeader>
           <CardTitle>Player List</CardTitle>
@@ -277,8 +381,11 @@ export default function PlayersPage() {
         </CardHeader>
         <CardContent>
           {players.length === 0 ? (
+            /* Empty state message - differs by role */
             <div className="text-center py-8 text-muted-foreground">
-              No players registered yet. Add your first player to get started.
+              {isAdmin
+                ? "No players registered yet. Add your first player to get started."
+                : "No players registered yet."}
             </div>
           ) : (
             <Table>
@@ -287,6 +394,7 @@ export default function PlayersPage() {
                   <TableHead>Nickname</TableHead>
                   <TableHead>Full Name</TableHead>
                   <TableHead>Country</TableHead>
+                  {/* Actions column only visible to admins */}
                   {isAdmin && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -298,6 +406,7 @@ export default function PlayersPage() {
                     </TableCell>
                     <TableCell>{player.name}</TableCell>
                     <TableCell>{player.country || "-"}</TableCell>
+                    {/* Admin-only action buttons: Edit and Delete */}
                     {isAdmin && (
                       <TableCell className="text-right space-x-2">
                         <Button
@@ -324,7 +433,7 @@ export default function PlayersPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
+      {/* Edit Player Dialog - controlled externally via state */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent>
           <DialogHeader>
@@ -376,7 +485,13 @@ export default function PlayersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Password Display Dialog */}
+      {/*
+       * Temporary Password Display Dialog
+       * Shown after a new player is successfully created.
+       * The password is generated server-side and only displayed once.
+       * Admin must copy and share it with the player, as it cannot
+       * be retrieved again (stored as a hash in the database).
+       */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>

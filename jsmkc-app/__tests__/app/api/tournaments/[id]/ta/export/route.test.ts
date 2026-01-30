@@ -1,39 +1,106 @@
+/**
+ * @module Test Suite: GET /api/tournaments/[id]/ta/export
+ *
+ * Tests for the Time Attack (TA) CSV export API route handler.
+ * This endpoint generates a CSV file containing TA standings for a tournament,
+ * including rank, player name, nickname, total time (in ms and formatted),
+ * lives remaining, and elimination status.
+ *
+ * Test categories:
+ * - Success Cases: Verifies CSV generation with valid entries, tournament not found
+ *   handling (404), and empty entries edge case.
+ * - Error Handling: Validates graceful handling of database errors with proper
+ *   logging and 500 status response.
+ *
+ * Dependencies mocked:
+ * - @/lib/excel: CSV creation utility (createCSV) and time formatting (formatTime)
+ * - @/lib/logger: Structured Winston logging for error tracking
+ * - next/server: NextResponse.json and NextResponse constructor for response assertions
+ * - @/lib/prisma: Database client for tournament and TTEntry queries
+ *
+ * IMPORTANT: jest.mock() calls use the global jest (not imported from @jest/globals)
+ * because babel-jest's hoisting plugin does not properly hoist jest.mock()
+ * when jest is imported from @jest/globals, causing mocks to not be applied.
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { NextRequest } from 'next/server';
 
-
-
+// Mock excel utilities
 jest.mock('@/lib/excel', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  createCSV: jest.fn((headers, _data) => 'mock,csv,content'),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  formatTime: jest.fn((ms) => '1:23.456'),
+  createCSV: jest.fn(() => 'mock,csv,content'),
+  formatTime: jest.fn(() => '1:23.456'),
 }));
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({
+// Mock logger with shared singleton
+jest.mock('@/lib/logger', () => {
+  const sharedLogger = {
     error: jest.fn(),
     warn: jest.fn(),
-  })),
-}));
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => sharedLogger),
+  };
+});
 
+// Mock next/server with both NextResponse.json and NextResponse constructor
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+  // Track constructor calls for CSV export verification
+  const constructorCalls = [];
+  class MockNextResponse {
+    constructor(body, init = {}) {
+      this.body = body;
+      this.init = init;
+      constructorCalls.push([body, init]);
+    }
+  }
+  MockNextResponse.json = mockJson;
+  // Expose constructor call tracking
+  MockNextResponse._constructorCalls = constructorCalls;
+
+  class MockNextRequest {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this._body = init.body;
+      const h = init.headers || {};
+      this.headers = {
+        get: (key) => {
+          if (h instanceof Headers) return h.get(key);
+          if (h instanceof Map) return h.get(key);
+          return h[key] || null;
+        },
+        forEach: (cb) => {
+          if (h instanceof Headers) { h.forEach(cb); return; }
+          Object.entries(h).forEach(([k, v]) => cb(v, k));
+        },
+      };
+    }
+    async json() {
+      if (typeof this._body === 'string') return JSON.parse(this._body);
+      return this._body;
+    }
+  }
   return {
-    NextResponse: {
-      json: mockJson,
-    },
+    NextRequest: MockNextRequest,
+    NextResponse: MockNextResponse,
     __esModule: true,
   };
 });
 
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import * as taExportRoute from '@/app/api/tournaments/[id]/ta/export/route';
 
+// Access mocks via requireMock for reliable references
 const excelMock = jest.requireMock('@/lib/excel') as {
   createCSV: jest.Mock;
   formatTime: jest.Mock;
+};
+
+const loggerMock = jest.requireMock('@/lib/logger') as {
+  createLogger: jest.Mock;
 };
 
 describe('GET /api/tournaments/[id]/ta/export', () => {
@@ -41,6 +108,11 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Clear constructor call tracking
+    NextResponse._constructorCalls.length = 0;
+    // Restore default return values for excel mocks
+    excelMock.createCSV.mockReturnValue('mock,csv,content');
+    excelMock.formatTime.mockReturnValue('1:23.456');
   });
 
   afterEach(() => {
@@ -86,8 +158,6 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      excelMock.createCSV.mockReturnValue('mock,csv,content');
-      excelMock.formatTime.mockReturnValue('1:23.456');
 
       const request = new NextRequest(
         'http://localhost:3000/api/tournaments/t1/ta/export'
@@ -97,51 +167,37 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Verify tournament lookup
       expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: 't1' },
         select: { name: true, date: true },
       });
 
+      // Verify entry lookup
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: true },
         orderBy: { rank: 'asc' },
       });
 
+      // Verify createCSV was called with correct headers and data
       expect(excelMock.createCSV).toHaveBeenCalledWith(
-        [
-          'Rank',
-          'Player Name',
-          'Nickname',
-          'Total Time (ms)',
-          'Total Time',
-          'Lives',
-          'Eliminated',
-        ],
+        ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated'],
         expect.arrayContaining([
-          expect.arrayContaining([
-            '1',
-            'Player 1',
-            'player1',
-            '83456',
-            '1:23.456',
-            '1',
-            'No',
-          ]),
+          expect.arrayContaining([1, 'Player 1', 'player1', '83456', '1:23.456', '1', 'No']),
         ])
       );
 
+      // Verify NextResponse constructor was called (not .json) for CSV download
+      expect(NextResponse._constructorCalls.length).toBe(1);
+      const [body, init] = NextResponse._constructorCalls[0];
+      // Body should contain BOM + CSV content
+      expect(body).toContain('mock,csv,content');
+      expect(init.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+      expect(init.headers['Content-Disposition']).toContain('Test Tournament 2024_TA_');
+
+      // NextResponse.json should NOT have been called for success
       expect(NextResponse.json).not.toHaveBeenCalled();
-      const responseCall = (NextResponse.constructor as jest.Mock).mock.calls[0];
-      expect(responseCall[0]).toBe('mock,csv,content');
-      expect(responseCall[1]).toEqual(
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': expect.stringContaining('Test Tournament 2024_TA_'),
-          }),
-        })
-      );
     });
 
     it('should handle tournament not found', async () => {
@@ -180,21 +236,17 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Empty entries should produce an empty data array
       expect(excelMock.createCSV).toHaveBeenCalledWith(
-        expect.arrayContaining(['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated']),
-        [[]]
+        ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated'],
+        []
       );
 
-      const responseCall = (NextResponse.constructor as jest.Mock).mock.calls[0];
-      expect(responseCall[0]).toBe('mock,csv,empty');
-      expect(responseCall[1]).toEqual(
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': expect.stringContaining('Empty_TA_'),
-          }),
-        })
-      );
+      // Verify constructor was called for CSV download
+      expect(NextResponse._constructorCalls.length).toBe(1);
+      const [body, init] = NextResponse._constructorCalls[0];
+      expect(body).toContain('mock,csv,empty');
+      expect(init.headers['Content-Type']).toBe('text/csv; charset=utf-8');
     });
   });
 
@@ -211,8 +263,9 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
-      const logger = createLogger('ta-export-test');
-      expect(logger.error).toHaveBeenCalledWith(
+      // Verify logger error was called via the shared singleton
+      const sharedLogger = loggerMock.createLogger();
+      expect(sharedLogger.error).toHaveBeenCalledWith(
         'Failed to export tournament',
         { error: mockError, tournamentId: 't1' }
       );

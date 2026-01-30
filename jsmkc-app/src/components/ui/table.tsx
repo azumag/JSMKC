@@ -1,9 +1,29 @@
+/**
+ * Table UI Component
+ *
+ * A set of styled HTML table elements for displaying tabular data.
+ * Marked as "use client" because table components may be used within
+ * interactive client-side components that manage sorting, filtering, etc.
+ *
+ * The Table component wraps the native <table> in a scrollable container
+ * to handle responsive overflow on narrow viewports. This is critical for
+ * tournament score tables which can have many columns (20 courses in TA mode).
+ *
+ * Each sub-component uses data-slot attributes for parent-based CSS targeting
+ * and follows the shadcn/ui compound component pattern.
+ */
 "use client"
 
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Table wrapper component.
+ * Wraps the native <table> in a div with overflow-x-auto to enable
+ * horizontal scrolling on small screens without breaking the page layout.
+ * The table itself uses caption-bottom to position captions below the data.
+ */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -19,6 +39,11 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   )
 }
 
+/**
+ * Table header section (<thead>).
+ * Adds a bottom border to all child rows to visually separate the
+ * header from the body content using the `[&_tr]:border-b` selector.
+ */
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
@@ -29,6 +54,11 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   )
 }
 
+/**
+ * Table body section (<tbody>).
+ * Removes the bottom border from the last row to prevent a double-border
+ * at the bottom of the table when combined with any table footer border.
+ */
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -39,6 +69,12 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   )
 }
 
+/**
+ * Table footer section (<tfoot>).
+ * Uses a muted background and top border to visually distinguish
+ * footer rows (e.g., totals, averages) from body data rows.
+ * The last row's bottom border is removed to prevent edge double-borders.
+ */
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
@@ -52,6 +88,12 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
+/**
+ * Table row component (<tr>).
+ * Includes hover highlighting and a selected state driven by data-[state=selected]
+ * for use with row selection patterns (e.g., checkbox-based multi-select).
+ * The transition-colors ensures smooth visual feedback on hover.
+ */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
@@ -65,6 +107,13 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
+/**
+ * Table header cell (<th>).
+ * Uses whitespace-nowrap to prevent header text from wrapping, ensuring
+ * consistent column widths. The checkbox-specific selectors handle alignment
+ * when a checkbox is placed in the header for row selection.
+ * Height is fixed at h-10 for consistent header row sizing.
+ */
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
@@ -78,6 +127,12 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
+/**
+ * Table data cell (<td>).
+ * Uses whitespace-nowrap to prevent cell content from wrapping by default,
+ * which is suitable for score/time values in tournament tables.
+ * Consumers can override with whitespace-normal when needed for longer text.
+ */
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
@@ -91,6 +146,12 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   )
 }
 
+/**
+ * Table caption component.
+ * Positioned at the bottom of the table (via caption-bottom on parent table).
+ * Styled with muted color and margin-top for visual separation from table data.
+ * Used to describe the table content for accessibility and context.
+ */
 function TableCaption({
   className,
   ...props

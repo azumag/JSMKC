@@ -1,9 +1,25 @@
+/**
+ * Grand Prix Matches Polling API Route
+ *
+ * Provides paginated match data for participant score entry pages.
+ * Requires tournament token authentication (no OAuth needed).
+ * Used by the participant page to poll for match updates.
+ *
+ * - GET: Fetch paginated matches with token validation
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 
-// GET grand prix matches for polling
+/**
+ * GET /api/tournaments/[id]/gp/matches
+ *
+ * Fetch paginated GP matches for participant polling.
+ * Requires a valid tournament token passed as query parameter.
+ * Returns matches ordered by match number for consistent display.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,6 +32,7 @@ export async function GET(
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
 
+    /* Tournament token is required for participant access */
     if (!token) {
       return NextResponse.json(
         { error: "Token required" },
@@ -23,6 +40,7 @@ export async function GET(
       );
     }
 
+    /* Validate token against tournament record and check expiry */
     const tokenValidation = await prisma.tournament.findFirst({
       where: {
         id: tournamentId,
@@ -38,6 +56,7 @@ export async function GET(
       );
     }
 
+    /* Use pagination helper for consistent paginated responses */
     const result = await paginate(
       {
         findMany: prisma.gPMatch.findMany,
@@ -50,7 +69,6 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
-    // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch GP matches", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch grand prix matches" },

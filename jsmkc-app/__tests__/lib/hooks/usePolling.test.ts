@@ -1,3 +1,24 @@
+/**
+ * @module usePolling.test
+ *
+ * Test suite for the `usePolling` custom React hook (`@/lib/hooks/usePolling`).
+ *
+ * Covers:
+ * - Initial state: null data, null error, loading flag, immediate vs deferred first fetch
+ * - Data fetching: successful fetch and state update, ETag-based change detection,
+ *   skipping updates when ETag matches, handling responses without ETag headers
+ * - Polling behavior: interval-based polling, custom intervals, stop on unmount,
+ *   immediate: false deferred start
+ * - Error handling: network errors updating error state, onError callback invocation,
+ *   non-Error object handling, error clearing on subsequent successful fetch
+ * - Options: enabled flag toggling (start/stop polling), onSuccess callback,
+ *   default options fallback, default interval from constants
+ * - Manual refetch: triggering refetch, data update on refetch
+ * - Cleanup: clearTimeout on unmount, preventing state updates after unmount,
+ *   isMounted flag reset
+ * - Edge cases: multiple independent hook instances, fetch function changes via rerender,
+ *   fast unmount during pending fetch, concurrent refetch calls
+ */
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { usePolling } from '@/lib/hooks/usePolling';
 
@@ -215,7 +236,7 @@ describe('usePolling', () => {
 
     it('should handle immediate: false option correctly', async () => {
       const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
-      
+
       renderHook(() => usePolling(mockFetch, { immediate: false }));
 
       expect(mockFetch).not.toHaveBeenCalled();

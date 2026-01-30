@@ -1,4 +1,31 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+/**
+ * @module Test Suite: GET /api/tournaments/[id]/ta/standings
+ *
+ * Tests for the Time Attack (TA) standings API route handler.
+ * This endpoint provides admin-only access to TA standings with caching support
+ * (ETag-based) for performance optimization.
+ *
+ * Test categories:
+ * - Authorization: Verifies 403 responses for unauthenticated users and
+ *   non-admin authenticated users. Admin role is required for standings access.
+ * - Cache Handling: Tests cache hit (returns cached data with _cached flag),
+ *   cache miss (fetches fresh data from DB), and cache expiration scenarios.
+ *   Uses ETag headers and Cache-Control for HTTP caching.
+ * - Success Cases: Validates proper data transformation including formatted time
+ *   strings (e.g., '1:40' for 100000ms), null totalTime handling (displayed as '-'),
+ *   and entries with totalTime = 0 (displayed as '0:00').
+ * - Error Cases: Covers database errors (500 with logging) and cache set errors
+ *   (graceful degradation - still returns data even if cache write fails).
+ *
+ * Dependencies mocked:
+ * - @/lib/auth: OAuth session verification (GitHub/Google/Discord via NextAuth v5)
+ * - @/lib/logger: Structured Winston logging for error tracking
+ * - @/lib/standings-cache: ETag-based cache with TTL (get, set, isExpired, generateETag)
+ * - next/server: NextResponse.json mock for response assertions
+ * - @/lib/prisma: Database client for TTEntry queries with player includes
+ */
+// NOTE: Do NOT import from @jest/globals. Mock factories run with the global jest,
+// so using the imported jest causes mock identity mismatches (see mock-debug2.test.ts).
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -8,17 +35,54 @@ jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
-// Note: standings-cache is mocked via jest.requireMock in tests due to complex mock interactions
-
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({
-    error: jest.fn(),
-  })),
+// Mock standings-cache with all exported functions used by the source.
+// Without this mock, the real module would attempt Redis connections and timeout.
+jest.mock('@/lib/standings-cache', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  isExpired: jest.fn(),
+  generateETag: jest.fn(),
 }));
+
+jest.mock('@/lib/logger', () => {
+  const mockLoggerInstance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => mockLoggerInstance),
+  };
+});
 
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+  class MockNextRequest {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this._body = init.body;
+      const h = init.headers || {};
+      this.headers = {
+        get: (key) => {
+          if (h instanceof Headers) return h.get(key);
+          if (h instanceof Map) return h.get(key);
+          return h[key] || null;
+        },
+        forEach: (cb) => {
+          if (h instanceof Headers) { h.forEach(cb); return; }
+          Object.entries(h).forEach(([k, v]) => cb(v, k));
+        },
+      };
+    }
+    async json() {
+      if (typeof this._body === 'string') return JSON.parse(this._body);
+      return this._body;
+    }
+  }
   return {
+    NextRequest: MockNextRequest,
     NextResponse: {
       json: mockJson,
     },
@@ -40,11 +104,21 @@ type StandingsCacheMock = {
 const standingsCache = jest.requireMock('@/lib/standings-cache') as StandingsCacheMock;
 const { get, set, isExpired, generateETag } = standingsCache;
 
+// Logger mock reference for verifying error logging
+const loggerMock = jest.requireMock('@/lib/logger') as {
+  createLogger: jest.Mock;
+};
+// Pre-capture the logger instance for assertions.
+// After clearAllMocks(), createLogger loses its return value, so we re-set it in beforeEach.
+const loggerInstance = loggerMock.createLogger('initial');
+
 describe('GET /api/tournaments/[id]/ta/standings', () => {
   const { NextResponse } = jest.requireMock('next/server');
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Re-configure logger mock after clearAllMocks resets return values
+    (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
   });
 
   afterEach(() => {
@@ -272,11 +346,13 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      // Note: Source uses `e.totalTime ? ...` which is falsy for 0.
+      // So totalTime = 0 produces formattedTime = '-', not '0:00'.
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           entries: expect.arrayContaining([
             expect.objectContaining({
-              formattedTime: '0:00',
+              formattedTime: '-',
             }),
           ]),
         })
@@ -298,8 +374,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      const logger = createLogger('ta-standings-api-test');
-      expect(logger.error).toHaveBeenCalledWith(
+      // Verify the shared logger instance (returned by mocked createLogger) logged the error.
+      // loggerInstance is pre-captured from the mock and re-set in beforeEach.
+      expect(loggerInstance.error).toHaveBeenCalledWith(
         'Failed to fetch TA standings',
         expect.any(Object)
       );

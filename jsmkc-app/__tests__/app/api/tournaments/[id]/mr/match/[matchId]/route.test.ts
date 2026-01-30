@@ -1,3 +1,23 @@
+/**
+ * @module MR Match API Route Tests
+ *
+ * Test suite for the Match Race (MR) individual match endpoint:
+ * /api/tournaments/[id]/mr/match/[matchId]
+ *
+ * Covers the following HTTP methods and scenarios:
+ * - GET: Fetches a single match by its ID with player details included.
+ *   Tests include success cases (valid matchId), error cases (match not found, database failure).
+ * - PUT: Updates a match score using optimistic locking to prevent concurrent modification
+ *   conflicts. Tests include success cases (with/without rounds data, incomplete matches),
+ *   validation errors (missing score1/score2/version, non-numeric version), optimistic lock
+ *   conflict (409 status), error cases (database failure), and edge cases (zero scores,
+ *   version increment verification).
+ *
+ * The optimistic locking mechanism ensures that concurrent updates to the same match are
+ * detected and rejected with a 409 Conflict response, prompting the client to refresh.
+ *
+ * Dependencies mocked: @/lib/optimistic-locking, @/lib/sanitize, @/lib/logger, next/server, @/lib/prisma
+ */
 // @ts-nocheck
 
 
@@ -62,13 +82,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1');
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual(mockMatch);
       expect(result.status).toBe(200);
       expect(prisma.mRMatch.findUnique).toHaveBeenCalledWith({
@@ -80,11 +100,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     // Error case - Returns 404 when match not found
     it('should return 404 when match does not exist', async () => {
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(null);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/nonexistent');
       const params = Promise.resolve({ id: 't1', matchId: 'nonexistent' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Match not found' });
       expect(result.status).toBe(404);
     });
@@ -92,11 +112,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     // Error case - Returns 500 when database query fails
     it('should return 500 when database query fails', async () => {
       (prisma.mRMatch.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1');
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
-      
+
       expect(result.data).toEqual({ error: 'Failed to fetch match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match', { error: expect.any(Error), matchId: 'm1' });
@@ -114,14 +134,14 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({
         success: true,
         data: mockUpdatedMatch,
@@ -149,14 +169,14 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 2, score2: 2, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(updateMRMatchScore).toHaveBeenCalledWith(
         prisma,
@@ -179,14 +199,14 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 2, score2: 1, completed: false, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.status).toBe(200);
     });
 
@@ -195,7 +215,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score2: 1, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'score1 and score2 are required' });
       expect(result.status).toBe(400);
     });
@@ -205,7 +225,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'score1 and score2 are required' });
       expect(result.status).toBe(400);
     });
@@ -215,7 +235,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
@@ -225,7 +245,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 'not-a-number' });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
@@ -233,11 +253,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     // Optimistic lock conflict case - Returns 409 when version conflict occurs
     it('should return 409 when optimistic lock conflict occurs', async () => {
       (updateMRMatchScore as jest.Mock).mockRejectedValue(new OptimisticLockError('Version conflict', 5));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 2 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({
         success: false,
         error: 'Version conflict',
@@ -250,11 +270,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (updateMRMatchScore as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), matchId: 'm1' });
@@ -270,14 +290,14 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 0, score2: 0, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.status).toBe(200);
       expect(updateMRMatchScore).toHaveBeenCalledWith(
         prisma,
@@ -300,14 +320,14 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
       };
-      
+
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 5 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
-      
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 2, version: 4 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
-      
+
       expect(result.data.version).toBe(5);
     });
   });

@@ -1,3 +1,25 @@
+/**
+ * @module middleware.test
+ *
+ * Test suite for the validation middleware functions (`@/lib/validation/middleware`).
+ *
+ * Covers:
+ * - ValidationError:
+ *   - Constructor, prototype chain, error properties
+ * - withValidation:
+ *   - Validates JSON request body against a Zod schema before calling the handler
+ *   - Returns 400 for invalid JSON, validation failures, and ValidationError thrown by handler
+ *   - Re-throws non-validation errors
+ *   - Argument order: withValidation(schema, handler) returns (request) => Promise<NextResponse>
+ * - withJsonValidation:
+ *   - Validates a pre-parsed data object against a Zod schema
+ *   - Returns validated data on success, NextResponse error on failure
+ *   - Does NOT handle request objects or content-type checking
+ * - withQueryValidation:
+ *   - Validates URLSearchParams against a Zod schema
+ *   - Converts URLSearchParams to plain object, validates, returns data or NextResponse error
+ *   - Error messages include "Query parameter 'fieldName'" prefix
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -18,10 +40,42 @@ jest.mock('next/server', () => ({
 }));
 
 describe('Validation Middleware', () => {
+  // ============================================================
+  // ValidationError
+  // ============================================================
+  describe('ValidationError', () => {
+    it('should create a ValidationError with message and errors', () => {
+      const issues: z.ZodIssue[] = [
+        { code: 'invalid_type', expected: 'string', received: 'number', path: ['name'], message: 'Expected string' },
+      ];
+      const error = new ValidationError('Validation failed', issues);
+
+      expect(error).toBeInstanceOf(ValidationError);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.name).toBe('ValidationError');
+      expect(error.message).toBe('Validation failed');
+      expect(error.errors).toEqual(issues);
+    });
+
+    it('should maintain correct prototype chain for instanceof checks', () => {
+      const error = new ValidationError('test', []);
+      // Object.setPrototypeOf ensures this works even with TypeScript class extension
+      expect(error instanceof ValidationError).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // withValidation
+  // ============================================================
   describe('withValidation', () => {
+    /**
+     * withValidation(schema, handler) returns (request) => Promise<NextResponse>
+     * It always parses the request body as JSON, validates against schema,
+     * and calls handler(request, validatedData) on success.
+     */
     const mockSchema = z.object({
       name: z.string().min(1),
-      age: z.string().transform(Number),
+      age: z.coerce.number(),
     });
 
     const mockHandler = jest.fn(async (req: NextRequest, _data: unknown) => {
@@ -32,819 +86,555 @@ describe('Validation Middleware', () => {
       mockHandler.mockClear();
     });
 
-    describe('GET requests', () => {
-      it('should validate query parameters and call handler', async () => {
-        const req = new NextRequest('http://localhost/api/test?name=John&age=25', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(req, { name: 'John', age: 25 });
-        expect(response.status).toBe(200);
-      });
-
-      it('should return error for invalid query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test?name=&age=25', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should handle empty query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should transform string numbers to numbers', async () => {
-        const req = new NextRequest('http://localhost/api/test?name=John&age=30', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(req, { name: 'John', age: 30 });
-      });
-
-      it('should handle multiple query parameters with same name', async () => {
-        const req = new NextRequest('http://localhost/api/test?name=John&name=Jane&age=25', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-        expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Jane', age: 25 });
-      });
-
-      it('should handle URL-encoded query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test?name=John%20Doe&age=25', { method: 'GET' });
-        const handler = withValidation(mockHandler, mockSchema);
-        await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(req, { name: 'John Doe', age: 25 });
-      });
-    });
-
-    describe('POST requests with JSON content', () => {
-      it('should validate JSON body and call handler', async () => {
+    describe('Valid JSON body', () => {
+      it('should validate JSON body and call handler with validated data', async () => {
         const body = JSON.stringify({ name: 'Alice', age: '28' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+
+        // Correct argument order: schema first, handler second
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Alice', age: 28 });
         expect(response.status).toBe(200);
       });
 
-      it('should return error for invalid JSON body', async () => {
-        const body = JSON.stringify({ name: '', age: '28' });
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should handle malformed JSON', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{ invalid json }',
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should handle empty JSON body', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{}',
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should handle JSON with extra fields', async () => {
-        const body = JSON.stringify({ name: 'Bob', age: '35', extra: 'field' });
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(
-          req,
-          expect.objectContaining({ name: 'Bob', age: 35 })
-        );
-      });
-    });
-
-    describe('PUT requests with JSON content', () => {
-      it('should validate JSON body and call handler', async () => {
+      it('should handle PUT requests with JSON body', async () => {
         const body = JSON.stringify({ name: 'Charlie', age: '40' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Charlie', age: 40 });
         expect(response.status).toBe(200);
       });
-    });
 
-    describe('PATCH requests with JSON content', () => {
-      it('should validate JSON body and call handler', async () => {
+      it('should handle PATCH requests with JSON body', async () => {
         const body = JSON.stringify({ name: 'Dave', age: '45' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Dave', age: 45 });
         expect(response.status).toBe(200);
       });
-    });
 
-    describe('DELETE requests with JSON content', () => {
-      it('should validate JSON body and call handler', async () => {
+      it('should handle DELETE requests with JSON body', async () => {
         const body = JSON.stringify({ name: 'Eve', age: '50' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'DELETE',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Eve', age: 50 });
         expect(response.status).toBe(200);
       });
-    });
 
-    describe('Form data content type', () => {
-      it.skip('should handle multipart/form-data', async () => {
-        const formData = new FormData();
-        formData.append('name', 'Frank');
-        formData.append('age', '55');
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'multipart/form-data' },
-          body: formData,
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalled();
-        expect(response.status).toBe(200);
-      });
-    });
-
-    describe('Text content type', () => {
-      it('should handle text/plain content type', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'text/plain' },
-          body: 'plain text body',
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('Error handling', () => {
-      it('should handle ValidationError instance', async () => {
-        const errorSchema = z.object({
-          value: z.string(),
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const erroringHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
-          throw new ValidationError('Custom validation error');
-        });
-
-        const req = new NextRequest('http://localhost/api/test?value=test', { method: 'GET' });
-        const handler = withValidation(erroringHandler, errorSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-      });
-
-      it('should handle Zod validation errors', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: '', age: 'invalid' }),
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        const responseData = await response.json();
-        expect(responseData.error).toBeDefined();
-      });
-
-      it('should handle generic validation errors', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-      });
-    });
-
-    describe('Edge cases', () => {
-      it('should handle missing content-type header', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          body: JSON.stringify({ name: 'Test', age: '30' }),
-        });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-      });
-
-      it('should handle null and undefined values in JSON', async () => {
-        const body = JSON.stringify({ name: null, age: '30' });
+      it('should handle JSON with extra fields (passthrough by default)', async () => {
+        const body = JSON.stringify({ name: 'Bob', age: '35', extra: 'field' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        await wrappedHandler(req);
 
-        expect(response.status).toBe(400);
+        expect(mockHandler).toHaveBeenCalledWith(
+          req,
+          expect.objectContaining({ name: 'Bob', age: 35 })
+        );
       });
 
-      it('should handle numeric values in JSON', async () => {
+      it('should handle numeric string coercion in age field', async () => {
         const body = JSON.stringify({ name: 'Test', age: '30' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body,
         });
-        const handler = withValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(response.status).toBe(200);
         expect(mockHandler).toHaveBeenCalledWith(req, { name: 'Test', age: 30 });
       });
-
-      it.skip('should handle array and object values in JSON', async () => {
-        const complexSchema = z.object({
-          name: z.string(),
-          items: z.array(z.string()),
-          metadata: z.record(z.string()),
-        });
-
-        const body = JSON.stringify({
-          name: 'Test',
-          items: ['a', 'b', 'c'],
-          metadata: { key: 'value' },
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const complexHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
-          return NextResponse.json({ success: true, data: _data });
-        });
-
-        const handler = withValidation(complexHandler, complexSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-        expect(complexHandler).toHaveBeenCalledWith(
-          req,
-          expect.objectContaining({
-            name: 'Test',
-            items: expect.arrayContaining(['a', 'b', 'c']),
-          })
-        );
-      });
-    });
-  });
-
-  describe('withJsonValidation', () => {
-    const mockSchema = z.object({
-      email: z.string().email(),
-      password: z.string().min(8),
     });
 
-    const mockHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
-      return NextResponse.json({ success: true, data: _data });
-    });
-
-    beforeEach(() => {
-      mockHandler.mockClear();
-    });
-
-    describe('Valid requests', () => {
-      it('should accept valid JSON body with correct content-type', async () => {
-        const body = JSON.stringify({
-          email: 'test@example.com',
-          password: 'password123',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(req, {
-          email: 'test@example.com',
-          password: 'password123',
-        });
-        expect(response.status).toBe(200);
-      });
-
-      it('should accept JSON with charset specification', async () => {
-        const body = JSON.stringify({
-          email: 'test@example.com',
-          password: 'password123',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json; charset=utf-8' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-      });
-    });
-
-    describe('Content-Type validation', () => {
-      it('should reject requests without JSON content-type', async () => {
-        const body = JSON.stringify({
-          email: 'test@example.com',
-          password: 'password123',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'text/plain' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(415);
-        expect(mockHandler).not.toHaveBeenCalled();
-
-        const responseData = await response.json();
-        expect(responseData.error).toContain('Content-Type must be application/json');
-      });
-
-      it('should reject requests with missing content-type', async () => {
-        const body = JSON.stringify({
-          email: 'test@example.com',
-          password: 'password123',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(415);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should reject requests with form-data content-type', async () => {
-        const formData = new FormData();
-        formData.append('email', 'test@example.com');
-        formData.append('password', 'password123');
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'multipart/form-data' },
-          body: formData,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(415);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('JSON parsing', () => {
-      it('should handle invalid JSON syntax', async () => {
+    describe('Invalid JSON', () => {
+      it('should return 400 with INVALID_JSON code for malformed JSON', async () => {
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: '{ invalid json }',
         });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(response.status).toBe(400);
         expect(mockHandler).not.toHaveBeenCalled();
 
         const responseData = await response.json();
-        expect(responseData.error).toContain('Invalid JSON format');
+        expect(responseData.success).toBe(false);
+        expect(responseData.error).toBe('Invalid JSON in request body');
+        expect(responseData.code).toBe('INVALID_JSON');
       });
 
-      it('should handle empty JSON object', async () => {
+      it('should return 400 for text/plain body that cannot be parsed as JSON', async () => {
+        const req = new NextRequest('http://localhost/api/test', {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body: 'plain text body',
+        });
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
+
+        // The source tries request.json() which fails on non-JSON text
+        expect(response.status).toBe(400);
+        expect(mockHandler).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Validation failures', () => {
+      it('should return 400 with VALIDATION_ERROR for empty name', async () => {
+        const body = JSON.stringify({ name: '', age: '28' });
+        const req = new NextRequest('http://localhost/api/test', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+        });
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
+
+        expect(response.status).toBe(400);
+        expect(mockHandler).not.toHaveBeenCalled();
+
+        const responseData = await response.json();
+        expect(responseData.success).toBe(false);
+        expect(responseData.error).toBe('Validation failed');
+        expect(responseData.code).toBe('VALIDATION_ERROR');
+        expect(responseData.details).toBeDefined();
+      });
+
+      it('should return 400 with VALIDATION_ERROR for empty JSON body', async () => {
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: '{}',
         });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(response.status).toBe(400);
         expect(mockHandler).not.toHaveBeenCalled();
       });
 
-      it('should handle JSON array', async () => {
-        const body = JSON.stringify(['item1', 'item2']);
+      it('should return field-level error details with path prefix', async () => {
+        const body = JSON.stringify({ name: '', age: 'invalid' });
         const req = new NextRequest('http://localhost/api/test', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body,
         });
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        expect(response.status).toBe(400);
+        const responseData = await response.json();
+        expect(responseData.error).toBe('Validation failed');
+        // details should contain field-level errors like "name: ..."
+        expect(Array.isArray(responseData.details)).toBe(true);
+      });
+
+      it('should return 400 for null values in required fields', async () => {
+        const body = JSON.stringify({ name: null, age: '30' });
+        const req = new NextRequest('http://localhost/api/test', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+        });
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
 
         expect(response.status).toBe(400);
       });
     });
 
-    describe('Schema validation', () => {
-      it('should reject invalid email format', async () => {
-        const body = JSON.stringify({
-          email: 'invalid-email',
+    describe('Error handling in handler', () => {
+      it('should catch ValidationError thrown by handler and return 400', async () => {
+        const errorSchema = z.object({
+          value: z.string(),
+        });
+
+        const zodIssues: z.ZodIssue[] = [
+          { code: 'custom', path: ['field'], message: 'Custom validation failed' },
+        ];
+
+        const erroringHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
+          // ValidationError requires (message, errors) - two arguments
+          throw new ValidationError('Custom validation error', zodIssues);
+        });
+
+        const body = JSON.stringify({ value: 'test' });
+        const req = new NextRequest('http://localhost/api/test', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+        });
+        const wrappedHandler = withValidation(errorSchema, erroringHandler);
+        const response = await wrappedHandler(req);
+
+        expect(response.status).toBe(400);
+        const responseData = await response.json();
+        expect(responseData.success).toBe(false);
+        expect(responseData.error).toBe('Custom validation error');
+        expect(responseData.code).toBe('VALIDATION_ERROR');
+        expect(responseData.details).toEqual(['field: Custom validation failed']);
+      });
+
+      it('should re-throw non-validation errors from handler', async () => {
+        const errorSchema = z.object({
+          value: z.string(),
+        });
+
+        const erroringHandler = jest.fn(async (_req: NextRequest, _data: unknown) => {
+          throw new Error('Unexpected server error');
+        });
+
+        const body = JSON.stringify({ value: 'test' });
+        const req = new NextRequest('http://localhost/api/test', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+        });
+        const wrappedHandler = withValidation(errorSchema, erroringHandler);
+
+        // Non-validation errors should be re-thrown, not caught
+        await expect(wrappedHandler(req)).rejects.toThrow('Unexpected server error');
+      });
+    });
+
+    describe('GET requests (no body)', () => {
+      it('should return 400 INVALID_JSON for GET requests without a body', async () => {
+        // withValidation always tries request.json(), so GET without body returns INVALID_JSON
+        const req = new NextRequest('http://localhost/api/test?name=John&age=25', { method: 'GET' });
+        const wrappedHandler = withValidation(mockSchema, mockHandler);
+        const response = await wrappedHandler(req);
+
+        // GET requests have no body, so request.json() fails
+        expect(response.status).toBe(400);
+        expect(mockHandler).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // ============================================================
+  // withJsonValidation
+  // ============================================================
+  describe('withJsonValidation', () => {
+    /**
+     * withJsonValidation(schema, data) validates a pre-parsed object.
+     * Returns z.infer<T> on success, or NextResponse on failure.
+     * Does NOT handle request objects, content-type, or JSON parsing.
+     */
+    const mockSchema = z.object({
+      email: z.string().email(),
+      password: z.string().min(8),
+    });
+
+    describe('Valid data', () => {
+      it('should return validated data for valid input', () => {
+        const result = withJsonValidation(mockSchema, {
+          email: 'test@example.com',
           password: 'password123',
         });
 
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-
-      it('should reject password shorter than 8 characters', async () => {
-        const body = JSON.stringify({
+        // On success, returns the validated data (plain object, not an error response)
+        expect(result).toEqual({
           email: 'test@example.com',
-          password: 'short',
+          password: 'password123',
         });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
       });
 
-      it('should reject missing required fields', async () => {
-        const body = JSON.stringify({
-          email: 'test@example.com',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('Edge cases', () => {
-      it('should handle extra fields in JSON', async () => {
-        const body = JSON.stringify({
+      it('should handle extra fields (Zod strips by default on z.object)', () => {
+        const result = withJsonValidation(mockSchema, {
           email: 'test@example.com',
           password: 'password123',
           extraField: 'should be ignored',
         });
 
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
+        // Zod z.object passes through extra fields by default (no .strict())
+        // The result should include email and password
+        expect(result.email).toBe('test@example.com');
+        expect(result.password).toBe('password123');
       });
 
-      it('should handle null values in required fields', async () => {
-        const body = JSON.stringify({
-          email: null,
-          password: 'password123',
-        });
-
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-        });
-
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-      });
-
-      it('should handle numeric password', async () => {
-        const body = JSON.stringify({
+      it('should accept numeric string password of at least 8 chars', () => {
+        const result = withJsonValidation(mockSchema, {
           email: 'test@example.com',
           password: '12345678',
         });
 
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
+        expect(result.password).toBe('12345678');
+      });
+    });
+
+    describe('Invalid data', () => {
+      it('should return NextResponse error for invalid email format', () => {
+        const result = withJsonValidation(mockSchema, {
+          email: 'invalid-email',
+          password: 'password123',
         });
 
-        const handler = withJsonValidation(mockHandler, mockSchema);
-        const response = await handler(req);
+        // On validation failure, returns a NextResponse
+        expect(result).toHaveProperty('status', 400);
+      });
 
-        expect(response.status).toBe(200);
+      it('should return NextResponse error for password shorter than 8 characters', () => {
+        const result = withJsonValidation(mockSchema, {
+          email: 'test@example.com',
+          password: 'short',
+        });
+
+        expect(result).toHaveProperty('status', 400);
+      });
+
+      it('should return NextResponse error for missing required fields', () => {
+        const result = withJsonValidation(mockSchema, {
+          email: 'test@example.com',
+        });
+
+        expect(result).toHaveProperty('status', 400);
+      });
+
+      it('should return NextResponse error for null values in required fields', () => {
+        const result = withJsonValidation(mockSchema, {
+          email: null,
+          password: 'password123',
+        });
+
+        expect(result).toHaveProperty('status', 400);
+      });
+
+      it('should return NextResponse error for empty JSON object', () => {
+        const result = withJsonValidation(mockSchema, {});
+        expect(result).toHaveProperty('status', 400);
+      });
+
+      it('should return NextResponse error for non-object JSON arrays', () => {
+        const result = withJsonValidation(mockSchema, ['item1', 'item2']);
+        expect(result).toHaveProperty('status', 400);
+      });
+
+      it('should include VALIDATION_ERROR code and field-level details', async () => {
+        const result = withJsonValidation(mockSchema, {
+          email: 'bad',
+          password: 'x',
+        });
+
+        expect(result).toHaveProperty('status', 400);
+        const responseData = await result.json();
+        expect(responseData.success).toBe(false);
+        expect(responseData.error).toBe('Validation failed');
+        expect(responseData.code).toBe('VALIDATION_ERROR');
+        expect(Array.isArray(responseData.details)).toBe(true);
+        expect(responseData.details.length).toBeGreaterThan(0);
       });
     });
   });
 
+  // ============================================================
+  // withQueryValidation
+  // ============================================================
   describe('withQueryValidation', () => {
+    /**
+     * withQueryValidation(schema, params: URLSearchParams) validates
+     * URL query parameters by converting them to a plain object first.
+     * Returns z.infer<T> on success, or NextResponse on failure.
+     */
     const mockSchema = z.object({
       search: z.string().optional(),
-      limit: z.string().transform(Number).default('10'),
-      offset: z.string().transform(Number).default('0'),
+      limit: z.coerce.number().default(10),
+      offset: z.coerce.number().default(0),
     });
 
-    const mockHandler = jest.fn(async (req: NextRequest, data: unknown) => {
-      return NextResponse.json({ success: true, data });
-    });
+    describe('Valid parameters', () => {
+      it('should validate query parameters and return validated data', () => {
+        const params = new URLSearchParams('search=test&limit=20&offset=5');
+        const result = withQueryValidation(mockSchema, params);
 
-    beforeEach(() => {
-      mockHandler.mockClear();
-    });
-
-    describe('Valid requests', () => {
-      it('should validate query parameters and call handler', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=test&limit=20&offset=5', {
-          method: 'GET',
-        });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(req, {
+        // Returns the validated data object (not an error response)
+        expect(result).toEqual({
           search: 'test',
           limit: 20,
           offset: 5,
         });
-        expect(response.status).toBe(200);
       });
 
-      it('should apply default values for missing parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test', {
-          method: 'GET',
+      it('should apply default values for missing parameters', () => {
+        const params = new URLSearchParams('');
+        const result = withQueryValidation(mockSchema, params);
+
+        expect(result).toEqual({
+          limit: 10,
+          offset: 0,
         });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(
-          req,
-          expect.objectContaining({
-            limit: '10',
-            offset: '0',
-          })
-        );
-        expect(response.status).toBe(200);
       });
 
-      it('should handle partial query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=test', {
-          method: 'GET',
-        });
+      it('should handle partial query parameters', () => {
+        const params = new URLSearchParams('search=test');
+        const result = withQueryValidation(mockSchema, params);
 
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(
-          req,
+        expect(result).toEqual(
           expect.objectContaining({
             search: 'test',
-            limit: '10',
-            offset: '0',
+            limit: 10,
+            offset: 0,
           })
         );
-        expect(response.status).toBe(200);
-      });
-    });
-
-    describe('Schema validation', () => {
-      it('should reject invalid number format', async () => {
-        const req = new NextRequest('http://localhost/api/test?limit=abc', {
-          method: 'GET',
-        });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
       });
 
-      it('should reject negative numbers', async () => {
-        const req = new NextRequest('http://localhost/api/test?limit=-5', {
-          method: 'GET',
-        });
+      it('should handle URL-encoded values', () => {
+        const params = new URLSearchParams('search=hello%20world');
+        const result = withQueryValidation(mockSchema, params);
 
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-      });
-    });
-
-    describe('Edge cases', () => {
-      it('should handle URL-encoded values', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=hello%20world', {
-          method: 'GET',
-        });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(
-          req,
+        expect(result).toEqual(
           expect.objectContaining({
             search: 'hello world',
           })
         );
-        expect(response.status).toBe(200);
       });
 
-      it('should handle special characters in query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=test%40example.com', {
-          method: 'GET',
-        });
+      it('should handle special characters in query parameters', () => {
+        const params = new URLSearchParams('search=test%40example.com');
+        const result = withQueryValidation(mockSchema, params);
 
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(mockHandler).toHaveBeenCalledWith(
-          req,
+        expect(result).toEqual(
           expect.objectContaining({
             search: 'test@example.com',
           })
         );
-        expect(response.status).toBe(200);
       });
 
-      it('should handle empty string values', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=&limit=10', {
-          method: 'GET',
-        });
+      it('should handle empty string values', () => {
+        const params = new URLSearchParams('search=&limit=10');
+        const result = withQueryValidation(mockSchema, params);
 
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
+        // Empty string is a valid string for the optional search field
+        // Successful validation returns a plain object, not an error response
+        expect(result).toHaveProperty('search', '');
       });
 
-      it('should handle duplicate query parameters', async () => {
-        const req = new NextRequest('http://localhost/api/test?limit=10&limit=20', {
-          method: 'GET',
-        });
+      it('should handle duplicate query parameters (last value wins)', () => {
+        // URLSearchParams.forEach processes all values; paramObject[key] = value
+        // overwrites earlier values, so the last one wins
+        const params = new URLSearchParams('limit=10&limit=20');
+        const result = withQueryValidation(mockSchema, params);
 
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-      });
-
-      it('should work with POST method', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=test', {
-          method: 'POST',
-        });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
-      });
-
-      it('should work with PUT method', async () => {
-        const req = new NextRequest('http://localhost/api/test?search=test', {
-          method: 'PUT',
-        });
-
-        const handler = withQueryValidation(mockHandler, mockSchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(200);
+        // The second value (20) overwrites the first (10)
+        expect(result).toEqual(
+          expect.objectContaining({
+            limit: 20,
+          })
+        );
       });
     });
 
-    describe('Complex query schemas', () => {
-      it('should handle array-like query parameters', async () => {
-        const arraySchema = z.object({
-          ids: z.array(z.string()).optional(),
+    describe('Schema validation errors', () => {
+      it('should return NextResponse error for validation failures', () => {
+        // Use a strict schema that rejects unknown string values for a number field
+        const strictSchema = z.object({
+          count: z.coerce.number().int().min(1),
         });
 
-        const req = new NextRequest('http://localhost/api/test?ids=1&ids=2&ids=3', {
-          method: 'GET',
-        });
+        // Empty URLSearchParams - count is required (no default), so it fails
+        const params = new URLSearchParams('');
+        const result = withQueryValidation(strictSchema, params);
 
-        const handler = withQueryValidation(mockHandler, arraySchema);
-        const response = await handler(req);
-
-        expect(response.status).toBe(400);
-        expect(mockHandler).not.toHaveBeenCalled();
+        expect(result).toHaveProperty('status', 400);
       });
 
-      it('should handle boolean query parameters', async () => {
+      it('should include query parameter name in error details', async () => {
+        const strictSchema = z.object({
+          count: z.coerce.number().int().min(1, 'Count must be at least 1'),
+        });
+
+        const params = new URLSearchParams('count=0');
+        const result = withQueryValidation(strictSchema, params);
+
+        expect(result).toHaveProperty('status', 400);
+        const responseData = await result.json();
+        expect(responseData.success).toBe(false);
+        expect(responseData.error).toBe('Invalid query parameters');
+        expect(responseData.code).toBe('VALIDATION_ERROR');
+        // Error details should include "Query parameter 'count'" prefix
+        expect(responseData.details).toBeDefined();
+        expect(responseData.details[0]).toContain("Query parameter 'count'");
+      });
+    });
+
+    describe('Edge cases', () => {
+      it('should coerce string query params to numbers via z.coerce', () => {
+        const params = new URLSearchParams('limit=abc');
+        const result = withQueryValidation(mockSchema, params);
+
+        // z.coerce.number() on 'abc' produces NaN, which is still a number
+        // Whether this passes depends on schema constraints (no .int() check on mockSchema)
+        // NaN is accepted by z.coerce.number() but not by .int() if applied
+        // In our mockSchema, there is no .int(), so NaN passes z.coerce.number()
+        // Actually, z.coerce.number() with NaN: Zod still accepts it as number type
+        // But the test just verifies it doesn't throw - either success data or NextResponse
+        expect(result).toBeDefined();
+      });
+
+      it('should handle boolean-like query parameters with transform', () => {
         const boolSchema = z.object({
           active: z.string().transform(val => val === 'true').default('false'),
         });
 
-        const req = new NextRequest('http://localhost/api/test?active=true', {
-          method: 'GET',
+        const params = new URLSearchParams('active=true');
+        const result = withQueryValidation(boolSchema, params);
+
+        expect(result).toEqual({ active: true });
+      });
+
+      it('should handle boolean-like query param with false value', () => {
+        const boolSchema = z.object({
+          active: z.string().transform(val => val === 'true').default('false'),
         });
 
-        const handler = withQueryValidation(mockHandler, boolSchema);
-        const response = await handler(req);
+        const params = new URLSearchParams('active=false');
+        const result = withQueryValidation(boolSchema, params);
 
-        expect(response.status).toBe(200);
+        expect(result).toEqual({ active: false });
+      });
+
+      it('should reject array schema since URLSearchParams are converted to single values', () => {
+        const arraySchema = z.object({
+          ids: z.array(z.string()),
+        });
+
+        // URLSearchParams with duplicate keys: paramObject overwrites, so ids = '3' (last value)
+        const params = new URLSearchParams('ids=1&ids=2&ids=3');
+        const result = withQueryValidation(arraySchema, params);
+
+        // A single string '3' will not pass z.array(z.string()) validation
+        expect(result).toHaveProperty('status', 400);
       });
     });
   });

@@ -1,3 +1,15 @@
+/**
+ * @module JWT Refresh Token Integration Tests
+ *
+ * Placeholder test suite for the JWT refresh token mechanism as specified
+ * in ARCHITECTURE.md. When fully implemented, these tests should verify:
+ * - Token refresh flow via NextAuth.js JWT callbacks
+ * - Graceful session expiration handling
+ * - Secure token storage practices
+ * - Rate limiting on token refresh endpoints
+ *
+ * Currently contains placeholder assertions pending full implementation.
+ */
 // Test file placeholder - actual comprehensive tests would be implemented here
 // This file serves as a template for testing the JWT refresh mechanism
 

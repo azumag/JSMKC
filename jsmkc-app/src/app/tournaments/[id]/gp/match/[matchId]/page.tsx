@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * Grand Prix Match Detail / Share Page
+ *
+ * Public page for viewing and reporting GP match results.
+ * Accessible via shareable link without authentication.
+ *
+ * Features:
+ * - Match info with player names and current score
+ * - Player identity selection (I am Player 1 / Player 2)
+ * - 4-race result entry with course selection and position buttons
+ * - Live driver points calculation preview
+ * - Completed match display with race-by-race results
+ * - Result submission with confirmation flow
+ * - Real-time polling (3s interval)
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -58,6 +74,7 @@ interface Tournament {
   name: string;
 }
 
+/** Race entry in the result form: course + positions for both players */
 interface Race {
   course: CourseAbbr | "";
   position1: 1 | 2 | null;
@@ -75,6 +92,7 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
+  /* GP cup has 4 races, each with course and position selections */
   const [races, setRaces] = useState<Race[]>([
     { course: "", position1: null, position2: null },
     { course: "", position1: null, position2: null },
@@ -84,6 +102,7 @@ export default function GPMatchPage({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  /** Fetch match and tournament data in parallel */
   const fetchMatchData = useCallback(async () => {
     const [matchRes, tournamentRes] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/gp/match/${matchId}`),
@@ -107,6 +126,7 @@ export default function GPMatchPage({
     };
   }, [tournamentId, matchId]);
 
+  /* Poll for match updates every 3 seconds */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchMatchData, {
     interval: 3000,
@@ -123,18 +143,24 @@ export default function GPMatchPage({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Submit the race results for the selected player.
+   * Validates that 4 unique courses are selected and all positions are filled.
+   */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
       setError("Please select which player you are");
       return;
     }
 
+    /* Validate 4 unique courses are selected */
     const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
     if (usedCourses.length !== 4 || new Set(usedCourses).size !== 4) {
       setError("Please select 4 unique courses");
       return;
     }
 
+    /* Validate all positions are filled */
     const incompleteRaces = races.filter(
       (r) => r.position1 === null || r.position2 === null
     );
@@ -174,17 +200,20 @@ export default function GPMatchPage({
     }
   };
 
+  /** Convert course abbreviation to full name for display */
   const getCourseName = (abbr: string) => {
     const course = COURSE_INFO.find((c) => c.abbr === abbr);
     return course ? course.name : abbr;
   };
 
+  /** Convert finishing position to driver points (1st=9, 2nd=6) */
   const getPointsFromPosition = (position: number) => {
     if (position === 1) return 9;
     if (position === 2) return 6;
     return 0;
   };
 
+  /* Calculate running totals for the points preview */
   const totalPoints1 = races.reduce(
     (sum, r) => sum + (r.position1 ? getPointsFromPosition(r.position1) : 0),
     0
@@ -219,6 +248,7 @@ export default function GPMatchPage({
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto space-y-4">
+        {/* Match header with tournament name and polling indicator */}
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
           <p className="text-muted-foreground">
@@ -229,6 +259,7 @@ export default function GPMatchPage({
           </div>
         </div>
 
+        {/* Player matchup card */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex justify-between items-center">
@@ -246,6 +277,7 @@ export default function GPMatchPage({
           </CardHeader>
         </Card>
 
+        {/* Result entry form (shown when match is not complete and not yet submitted) */}
         {!match.completed && !submitted && (
           <Card>
             <CardHeader>
@@ -255,6 +287,7 @@ export default function GPMatchPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Player identity selection */}
               <div className="space-y-2">
                 <p className="text-sm font-medium">I am:</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -277,6 +310,7 @@ export default function GPMatchPage({
 
               {selectedPlayer && (
                 <div className="space-y-4">
+                  {/* Live score preview */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-center">
@@ -288,6 +322,7 @@ export default function GPMatchPage({
                     </div>
                   </div>
 
+                  {/* 4 race entries with course selection and position buttons */}
                   <div className="space-y-3">
                     {races.map((race, index) => (
                       <div key={index} className="border rounded-lg p-3 space-y-2">
@@ -315,6 +350,7 @@ export default function GPMatchPage({
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Position toggle buttons (1st/2nd for each player) */}
                         <div className="flex gap-2">
                           <Button
                             variant={
@@ -372,6 +408,7 @@ export default function GPMatchPage({
           </Card>
         )}
 
+        {/* Submission confirmation (shown after successful submit) */}
         {submitted && !match.completed && (
           <Card>
             <CardContent className="py-8 text-center">
@@ -389,6 +426,7 @@ export default function GPMatchPage({
           </Card>
         )}
 
+        {/* Completed match display with race-by-race breakdown */}
         {match.completed && match.races && (
           <Card>
             <CardHeader>
@@ -446,6 +484,7 @@ export default function GPMatchPage({
                   </div>
                 ))}
               </div>
+              {/* Final score summary */}
               <div className="mt-4 pt-4 border-t">
                 <div className="flex justify-center gap-8">
                   <div className="text-center">
@@ -473,6 +512,7 @@ export default function GPMatchPage({
           </Card>
         )}
 
+        {/* Back navigation */}
         <div className="text-center">
           <Link
             href={`/tournaments/${tournamentId}/gp`}
@@ -486,6 +526,10 @@ export default function GPMatchPage({
   );
 }
 
+/**
+ * Validate that all 4 races have unique courses and both positions filled.
+ * Used to enable/disable the submit button.
+ */
 function canSubmit(races: Race[]): boolean {
   const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
   return (

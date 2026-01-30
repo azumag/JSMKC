@@ -1,3 +1,22 @@
+/**
+ * TA (Time Attack) Main API Route
+ *
+ * Handles CRUD operations for Time Attack entries within a tournament.
+ * This is the primary endpoint for managing TA qualification and promotion.
+ *
+ * Endpoints:
+ * - GET:    Fetch entries for a tournament stage (qualification, revival_1, revival_2, finals)
+ * - POST:   Add players to qualification or promote to finals/revival rounds
+ * - PUT:    Update times, lives, or elimination status for an entry
+ * - DELETE: Remove an entry from the tournament (admin only)
+ *
+ * All mutation operations are rate-limited and audit-logged.
+ * Promotion operations require admin authentication via NextAuth session.
+ *
+ * CRITICAL: Logger is created INSIDE each handler function (not at module level)
+ * to ensure proper test mocking per the project's mock architecture pattern.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
@@ -12,16 +31,36 @@ import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
 
+/**
+ * Regex for validating time format strings in request validation.
+ * Matches M:SS.mmm or MM:SS.mmm format.
+ */
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
+
+/**
+ * Valid tournament stages for TA mode.
+ * "qualification" is the initial stage; others are progression stages.
+ */
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
 
+/**
+ * Schema for individual time string validation in PUT requests.
+ * Allows empty strings (clearing a time) or valid time format strings.
+ */
 const TimeStringSchema = z.string().refine(
   (val) => val === "" || timeFormatRegex.test(val),
   { message: "Invalid time format. Expected M:SS.mmm or MM:SS.mmm" }
 );
 
+/** Schema for bulk time updates: record of course abbreviation to time string */
 const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
 
+/**
+ * POST request body schema.
+ * Supports two modes:
+ * - "add": Add a player to qualification (requires playerId or players array)
+ * - Promotion actions: Promote players to finals/revival rounds (requires auth)
+ */
 const PostRequestSchema = z.object({
   playerId: z.string().uuid().optional(),
   players: z.array(z.string().uuid()).optional(),
@@ -32,6 +71,14 @@ const PostRequestSchema = z.object({
   { message: "Either playerId or players array is required" }
 );
 
+/**
+ * PUT request body schema.
+ * Supports multiple update modes:
+ * - "update_times": Update course times (requires times object or course+time pair)
+ * - "update_lives": Change life count (requires livesDelta)
+ * - "eliminate": Set elimination status (requires eliminated boolean)
+ * - "reset_lives": Reset all active players' lives to initial value
+ */
 const PutRequestSchema = z.object({
   entryId: z.string().uuid(),
   course: z.string().optional(),
@@ -47,14 +94,26 @@ const PutRequestSchema = z.object({
   { message: "Invalid request for action" }
 );
 
+/**
+ * GET /api/tournaments/[id]/ta
+ *
+ * Fetch all TA entries for a tournament stage.
+ * Returns entries sorted by rank/totalTime, along with course definitions
+ * and counts for qualification and finals stages.
+ *
+ * Query parameters:
+ * - stage: "qualification" | "revival_1" | "revival_2" | "finals" (default: "qualification")
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
+    // Validate tournament ID format to prevent injection
     const uuidSchema = z.string().uuid();
     const parseResult = uuidSchema.safeParse(tournamentId);
     if (!parseResult.success) {
@@ -64,16 +123,20 @@ export async function GET(
       );
     }
 
+    // Parse optional stage query parameter (defaults to "qualification")
     const { searchParams } = new URL(request.url);
     const stage = StageSchema.safeParse(searchParams.get("stage"));
     const stageToQuery = stage.success ? stage.data : "qualification";
 
+    // Fetch entries with player data, ordered by rank for display
     const entries = await prisma.tTEntry.findMany({
       where: { tournamentId, stage: stageToQuery },
       include: { player: true },
       orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
     });
 
+    // Fetch counts for qualification and finals stages in parallel
+    // These counts are used by the UI to show promotion availability
     const [qualCount, finalsCount] = await Promise.all([
       prisma.tTEntry.count({ where: { tournamentId, stage: "qualification" } }),
       prisma.tTEntry.count({ where: { tournamentId, stage: "finals" } }),
@@ -96,14 +159,29 @@ export async function GET(
   }
 }
 
+/**
+ * POST /api/tournaments/[id]/ta
+ *
+ * Add players to TA qualification or promote players to advanced stages.
+ *
+ * Actions:
+ * - Default/add: Add player(s) to qualification round
+ * - promote_to_finals: Promote top N or selected players to finals (auth required)
+ * - promote_to_revival_1: Promote players 17-24 to revival round 1 (auth required)
+ * - promote_to_revival_2: Promote players 13-16 + revival 1 survivors (auth required)
+ *
+ * Rate limited: 10 requests/minute for adds, 5 requests/minute for promotions.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
+    // Validate tournament ID format
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -113,6 +191,7 @@ export async function POST(
       );
     }
 
+    // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
 
     const parseResult = PostRequestSchema.safeParse(body);
@@ -125,6 +204,8 @@ export async function POST(
 
     const { action, playerId, players, topN } = parseResult.data;
 
+    // === Revival Round 1 Promotion ===
+    // Promotes players ranked 17-24 from qualification to revival_1
     if (action === "promote_to_revival_1") {
       const session = await auth();
       if (!session?.user) {
@@ -145,12 +226,13 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id,
+        userId: session.user.id || '',
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
 
       const result = await promoteToRevival1(prisma, context);
+      // Recalculate ranks after promotion to ensure correct ordering
       await recalculateRanks(tournamentId, "revival_1", prisma);
 
       return NextResponse.json(
@@ -163,6 +245,8 @@ export async function POST(
       );
     }
 
+    // === Revival Round 2 Promotion ===
+    // Promotes players 13-16 from qualification + revival 1 survivors to revival_2
     if (action === "promote_to_revival_2") {
       const session = await auth();
       if (!session?.user) {
@@ -183,12 +267,13 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id,
+        userId: session.user.id || '',
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
 
       const result = await promoteToRevival2(prisma, context);
+      // Recalculate ranks after promotion
       await recalculateRanks(tournamentId, "revival_2", prisma);
 
       return NextResponse.json(
@@ -201,6 +286,8 @@ export async function POST(
       );
     }
 
+    // === Finals Promotion ===
+    // Promotes top N players or selected players from qualification to finals
     if (action === "promote_to_finals") {
       const session = await auth();
       if (!session?.user) {
@@ -221,12 +308,13 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id,
+        userId: session.user.id || '',
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
 
       const result = await promoteToFinals(prisma, context, topN, players);
+      // Recalculate finals ranks after promotion
       await recalculateRanks(tournamentId, "finals", prisma);
 
       return NextResponse.json(
@@ -239,6 +327,8 @@ export async function POST(
       );
     }
 
+    // === Add Player to Qualification ===
+    // Default action: add one or more players to the qualification round
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
     if (!rateLimitResult.success) {
@@ -248,6 +338,7 @@ export async function POST(
       );
     }
 
+    // Support both single playerId and batch players array
     const playerIds = players || (playerId ? [playerId] : []);
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
@@ -255,6 +346,7 @@ export async function POST(
     const createdEntries = [];
 
     for (const pid of playerIds) {
+      // Check for existing entry to prevent duplicates (idempotency)
       const existing = await prisma.tTEntry.findUnique({
         where: {
           tournamentId_playerId_stage: {
@@ -266,6 +358,7 @@ export async function POST(
       });
 
       if (!existing) {
+        // Create qualification entry with empty times (to be filled in later)
         const entry = await prisma.tTEntry.create({
           data: {
             tournamentId,
@@ -277,6 +370,7 @@ export async function POST(
         });
         createdEntries.push(entry);
 
+        // Audit log for accountability (non-critical, failure is logged)
         try {
           await createAuditLog({
             ipAddress,
@@ -311,14 +405,29 @@ export async function POST(
   }
 }
 
+/**
+ * PUT /api/tournaments/[id]/ta
+ *
+ * Update a TA entry's times, lives, or elimination status.
+ *
+ * Actions:
+ * - "eliminate": Set elimination status (auth required)
+ * - "update_lives": Modify life count by delta
+ * - "update_times" / default: Update course time(s)
+ *
+ * After any update, ranks are automatically recalculated for the affected stage.
+ * Rate limited: 10 requests/minute.
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
+    // Validate tournament ID format
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -328,6 +437,7 @@ export async function PUT(
       );
     }
 
+    // Sanitize and validate request body
     const body = sanitizeInput(await request.json());
 
     const parseResult = PutRequestSchema.safeParse(body);
@@ -340,6 +450,8 @@ export async function PUT(
 
     const { entryId, action, eliminated } = parseResult.data;
 
+    // === Elimination Action ===
+    // Manually eliminate or un-eliminate a player (admin only)
     if (action === "eliminate") {
       const session = await auth();
       if (!session?.user) {
@@ -371,13 +483,14 @@ export async function PUT(
         include: { player: true },
       });
 
+      // Recalculate ranks after elimination status change
       await recalculateRanks(tournamentId, entry.stage, prisma);
 
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
       try {
         await createAuditLog({
-          userId: session.user.id,
+          userId: session.user.id || '',
           ipAddress,
           userAgent,
           action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
@@ -398,6 +511,8 @@ export async function PUT(
       return NextResponse.json({ entry: updatedEntry });
     }
 
+    // === Time Update Action ===
+    // Update course times (single course or bulk)
     const { course, time, times: bulkTimes } = parseResult.data;
 
     const identifier = getClientIdentifier(request);
@@ -420,12 +535,15 @@ export async function PUT(
       );
     }
 
+    // Merge new times with existing times
     const currentTimes = (entry.times as Record<string, string>) || {};
     let updatedTimes: Record<string, string>;
 
     if (bulkTimes) {
+      // Bulk update: merge all provided times with existing
       updatedTimes = { ...currentTimes, ...bulkTimes };
     } else if (course && time !== undefined) {
+      // Single course update: validate course abbreviation
       if (!COURSES.includes(course as CourseAbbr)) {
         return NextResponse.json(
           { success: false, error: "Invalid course abbreviation" },
@@ -440,6 +558,7 @@ export async function PUT(
       );
     }
 
+    // Validate all time formats before saving
     for (const [c, t] of Object.entries(updatedTimes)) {
       if (t && t !== "" && timeToMs(t) === null) {
         return NextResponse.json(
@@ -449,13 +568,16 @@ export async function PUT(
       }
     }
 
+    // Persist the updated times
     await prisma.tTEntry.update({
       where: { id: entryId },
       data: { times: updatedTimes },
     });
 
+    // Recalculate ranks after time change to update standings
     await recalculateRanks(tournamentId, entry.stage, prisma);
 
+    // Fetch the fully updated entry with player data for the response
     const finalEntry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
       include: { player: true },
@@ -492,14 +614,27 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE /api/tournaments/[id]/ta
+ *
+ * Delete a TA entry from the tournament. Requires admin authentication.
+ * After deletion, ranks are recalculated for the affected stage.
+ *
+ * Query parameters:
+ * - entryId: UUID of the entry to delete (required)
+ *
+ * Rate limited: 5 requests/minute.
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id: tournamentId } = await params;
   try {
 
+    // Authentication required for destructive operations
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json(
@@ -517,6 +652,7 @@ export async function DELETE(
       );
     }
 
+    // Validate tournament ID format
     const uuidSchema = z.string().uuid();
     const tournamentIdResult = uuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
@@ -526,6 +662,7 @@ export async function DELETE(
       );
     }
 
+    // Get entry ID from query parameters
     const { searchParams } = new URL(request.url);
     const entryId = searchParams.get("entryId");
 
@@ -536,6 +673,7 @@ export async function DELETE(
       );
     }
 
+    // Validate entry ID format
     const entryIdResult = uuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
       return NextResponse.json(
@@ -544,6 +682,7 @@ export async function DELETE(
       );
     }
 
+    // Fetch entry to confirm existence and get player data for audit log
     const entryToDelete = await prisma.tTEntry.findUnique({
       where: { id: entryId },
       include: { player: true },
@@ -556,17 +695,20 @@ export async function DELETE(
       );
     }
 
+    // Delete the entry from the database
     await prisma.tTEntry.delete({
       where: { id: entryId }
     });
 
+    // Recalculate ranks for the affected stage after deletion
     await recalculateRanks(tournamentId, entryToDelete.stage, prisma);
 
+    // Audit log for deletion accountability
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
     try {
       await createAuditLog({
-        userId: session.user.id,
+        userId: session.user.id || '',
         ipAddress,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
@@ -587,7 +729,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: "Entry deleted successfully",
-      softDeleted: true 
+      softDeleted: true
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging

@@ -1,3 +1,28 @@
+/**
+ * @module MR Finals Matches API Route Tests
+ *
+ * Test suite for the Match Race (MR) finals matches creation endpoint:
+ * /api/tournaments/[id]/mr/finals/matches
+ *
+ * Covers the POST method for creating individual finals matches:
+ * - Success cases: Creates a match with valid data including player IDs, sides,
+ *   TV number, bracket type, and bracket position. Tests default values for optional
+ *   fields (player1Side=1, player2Side=2, bracket='winners', isGrandFinal=false)
+ *   and correct match number incrementing based on existing matches.
+ * - Authentication failure cases: Returns 401 when user is not authenticated,
+ *   session has no user object, or user role is not admin.
+ * - Validation error cases: Returns 404 when player1 or player2 does not exist,
+ *   and returns 400 for invalid request body (e.g., invalid UUID for player IDs).
+ * - Error cases: Returns 500 when database operation fails.
+ * - Edge cases: Creates grand final match with isGrandFinal=true and bracket='grand_final',
+ *   and handles non-critical audit log creation failures gracefully.
+ *
+ * Each match is created with initial scores of 0, completed=false, and an empty
+ * rounds object. An audit log entry is created for each match creation (non-critical).
+ *
+ * Dependencies mocked: @/lib/auth, @/lib/audit-log, @/lib/sanitize, @/lib/logger,
+ *   next/server, @/lib/prisma
+ */
 // @ts-nocheck
 
 
@@ -16,6 +41,11 @@ import { POST } from '@/app/api/tournaments/[id]/mr/finals/matches/route';
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+
+// Valid UUIDs for Zod schema validation (player1Id and player2Id require UUID format)
+// Must be valid v4 UUIDs (version nibble = 4, variant nibble = 8-b)
+const UUID_P1 = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+const UUID_P2 = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 
 // Mock NextRequest class
 class MockNextRequest {
@@ -48,8 +78,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
-      const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
+      const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
       const mockMatch = {
         id: 'm1',
         matchNumber: 1,
@@ -67,8 +97,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (createAuditLog as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
         player1Side: 1,
         player2Side: 2,
         tvNumber: 1,
@@ -91,8 +121,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
           stage: 'finals',
           round: 'qf1',
           tvNumber: 1,
-          player1Id: 'p1',
-          player2Id: 'p2',
+          player1Id: UUID_P1,
+          player2Id: UUID_P2,
           player1Side: 1,
           player2Side: 2,
           score1: 0,
@@ -113,8 +143,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
-      const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
+      const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
       const mockMatch = {
         id: 'm1',
         matchNumber: 1,
@@ -131,8 +161,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (createAuditLog as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -155,8 +185,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
-      const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
+      const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
       const mockLastMatch = { matchNumber: 5 };
       const mockMatch = {
         id: 'm6',
@@ -174,8 +204,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (createAuditLog as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       await POST(request, { params });
@@ -194,8 +224,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (auth as jest.Mock).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -209,8 +239,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -225,8 +255,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -236,15 +266,18 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     });
 
     // Validation error case - Returns 404 when player1 not found
+    // Use valid UUIDs so Zod validation passes, then player lookup returns null
     it('should return 404 when player1 does not exist', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      (prisma.player.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.player.findUnique as jest.Mock)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'nonexistent',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -258,14 +291,14 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
       (prisma.player.findUnique as jest.Mock)
         .mockResolvedValueOnce(mockPlayer1)
         .mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'nonexistent',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -274,7 +307,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       expect(result.status).toBe(404);
     });
 
-    // Validation error case - Returns 400 for invalid request body
+    // Validation error case - Returns 400 for invalid request body (non-UUID player IDs)
     it('should return 400 for invalid request body', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
@@ -290,6 +323,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     });
 
     // Error case - Returns 500 when database operation fails
+    // Use valid UUIDs to pass Zod validation, then make prisma reject
     it('should return 500 when database operation fails', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
@@ -297,8 +331,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (prisma.player.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -309,12 +343,13 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
     });
 
     // Edge case - Creates grand final match
+    // Use valid UUIDs for Zod validation
     it('should create grand final match with isGrandFinal=true', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
-      const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
+      const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
       const mockMatch = {
         id: 'm1',
         matchNumber: 1,
@@ -331,8 +366,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (createAuditLog as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
         bracket: 'grand_final',
         isGrandFinal: true,
       });
@@ -355,8 +390,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const mockPlayer1 = { id: 'p1', name: 'Player 1', nickname: 'P1' };
-      const mockPlayer2 = { id: 'p2', name: 'Player 2', nickname: 'P2' };
+      const mockPlayer1 = { id: UUID_P1, name: 'Player 1', nickname: 'P1' };
+      const mockPlayer2 = { id: UUID_P2, name: 'Player 2', nickname: 'P2' };
       const mockMatch = {
         id: 'm1',
         matchNumber: 1,
@@ -373,8 +408,8 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log failed'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'p1',
-        player2Id: 'p2',
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });

@@ -1,4 +1,32 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+/**
+ * @module Tournament Token Management Route Tests
+ *
+ * Test suite for tournament token management API routes:
+ *
+ * POST /api/tournaments/[id]/token/extend:
+ * - Extends an existing tournament token's expiry time
+ * - Requires authentication (401 for unauthenticated)
+ * - Validates extensionHours (1-168 range, returns 400 for invalid)
+ * - Creates audit log on successful extension
+ * - Handles missing tournament/token (400), database errors (500)
+ *
+ * POST /api/tournaments/[id]/token/validate:
+ * - Validates a tournament access token
+ * - Checks for missing/empty tokens (401)
+ * - Validates token format (32-char hex requirement)
+ * - Checks tournament existence and token expiry
+ * - Returns tournament info on valid token
+ * - Handles database errors (500)
+ *
+ * POST /api/tournaments/[id]/token/regenerate:
+ * - Generates a new token for a tournament, replacing the old one
+ * - Requires authentication (401 for unauthenticated)
+ * - Validates expiresInHours (1-168 range, returns 400 for invalid)
+ * - Creates audit log with masked token details
+ * - Handles not found (P2025/404), database errors (500), audit log failures gracefully
+ */
+// NOTE: Do NOT import from @jest/globals. Mock factories run with the global jest,
+// so using the imported jest causes mock identity mismatches (see mock-debug2.test.ts).
 
 // Mock dependencies
 jest.mock('@/lib/auth', () => ({
@@ -27,6 +55,8 @@ jest.mock('@/lib/token-utils', () => ({
     const newDate = new Date(currentExpiry.getTime() + (extensionHours * 60 * 60 * 1000));
     return newDate;
   }),
+  // getTokenTimeRemaining is used by extend route to format remaining time in response
+  getTokenTimeRemaining: jest.fn(() => '24 hours'),
 }));
 
 jest.mock('@/lib/token-validation', () => ({
@@ -82,22 +112,30 @@ const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
 };
 
-// Mock NextRequest class
+// Mock NextRequest class - supports both Map and plain object headers
 class MockNextRequest {
+  headers: { get: (key: string) => string | undefined };
+
   constructor(
     private url: string,
-    private options?: { method?: string; body?: string; headers?: Map<string, string> }
-  ) {}
+    private options?: { method?: string; body?: string; headers?: Map<string, string> | Record<string, string> }
+  ) {
+    // Support both Map and plain object headers for flexibility in tests
+    const h = this.options?.headers;
+    this.headers = {
+      get: (key: string) => {
+        if (!h) return undefined;
+        if (h instanceof Map) return h.get(key);
+        return (h as Record<string, string>)[key];
+      }
+    };
+  }
   async json() {
     if (this.options?.body) {
       return JSON.parse(this.options.body);
     }
     return {};
   }
-  get header() { return { get: (key: string) => this.options?.headers?.get(key) }; }
-  headers = {
-    get: (key: string) => this.options?.headers?.get(key)
-  };
 }
 
 describe('Token Management API Routes', () => {
@@ -108,8 +146,14 @@ describe('Token Management API Routes', () => {
     jest.clearAllMocks();
     // Reset NextResponse.json mock implementation
     NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
-    // Setup logger mock to return consistent instance
+    // Setup logger mock to return consistent instance after clearAllMocks resets it
     (loggerMock.createLogger as jest.Mock).mockReturnValue(loggerInstance);
+    // Re-configure rate-limit mocks: checkRateLimit must resolve to prevent hangs/timeouts,
+    // and getServerSideIdentifier must resolve for audit log creation
+    rateLimitMock.checkRateLimit.mockResolvedValue({ success: true, remaining: 99 });
+    rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+    // Re-configure sanitizeInput to pass through data (clearAllMocks resets the implementation)
+    (sanitizeMock.sanitizeInput as jest.Mock).mockImplementation((data: unknown) => data);
   });
 
   afterEach(() => {
@@ -140,14 +184,46 @@ describe('Token Management API Routes', () => {
     });
 
     describe('Rate Limiting', () => {
-      it('should enforce rate limiting on token extension', async () => {
+      it('should return 429 when rate limit is exceeded', async () => {
+        // Rate limit check happens after auth but before validation.
+        // When rate limit fails, the source returns 429 immediately.
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({
           success: false,
           retryAfter: 60,
+          limit: 10,
+          remaining: 0,
+          reset: 1000,
         });
+        (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+          method: 'POST',
+          body: JSON.stringify({ extensionHours: 24 }),
+        });
+
+// Using imported TokenExtendPOST
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
+
+        expect(NextResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: 'Too many requests. Please try again later.',
+          }),
+          expect.objectContaining({
+            status: 429,
+          })
+        );
+      });
+    });
+
+    describe('Validation', () => {
+      it('should return 400 when extensionHours < 1', async () => {
+        (auth as jest.Mock).mockResolvedValue({
+          user: { id: 'admin-1' },
+        });
+        (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
@@ -200,6 +276,7 @@ describe('Token Management API Routes', () => {
 
         const mockTournament = {
           id: 't1',
+          name: 'Test Tournament',
           token: 'existing-token',
           tokenExpiresAt: new Date('2024-01-15T12:00:00.000Z'),
         };
@@ -210,7 +287,13 @@ describe('Token Management API Routes', () => {
         );
 
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
+        // The update mock must return an object with tokenExpiresAt because
+        // the source reads tournament.tokenExpiresAt from the update result.
+        (prisma.tournament.update as jest.Mock).mockResolvedValue({
+          id: 't1',
+          name: 'Test Tournament',
+          tokenExpiresAt: expectedNewExpiry,
+        });
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
@@ -238,16 +321,17 @@ describe('Token Management API Routes', () => {
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalled();
 
+        // Source returns NextResponse.json(data) without explicit status argument.
+        // newExpiryDate is tournament.tokenExpiresAt (Date object from update mock).
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
             success: true,
             data: {
-              newExpiryDate: expectedNewExpiry.toISOString(),
+              newExpiryDate: expectedNewExpiry,
               extensionHours: 24,
               timeRemaining: expect.any(String),
             },
           }),
-          { status: 200 }
         );
       });
 
@@ -261,8 +345,14 @@ describe('Token Management API Routes', () => {
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
           id: 't1',
           token: 'existing-token',
+          tokenExpiresAt: new Date('2024-01-15T12:00:00.000Z'),
         });
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
+        // Update mock must return tokenExpiresAt since the source reads it
+        (prisma.tournament.update as jest.Mock).mockResolvedValue({
+          id: 't1',
+          name: 'Test Tournament',
+          tokenExpiresAt: new Date('2024-01-16T12:00:00.000Z'),
+        });
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
@@ -277,14 +367,22 @@ describe('Token Management API Routes', () => {
     });
 
     describe('Error Cases', () => {
-      it('should return 404 when tournament not found', async () => {
+      it('should return 400 when tournament has no token', async () => {
+        // When tournament exists but has no token, the source returns 400.
+        // For tournament not found (null), source returns 404.
         (auth as jest.Mock).mockResolvedValue({
           user: { id: 'admin-1' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
-        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+        // Tournament exists but has no token set
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+          id: 't1',
+          name: 'Test Tournament',
+          token: null,
+          tokenExpiresAt: null,
+        });
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
           method: 'POST',
@@ -333,6 +431,14 @@ describe('Token Management API Routes', () => {
   describe('POST /api/tournaments/[id]/token/validate', () => {
     describe('Missing Token', () => {
       it('should return 401 when token is not provided', async () => {
+        // Mock validateTournamentToken to return no tournament when token is missing.
+        // The source delegates all token checking to this utility function.
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
+          valid: false,
+          tournament: null,
+          error: 'Token required',
+        });
+
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
         });
@@ -350,6 +456,13 @@ describe('Token Management API Routes', () => {
       });
 
       it('should return 401 when token is empty string', async () => {
+        // Mock validateTournamentToken to return no tournament when token is empty
+        tokenValidationMock.validateTournamentToken.mockResolvedValue({
+          valid: false,
+          tournament: null,
+          error: 'Token required',
+        });
+
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/validate', {
           method: 'POST',
           body: JSON.stringify({ token: '' }),
@@ -443,12 +556,12 @@ describe('Token Management API Routes', () => {
 
     describe('Token Expired', () => {
       it('should return 401 when token is expired', async () => {
+        // When a token is expired, validateTournamentToken returns null for tournament
+        // because the source checks `!validation.tournament` to determine auth failure.
+        // A truthy tournament indicates success; null/undefined indicates failure.
         tokenValidationMock.validateTournamentToken.mockResolvedValue({
           valid: false,
-          tournament: {
-            id: 't1',
-            name: 'Test Tournament',
-          },
+          tournament: null,
           error: 'Token invalid or expired',
         });
 
@@ -492,6 +605,7 @@ describe('Token Management API Routes', () => {
 
         await TokenValidatePOST(request, { params: Promise.resolve({ id: 't1' }) });
 
+        // Source calls NextResponse.json(data) without explicit status (200 is default)
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
             success: true,
@@ -501,7 +615,6 @@ describe('Token Management API Routes', () => {
               tokenValid: true,
             },
           }),
-          { status: 200 }
         );
       });
     });
@@ -608,14 +721,21 @@ describe('Token Management API Routes', () => {
           new Date('2024-02-02T12:00:00.000Z')
         );
 
-        const mockTournament = {
+        // The update mock must return an object with the selected fields
+        // because the source reads tournament.token and tournament.tokenExpiresAt from the result.
+        const updatedTournament = {
+          id: 't1',
+          name: 'Test Tournament',
+          token: 'new-generated-token',
+          tokenExpiresAt: new Date('2024-02-02T12:00:00.000Z'),
+        };
+
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
           id: 't1',
           name: 'Test Tournament',
           token: 'old-token',
-        };
-
-        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
+        });
+        (prisma.tournament.update as jest.Mock).mockResolvedValue(updatedTournament);
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
@@ -654,23 +774,24 @@ describe('Token Management API Routes', () => {
           targetId: 't1',
           targetType: 'Tournament',
           details: expect.objectContaining({
-            newToken: expect.stringMatching(/^new-.+ \.\.\.$/),
+            newToken: expect.stringMatching(/^new-.+\.\.\.$/),
             expiresInHours: 24,
             newExpiry: expect.any(String),
           }),
         })
       );
 
+        // Source returns tournament.tokenExpiresAt directly (Date object),
+        // not converted to ISO string, since NextResponse.json handles serialization.
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
             success: true,
             data: {
               token: 'new-generated-token',
-              expiresAt: new Date('2024-02-02T12:00:00.000Z').toISOString(),
+              expiresAt: new Date('2024-02-02T12:00:00.000Z'),
               expiresInHours: 24,
             },
           }),
-          { status: 200 }
         );
       });
 
@@ -684,8 +805,14 @@ describe('Token Management API Routes', () => {
           new Date('2024-02-02T12:00:00.000Z')
         );
 
+        // Update mock must return fields the source reads (tournament.token, tournament.tokenExpiresAt)
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
+        (prisma.tournament.update as jest.Mock).mockResolvedValue({
+          id: 't1',
+          name: 'Test Tournament',
+          token: 'new-generated-token',
+          tokenExpiresAt: new Date('2024-02-02T12:00:00.000Z'),
+        });
         auditLogMock.createAuditLog.mockResolvedValue(undefined);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
@@ -772,8 +899,14 @@ describe('Token Management API Routes', () => {
           new Date('2024-02-02T12:00:00.000Z')
         );
 
+        // Update mock must return fields the source reads (tournament.token, tournament.tokenExpiresAt)
         (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
-        (prisma.tournament.update as jest.Mock).mockResolvedValue({});
+        (prisma.tournament.update as jest.Mock).mockResolvedValue({
+          id: 't1',
+          name: 'Test Tournament',
+          token: 'new-generated-token',
+          tokenExpiresAt: new Date('2024-02-02T12:00:00.000Z'),
+        });
         auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
@@ -789,12 +922,12 @@ describe('Token Management API Routes', () => {
           expect.any(Object)
         );
 
+        // Source returns success even if audit log fails; response has no explicit status param
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
             success: true,
             data: expect.any(Object),
           }),
-          { status: 200 }
         );
       });
     });

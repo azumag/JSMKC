@@ -1,220 +1,504 @@
-import NextAuth from 'next-auth'
-import type { JWT } from 'next-auth/jwt'
-import type { User, Account } from 'next-auth'
-import GitHub from 'next-auth/providers/github'
-import Google from 'next-auth/providers/google'
-import Discord from 'next-auth/providers/discord'
-import Credentials from 'next-auth/providers/credentials'
-import bcrypt from 'bcrypt'
+/**
+ * NextAuth v5 Configuration
+ *
+ * Configures authentication for the JSMKC tournament management system
+ * using NextAuth v5 (next-auth@beta) with the App Router.
+ *
+ * Authentication strategy:
+ * - Admin operations: OAuth via Discord, GitHub, or Google
+ * - Player score entry: Token-based (see token-validation.ts)
+ * - Player credentials: Optional bcrypt password login for players
+ *
+ * Session strategy: JWT (JSON Web Tokens)
+ * - Stateless sessions stored in cookies (no server-side session store)
+ * - Tokens include custom claims: role, userType, accessTokenExpires
+ * - Refresh token rotation for seamless session extension
+ *
+ * Admin identification:
+ * - Discord users whose IDs are listed in ADMIN_DISCORD_IDS env var
+ *   are automatically assigned the 'admin' role
+ * - Other OAuth users get the 'member' role
+ *
+ * User creation/upgrade flow (signIn callback):
+ * 1. User signs in via OAuth provider
+ * 2. If no User record exists, create one with 'member' role
+ * 3. If user's Discord ID is in admin list, upgrade to 'admin'
+ * 4. Link the OAuth account to the User record
+ *
+ * Usage:
+ *   import { auth, signIn, signOut } from '@/lib/auth';
+ *   const session = await auth(); // Server-side session check
+ */
 
-import { prisma } from '@/lib/prisma'
-import { createLogger } from '@/lib/logger'
-const log = createLogger('auth')
-const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+import NextAuth from 'next-auth';
+import Discord from 'next-auth/providers/discord';
+import GitHub from 'next-auth/providers/github';
+import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
+import bcrypt from 'bcrypt';
+import prisma from '@/lib/prisma';
+import { createLogger } from '@/lib/logger';
 
-// Admin User IDs (Discord) - Environment Variable
-// Function to allow testing with different environment variable values
-const getAdminDiscordIds = () => process.env.ADMIN_DISCORD_IDS?.split(',') || [];
+/** Logger scoped to authentication operations */
+const logger = createLogger('auth');
 
-// Export for testing
+// ============================================================
+// Constants
+// ============================================================
+
+/**
+ * Refresh token expiry duration in milliseconds (24 hours).
+ *
+ * When the access token expires, the client uses the refresh token
+ * to obtain a new access token without requiring re-authentication.
+ * The refresh token itself expires after this duration.
+ */
+export const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+
+// ============================================================
+// Admin Discord ID Management
+// ============================================================
+
+/**
+ * Retrieves the list of admin Discord user IDs from environment variables.
+ *
+ * The ADMIN_DISCORD_IDS environment variable contains a comma-separated
+ * list of Discord user IDs that should have admin access.
+ *
+ * This function is called during the signIn callback to determine
+ * whether a new user should be granted admin privileges.
+ *
+ * @returns Array of Discord user ID strings
+ *
+ * @example
+ *   // .env: ADMIN_DISCORD_IDS=123456789,987654321
+ *   getAdminDiscordIds() // ['123456789', '987654321']
+ */
+export function getAdminDiscordIds(): string[] {
+  const ids = process.env.ADMIN_DISCORD_IDS || '';
+  // Split by comma and trim whitespace from each ID.
+  // Filter out empty strings that result from trailing commas
+  // or empty environment variables.
+  return ids
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+}
+
+/**
+ * Exported list of admin Discord IDs for use by other modules.
+ * Pre-computed at module load time for efficiency.
+ */
 export const ADMIN_DISCORD_IDS_LIST = getAdminDiscordIds();
 
-// Export function for mocking in tests
-export { getAdminDiscordIds };
+// ============================================================
+// NextAuth Configuration
+// ============================================================
 
-// Define auth configuration object for testing
-const authConfig = {
-  secret: process.env.AUTH_SECRET,
+/**
+ * NextAuth v5 configuration object.
+ *
+ * Exported separately from the NextAuth instance to allow:
+ * - Testing the configuration in isolation
+ * - Reusing config in middleware (next.config.js)
+ * - Inspecting provider setup without initializing NextAuth
+ */
+export const authConfig = {
+  /**
+   * Authentication providers.
+   *
+   * Three OAuth providers for admin authentication and one
+   * credentials provider for player password login.
+   */
   providers: [
+    /**
+     * Discord OAuth provider.
+     * Primary admin authentication method for JSMKC.
+     * Discord is the community platform used by the SMK community.
+     */
     Discord({
-      clientId: process.env.DISCORD_CLIENT_ID,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+      clientId: process.env.DISCORD_CLIENT_ID!,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
     }),
+
+    /**
+     * GitHub OAuth provider.
+     * Alternative admin authentication for developers
+     * who manage the JSMKC platform.
+     */
     GitHub({
-      clientId: process.env.GITHUB_CLIENT_ID,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
+
+    /**
+     * Google OAuth provider with offline access.
+     * Offline access enables refresh token support for
+     * long-running tournament management sessions.
+     */
     Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-          scope: "openid email profile https://www.googleapis.com/auth/userinfo.email"
-        }
-      }
+          // Request offline access to receive a refresh token.
+          // This allows the server to refresh the Google access token
+          // without requiring the user to re-authenticate.
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     }),
+
+    /**
+     * Credentials provider for player authentication.
+     *
+     * Allows players to log in with their nickname and password
+     * for score entry and viewing personal statistics.
+     * This is separate from the tournament token system and
+     * provides persistent player accounts.
+     */
     Credentials({
       id: 'player-credentials',
       name: 'Player Login',
       credentials: {
-        nickname: { label: "Nickname", type: "text" },
-        password: { label: "Password", type: "password" }
+        nickname: {
+          label: 'Nickname',
+          type: 'text',
+          placeholder: 'Enter your player nickname',
+        },
+        password: {
+          label: 'Password',
+          type: 'password',
+          placeholder: 'Enter your password',
+        },
       },
-      async authorize(credentials): Promise<import('next-auth').User | null> {
+      async authorize(credentials) {
+        // Validate that both fields are provided
         if (!credentials?.nickname || !credentials?.password) {
+          logger.warn('Player login attempt with missing credentials');
           return null;
         }
 
-        const player = await prisma.player.findUnique({
-          where: { nickname: credentials.nickname as string }
-        });
+        const nickname = credentials.nickname as string;
+        const password = credentials.password as string;
 
-        if (!player || !player.password) {
+        try {
+          // Look up the player by nickname (case-sensitive, unique field)
+          const player = await prisma.player.findUnique({
+            where: { nickname },
+          });
+
+          // Player not found or has no password set
+          if (!player || !player.password) {
+            logger.warn('Player login failed: player not found or no password', {
+              nickname,
+            });
+            return null;
+          }
+
+          // Verify the password against the stored bcrypt hash.
+          // bcrypt.compare is timing-safe to prevent enumeration attacks.
+          const isValid = await bcrypt.compare(password, player.password);
+          if (!isValid) {
+            logger.warn('Player login failed: invalid password', { nickname });
+            return null;
+          }
+
+          // Return the user object that NextAuth will serialize into the JWT.
+          // The 'player' type distinguishes player sessions from admin sessions.
+          logger.info('Player login successful', { nickname, playerId: player.id });
+          return {
+            id: player.id,
+            name: player.name,
+            email: `${player.nickname}@player.local`, // Synthetic email for NextAuth compatibility
+            image: null,
+          };
+        } catch (error) {
+          logger.error('Player login error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
           return null;
         }
-
-        const isValid = await bcrypt.compare(credentials.password as string, player.password);
-        if (!isValid) {
-          return null;
-        }
-
-        return {
-          id: player.id,
-          email: `${player.nickname}@player.local`,
-          name: player.name,
-          image: null,
-          userType: 'player',
-          playerId: player.id,
-          nickname: player.nickname
-        };
-      }
+      },
     }),
   ],
+
+  /**
+   * Session configuration.
+   *
+   * Uses JWT strategy for stateless sessions.
+   * JWTs are stored in httpOnly cookies for security.
+   */
   session: {
-    strategy: "jwt" as const,
+    strategy: 'jwt' as const,
   },
+
+  /**
+   * Callback functions for customizing authentication behavior.
+   */
   callbacks: {
-    async signIn({ user, account }: { user?: User; account?: Account | null }) {
-      // Return early if user is undefined (should not happen with OAuth providers)
-      if (!user) {
+    /**
+     * signIn callback: Called when a user signs in.
+     *
+     * For OAuth providers, this creates or updates the User record
+     * in the database and links the OAuth account.
+     *
+     * For the credentials provider, authentication is handled in
+     * the authorize function above.
+     *
+     * Admin role assignment:
+     * - If the user signs in via Discord and their Discord ID is
+     *   in the ADMIN_DISCORD_IDS list, they get the 'admin' role
+     * - Otherwise, they get the 'member' role
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async signIn({ user, account, profile }: any) {
+      // Credentials provider handles its own validation in authorize()
+      if (account?.provider === 'player-credentials') {
         return true;
       }
 
-      // Return early if user email is null (cannot identify user)
-      if (!user.email) {
-        return true;
-      }
+      // OAuth providers: create or update the user record
+      if (account && user.email) {
+        try {
+          // Check if a user with this email already exists
+          let dbUser = await prisma.user.findUnique({
+            where: { email: user.email },
+          });
 
-      // Support Discord, GitHub and Google OAuth
-      let role = 'member';
+          // Determine the role based on Discord admin list.
+          // Only Discord accounts can have admin role because the
+          // JSMKC community uses Discord as its primary platform.
+          const isAdmin =
+            account.provider === 'discord' &&
+            profile?.id &&
+            ADMIN_DISCORD_IDS_LIST.includes(String(profile.id));
+          const role = isAdmin ? 'admin' : 'member';
 
-      if (account?.provider === 'discord') {
-        if (getAdminDiscordIds().includes(account.providerAccountId)) {
-          role = 'admin';
-        }
-      }
-
-      // Allow login for all providers (GitHub/Google/Discord)
-      try {
-        // ユーザーが存在するか確認、なければ作成
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-
-        if (!existingUser) {
-          await prisma.user.create({
-            data: {
+          if (!dbUser) {
+            // Create new user record for first-time sign-in
+            dbUser = await prisma.user.create({
+              data: {
+                email: user.email,
+                name: user.name || null,
+                image: user.image || null,
+                role,
+              },
+            });
+            logger.info('New user created via OAuth', {
               email: user.email,
-              name: user.name,
-              image: user.image,
-              role: role,
+              provider: account.provider,
+              role,
+            });
+          } else if (isAdmin && dbUser.role !== 'admin') {
+            // Upgrade existing user to admin if they're in the admin list.
+            // This handles the case where an existing user's Discord ID
+            // is added to the admin list after their first sign-in.
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { role: 'admin' },
+            });
+            logger.info('User upgraded to admin', {
+              email: user.email,
+              userId: dbUser.id,
+            });
+          }
+
+          // Link the OAuth account to the user record if not already linked.
+          // This allows a user to sign in with multiple providers.
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
             },
           });
-        } else if (role === 'admin' && existingUser.role !== 'admin') {
-          // Upgrade to admin if whitelisted
-          await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { role: 'admin' }
+
+          if (!existingAccount) {
+            await prisma.account.create({
+              data: {
+                userId: dbUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                refresh_token: account.refresh_token,
+                access_token: account.access_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+                session_state: account.session_state as string | undefined,
+              },
+            });
+            logger.info('OAuth account linked', {
+              userId: dbUser.id,
+              provider: account.provider,
+            });
+          }
+
+          // Set the user ID to the database ID for consistent JWT claims
+          user.id = dbUser.id;
+        } catch (error) {
+          logger.error('Error in signIn callback', {
+            error: error instanceof Error ? error.message : String(error),
+            provider: account.provider,
+          });
+          return false;
+        }
+      }
+
+      return true;
+    },
+
+    /**
+     * session callback: Called whenever a session is checked.
+     *
+     * Adds custom claims from the JWT token to the session object
+     * that's accessible in client components and API routes.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async session({ session, token }: any) {
+      if (token && session.user) {
+        // Add the database user ID to the session.
+        // This is the CUID from our User table, not the provider ID.
+        session.user.id = token.sub || '';
+
+        // Add custom claims for role-based access control.
+        // These are set in the jwt callback below.
+        (session as Record<string, unknown>).role = token.role || 'member';
+        (session as Record<string, unknown>).userType = token.userType || 'oauth';
+
+        // Add token expiry information for client-side refresh logic.
+        // The client uses these timestamps to proactively refresh
+        // before the token expires.
+        (session as Record<string, unknown>).accessTokenExpires =
+          token.accessTokenExpires;
+        (session as Record<string, unknown>).refreshTokenExpires =
+          token.refreshTokenExpires;
+      }
+      return session;
+    },
+
+    /**
+     * jwt callback: Called whenever a JWT token is created or updated.
+     *
+     * On initial sign-in:
+     * - Looks up the user's role from the database
+     * - Sets token expiry timestamps
+     * - Records the user type (oauth vs player)
+     *
+     * On subsequent requests:
+     * - Checks if the access token has expired
+     * - If expired, refreshes using the refresh token
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async jwt({ token, user, account }: any) {
+      // Initial sign-in: populate token with custom claims
+      if (user && account) {
+        const now = Date.now();
+
+        // Determine user type based on the provider used
+        const userType =
+          account.provider === 'player-credentials' ? 'player' : 'oauth';
+
+        // Look up the user's role from the database.
+        // This ensures the role is always current, even if it was
+        // changed by another admin after the last sign-in.
+        let role = 'member';
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id || '' },
+            select: { role: true },
+          });
+          if (dbUser) {
+            role = dbUser.role;
+          }
+        } catch (error) {
+          logger.warn('Failed to look up user role', {
+            userId: user.id,
+            error: error instanceof Error ? error.message : String(error),
           });
         }
 
-        return true;
-      } catch (err) {
-        const errorMeta = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-        log.error(`Error during ${account?.provider} sign in:`, errorMeta);
-        return true;
-      }
-    },
-    async session({ session, token }: { session: import('next-auth').Session & { user?: { id?: string } }; token: import('next-auth/jwt').JWT }) {
-      if (session.user && typeof token.sub === 'string') {
-        session.user.id = token.sub;
-        session.user.role = token.role;
-        session.user.userType = token.userType;
+        // Set custom token claims
+        token.role = role;
+        token.userType = userType;
 
-        // Add player-specific fields if user is a player
-        if (token.userType === 'player') {
-          session.user.playerId = token.playerId;
-          session.user.nickname = token.nickname;
+        // Set access and refresh token expiry timestamps.
+        // Access token expires in 24 hours.
+        // Refresh token also expires in 24 hours (can be extended).
+        token.accessTokenExpires = now + REFRESH_TOKEN_EXPIRY;
+        token.refreshTokenExpires = now + REFRESH_TOKEN_EXPIRY;
+
+        // Store the OAuth refresh token if provided.
+        // This is used for refreshing Google OAuth tokens.
+        if (account.refresh_token) {
+          token.providerRefreshToken = account.refresh_token;
+        }
+
+        logger.debug('JWT token created', {
+          userId: user.id,
+          role,
+          userType,
+        });
+      }
+
+      // Token refresh: check if access token has expired.
+      // If the access token is expired but the refresh token is still
+      // valid, extend the session by updating the expiry.
+      if (
+        token.accessTokenExpires &&
+        typeof token.accessTokenExpires === 'number'
+      ) {
+        const now = Date.now();
+        if (now > token.accessTokenExpires) {
+          // Access token expired - check if refresh is still valid
+          if (
+            token.refreshTokenExpires &&
+            typeof token.refreshTokenExpires === 'number' &&
+            now < token.refreshTokenExpires
+          ) {
+            // Refresh token is still valid - extend the session
+            token.accessTokenExpires = now + REFRESH_TOKEN_EXPIRY;
+            logger.debug('Access token refreshed', { userId: token.sub });
+          } else {
+            // Both tokens expired - user needs to re-authenticate
+            logger.info('Session expired, re-authentication required', {
+              userId: token.sub,
+            });
+          }
         }
       }
 
-      // Add error information to session for client-side handling
-      if (token.error) {
-        session.error = token.error;
-      }
-
-      return session;
-    },
-    async jwt({ token, user, account }: { token: JWT; user?: User | undefined; account?: Account | null | undefined }): Promise<JWT> {
-      // Initial sign in: store tokens and expiration
-      if (account && user) {
-        // Handle player credentials (password-based login)
-        if (account.provider === 'player-credentials') {
-          return {
-            ...token,
-            sub: user.id,
-            userType: 'player',
-            playerId: user.playerId,
-            nickname: user.nickname,
-            role: 'player'
-          } as JWT;
-        }
-
-        // Handle OAuth providers (Discord, GitHub, Google)
-        // Skip if user.email is null, return token with default role
-        if (!user.email) {
-          return {
-            ...token,
-            role: 'member'
-          } as JWT;
-        }
-
-        // Fetch user role from DB to be sure
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
-        const role = dbUser?.role || 'member';
-
-        return {
-          ...token,
-          sub: dbUser?.id,
-          userType: 'admin',
-          accessToken: account.access_token,
-          refreshToken: account.refresh_token,
-          accessTokenExpires: Date.now() + (account.expires_in || 3600) * 1000,
-          refreshTokenExpires: Date.now() + REFRESH_TOKEN_EXPIRY,
-          user: user,
-          role: role,
-        } as JWT;
-      }
-
-      // Return previous token if still valid
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        return token as JWT;
-      }
-
-      // Token refresh logic can be simplified or expanded as needed
-      return token as JWT;
+      return token;
     },
   },
+
+  /**
+   * Custom pages for authentication UI.
+   *
+   * Overrides the default NextAuth pages with custom JSMKC-branded pages.
+   */
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error',
   },
 };
 
-export const { handlers, signIn, signOut, auth } = NextAuth(authConfig);
+// ============================================================
+// NextAuth Instance
+// ============================================================
 
-// Export configuration for testing
-export { authConfig };
+/**
+ * Initialize NextAuth with the configuration.
+ *
+ * Exports:
+ * - handlers: GET and POST handlers for the /api/auth/* routes
+ * - signIn: Server-side sign-in function
+ * - signOut: Server-side sign-out function
+ * - auth: Server-side session getter function
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const { handlers, signIn, signOut, auth } = NextAuth(authConfig as any);

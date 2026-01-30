@@ -1,16 +1,64 @@
+/**
+ * @module Test Suite: GET /api/tournaments/[id]/ta/entries
+ *
+ * Tests for the Time Attack (TA) entries proxy/redirect API route handler.
+ * This endpoint acts as a proxy that forwards requests to the main TA endpoint,
+ * preserving search parameters (e.g., token for player score entry access)
+ * and request headers (e.g., User-Agent).
+ *
+ * Test categories:
+ * - Success Cases: Verifies proper URL construction, search param forwarding,
+ *   User-Agent header forwarding, and handling of empty search params.
+ * - Error Handling: Validates graceful handling of network errors and
+ *   upstream error response forwarding (e.g., 500 status codes).
+ *
+ * Dependencies mocked:
+ * - next/server: NextResponse.json mock for response assertions
+ * - global.fetch: Mocked to simulate upstream API responses
+ *
+ * IMPORTANT: jest.mock() calls use the global jest (not imported from @jest/globals)
+ * because babel-jest's hoisting plugin does not properly hoist jest.mock()
+ * when jest is imported from @jest/globals, causing mocks to not be applied.
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { NextRequest } from 'next/server';
 
+// Mock next/server with MockNextRequest that supports URL parsing
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+  class MockNextRequest {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this._body = init.body;
+      const h = init.headers || {};
+      this.headers = {
+        get: (key) => {
+          if (h instanceof Headers) return h.get(key);
+          if (h instanceof Map) return h.get(key);
+          return h[key] || null;
+        },
+        forEach: (cb) => {
+          if (h instanceof Headers) { h.forEach(cb); return; }
+          Object.entries(h).forEach(([k, v]) => cb(v, k));
+        },
+      };
+    }
+    async json() {
+      if (typeof this._body === 'string') return JSON.parse(this._body);
+      return this._body;
+    }
+  }
   return {
+    NextRequest: MockNextRequest,
     NextResponse: {
       json: mockJson,
     },
     __esModule: true,
   };
 });
+
+import { NextRequest } from 'next/server';
+import * as entriesRoute from '@/app/api/tournaments/[id]/ta/entries/route';
 
 describe('GET /api/tournaments/[id]/ta/entries', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -31,7 +79,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         stage: 'qualification',
       };
 
-      // Mock fetch to return mock data
+      // Mock global fetch to return mock data
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
@@ -45,10 +93,12 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries?token=abc123'
       );
 
-(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
+      // Must await the route handler to ensure all async operations complete
+      await entriesRoute.GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Verify fetch was called with correct URL including search params
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/tournaments/t1/ta'),
         expect.objectContaining({
@@ -56,6 +106,7 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         })
       );
 
+      // Verify response forwarded correctly
       expect(NextResponse.json).toHaveBeenCalledWith(mockData, { status: 200 });
     });
 
@@ -78,14 +129,15 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
       const request = new NextRequest(
         'http://localhost:3000/api/tournaments/t1/ta/entries',
         {
-          headers: new Headers({ 'User-Agent': 'TestAgent/1.0' }),
+          headers: { 'User-Agent': 'TestAgent/1.0' },
         }
       );
 
-(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
+      await entriesRoute.GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Verify the User-Agent header was forwarded to the fetch call
       expect(global.fetch).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
@@ -116,10 +168,11 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries'
       );
 
-(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
+      await entriesRoute.GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Verify fetch was called with the main TA URL
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/tournaments/t1/ta'),
         expect.objectContaining({
@@ -141,8 +194,9 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries'
       );
 
+      // The route does not catch fetch errors, so it should propagate
       await expect(
-(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
+        entriesRoute.GET(request, {
           params: Promise.resolve({ id: 't1' })
         })
       ).rejects.toThrow('Network error');
@@ -162,10 +216,11 @@ describe('GET /api/tournaments/[id]/ta/entries', () => {
         'http://localhost:3000/api/tournaments/t1/ta/entries'
       );
 
-(jest.requireMock('@/app/api/tournaments/[id]/ta/entries/route') as any).GET(request, {
+      await entriesRoute.GET(request, {
         params: Promise.resolve({ id: 't1' })
       });
 
+      // Should forward the error response with the upstream status code
       expect(NextResponse.json).toHaveBeenCalledWith(
         { error: 'Internal server error' },
         { status: 500 }

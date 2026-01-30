@@ -1,3 +1,18 @@
+/**
+ * Match Race Match Detail/Share Page
+ *
+ * Public-facing page for individual MR match viewing and score reporting.
+ * Can be shared via link for players to enter their results.
+ *
+ * Features:
+ * - Real-time match status display with polling
+ * - Player identity selection (I am Player 1/2)
+ * - 5-race course and winner entry
+ * - Completed match display with race details
+ * - Post-submission confirmation view
+ *
+ * @route /tournaments/[id]/mr/match/[matchId]
+ */
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -31,12 +46,14 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data from the API */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** MR match with full details */
 interface MRMatch {
   id: string;
   matchNumber: number;
@@ -56,11 +73,13 @@ interface MRMatch {
   player2ReportedScore2?: number;
 }
 
+/** Tournament metadata */
 interface Tournament {
   id: string;
   name: string;
 }
 
+/** Individual race round entry */
 interface Round {
   course: CourseAbbr | "";
   winner: number | null;
@@ -77,6 +96,7 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
+  /* Initialize 5 empty rounds for match entry */
   const [rounds, setRounds] = useState<Round[]>([
     { course: "", winner: null },
     { course: "", winner: null },
@@ -87,6 +107,10 @@ export default function MatchDetailPage({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  /**
+   * Fetch match and tournament data concurrently.
+   * Called by the polling hook for real-time updates.
+   */
   const fetchMatchData = useCallback(async () => {
     const [matchRes, tournamentRes] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}`),
@@ -110,11 +134,13 @@ export default function MatchDetailPage({
     };
   }, [tournamentId, matchId]);
 
+  /* Poll every 3 seconds for live updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchMatchData, {
     interval: 3000,
   });
 
+  /* Update local state from polling data */
   useEffect(() => {
     if (pollData) {
       setMatch(pollData.match);
@@ -126,18 +152,24 @@ export default function MatchDetailPage({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Submit match result after validation.
+   * Requires player selection, 5 unique courses, and a winner.
+   */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
       setError("Please select which player you are");
       return;
     }
 
+    /* Validate 5 unique courses */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
     if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
       setError("Please select 5 unique courses");
       return;
     }
 
+    /* Count wins and validate a winner exists */
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
 
@@ -179,11 +211,13 @@ export default function MatchDetailPage({
     }
   };
 
+  /** Look up course display name from abbreviation */
   const getCourseName = (abbr: string) => {
     const course = COURSE_INFO.find(c => c.abbr === abbr);
     return course ? course.name : abbr;
   };
 
+  /* Loading skeleton */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -206,12 +240,14 @@ export default function MatchDetailPage({
     );
   }
 
+  /* Calculate current score from rounds for display */
   const p1Wins = rounds.filter(r => r.winner === 1).length;
   const p2Wins = rounds.filter(r => r.winner === 2).length;
 
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto space-y-4">
+        {/* Tournament and match header */}
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
           <p className="text-muted-foreground">Match Race - Match #{match.matchNumber}</p>
@@ -220,6 +256,7 @@ export default function MatchDetailPage({
           </div>
         </div>
 
+        {/* Match info card */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex justify-between items-center">
@@ -237,6 +274,7 @@ export default function MatchDetailPage({
           </CardHeader>
         </Card>
 
+        {/* Score entry form (shown when match is not completed and not submitted) */}
         {!match.completed && !submitted && (
           <Card>
             <CardHeader>
@@ -246,6 +284,7 @@ export default function MatchDetailPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Player identity selection */}
               <div className="space-y-2">
                 <p className="text-sm font-medium">I am:</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -266,6 +305,7 @@ export default function MatchDetailPage({
                 </div>
               </div>
 
+              {/* Race entry form (shown after player selection) */}
               {selectedPlayer && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -277,6 +317,7 @@ export default function MatchDetailPage({
                     </div>
                   </div>
 
+                  {/* 5-race entry rows */}
                   <div className="space-y-3">
                     {rounds.map((round, index) => (
                       <div key={index} className="flex items-center gap-2">
@@ -348,10 +389,11 @@ export default function MatchDetailPage({
           </Card>
         )}
 
+        {/* Post-submission confirmation */}
         {submitted && !match.completed && (
           <Card>
             <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-4">✓</div>
+              <div className="text-4xl mb-4">&#10003;</div>
               <h3 className="text-lg font-semibold mb-2">Result Submitted!</h3>
               <p className="text-muted-foreground">
                 Waiting for the other player to confirm...
@@ -363,6 +405,7 @@ export default function MatchDetailPage({
           </Card>
         )}
 
+        {/* Completed match display with race details */}
         {match.completed && match.rounds && (
           <Card>
             <CardHeader>
@@ -407,12 +450,13 @@ export default function MatchDetailPage({
           </Card>
         )}
 
+        {/* Navigation link back to MR main page */}
         <div className="text-center">
           <Link
             href={`/tournaments/${tournamentId}/mr`}
             className="text-sm text-muted-foreground hover:underline"
           >
-            ← Back to Match Race
+            &larr; Back to Match Race
           </Link>
         </div>
       </div>
@@ -420,14 +464,17 @@ export default function MatchDetailPage({
   );
 }
 
+/** Placeholder for course uniqueness warning (reserved for future enhancement) */
 function usedCoursesWarning() {
   return null;
 }
 
+/** Placeholder for winner validation warning (reserved for future enhancement) */
 function winnerWarning() {
   return null;
 }
 
+/** Placeholder for submit readiness check (reserved for future enhancement) */
 function canSubmit() {
   return true;
 }

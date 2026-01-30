@@ -1,3 +1,15 @@
+/**
+ * @module __tests__/lib/logger.test.ts
+ * @description Test suite for the structured logging utility (`createLogger`) from `@/lib/logger`.
+ *
+ * This suite verifies that the logger factory function creates service-specific
+ * logger instances that support four log levels: error, warn, info, and debug.
+ * Each level is tested with and without metadata objects. Because the logger
+ * operates in silent mode during tests (no console output), assertions focus
+ * on ensuring the logger methods can be called without throwing. Tests also
+ * confirm that separate loggers created for different service names are
+ * independent instances.
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { createLogger } from '@/lib/logger';
 

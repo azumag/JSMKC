@@ -1,3 +1,23 @@
+/**
+ * @module AlertDialog Component Tests
+ *
+ * Tests for the Radix UI AlertDialog wrapper components.
+ * AlertDialog is a modal dialog that interrupts the user with important content
+ * and expects a response (action or cancel).
+ *
+ * Covers all subcomponents:
+ * - AlertDialogTrigger: trigger element rendering
+ * - AlertDialogPortal: portal rendering
+ * - AlertDialogOverlay: overlay classes and custom className
+ * - AlertDialogContent: content rendering, positioning, custom className
+ * - AlertDialogHeader: header layout and custom className
+ * - AlertDialogFooter: footer layout and custom className
+ * - AlertDialogTitle: title typography and custom className
+ * - AlertDialogDescription: description typography and custom className
+ * - AlertDialogAction: action button styling and custom className
+ * - AlertDialogCancel: cancel button styling, mobile layout, custom className
+ * - Integration: complete dialog rendering, prop passing, accessibility (ARIA)
+ */
 import { render, screen } from '@testing-library/react';
 import {
   AlertDialog,
@@ -13,13 +33,6 @@ import {
   AlertDialogPortal,
 } from '@/components/ui/alert-dialog';
 
-/**
- * AlertDialog Component Tests
- * 
- * Tests for the Radix UI AlertDialog wrapper components.
- * AlertDialog is a modal dialog that interrupts the user with important content
- * and expects a response (action or cancel).
- */
 describe('AlertDialog Components', () => {
   /**
    * Helper component to render a complete AlertDialog

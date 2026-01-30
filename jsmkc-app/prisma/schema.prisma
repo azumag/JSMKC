@@ -108,6 +108,9 @@ model Player {
 
   // Character usage tracking
   characterUsages MatchCharacterUsage[]
+
+  // Tournament scores (aggregated points)
+  tournamentScores TournamentPlayerScore[]
 }
 
 // Tournament model
@@ -131,6 +134,7 @@ model Tournament {
   gpMatches        GPMatch[]
   gpQualifications GPQualification[]
   ttEntries        TTEntry[]
+  playerScores     TournamentPlayerScore[]
 }
 
 // Course model (for Time Trial and Match Race)
@@ -415,16 +419,54 @@ model TTEntry {
   tournamentId String
   player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId     String
-  stage        String     @default("qualification") // qualification, revival_1, revival_2, finals
-  lives        Int        @default(3) // For revival rounds and finals
+  stage        String     @default("qualification") // qualification, phase1, phase2, phase3
+  lives        Int        @default(3) // For phase3 finals
   eliminated   Boolean    @default(false)
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds
   rank         Int?
+  courseScores         Json?   // Points per course: {"MC1": 45, "DP1": 50, ...}
+  qualificationPoints  Int?    // Total qualification points (max 1000)
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
   version      Int        @default(0) // 楽観的ロック用
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, playerId, stage])
+}
+
+// ==========================================
+// Tournament Points System
+// ==========================================
+
+// Aggregated tournament points for each player across all 4 modes
+model TournamentPlayerScore {
+  id              String     @id @default(cuid())
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId    String
+  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId        String
+
+  // Qualification points (each mode max 1000)
+  taQualificationPoints  Int @default(0)
+  bmQualificationPoints  Int @default(0)
+  mrQualificationPoints  Int @default(0)
+  gpQualificationPoints  Int @default(0)
+
+  // Finals points (each mode max 2000)
+  taFinalsPoints  Int @default(0)
+  bmFinalsPoints  Int @default(0)
+  mrFinalsPoints  Int @default(0)
+  gpFinalsPoints  Int @default(0)
+
+  // Total and ranking
+  totalPoints     Int @default(0)  // Max 12000 (4 modes × 3000 max each)
+  overallRank     Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId])
+  @@index([totalPoints])
 }

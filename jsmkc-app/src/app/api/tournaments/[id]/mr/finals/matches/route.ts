@@ -1,3 +1,13 @@
+/**
+ * Match Race Finals Match Creation API Route
+ *
+ * Creates individual finals matches for the MR double elimination bracket.
+ * Used by admins to manually add matches to the bracket with specific
+ * player assignments, bracket positions, and TV assignments.
+ *
+ * Authentication: Admin role required
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,24 +16,42 @@ import { z } from "zod";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
+/**
+ * Validation schema for creating a finals match.
+ * Ensures player IDs are valid UUIDs and bracket metadata is correct.
+ */
 const CreateMatchSchema = z.object({
   player1Id: z.string().uuid(),
   player2Id: z.string().uuid(),
+  /** Controller side assignment for player 1 (1 or 2) */
   player1Side: z.number().int().min(1).max(2).optional().default(1),
+  /** Controller side assignment for player 2 (1 or 2) */
   player2Side: z.number().int().min(1).max(2).optional().default(2),
+  /** TV/monitor number for this match */
   tvNumber: z.number().int().optional(),
+  /** Which bracket section this match belongs to */
   bracket: z.enum(["winners", "losers", "grand_final"]).default("winners"),
+  /** Position identifier within the bracket (e.g., "wb-qf-1") */
   bracketPosition: z.string().optional(),
+  /** Whether this is the grand final match */
   isGrandFinal: z.boolean().default(false),
 });
 
+/**
+ * POST /api/tournaments/[id]/mr/finals/matches
+ *
+ * Create a new finals match with bracket position and player assignments.
+ * Match number is auto-incremented from the last existing finals match.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  /* Logger must be created inside the function for proper test mocking */
   const logger = createLogger('mr-finals-matches-api');
   const session = await auth();
 
+  /* Admin authentication required */
   if (!session?.user || session.user.role !== "admin") {
     return NextResponse.json(
       { error: "Unauthorized: Admin access required" },
@@ -35,6 +63,7 @@ export async function POST(
   try {
     const body = sanitizeInput(await request.json());
 
+    /* Validate request body against schema */
     const parseResult = CreateMatchSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -45,6 +74,7 @@ export async function POST(
 
     const data = parseResult.data;
 
+    /* Verify both players exist in the database */
     const [player1, player2] = await Promise.all([
       prisma.player.findUnique({ where: { id: data.player1Id } }),
       prisma.player.findUnique({ where: { id: data.player2Id } }),
@@ -57,6 +87,7 @@ export async function POST(
       );
     }
 
+    /* Auto-increment match number from the last existing finals match */
     const lastMatch = await prisma.mRMatch.findFirst({
       where: { tournamentId, stage: "finals" },
       orderBy: { matchNumber: "desc" },
@@ -64,6 +95,7 @@ export async function POST(
 
     const matchNumber = (lastMatch?.matchNumber || 0) + 1;
 
+    /* Create the match with all bracket metadata */
     const match = await prisma.mRMatch.create({
       data: {
         tournamentId,
@@ -87,6 +119,7 @@ export async function POST(
       include: { player1: true, player2: true },
     });
 
+    /* Audit log for match creation */
     try {
       await createAuditLog({
         userId: session.user.id,
@@ -105,7 +138,7 @@ export async function POST(
         },
       });
     } catch (logError) {
-      // Audit log failure is non-critical but should be logged for security tracking
+      /* Audit log failure is non-critical but should be logged for security tracking */
       logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_MR_MATCH' });
     }
 
@@ -114,7 +147,6 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    // Use structured logging for error tracking and debugging
     logger.error("Failed to create match", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to create match" },

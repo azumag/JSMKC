@@ -1,3 +1,18 @@
+/**
+ * @module time-utils.test
+ *
+ * Test suite for TA (Time Attack) time utility functions (`@/lib/ta/time-utils`).
+ *
+ * Covers:
+ * - timeToMs: converting time strings (M:SS.mmm / MM:SS.mmm) to milliseconds,
+ *   handling 1/2/3-digit millisecond padding, null/empty/invalid input rejection
+ * - msToDisplayTime: converting milliseconds back to display format (M:SS.mmm),
+ *   null input returning dash, zero-padding for seconds and milliseconds
+ * - calculateTotalTime: summing all course times, returning null for null input
+ *   or any invalid/empty course time
+ * - validateRequiredCourses: checking that all required courses have valid times,
+ *   returning false for missing courses, invalid times, null input, or empty strings
+ */
 import {
   timeToMs,
   msToDisplayTime,

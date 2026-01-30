@@ -1,3 +1,15 @@
+/**
+ * @module NextAuth Catch-All Route Tests
+ *
+ * Test suite for the NextAuth.js catch-all API route handler at /api/auth/[...nextauth].
+ * This route delegates all authentication requests (OAuth callbacks, session management,
+ * CSRF token retrieval, sign-in, sign-out) to the NextAuth handlers exported from @/lib/auth.
+ *
+ * Covers:
+ * - GET handler: OAuth callback requests, session requests, CSRF token requests
+ * - POST handler: Credential-based login, sign-out requests
+ * - Error handling: Auth errors, timeout errors for both GET and POST
+ */
 // @ts-nocheck - This test file uses complex mock types for Next.js API routes
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { NextRequest } from 'next/server';

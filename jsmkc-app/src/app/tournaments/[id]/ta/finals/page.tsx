@@ -1,5 +1,29 @@
 "use client";
 
+/**
+ * Time Attack Finals Page
+ *
+ * Admin page for managing the TA finals - the climactic elimination tournament.
+ * Unlike revival rounds (sudden death), finals use a life-based system:
+ *
+ * Format:
+ * - Up to 16 players (top 12 from qualification + 4 from revival round 2)
+ * - Each player starts with 3 lives
+ * - Each course: bottom half (slowest times) loses 1 life
+ * - Players reaching 0 lives are eliminated
+ * - Lives are reset to 3 at thresholds: 8, 4, and 2 players remaining
+ * - Last player standing is the champion
+ *
+ * Features:
+ * - Standings with lives display (heart icons)
+ * - Course time entry with automatic life deduction for bottom half
+ * - Manual elimination for admin corrections
+ * - Life reset button (available at 2/4/8 player thresholds)
+ * - Finals reset for re-running the finals
+ * - Auto-refresh every 3 seconds for live tournament tracking
+ * - Champion banner when last player standing is determined
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,12 +68,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO } from "@/lib/constants";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** Time Trial entry data structure */
 interface TTEntry {
   id: string;
   playerId: string;
@@ -62,6 +88,10 @@ interface TTEntry {
   player: Player;
 }
 
+/**
+ * Convert milliseconds to display format (M:SS.mmm).
+ * Returns "-" for null values.
+ */
 function msToDisplayTime(ms: number | null): string {
   if (ms === null) return "-";
   const minutes = Math.floor(ms / 60000);
@@ -70,6 +100,10 @@ function msToDisplayTime(ms: number | null): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
+/**
+ * Convert time string to milliseconds for comparison.
+ * Used to determine bottom half for life deduction.
+ */
 function timeToMs(time: string): number | null {
   if (!time || time === "") return null;
   const match = time.match(/^(\d{1,2}):(\d{2})\.(\d{1,3})$/);
@@ -82,13 +116,18 @@ function timeToMs(time: string): number | null {
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
+/**
+ * Render visual lives indicator with heart icons.
+ * Shows elimination status for eliminated players.
+ * Hearts turn red when only 1 life remains (danger state).
+ */
 function renderLives(lives: number, eliminated: boolean) {
   if (eliminated) {
-    return <span className="text-gray-400">💀 Eliminated</span>;
+    return <span className="text-gray-400">Eliminated</span>;
   }
   const hearts = [];
   for (let i = 0; i < lives; i++) {
-    hearts.push(<span key={i} className={lives === 1 ? "text-red-500" : "text-red-400"}>❤️</span>);
+    hearts.push(<span key={i} className={lives === 1 ? "text-red-500" : "text-red-400"}>&#10084;&#65039;</span>);
   }
   return <span>{hearts}</span>;
 }
@@ -99,18 +138,25 @@ export default function TimeAttackFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Course dialog states
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [eliminating, setEliminating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Admin action states
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isEliminateDialogOpen, setIsEliminateDialogOpen] = useState(false);
   const [entryToEliminate, setEntryToEliminate] = useState<TTEntry | null>(null);
 
+  // === Data Fetching ===
   const fetchData = useCallback(async () => {
     setError(null);
     try {
@@ -130,10 +176,12 @@ export default function TimeAttackFinals({
     }
   }, [tournamentId]);
 
+  // Initial fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // Auto-refresh every 3 seconds for live tournament tracking
   useEffect(() => {
     const interval = setInterval(() => {
       fetchData();
@@ -141,6 +189,9 @@ export default function TimeAttackFinals({
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // === Event Handlers ===
+
+  /** Open course time entry dialog */
   const handleCourseStart = (course: string) => {
     const activeEntries = entries.filter((e) => !e.eliminated);
     const initialTimes: Record<string, string> = {};
@@ -153,10 +204,16 @@ export default function TimeAttackFinals({
     setSaveError(null);
   };
 
+  /** Handle time input change */
   const handleTimeChange = (entryId: string, value: string) => {
     setCourseTimes((prev) => ({ ...prev, [entryId]: value }));
   };
 
+  /**
+   * Save course times and deduct life from the slowest player.
+   * In finals, the slowest player loses a life (rather than immediate elimination).
+   * Elimination happens when a player's lives reach 0.
+   */
   const handleSaveCourseTimes = async () => {
     setEliminating(true);
     setSaveError(null);
@@ -181,11 +238,13 @@ export default function TimeAttackFinals({
         return;
       }
 
+      // Sort by time to find bottom half for life deduction
       entryTimes.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity));
 
       const slowestTime = entryTimes[entryTimes.length - 1].timeMs ?? Infinity;
       const slowestEntries = entryTimes.filter((et) => et.timeMs === slowestTime);
 
+      // Update all entries: save times and deduct life from slowest
       const updatePromises = activeEntries.map(async (entry) => {
         const currentTimes = (entry.times as Record<string, string>) || {};
         const updatedTimes = { ...currentTimes, [selectedCourse as string]: timesToSave[entry.id] || "" };
@@ -219,6 +278,7 @@ export default function TimeAttackFinals({
     }
   };
 
+  /** Reset all active players' elimination status (for re-running finals) */
   const handleResetFinals = async () => {
     try {
       const activeEntries = entries.filter((e) => !e.eliminated);
@@ -243,6 +303,10 @@ export default function TimeAttackFinals({
     }
   };
 
+  /**
+   * Reset all active players' lives to 3.
+   * Per SMK rules, lives reset at thresholds: 8, 4, and 2 players remaining.
+   */
   const handleResetLives = async () => {
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
@@ -265,6 +329,7 @@ export default function TimeAttackFinals({
     }
   };
 
+  /** Manually eliminate a specific player (admin override) */
   const handleEliminatePlayer = async () => {
     if (!entryToEliminate) return;
 
@@ -293,6 +358,7 @@ export default function TimeAttackFinals({
     }
   };
 
+  /** Get course completion status */
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
     if (!firstEntry) return COURSE_INFO.map((c) => ({ course: c.abbr, completed: false }));
@@ -302,12 +368,15 @@ export default function TimeAttackFinals({
     }));
   };
 
+  // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
   const isComplete = activeEntries.length <= 1 && entries.length > 0;
 
+  // Life reset is available at SMK threshold player counts (2, 4, 8)
   const canResetLives = [2, 4, 8].includes(activeEntries.length);
 
+  // === Loading State ===
   if (loading) {
     return (
       <div className="space-y-6">
@@ -322,6 +391,7 @@ export default function TimeAttackFinals({
     );
   }
 
+  // === Error State ===
   if (error) {
     return (
       <div className="space-y-6">
@@ -341,6 +411,7 @@ export default function TimeAttackFinals({
     );
   }
 
+  // === Empty State ===
   if (entries.length === 0) {
     return (
       <div className="space-y-6">
@@ -365,8 +436,10 @@ export default function TimeAttackFinals({
     );
   }
 
+  // === Main Render ===
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Header with admin action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Time Attack Finals</h1>
@@ -375,11 +448,13 @@ export default function TimeAttackFinals({
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          {/* Life reset button: only shown at SMK threshold counts */}
           {canResetLives && (
             <Button variant="default" onClick={handleResetLives} disabled={isComplete}>
               Reset Lives (All to 3)
             </Button>
           )}
+          {/* Finals reset confirmation dialog */}
           <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="outline">Reset Finals</Button>
@@ -403,10 +478,11 @@ export default function TimeAttackFinals({
         </div>
       </div>
 
+      {/* Champion Banner: shown when last player standing */}
       {isComplete && activeEntries.length === 1 && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
-            <div className="text-4xl mb-2">🏆</div>
+            <div className="text-4xl mb-2">&#127942;</div>
             <h2 className="text-2xl font-bold">Champion</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {activeEntries[0].player.nickname}
@@ -418,6 +494,7 @@ export default function TimeAttackFinals({
         </Card>
       )}
 
+      {/* Tabbed Content */}
       <Tabs defaultValue="standings" className="space-y-4">
         <TabsList>
           <TabsTrigger value="standings">Standings</TabsTrigger>
@@ -425,6 +502,7 @@ export default function TimeAttackFinals({
           {!isComplete && <TabsTrigger value="control">Tournament Control</TabsTrigger>}
         </TabsList>
 
+        {/* Standings Tab: includes Lives column and Eliminate action */}
         <TabsContent value="standings">
           <Card>
             <CardHeader>
@@ -461,6 +539,7 @@ export default function TimeAttackFinals({
                         {msToDisplayTime(entry.totalTime)}
                       </TableCell>
                       <TableCell className="text-right">
+                        {/* Manual eliminate button for admin corrections */}
                         {!entry.eliminated && (
                           <Button
                             variant="ghost"
@@ -482,6 +561,7 @@ export default function TimeAttackFinals({
           </Card>
         </TabsContent>
 
+        {/* Course Progress Tab */}
         <TabsContent value="courses">
           <Card>
             <CardHeader>
@@ -523,6 +603,7 @@ export default function TimeAttackFinals({
           </Card>
         </TabsContent>
 
+        {/* Tournament Control Tab */}
         {!isComplete && (
           <TabsContent value="control">
             <Card>
@@ -564,9 +645,10 @@ export default function TimeAttackFinals({
                         <span>Eliminated Players:</span>
                         <span className="font-bold">{eliminatedEntries.length}</span>
                       </div>
+                      {/* Life reset availability indicator */}
                       {canResetLives && (
                         <div className="flex justify-between items-center bg-yellow-500/10 p-2 rounded border border-yellow-500">
-                          <span className="text-yellow-700 font-semibold">⚠️ Life Reset Available!</span>
+                          <span className="text-yellow-700 font-semibold">Life Reset Available!</span>
                           <span className="text-xs text-muted-foreground">
                             {activeEntries.length === 2 ? "(Final 2 players)" :
                              activeEntries.length === 4 ? "(Top 4 players)" :
@@ -583,6 +665,7 @@ export default function TimeAttackFinals({
         )}
       </Tabs>
 
+      {/* Course Time Entry Dialog */}
       <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -634,6 +717,7 @@ export default function TimeAttackFinals({
         </DialogContent>
       </Dialog>
 
+      {/* Manual Elimination Confirmation Dialog */}
       <AlertDialog open={isEliminateDialogOpen} onOpenChange={setIsEliminateDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

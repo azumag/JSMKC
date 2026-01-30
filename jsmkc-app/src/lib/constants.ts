@@ -1,4 +1,4 @@
-// Course abbreviations in order for Super Mario Kart
+// Course abbreviations in order for Super Mario Kart (20 courses total)
 export const COURSES = [
   "MC1", "DP1", "GV1", "BC1",
   "MC2", "DP2", "GV2", "BC2",
@@ -9,7 +9,7 @@ export const COURSES = [
 
 export type CourseAbbr = typeof COURSES[number];
 
-// Course info with full names
+// Course info with full names and cup assignment
 export const COURSE_INFO: { abbr: CourseAbbr; name: string; cup: string }[] = [
   { abbr: "MC1", name: "Mario Circuit 1", cup: "Mushroom" },
   { abbr: "DP1", name: "Donut Plains 1", cup: "Mushroom" },
@@ -31,12 +31,12 @@ export const COURSE_INFO: { abbr: CourseAbbr; name: string; cup: string }[] = [
   { abbr: "KD", name: "Koopa Beach 1", cup: "Special" },
   { abbr: "MC4", name: "Mario Circuit 4", cup: "Special" },
   { abbr: "KB1", name: "Koopa Beach 2", cup: "Special" },
-]; 
+];
 
 // Total number of courses in time attack
 export const TOTAL_COURSES = COURSES.length;
 
-// Super Mario Kart characters
+// Super Mario Kart playable characters (8 total)
 export const SMK_CHARACTERS = [
   'Mario',
   'Luigi',
@@ -58,31 +58,31 @@ export type SMKCharacter = typeof SMK_CHARACTERS[number];
 export const ACCESS_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 export const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-// Rate limiting constants
-export const RATE_LIMIT_SCORE_INPUT = 20; // requests per minute
-export const RATE_LIMIT_SCORE_INPUT_DURATION = 60 * 1000; // 1 minute in milliseconds
-export const RATE_LIMIT_POLLING = 12; // requests per minute (5 second intervals)
-export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute in milliseconds
-export const RATE_LIMIT_TOKEN_VALIDATION = 10; // requests per minute
+// Rate limiting constants - controls API request throttling per client
+export const RATE_LIMIT_SCORE_INPUT = 20; // requests per minute for score submission
+export const RATE_LIMIT_SCORE_INPUT_DURATION = 60 * 1000; // 1 minute window
+export const RATE_LIMIT_POLLING = 12; // requests per minute for polling (5s intervals)
+export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute window
+export const RATE_LIMIT_TOKEN_VALIDATION = 10; // requests per minute for token validation
 
-// Score validation constants
+// Score validation constants - BM rounds are best of 5 (first to 3)
 export const MIN_BATTLE_SCORE = 0;
 export const MAX_BATTLE_SCORE = 5;
 
-// Optimistic locking constants
+// Optimistic locking constants - retry parameters for concurrent update conflicts
 export const MAX_RETRY_ATTEMPTS = 3;
-export const RETRY_BASE_DELAY = 100; // milliseconds
+export const RETRY_BASE_DELAY = 100; // milliseconds, exponentially increases
 
-// Polling constants
-export const POLLING_INTERVAL = 5000; // 5 seconds
-export const POLLING_MIN_REQUEST_INTERVAL = 500; // 500ms minimum between requests
+// Polling constants - client-side data refresh intervals
+export const POLLING_INTERVAL = 5000; // 5 seconds between polls
+export const POLLING_MIN_REQUEST_INTERVAL = 500; // minimum 500ms between requests
 
-// Audit log retention
+// Audit log retention period
 export const AUDIT_LOG_RETENTION_DAYS = 90;
 
-// Token generation
-export const TOKEN_LENGTH = 32; // characters
+// Token generation parameters
+export const TOKEN_LENGTH = 32; // hex characters (16 bytes)
 
-// Rate limiting response codes
+// HTTP status codes for special responses
 export const RATE_LIMIT_STATUS_CODE = 429;
 export const OPTIMISTIC_LOCK_STATUS_CODE = 409;

@@ -1,3 +1,22 @@
+/**
+ * Battle Mode (BM) Qualification API Route
+ *
+ * Manages the Battle Mode qualification phase for a tournament.
+ * BM qualification uses a round-robin format where players are divided into groups
+ * and each player in a group plays against every other player in the same group.
+ *
+ * Endpoints:
+ * - GET:  Fetch all qualification data (qualifications + matches)
+ * - POST: Setup groups and generate round-robin matches (admin only)
+ * - PUT:  Update a match score and recalculate player standings
+ *
+ * Scoring Rules:
+ * - Each match consists of 4 rounds total (e.g., 3-1 or 2-2)
+ * - A player needs 3+ rounds to win the match
+ * - Match points: Win = 2pts, Tie = 1pt, Loss = 0pts
+ * - "points" field tracks round differential (winRounds - lossRounds)
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,9 +25,20 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
-// Helper function to calculate match result
+/**
+ * Calculate the match result from individual round scores.
+ * In BM qualification, matches are played as best-of-4 rounds.
+ * A player must win 3 or more rounds to win the match outright.
+ * If total rounds played is not 4, the result is treated as a tie.
+ *
+ * @param score1 - Rounds won by player 1
+ * @param score2 - Rounds won by player 2
+ * @returns Object with winner indicator and result labels for each player
+ */
 function calculateMatchResult(score1: number, score2: number) {
   const totalRounds = score1 + score2;
+
+  /* Only a completed 4-round set can produce a definitive win/loss */
   if (totalRounds !== 4) {
     return { winner: null, result1: "tie" as const, result2: "tie" as const };
   }
@@ -18,25 +48,35 @@ function calculateMatchResult(score1: number, score2: number) {
   } else if (score2 >= 3) {
     return { winner: 2, result1: "loss" as const, result2: "win" as const };
   } else {
+    /* 2-2 split is technically a tie */
     return { winner: null, result1: "tie" as const, result2: "tie" as const };
   }
 }
 
-// GET battle mode qualification data
+/**
+ * GET /api/tournaments/[id]/bm
+ *
+ * Fetch all Battle Mode qualification data for a tournament.
+ * Returns qualifications (player standings per group) and qualification-stage matches.
+ * Results are ordered by group ascending, then score descending, then point differential.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  /* Logger must be created inside the function for proper test mocking */
   const logger = createLogger('bm-api');
   const { id: tournamentId } = await params;
-  try {
 
+  try {
+    /* Fetch qualifications with player details, ordered for standings display */
     const qualifications = await prisma.bMQualification.findMany({
       where: { tournamentId },
       include: { player: true },
       orderBy: [{ group: "asc" }, { score: "desc" }, { points: "desc" }],
     });
 
+    /* Fetch qualification-stage matches with player details, ordered by match number */
     const matches = await prisma.bMMatch.findMany({
       where: { tournamentId, stage: "qualification" },
       include: { player1: true, player2: true },
@@ -45,7 +85,7 @@ export async function GET(
 
     return NextResponse.json({ qualifications, matches });
   } catch (error) {
-    // Use structured logging for error tracking and debugging
+    /* Structured logging captures error details for server-side debugging */
     logger.error("Failed to fetch BM data", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to fetch battle mode data" },
@@ -54,26 +94,48 @@ export async function GET(
   }
 }
 
-// POST setup battle mode qualification (assign players to groups) - requires authentication
+/**
+ * POST /api/tournaments/[id]/bm
+ *
+ * Setup Battle Mode qualification by assigning players to groups and
+ * generating all round-robin match pairings within each group.
+ *
+ * Requires authentication (admin only).
+ *
+ * Request body:
+ * {
+ *   players: Array<{ playerId: string; group: string; seeding?: number }>
+ * }
+ *
+ * This endpoint:
+ * 1. Deletes any existing qualifications and qualification matches
+ * 2. Creates new qualification entries for each player in their assigned group
+ * 3. Generates all round-robin match pairings (every player vs every other in same group)
+ * 4. Creates an audit log entry for the action
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('bm-api');
   const session = await auth();
-  
+
+  /* Admin authentication is required for tournament setup operations */
   if (!session?.user) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },
       { status: 401 }
     );
   }
-  
+
   const { id: tournamentId } = await params;
+
   try {
+    /* Sanitize all input to prevent XSS and injection attacks */
     const body = sanitizeInput(await request.json());
     const { players } = body; // Array of { playerId, group, seeding }
 
+    /* Validate that we have a non-empty players array */
     if (!players || !Array.isArray(players) || players.length === 0) {
       return NextResponse.json(
         { error: "Players array is required" },
@@ -81,17 +143,16 @@ export async function POST(
       );
     }
 
-    // Delete existing qualifications for this tournament
+    /* Clear existing data to allow fresh setup (idempotent operation) */
     await prisma.bMQualification.deleteMany({
       where: { tournamentId },
     });
 
-    // Delete existing qualification matches
     await prisma.bMMatch.deleteMany({
       where: { tournamentId, stage: "qualification" },
     });
 
-    // Create qualifications
+    /* Create qualification records for each player with their group assignment */
     const qualifications = await Promise.all(
       players.map((p: { playerId: string; group: string; seeding?: number }) =>
         prisma.bMQualification.create({
@@ -105,7 +166,11 @@ export async function POST(
       )
     );
 
-    // Generate round-robin matches for each group
+    /*
+     * Generate round-robin matches for each group.
+     * For N players in a group, this creates N*(N-1)/2 matches.
+     * Each pair of players in the same group plays exactly once.
+     */
     const groups = [...new Set(players.map((p: { group: string }) => p.group))];
     let matchNumber = 1;
 
@@ -114,7 +179,7 @@ export async function POST(
         (p: { group: string }) => p.group === group
       );
 
-      // Generate all pairs for round-robin
+      /* Generate all unique pairs for round-robin using nested loop */
       for (let i = 0; i < groupPlayers.length; i++) {
         for (let j = i + 1; j < groupPlayers.length; j++) {
           await prisma.bMMatch.create({
@@ -131,7 +196,7 @@ export async function POST(
       }
     }
 
-    // Create audit log
+    /* Record audit trail for security and accountability */
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -148,7 +213,7 @@ export async function POST(
         },
       });
     } catch (logError) {
-      // Audit log failure is non-critical but should be logged for security tracking
+      /* Audit log failure is non-critical but should be logged for security tracking */
       logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_BM_MATCH' });
     }
 
@@ -157,7 +222,6 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    // Use structured logging for error tracking and debugging
     logger.error("Failed to setup BM", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to setup battle mode" },
@@ -166,17 +230,36 @@ export async function POST(
   }
 }
 
-// PUT update match score
+/**
+ * PUT /api/tournaments/[id]/bm
+ *
+ * Update a qualification match score and recalculate both players' standings.
+ *
+ * Request body:
+ * {
+ *   matchId: string;    - The match to update
+ *   score1: number;     - Rounds won by player 1
+ *   score2: number;     - Rounds won by player 2
+ *   rounds?: object;    - Optional per-round detail data
+ * }
+ *
+ * After updating the match, this endpoint:
+ * 1. Fetches all completed matches for both players
+ * 2. Recalculates each player's aggregate stats (wins, ties, losses, rounds)
+ * 3. Updates qualification records with new standings data
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger('bm-api');
   const { id: tournamentId } = await params;
+
   try {
     const body = await request.json();
     const { matchId, score1, score2, rounds } = body;
 
+    /* Validate required fields */
     if (!matchId || score1 === undefined || score2 === undefined) {
       return NextResponse.json(
         { error: "matchId, score1, and score2 are required" },
@@ -184,7 +267,7 @@ export async function PUT(
       );
     }
 
-    // Update the match
+    /* Update the match record with the new scores */
     const match = await prisma.bMMatch.update({
       where: { id: matchId },
       data: {
@@ -196,10 +279,14 @@ export async function PUT(
       include: { player1: true, player2: true },
     });
 
-    // Recalculate qualifications for both players
+    /* Determine the match result for this specific game */
     const { result1, result2 } = calculateMatchResult(score1, score2);
 
-    // Get all completed matches for each player
+    /*
+     * Recalculate aggregate statistics for player 1.
+     * We fetch ALL completed qualification matches for this player
+     * to ensure consistency (avoids incremental update bugs).
+     */
     const player1Matches = await prisma.bMMatch.findMany({
       where: {
         tournamentId,
@@ -218,7 +305,7 @@ export async function PUT(
       },
     });
 
-    // Calculate stats for player 1
+    /* Calculate cumulative stats for player 1 across all their completed matches */
     const p1Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player1Matches) {
       p1Stats.mp++;
@@ -236,7 +323,7 @@ export async function PUT(
       else p1Stats.ties++;
     }
 
-    // Calculate stats for player 2
+    /* Calculate cumulative stats for player 2 across all their completed matches */
     const p2Stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of player2Matches) {
       p2Stats.mp++;
@@ -254,11 +341,15 @@ export async function PUT(
       else p2Stats.ties++;
     }
 
-    // Calculate score based on wins/ties/losses (2 points for win, 1 for tie, 0 for loss)
+    /*
+     * Calculate match-level score for standings:
+     * Win = 2 points, Tie = 1 point, Loss = 0 points
+     * This determines group standings and qualification order.
+     */
     const p1Score = p1Stats.wins * 2 + p1Stats.ties;
     const p2Score = p2Stats.wins * 2 + p2Stats.ties;
 
-    // Update qualifications
+    /* Update player 1's qualification record with recalculated stats */
     await prisma.bMQualification.updateMany({
       where: { tournamentId, playerId: match.player1Id },
       data: {
@@ -268,6 +359,7 @@ export async function PUT(
       },
     });
 
+    /* Update player 2's qualification record with recalculated stats */
     await prisma.bMQualification.updateMany({
       where: { tournamentId, playerId: match.player2Id },
       data: {
@@ -279,7 +371,6 @@ export async function PUT(
 
     return NextResponse.json({ match, result1, result2 });
   } catch (error) {
-    // Use structured logging for error tracking and debugging
     logger.error("Failed to update match", { error, tournamentId });
     return NextResponse.json(
       { error: "Failed to update match" },

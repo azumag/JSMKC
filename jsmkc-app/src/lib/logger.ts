@@ -1,6 +1,6 @@
 import winston from 'winston'
 
-// Define log levels
+// Define log levels with numeric priority (lower = more critical)
 const levels = {
   error: 0,
   warn: 1,
@@ -8,7 +8,7 @@ const levels = {
   debug: 3,
 }
 
-// Define colors for each log level
+// Define colors for each log level for console output
 const colors = {
   error: 'red',
   warn: 'yellow',
@@ -16,41 +16,33 @@ const colors = {
   debug: 'blue',
 }
 
-// Tell Winston to use these colors
+// Register color scheme with Winston
 winston.addColors(colors)
 
-// Define which log level to use based on environment
+// Determine log level based on environment
+// Development shows all logs including debug; production only shows warnings and errors
 const level = () => {
   const env = process.env.NODE_ENV || 'development'
   const isDevelopment = env === 'development'
   return isDevelopment ? 'debug' : 'warn'
 }
 
-// Simple mock logger for tests
+// Test logger that suppresses all output to avoid console noise in test runs
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createTestLogger = (_service: string) => {
   return {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    error: (_message: string, _meta?: Record<string, unknown>) => {
-      // Silent mode for tests - don't log to console to avoid noise
-      // This prevents console.error messages during test execution
-    },
+    error: (_message: string, _meta?: Record<string, unknown>) => {},
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    warn: (_message: string, _meta?: Record<string, unknown>) => {
-      // Silent mode for tests
-    },
+    warn: (_message: string, _meta?: Record<string, unknown>) => {},
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    info: (_message: string, _meta?: Record<string, unknown>) => {
-      // Silent mode for tests
-    },
+    info: (_message: string, _meta?: Record<string, unknown>) => {},
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    debug: (_message: string, _meta?: Record<string, unknown>) => {
-      // Silent mode for tests
-    },
+    debug: (_message: string, _meta?: Record<string, unknown>) => {},
   }
 }
 
-// Define log format
+// Log format: timestamp + colorized level + message
 const format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
   winston.format.colorize({ all: true }),
@@ -59,11 +51,8 @@ const format = winston.format.combine(
   ),
 )
 
-// Define transports (where logs go)
-// For now, only use console transport to avoid fs bundling issues
-// File transports will be added in a future update with proper server-side configuration
+// Console-only transport to avoid fs bundling issues in Next.js edge runtime
 const transports: winston.transport[] = [
-  // Console transport for development and production
   new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
@@ -72,7 +61,7 @@ const transports: winston.transport[] = [
   }),
 ];
 
-// Create logger instance
+// Create the singleton Winston logger instance
 const logger = winston.createLogger({
   level: level(),
   levels,
@@ -81,45 +70,28 @@ const logger = winston.createLogger({
 })
 
 /**
- * Creates a structured logger instance for a specific service
- * @param service - The name of the service/component using the logger
+ * Creates a structured logger instance scoped to a specific service name.
+ * In test environment, returns a silent logger to avoid noise.
+ * Logger is created at function level inside API route handlers to support jest.mock().
+ * @param service - The name of the service/component (e.g., 'api-players', 'auth')
  * @returns Logger instance with error, warn, info, and debug methods
  */
 export const createLogger = (service: string) => {
+  // Return silent test logger in test environment
   if (process.env.NODE_ENV === 'test') {
     return createTestLogger(service);
   }
 
   return {
-    /**
-     * Log an error message
-     * @param message - The error message
-     * @param meta - Optional additional metadata
-     */
     error: (message: string, meta?: Record<string, unknown>) => {
       logger.error(`${service}: ${message}`, meta)
     },
-    /**
-     * Log a warning message
-     * @param message - The warning message
-     * @param meta - Optional additional metadata
-     */
     warn: (message: string, meta?: Record<string, unknown>) => {
       logger.warn(`${service}: ${message}`, meta)
     },
-    /**
-     * Log an info message
-     * @param message - The info message
-     * @param meta - Optional additional metadata
-     */
     info: (message: string, meta?: Record<string, unknown>) => {
       logger.info(`${service}: ${message}`, meta)
     },
-    /**
-     * Log a debug message
-     * @param message - The debug message
-     * @param meta - Optional additional metadata
-     */
     debug: (message: string, meta?: Record<string, unknown>) => {
       logger.debug(`${service}: ${message}`, meta)
     },

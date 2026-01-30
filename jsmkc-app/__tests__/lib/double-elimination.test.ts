@@ -1,3 +1,25 @@
+/**
+ * @module __tests__/lib/double-elimination.test.ts
+ *
+ * Test suite for the double elimination bracket generation logic (double-elimination.ts).
+ *
+ * Covers the following functionality:
+ * - generateBracketStructure(): Generates the full 17-match double elimination
+ *   bracket for 8 players, including:
+ *   - Winners Bracket: Quarter Finals (4 matches with seeding 1v8, 4v5, 2v7, 3v6),
+ *     Semi Finals (2 matches), and Finals (1 match).
+ *   - Losers Bracket: Round 1 (2 matches), Round 2 (2 matches), Round 3 (2 matches),
+ *     Semi Final (1 match), and Final (1 match).
+ *   - Grand Final and Grand Final Reset (2 matches).
+ *   - Validates winnerGoesTo and loserGoesTo routing for all matches.
+ *   - Verifies correct bracket type assignments and position numbers.
+ *   - Throws error for non-8-player counts.
+ * - getNextMatchInfo(): Determines the next match number and player position
+ *   for winners and losers of each match in the bracket.
+ *   - Tests routing for winners and losers from every bracket stage.
+ *   - Returns null for eliminated players and end-of-bracket scenarios.
+ * - roundNames: Maps internal round identifiers to display-friendly strings.
+ */
 // __tests__/lib/double-elimination.test.ts
 // Test for double elimination bracket generation logic
 import { describe, it, expect } from '@jest/globals';
@@ -23,9 +45,9 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Winners Bracket Round 1 (Quarter Finals) structure', () => {
       const matches = generateBracketStructure(8);
       const quarterFinals = matches.filter(m => m.round === 'winners_qf');
-      
+
       expect(quarterFinals).toHaveLength(4);
-      
+
       // Verify seeding pairs: 1v8, 4v5, 2v7, 3v6
       expect(quarterFinals[0].player1Seed).toBe(1);
       expect(quarterFinals[0].player2Seed).toBe(8);
@@ -43,7 +65,7 @@ describe('Double Elimination Bracket Structure', () => {
       const qfMatch2 = matches.find(m => m.matchNumber === 2);
       const qfMatch3 = matches.find(m => m.matchNumber === 3);
       const qfMatch4 = matches.find(m => m.matchNumber === 4);
-      
+
       expect(qfMatch1?.winnerGoesTo).toBe(5);
       expect(qfMatch1?.loserGoesTo).toBe(9);
       expect(qfMatch2?.winnerGoesTo).toBe(5);
@@ -57,7 +79,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Winners Bracket Semi Finals structure', () => {
       const matches = generateBracketStructure(8);
       const semiFinals = matches.filter(m => m.round === 'winners_sf');
-      
+
       expect(semiFinals).toHaveLength(2);
       expect(semiFinals[0].matchNumber).toBe(5);
       expect(semiFinals[1].matchNumber).toBe(6);
@@ -69,7 +91,7 @@ describe('Double Elimination Bracket Structure', () => {
       const matches = generateBracketStructure(8);
       const sfMatch1 = matches.find(m => m.matchNumber === 5);
       const sfMatch2 = matches.find(m => m.matchNumber === 6);
-      
+
       expect(sfMatch1?.loserGoesTo).toBe(13);
       expect(sfMatch2?.loserGoesTo).toBe(14);
     });
@@ -77,7 +99,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Winners Final structure', () => {
       const matches = generateBracketStructure(8);
       const winnersFinal = matches.find(m => m.round === 'winners_final');
-      
+
       expect(winnersFinal).toBeDefined();
       expect(winnersFinal?.matchNumber).toBe(7);
       expect(winnersFinal?.winnerGoesTo).toBe(16);
@@ -87,7 +109,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Losers Bracket Round 1 structure', () => {
       const matches = generateBracketStructure(8);
       const losersR1 = matches.filter(m => m.round === 'losers_r1');
-      
+
       expect(losersR1).toHaveLength(2);
       expect(losersR1[0].matchNumber).toBe(8);
       expect(losersR1[1].matchNumber).toBe(9);
@@ -98,7 +120,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Losers Bracket Round 2 structure', () => {
       const matches = generateBracketStructure(8);
       const losersR2 = matches.filter(m => m.round === 'losers_r2');
-      
+
       expect(losersR2).toHaveLength(2);
       expect(losersR2[0].matchNumber).toBe(10);
       expect(losersR2[1].matchNumber).toBe(11);
@@ -109,7 +131,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Losers Bracket Round 3 structure', () => {
       const matches = generateBracketStructure(8);
       const losersR3 = matches.filter(m => m.round === 'losers_r3');
-      
+
       expect(losersR3).toHaveLength(2);
       expect(losersR3[0].matchNumber).toBe(12);
       expect(losersR3[1].matchNumber).toBe(13);
@@ -120,7 +142,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Losers Semi Final structure', () => {
       const matches = generateBracketStructure(8);
       const losersSF = matches.find(m => m.round === 'losers_sf');
-      
+
       expect(losersSF).toBeDefined();
       expect(losersSF?.matchNumber).toBe(14);
       expect(losersSF?.winnerGoesTo).toBe(16);
@@ -129,7 +151,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Losers Final structure', () => {
       const matches = generateBracketStructure(8);
       const losersFinal = matches.find(m => m.round === 'losers_final');
-      
+
       expect(losersFinal).toBeDefined();
       expect(losersFinal?.matchNumber).toBe(15);
       expect(losersFinal?.winnerGoesTo).toBe(17);
@@ -138,7 +160,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create correct Grand Final structure', () => {
       const matches = generateBracketStructure(8);
       const grandFinal = matches.find(m => m.round === 'grand_final');
-      
+
       expect(grandFinal).toBeDefined();
       expect(grandFinal?.matchNumber).toBe(16);
       expect(grandFinal?.winnerGoesTo).toBe(18);
@@ -147,7 +169,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should create Grand Final Reset match', () => {
       const matches = generateBracketStructure(8);
       const grandFinalReset = matches.find(m => m.round === 'grand_final_reset');
-      
+
       expect(grandFinalReset).toBeDefined();
       expect(grandFinalReset?.matchNumber).toBe(17);
     });
@@ -157,7 +179,7 @@ describe('Double Elimination Bracket Structure', () => {
       const winnersMatches = matches.filter(m => m.bracket === 'winners');
       const losersMatches = matches.filter(m => m.bracket === 'losers');
       const grandFinalMatches = matches.filter(m => m.bracket === 'grand_final');
-      
+
       expect(winnersMatches).toHaveLength(7); // 4 QF + 2 SF + 1 Final
       expect(losersMatches).toHaveLength(8); // 2 R1 + 2 R2 + 2 R3 + 1 SF + 1 Final = 8
       expect(grandFinalMatches).toHaveLength(2); // GF + GF Reset
@@ -165,19 +187,19 @@ describe('Double Elimination Bracket Structure', () => {
 
     it('should have correct positions for all matches', () => {
       const matches = generateBracketStructure(8);
-      
+
       // Winners QF should have positions 1 and 2
       const qfMatches = matches.filter(m => m.round === 'winners_qf');
       expect(qfMatches[0].position).toBe(1);
       expect(qfMatches[1].position).toBe(2);
       expect(qfMatches[2].position).toBe(1);
       expect(qfMatches[3].position).toBe(2);
-      
+
       // Winners SF should have positions 1 and 2
       const sfMatches = matches.filter(m => m.round === 'winners_sf');
       expect(sfMatches[0].position).toBe(1);
       expect(sfMatches[1].position).toBe(2);
-      
+
       // Winners Final should have position 1
       const winnersFinal = matches.find(m => m.round === 'winners_final');
       expect(winnersFinal?.position).toBe(1);
@@ -338,7 +360,7 @@ describe('Double Elimination Bracket Structure', () => {
         'grand_final',
         'grand_final_reset'
       ];
-      
+
       expectedRounds.forEach(round => {
         expect(roundNames[round]).toBeDefined();
         expect(typeof roundNames[round]).toBe('string');

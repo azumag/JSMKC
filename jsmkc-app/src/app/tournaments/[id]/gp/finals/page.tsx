@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * Grand Prix Finals Bracket Page
+ *
+ * Displays and manages the GP double elimination bracket.
+ * Admin page for creating brackets, entering scores, and tracking
+ * tournament progression through winners bracket, losers bracket,
+ * grand final, and reset match.
+ *
+ * Features:
+ * - Bracket generation from top 8 qualifiers
+ * - Interactive bracket display using DoubleEliminationBracket component
+ * - Score entry dialog for each match
+ * - Bracket reset with confirmation
+ * - Champion announcement
+ * - Progress tracking (completed/total matches)
+ * - Real-time polling (3s interval)
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -43,6 +61,7 @@ interface Player {
   nickname: string;
 }
 
+/** GP finals match with score (score1/score2 = game wins in best-of-5) */
 interface GPMatch {
   id: string;
   matchNumber: number;
@@ -56,6 +75,7 @@ interface GPMatch {
   player2: Player;
 }
 
+/** Abstract bracket position from double-elimination library */
 interface BracketMatch {
   matchNumber: number;
   round: string;
@@ -64,6 +84,7 @@ interface BracketMatch {
   player2Seed?: number;
 }
 
+/** Player with seed assignment from qualification ranking */
 interface SeededPlayer {
   seed: number;
   playerId: string;
@@ -87,6 +108,7 @@ export default function GrandPrixFinals({
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   const [champion, setChampion] = useState<Player | null>(null);
 
+  /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {
     const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`);
 
@@ -103,6 +125,7 @@ export default function GrandPrixFinals({
     };
   }, [tournamentId]);
 
+  /* Poll for bracket updates every 3 seconds */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchFinalsData, {
     interval: 3000,
@@ -120,6 +143,11 @@ export default function GrandPrixFinals({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  /**
+   * Generate a new double elimination bracket from the top 8 qualifiers.
+   * This creates all 17 match positions (4 WB QF + 2 WB SF + 1 WB Final +
+   * 4 LB R1 + 2 LB R2 + 2 LB R3 + 1 LB Final + 1 GF + 1 GF Reset = 17).
+   */
   const handleCreateBracket = async () => {
     setCreating(true);
     try {
@@ -147,12 +175,18 @@ export default function GrandPrixFinals({
     }
   };
 
+  /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
     setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsScoreDialogOpen(true);
   };
 
+  /**
+   * Submit score for a finals match.
+   * The API handles bracket progression (winner/loser advancement)
+   * and returns whether the tournament is complete.
+   */
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
@@ -174,6 +208,7 @@ export default function GrandPrixFinals({
         setScoreForm({ score1: 0, score2: 0 });
         refetch();
 
+        /* Check if tournament is complete and display champion */
         if (data.isComplete && data.champion) {
           const winnerMatch = matches.find(
             (m) =>
@@ -217,6 +252,7 @@ export default function GrandPrixFinals({
 
   return (
     <div className="space-y-6">
+      {/* Page header with bracket controls */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">Grand Prix Finals</h1>
@@ -228,6 +264,7 @@ export default function GrandPrixFinals({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Generate or Reset bracket buttons with confirmation dialogs */}
           {matches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -284,6 +321,7 @@ export default function GrandPrixFinals({
         </div>
       </div>
 
+      {/* Champion announcement banner */}
       {champion && (
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
@@ -296,6 +334,7 @@ export default function GrandPrixFinals({
         </Card>
       )}
 
+      {/* Progress indicator */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
@@ -307,6 +346,7 @@ export default function GrandPrixFinals({
         </div>
       )}
 
+      {/* Empty state with bracket format explanation */}
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
@@ -342,6 +382,7 @@ export default function GrandPrixFinals({
           </CardContent>
         </Card>
       ) : (
+        /* Interactive bracket display */
         <DoubleEliminationBracket
           matches={matches}
           bracketStructure={bracketStructure}
@@ -351,6 +392,7 @@ export default function GrandPrixFinals({
         />
       )}
 
+      {/* Score entry dialog */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -371,6 +413,7 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Score input: best of 5 (first to 3 wins) */}
             <div className="flex items-center justify-center gap-4">
               <div className="text-center">
                 <Label>{selectedMatch?.player1.nickname}</Label>
@@ -406,6 +449,7 @@ export default function GrandPrixFinals({
                 />
               </div>
             </div>
+            {/* Warning when neither player has reached 3 wins yet */}
             {scoreForm.score1 + scoreForm.score2 > 0 &&
               scoreForm.score1 < 3 &&
               scoreForm.score2 < 3 && (

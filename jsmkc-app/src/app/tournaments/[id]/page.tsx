@@ -1,3 +1,28 @@
+/**
+ * tournaments/[id]/page.tsx - Tournament Detail Page
+ *
+ * This page displays a single tournament's details and provides:
+ * 1. Tournament name, date, and status badge
+ * 2. Status transition controls (Draft -> Active -> Completed, admin only)
+ * 3. Tournament token management for player score entry (admin only)
+ * 4. CSV/data export functionality (admin only)
+ * 5. Tabbed navigation to the 4 game modes + overall ranking
+ *
+ * Game mode tabs:
+ * - Time Trial (TA): Individual 20-course time competition
+ * - Battle Mode (BM): 1v1 balloon battle with qualification + finals
+ * - Match Race (MR): 1v1 random course race with bracket structure
+ * - Grand Prix (GP): Cup-based driver points competition
+ * - Overall: Combined ranking across all 4 modes (max 12000 points)
+ *
+ * Role-based access:
+ * - All users can view tournament details and navigate to game modes
+ * - Admin users see status controls, token management, and export button
+ * - Game mode links show "Manage" for admins, "View" for others
+ *
+ * This uses React 19's `use()` hook to unwrap the Promise-based params,
+ * which is the standard pattern for Next.js 16 App Router dynamic routes.
+ */
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -19,29 +44,63 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
+/**
+ * Client-side logger for the tournament detail page.
+ * Uses structured logging for consistent error tracking.
+ */
 const logger = createLogger({ serviceName: 'tournaments' });
 
+/**
+ * Tournament data model for the detail view.
+ * Includes optional token fields for player score entry access.
+ */
 interface Tournament {
   id: string;
   name: string;
   date: string;
   status: string;
+  /** Token string for player score entry (null if not generated yet) */
   token?: string | null;
+  /** ISO date string for token expiration (null if no token) */
   tokenExpiresAt?: string | null;
 }
 
+/**
+ * TournamentDetailPage - Shows full tournament details with game mode navigation.
+ *
+ * Uses React 19's `use()` to unwrap the params Promise, which is the
+ * Next.js 16 App Router pattern for accessing dynamic route segments.
+ *
+ * @param params - Promise containing the dynamic route parameter `id`
+ */
 export default function TournamentDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  /**
+   * React 19 use() hook unwraps the Promise-based params.
+   * This is required in Next.js 16 where route params are
+   * always provided as Promises to support streaming and suspense.
+   */
   const { id } = use(params);
   const { data: session } = useSession();
+
+  /**
+   * Admin role check: controls visibility of status transition buttons,
+   * token management panel, export button, and "Manage" vs "View" labels.
+   */
   const isAdmin = session?.user && session.user.role === 'admin';
 
+  /* Tournament data and loading state */
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * Fetches tournament details from the API by ID.
+   * Called on mount and after status updates to refresh the display.
+   * Wrapped in useCallback with `id` dependency for stable reference.
+   */
   const fetchTournament = useCallback(async () => {
     try {
       const response = await fetch(`/api/tournaments/${id}`);
@@ -57,10 +116,18 @@ export default function TournamentDetailPage({
     }
   }, [id]);
 
+  /* Fetch tournament on component mount */
   useEffect(() => {
     fetchTournament();
   }, [fetchTournament]);
 
+  /**
+   * Updates the tournament status via PUT request.
+   * Used for status transitions:
+   * - "draft" -> "active" (Start Tournament)
+   * - "active" -> "completed" (Complete Tournament)
+   * After a successful update, re-fetches tournament data.
+   */
   const updateStatus = async (status: string) => {
     try {
       const response = await fetch(`/api/tournaments/${id}`, {
@@ -77,6 +144,13 @@ export default function TournamentDetailPage({
     }
   };
 
+  /**
+   * Returns a styled Badge component based on tournament status.
+   * Visual differentiation helps users quickly identify tournament states:
+   * - Draft: Secondary (gray) badge for setup phase
+   * - Active: Default (primary) badge for in-progress tournaments
+   * - Completed: Outline badge for finished tournaments
+   */
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
@@ -90,6 +164,7 @@ export default function TournamentDetailPage({
     }
   };
 
+  /* Loading skeleton: shows animated placeholders while data is fetched */
   if (loading) {
     return (
       <div className="space-y-6">
@@ -108,6 +183,7 @@ export default function TournamentDetailPage({
     );
   }
 
+  /* 404-like state when tournament is not found or API returned an error */
   if (!tournament) {
     return <div className="text-center py-8">Tournament not found</div>;
   }
@@ -115,6 +191,7 @@ export default function TournamentDetailPage({
   return (
     <ErrorBoundary>
       <div className="space-y-6">
+        {/* Tournament header: name, status badge, date, and action buttons */}
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -126,6 +203,12 @@ export default function TournamentDetailPage({
             </p>
           </div>
           <div className="flex gap-2">
+            {/*
+             * Status transition buttons (admin only):
+             * - Draft -> Active: "Start Tournament" begins the competition
+             * - Active -> Completed: "Complete Tournament" finalizes results
+             * These are one-way transitions; there is no revert mechanism.
+             */}
             {isAdmin && tournament.status === "draft" && (
               <Button onClick={() => updateStatus("active")}>
                 Start Tournament
@@ -136,14 +219,21 @@ export default function TournamentDetailPage({
                 Complete Tournament
               </Button>
             )}
+            {/* Export button for downloading tournament data (admin only) */}
             {isAdmin && <ExportButton tournamentId={id} tournamentName={tournament.name} />}
+            {/* Back to list navigation */}
             <Button variant="outline" asChild>
               <Link href="/tournaments">Back to List</Link>
             </Button>
           </div>
         </div>
 
-        {/* Token Management Section */}
+        {/*
+         * Token Management Section (admin only).
+         * Allows admins to generate, view, and manage tournament access tokens.
+         * These tokens enable players to submit scores without full authentication,
+         * providing a simplified entry flow during live tournament events.
+         */}
         {isAdmin && (
           <TournamentTokenManager
             tournamentId={id}
@@ -152,14 +242,24 @@ export default function TournamentDetailPage({
           />
         )}
 
+        {/*
+         * Game Mode Tabs - Navigate to each competition format.
+         * Defaults to Battle Mode (BM) tab as it is the most commonly
+         * used mode in JSMKC tournaments.
+         *
+         * Each tab contains a card with mode description and a navigation
+         * button to the dedicated management/viewing page for that mode.
+         */}
         <Tabs defaultValue="bm" className="space-y-4">
           <TabsList>
             <TabsTrigger value="tt">Time Trial</TabsTrigger>
             <TabsTrigger value="bm">Battle Mode</TabsTrigger>
             <TabsTrigger value="mr">Match Race</TabsTrigger>
             <TabsTrigger value="gp">Grand Prix</TabsTrigger>
+            <TabsTrigger value="overall">Overall</TabsTrigger>
           </TabsList>
 
+          {/* Time Attack (TA) - Individual time-based competition on 20 courses */}
           <TabsContent value="tt">
             <Card>
               <CardHeader>
@@ -169,13 +269,14 @@ export default function TournamentDetailPage({
               <CardContent>
                 <Button asChild>
                   <Link href={`/tournaments/${id}/ta`}>
-                    Manage Time Attack
+                    {isAdmin ? "Manage Time Attack" : "View Time Attack"}
                   </Link>
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Battle Mode (BM) - 1v1 balloon battle with group round-robin + double elimination */}
           <TabsContent value="bm">
             <Card>
               <CardHeader>
@@ -185,13 +286,14 @@ export default function TournamentDetailPage({
               <CardContent>
                 <Button asChild>
                   <Link href={`/tournaments/${id}/bm`}>
-                    Manage Battle Mode
+                    {isAdmin ? "Manage Battle Mode" : "View Battle Mode"}
                   </Link>
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Match Race (MR) - 1v1 race on random courses with bracket structure */}
           <TabsContent value="mr">
             <Card>
               <CardHeader>
@@ -201,13 +303,14 @@ export default function TournamentDetailPage({
               <CardContent>
                 <Button asChild>
                   <Link href={`/tournaments/${id}/mr`}>
-                    Manage Match Race
+                    {isAdmin ? "Manage Match Race" : "View Match Race"}
                   </Link>
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Grand Prix (GP) - Cup-based driver points (9, 6, 3, 1 for 1st-4th) */}
           <TabsContent value="gp">
             <Card>
               <CardHeader>
@@ -217,7 +320,29 @@ export default function TournamentDetailPage({
               <CardContent>
                 <Button asChild>
                   <Link href={`/tournaments/${id}/gp`}>
-                    Manage Grand Prix
+                    {isAdmin ? "Manage Grand Prix" : "View Grand Prix"}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/*
+           * Overall Ranking - Combined points from all 4 game modes.
+           * Maximum possible score is 12000 points (3000 per mode).
+           * This tab is view-only for all users since rankings are
+           * automatically calculated from individual mode results.
+           */}
+          <TabsContent value="overall">
+            <Card>
+              <CardHeader>
+                <CardTitle>Overall Ranking</CardTitle>
+                <CardDescription>Combined points from all 4 modes (TA, BM, MR, GP) - max 12000 points</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link href={`/tournaments/${id}/overall-ranking`}>
+                    View Overall Ranking
                   </Link>
                 </Button>
               </CardContent>

@@ -82,6 +82,7 @@ if (typeof global.TextDecoder === 'undefined') {
 }
 
 // Mock Prisma client globally - optimized to minimize overhead
+// Provides both default and named `prisma` export to match src/lib/prisma.ts
 jest.mock('@/lib/prisma', () => {
   const createMockModel = () => ({
     findUnique: jest.fn(),
@@ -105,38 +106,46 @@ jest.mock('@/lib/prisma', () => {
     deleteMany: jest.fn(),
   })
 
+  // Single mock instance shared by both default and named exports
+  const mockPrisma = {
+    tournament: createMockModelWithMethods(),
+    accessToken: createMockModel(),
+    auditLog: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+    },
+    player: createMockModelWithMethods(),
+    user: createMockModelWithMethods(),
+    account: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+    session: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    bMMatch: createMockModelWithMethods(),
+    bMQualification: createMockModelWithMethods(),
+    mRMatch: createMockModelWithMethods(),
+    mRQualification: createMockModelWithMethods(),
+    gPMatch: createMockModelWithMethods(),
+    gPQualification: createMockModelWithMethods(),
+    tTEntry: createMockModelWithMethods(),
+    scoreEntryLog: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+    matchCharacterUsage: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+  }
+
   return {
     __esModule: true,
-    default: {
-      tournament: createMockModelWithMethods(),
-      accessToken: createMockModel(),
-      auditLog: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-      },
-      player: createMockModelWithMethods(),
-      account: {
-        findUnique: jest.fn(),
-      },
-      session: {
-        findUnique: jest.fn(),
-      },
-      bMMatch: createMockModelWithMethods(),
-      bMQualification: createMockModelWithMethods(),
-      mRMatch: createMockModelWithMethods(),
-      mRQualification: createMockModelWithMethods(),
-      gPMatch: createMockModelWithMethods(),
-      gPQualification: createMockModelWithMethods(),
-      tTEntry: createMockModelWithMethods(),
-      scoreEntryLog: {
-        findMany: jest.fn(),
-        create: jest.fn(),
-      },
-      matchCharacterUsage: {
-        findMany: jest.fn(),
-        create: jest.fn(),
-      },
-    },
+    default: mockPrisma,
+    prisma: mockPrisma,
   }
 })
 

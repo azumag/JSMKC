@@ -1,3 +1,13 @@
+/**
+ * Match Race Finals Individual Match Update API Route
+ *
+ * Updates scores for a specific finals match in the MR bracket.
+ * Validates scores using Zod schema and auto-detects match completion
+ * based on the target win count (7 for MR finals).
+ *
+ * Authentication: Admin role required
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,9 +16,15 @@ import { z } from "zod";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
 
+/**
+ * Validation schema for updating a finals match.
+ * Score range 0-7 allows for full match tracking.
+ * Rounds track individual course results for MR format.
+ */
 const UpdateMatchSchema = z.object({
   score1: z.number().int().min(0).max(7),
   score2: z.number().int().min(0).max(7),
+  /** Individual race results with course and winner */
   rounds: z.array(z.object({
     course: z.string(),
     winner: z.number().int().min(1).max(2),
@@ -16,6 +32,10 @@ const UpdateMatchSchema = z.object({
   completed: z.boolean().optional(),
 });
 
+/**
+ * Type definition for match update database payload.
+ * Separates the Zod-validated input from the database write shape.
+ */
 interface MRMatchUpdateData {
   score1: number;
   score2: number;
@@ -23,13 +43,21 @@ interface MRMatchUpdateData {
   rounds?: Array<{ course: string; winner: number }>;
 }
 
+/**
+ * PUT /api/tournaments/[id]/mr/finals/matches/[matchId]
+ *
+ * Update a specific finals match's scores and completion status.
+ * Auto-completes the match when either player reaches 7 wins.
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
+  /* Logger must be created inside the function for proper test mocking */
   const logger = createLogger('mr-finals-match-api');
   const session = await auth();
 
+  /* Admin authentication required */
   if (!session?.user || session.user.role !== "admin") {
     return NextResponse.json(
       { error: "Unauthorized: Admin access required" },
@@ -41,6 +69,7 @@ export async function PUT(
   try {
     const body = sanitizeInput(await request.json());
 
+    /* Validate against schema */
     const parseResult = UpdateMatchSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -51,6 +80,7 @@ export async function PUT(
 
     const data = parseResult.data;
 
+    /* Verify match exists */
     const match = await prisma.mRMatch.findUnique({
       where: { id: matchId },
       include: { player1: true, player2: true },
@@ -63,6 +93,7 @@ export async function PUT(
       );
     }
 
+    /* Auto-complete when either player reaches the target win count (7) */
     const targetWins = 7;
     const isComplete = data.completed || data.score1 >= targetWins || data.score2 >= targetWins;
 
@@ -82,6 +113,7 @@ export async function PUT(
       include: { player1: true, player2: true },
     });
 
+    /* Audit log for match update */
     try {
       await createAuditLog({
         userId: session.user.id,
@@ -100,7 +132,7 @@ export async function PUT(
         },
       });
     } catch (logError) {
-      // Audit log failure is non-critical but should be logged for security tracking
+      /* Audit log failure is non-critical but should be logged for security tracking */
       logger.warn('Failed to create audit log', { error: logError, tournamentId, matchId, action: 'UPDATE_MR_MATCH' });
     }
 
@@ -109,7 +141,6 @@ export async function PUT(
       match: updatedMatch,
     });
   } catch (error) {
-    // Use structured logging for error tracking and debugging
     logger.error("Failed to update match", { error, tournamentId, matchId });
     return NextResponse.json(
       { error: "Failed to update match" },

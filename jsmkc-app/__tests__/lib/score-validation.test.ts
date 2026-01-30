@@ -1,3 +1,27 @@
+/**
+ * @module __tests__/lib/score-validation.test.ts
+ *
+ * Test suite for the score validation utilities (score-validation.ts).
+ *
+ * Covers the following functionality:
+ * - validateBattleModeScores(): Validates that two player scores are within
+ *   the allowed range (MIN_BATTLE_SCORE to MAX_BATTLE_SCORE) and are not
+ *   equal (ties are not allowed in Battle Mode).
+ *   - Tests boundary values, out-of-range scores, ties, and edge cases with
+ *     null/undefined/decimal inputs.
+ * - isPlayer1Win(): Determines whether player 1 won based on score comparison.
+ *   - Tests normal wins, losses, ties, and edge cases with null/undefined/negative
+ *     and decimal values.
+ * - calculateMatchResult(): Returns the full match result object including
+ *   the winner (1, 2, or null for tie) and result strings ('win', 'loss', 'tie')
+ *   for each player.
+ *   - Tests all combinations of win/loss/tie outcomes and edge cases.
+ * - Score validation edge cases: very small decimal differences, boundary values,
+ *   and large decimal differences.
+ *
+ * Documents actual JavaScript coercion behavior for null/undefined score inputs,
+ * which is important for understanding production behavior.
+ */
 // __tests__/lib/score-validation.test.ts
 import { describe, it, expect } from '@jest/globals';
 import { validateBattleModeScores, isPlayer1Win, calculateMatchResult } from '@/lib/score-validation';

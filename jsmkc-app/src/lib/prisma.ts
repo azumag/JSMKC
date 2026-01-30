@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { getSoftDeleteManager } from "./prisma-middleware";
+import { getSoftDeleteManager } from "./soft-delete";
 
+// Singleton pattern: reuse PrismaClient across hot reloads in development
+// In production, a single instance is created and reused
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
@@ -8,6 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 const prismaClient =
   globalForPrisma.prisma ??
   new PrismaClient({
+    // Development: log queries for debugging; Production: errors only
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
@@ -16,9 +19,10 @@ const prismaClient =
 
 export const prisma = prismaClient;
 
-// ソフトデリートマネージャーの初期化
+// Initialize soft delete manager for automatic deletedAt handling
 export const softDelete = getSoftDeleteManager(prismaClient);
 
+// Preserve client across hot reloads in development
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export default prisma;

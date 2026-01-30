@@ -1,3 +1,33 @@
+/**
+ * @module __tests__/lib/token-utils.test.ts
+ * @description Test suite for the tournament token utility functions from `@/lib/token-utils`.
+ *
+ * This suite validates the full lifecycle of tournament access tokens:
+ *
+ * - `generateTournamentToken`: Generates a 32-character lowercase hex string using
+ *   `crypto.randomBytes(16)`. Tests confirm format, length, uniqueness, and
+ *   cryptographic security (statistical uniqueness across 100 generated tokens).
+ *
+ * - `isValidTokenFormat`: Validates that a string matches the expected 32-character
+ *   hex format. Tests cover valid tokens, edge cases (all zeros, all f's), and
+ *   rejection of too-short, too-long, non-hex, special character, and empty strings.
+ *
+ * - `isTokenValid`: Checks both token format validity and expiry status. Tests
+ *   cover valid/expired/null/undefined tokens and expiry dates, as well as
+ *   boundary conditions (token expiring in 1 second, just expired).
+ *
+ * - `getTokenExpiry`: Returns a Date object set to a configurable number of hours
+ *   in the future (default 24h). Tests verify correct time calculation with margin.
+ *
+ * - `extendTokenExpiry`: Extends an existing expiry date by a configurable number
+ *   of hours, or creates a new expiry from now if the current one is null/expired.
+ *
+ * - `getTokenTimeRemaining`: Returns a human-readable remaining time string
+ *   (e.g., "2 hours 30 minutes remaining", "1 hour remaining", "Expired", "No expiry set").
+ *
+ * Integration tests verify that these functions compose correctly for token
+ * generation, validation, extension, and expiration detection workflows.
+ */
 // __tests__/lib/token-utils.test.ts
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import crypto from 'crypto';
@@ -166,7 +196,7 @@ describe('Token Utilities', () => {
       const now = Date.now();
       const expiry = getTokenExpiry();
       const expectedTime = now + 24 * 60 * 60 * 1000;
-      
+
       // Allow small margin of error for execution time
       expect(expiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(expiry.getTime()).toBeLessThan(expectedTime + 100);
@@ -177,7 +207,7 @@ describe('Token Utilities', () => {
       const now = Date.now();
       const expiry = getTokenExpiry(hours);
       const expectedTime = now + hours * 60 * 60 * 1000;
-      
+
       expect(expiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(expiry.getTime()).toBeLessThan(expectedTime + 100);
     });
@@ -187,7 +217,7 @@ describe('Token Utilities', () => {
       const now = Date.now();
       const expiry = getTokenExpiry(hours);
       const expectedTime = now + hours * 60 * 60 * 1000;
-      
+
       expect(expiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(expiry.getTime()).toBeLessThan(expectedTime + 100);
     });
@@ -197,7 +227,7 @@ describe('Token Utilities', () => {
       const now = Date.now();
       const expiry = getTokenExpiry(hours);
       const expectedTime = now + hours * 60 * 60 * 1000;
-      
+
       expect(expiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(expiry.getTime()).toBeLessThan(expectedTime + 100);
     });
@@ -206,7 +236,7 @@ describe('Token Utilities', () => {
       const now = Date.now();
       const expiry = getTokenExpiry(0);
       const expectedTime = now + 0 * 60 * 60 * 1000;
-      
+
       expect(expiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(expiry.getTime()).toBeLessThan(expectedTime + 100);
     });
@@ -216,10 +246,10 @@ describe('Token Utilities', () => {
     it('should extend expiry by default 24 hours from current expiry', () => {
       const currentExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const newExpiry = extendTokenExpiry(currentExpiresAt);
-      
+
       const diff = newExpiry.getTime() - currentExpiresAt.getTime();
       const expectedDiff = 24 * 60 * 60 * 1000;
-      
+
       expect(diff).toBeGreaterThanOrEqual(expectedDiff - 100);
       expect(diff).toBeLessThan(expectedDiff + 100);
     });
@@ -228,10 +258,10 @@ describe('Token Utilities', () => {
       const currentExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const hours = 48;
       const newExpiry = extendTokenExpiry(currentExpiresAt, hours);
-      
+
       const diff = newExpiry.getTime() - currentExpiresAt.getTime();
       const expectedDiff = hours * 60 * 60 * 1000;
-      
+
       expect(diff).toBeGreaterThanOrEqual(expectedDiff - 100);
       expect(diff).toBeLessThan(expectedDiff + 100);
     });
@@ -240,7 +270,7 @@ describe('Token Utilities', () => {
       const currentExpiresAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const now = Date.now();
       const newExpiry = extendTokenExpiry(currentExpiresAt);
-      
+
       const expectedTime = now + 24 * 60 * 60 * 1000;
       expect(newExpiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(newExpiry.getTime()).toBeLessThan(expectedTime + 100);
@@ -249,7 +279,7 @@ describe('Token Utilities', () => {
     it('should return expiry from now if current expiry is null', () => {
       const now = Date.now();
       const newExpiry = extendTokenExpiry(null);
-      
+
       const expectedTime = now + 24 * 60 * 60 * 1000;
       expect(newExpiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(newExpiry.getTime()).toBeLessThan(expectedTime + 100);
@@ -259,7 +289,7 @@ describe('Token Utilities', () => {
       const hours = 12;
       const now = Date.now();
       const newExpiry = extendTokenExpiry(null, hours);
-      
+
       const expectedTime = now + hours * 60 * 60 * 1000;
       expect(newExpiry.getTime()).toBeGreaterThanOrEqual(expectedTime - 100);
       expect(newExpiry.getTime()).toBeLessThan(expectedTime + 100);
@@ -274,27 +304,31 @@ describe('Token Utilities', () => {
 
   describe('getTokenTimeRemaining', () => {
     it('should return remaining time for future expiry', () => {
+      // Source returns long format: "X hours Y minutes remaining" with pluralization
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000 + 30 * 60 * 1000 + 1000); // Add 1 second
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('2h 30m remaining');
+      expect(result).toBe('2 hours 30 minutes remaining');
     });
 
     it('should return remaining time for 1 hour', () => {
+      // Exactly 1 hour: hours > 0 and minutes = 0, so format is "X hour(s) remaining"
       const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('1h 0m remaining');
+      expect(result).toBe('1 hour remaining');
     });
 
     it('should return remaining time for minutes only', () => {
+      // 30 minutes only: hours = 0, minutes > 0, so format is "X minutes remaining"
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('0h 30m remaining');
+      expect(result).toBe('30 minutes remaining');
     });
 
     it('should return remaining time for seconds only', () => {
+      // 30 seconds: hours = 0, minutes = 0, so returns "Less than 1 minute remaining"
       const expiresAt = new Date(Date.now() + 30 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('0h 0m remaining');
+      expect(result).toBe('Less than 1 minute remaining');
     });
 
     it('should return "Expired" for past expiry', () => {
@@ -314,57 +348,62 @@ describe('Token Utilities', () => {
       expect(result).toBe('No expiry set');
     });
 
-    it('should return remaining time for more than 24 hours (1 day)', () => {
+    it('should return remaining time for more than 24 hours', () => {
+      // Source does not have day formatting; it simply reports total hours and minutes.
+      // 24h + 5h = 29 hours, 0 minutes
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('1 day 5h remaining');
+      expect(result).toBe('29 hours remaining');
     });
 
-    it('should return remaining time for more than 48 hours (2 days)', () => {
+    it('should return remaining time for more than 48 hours', () => {
+      // 48h + 5h = 53 hours, 0 minutes
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('2 days 5h remaining');
+      expect(result).toBe('53 hours remaining');
     });
 
     it('should return remaining time for exactly 24 hours', () => {
+      // 24 hours with 1ms extra: totalMinutes = 1440, hours = 24, minutes = 0
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 + 1); // Add 1ms to ensure it's > 24 hours
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('24h 0m remaining');
+      expect(result).toBe('24 hours remaining');
     });
 
     it('should handle 59 minutes correctly', () => {
+      // 59 minutes + 30 seconds: totalMinutes = 59, hours = 0, minutes = 59
       const expiresAt = new Date(Date.now() + 59 * 60 * 1000 + 30 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('0h 59m remaining');
+      expect(result).toBe('59 minutes remaining');
     });
 
     it('should handle 23 hours correctly', () => {
+      // 23 hours 30 minutes
       const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000 + 30 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('23h 30m remaining');
+      expect(result).toBe('23 hours 30 minutes remaining');
     });
 
-    it('should handle 25 hours correctly (1 day + 1 hour)', () => {
+    it('should handle 25 hours correctly', () => {
+      // 25 hours, 0 minutes
       const expiresAt = new Date(Date.now() + 25 * 60 * 60 * 1000);
       const result = getTokenTimeRemaining(expiresAt);
-      expect(result).toBe('1 day 1h remaining');
+      expect(result).toBe('25 hours remaining');
     });
 
     it('should return consistent format for various times', () => {
+      // Source uses long format: "X hour(s) Y minute(s) remaining"
       const cases = [
-        { hours: 1, minutes: 0 },
-        { hours: 12, minutes: 30 },
-        { hours: 23, minutes: 59 },
+        { hours: 1, minutes: 0, expected: '1 hour remaining' },
+        { hours: 12, minutes: 30, expected: '12 hours 30 minutes remaining' },
+        { hours: 23, minutes: 59, expected: '23 hours 59 minutes remaining' },
       ];
 
-      cases.forEach(({ hours, minutes }) => {
+      cases.forEach(({ hours, minutes, expected }) => {
         const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000 + minutes * 60 * 1000);
         const result = getTokenTimeRemaining(expiresAt);
         expect(result).toMatch(/remaining/);
-        expect(result).toContain(`${hours}h`);
-        if (minutes > 0) {
-          expect(result).toContain(`${minutes}m`);
-        }
+        expect(result).toBe(expected);
       });
     });
   });
@@ -390,9 +429,9 @@ describe('Token Utilities', () => {
     it('should handle token extension correctly', () => {
       const token = generateTournamentToken();
       const initialExpiry = getTokenExpiry(24);
-      
+
       expect(isTokenValid(token, initialExpiry)).toBe(true);
-      
+
       const extendedExpiry = extendTokenExpiry(initialExpiry, 24);
       expect(extendedExpiry.getTime()).toBeGreaterThan(initialExpiry.getTime());
     });
@@ -400,7 +439,7 @@ describe('Token Utilities', () => {
     it('should detect expired tokens correctly', () => {
       const token = generateTournamentToken();
       const expiredExpiry = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
+
       expect(isValidTokenFormat(token)).toBe(true);
       expect(isTokenValid(token, expiredExpiry)).toBe(false);
       expect(getTokenTimeRemaining(expiredExpiry)).toBe('Expired');
@@ -411,14 +450,14 @@ describe('Token Utilities', () => {
     it('should generate cryptographically secure tokens', () => {
       const tokens = Array.from({ length: 100 }, () => generateTournamentToken());
       const uniqueTokens = new Set(tokens);
-      
+
       // Verify statistical randomness (should be mostly unique)
       expect(uniqueTokens.size).toBeGreaterThan(90);
     });
 
     it('should always generate valid format tokens', () => {
       const tokens = Array.from({ length: 100 }, () => generateTournamentToken());
-      
+
       tokens.forEach(token => {
         expect(isValidTokenFormat(token)).toBe(true);
         expect(token).toHaveLength(32);

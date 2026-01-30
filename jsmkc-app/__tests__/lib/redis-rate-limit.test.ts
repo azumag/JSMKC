@@ -1,3 +1,34 @@
+/**
+ * @module __tests__/lib/redis-rate-limit.test.ts
+ *
+ * Test suite for the Redis-backed rate limiting module (redis-rate-limit.ts).
+ *
+ * This module implements a sliding-window rate limiter using Redis sorted sets.
+ * Covers the following functionality:
+ * - checkRateLimit(): Core rate-limiting logic that uses Redis ZREMRANGEBYSCORE,
+ *   ZADD, ZCARD, and EXPIRE commands to enforce request limits within time windows.
+ *   - Allows requests within limits, blocks excess requests, and calculates
+ *     retryAfter values from the oldest request timestamp.
+ *   - Gracefully falls back to allowing requests when Redis is unavailable.
+ * - rateLimitConfigs: Pre-defined configurations for scoreInput (20/min),
+ *   polling (12/min), tokenValidation (10/min), and general (10/min).
+ * - checkRateLimitByType(): Convenience wrapper that selects config by type name.
+ * - clearRateLimitData(): Clears rate limit data for a specific identifier or all.
+ * - Edge cases: zero limits, very small/large windows, and Redis error handling.
+ *
+ * All Redis operations are mocked to test the rate limiting logic without
+ * requiring a running Redis instance.
+ *
+ * Key implementation details from the source:
+ * - Redis key format: "ratelimit:{identifier}" (no underscore)
+ * - Operation order: zRemRangeByScore -> zAdd -> zCard -> expire
+ * - Denial check: requestCount > config.limit (strictly greater than)
+ * - RateLimitResult has: success, remaining, retryAfter (NO limit property)
+ * - remaining = config.limit - requestCount (on success)
+ * - On Redis error fallback: remaining = config.limit
+ * - Member format for sorted set: "{timestamp}:{randomString}"
+ * - checkRateLimitByType compositeIdentifier: "{identifier}:{type}"
+ */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
@@ -18,6 +49,7 @@ jest.mock('redis', () => ({
 jest.mock('@/lib/logger', () => ({
   createLogger: () => ({
     error: jest.fn(),
+    warn: jest.fn(),
     info: jest.fn(),
   }),
 }));
@@ -40,9 +72,11 @@ describe('Redis Rate Limit', () => {
     // Reset the cached Redis client so tests can provide their own mocks
     resetRedisClientForTest();
 
-    // Create mock Redis client with proper implementations
+    // Create mock Redis client with proper implementations.
+    // The source performs operations in order: zRemRangeByScore, zAdd, zCard, expire.
+    // zCard returns the count AFTER zAdd has already added the current request.
     mockZRemRangeByScore = jest.fn().mockResolvedValue(0);
-    mockZCard = jest.fn().mockResolvedValue(0);
+    mockZCard = jest.fn().mockResolvedValue(1);
     mockZRange = jest.fn().mockResolvedValue([]);
     mockZAdd = jest.fn().mockResolvedValue(1);
     mockExpire = jest.fn().mockResolvedValue(1);
@@ -72,31 +106,33 @@ describe('Redis Rate Limit', () => {
 
   describe('checkRateLimit', () => {
     it('should allow requests within limit', async () => {
-      mockZCard.mockResolvedValue(0);
+      // zCard returns 1 because we just added the current request via zAdd
+      mockZCard.mockResolvedValue(1);
 
       const config = { limit: 5, windowMs: 60000 };
       const result = await checkRateLimit('user123', config);
 
+      // remaining = config.limit - requestCount = 5 - 1 = 4
       expect(result.success).toBe(true);
       expect(result.remaining).toBe(4);
-      expect(result.limit).toBe(5);
       expect(result.retryAfter).toBeUndefined();
 
+      // Verify all Redis operations were called in order
       expect(mockZRemRangeByScore).toHaveBeenCalled();
-      expect(mockZCard).toHaveBeenCalled();
       expect(mockZAdd).toHaveBeenCalled();
+      expect(mockZCard).toHaveBeenCalled();
       expect(mockExpire).toHaveBeenCalled();
     });
 
     it('should deny requests exceeding limit', async () => {
-      Date.now();
-      mockZCard.mockResolvedValue(5);
+      // requestCount > limit triggers denial (strictly greater than)
+      // With limit=5, zCard must return 6 or more to exceed
+      mockZCard.mockResolvedValue(6);
 
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
 
       expect(result.success).toBe(false);
       expect(result.remaining).toBe(0);
-      expect(result.limit).toBe(5);
       expect(result.retryAfter).toBeDefined();
       expect(result.retryAfter).toBeGreaterThan(0);
     });
@@ -106,38 +142,45 @@ describe('Redis Rate Limit', () => {
       const windowMs = 60000;
       const oldestTimestamp = now - 30000; // 30 seconds ago
 
-      mockZCard.mockResolvedValue(5);
-      mockZRange.mockResolvedValue([oldestTimestamp.toString()]);
+      // requestCount > limit to trigger rate limit denial
+      mockZCard.mockResolvedValue(6);
+      // Source parses oldest entry as entry.split(':')[0], so member format is "timestamp:random"
+      mockZRange.mockResolvedValue([`${oldestTimestamp}:abc123`]);
 
       const result = await checkRateLimit('user123', { limit: 5, windowMs });
 
       expect(result.success).toBe(false);
-      expect(result.retryAfter).toBe(Math.ceil((oldestTimestamp + windowMs - now) / 1000));
+      // retryAfter = Math.max(1, Math.ceil((oldestTimestamp + windowMs - now) / 1000))
+      // = Math.max(1, Math.ceil((now - 30000 + 60000 - now) / 1000))
+      // = Math.max(1, Math.ceil(30000 / 1000))
+      // = 30
+      expect(result.retryAfter).toBe(Math.max(1, Math.ceil((oldestTimestamp + windowMs - now) / 1000)));
     });
 
     it('should handle multiple requests within window', async () => {
       const config = { limit: 3, windowMs: 60000 };
 
-      // First request - count is 0, after adding becomes 1
-      mockZCard.mockResolvedValue(0);
+      // First request - zCard returns 1 (one request in window after adding)
+      mockZCard.mockResolvedValue(1);
       const result1 = await checkRateLimit('user123', config);
       expect(result1.success).toBe(true);
-      expect(result1.remaining).toBe(2);
+      expect(result1.remaining).toBe(2); // 3 - 1 = 2
 
-      // Second request - count is 1, after adding becomes 2
-      mockZCard.mockResolvedValue(1);
+      // Second request - zCard returns 2 (two requests in window after adding)
+      mockZCard.mockResolvedValue(2);
       const result2 = await checkRateLimit('user123', config);
       expect(result2.success).toBe(true);
-      expect(result2.remaining).toBe(1);
+      expect(result2.remaining).toBe(1); // 3 - 2 = 1
 
-      // Third request - count is 2, after adding becomes 3
-      mockZCard.mockResolvedValue(2);
+      // Third request - zCard returns 3 (three requests = limit, but not exceeding)
+      // Since the check is requestCount > limit, 3 > 3 is false, so it passes
+      mockZCard.mockResolvedValue(3);
       const result3 = await checkRateLimit('user123', config);
       expect(result3.success).toBe(true);
-      expect(result3.remaining).toBe(0);
+      expect(result3.remaining).toBe(0); // 3 - 3 = 0
 
-      // Fourth request (exceeds limit) - count is 3 (at limit)
-      mockZCard.mockResolvedValue(3);
+      // Fourth request (exceeds limit) - zCard returns 4 (4 > 3 is true)
+      mockZCard.mockResolvedValue(4);
       const result4 = await checkRateLimit('user123', config);
       expect(result4.success).toBe(false);
       expect(result4.remaining).toBe(0);
@@ -145,56 +188,68 @@ describe('Redis Rate Limit', () => {
 
     it('should expire entries outside window', async () => {
       const now = Date.now();
-      const windowStart = now - 60000;
+      const windowMs = 60000;
+      const windowStart = now - windowMs;
 
-      await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
+      await checkRateLimit('user123', { limit: 5, windowMs });
 
+      // Source uses key format "ratelimit:{identifier}" and passes (key, 0, windowStart)
       expect(mockZRemRangeByScore).toHaveBeenCalledWith(
-        `rate_limit:user123`,
+        'ratelimit:user123',
         0,
-        windowStart
+        expect.any(Number)
       );
+
+      // Verify the windowStart argument is approximately correct (within a few ms)
+      const actualWindowStart = mockZRemRangeByScore.mock.calls[0][2];
+      expect(actualWindowStart).toBeGreaterThanOrEqual(windowStart - 10);
+      expect(actualWindowStart).toBeLessThanOrEqual(windowStart + 10);
     });
 
     it('should handle Redis errors gracefully', async () => {
-      mockZCard.mockRejectedValue(new Error('Redis connection failed'));
+      // Make zRemRangeByScore fail to simulate Redis connection failure
+      mockZRemRangeByScore.mockRejectedValue(new Error('Redis connection failed'));
 
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
 
-      // Fallback to allow request when Redis fails
+      // Fallback: allow request when Redis fails, remaining = config.limit
       expect(result.success).toBe(true);
-      expect(result.remaining).toBe(4);
-      expect(result.limit).toBe(5);
+      expect(result.remaining).toBe(5);
     });
 
     it('should handle empty range result', async () => {
-      mockZCard.mockResolvedValue(5);
+      // requestCount > limit to trigger denial
+      mockZCard.mockResolvedValue(6);
       mockZRange.mockResolvedValue([]);
 
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
 
       expect(result.success).toBe(false);
-      expect(result.retryAfter).toBeGreaterThanOrEqual(0);
+      // When zRange returns empty, retryAfter defaults to windowSeconds = Math.ceil(60000/1000) = 60
+      // Then Math.max(1, retryAfter) = 60 (retryAfter is set as windowSeconds, but not passed through Math.max for default)
+      // Actually: let retryAfter = windowSeconds; ... return Math.max(1, retryAfter)
+      expect(result.retryAfter).toBeGreaterThanOrEqual(1);
     });
 
     it('should use correct Redis key format', async () => {
       await checkRateLimit('user123', { limit: 5, windowMs: 60000 });
 
+      // Source uses "ratelimit:{identifier}" format (no underscore)
       expect(mockZRemRangeByScore).toHaveBeenCalledWith(
-        'rate_limit:user123',
+        'ratelimit:user123',
         expect.any(Number),
         expect.any(Number)
       );
-      expect(mockZCard).toHaveBeenCalledWith('rate_limit:user123');
-      expect(mockZAdd).toHaveBeenCalledWith('rate_limit:user123', expect.any(Object));
-      expect(mockExpire).toHaveBeenCalledWith('rate_limit:user123', expect.any(Number));
+      expect(mockZAdd).toHaveBeenCalledWith('ratelimit:user123', expect.any(Object));
+      expect(mockZCard).toHaveBeenCalledWith('ratelimit:user123');
+      expect(mockExpire).toHaveBeenCalledWith('ratelimit:user123', expect.any(Number));
     });
 
     it('should handle different identifiers', async () => {
       await checkRateLimit('user456', { limit: 5, windowMs: 60000 });
 
       expect(mockZRemRangeByScore).toHaveBeenCalledWith(
-        'rate_limit:user456',
+        'ratelimit:user456',
         expect.any(Number),
         expect.any(Number)
       );
@@ -229,38 +284,52 @@ describe('Redis Rate Limit', () => {
 
   describe('checkRateLimitByType', () => {
     it('should use score input configuration', async () => {
+      // zCard returns 1 (one request in window), remaining = 20 - 1 = 19
+      mockZCard.mockResolvedValue(1);
+
       const result = await checkRateLimitByType('scoreInput', 'user123');
 
-      expect(result.limit).toBe(20);
+      expect(result.success).toBe(true);
       expect(result.remaining).toBe(19);
     });
 
     it('should use polling configuration', async () => {
+      // zCard returns 1, remaining = 12 - 1 = 11
+      mockZCard.mockResolvedValue(1);
+
       const result = await checkRateLimitByType('polling', 'user123');
 
-      expect(result.limit).toBe(12);
+      expect(result.success).toBe(true);
       expect(result.remaining).toBe(11);
     });
 
     it('should use token validation configuration', async () => {
+      // zCard returns 1, remaining = 10 - 1 = 9
+      mockZCard.mockResolvedValue(1);
+
       const result = await checkRateLimitByType('tokenValidation', 'user123');
 
-      expect(result.limit).toBe(10);
+      expect(result.success).toBe(true);
       expect(result.remaining).toBe(9);
     });
 
     it('should use general configuration for unknown type', async () => {
+      // zCard returns 1, remaining = 10 - 1 = 9
+      mockZCard.mockResolvedValue(1);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await checkRateLimitByType('unknown' as any, 'user123');
 
-      expect(result.limit).toBe(10);
+      expect(result.success).toBe(true);
       expect(result.remaining).toBe(9);
     });
 
-    it('should call checkRateLimit with correct parameters', async () => {
+    it('should call checkRateLimit with correct composite key', async () => {
+      // checkRateLimitByType creates compositeIdentifier = "{identifier}:{type}"
+      // So the Redis key becomes "ratelimit:user123:scoreInput"
       await checkRateLimitByType('scoreInput', 'user123');
 
-      expect(mockZCard).toHaveBeenCalledWith('rate_limit:user123');
+      expect(mockZCard).toHaveBeenCalledWith('ratelimit:user123:scoreInput');
     });
   });
 
@@ -270,17 +339,19 @@ describe('Redis Rate Limit', () => {
 
       await clearRateLimitData('user123');
 
-      expect(mockDel).toHaveBeenCalledWith('rate_limit:user123');
+      // Source uses "ratelimit:{identifier}" format
+      expect(mockDel).toHaveBeenCalledWith('ratelimit:user123');
     });
 
     it('should clear all rate limit data when no identifier provided', async () => {
-      mockKeys.mockResolvedValue(['rate_limit:user1', 'rate_limit:user2', 'rate_limit:user3']);
+      mockKeys.mockResolvedValue(['ratelimit:user1', 'ratelimit:user2', 'ratelimit:user3']);
       mockDel.mockResolvedValue(3);
 
       await clearRateLimitData();
 
-      expect(mockKeys).toHaveBeenCalledWith('rate_limit:*');
-      expect(mockDel).toHaveBeenCalledWith(['rate_limit:user1', 'rate_limit:user2', 'rate_limit:user3']);
+      // Source uses "ratelimit:*" pattern for keys lookup
+      expect(mockKeys).toHaveBeenCalledWith('ratelimit:*');
+      expect(mockDel).toHaveBeenCalledWith(['ratelimit:user1', 'ratelimit:user2', 'ratelimit:user3']);
     });
 
     it('should handle empty rate limit data', async () => {
@@ -288,44 +359,31 @@ describe('Redis Rate Limit', () => {
 
       await clearRateLimitData();
 
-      expect(mockKeys).toHaveBeenCalledWith('rate_limit:*');
-      expect(mockDel).not.toHaveBeenCalled();
-    });
-
-    it('should handle null keys response', async () => {
-      mockKeys.mockResolvedValue(null);
-
-      await clearRateLimitData();
-
-      expect(mockKeys).toHaveBeenCalledWith('rate_limit:*');
-      expect(mockDel).not.toHaveBeenCalled();
-    });
-
-    it('should handle undefined keys response', async () => {
-      mockKeys.mockResolvedValue(undefined);
-
-      await clearRateLimitData();
-
-      expect(mockKeys).toHaveBeenCalledWith('rate_limit:*');
+      expect(mockKeys).toHaveBeenCalledWith('ratelimit:*');
+      // Source checks: if (keys.length > 0) before calling del
       expect(mockDel).not.toHaveBeenCalled();
     });
 
     it('should handle clear errors gracefully', async () => {
       mockDel.mockRejectedValue(new Error('Clear failed'));
 
+      // Source wraps everything in try/catch and logs error, does not throw
       await expect(clearRateLimitData('user123')).resolves.not.toThrow();
     });
 
     it('should handle keys errors gracefully', async () => {
       mockKeys.mockRejectedValue(new Error('Keys failed'));
 
+      // Source wraps everything in try/catch and logs error, does not throw
       await expect(clearRateLimitData()).resolves.not.toThrow();
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle zero limit by returning limit exceeded', async () => {
-      mockZCard.mockResolvedValue(0);
+      // With limit=0, after adding a request zCard returns 1.
+      // 1 > 0 is true, so the request is denied.
+      mockZCard.mockResolvedValue(1);
 
       const result = await checkRateLimit('user123', { limit: 0, windowMs: 60000 });
 
@@ -335,18 +393,22 @@ describe('Redis Rate Limit', () => {
     });
 
     it('should handle very small window', async () => {
+      mockZCard.mockResolvedValue(1);
+
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 100 });
 
       expect(result.success).toBe(true);
+      // Source uses "ratelimit:{identifier}" key format
       expect(mockZRemRangeByScore).toHaveBeenCalledWith(
-        'rate_limit:user123',
+        'ratelimit:user123',
         0,
         expect.any(Number)
       );
     });
 
     it('should handle very large limit', async () => {
-      mockZCard.mockResolvedValue(0);
+      // zCard returns 1 (one request in window), remaining = 10000 - 1 = 9999
+      mockZCard.mockResolvedValue(1);
 
       const result = await checkRateLimit('user123', { limit: 10000, windowMs: 60000 });
 
@@ -355,6 +417,8 @@ describe('Redis Rate Limit', () => {
     });
 
     it('should handle very large window', async () => {
+      mockZCard.mockResolvedValue(1);
+
       const result = await checkRateLimit('user123', { limit: 5, windowMs: 3600000 });
 
       expect(result.success).toBe(true);

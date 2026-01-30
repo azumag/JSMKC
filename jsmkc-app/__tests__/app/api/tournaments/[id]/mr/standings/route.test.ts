@@ -1,3 +1,26 @@
+/**
+ * @module MR Standings API Route Tests
+ *
+ * Test suite for the Match Race (MR) standings endpoint:
+ * /api/tournaments/[id]/mr/standings
+ *
+ * Covers the GET method for fetching qualification standings with caching support:
+ * - Success cases: Returns cached standings when cache is valid and not expired,
+ *   fetches fresh data when cache is unavailable or expired, and bypasses cache
+ *   when the If-None-Match header is set to '*'.
+ * - Authentication failure cases: Returns 403 when user is not authenticated, when
+ *   session exists but user object is missing, when user role is not 'admin', or
+ *   when user role is undefined. Admin access is required.
+ * - Error cases: Returns 500 when database query fails or when cache get operation fails.
+ * - Edge cases: Handles empty standings correctly (no qualifications array in response),
+ *   generates and sets ETag correctly for fresh data, includes ISO timestamp in the
+ *   lastUpdated field, and orders standings by score descending then points descending.
+ *
+ * The caching mechanism uses ETag-based cache validation with a 300-second (5-minute)
+ * Cache-Control max-age header. Cached responses include a '_cached: true' flag.
+ *
+ * Dependencies mocked: @/lib/auth, @/lib/standings-cache, @/lib/logger, next/server, @/lib/prisma
+ */
 // @ts-nocheck
 
 
@@ -20,15 +43,17 @@ import { GET } from '@/app/api/tournaments/[id]/mr/standings/route';
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
+// Use _url and _headers private fields to avoid conflict with getters/properties
 class MockNextRequest {
-  constructor(
-    private url: string,
-    private headers: Map<string, string> = new Map()
-  ) {}
-  get url() { return this.url; }
-  headers = {
-    get: (key: string) => this.headers.get(key)
-  };
+  private _url: string;
+  public headers: { get: (key: string) => string | null | undefined };
+  constructor(url: string, headers: Map<string, string> = new Map()) {
+    this._url = url;
+    this.headers = {
+      get: (key: string) => headers.get(key) ?? null
+    };
+  }
+  get url() { return this._url; }
 }
 
 describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
@@ -38,7 +63,12 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: unknown, options?: Record<string, unknown>) => ({ data, ...options }));
+    // Default status to 200 when no options provided, and spread options otherwise
+    NextResponse.json.mockImplementation((data: unknown, options?: Record<string, unknown>) => ({
+      data,
+      status: 200,
+      ...options,
+    }));
   });
 
   describe('GET - Fetch MR standings with caching', () => {
@@ -273,10 +303,12 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
+      // Source always includes qualifications array (even when empty)
       expect(result.data).toEqual({
         tournamentId: 't1',
         stage: 'qualification',
         lastUpdated: expect.any(String),
+        qualifications: [],
       });
       expect(result.status).toBe(200);
     });

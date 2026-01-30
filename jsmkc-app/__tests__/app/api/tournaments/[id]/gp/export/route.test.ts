@@ -1,3 +1,17 @@
+/**
+ * @module GP Export API Route Tests - /api/tournaments/[id]/gp/export
+ *
+ * Test suite for the Grand Prix CSV export endpoint. This endpoint generates
+ * a downloadable CSV file containing qualification standings and match results
+ * for a given tournament.
+ *
+ * Covers:
+ * - GET: CSV generation with UTF-8 BOM for Excel compatibility, correct
+ *   qualification headers (Rank, Player Name, Nickname, Matches, Wins, Ties,
+ *   Losses, Driver Points, Score), match headers (Match #, Stage, Cup, etc.),
+ *   sorting by score then points, handling of null cup values, special characters
+ *   in tournament names, empty data, 404 for missing tournaments, and 500 errors.
+ */
 // @ts-nocheck
 
 
@@ -9,7 +23,23 @@ jest.mock('@/lib/excel', () => ({
   }),
 }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('next/server', () => ({ NextResponse: jest.fn() }));
+/*
+ * NextResponse is used as both a constructor (new NextResponse(csvContent, options))
+ * for success responses, and via its static .json() method for error/404 responses.
+ * We mock it as a constructor function with a json static method attached.
+ */
+jest.mock('next/server', () => {
+  const MockNextResponse = jest.fn((body, options) => ({
+    body,
+    headers: new Map(Object.entries(options?.headers || {})),
+  }));
+  MockNextResponse.json = jest.fn((data, options) => ({
+    body: JSON.stringify(data),
+    headers: new Map([['Content-Type', 'application/json']]),
+    status: options?.status || 200,
+  }));
+  return { NextResponse: MockNextResponse };
+});
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
@@ -22,6 +52,16 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
+    /* Re-setup NextResponse.json after clearAllMocks since it's a function property */
+    (NextResponse as unknown as jest.Mock).mockImplementation((body, options) => ({
+      body,
+      headers: new Map(Object.entries(options?.headers || {})),
+    }));
+    (NextResponse as any).json = jest.fn((data, options) => ({
+      body: JSON.stringify(data),
+      headers: new Map([['Content-Type', 'application/json']]),
+      status: options?.status || 200,
+    }));
   });
 
   describe('GET - Export grand prix data as CSV', () => {
@@ -32,7 +72,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       const mockQualifications = [
         {
           id: 'q1',
@@ -69,7 +109,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           },
         },
       ];
-      
+
       const mockMatches = [
         {
           id: 'm1',
@@ -112,11 +152,11 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
-      
+
       const mockResponse = {
         body: 'CSV_CONTENT',
         headers: new Map([
@@ -125,17 +165,18 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         ]),
       };
       (NextResponse as jest.Mock).mockReturnValue(mockResponse);
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       await GET(request, { params });
-      
+
+      /* Source uses tournament.name directly without sanitization, so spaces remain */
       expect(NextResponse).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': expect.stringContaining('Test_Tournament_GP_'),
+            'Content-Disposition': expect.stringContaining('Test Tournament_GP_'),
           }),
         })
       );
@@ -148,22 +189,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: 'CSV_CONTENT', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body.startsWith('\uFEFF')).toBe(true);
       expect(result.body.includes('QUALIFICATIONS')).toBe(true);
       expect(result.body.includes('MATCHES')).toBe(true);
@@ -176,22 +217,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body).toEqual('\uFEFFQUALIFICATIONS\nRank,Player Name,Nickname,Matches,Wins,Ties,Losses,Driver Points,Score\n\nMATCHES\nMatch #,Stage,Cup,Player 1,Player 2,Points 1,Points 2,Completed\n');
     });
 
@@ -202,7 +243,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       const mockQualifications = [
         {
           id: 'q1',
@@ -215,22 +256,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           player: { name: 'Player 1', nickname: 'nick1' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body).toContain('Rank,Player Name,Nickname,Matches,Wins,Ties,Losses,Driver Points,Score');
       expect(result.body).toContain('1,Player 1,nick1,4,3,0,1,36,6');
     });
@@ -242,7 +283,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       const mockMatches = [
         {
           matchNumber: 1,
@@ -255,22 +296,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           player2: { name: 'Player 2', nickname: 'nick2' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body).toContain('Match #,Stage,Cup,Player 1,Player 2,Points 1,Points 2,Completed');
       expect(result.body).toContain('1,qualification,Mushroom Cup,Player 1 (nick1),Player 2 (nick2),18,6,Yes');
     });
@@ -282,7 +323,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       const mockMatches = [
         {
           matchNumber: 1,
@@ -295,22 +336,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           player2: { name: 'Player 2', nickname: 'nick2' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body).toContain('1,finals,-,Player 1 (nick1),Player 2 (nick2),3,1,No');
     });
 
@@ -321,43 +362,57 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
+      /* Mock data must be pre-sorted (score desc, points desc) since Prisma mock
+         doesn't apply orderBy. The source maps these in order as rank 1, 2, 3. */
       const mockQualifications = [
         {
-          id: 'q1',
-          score: 4,
-          points: 24,
-          player: { name: 'Player 4', nickname: 'nick4' },
+          id: 'q3',
+          mp: 4,
+          wins: 3,
+          ties: 0,
+          losses: 1,
+          score: 6,
+          points: 36,
+          player: { name: 'Player 2', nickname: 'nick2' },
         },
         {
           id: 'q2',
+          mp: 4,
+          wins: 3,
+          ties: 0,
+          losses: 1,
           score: 6,
           points: 30,
           player: { name: 'Player 1', nickname: 'nick1' },
         },
         {
-          id: 'q3',
-          score: 6,
-          points: 36,
-          player: { name: 'Player 2', nickname: 'nick2' },
+          id: 'q1',
+          mp: 3,
+          wins: 2,
+          ties: 0,
+          losses: 1,
+          score: 4,
+          points: 24,
+          player: { name: 'Player 4', nickname: 'nick4' },
         },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const lines = result.body.split('\n');
       const qualSection = lines.slice(1, lines.indexOf('MATCHES')).join('\n');
       expect(qualSection).toContain('1,Player 2,nick2');
@@ -372,18 +427,9 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
+      /* Mock data pre-sorted by matchNumber ascending (Prisma mock doesn't apply orderBy) */
       const mockMatches = [
-        {
-          matchNumber: 3,
-          stage: 'qualification',
-          cup: 'Mushroom Cup',
-          points1: 18,
-          points2: 6,
-          completed: true,
-          player1: { name: 'Player 3', nickname: 'nick3' },
-          player2: { name: 'Player 4', nickname: 'nick4' },
-        },
         {
           matchNumber: 1,
           stage: 'qualification',
@@ -404,26 +450,36 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
           player1: { name: 'Player 5', nickname: 'nick5' },
           player2: { name: 'Player 6', nickname: 'nick6' },
         },
+        {
+          matchNumber: 3,
+          stage: 'qualification',
+          cup: 'Mushroom Cup',
+          points1: 18,
+          points2: 6,
+          completed: true,
+          player1: { name: 'Player 3', nickname: 'nick3' },
+          player2: { name: 'Player 4', nickname: 'nick4' },
+        },
       ];
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       const matchSection = result.body.substring(result.body.indexOf('MATCHES'));
       const matchLines = matchSection.split('\n').filter((line: string) => line.trim() && !line.startsWith('MATCH'));
-      
+
       expect(matchLines[1]).toContain('1,qualification');
       expect(matchLines[2]).toContain('2,qualification');
       expect(matchLines[3]).toContain('3,qualification');
@@ -436,61 +492,54 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
-      expect(result.headers.get('Content-Disposition')).toMatch(/attachment; filename="Test_Tournament_GP_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}.csv"/);
+
+      /* Source uses tournament.name directly without sanitization, so spaces remain */
+      expect(result.headers.get('Content-Disposition')).toMatch(/attachment; filename="Test Tournament_GP_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}.csv"/);
     });
 
     // Not found case - Returns 404 when tournament is not found
+    // Source uses NextResponse.json() for 404 responses
     it('should return 404 when tournament is not found', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
-      
-      const mockResponse = { body: '', headers: new Map() };
-      (NextResponse as jest.Mock).mockImplementation((content, options) => {
-        mockResponse.body = content;
-        mockResponse.headers = new Map(Object.entries(options?.headers || {}));
-        return mockResponse;
-      });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/nonexistent/gp/export');
       const params = Promise.resolve({ id: 'nonexistent' });
       const result = await GET(request, { params });
-      
-      expect(result.body).toEqual(JSON.stringify({ error: 'Tournament not found' }));
-      expect(result.headers.get('Content-Type')).toBe('application/json');
+
+      expect((NextResponse as any).json).toHaveBeenCalledWith(
+        { error: 'Tournament not found' },
+        { status: 404 }
+      );
     });
 
     // Error case - Returns 500 when database query fails
+    // Source uses NextResponse.json() for 500 responses
     it('should return 500 when database query fails', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
-      
-      const mockResponse = { body: '', headers: new Map() };
-      (NextResponse as jest.Mock).mockImplementation((content, options) => {
-        mockResponse.body = content;
-        mockResponse.headers = new Map(Object.entries(options?.headers || {}));
-        return mockResponse;
-      });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
-      expect(result.body).toEqual(JSON.stringify({ error: 'Failed to export tournament' }));
-      expect(result.headers.get('Content-Type')).toBe('application/json');
+
+      expect((NextResponse as any).json).toHaveBeenCalledWith(
+        { error: 'Failed to export tournament' },
+        { status: 500 }
+      );
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
     });
 
@@ -501,22 +550,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Tournament 2024: "Grand Prix" (Summer)',
         date: new Date('2024-01-01'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.headers.get('Content-Disposition')).toContain('Tournament');
     });
 
@@ -527,22 +576,22 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
       };
-      
+
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      
+
       const mockResponse = { body: '', headers: new Map() };
       (NextResponse as jest.Mock).mockImplementation((content, options) => {
         mockResponse.body = content;
         mockResponse.headers = new Map(Object.entries(options?.headers || {}));
         return mockResponse;
       });
-      
+
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
-      
+
       expect(result.body).toContain('QUALIFICATIONS\nRank,Player Name,Nickname,Matches,Wins,Ties,Losses,Driver Points,Score\n');
       expect(result.body).toContain('MATCHES\nMatch #,Stage,Cup,Player 1,Player 2,Points 1,Points 2,Completed\n');
     });

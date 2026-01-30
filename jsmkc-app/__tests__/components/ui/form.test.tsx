@@ -1,3 +1,24 @@
+/**
+ * @module Form Component Tests
+ *
+ * Tests for the Form components that provide React Hook Form integration
+ * with consistent styling and accessibility features.
+ *
+ * Covers all form subcomponents:
+ * - Form (FormProvider): wrapping children with form context
+ * - FormItem: grid layout, custom className, unique ID generation
+ * - FormLabel: label text, htmlFor linking, error state class, custom className
+ * - FormControl: Slot rendering, accessibility attributes (aria-describedby,
+ *   aria-invalid), data-slot attribute
+ * - FormDescription: description text, typography classes, ID linking,
+ *   custom className, data-slot attribute
+ * - FormMessage: error/custom message rendering, typography classes,
+ *   ID linking, custom className, data-slot attribute, empty message handling
+ * - FormField: Controller integration, field context, rules support
+ * - useFormField hook: error when used outside Form, correct values inside Form,
+ *   accessibility ID generation
+ * - Integration: multiple fields, preserved form context, data attributes
+ */
 import { render, screen } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import {
@@ -12,12 +33,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
-/**
- * Form Component Tests
- * 
- * Tests for the Form components that provide React Hook Form integration
- * with consistent styling and accessibility features.
- */
 describe('Form Components', () => {
   /**
    * Test form component to test FormField integration
@@ -137,7 +152,7 @@ describe('Form Components', () => {
 
       const label = screen.getByText('Username');
       const input = screen.getByTestId('username-input');
-      
+
       expect(label).toHaveAttribute('for');
       const formItemId = label.getAttribute('for');
       expect(input).toHaveAttribute('id', formItemId);
@@ -172,7 +187,7 @@ describe('Form Components', () => {
       render(<TestFormWithError />);
 
       const label = screen.getByText('Username');
-      
+
       expect(label).toHaveAttribute('data-error', 'false');
     });
 
@@ -219,7 +234,7 @@ describe('Form Components', () => {
       render(<TestForm />);
 
       const usernameInput = screen.getByTestId('username-input');
-      
+
       expect(usernameInput).toHaveAttribute('id');
       expect(usernameInput).toHaveAttribute('aria-describedby');
     });
@@ -649,10 +664,10 @@ describe('Form Components', () => {
 
       const label = screen.getByText('Username');
       const description = screen.getByText('Enter your username');
-      
+
       const labelFor = label.getAttribute('for');
       const descriptionId = description.getAttribute('id');
-      
+
       expect(labelFor).toBeTruthy();
       expect(descriptionId).toBeTruthy();
       expect(labelFor).toContain('-form-item');

@@ -1,3 +1,20 @@
+/**
+ * Tabs UI Component
+ *
+ * A tabbed interface built on Radix UI's Tabs primitive for accessible
+ * tab navigation. Used throughout the JSMKC app for:
+ * - Tournament detail pages (switching between TA/BM/MR/GP modes)
+ * - Score entry views (switching between different course groups)
+ * - Settings panels (switching between configuration sections)
+ *
+ * Marked as "use client" because Radix Tabs manages active tab state
+ * and requires browser APIs for keyboard navigation (arrow keys).
+ *
+ * Radix Tabs automatically handles:
+ * - ARIA roles (tablist, tab, tabpanel)
+ * - Keyboard navigation (Arrow Left/Right, Home, End)
+ * - Focus management between trigger and content
+ */
 "use client"
 
 import * as React from "react"
@@ -5,6 +22,12 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Tabs root component.
+ * Manages active tab state and provides context to child components.
+ * Uses flex-col layout with gap-2 to space the tab list and content.
+ * Can be controlled (value + onValueChange) or uncontrolled (defaultValue).
+ */
 function Tabs({
   className,
   ...props
@@ -18,6 +41,13 @@ function Tabs({
   )
 }
 
+/**
+ * Tabs list component.
+ * The container for tab triggers. Styled as a pill-shaped bar with
+ * muted background. Uses inline-flex with w-fit to prevent the tab bar
+ * from stretching to full width. The 3px padding creates visual inset
+ * for the active tab indicator.
+ */
 function TabsList({
   className,
   ...props
@@ -34,6 +64,18 @@ function TabsList({
   )
 }
 
+/**
+ * Tabs trigger (tab button) component.
+ * Individual tab buttons within the tab list. Features:
+ * - Active state: elevated background with shadow to look "selected"
+ * - Dark mode: uses input background for active state
+ * - Focus-visible: ring indicator for keyboard navigation
+ * - flex-1: distributes available width equally among triggers
+ * - Transition on color and box-shadow for smooth state changes
+ *
+ * The transparent border on inactive state prevents layout shift when
+ * the active state adds a visible border in dark mode.
+ */
 function TabsTrigger({
   className,
   ...props
@@ -50,6 +92,13 @@ function TabsTrigger({
   )
 }
 
+/**
+ * Tabs content panel component.
+ * The content area displayed when a tab is active. Uses flex-1 to fill
+ * remaining vertical space when Tabs root is in a flex container.
+ * Outline-none removes the default focus outline since focus is managed
+ * by the tab triggers themselves.
+ */
 function TabsContent({
   className,
   ...props

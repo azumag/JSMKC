@@ -1,12 +1,24 @@
+/**
+ * @module ErrorBoundary Component Tests
+ *
+ * Tests for the React Error Boundary component that catches JavaScript errors
+ * in child component trees, logs them, and displays a fallback UI.
+ *
+ * Covers:
+ * - Basic error handling: rendering children normally, catching errors and
+ *   showing fallback UI, custom fallback support.
+ * - Error recovery: reset button behavior for recoverable errors.
+ * - Error classification: distinguishing network errors (fetch failed),
+ *   timeout errors, and programming errors to show appropriate UI
+ *   (e.g., "Try Again" button only for recoverable errors).
+ * - Error callback: onError prop invocation with error and errorInfo.
+ * - Go Back button: page reload behavior.
+ * - ErrorFallback component: standalone tests for error messages,
+ *   action buttons, and error display formatting.
+ */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 
-/**
- * ErrorBoundary Component Tests
- * 
- * Tests for the React Error Boundary component that catches JavaScript errors
- * in child component trees, logs them, and displays a fallback UI.
- */
 describe('ErrorBoundary', () => {
 
   /**

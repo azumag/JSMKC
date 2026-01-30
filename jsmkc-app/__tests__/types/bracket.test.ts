@@ -1,3 +1,15 @@
+/**
+ * @module Bracket Types Tests
+ *
+ * Tests for the TypeScript type definitions used in the double-elimination
+ * bracket system. Validates that the BracketMatch interface correctly
+ * represents match data with required fields (matchNumber, round, bracket)
+ * and optional fields (player seeds, advancement targets, position).
+ *
+ * Also validates string literal correctness for BracketType ('winners',
+ * 'losers', 'grand_final') and BracketRound values (all winners rounds,
+ * losers rounds, and grand final variants).
+ */
 import {
   BracketMatch,
 } from '@/types/bracket';

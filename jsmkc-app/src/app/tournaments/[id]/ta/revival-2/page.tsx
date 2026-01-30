@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * Loser's Revival Round 2 Page
+ *
+ * Admin page for managing the second revival round in Time Attack.
+ * This round combines players from two sources:
+ * - Qualification ranks 13-16 (4 players)
+ * - Revival Round 1 survivors (top 4 non-eliminated)
+ *
+ * Format:
+ * - 8 players start (4 from qualification + 4 from revival 1)
+ * - One course at a time: all players race, slowest is eliminated
+ * - Continues until 4 players remain (the survivors)
+ * - Survivors advance to Finals (along with top 12 from qualification)
+ *
+ * This page is nearly identical to Revival Round 1 but queries
+ * the "revival_2" stage and shows source information (qualification vs revival 1).
+ */
+
 import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -33,12 +51,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO } from "@/lib/constants";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
+/** Player data structure */
 interface Player {
   id: string;
   name: string;
   nickname: string;
 }
 
+/** Time Trial entry data structure */
 interface TTEntry {
   id: string;
   playerId: string;
@@ -51,6 +71,10 @@ interface TTEntry {
   player: Player;
 }
 
+/**
+ * Convert milliseconds to display format (M:SS.mmm).
+ * Returns "-" for null values.
+ */
 function msToDisplayTime(ms: number | null): string {
   if (ms === null) return "-";
   const minutes = Math.floor(ms / 60000);
@@ -59,6 +83,10 @@ function msToDisplayTime(ms: number | null): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
+/**
+ * Convert time string to milliseconds for comparison during elimination.
+ * Used to determine the slowest player in a course round.
+ */
 function timeToMs(time: string): number | null {
   if (!time || time === "") return null;
   const match = time.match(/^(\d{1,2}):(\d{2})\.(\d{1,3})$/);
@@ -66,6 +94,7 @@ function timeToMs(time: string): number | null {
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
   let ms = match[3];
+  // Pad milliseconds to 3 digits for accurate comparison
   while (ms.length < 3) ms += "0";
   const milliseconds = parseInt(ms, 10);
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
@@ -77,6 +106,8 @@ export default function RevivalRound2({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +117,11 @@ export default function RevivalRound2({
   const [eliminating, setEliminating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // === Data Fetching ===
   const fetchData = useCallback(async () => {
     setError(null);
     try {
+      // Fetch revival_2 stage entries
       const response = await fetch(`/api/tournaments/${tournamentId}/ta?stage=revival_2`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -109,6 +142,9 @@ export default function RevivalRound2({
     fetchData();
   }, [fetchData]);
 
+  // === Event Handlers ===
+
+  /** Open course time entry dialog with pre-filled data */
   const handleCourseStart = (course: string) => {
     const activeEntries = entries.filter((e) => !e.eliminated);
     const initialTimes: Record<string, string> = {};
@@ -120,10 +156,15 @@ export default function RevivalRound2({
     setIsCourseDialogOpen(true);
   };
 
+  /** Handle time input change for a specific entry */
   const handleTimeChange = (entryId: string, value: string) => {
     setCourseTimes((prev) => ({ ...prev, [entryId]: value }));
   };
 
+  /**
+   * Save course times and eliminate the slowest player.
+   * Same elimination logic as Revival Round 1.
+   */
   const handleSaveCourseTimes = async () => {
     setEliminating(true);
     setSaveError(null);
@@ -148,11 +189,13 @@ export default function RevivalRound2({
         return;
       }
 
+      // Sort to find slowest player for elimination
       entryTimes.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity));
 
       const slowestTime = entryTimes[entryTimes.length - 1].timeMs ?? Infinity;
       const slowestEntries = entryTimes.filter((et) => et.timeMs === slowestTime);
 
+      // Update all entries: save times and eliminate slowest
       const updatePromises = activeEntries.map(async (entry) => {
         const currentTimes = (entry.times as Record<string, string>) || {};
         const updatedTimes = { ...currentTimes, [selectedCourse as string]: timesToSave[entry.id] || "" };
@@ -186,6 +229,7 @@ export default function RevivalRound2({
     }
   };
 
+  /** Get completion status for each course */
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
     if (!firstEntry) return COURSE_INFO.map((c) => ({ course: c.abbr, completed: false }));
@@ -195,10 +239,12 @@ export default function RevivalRound2({
     }));
   };
 
+  // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
   const isComplete = activeEntries.length <= 1 && entries.length > 0;
 
+  // === Loading State ===
   if (loading) {
     return (
       <div className="space-y-6">
@@ -213,6 +259,7 @@ export default function RevivalRound2({
     );
   }
 
+  // === Error State ===
   if (error) {
     return (
       <div className="space-y-6">
@@ -232,6 +279,7 @@ export default function RevivalRound2({
     );
   }
 
+  // === Empty State ===
   if (entries.length === 0) {
     return (
       <div className="space-y-6">
@@ -256,8 +304,10 @@ export default function RevivalRound2({
     );
   }
 
+  // === Main Render ===
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
             <h1 className="text-2xl sm:text-3xl font-bold">Loser&apos;s Revival Round 2</h1>
@@ -270,6 +320,7 @@ export default function RevivalRound2({
         </Button>
       </div>
 
+      {/* Round Complete Banner */}
       {isComplete && activeEntries.length === 1 && (
         <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
@@ -282,6 +333,7 @@ export default function RevivalRound2({
         </Card>
       )}
 
+      {/* Tabbed Content */}
       <Tabs defaultValue="standings" className="space-y-4">
         <TabsList>
           <TabsTrigger value="standings">Standings</TabsTrigger>
@@ -289,6 +341,7 @@ export default function RevivalRound2({
           {!isComplete && <TabsTrigger value="control">Round Control</TabsTrigger>}
         </TabsList>
 
+        {/* Standings Tab: includes Source column for revival_2 */}
         <TabsContent value="standings">
           <Card>
             <CardHeader>
@@ -322,7 +375,7 @@ export default function RevivalRound2({
                       </TableCell>
                       <TableCell className="text-center">
                         {entry.eliminated ? (
-                          <span className="text-gray-400">💀 Out</span>
+                          <span className="text-gray-400">Out</span>
                         ) : (
                           <Badge className="bg-blue-500">Active</Badge>
                         )}
@@ -330,6 +383,7 @@ export default function RevivalRound2({
                       <TableCell className="text-right font-mono">
                         {msToDisplayTime(entry.totalTime)}
                       </TableCell>
+                      {/* Source column shows where each player came from */}
                       <TableCell className="text-xs">
                         {entry.stage === "revival_1" ? "Revival 1" : "Qualification (13-16)"}
                       </TableCell>
@@ -341,6 +395,7 @@ export default function RevivalRound2({
           </Card>
         </TabsContent>
 
+        {/* Course Progress Tab */}
         <TabsContent value="courses">
           <Card>
             <CardHeader>
@@ -382,6 +437,7 @@ export default function RevivalRound2({
           </Card>
         </TabsContent>
 
+        {/* Round Control Tab */}
         {!isComplete && (
           <TabsContent value="control">
             <Card>
@@ -436,6 +492,7 @@ export default function RevivalRound2({
         )}
       </Tabs>
 
+      {/* Course Time Entry Dialog */}
       <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
