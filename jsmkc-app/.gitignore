@@ -43,3 +43,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Backup and generated files
+__tests__.bak/
+/logs/
+/playwright-report/
+.e2e-auth-state-*.json
+.env.example.backup
