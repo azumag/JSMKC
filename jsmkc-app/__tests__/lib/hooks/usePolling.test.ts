@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module usePolling.test
  *
  * Test suite for the `usePolling` custom React hook (`@/lib/hooks/usePolling`).

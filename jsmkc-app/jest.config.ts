@@ -18,7 +18,7 @@ const customJestConfig: Config = {
     '^next-auth/providers/google$': '<rootDir>/__mocks__/next-auth-providers/google.js',
     '^next-auth/providers/credentials$': '<rootDir>/__mocks__/next-auth-providers/credentials.js',
   },
-  testEnvironment: 'jest-environment-jsdom',
+  testEnvironment: 'node',
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',
     '!src/**/*.d.ts',
@@ -33,8 +33,7 @@ const customJestConfig: Config = {
     },
   },
   // Performance optimizations
-  maxWorkers: 8,
-  maxConcurrency: 8,
+  maxWorkers: '50%',
   testTimeout: 30000,
   verbose: false,
   silent: true,
@@ -50,7 +49,7 @@ const customJestConfig: Config = {
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
-  testPathIgnorePatterns: ['/node_modules/', '/e2e/', 'src\\.bak/', '__tests__\\.bak/'],
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/', 'src\\.bak/', '__tests__\\.bak/', '__tests__/debug-', '__tests__/mock-debug'],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load Next.js config which is async

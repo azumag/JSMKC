@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module Form Component Tests
  *
  * Tests for the Form components that provide React Hook Form integration

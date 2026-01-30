@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module Proxy Middleware Tests
  *
  * Tests for the Next.js middleware that handles authentication, authorization,

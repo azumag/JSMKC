@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module Select Component Tests
  *
  * Tests for the Radix UI Select wrapper components.

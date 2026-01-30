@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module __tests__/lib/sanitize.test.ts
  * @description Test suite for the sanitization utilities from `@/lib/sanitize`.
  *

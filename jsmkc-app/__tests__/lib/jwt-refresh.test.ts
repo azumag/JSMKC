@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module jwt-refresh.test
  *
  * Test suite for the JWT refresh utilities (`@/lib/jwt-refresh`).

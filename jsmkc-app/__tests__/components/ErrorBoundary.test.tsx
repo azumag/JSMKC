@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module ErrorBoundary Component Tests
  *
  * Tests for the React Error Boundary component that catches JavaScript errors

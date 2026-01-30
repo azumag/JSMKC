@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module __tests__/lib/audit-log.test.ts
  * @description Test suite for the audit logging utility from `@/lib/audit-log`.
  *

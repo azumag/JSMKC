@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module AlertDialog Component Tests
  *
  * Tests for the Radix UI AlertDialog wrapper components.

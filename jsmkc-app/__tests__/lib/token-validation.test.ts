@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * @module __tests__/lib/token-validation.test.ts
  * @description Test suite for the token validation module from `@/lib/token-validation`.
  *

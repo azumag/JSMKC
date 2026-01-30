@@ -1,4 +1,8 @@
-import '@testing-library/jest-dom'
+// jest-dom matchers are only loaded in jsdom environment.
+// Add /** @jest-environment jsdom */ docblock to test files that need DOM APIs.
+if (typeof window !== 'undefined') {
+  require('@testing-library/jest-dom')
+}
 
 // Polyfill Response.json BEFORE any imports to ensure it's available for Next.js
 class ResponsePolyfill {
@@ -66,7 +70,7 @@ Object.defineProperty(global, 'crypto', {
 
 // Mock Element.prototype.scrollIntoView for Radix UI Select components
 // Radix UI uses scrollIntoView for positioning and focus management
-if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+if (typeof Element !== 'undefined' && Element.prototype && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = jest.fn();
 }
 
@@ -171,14 +175,16 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock window.location
-Object.defineProperty(window, 'location', {
-  value: {
-    href: '',
-    assign: jest.fn(),
-    replace: jest.fn(),
-  },
-  writable: true,
-})
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'location', {
+    value: {
+      href: '',
+      assign: jest.fn(),
+      replace: jest.fn(),
+    },
+    writable: true,
+  })
+}
 
 // Mock next/server to fix Response.json issue
 jest.mock('next/server', () => {
