@@ -22,8 +22,6 @@
  * - Edge cases: Large data arrays, deeply nested structures, null values,
  *   numeric tournament IDs, and empty stage names.
  */
-jest.mock('@/lib/redis-cache');
-
 import {
   get,
   set,

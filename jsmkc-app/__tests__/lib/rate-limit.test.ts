@@ -11,7 +11,6 @@
  *   - Handles independent counters for different identifiers.
  * - checkRateLimit(): Convenience function that applies pre-configured rate
  *   limits by type (scoreInput, polling, tokenValidation, general).
- *   When Redis is unavailable, falls back to in-memory rate limiting.
  * - getClientIdentifier(): Extracts the client IP from request headers
  *   (x-forwarded-for, x-real-ip, cf-connecting-ip) with correct priority.
  * - getUserAgent(): Extracts the User-Agent header from requests.
@@ -20,11 +19,6 @@
  * - Store size limit enforcement to prevent unbounded memory growth.
  *
  * Tests use fake timers and Date.now() spies to control time progression.
- *
- * The redis-rate-limit module is mocked to prevent actual Redis connections.
- * checkRateLimitByType is configured to throw by default, triggering the
- * in-memory fallback path in checkRateLimit. This ensures we test the
- * facade's fallback behavior without depending on a running Redis server.
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { rateLimit, checkRateLimit, getClientIdentifier, getUserAgent, clearRateLimitStore, getServerSideIdentifier, rateLimitConfigs } from '@/lib/rate-limit';
@@ -32,29 +26,6 @@ import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 
 jest.mock('next/headers');
-
-/**
- * Mock redis-rate-limit to prevent real Redis connections in tests.
- *
- * checkRateLimitByType throws by default to trigger the in-memory fallback
- * path in the rate-limit facade's checkRateLimit function. This is the
- * expected behavior when Redis is unavailable.
- *
- * clearRateLimitData is a no-op since we don't need Redis cleanup in tests.
- *
- * rateLimitConfigs is re-exported with actual config values so the facade
- * can look up rate limit parameters (limit, windowMs) for each type.
- */
-jest.mock('@/lib/redis-rate-limit', () => ({
-  checkRateLimitByType: jest.fn().mockRejectedValue(new Error('Redis unavailable in test')),
-  clearRateLimitData: jest.fn().mockResolvedValue(undefined),
-  rateLimitConfigs: {
-    scoreInput: { limit: 20, windowMs: 60000 },
-    polling: { limit: 12, windowMs: 60000 },
-    tokenValidation: { limit: 10, windowMs: 60000 },
-    general: { limit: 10, windowMs: 60000 },
-  },
-}));
 
 interface MockHeaders {
   get: jest.Mock;
@@ -167,17 +138,8 @@ describe('Rate Limiting', () => {
 
   describe('checkRateLimit', () => {
     /**
-     * These tests verify the checkRateLimit facade function, which tries
-     * Redis first and falls back to in-memory rate limiting when Redis
-     * is unavailable.
-     *
-     * Since redis-rate-limit is mocked to throw (simulating Redis being
-     * unavailable), checkRateLimit falls back to rateLimitInMemory using
-     * the config looked up from rateLimitConfigs for the given type.
-     *
-     * We verify each type uses the correct config by checking that the
-     * first request succeeds with the expected remaining count
-     * (config.limit - 1).
+     * These tests verify the checkRateLimit function which applies
+     * pre-configured rate limits by type using in-memory rate limiting.
      */
     it('should use correct config for scoreInput type', async () => {
       // scoreInput config: limit=20, windowMs=60000

@@ -33,7 +33,7 @@ jest.unmock('@/lib/token-validation');
 
 // Explicitly mock all dependencies that token-validation.ts imports.
 // Without these, the real modules would be loaded and may hang
-// (e.g., rate-limit tries to connect to Redis).
+// (e.g., rate-limit module has side effects at import time).
 jest.mock('@/lib/token-utils');
 jest.mock('@/lib/rate-limit');
 jest.mock('@/lib/audit-log');

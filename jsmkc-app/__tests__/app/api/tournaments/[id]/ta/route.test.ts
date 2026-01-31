@@ -7,7 +7,7 @@
  * Dependencies mocked:
  * - @/lib/auth: Authentication/session management
  * - @/lib/logger: Structured Winston logging (shared singleton via factory)
- * - @/lib/rate-limit: Redis-backed rate limiting
+ * - @/lib/rate-limit: In-memory rate limiting
  * - @/lib/sanitize: Input sanitization
  * - @/lib/audit-log: Audit trail for CRUD operations
  * - @/lib/ta/rank-calculation: Rank recalculation after entry changes

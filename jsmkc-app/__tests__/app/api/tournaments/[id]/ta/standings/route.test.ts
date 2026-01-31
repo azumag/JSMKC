@@ -36,7 +36,7 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 // Mock standings-cache with all exported functions used by the source.
-// Without this mock, the real module would attempt Redis connections and timeout.
+// Without this mock, the real module would be loaded and may cause test issues.
 jest.mock('@/lib/standings-cache', () => ({
   get: jest.fn(),
   set: jest.fn(),

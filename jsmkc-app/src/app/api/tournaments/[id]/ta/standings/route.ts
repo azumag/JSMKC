@@ -7,7 +7,7 @@
  *
  * Features:
  * - Admin-only access (requires authenticated session with admin role)
- * - Redis-backed cache with 5-minute TTL
+ * - In-memory cache with 5-minute TTL
  * - ETag support for conditional requests
  * - Formatted time display in response
  *

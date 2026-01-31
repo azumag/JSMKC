@@ -132,7 +132,7 @@ export async function GET() {
 // replaced with actual queries to:
 //   - An analytics database (request counts, response times)
 //   - A monitoring service like DataDog or New Relic
-//   - Redis counters for rate limit statistics
+//   - In-memory counters for rate limit statistics
 //   - WebSocket connection tracking for active connections
 
 /**

@@ -1,16 +1,7 @@
 /**
- * Rate Limiting Facade with Redis-to-In-Memory Fallback
+ * Rate Limiting Module
  *
- * Provides a unified rate limiting interface that tries Redis-backed
- * rate limiting first and falls back to an in-memory implementation
- * if Redis is unavailable.
- *
- * This dual-layer approach ensures rate limiting is always active:
- * - Redis: Accurate, shared across server instances, persistent across restarts
- * - In-Memory: Process-local, lost on restart, but always available
- *
- * The facade pattern allows API route handlers to use a single import
- * without worrying about which backend is active.
+ * Provides an in-memory sliding window rate limiter for API endpoints.
  *
  * Client identification strategy (in priority order):
  * 1. x-forwarded-for header (behind reverse proxy/load balancer)
@@ -28,11 +19,6 @@
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { createLogger } from '@/lib/logger';
-import {
-  checkRateLimitByType,
-  clearRateLimitData as redisClearRateLimitData,
-  rateLimitConfigs as redisRateLimitConfigs,
-} from '@/lib/redis-rate-limit';
 
 /** Logger scoped to rate limit facade operations */
 const logger = createLogger('rate-limit');
@@ -43,7 +29,6 @@ const logger = createLogger('rate-limit');
 
 /**
  * Result of a rate limit check.
- * Matches the interface from redis-rate-limit for consistency.
  */
 export interface RateLimitResult {
   /** Whether the request is allowed (under the limit) */
@@ -59,60 +44,43 @@ export interface RateLimitResult {
 }
 
 /**
- * Re-export rate limit configurations from redis-rate-limit.
- * This allows consumers to import configs from either module.
+ * Configuration for a rate limit rule.
  */
-export const rateLimitConfigs = redisRateLimitConfigs;
+interface RateLimitConfig {
+  /** Maximum number of requests allowed in the time window */
+  limit: number;
+  /** Time window duration in milliseconds */
+  windowMs: number;
+}
+
+/**
+ * Predefined rate limit configurations for different API operation types.
+ */
+export const rateLimitConfigs: Record<string, RateLimitConfig> = {
+  scoreInput: { limit: 20, windowMs: 60 * 1000 },
+  polling: { limit: 12, windowMs: 60 * 1000 },
+  tokenValidation: { limit: 10, windowMs: 60 * 1000 },
+  general: { limit: 10, windowMs: 60 * 1000 },
+};
 
 // ============================================================
-// Primary Rate Limit Function (Redis with In-Memory Fallback)
+// Primary Rate Limit Function
 // ============================================================
 
 /**
  * Checks rate limit for a given operation type and client identifier.
  *
- * Attempts Redis-backed rate limiting first for accuracy and cross-instance
- * consistency. If Redis is unavailable (connection error, timeout), falls
- * back to process-local in-memory rate limiting.
- *
- * The fallback ensures rate limiting is always active, even during Redis
- * outages. The in-memory fallback is less accurate (per-process, not shared)
- * but provides basic protection against abuse.
- *
  * @param type - The operation type (key from rateLimitConfigs)
  * @param identifier - Client identifier (usually IP address)
  * @returns RateLimitResult indicating if the request is allowed
- *
- * @example
- *   const result = await checkRateLimit('scoreInput', clientIp);
- *   if (!result.success) {
- *     return handleRateLimitError(result.retryAfter);
- *   }
  */
 export async function checkRateLimit(
   type: string,
   identifier: string
 ): Promise<RateLimitResult> {
-  try {
-    // Try Redis-backed rate limiting first for accuracy
-    // and cross-instance consistency
-    return await checkRateLimitByType(type, identifier);
-  } catch (error) {
-    // Redis unavailable - fall back to in-memory rate limiting.
-    // This ensures rate limiting is always active even during
-    // Redis outages, though it's per-process only.
-    logger.warn('Redis rate limit unavailable, falling back to in-memory', {
-      type,
-      identifier,
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    // Look up the configuration for this operation type
-    const config = rateLimitConfigs[type] || rateLimitConfigs.general;
-    const compositeIdentifier = `${identifier}:${type}`;
-
-    return rateLimitInMemory(compositeIdentifier, config.limit, config.windowMs);
-  }
+  const config = rateLimitConfigs[type] || rateLimitConfigs.general;
+  const compositeIdentifier = `${identifier}:${type}`;
+  return rateLimitInMemory(compositeIdentifier, config.limit, config.windowMs);
 }
 
 // ============================================================
@@ -136,7 +104,6 @@ interface RateLimitEntry {
  *
  * WARNING: This store is process-local and lost on server restart.
  * It does not share state across multiple server instances.
- * Use Redis-backed rate limiting for production deployments.
  */
 export const rateLimitStore: Map<string, RateLimitEntry> = new Map();
 
@@ -148,28 +115,6 @@ export const rateLimitStore: Map<string, RateLimitEntry> = new Map();
 const MAX_STORE_SIZE = 10000;
 
 /**
- * Direct in-memory rate limiting function.
- *
- * Can be used directly when Redis fallback is not needed (e.g., testing)
- * or when a simple per-process rate limiter is sufficient.
- *
- * @param identifier - Unique identifier for the rate limit subject
- * @param limit - Maximum requests allowed in the window
- * @param windowMs - Time window in milliseconds
- * @returns RateLimitResult
- *
- * @example
- *   const result = rateLimit('192.168.1.1', 10, 60000);
- */
-export function rateLimit(
-  identifier: string,
-  limit: number,
-  windowMs: number
-): RateLimitResult {
-  return rateLimitInMemory(identifier, limit, windowMs);
-}
-
-/**
  * Implements sliding window rate limiting using in-memory timestamps.
  *
  * Algorithm:
@@ -178,10 +123,6 @@ export function rateLimit(
  * 3. Check if count exceeds limit
  * 4. If allowed, add current timestamp
  * 5. Return result with remaining count
- *
- * This provides per-process rate limiting as a fallback when Redis
- * is unavailable. It's less accurate than Redis (no cross-process
- * sharing) but always available.
  *
  * @param identifier - Unique identifier for the rate limit subject
  * @param limit - Maximum requests allowed in the window
@@ -238,22 +179,17 @@ export function rateLimitInMemory(
   };
 }
 
+/** Backward-compatible alias for {@link rateLimitInMemory}. */
+export { rateLimitInMemory as rateLimit };
+
 /**
  * Clears all entries from the in-memory rate limit store.
  *
  * Used for testing cleanup and server maintenance.
- * Also attempts to clear Redis rate limit data.
  */
 export function clearRateLimitStore(): void {
   rateLimitStore.clear();
   logger.debug('In-memory rate limit store cleared');
-
-  // Also attempt to clear Redis data (non-blocking, failures are acceptable)
-  redisClearRateLimitData().catch((error) => {
-    logger.warn('Failed to clear Redis rate limit data', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
 }
 
 /**
