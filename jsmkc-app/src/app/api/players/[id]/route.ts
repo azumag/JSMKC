@@ -3,12 +3,10 @@
  *
  * GET    /api/players/:id - Retrieve a single player (public)
  * PUT    /api/players/:id - Update a player (admin only)
- * DELETE /api/players/:id - Soft-delete a player (admin only)
+ * DELETE /api/players/:id - Delete a player (admin only)
  *
  * All mutation operations (PUT, DELETE) require admin authentication and
- * create audit log entries for accountability. The DELETE operation uses
- * soft-delete (setting deletedAt) rather than permanent removal, allowing
- * data recovery and maintaining referential integrity with tournament records.
+ * create audit log entries for accountability.
  */
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -197,19 +195,10 @@ export async function PUT(
 /**
  * DELETE /api/players/:id
  *
- * Soft-deletes a player by setting their deletedAt timestamp.
- * Requires admin authentication.
- *
- * Soft delete is used instead of hard delete because:
- *   1. Tournament history references player records
- *   2. Allows recovery of accidentally deleted players
- *   3. Maintains data integrity for statistical analysis
- *
- * The Prisma middleware intercepts the delete() call and converts it
- * to an update({ deletedAt: new Date() }) operation.
+ * Deletes a player. Requires admin authentication.
  *
  * Response:
- *   200 - { success: true, message: "...", softDeleted: true }
+ *   200 - { success: true, message: "..." }
  *   403 - Not authorized (non-admin)
  *   404 - Player not found (Prisma P2025)
  *   500 - Server error
@@ -236,9 +225,7 @@ export async function DELETE(
     // Re-await params inside try block (mirrors original behavior)
     const { id } = await params;
 
-    // Perform soft delete via Prisma middleware.
-    // The middleware intercepts delete() and sets deletedAt instead of
-    // actually removing the record from the database.
+    // Delete the player record from the database
     await prisma.player.delete({
       where: { id }
     });
@@ -257,7 +244,6 @@ export async function DELETE(
         targetType: 'Player',
         details: {
           playerId: id,
-          softDeleted: true,
         },
       });
     } catch (logError) {
@@ -271,8 +257,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "Player deleted successfully (soft delete)",
-      softDeleted: true
+      message: "Player deleted successfully",
     });
   } catch (error: unknown) {
     // Log error with structured metadata for debugging

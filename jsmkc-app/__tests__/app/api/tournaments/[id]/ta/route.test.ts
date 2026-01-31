@@ -448,7 +448,6 @@ describe('/api/tournaments/[id]/ta', () => {
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
         message: 'Entry deleted successfully',
-        softDeleted: true,
       });
     });
 

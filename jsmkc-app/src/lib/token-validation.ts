@@ -224,7 +224,6 @@ export async function validateTournamentToken(
   const tournament = await prisma.tournament.findFirst({
     where: {
       id: tournamentId,
-      deletedAt: null, // Exclude soft-deleted tournaments
     },
     select: {
       id: true,

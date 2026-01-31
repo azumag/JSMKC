@@ -1,7 +1,7 @@
 /**
  * Players Collection API Route
  *
- * GET  /api/players  - List all players (public, paginated, excludes soft-deleted)
+ * GET  /api/players  - List all players (public, paginated)
  * POST /api/players  - Create a new player (admin only)
  *
  * Player creation flow:
@@ -48,16 +48,13 @@ export async function GET(request: NextRequest) {
     const limit = Number(searchParams.get('limit')) || 50;
 
     // Use the paginate utility to handle offset calculation and total count.
-    // Filter: deletedAt is null to exclude soft-deleted players.
     // Sort: alphabetical by nickname for consistent ordering.
     const result = await paginate(
       {
         findMany: prisma.player.findMany,
         count: prisma.player.count,
       },
-      {
-        deletedAt: null,
-      },
+      {},
       { nickname: "asc" },
       { page, limit }
     );

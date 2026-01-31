@@ -16,9 +16,9 @@
  * - Handles not found (P2025) with 404
  *
  * DELETE /api/tournaments/[id]:
- * - Performs soft delete on the tournament record
+ * - Deletes the tournament record
  * - Requires admin authentication (returns 403 for non-admin/unauthenticated)
- * - Creates audit log entries with soft delete details
+ * - Creates audit log entries on successful deletion
  * - Handles audit log failures gracefully (tournament still deleted)
  * - Handles not found (P2025) with 404
  */
@@ -145,7 +145,6 @@ describe('GET /api/tournaments/[id]', () => {
         status: 'active',
         token: 'test-token',
         tokenExpiresAt: new Date('2024-02-01'),
-        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         bmQualifications: [],
@@ -451,7 +450,7 @@ describe('DELETE /api/tournaments/[id]', () => {
   });
 
   describe('Success Cases', () => {
-    it('should soft delete tournament successfully', async () => {
+    it('should delete tournament successfully', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
@@ -481,7 +480,6 @@ describe('DELETE /api/tournaments/[id]', () => {
           targetType: 'Tournament',
           details: expect.objectContaining({
             tournamentId: 't1',
-            softDeleted: true,
           }),
         })
       );
@@ -489,8 +487,7 @@ describe('DELETE /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          message: 'Tournament deleted successfully (soft delete)',
-          softDeleted: true,
+          message: 'Tournament deleted successfully',
         })
       );
     });
@@ -520,8 +517,7 @@ describe('DELETE /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          message: 'Tournament deleted successfully (soft delete)',
-          softDeleted: true,
+          message: 'Tournament deleted successfully',
         })
       );
     });

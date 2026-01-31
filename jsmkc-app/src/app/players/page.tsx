@@ -17,7 +17,7 @@
  * - GET /api/players: Fetch paginated player list
  * - POST /api/players: Create a new player (returns temporaryPassword)
  * - PUT /api/players/:id: Update player details
- * - DELETE /api/players/:id: Soft-delete a player
+ * - DELETE /api/players/:id: Delete a player
  *
  * The API returns paginated responses with shape { data: Player[], meta: {...} },
  * so the fetch handler extracts the data array from the response.
@@ -223,8 +223,6 @@ export default function PlayersPage() {
   /**
    * Handles player deletion with confirmation dialog.
    * Uses browser confirm() as a simple guard against accidental deletion.
-   * The API performs a soft delete (sets deletedAt) rather than
-   * permanently removing the record, preserving tournament history.
    */
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this player?")) return;

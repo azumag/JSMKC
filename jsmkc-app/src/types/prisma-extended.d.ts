@@ -1,5 +1,5 @@
 // Extended Prisma types for common patterns used across the application
-// Provides type-safe interfaces for pagination, soft delete, and transactions
+// Provides type-safe interfaces for pagination and transactions
 
 /** Paginated query result with metadata */
 export interface PaginatedResult<T> {
@@ -17,23 +17,6 @@ export interface PaginationParams {
   page?: number;
   pageSize?: number;
 }
-
-/** Adds deletedAt clause to any Prisma where condition */
-export type SoftDeleteClause<T> = T & {
-  deletedAt?: null | Date;
-};
-
-/** Where clause that includes soft delete filter */
-export type SoftDeleteWhere<T> = {
-  [K in keyof T]?: T[K];
-} & {
-  deletedAt?: null;
-};
-
-/** Update data that includes soft delete timestamp */
-export type SoftDeleteUpdateData<T> = Partial<T> & {
-  deletedAt?: Date | null;
-};
 
 /** Prisma transaction client type for use in transactional operations */
 export type PrismaTransaction = Parameters<

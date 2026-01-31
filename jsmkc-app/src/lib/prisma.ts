@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { getSoftDeleteManager } from "./soft-delete";
 
 // Singleton pattern: reuse PrismaClient across hot reloads in development
 // In production, a single instance is created and reused
@@ -18,9 +17,6 @@ const prismaClient =
   });
 
 export const prisma = prismaClient;
-
-// Initialize soft delete manager for automatic deletedAt handling
-export const softDelete = getSoftDeleteManager(prismaClient);
 
 // Preserve client across hot reloads in development
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

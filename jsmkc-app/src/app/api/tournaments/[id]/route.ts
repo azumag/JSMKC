@@ -3,7 +3,7 @@
  *
  * GET    /api/tournaments/:id - Retrieve tournament with related match data (public)
  * PUT    /api/tournaments/:id - Update tournament metadata (admin only)
- * DELETE /api/tournaments/:id - Soft-delete a tournament (admin only)
+ * DELETE /api/tournaments/:id - Delete a tournament (admin only)
  *
  * The GET endpoint returns the full tournament record including:
  *   - Battle Mode qualifications (grouped by group, sorted by score)
@@ -58,7 +58,6 @@ export async function GET(
         status: true,
         token: true,
         tokenExpiresAt: true,
-        deletedAt: true,
         createdAt: true,
         updatedAt: true,
         // BM qualification standings: sorted by group (A, B, ...) then by score descending
@@ -201,19 +200,10 @@ export async function PUT(
 /**
  * DELETE /api/tournaments/:id
  *
- * Soft-deletes a tournament by setting its deletedAt timestamp.
- * Requires admin authentication.
- *
- * Soft delete is used because:
- *   1. Tournament history and match results must be preserved
- *   2. Allows recovery of accidentally deleted tournaments
- *   3. Maintains referential integrity with player records and match data
- *
- * The Prisma middleware intercepts delete() and converts it to
- * an update({ deletedAt: new Date() }) operation.
+ * Deletes a tournament. Requires admin authentication.
  *
  * Response:
- *   200 - { success: true, message: "...", softDeleted: true }
+ *   200 - { success: true, message: "..." }
  *   403 - Not authorized (non-admin)
  *   404 - Tournament not found (Prisma P2025)
  *   500 - Server error
@@ -237,8 +227,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    // Perform soft delete via Prisma middleware.
-    // The middleware converts this to an update with deletedAt = now().
+    // Delete the tournament record from the database
     await prisma.tournament.delete({
       where: { id }
     });
@@ -256,7 +245,6 @@ export async function DELETE(
         targetType: 'Tournament',
         details: {
           tournamentId: id,
-          softDeleted: true,
         },
       });
     } catch (logError) {
@@ -270,8 +258,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "Tournament deleted successfully (soft delete)",
-      softDeleted: true
+      message: "Tournament deleted successfully",
     });
   } catch (error: unknown) {
     // Log error with tournament ID for debugging

@@ -17,7 +17,7 @@
  *   `getAccessTokenExpiry(true)` => 604800000 (168h / 7 days).
  *
  * - `validateTournamentToken`: Full async validation against DB. Uses
- *   `prisma.tournament.findFirst` with `deletedAt: null` filter and `select`.
+ *   `prisma.tournament.findFirst` with `select`.
  *   Calls `checkRateLimit`, `getClientIdentifier`, and audit logging.
  *
  * - `requireTournamentToken`: Middleware wrapper. Returns 401 on failure,

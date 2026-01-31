@@ -1,7 +1,7 @@
 /**
  * Tournaments Collection API Route
  *
- * GET  /api/tournaments  - List all tournaments (public, paginated, excludes soft-deleted)
+ * GET  /api/tournaments  - List all tournaments (public, paginated)
  * POST /api/tournaments  - Create a new tournament (admin only)
  *
  * Tournaments are the top-level organizational unit in the JSMKC system.
@@ -43,16 +43,13 @@ export async function GET(request: NextRequest) {
     const limit = Number(searchParams.get('limit')) || 50;
 
     // Use the paginate utility for consistent pagination behavior.
-    // Filter: only active tournaments (deletedAt is null).
     // Sort: newest tournaments first for relevance.
     const result = await paginate(
       {
         findMany: prisma.tournament.findMany,
         count: prisma.tournament.count,
       },
-      {
-        deletedAt: null,
-      },
+      {},
       { date: "desc" },
       { page, limit }
     );

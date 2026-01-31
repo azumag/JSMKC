@@ -718,7 +718,6 @@ export async function DELETE(
           tournamentId,
           playerNickname: entryToDelete.player.nickname,
           deletedBy: session.user.email,
-          softDeleted: true,
         },
         });
     } catch (logError) {
@@ -729,7 +728,6 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: "Entry deleted successfully",
-      softDeleted: true
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging

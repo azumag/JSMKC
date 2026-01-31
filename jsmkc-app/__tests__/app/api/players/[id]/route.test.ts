@@ -16,7 +16,7 @@
  * - Creates audit log entries on successful updates
  *
  * DELETE /api/players/[id]:
- * - Performs soft delete on the player record
+ * - Deletes the player record
  * - Requires admin authentication (returns 403 for non-admin/unauthenticated)
  * - Creates audit log entries on successful deletion
  * - Handles not found (P2025) with 404 and database errors with 500
@@ -436,7 +436,7 @@ describe('DELETE /api/players/[id]', () => {
   });
 
   describe('Success Cases', () => {
-    it('should delete player successfully (soft delete)', async () => {
+    it('should delete player successfully', async () => {
       prisma.player.delete.mockResolvedValue({});
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
@@ -466,8 +466,7 @@ describe('DELETE /api/players/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          message: "Player deleted successfully (soft delete)",
-          softDeleted: true,
+          message: "Player deleted successfully",
         })
       );
     });

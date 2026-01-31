@@ -6,7 +6,7 @@
  * GET /api/players:
  * - Returns a paginated list of players sorted by nickname
  * - Supports custom page and limit query parameters (defaults: page=1, limit=50)
- * - Filters out soft-deleted players (deletedAt: null)
+ * - Returns all active players
  * - Handles database errors gracefully with 500 status
  *
  * POST /api/players:
@@ -152,14 +152,14 @@ describe('GET /api/players', () => {
       await playerRoute.GET(req);
 
       // Verify the Prisma calls were made with correct parameters
-      // paginate calls count({ where: { deletedAt: null } })
+      // paginate calls count({ where: {} })
       expect(prisma.player.count).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
       });
 
       // paginate calls findMany with where, orderBy, skip, take
       expect(prisma.player.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
         orderBy: { nickname: 'asc' },
         skip: 0,
         take: 50,
@@ -189,7 +189,7 @@ describe('GET /api/players', () => {
 
       // With page=2, limit=10, skip should be (2-1)*10 = 10
       expect(prisma.player.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
         orderBy: { nickname: 'asc' },
         skip: 10,
         take: 10,
@@ -207,7 +207,7 @@ describe('GET /api/players', () => {
       });
     });
 
-    it('should filter out soft deleted players', async () => {
+    it('should return all players without filtering', async () => {
       const mockPlayers = [{ id: 'p1', name: 'Active Player', nickname: 'active' }];
 
       prisma.player.findMany.mockResolvedValue(mockPlayers);
@@ -217,14 +217,14 @@ describe('GET /api/players', () => {
         new NextRequest('http://localhost:3000/api/players')
       );
 
-      // Verify that deletedAt: null is passed as the where filter
+      // Verify that an empty where clause is passed (no filters)
       expect(prisma.player.count).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
       });
 
       expect(prisma.player.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { deletedAt: null },
+          where: {},
         })
       );
 

@@ -185,7 +185,7 @@ export const AUDIT_ACTIONS = {
   CREATE_TOURNAMENT: 'CREATE_TOURNAMENT',
   /** Tournament details (name, date, status) were updated */
   UPDATE_TOURNAMENT: 'UPDATE_TOURNAMENT',
-  /** A tournament was soft-deleted by an admin */
+  /** A tournament was deleted by an admin */
   DELETE_TOURNAMENT: 'DELETE_TOURNAMENT',
 
   // Player management actions
@@ -193,7 +193,7 @@ export const AUDIT_ACTIONS = {
   CREATE_PLAYER: 'CREATE_PLAYER',
   /** Player details (name, nickname, country) were updated */
   UPDATE_PLAYER: 'UPDATE_PLAYER',
-  /** A player was soft-deleted from the system */
+  /** A player was deleted from the system */
   DELETE_PLAYER: 'DELETE_PLAYER',
 
   // Time Attack (TA) actions

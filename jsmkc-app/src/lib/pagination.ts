@@ -19,7 +19,7 @@
  * Usage:
  *   import { paginate, getPaginationParams } from '@/lib/pagination';
  *   const params = getPaginationParams({ page: 2, limit: 20 });
- *   const result = await paginate(prisma.player, { deletedAt: null }, { name: 'asc' }, params);
+ *   const result = await paginate(prisma.player, {}, { name: 'asc' }, params);
  *   return NextResponse.json(result);
  */
 
@@ -172,7 +172,7 @@ interface PrismaModelDelegate {
  * @example
  *   const result = await paginate<Player>(
  *     prisma.player,
- *     { deletedAt: null },
+ *     {},
  *     { name: 'asc' },
  *     { page: 2, limit: 20 }
  *   );

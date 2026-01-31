@@ -6,7 +6,7 @@
  * GET /api/tournaments:
  * - Returns a paginated list of tournaments sorted by date (descending)
  * - Supports custom page and limit query parameters (defaults: page=1, limit=50)
- * - Filters out soft-deleted tournaments (deletedAt: null)
+ * - Returns all tournaments
  * - Uses real paginate() function which calls prisma.tournament.findMany/count
  * - Returns { data, meta: { total, page, limit, totalPages } }
  * - Handles database errors gracefully with 500 status
@@ -119,7 +119,7 @@ describe('GET /api/tournaments', () => {
 
       // Verify prisma.tournament.findMany was called with pagination parameters
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
         orderBy: { date: 'desc' },
         skip: 0,
         take: 10,
@@ -127,7 +127,7 @@ describe('GET /api/tournaments', () => {
 
       // Verify prisma.tournament.count was called with the same where clause
       expect(prisma.tournament.count).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
       });
 
       // The real paginate() returns { data, meta: { total, page, limit, totalPages } }
@@ -158,7 +158,7 @@ describe('GET /api/tournaments', () => {
 
       // Default pagination: page=1, limit=50
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: {},
         orderBy: { date: 'desc' },
         skip: 0,
         take: 50,

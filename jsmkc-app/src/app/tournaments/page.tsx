@@ -20,7 +20,7 @@
  * API integration:
  * - GET /api/tournaments: Fetch paginated tournament list
  * - POST /api/tournaments: Create a new tournament
- * - DELETE /api/tournaments/:id: Soft-delete a tournament
+ * - DELETE /api/tournaments/:id: Delete a tournament
  *
  * The API returns paginated responses with shape { data: Tournament[], meta: {...} },
  * so the fetch handler extracts the data array from the response.
@@ -156,8 +156,6 @@ export default function TournamentsPage() {
   /**
    * Handles tournament deletion with confirmation dialog.
    * Uses browser confirm() as a guard against accidental deletion.
-   * The API performs a soft delete (sets deletedAt) to preserve
-   * historical records for completed tournaments.
    */
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this tournament?")) return;
