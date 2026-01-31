@@ -3,7 +3,7 @@
  *
  * This is the top-level layout for the entire JSMKC application.
  * It provides:
- * 1. HTML document structure with font loading (Geist Sans + Mono)
+ * 1. HTML document structure with locally-bundled Geist fonts (Sans + Mono)
  * 2. Global metadata (title, description) for SEO
  * 3. NextAuth SessionProvider for client-side session access
  * 4. Shared navigation header with authentication-aware UI
@@ -20,29 +20,12 @@
  * children in SessionProvider for client-side session hooks.
  */
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import Link from "next/link";
 import "./globals.css";
 import { auth, signOut } from "@/lib/auth";
 import { SessionProvider } from "next-auth/react";
-
-/**
- * Geist Sans - Primary sans-serif font for body text and UI.
- * Assigned to CSS variable --font-geist-sans for Tailwind consumption.
- */
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-/**
- * Geist Mono - Monospace font for code blocks, technical data,
- * and time/score displays where alignment matters.
- */
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 /**
  * Page metadata for SEO and browser tab display.
@@ -76,7 +59,7 @@ export default async function RootLayout({
         {/* Additional head content can be added here (favicon, meta tags, etc.) */}
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
         {/* SessionProvider makes the session available to all client components via useSession() */}
         <SessionProvider>
