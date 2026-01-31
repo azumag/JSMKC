@@ -137,7 +137,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to fetch players:", metadata as any);
+      logger.error("Failed to fetch players:", metadata);
     } finally {
       setLoading(false);
     }
@@ -187,7 +187,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create player:", metadata as any);
+      logger.error("Failed to create player:", metadata);
       setError("Failed to create player");
     }
   };
@@ -215,7 +215,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update player:", metadata as any);
+      logger.error("Failed to update player:", metadata);
       setError("Failed to update player");
     }
   };
@@ -237,7 +237,7 @@ export default function PlayersPage() {
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to delete player:", metadata as any);
+      logger.error("Failed to delete player:", metadata);
     }
   };
 

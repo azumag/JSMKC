@@ -205,7 +205,7 @@ export default function MatchRaceFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create bracket:", metadata as any);
+      logger.error("Failed to create bracket:", metadata);
       alert("Failed to create bracket");
     } finally {
       setCreating(false);
@@ -300,7 +300,7 @@ export default function MatchRaceFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update match:", metadata as any);
+      logger.error("Failed to update match:", metadata);
       alert("Failed to update match");
     }
   };

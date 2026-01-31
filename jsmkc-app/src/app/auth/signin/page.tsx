@@ -89,7 +89,7 @@ export default function SignInPage() {
     } catch (error) {
       /* Log structured error for debugging while showing generic message to user */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
-      logger.error('Player login error', metadata as any)
+      logger.error('Player login error', metadata)
       setPlayerError('An error occurred during login')
     } finally {
       setIsLoading(false)

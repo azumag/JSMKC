@@ -149,7 +149,7 @@ export function ExportButton({
        * for better UX in a future iteration.
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
-      logger.error("Export failed", metadata as any);
+      logger.error("Export failed", metadata);
     }
   };
 

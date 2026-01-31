@@ -18,7 +18,7 @@ export interface LoggerOptions {
 
 interface LogMetadata extends Record<string, unknown> {
   timestamp?: string;
-  service: string;
+  service?: string;
 }
 
 // Silent test logger to avoid noise in test output
