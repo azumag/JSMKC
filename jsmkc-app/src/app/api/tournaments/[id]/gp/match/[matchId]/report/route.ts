@@ -28,6 +28,7 @@ import {
   createCharacterUsageLog,
   validateCharacter,
   applyRateLimit,
+  checkScoreReportAuth,
 } from "@/lib/api-factories/score-report-helpers";
 
 /**
@@ -69,14 +70,33 @@ export async function POST(
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, races, character } = body;
 
-    /* Fetch match */
+    /* Fetch match with player userId for auth check */
     const match = await prisma.gPMatch.findUnique({
       where: { id: matchId },
-      select: { player1Id: true, player2Id: true, completed: true },
+      include: {
+        player1: { select: { userId: true } },
+        player2: { select: { userId: true } },
+      },
     });
 
     if (!match) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    if (match.completed) {
+      return NextResponse.json(
+        { error: "Match already completed" },
+        { status: 400 }
+      );
+    }
+
+    /* Authorization check (consistent with BM and MR report routes) */
+    const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Invalid token or not authorized for this match' },
+        { status: 401 }
+      );
     }
 
     /* Validate character selection */
@@ -115,14 +135,6 @@ export async function POST(
       await createCharacterUsageLog(logger, {
         matchId, matchType: 'GP', playerId: reportingPlayerId, character, tournamentId,
       });
-    }
-
-    /* Completed check is after logging (preserving existing order) */
-    if (match.completed) {
-      return NextResponse.json(
-        { error: "Match already completed" },
-        { status: 400 }
-      );
     }
 
     /* Store reported scores (no optimistic locking for GP) */

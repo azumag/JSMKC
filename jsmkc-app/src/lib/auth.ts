@@ -38,22 +38,10 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
+import { REFRESH_TOKEN_EXPIRY } from '@/lib/constants';
 
 /** Logger scoped to authentication operations */
 const logger = createLogger('auth');
-
-// ============================================================
-// Constants
-// ============================================================
-
-/**
- * Refresh token expiry duration in milliseconds (24 hours).
- *
- * When the access token expires, the client uses the refresh token
- * to obtain a new access token without requiring re-authentication.
- * The refresh token itself expires after this duration.
- */
-export const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 // ============================================================
 // Admin Discord ID Management

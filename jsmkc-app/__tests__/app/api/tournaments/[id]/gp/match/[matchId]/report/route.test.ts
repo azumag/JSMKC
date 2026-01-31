@@ -28,12 +28,17 @@ jest.mock('@/lib/constants', () => ({ SMK_CHARACTERS: ['mario', 'luigi', 'peach'
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('@/lib/token-validation', () => ({
+  validateTournamentToken: jest.fn().mockResolvedValue({ valid: true, tournament: { id: 't1' } }),
+}));
+jest.mock('@/lib/auth', () => ({ auth: jest.fn().mockResolvedValue(null) }));
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
 import { rateLimit } from '@/lib/rate-limit';
 import { createAuditLog } from '@/lib/audit-log';
+import { validateTournamentToken } from '@/lib/token-validation';
 
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -79,6 +84,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -101,10 +108,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       ];
 
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
-      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce(updatedMatch);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
-      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(updatedMatch);
       (createAuditLog as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
@@ -149,6 +157,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -207,6 +217,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: 18,
         player1ReportedPoints2: 6,
@@ -274,6 +286,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
       };
 
@@ -346,6 +360,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -415,6 +431,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
       };
 
@@ -434,17 +452,19 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     });
 
     // Validation error case - Returns 400 when match is already completed
+    // Completed check runs before auth/logging to avoid unnecessary DB calls
     it('should return 400 when match is already completed', async () => {
       const mockMatch = {
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: true,
       };
 
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
@@ -455,6 +475,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       expect(result.data).toEqual({ error: 'Match already completed' });
       expect(result.status).toBe(400);
+      // No score entry log should be created since completed check is early
+      expect(prisma.scoreEntryLog.create).not.toHaveBeenCalled();
     });
 
     // Rate limit case - Returns 429 when rate limit is exceeded
@@ -495,6 +517,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -539,6 +563,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -586,6 +612,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
         completed: false,
         player1ReportedPoints1: null,
         player1ReportedPoints2: null,
@@ -639,6 +667,36 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           }),
         }),
       });
+    });
+
+    // Authorization - Returns 401 when neither token nor session is valid
+    it('should return 401 when unauthorized', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+      };
+
+      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      // Override token validation to reject
+      (validateTournamentToken as jest.Mock).mockResolvedValueOnce({ valid: false });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Unauthorized: Invalid token or not authorized for this match',
+      });
+      expect(result.status).toBe(401);
     });
   });
 });
