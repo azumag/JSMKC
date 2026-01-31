@@ -29,7 +29,7 @@
 // @ts-nocheck
 
 
-jest.mock('@/lib/excel', () => ({ createCSV: jest.fn((headers, data) => 'header1,header2\ndata1,data2') }));
+jest.mock('@/lib/excel', () => ({ createCSV: jest.fn((_headers, _data) => 'header1,header2\ndata1,data2') }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn() })) }));
 /**
  * Mock next/server with both NextResponse constructor and .json() static method.
@@ -53,7 +53,7 @@ import { createLogger } from '@/lib/logger';
 import { createCSV } from '@/lib/excel';
 import { GET } from '@/app/api/tournaments/[id]/mr/export/route';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: jest.Mock & { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: jest.Mock & { json: jest.Mock } };
 
 // Mock NextRequest class
 // Use _url private field to avoid conflict with url getter
@@ -163,7 +163,7 @@ describe('MR Export API Route - /api/tournaments/[id]/mr/export', () => {
       const result = await GET(request, { params });
 
       // BOM is \uFEFF
-      const bom = '\uFEFF';
+      const _bom = '\uFEFF';
       expect(result).toHaveProperty('constructor');
     });
 

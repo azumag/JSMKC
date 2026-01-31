@@ -26,6 +26,9 @@
 
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('password-utils');
 
 /**
  * Number of bcrypt salt rounds (cost factor).
@@ -146,7 +149,7 @@ export async function verifyPassword(
     // Logging the error for diagnostics but NOT the passwords.
     // Returning false instead of throwing follows the fail-safe principle:
     // authentication failures should never crash the application.
-    console.error('Password verification error:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error('Password verification error', { error: error instanceof Error ? error.message : 'Unknown error' });
     return false;
   }
 }

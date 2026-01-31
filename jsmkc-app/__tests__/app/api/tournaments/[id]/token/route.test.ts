@@ -48,9 +48,7 @@ jest.mock('@/lib/sanitize', () => ({
 
 jest.mock('@/lib/token-utils', () => ({
   generateTournamentToken: jest.fn(() => 'new-generated-token'),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getTokenExpiry: jest.fn((hours) => new Date('2024-02-01T12:00:00.000Z')),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   extendTokenExpiry: jest.fn((currentExpiry, extensionHours) => {
     const newDate = new Date(currentExpiry.getTime() + (extensionHours * 60 * 60 * 1000));
     return newDate;

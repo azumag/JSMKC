@@ -52,7 +52,7 @@ jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
-import { GET, POST, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
+import { GET, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
 
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;

@@ -40,7 +40,7 @@ import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { GET } from '@/app/api/tournaments/[id]/mr/standings/route';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 // Use _url and _headers private fields to avoid conflict with getters/properties

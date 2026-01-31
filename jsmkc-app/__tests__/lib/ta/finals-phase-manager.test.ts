@@ -200,7 +200,7 @@ describe("TA Finals Phase Manager", () => {
         { playerId: "p8", timeMs: 87000 },
       ];
 
-      const result = await processPhase3Result(
+      const _result = await processPhase3Result(
         mockPrismaClient as any,
         context,
         courseResults

@@ -29,7 +29,6 @@ import { NextResponse, NextRequest } from 'next/server'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/rate-limit'
 import { auth as authLib } from '@/lib/auth'
-import { createLogger } from '@/lib/logger'
 
 jest.mock('@/lib/auth')
 jest.mock('@/lib/audit-log')
@@ -41,22 +40,6 @@ const mockGetServerSideIdentifier = getServerSideIdentifier as jest.MockedFuncti
 
 interface MockRequest extends Partial<NextRequest> {
   auth?: { user: { id: string } } | null
-}
-
-/**
- * Helper to create a mock NextResponse with headers support.
- * Used for NextResponse.next() and NextResponse.redirect() which are
- * not provided by the global jest.setup.js mock for next/server.
- */
-function createMockNextResponse(init: { status?: number; headers?: Record<string, string> } = {}) {
-  const headers = new Headers(init.headers || {})
-  const response = {
-    status: init.status || 200,
-    headers,
-  }
-  // Make it pass instanceof check by setting constructor
-  Object.setPrototypeOf(response, NextResponse.prototype || {})
-  return response
 }
 
 describe('Proxy Middleware', () => {

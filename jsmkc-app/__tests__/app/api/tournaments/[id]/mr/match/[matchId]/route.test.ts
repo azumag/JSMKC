@@ -41,7 +41,7 @@ import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-lockin
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {

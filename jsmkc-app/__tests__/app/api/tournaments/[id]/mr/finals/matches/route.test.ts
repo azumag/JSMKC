@@ -39,8 +39,8 @@ import { createAuditLog } from '@/lib/audit-log';
 import { POST } from '@/app/api/tournaments/[id]/mr/finals/matches/route';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Valid UUIDs for Zod schema validation (player1Id and player2Id require UUID format)
 // Must be valid v4 UUIDs (version nibble = 4, variant nibble = 8-b)

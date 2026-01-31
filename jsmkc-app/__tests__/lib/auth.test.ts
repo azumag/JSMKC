@@ -16,7 +16,6 @@
  * - signIn callback: new user creation, existing user handling, Discord admin whitelist
  *   upgrade, account linking, and database error resilience
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
 // Set environment variable before any imports

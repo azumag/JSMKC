@@ -44,7 +44,7 @@ import { generateBracketStructure } from '@/lib/double-elimination';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {

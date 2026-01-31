@@ -33,7 +33,6 @@ describe('Audit Log', () => {
   let mockSanitizeInput: jest.MockedFunction<typeof sanitizeInput>;
 
   beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prismaMock.auditLog.create as any).mockResolvedValue({
       id: 'audit-1',
       userId: 'user-123',
@@ -130,7 +129,6 @@ describe('Audit Log', () => {
       action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prismaMock.auditLog.create as any).mockRejectedValue(new Error('Database connection failed'));
 
 
@@ -178,7 +176,6 @@ describe('Audit Log', () => {
     };
 
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prismaMock.auditLog.create as any).mockRejectedValue(new Error('DB error'));
 
     await createAuditLog(params);

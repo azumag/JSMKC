@@ -40,8 +40,8 @@ import { createAuditLog } from '@/lib/audit-log';
 import { PUT } from '@/app/api/tournaments/[id]/mr/finals/matches/[matchId]/route';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {

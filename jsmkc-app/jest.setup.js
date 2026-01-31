@@ -1,6 +1,7 @@
 // jest-dom matchers are only loaded in jsdom environment.
 // Add /** @jest-environment jsdom */ docblock to test files that need DOM APIs.
 if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('@testing-library/jest-dom')
 }
 

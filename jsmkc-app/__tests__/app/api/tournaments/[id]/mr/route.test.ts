@@ -31,9 +31,9 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
 
-const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
+const _rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {
@@ -140,7 +140,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
-      const mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
+      const _mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
 
       (prisma.mRQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
@@ -248,8 +248,8 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         player2: { id: 'p2' },
       };
 
-      const mockPlayer1Matches = [mockMatch];
-      const mockPlayer2Matches = [mockMatch];
+      const _mockPlayer1Matches = [mockMatch];
+      const _mockPlayer2Matches = [mockMatch];
 
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
@@ -307,7 +307,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1, rounds: [1, 2, 3, 4] });
       const params = Promise.resolve({ id: 't1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },

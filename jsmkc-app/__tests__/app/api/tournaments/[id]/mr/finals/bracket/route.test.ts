@@ -46,8 +46,8 @@ import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimin
 import { createAuditLog } from '@/lib/audit-log';
 import { GET, POST } from '@/app/api/tournaments/[id]/mr/finals/bracket/route';
 
-const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class
 class MockNextRequest {
