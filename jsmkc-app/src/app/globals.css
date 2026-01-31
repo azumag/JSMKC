@@ -39,7 +39,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Typography fonts loaded via next/font/google */
+  /* Typography fonts loaded via geist package (next/font/local) */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
