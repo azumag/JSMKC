@@ -84,7 +84,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
         }
       });
       expect(paginate).toHaveBeenCalledWith(
-        { findMany: prisma.bMMatch.findMany, count: prisma.bMMatch.count },
+        { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1' },
         { matchNumber: 'asc' },
         { page: 1, limit: 50 }
@@ -210,7 +210,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch battle mode matches' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM matches', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch battle mode matches', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Error case - Returns 500 when database query fails during token validation
@@ -223,7 +223,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch battle mode matches' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM matches', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch battle mode matches', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid page parameter (NaN)

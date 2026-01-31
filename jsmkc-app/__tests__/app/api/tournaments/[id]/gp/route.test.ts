@@ -118,7 +118,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch grand prix data' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch grand prix data', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -261,7 +261,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       expect(result.data).toEqual({ error: 'Failed to setup grand prix' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup GP', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup grand prix', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Creates correct number of matches for round-robin format

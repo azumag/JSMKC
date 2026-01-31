@@ -37,6 +37,9 @@ jest.mock('@/lib/pagination', () => ({
   paginate: jest.fn(),
 }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('@/lib/sanitize', () => ({
+  sanitizeInput: jest.fn((input: unknown) => input),
+}));
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
@@ -106,7 +109,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(
-        { findMany: prisma.gPMatch.findMany, count: prisma.gPMatch.count },
+        { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1', stage: 'finals' },
         { matchNumber: 'asc' },
         { page: 1, limit: 50 }
@@ -165,7 +168,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch grand prix finals data' });
       expect(result.status).toBe(500);
-      expect(logger.error).toHaveBeenCalledWith('Failed to fetch GP finals data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to fetch grand prix finals data', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -263,7 +266,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.data).toEqual({ error: 'Failed to create grand prix finals bracket' });
       expect(result.status).toBe(500);
-      expect(logger.error).toHaveBeenCalledWith('Failed to create GP finals', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to create finals', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Uses default topN of 8 when not provided
@@ -534,7 +537,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.data).toEqual({ error: 'Failed to update match' });
       expect(result.status).toBe(500);
-      expect(logger.error).toHaveBeenCalledWith('Failed to update GP finals match', { error: expect.any(Error), tournamentId: 't1' });
+      expect(logger.error).toHaveBeenCalledWith('Failed to update finals match', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Updates loser position correctly

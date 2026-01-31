@@ -257,7 +257,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-      (generateDoubleEliminationBracket as jest.Mock).mockRejectedValue(new Error('Bracket generation error'));
+      (generateDoubleEliminationBracket as jest.Mock).mockImplementation(() => { throw new Error('Bracket generation error'); });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/bracket');
       const params = Promise.resolve({ id: 't1' });

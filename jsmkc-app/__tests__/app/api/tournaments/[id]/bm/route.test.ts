@@ -131,7 +131,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch battle mode data' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch battle mode data', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -286,7 +286,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       expect(result.data).toEqual({ error: 'Failed to setup battle mode' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup BM', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup battle mode', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Audit log failure is non-critical

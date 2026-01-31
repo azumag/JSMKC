@@ -19,14 +19,19 @@
 // @ts-nocheck
 
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
+jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn() }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
+jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: {} }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
 
+const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -109,7 +114,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch match race data' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR data', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race data', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -128,6 +133,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
   describe('POST - Setup match race qualification', () => {
     // Success case - Creates qualifications and matches with valid players array
     it('should create qualifications and round-robin matches with valid players array', async () => {
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
       const mockPlayers = [
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
@@ -149,6 +157,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Success case - Handles multiple groups correctly
     it('should generate matches for multiple groups separately', async () => {
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
       const mockPlayers = [
         { playerId: 'p1', group: 'A' },
         { playerId: 'p2', group: 'A' },
@@ -169,6 +180,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Validation error case - Returns 400 when players array is missing
     it('should return 400 when players array is missing', async () => {
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {});
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -179,6 +193,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Validation error case - Returns 400 when players array is not an array
     it('should return 400 when players is not an array', async () => {
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: 'not-an-array' });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -189,6 +206,9 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Validation error case - Returns 400 when players array is empty
     it('should return 400 when players array is empty', async () => {
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
@@ -198,10 +218,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     });
 
     // Error case - Returns 500 when database operation fails
-    // Mock mRQualification.create to reject since it's called before mRMatch.create
-    // (for a single player in a group, no matches are generated, so mRMatch.create is never called)
+    // Mock mRQualification.deleteMany to reject since it's called first in the factory
     it('should return 500 when database operation fails', async () => {
-      (prisma.mRQualification.create as jest.Mock).mockRejectedValue(new Error('Database error'));
+      const mockAuth = { user: { id: 'admin1' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
+      (prisma.mRQualification.deleteMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [{ playerId: 'p1', group: 'A' }] });
       const params = Promise.resolve({ id: 't1' });
@@ -209,7 +231,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
       expect(result.data).toEqual({ error: 'Failed to setup match race' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup MR', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup match race', { error: expect.any(Error), tournamentId: 't1' });
     });
   });
 

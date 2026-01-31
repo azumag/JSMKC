@@ -129,8 +129,8 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       });
       expect(paginate).toHaveBeenCalledWith(
         {
-          findMany: prisma.bMQualification.findMany,
-          count: prisma.bMQualification.count,
+          findMany: expect.any(Function),
+          count: expect.any(Function),
         },
         { tournamentId: 't1' },
         {},

@@ -85,7 +85,7 @@ describe('MR Matches API Route - /api/tournaments/[id]/mr/matches', () => {
         }
       });
       expect(paginate).toHaveBeenCalledWith(
-        { findMany: prisma.mRMatch.findMany, count: prisma.mRMatch.count },
+        { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1' },
         { matchNumber: 'asc' },
         { page: 1, limit: 50 }
@@ -211,7 +211,7 @@ describe('MR Matches API Route - /api/tournaments/[id]/mr/matches', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch match race matches' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR matches', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race matches', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Error case - Returns 500 when database query fails during token validation
@@ -224,7 +224,7 @@ describe('MR Matches API Route - /api/tournaments/[id]/mr/matches', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch match race matches' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR matches', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race matches', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid page parameter (NaN)

@@ -39,6 +39,10 @@ jest.mock('@/lib/error-handling', () => ({
   handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
 }));
 
+jest.mock('@/lib/sanitize', () => ({
+  sanitizeInput: jest.fn((input: unknown) => input),
+}));
+
 import prisma from '@/lib/prisma';
 import { updateBMMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/bm/match/[matchId]/route';

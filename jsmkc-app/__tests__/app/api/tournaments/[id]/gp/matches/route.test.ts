@@ -84,10 +84,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
         },
       });
       expect(paginate).toHaveBeenCalledWith(
-        {
-          findMany: prisma.gPMatch.findMany,
-          count: prisma.gPMatch.count,
-        },
+        { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1' },
         { matchNumber: 'asc' },
         { page: 1, limit: 50 }
@@ -191,7 +188,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
 
       expect(result.data).toEqual({ error: 'Failed to fetch grand prix matches' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP matches', { error: expect.any(Error), tournamentId: 't1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch grand prix matches', { error: expect.any(Error), tournamentId: 't1' });
     });
 
     // Edge case - Handles invalid tournament ID gracefully

@@ -24,6 +24,9 @@ jest.mock('@/lib/optimistic-locking', () => ({
 }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('@/lib/sanitize', () => ({
+  sanitizeInput: jest.fn((input: unknown) => input),
+}));
 
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
