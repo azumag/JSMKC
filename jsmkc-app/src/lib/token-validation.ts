@@ -29,6 +29,7 @@
  *   });
  */
 
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidTokenFormat, isTokenValid } from '@/lib/token-utils';
 import { checkRateLimit, getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
@@ -249,10 +250,13 @@ export async function validateTournamentToken(
   }
 
   // Step 4: Verify the token matches the tournament's stored token.
-  // Using strict equality to prevent timing attacks would require
-  // crypto.timingSafeEqual, but since we're comparing against a
-  // database value (not a secret), strict equality is acceptable here.
-  if (tournament.token !== token) {
+  // Use timing-safe comparison to prevent timing attacks.
+  const storedBuf = tournament.token ? Buffer.from(tournament.token) : null;
+  const inputBuf = Buffer.from(token!);
+  const tokenMatches = storedBuf !== null
+    && storedBuf.length === inputBuf.length
+    && crypto.timingSafeEqual(storedBuf, inputBuf);
+  if (!tokenMatches) {
     await logTokenValidationAttempt(
       request,
       tournamentId,

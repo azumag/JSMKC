@@ -87,7 +87,7 @@ export interface RateLimitCheckResult {
  * 3. Player session - players can only report their own matches
  *    (direct player login or OAuth-linked player)
  *
- * Used by BM and MR report routes. GP does not perform auth checks.
+ * Used by BM, MR, and GP report routes.
  *
  * @param request - The incoming NextRequest
  * @param tournamentId - Tournament ID for token validation
