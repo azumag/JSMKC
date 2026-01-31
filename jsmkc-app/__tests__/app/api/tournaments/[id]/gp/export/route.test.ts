@@ -519,7 +519,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
 
       const request = new Request('http://localhost:3000/api/tournaments/nonexistent/gp/export');
       const params = Promise.resolve({ id: 'nonexistent' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       expect((NextResponse as any).json).toHaveBeenCalledWith(
         { error: 'Tournament not found' },
@@ -534,7 +534,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
 
       const request = new Request('http://localhost:3000/api/tournaments/t1/gp/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       expect((NextResponse as any).json).toHaveBeenCalledWith(
         { error: 'Failed to export tournament' },

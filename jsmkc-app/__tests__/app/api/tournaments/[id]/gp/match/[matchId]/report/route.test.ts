@@ -32,10 +32,10 @@ jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
-import { rateLimit, getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
+import { rateLimit } from '@/lib/rate-limit';
 import { createAuditLog } from '@/lib/audit-log';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 class MockNextRequest {
   constructor(

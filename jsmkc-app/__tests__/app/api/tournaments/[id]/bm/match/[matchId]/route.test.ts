@@ -48,7 +48,7 @@ import { updateBMMatchScore, OptimisticLockError } from '@/lib/optimistic-lockin
 import { GET, PUT } from '@/app/api/tournaments/[id]/bm/match/[matchId]/route';
 
 const {
-  createSuccessResponse,
+  createSuccessResponse: _createSuccessResponse,
   createErrorResponse,
   handleValidationError,
   handleDatabaseError

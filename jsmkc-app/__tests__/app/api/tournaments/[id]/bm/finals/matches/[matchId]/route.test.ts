@@ -41,7 +41,7 @@ import { createLogger } from '@/lib/logger';
 import { PUT } from '@/app/api/tournaments/[id]/bm/finals/matches/[matchId]/route';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
+const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock, AUDIT_ACTIONS: { UPDATE_BM_MATCH: string } };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;
@@ -534,7 +534,7 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/matches/m1', requestBody, new Map([['x-forwarded-for', '192.168.1.1'], ['user-agent', 'test-agent']]));
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
         ipAddress: '192.168.1.1',

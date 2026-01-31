@@ -70,15 +70,11 @@ import { sanitizeInput } from '@/lib/sanitize';
 import { validateTournamentToken } from '@/lib/token-validation';
 import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { validateBattleModeScores, calculateMatchResult } from '@/lib/score-validation';
-import {
-  RATE_LIMIT_SCORE_INPUT,
-  RATE_LIMIT_SCORE_INPUT_DURATION,
-  SMK_CHARACTERS
-} from '@/lib/constants';
+
 import { POST } from '@/app/api/tournaments/[id]/bm/match/[matchId]/report/route';
 
 const {
-  createSuccessResponse,
+  createSuccessResponse: _createSuccessResponse,
   createErrorResponse,
   handleValidationError,
   handleAuthError,

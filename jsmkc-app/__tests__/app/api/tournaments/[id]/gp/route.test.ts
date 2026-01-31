@@ -27,9 +27,9 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/route';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
+const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 class MockNextRequest {
   constructor(
@@ -67,21 +67,21 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
   describe('GET - Fetch grand prix qualification data', () => {
     // Success case - Returns qualifications and matches with valid tournament ID
     it('should return qualifications and matches for a valid tournament', async () => {
-      const mockQualifications = [
+      const _mockQualifications = [
         { id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A', score: 6, points: 10, player: { id: 'p1', name: 'Player 1' } },
       ];
       const mockMatches = [
         { id: 'm1', tournamentId: 't1', matchNumber: 1, stage: 'qualification', player1: { id: 'p1', name: 'Player 1' }, player2: { id: 'p2', name: 'Player 2' } },
       ];
 
-      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(_mockQualifications);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches });
+      expect(result.data).toEqual({ qualifications: _mockQualifications, matches: mockMatches });
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -144,7 +144,6 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
-      const mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
 
       (prisma.gPQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
@@ -300,8 +299,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         player2: { id: 'p2' },
       };
 
-      const mockPlayer1Matches = [mockMatch];
-      const mockPlayer2Matches = [mockMatch];
+      const _mockPlayer1Matches = [mockMatch];
+      const _mockPlayer2Matches = [mockMatch];
 
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);

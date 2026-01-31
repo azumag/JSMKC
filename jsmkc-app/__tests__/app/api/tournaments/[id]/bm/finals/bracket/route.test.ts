@@ -43,9 +43,9 @@ import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimin
 import { GET, POST } from '@/app/api/tournaments/[id]/bm/finals/bracket/route';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
+const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock, AUDIT_ACTIONS: { CREATE_BRACKET: string } };
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class - uses _headersMap to avoid collision with the `headers` property
 class MockNextRequest {
@@ -441,7 +441,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket', null, new Map([['x-forwarded-for', '192.168.1.1'], ['user-agent', 'test-agent']]));
       const params = Promise.resolve({ id: 't1' });
-      const result = await POST(request, { params });
+      const _result = await POST(request, { params });
 
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
         ipAddress: '192.168.1.1',
@@ -491,7 +491,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
-      const result = await POST(request, { params });
+      const _result = await POST(request, { params });
 
       expect(generateDoubleEliminationBracket).toHaveBeenCalledWith(expect.any(Array), 'BM');
     });
@@ -515,7 +515,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
-      const result = await POST(request, { params });
+      const _result = await POST(request, { params });
 
       const playersArg = (generateDoubleEliminationBracket as jest.Mock).mock.calls[0][0];
       expect(playersArg[0].losses).toBe(0);

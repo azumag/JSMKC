@@ -38,13 +38,13 @@ jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { auth as _auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/finals/route';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
+const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
+const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;
 
@@ -382,7 +382,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm2' },
@@ -415,7 +415,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm10' },
@@ -450,7 +450,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 1, score2: 3 });
       const params = Promise.resolve({ id: 't1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       /* Verify the reset match is updated with both players */
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({

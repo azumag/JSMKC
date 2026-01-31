@@ -36,7 +36,7 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
+const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -157,8 +157,6 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
-      const mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
-
       (prisma.bMQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
 
@@ -320,8 +318,6 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
         player2: { id: 'p2' },
       };
 
-      const mockPlayer1Matches = [mockMatch];
-      const mockPlayer2Matches = [mockMatch];
 
       (prisma.bMMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
@@ -400,7 +396,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { matchId: 'm1', score1: 3, score2: 1, rounds: [1, 2, 3, 4] });
       const params = Promise.resolve({ id: 't1' });
-      const result = await PUT(request, { params });
+      const _result = await PUT(request, { params });
 
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },

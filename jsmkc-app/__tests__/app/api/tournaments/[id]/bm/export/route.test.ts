@@ -50,7 +50,7 @@ const NextResponseMock = jest.requireMock('next/server') as { NextResponse: jest
 class MockNextRequest {
   constructor(private url: string) {}
   headers = {
-    get: (key: string) => undefined,
+    get: (_key: string) => undefined,
   };
 }
 
@@ -142,12 +142,12 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toBeDefined();
-      expect(result.data.startsWith('\uFEFF')).toBe(true);
-      expect(result.data).toContain('QUALIFICATIONS');
-      expect(result.data).toContain('MATCHES');
+      expect(_result.data).toBeDefined();
+      expect(_result.data.startsWith('\uFEFF')).toBe(true);
+      expect(_result.data).toContain('QUALIFICATIONS');
+      expect(_result.data).toContain('MATCHES');
       expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: 't1' },
         select: { name: true, date: true },
@@ -189,7 +189,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -222,7 +222,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -246,12 +246,12 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.headers).toBeDefined();
-      expect(result.headers['Content-Disposition']).toContain('Test Tournament 2024_BM_');
-      expect(result.headers['Content-Disposition']).toContain('.csv');
-      expect(result.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+      expect(_result.headers).toBeDefined();
+      expect(_result.headers['Content-Disposition']).toContain('Test Tournament 2024_BM_');
+      expect(_result.headers['Content-Disposition']).toContain('.csv');
+      expect(_result.headers['Content-Type']).toBe('text/csv; charset=utf-8');
     });
 
     // Success case - Handles empty data gracefully
@@ -269,11 +269,11 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toBeDefined();
-      expect(result.data).toContain('QUALIFICATIONS');
-      expect(result.data).toContain('MATCHES');
+      expect(_result.data).toBeDefined();
+      expect(_result.data).toContain('QUALIFICATIONS');
+      expect(_result.data).toContain('MATCHES');
     });
 
     // Success case - Formats qualification data correctly in CSV
@@ -306,7 +306,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       const qualCall = (createCSV as jest.Mock).mock.calls[0];
       const headers = qualCall[0];
@@ -350,7 +350,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const headers = matchCall[0];
@@ -387,7 +387,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const data = matchCall[1];
@@ -417,7 +417,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       const matchCall = (createCSV as jest.Mock).mock.calls[1];
       const data = matchCall[1];
@@ -431,10 +431,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Tournament not found' });
-      expect(result.status).toBe(404);
+      expect(_result.data).toEqual({ error: 'Tournament not found' });
+      expect(_result.status).toBe(404);
     });
 
     // Error case - Returns 500 when database operation fails
@@ -443,10 +443,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to export tournament' });
-      expect(result.status).toBe(500);
+      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
     });
 
@@ -463,10 +463,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to export tournament' });
-      expect(result.status).toBe(500);
+      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.status).toBe(500);
     });
 
     // Error case - Returns 500 when matches query fails
@@ -483,10 +483,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to export tournament' });
-      expect(result.status).toBe(500);
+      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.status).toBe(500);
     });
 
     // Edge case - Handles invalid tournament ID gracefully
@@ -495,9 +495,9 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/invalid-id/bm/export');
       const params = Promise.resolve({ id: 'invalid-id' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.status).toBe(500);
+      expect(_result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
 
@@ -516,10 +516,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
       const bom = '\uFEFF';
-      expect(result.data.startsWith(bom)).toBe(true);
+      expect(_result.data.startsWith(bom)).toBe(true);
     });
 
     // Edge case - Content-Type header is set correctly
@@ -537,9 +537,9 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+      expect(_result.headers['Content-Type']).toBe('text/csv; charset=utf-8');
     });
 
     // Edge case - Content-Disposition header is set correctly
@@ -557,10 +557,10 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/export');
       const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const _result = await GET(request, { params });
 
-      expect(result.headers['Content-Disposition']).toContain('attachment');
-      expect(result.headers['Content-Disposition']).toContain('.csv');
+      expect(_result.headers['Content-Disposition']).toContain('attachment');
+      expect(_result.headers['Content-Disposition']).toContain('.csv');
     });
   });
 });

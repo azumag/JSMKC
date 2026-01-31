@@ -28,7 +28,7 @@ import { createLogger } from '@/lib/logger';
 import { paginate } from '@/lib/pagination';
 import { GET } from '@/app/api/tournaments/[id]/bm/matches/route';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 // Mock NextRequest class - uses _url to avoid conflict with url getter
 class MockNextRequest {

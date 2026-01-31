@@ -33,7 +33,7 @@ import { createLogger } from '@/lib/logger';
 import { GET, PUT } from '@/app/api/tournaments/[id]/gp/match/[matchId]/route';
 import { updateGPMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 class MockNextRequest {
   constructor(
