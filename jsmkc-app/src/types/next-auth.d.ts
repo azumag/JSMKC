@@ -1,6 +1,21 @@
-// NextAuth.js module type extensions
-// Extends default NextAuth types with custom fields for JSMKC
-// This enables type-safe access to custom user fields across the app
+/**
+ * TypeScript Module Augmentation for NextAuth.js
+ *
+ * Extends the default NextAuth User, Session, and JWT interfaces with
+ * JSMKC-specific fields so that custom properties (userType, playerId,
+ * nickname, role) are available with full type safety throughout the app.
+ *
+ * The application supports dual authentication strategies:
+ * - OAuth (Google): used by administrators and members
+ * - Credential-based: used by players who log in with a tournament token
+ *
+ * The extra fields added here let both auth paths share a single Session
+ * shape while carrying the data each path needs.
+ *
+ * Usage:
+ *   import { Session } from 'next-auth';
+ *   // session.user.role, session.user.playerId, etc. are now typed
+ */
 
 import 'next-auth';
 import 'next-auth/jwt';

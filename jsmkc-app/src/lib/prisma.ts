@@ -1,7 +1,26 @@
+/**
+ * Prisma Database Client Singleton
+ *
+ * Exports a single PrismaClient instance that is reused across the entire
+ * application lifetime. The singleton pattern is critical because Next.js
+ * hot-reloads server modules during development, and each reload would
+ * otherwise create a new PrismaClient, quickly exhausting the database
+ * connection pool.
+ *
+ * The workaround stores the client on `globalThis`, which survives hot
+ * reloads. In production only one instance is ever created, so the global
+ * variable trick is a no-op.
+ *
+ * Query logging is enabled in development for debugging; only errors are
+ * logged in production to keep output clean.
+ *
+ * Usage:
+ *   import { prisma } from '@/lib/prisma';
+ *   const players = await prisma.player.findMany();
+ */
+
 import { PrismaClient } from "@prisma/client";
 
-// Singleton pattern: reuse PrismaClient across hot reloads in development
-// In production, a single instance is created and reused
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };

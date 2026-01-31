@@ -1,5 +1,18 @@
-// Double Elimination Bracket Type Definitions
-// Used by BM, MR, and GP finals bracket generation and display
+/**
+ * Double Elimination Bracket Type Definitions
+ *
+ * Defines the data structures that describe an 8-player double elimination
+ * tournament bracket. Used by BM (Battle Mode), MR (Match Race), and
+ * GP (Grand Prix) finals for both bracket generation and display.
+ *
+ * The bracket consists of a winners side, a losers side, and a grand
+ * final. Each BracketMatch carries routing information (winnerGoesTo,
+ * loserGoesTo) that the generation logic uses to wire matches together,
+ * while the UI reads seed/position fields for rendering.
+ *
+ * Usage:
+ *   import type { BracketMatch, BracketRound } from '@/types/bracket';
+ */
 
 /** Bracket type for double elimination tournament */
 export type BracketType = "winners" | "losers" | "grand_final";

@@ -1,3 +1,24 @@
+/**
+ * Central Configuration Constants for the JSMKC Application
+ *
+ * Collects magic numbers and fixed values into one module so they
+ * can be referenced by name rather than duplicated as raw literals.
+ *
+ * Grouped by concern:
+ * - Game data: course list, course metadata, character roster
+ * - Authentication: access/refresh token expiry durations
+ * - Rate limiting: per-endpoint request caps and time windows
+ * - Score validation: min/max battle scores
+ * - Optimistic locking: retry attempts and exponential back-off base
+ * - Polling: client-side refresh intervals
+ * - Audit: log retention period
+ *
+ * All values are exported as named constants with descriptive identifiers.
+ *
+ * Usage:
+ *   import { COURSES, POLLING_INTERVAL, MAX_BATTLE_SCORE } from '@/lib/constants';
+ */
+
 // Course abbreviations in order for Super Mario Kart (20 courses total)
 export const COURSES = [
   "MC1", "DP1", "GV1", "BC1",
@@ -49,10 +70,6 @@ export const SMK_CHARACTERS = [
 ] as const;
 
 export type SMKCharacter = typeof SMK_CHARACTERS[number];
-
-/**
- * Application constants and configuration values
- */
 
 // Token and authentication constants
 export const ACCESS_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds

@@ -1,5 +1,22 @@
-// Extended Prisma types for common patterns used across the application
-// Provides type-safe interfaces for pagination and transactions
+/**
+ * Extended Prisma Type Definitions for Common Application Patterns
+ *
+ * Supplements the auto-generated Prisma types with reusable interfaces
+ * that appear across many API routes and service functions:
+ *
+ * - PaginatedResult<T>: Generic wrapper for paginated API responses,
+ *   carrying both the data array and pagination metadata.
+ * - PaginationParams: Standard page/pageSize query parameters accepted
+ *   by list endpoints.
+ * - PrismaTransaction: Type-safe extraction of the transaction client
+ *   passed into Prisma's $transaction() callback, so helper functions
+ *   can declare it as a parameter type.
+ * - ModelAccessor<T>: Generic CRUD interface abstracting any Prisma
+ *   model delegate, useful for writing model-agnostic utilities.
+ *
+ * Usage:
+ *   import type { PaginatedResult, PrismaTransaction } from '@/types/prisma-extended';
+ */
 
 /** Paginated query result with metadata */
 export interface PaginatedResult<T> {

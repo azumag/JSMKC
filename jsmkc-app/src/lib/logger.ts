@@ -1,3 +1,24 @@
+/**
+ * Winston-based Structured Logging for the JSMKC Application
+ *
+ * Provides service-scoped logger creation via createLogger() so that every
+ * log line is automatically prefixed with the originating service name,
+ * making it easy to filter and trace issues in production.
+ *
+ * Environment-aware log levels: debug-level output in development,
+ * warn-and-above in production. In the test environment a completely
+ * silent logger is returned to avoid noisy console output during test runs.
+ *
+ * Only the Console transport is used. File-based transports are intentionally
+ * avoided because Next.js edge/serverless runtimes cannot reliably access
+ * the filesystem, and adding them would cause webpack bundling errors.
+ *
+ * Usage:
+ *   import { createLogger } from '@/lib/logger';
+ *   const log = createLogger('api-players');
+ *   log.info('Player registered', { playerId: '123' });
+ */
+
 import winston from 'winston'
 
 // Define log levels with numeric priority (lower = more critical)
