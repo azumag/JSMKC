@@ -3,15 +3,35 @@ import prisma from '@/lib/prisma';
 import { createCSV } from '@/lib/excel';
 import { createLogger } from '@/lib/logger';
 
+interface ExportPlayer {
+  name: string;
+  nickname: string;
+}
+
+export interface ExportQualification {
+  player: ExportPlayer;
+  [key: string]: unknown;
+}
+
+export interface ExportMatch {
+  matchNumber: number;
+  stage: string;
+  player1: ExportPlayer;
+  player2: ExportPlayer;
+  completed: boolean;
+  cup?: string;
+  [key: string]: unknown;
+}
+
 export interface ExportConfig {
   loggerName: string;
   qualificationModel: string;
   matchModel: string;
   eventCode: string;
   qualificationHeaders: string[];
-  qualificationRowMapper: (q: any, index: number) => string[];
+  qualificationRowMapper: (q: ExportQualification, index: number) => string[];
   matchHeaders: string[];
-  matchRowMapper: (m: any) => string[];
+  matchRowMapper: (m: ExportMatch) => string[];
 }
 
 export function createExportHandlers(config: ExportConfig) {

@@ -211,7 +211,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
       message: error.message,
       stack: error.stack,
       componentStack: errorInfo.componentStack
-    } as any);
+    });
 
     /** Invoke the optional external error handler (e.g., Sentry, analytics) */
     if (this.props.onError) {

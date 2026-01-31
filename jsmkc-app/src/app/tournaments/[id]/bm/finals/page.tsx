@@ -203,7 +203,7 @@ export default function BattleModeFinals({
     } catch (err) {
       /* Log the error with structured metadata for debugging */
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to create bracket:", metadata as any);
+      logger.error("Failed to create bracket:", metadata);
       alert("Failed to create bracket");
     } finally {
       setCreating(false);
@@ -263,7 +263,7 @@ export default function BattleModeFinals({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update score:", metadata as any);
+      logger.error("Failed to update score:", metadata);
       alert("Failed to update score");
     }
   };

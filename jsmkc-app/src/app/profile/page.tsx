@@ -98,7 +98,7 @@ export default function ProfilePage() {
                         setLinkedPlayer(myPlayer)
                     }
                 }
-            } catch (error) {
+            } catch {
                 /* Silently handle fetch errors - the user will see an empty state */
             } finally {
                 setLoading(false)

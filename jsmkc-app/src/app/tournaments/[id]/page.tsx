@@ -110,7 +110,7 @@ export default function TournamentDetailPage({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to fetch tournament:", metadata as any);
+      logger.error("Failed to fetch tournament:", metadata);
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,7 @@ export default function TournamentDetailPage({
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to update status:", metadata as any);
+      logger.error("Failed to update status:", metadata);
     }
   };
 
