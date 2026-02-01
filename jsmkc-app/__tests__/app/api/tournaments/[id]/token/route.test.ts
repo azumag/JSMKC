@@ -161,7 +161,7 @@ describe('Token Management API Routes', () => {
   describe('POST /api/tournaments/[id]/token/extend', () => {
 
     describe('Authorization', () => {
-      it('should return 401 when not authenticated', async () => {
+      it('should return 403 when not authenticated', async () => {
         (auth as jest.Mock).mockResolvedValue(null);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
@@ -174,9 +174,29 @@ describe('Token Management API Routes', () => {
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
-            error: 'Unauthorized',
+            error: 'Forbidden',
           }),
-          { status: 401 }
+          { status: 403 }
+        );
+      });
+
+      it('should return 403 when authenticated but not admin', async () => {
+        (auth as jest.Mock).mockResolvedValue({
+          user: { id: 'player-1', role: 'member' },
+        });
+
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/extend', {
+          method: 'POST',
+          body: JSON.stringify({ extensionHours: 24 }),
+        });
+
+        await TokenExtendPOST(request, { params: Promise.resolve({ id: 't1' }) });
+
+        expect(NextResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: 'Forbidden',
+          }),
+          { status: 403 }
         );
       });
     });
@@ -186,7 +206,7 @@ describe('Token Management API Routes', () => {
         // Rate limit check happens after auth but before validation.
         // When rate limit fails, the source returns 429 immediately.
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({
           success: false,
@@ -219,7 +239,7 @@ describe('Token Management API Routes', () => {
     describe('Validation', () => {
       it('should return 400 when extensionHours < 1', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -242,7 +262,7 @@ describe('Token Management API Routes', () => {
 
       it('should return 400 when extensionHours > 168', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -267,7 +287,7 @@ describe('Token Management API Routes', () => {
     describe('Success Cases', () => {
       it('should extend token expiry successfully', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -335,7 +355,7 @@ describe('Token Management API Routes', () => {
 
       it('should create audit log on successful extension', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -369,7 +389,7 @@ describe('Token Management API Routes', () => {
         // When tournament exists but has no token, the source returns 400.
         // For tournament not found (null), source returns 404.
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -400,7 +420,7 @@ describe('Token Management API Routes', () => {
 
       it('should handle database errors gracefully', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (rateLimitMock.checkRateLimit as jest.Mock).mockResolvedValue({ success: true });
         (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
@@ -642,7 +662,7 @@ describe('Token Management API Routes', () => {
 
   describe('POST /api/tournaments/[id]/token/regenerate', () => {
     describe('Authorization', () => {
-      it('should return 401 when not authenticated', async () => {
+      it('should return 403 when not authenticated', async () => {
         (auth as jest.Mock).mockResolvedValue(null);
 
         const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
@@ -655,9 +675,29 @@ describe('Token Management API Routes', () => {
 
         expect(NextResponse.json).toHaveBeenCalledWith(
           expect.objectContaining({
-            error: 'Unauthorized',
+            error: 'Forbidden',
           }),
-          { status: 401 }
+          { status: 403 }
+        );
+      });
+
+      it('should return 403 when authenticated but not admin', async () => {
+        (auth as jest.Mock).mockResolvedValue({
+          user: { id: 'player-1', role: 'member' },
+        });
+
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/token/regenerate', {
+          method: 'POST',
+          body: JSON.stringify({ expiresInHours: 24 }),
+        });
+
+        await TokenRegeneratePOST(request, { params: Promise.resolve({ id: 't1' }) });
+
+        expect(NextResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: 'Forbidden',
+          }),
+          { status: 403 }
         );
       });
     });
@@ -665,7 +705,7 @@ describe('Token Management API Routes', () => {
     describe('Validation', () => {
       it('should return 400 when expiresInHours < 1', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 0 });
 
@@ -687,7 +727,7 @@ describe('Token Management API Routes', () => {
 
       it('should return 400 when expiresInHours > 168', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 200 });
 
@@ -711,7 +751,7 @@ describe('Token Management API Routes', () => {
     describe('Success Cases', () => {
       it('should regenerate token successfully', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
         tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
@@ -795,7 +835,7 @@ describe('Token Management API Routes', () => {
 
       it('should create audit log on successful regeneration', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
         tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
@@ -828,7 +868,7 @@ describe('Token Management API Routes', () => {
     describe('Error Cases', () => {
       it('should return 404 when tournament not found (P2025)', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
         tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
@@ -859,7 +899,7 @@ describe('Token Management API Routes', () => {
 
       it('should handle database errors gracefully', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
         tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');
@@ -889,7 +929,7 @@ describe('Token Management API Routes', () => {
 
       it('should handle audit log failures gracefully', async () => {
         (auth as jest.Mock).mockResolvedValue({
-          user: { id: 'admin-1' },
+          user: { id: 'admin-1', role: 'admin' },
         });
         (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ expiresInHours: 24 });
         tokenUtilsMock.generateTournamentToken.mockReturnValue('new-generated-token');

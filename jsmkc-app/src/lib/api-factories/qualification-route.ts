@@ -79,10 +79,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     let currentSession: any = null;
     if (config.postRequiresAuth) {
       const session = await auth();
-      if (!session?.user) {
+      if (!session?.user || session.user.role !== 'admin') {
         return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 },
+          { error: 'Forbidden' },
+          { status: 403 },
         );
       }
       currentSession = session;
@@ -180,6 +180,18 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
+
+    /* Auth check for PUT endpoint */
+    if (config.putRequiresAuth) {
+      const session = await auth();
+      if (!session?.user || session.user.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 },
+        );
+      }
+    }
+
     const { id: tournamentId } = await params;
 
     try {

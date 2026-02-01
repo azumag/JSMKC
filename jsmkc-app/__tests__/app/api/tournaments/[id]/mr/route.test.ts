@@ -54,6 +54,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
     NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
@@ -133,7 +134,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
   describe('POST - Setup match race qualification', () => {
     // Success case - Creates qualifications and matches with valid players array
     it('should create qualifications and round-robin matches with valid players array', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const mockPlayers = [
@@ -157,7 +158,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Success case - Handles multiple groups correctly
     it('should generate matches for multiple groups separately', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const mockPlayers = [
@@ -178,9 +179,49 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(prisma.mRMatch.create).toHaveBeenCalledTimes(2);
     });
 
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+      expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
+    });
+
+    // Authorization failure case - Returns 403 when session exists but user is missing
+    it('should return 403 when session exists but user is missing', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: null });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+      expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      const mockAuth = { user: { id: 'player1', role: 'player' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+      expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
+    });
+
     // Validation error case - Returns 400 when players array is missing
     it('should return 400 when players array is missing', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', {});
@@ -193,7 +234,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Validation error case - Returns 400 when players array is not an array
     it('should return 400 when players is not an array', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: 'not-an-array' });
@@ -206,7 +247,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
 
     // Validation error case - Returns 400 when players array is empty
     it('should return 400 when players array is empty', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: [] });
@@ -220,7 +261,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     // Error case - Returns 500 when database operation fails
     // Mock mRQualification.deleteMany to reject since it's called first in the factory
     it('should return 500 when database operation fails', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       (prisma.mRQualification.deleteMany as jest.Mock).mockRejectedValue(new Error('Database error'));
@@ -236,6 +277,30 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
   });
 
   describe('PUT - Update match score', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Updates match score and recalculates qualifications
     it('should update match score and recalculate player qualifications', async () => {
       const mockMatch = {

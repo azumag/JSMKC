@@ -308,6 +308,37 @@ export default function TimeAttackParticipantPage({
     }
   };
 
+  /** Add self to time attack competition */
+  const handleAddToTimeAttack = async () => {
+    if (!selectedPlayer) return;
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tournament-token': token || '',
+        },
+        body: JSON.stringify({ playerId: selectedPlayer.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add to time attack');
+      }
+
+      const data = await response.json();
+      setEntries(prev => [...prev, ...data.entries]);
+      alert("Successfully added to time attack!");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add to time attack';
+      setError(errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // === Helper Functions ===
 
   /** Count the number of course times entered in the input fields */
@@ -554,18 +585,22 @@ export default function TimeAttackParticipantPage({
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+             ) : (
               /* Not Registered message (no qualification entry found) */
               <Card>
                 <CardContent className="py-12 text-center">
                   <Timer className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-semibold mb-2">Not Registered for Time Attack</h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground mb-4">
                     You are not registered for the time attack competition in this tournament.
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Contact the tournament organizer to be added to the time attack event.
-                  </p>
+                  <Button
+                    onClick={handleAddToTimeAttack}
+                    disabled={submitting}
+                    className="w-full max-w-xs mx-auto"
+                  >
+                    {submitting ? 'Adding...' : 'Add to Time Attack'}
+                  </Button>
                 </CardContent>
               </Card>
             )}

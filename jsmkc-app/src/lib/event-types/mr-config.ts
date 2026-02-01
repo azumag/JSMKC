@@ -34,6 +34,7 @@ export const mrConfig: EventTypeConfig = {
   eventDisplayName: 'match race',
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
   postRequiresAuth: true,
+  putRequiresAuth: true,
   /* No audit logging for MR POST (matches original behavior) */
   setupCompleteMessage: 'Match race setup complete',
 

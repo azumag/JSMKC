@@ -17,6 +17,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   responseStyle: 'structured',
+  putRequiresAuth: true,
 });
 
 export { GET, PUT };

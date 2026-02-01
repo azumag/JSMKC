@@ -53,6 +53,8 @@ export interface EventTypeConfig {
 
   /** Whether POST endpoint requires authentication */
   postRequiresAuth: boolean;
+  /** Whether PUT endpoint requires admin authentication */
+  putRequiresAuth: boolean;
   /** Audit action constant for POST (undefined = no audit logging) */
   auditAction?: string;
   /** Success message returned by POST */

@@ -352,8 +352,8 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
       });
     });
 
-    // Authentication failure case - Returns 401 when not authenticated
-    it('should return 401 when user is not authenticated', async () => {
+    // Authentication failure case - Returns 403 when not authenticated
+    it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const requestBody = { score1: 3, score2: 2 };
@@ -362,13 +362,13 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ error: 'Forbidden: Admin access required' });
+      expect(result.status).toBe(403);
       expect(prisma.bMMatch.findUnique).not.toHaveBeenCalled();
     });
 
-    // Authentication failure case - Returns 401 when user has no user object
-    it('should return 401 when session exists but user is missing', async () => {
+    // Authentication failure case - Returns 403 when user has no user object
+    it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const requestBody = { score1: 3, score2: 2 };
@@ -377,12 +377,12 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ error: 'Forbidden: Admin access required' });
+      expect(result.status).toBe(403);
     });
 
-    // Authorization failure case - Returns 401 when user is not admin
-    it('should return 401 when user is not an admin', async () => {
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not an admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
@@ -392,8 +392,8 @@ describe('BM Finals Match API Route - /api/tournaments/[id]/bm/finals/matches/[m
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ error: 'Forbidden: Admin access required' });
+      expect(result.status).toBe(403);
     });
 
     // Validation error case - Returns 400 when score1 is out of range

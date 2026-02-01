@@ -61,6 +61,11 @@ jest.mock('@/lib/audit-log', () => ({
   },
 }));
 
+// Mock token-validation - make it configurable
+jest.mock('@/lib/token-validation', () => ({
+  validateTournamentToken: jest.fn(() => Promise.resolve({ valid: true })),
+}));
+
 // Mock rank-calculation
 jest.mock('@/lib/ta/rank-calculation', () => ({
   recalculateRanks: jest.fn(() => Promise.resolve()),
@@ -135,6 +140,10 @@ const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
 };
 
+const tokenValidationMock = jest.requireMock('@/lib/token-validation') as {
+  validateTournamentToken: jest.Mock;
+};
+
 // Valid UUIDs for tests
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_UUID2 = '550e8400-e29b-41d4-a716-446655440001';
@@ -145,10 +154,17 @@ describe('/api/tournaments/[id]/ta', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock NextResponse.json to return a response-like object (matching BM/MR/GP test patterns)
+    // This ensures auth guard responses are truthy and properly trigger early returns.
+    NextResponse.json.mockImplementation((data: any, options?: any) => ({
+      data,
+      status: options?.status || 200,
+    }));
     // Restore default mock return values after clearAllMocks resets them
     rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: true }));
     rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
     rateLimitMock.getUserAgent.mockReturnValue('test-agent');
+    tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
   });
 
   afterEach(() => {
@@ -176,23 +192,20 @@ describe('/api/tournaments/[id]/ta', () => {
 
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       (prisma.tTEntry.count as jest.Mock)
-        .mockResolvedValueOnce(10)  // qualCount
-        .mockResolvedValueOnce(5);  // finalsCount
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(5);
 
       await taRoute.GET(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      // Verify findMany was called with correct parameters
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: VALID_UUID, stage: 'qualification' },
         include: { player: true },
         orderBy: [{ rank: 'asc' }, { totalTime: 'asc' }],
       });
 
-      // Verify response includes entries, stage, and counts
-      // Note: courses uses the real COURSES array from constants
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           entries: mockEntries,
@@ -223,7 +236,6 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      // The shared logger singleton is returned by every createLogger call
       const sharedLogger = loggerMock.createLogger();
       expect(sharedLogger.error).toHaveBeenCalledWith(
         'Failed to fetch TA data',
@@ -294,7 +306,6 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 429 when rate limited', async () => {
-      // Override rateLimit to return failure
       rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: false }));
 
       await taRoute.POST(
@@ -311,7 +322,29 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should return 401 for promote_to_finals without auth', async () => {
+    it('should return 403 for promote_to_finals when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'user-1', role: 'member' },
+      });
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'promote_to_finals',
+            players: [VALID_UUID2],
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for promote_to_finals without admin auth (null session)', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       await taRoute.POST(
@@ -326,8 +359,96 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Authentication required for finals promotion' },
-        { status: 401 }
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for promote_to_revival_1 without admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'promote_to_revival_1',
+            players: [VALID_UUID2],
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for promote_to_revival_2 without admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'promote_to_revival_2',
+            players: [VALID_UUID2],
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for add player without token or admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: false, error: 'Invalid token' });
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ playerId: VALID_UUID2 }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should add player with valid token', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
+
+      const mockEntry = {
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        playerId: VALID_UUID2,
+        stage: 'qualification',
+        times: {},
+        player: { id: VALID_UUID2, nickname: 'TestPlayer' },
+      };
+
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.tTEntry.create as jest.Mock).mockResolvedValue(mockEntry);
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ playerId: VALID_UUID2 }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { message: 'Player(s) added to time attack', entries: [mockEntry] },
+        { status: 201 }
       );
     });
   });
@@ -337,6 +458,10 @@ describe('/api/tournaments/[id]/ta', () => {
   // =========================================================================
   describe('PUT', () => {
     it('should update a course time', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
+
       const existingEntry = {
         id: VALID_ENTRY_ID,
         tournamentId: VALID_UUID,
@@ -351,8 +476,8 @@ describe('/api/tournaments/[id]/ta', () => {
       };
 
       (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce(existingEntry)  // First call: find entry for time merge
-        .mockResolvedValueOnce(updatedEntry);  // Second call: fetch final entry with player
+        .mockResolvedValueOnce(existingEntry)
+        .mockResolvedValueOnce(updatedEntry);
       (prisma.tTEntry.update as jest.Mock).mockResolvedValue(updatedEntry);
 
       await taRoute.PUT(
@@ -417,15 +542,159 @@ describe('/api/tournaments/[id]/ta', () => {
         { status: 500 }
       );
     });
+
+    it('should return 403 for eliminate action when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'user-1', role: 'member' },
+      });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'eliminate',
+            eliminated: true,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for eliminate action without admin auth (null session)', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'eliminate',
+            eliminated: true,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for update_lives action without admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'update_lives',
+            livesDelta: 1,
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for reset_lives action without admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            action: 'reset_lives',
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 for update times without token or admin auth', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: false, error: 'Invalid token' });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            times: { MC1: '1:20.000' },
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should update times with valid token', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
+
+      const existingEntry = {
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        stage: 'qualification',
+        times: { MC1: '1:20.000' },
+      };
+
+      const updatedEntry = {
+        ...existingEntry,
+        times: { MC1: '1:20.000', MC2: '1:25.000' },
+        player: { id: 'p1', nickname: 'TestPlayer' },
+      };
+
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce(existingEntry)
+        .mockResolvedValueOnce(updatedEntry);
+      (prisma.tTEntry.update as jest.Mock).mockResolvedValue(updatedEntry);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            times: { MC2: '1:25.000' },
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { entry: updatedEntry }
+      );
+    });
   });
 
   // =========================================================================
   // DELETE
   // =========================================================================
   describe('DELETE', () => {
-    it('should delete an entry with auth', async () => {
+    it('should delete an entry with admin auth', async () => {
       (auth as jest.Mock).mockResolvedValue({
-        user: { id: 'admin-1', email: 'admin@example.com' },
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
       const entryToDelete = {
@@ -451,7 +720,7 @@ describe('/api/tournaments/[id]/ta', () => {
       });
     });
 
-    it('should return 401 without auth', async () => {
+    it('should return 403 without admin auth (null session)', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       await taRoute.DELETE(
@@ -462,14 +731,32 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'user-1', email: 'user@example.com', role: 'member' },
+      });
+
+      await taRoute.DELETE(
+        new NextRequest(
+          `http://localhost:3000/api/tournaments/${VALID_UUID}/ta?entryId=${VALID_ENTRY_ID}`
+        ),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       );
     });
 
     it('should return 404 when entry not found', async () => {
       (auth as jest.Mock).mockResolvedValue({
-        user: { id: 'admin-1', email: 'admin@example.com' },
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
       (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
@@ -489,7 +776,7 @@ describe('/api/tournaments/[id]/ta', () => {
 
     it('should handle database errors with 500', async () => {
       (auth as jest.Mock).mockResolvedValue({
-        user: { id: 'admin-1', email: 'admin@example.com' },
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
 
       (prisma.tTEntry.findUnique as jest.Mock).mockRejectedValue(new Error('DB error'));

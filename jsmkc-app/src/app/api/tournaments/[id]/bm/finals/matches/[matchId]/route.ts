@@ -76,8 +76,8 @@ export async function PUT(
   /* Admin authentication is required for match score updates */
   if (!session?.user || session.user.role !== "admin") {
     return NextResponse.json(
-      { error: "Unauthorized: Admin access required" },
-      { status: 401 }
+      { error: "Forbidden: Admin access required" },
+      { status: 403 }
     );
   }
 

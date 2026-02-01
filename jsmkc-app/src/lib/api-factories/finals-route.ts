@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -51,6 +52,10 @@ export interface FinalsConfig {
   getErrorMessage: string;
   /** Error message returned when POST fails */
   postErrorMessage: string;
+  /** Whether POST endpoint requires admin authentication */
+  postRequiresAuth?: boolean;
+  /** Whether PUT endpoint requires admin authentication */
+  putRequiresAuth?: boolean;
 }
 
 /**
@@ -160,6 +165,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
+
+    /* Auth check for POST endpoint */
+    if (config.postRequiresAuth) {
+      const session = await auth();
+      if (!session?.user || session.user.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 },
+        );
+      }
+    }
+
     const { id: tournamentId } = await params;
 
     try {
@@ -259,6 +276,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
+
+    /* Auth check for PUT endpoint */
+    if (config.putRequiresAuth) {
+      const session = await auth();
+      if (!session?.user || session.user.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 },
+        );
+      }
+    }
+
     const { id: tournamentId } = await params;
 
     try {

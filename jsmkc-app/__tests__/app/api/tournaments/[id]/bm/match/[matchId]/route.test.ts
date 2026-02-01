@@ -22,6 +22,8 @@
 // @ts-nocheck
 
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+
 jest.mock('@/lib/optimistic-locking', () => ({
   updateBMMatchScore: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
@@ -44,6 +46,7 @@ jest.mock('@/lib/sanitize', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { updateBMMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/bm/match/[matchId]/route';
 
@@ -63,6 +66,8 @@ class MockNextRequest {
 describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock auth to return admin user by default for PUT tests
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
   });
 
   describe('GET - Retrieve a single battle mode match', () => {
@@ -198,6 +203,34 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   });
 
   describe('PUT - Update battle mode match score with optimistic locking', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest({ score1: 3, score2: 1, version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Forbidden', code: 'FORBIDDEN' },
+        status: 403
+      });
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest({ score1: 3, score2: 1, version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Forbidden', code: 'FORBIDDEN' },
+        status: 403
+      });
+    });
+
     // Success case - Updates match score with valid version
     it('should update match score and return updated match with version', async () => {
       const mockMatch = {

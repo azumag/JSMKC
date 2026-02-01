@@ -20,6 +20,8 @@ const { GET, POST, PUT } = createFinalsHandlers({
   putAdditionalFields: ['rounds'],
   getErrorMessage: 'Failed to fetch finals data',
   postErrorMessage: 'Failed to create finals bracket',
+  postRequiresAuth: true,
+  putRequiresAuth: true,
 });
 
 export { GET, POST, PUT };

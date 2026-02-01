@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
 
@@ -98,6 +99,16 @@ export async function PUT(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('tt-entry-api');
+
+  // Admin authentication is required for TT entry updates
+  const session = await auth();
+  if (!session?.user || session.user.role !== "admin") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
   const { entryId } = await params;
   try {
     const body = await request.json();

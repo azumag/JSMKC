@@ -36,6 +36,7 @@ export const gpConfig: EventTypeConfig = {
   eventDisplayName: 'grand prix',
   qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }],
   postRequiresAuth: true,
+  putRequiresAuth: true,
   /* No audit logging for GP POST (matches original behavior) */
   setupCompleteMessage: 'Grand prix setup complete',
 

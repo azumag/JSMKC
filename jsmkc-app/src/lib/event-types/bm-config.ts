@@ -33,6 +33,7 @@ export const bmConfig: EventTypeConfig = {
   eventDisplayName: 'battle mode',
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
   postRequiresAuth: true,
+  putRequiresAuth: true,
   auditAction: AUDIT_ACTIONS.CREATE_BM_MATCH,
   setupCompleteMessage: 'Battle mode setup complete',
 

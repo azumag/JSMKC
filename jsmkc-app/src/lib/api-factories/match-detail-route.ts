@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { OptimisticLockError } from '@/lib/optimistic-locking';
 import { sanitizeInput } from '@/lib/sanitize';
 import {
@@ -59,6 +60,8 @@ export interface MatchDetailConfig {
   getLogMessage?: string;
   putErrorMessage?: string;
   includeSuccessInGetErrors?: boolean;
+  /** Whether PUT endpoint requires admin authentication */
+  putRequiresAuth?: boolean;
 }
 
 /**
@@ -140,6 +143,21 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     { params }: { params: Promise<{ id: string; matchId: string }> },
   ) {
     const logger = createLogger(config.loggerName);
+
+    /* Auth check for PUT endpoint */
+    if (config.putRequiresAuth) {
+      const session = await auth();
+      if (!session?.user || session.user.role !== 'admin') {
+        if (config.responseStyle === 'structured') {
+          return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+        }
+        return NextResponse.json(
+          { success: false, error: 'Forbidden' },
+          { status: 403 },
+        );
+      }
+    }
+
     const { matchId } = await params;
 
     try {

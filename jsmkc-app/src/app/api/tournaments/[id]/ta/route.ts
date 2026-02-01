@@ -30,12 +30,49 @@ import { timeToMs } from "@/lib/ta/time-utils";
 import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
+import { validateTournamentToken } from "@/lib/token-validation";
 
 /**
  * Regex for validating time format strings in request validation.
  * Matches M:SS.mmm or MM:SS.mmm format.
  */
 const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
+
+/**
+ * Admin authentication helper that returns the session.
+ * Returns { error } if user is not authenticated or not admin.
+ * Returns { session } if authentication succeeds.
+ */
+async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: any }> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'admin') {
+    return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) };
+  }
+  return { session };
+}
+
+/**
+ * Admin or tournament token authentication helper.
+ * Accepts either admin session or valid tournament token.
+ * Returns an error response if both authentication methods fail.
+ * Returns null if either authentication succeeds.
+ */
+async function requireAdminOrToken(
+  request: NextRequest,
+  tournamentId: string
+): Promise<NextResponse | null> {
+  const session = await auth();
+  if (session?.user?.role === 'admin') return null;
+
+  const tokenResult = await validateTournamentToken(request, tournamentId);
+  if (!tokenResult.valid) {
+    return NextResponse.json(
+      { success: false, error: 'Forbidden' },
+      { status: 403 }
+    );
+  }
+  return null;
+}
 
 /**
  * Valid tournament stages for TA mode.
@@ -67,8 +104,16 @@ const PostRequestSchema = z.object({
   action: z.enum(["add", "promote_to_finals", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
   topN: z.number().min(1).max(32).optional(),
 }).refine(
-  (data) => data.playerId !== undefined || (data.players !== undefined && data.players.length > 0),
-  { message: "Either playerId or players array is required" }
+  (data) => {
+    if (data.action === "add") {
+      return data.playerId !== undefined || (data.players !== undefined && data.players.length > 0);
+    }
+    if (data.action === "promote_to_finals") {
+      return data.topN !== undefined || data.players !== undefined;
+    }
+    return true;
+  },
+  { message: "Invalid request for action" }
 );
 
 /**
@@ -90,6 +135,7 @@ const PutRequestSchema = z.object({
 }).refine(
   (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
             data.action === "eliminate" ? data.eliminated !== undefined :
+            data.action === "reset_lives" ? true :
             data.times !== undefined || (data.course !== undefined && data.time !== undefined),
   { message: "Invalid request for action" }
 );
@@ -207,13 +253,8 @@ export async function POST(
     // === Revival Round 1 Promotion ===
     // Promotes players ranked 17-24 from qualification to revival_1
     if (action === "promote_to_revival_1") {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "Authentication required for revival promotion" },
-          { status: 401 }
-        );
-      }
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
 
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
@@ -226,7 +267,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id || '',
+        userId: authResult.session!.user.id,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
@@ -248,13 +289,8 @@ export async function POST(
     // === Revival Round 2 Promotion ===
     // Promotes players 13-16 from qualification + revival 1 survivors to revival_2
     if (action === "promote_to_revival_2") {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "Authentication required for revival promotion" },
-          { status: 401 }
-        );
-      }
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
 
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
@@ -267,7 +303,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id || '',
+        userId: authResult.session!.user.id,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
@@ -289,13 +325,8 @@ export async function POST(
     // === Finals Promotion ===
     // Promotes top N players or selected players from qualification to finals
     if (action === "promote_to_finals") {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "Authentication required for finals promotion" },
-          { status: 401 }
-        );
-      }
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
 
       const identifier = getClientIdentifier(request);
       const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
@@ -308,7 +339,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session.user.id || '',
+        userId: authResult.session!.user.id,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
@@ -329,6 +360,9 @@ export async function POST(
 
     // === Add Player to Qualification ===
     // Default action: add one or more players to the qualification round
+    const authError = await requireAdminOrToken(request, tournamentId);
+    if (authError) return authError;
+
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
     if (!rateLimitResult.success) {
@@ -448,22 +482,63 @@ export async function PUT(
       );
     }
 
-    const { entryId, action, eliminated } = parseResult.data;
+    const { entryId, action, eliminated, livesDelta } = parseResult.data;
+
+    // === Lives Actions ===
+    // Manually update or reset player lives (admin only)
+    if (action === "update_lives" || action === "reset_lives") {
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
+
+      const entry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: true },
+      });
+
+      if (!entry) {
+        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
+      }
+
+      const updatedEntry = await prisma.tTEntry.update({
+        where: { id: entryId },
+        data: action === "reset_lives" ? { lives: 3 } : { lives: { increment: livesDelta } },
+        include: { player: true },
+      });
+
+      await recalculateRanks(tournamentId, entry.stage, prisma);
+
+      const ipAddress = getClientIdentifier(request);
+      const userAgent = getUserAgent(request);
+      try {
+        await createAuditLog({
+          userId: authResult.session!.user.id,
+          ipAddress,
+          userAgent,
+          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+          targetId: entryId,
+          targetType: "TTEntry",
+          details: {
+            tournamentId,
+            playerNickname: updatedEntry.player.nickname,
+            action,
+          },
+        });
+      } catch (logError) {
+        logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_LIVES' });
+      }
+
+      return NextResponse.json({ entry: updatedEntry });
+    }
 
     // === Elimination Action ===
     // Manually eliminate or un-eliminate a player (admin only)
     if (action === "eliminate") {
-      const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: "Authentication required for delete operations" },
-          { status: 401 }
-        );
-      }
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
 
       if (eliminated === undefined) {
         return NextResponse.json(
-          { success: false, error: "Either players array or topN is required for promotion" },
+          { success: false, error: "eliminated boolean is required" },
           { status: 400 }
         );
       }
@@ -490,7 +565,7 @@ export async function PUT(
       const userAgent = getUserAgent(request);
       try {
         await createAuditLog({
-          userId: session.user.id || '',
+          userId: authResult.session!.user.id,
           ipAddress,
           userAgent,
           action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
@@ -514,6 +589,9 @@ export async function PUT(
     // === Time Update Action ===
     // Update course times (single course or bulk)
     const { course, time, times: bulkTimes } = parseResult.data;
+
+    const authError = await requireAdminOrToken(request, tournamentId);
+    if (authError) return authError;
 
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
@@ -634,14 +712,8 @@ export async function DELETE(
   const { id: tournamentId } = await params;
   try {
 
-    // Authentication required for destructive operations
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireAdminAndGetSession();
+    if (authResult.error) return authResult.error;
 
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
@@ -708,7 +780,7 @@ export async function DELETE(
     const userAgent = getUserAgent(request);
     try {
       await createAuditLog({
-        userId: session.user.id || '',
+        userId: authResult.session!.user.id,
         ipAddress,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
@@ -717,7 +789,7 @@ export async function DELETE(
         details: {
           tournamentId,
           playerNickname: entryToDelete.player.nickname,
-          deletedBy: session.user.email,
+          deletedBy: authResult.session!.user.id,
         },
         });
     } catch (logError) {

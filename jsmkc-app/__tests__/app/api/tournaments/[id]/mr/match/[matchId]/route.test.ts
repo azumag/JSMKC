@@ -20,6 +20,7 @@
  */
 // @ts-nocheck
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateMRMatchScore: jest.fn(),
@@ -36,6 +37,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
@@ -62,6 +64,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
     NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
@@ -124,6 +127,30 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
   });
 
   describe('PUT - Update match score with optimistic locking', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 3, score2: 1, completed: true, rounds: [1, 2, 3, 4], version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Updates match score successfully
     it('should update match score with optimistic locking', async () => {
       const mockUpdatedMatch = {

@@ -49,6 +49,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     /* Reset all prisma model mocks to ensure no queued mockResolvedValueOnce values leak between tests */
     (prisma.gPQualification.findMany as jest.Mock).mockReset();
     (prisma.gPQualification.create as jest.Mock).mockReset();
@@ -137,7 +138,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
   describe('POST - Setup grand prix qualification', () => {
     // Success case - Creates qualifications and round-robin matches with authenticated admin
     it('should create qualifications and round-robin matches with valid players array', async () => {
-      const mockAuth = { user: { id: 'admin1', name: 'Admin' } };
+      const mockAuth = { user: { id: 'admin1', name: 'Admin', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const mockPlayers = [
@@ -162,7 +163,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     // Success case - Handles multiple groups correctly
     it('should generate matches for multiple groups separately', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const mockPlayers = [
@@ -183,34 +184,49 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(prisma.gPMatch.create).toHaveBeenCalledTimes(2);
     });
 
-    // Authentication failure case - Returns 401 when user is not authenticated
-    it('should return 401 when user is not authenticated', async () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: [] });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
       expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
     });
 
-    // Authentication failure case - Returns 401 when user has no user object
-    it('should return 401 when session exists but user is missing', async () => {
+    // Authorization failure case - Returns 403 when user has no user object
+    it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: [] });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+      expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      const mockAuth = { user: { id: 'player1', role: 'player' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: [] });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+      expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
     });
 
     // Validation error case - Returns 400 when players array is missing
     it('should return 400 when players array is missing', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {});
@@ -223,7 +239,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     // Validation error case - Returns 400 when players array is not an array
     it('should return 400 when players is not an array', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: 'not-an-array' });
@@ -236,7 +252,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     // Validation error case - Returns 400 when players array is empty
     it('should return 400 when players array is empty', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: [] });
@@ -249,7 +265,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       (prisma.gPQualification.deleteMany as jest.Mock).mockRejectedValue(new Error('Database error'));
@@ -265,7 +281,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     // Edge case - Creates correct number of matches for round-robin format
     it('should create correct number of round-robin matches', async () => {
-      const mockAuth = { user: { id: 'admin1' } };
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const mockPlayers = [
@@ -287,6 +303,48 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
   });
 
   describe('PUT - Update match score with race data', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
+        matchId: 'm1',
+        cup: 'Mushroom Cup',
+        races: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+        ]
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
+        matchId: 'm1',
+        cup: 'Mushroom Cup',
+        races: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+        ]
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Updates match score and recalculate qualifications
     it('should update match score and recalculate player qualifications', async () => {
       const mockMatch = {

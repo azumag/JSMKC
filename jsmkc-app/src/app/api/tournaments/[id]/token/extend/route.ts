@@ -10,7 +10,7 @@
  * Unlike token regeneration, extension preserves the current token value
  * so existing player sessions remain valid.
  *
- * Access: Authenticated users only (any role)
+ * Access: Admin only
  * Rate-limited: Uses the 'tokenValidation' bucket
  *
  * Request body:
@@ -36,17 +36,18 @@ export async function POST(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('token-extend-api');
 
-  // Authentication check: any authenticated user can extend tokens
+  // Admin-only: token extension controls tournament access duration
   const session = await auth();
-  const { id } = await params;
-  const { extensionHours = 24 } = sanitizeInput(await request.json());
 
-  if (!session?.user) {
+  if (!session?.user || session.user.role !== "admin") {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+      { success: false, error: 'Forbidden' },
+      { status: 403 }
     );
   }
+
+  const { id } = await params;
+  const { extensionHours = 24 } = sanitizeInput(await request.json());
 
   // Rate limiting: prevent abuse of the token extension endpoint.
   // Uses the 'tokenValidation' bucket shared with other token operations.

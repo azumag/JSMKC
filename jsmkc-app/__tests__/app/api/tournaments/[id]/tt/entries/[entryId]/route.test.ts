@@ -36,6 +36,7 @@
 // @ts-nocheck
 
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/optimistic-locking', () => ({
   updateTTEntry: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
@@ -50,6 +51,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
@@ -79,6 +81,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     jsonMock.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
   });
@@ -160,6 +163,44 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
   });
 
   describe('PUT - Update Time Trial entry with optimistic locking', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000, 2000],
+        totalTime: 3000,
+        rank: 1,
+        eliminated: false,
+        lives: 3,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000, 2000],
+        totalTime: 3000,
+        rank: 1,
+        eliminated: false,
+        lives: 3,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     it('should update entry with all fields successfully', async () => {
       const mockEntry = {
         id: 'e1',

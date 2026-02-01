@@ -12,6 +12,7 @@
  */
 // @ts-nocheck
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateGPMatchScore: jest.fn(),
@@ -29,6 +30,7 @@ jest.mock('@/lib/sanitize', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, PUT } from '@/app/api/tournaments/[id]/gp/match/[matchId]/route';
 import { updateGPMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
@@ -53,6 +55,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
     NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
@@ -126,6 +129,52 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
   });
 
   describe('PUT - Update match score with optimistic locking', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
+        points1: 18,
+        points2: 6,
+        completed: true,
+        races: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+        ],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1', {
+        points1: 18,
+        points2: 6,
+        completed: true,
+        races: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2, points1: 9, points2: 6 },
+        ],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Updates match score with version
     it('should update match score and return new version', async () => {
       const mockMatch = {

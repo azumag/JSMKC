@@ -30,6 +30,7 @@
 // @ts-nocheck
 
 
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/double-elimination', () => ({
   generateBracketStructure: jest.fn(() => []),
   roundNames: ['Quarter Finals', 'Semi Finals', 'Finals'],
@@ -39,6 +40,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { generateBracketStructure } from '@/lib/double-elimination';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
@@ -65,6 +67,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
     NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
@@ -127,6 +130,30 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
   });
 
   describe('POST - Create finals bracket', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 8 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 8 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Creates 8-player finals bracket
     it('should create 8-player finals bracket with topN=8', async () => {
       const mockQualifications = [
@@ -230,6 +257,30 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
   });
 
   describe('PUT - Update finals match', () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
     // Success case - Updates finals match score and advances winner
     it('should update finals match and advance winner', async () => {
       const mockMatch = {

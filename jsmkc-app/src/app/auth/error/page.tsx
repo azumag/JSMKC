@@ -29,22 +29,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 /**
  * ErrorPage - Displays authentication error with recovery options.
  *
- * Receives the error code via searchParams from NextAuth's error
+ * Retrieves the error code using useSearchParams() hook from NextAuth's error
  * redirect flow. Maps the code to a Japanese error message and
  * shows contextual help for specific error types.
- *
- * @param searchParams - Contains the optional `error` query parameter
  */
-export default function ErrorPage({
-  searchParams,
-}: {
-  searchParams: { error?: string }
-}) {
-  const error = searchParams.error
+export default function ErrorPage() {
+  const searchParams = useSearchParams()
+  const error = searchParams.get('error')
 
   /**
    * Maps NextAuth error codes to Japanese user-friendly messages.
@@ -54,7 +50,7 @@ export default function ErrorPage({
    * @param error - The NextAuth error code string
    * @returns Human-readable error description in Japanese
    */
-  const getErrorMessage = (error: string | undefined) => {
+  const getErrorMessage = (error: string | null) => {
     switch (error) {
       case 'OAuthSignin':
         return 'OAuthサインインでエラーが発生しました。'

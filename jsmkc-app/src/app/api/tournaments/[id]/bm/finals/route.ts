@@ -17,6 +17,8 @@ const { GET, POST, PUT } = createFinalsHandlers({
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },
   getErrorMessage: 'Failed to fetch finals data',
   postErrorMessage: 'Failed to create finals bracket',
+  postRequiresAuth: true,
+  putRequiresAuth: true,
 });
 
 export { GET, POST, PUT };

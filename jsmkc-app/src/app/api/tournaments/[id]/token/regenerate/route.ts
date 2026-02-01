@@ -13,7 +13,7 @@
  * by the generateTournamentToken() utility. Any players using the old
  * token will be immediately locked out.
  *
- * Access: Authenticated users only (any role)
+ * Access: Admin only
  *
  * Request body:
  *   - expiresInHours (number, optional, default: 24) - Token lifetime (1-168 hours)
@@ -38,18 +38,18 @@ export async function POST(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('token-regenerate-api');
 
-  // Authentication check: any authenticated user can regenerate tokens.
-  // In practice, only admins should have access to the UI that calls this endpoint.
+  // Admin-only: token regeneration invalidates all player sessions
   const session = await auth();
-  const { id } = await params;
-  const { expiresInHours = 24 } = sanitizeInput(await request.json());
 
-  if (!session?.user) {
+  if (!session?.user || session.user.role !== "admin") {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
+      { success: false, error: 'Forbidden' },
+      { status: 403 }
     );
   }
+
+  const { id } = await params;
+  const { expiresInHours = 24 } = sanitizeInput(await request.json());
 
   try {
     // Validate the expiration window.

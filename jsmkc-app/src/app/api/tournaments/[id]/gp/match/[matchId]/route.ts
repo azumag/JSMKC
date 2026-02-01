@@ -20,6 +20,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   getErrorMessage: 'Failed to fetch grand prix match',
   getLogMessage: 'Failed to fetch GP match',
   includeSuccessInGetErrors: true,
+  putRequiresAuth: true,
 });
 
 export { GET, PUT };
