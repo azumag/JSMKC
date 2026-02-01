@@ -99,7 +99,7 @@ export async function GET(
         playerNickname: e.player.nickname,
         totalTime: e.totalTime,
         // Format total time as M:SS for display (simplified format without ms)
-        formattedTime: e.totalTime ? `${Math.floor(e.totalTime / 60000)}:${((e.totalTime % 60000) / 1000).toFixed(0).padStart(2, '0')}` : '-',
+        formattedTime: e.totalTime != null ? `${Math.floor(e.totalTime / 60000)}:${((e.totalTime % 60000) / 1000).toFixed(0).padStart(2, '0')}` : '-',
         lives: e.lives,
         eliminated: e.eliminated,
       })),

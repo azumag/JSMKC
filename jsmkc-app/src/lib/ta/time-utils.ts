@@ -46,8 +46,8 @@ export const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
  * Convert a time string (MM:SS.mmm or M:SS.mmm) to milliseconds.
  *
  * The conversion formula is: minutes * 60000 + seconds * 1000 + milliseconds.
- * Milliseconds are parsed as-is without padding, so "1:23.4" yields
- * 1*60000 + 23*1000 + 4 = 83004ms (not 83400ms).
+ * Milliseconds are right-padded with zeros to 3 digits, so "1:23.4" yields
+ * 1*60000 + 23*1000 + 400 = 83400ms.
  *
  * @param time - Time string in format M:SS.mmm or MM:SS.mmm
  * @returns Total milliseconds, or null if the input is empty/invalid
@@ -61,10 +61,10 @@ export function timeToMs(time: string): number | null {
 
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
-  const ms = match[3] || ''; // Handle missing milliseconds
+  let ms = match[3] || ''; // Handle missing milliseconds
 
-  // Parse milliseconds as-is (don't pad or modify)
-  // If empty, default to 0, otherwise parse the value
+  // Pad milliseconds to 3 digits for accurate comparison (e.g., "4" -> "400", "45" -> "450")
+  while (ms.length < 3) ms += '0';
   const milliseconds = ms === '' ? 0 : parseInt(ms, 10);
 
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;

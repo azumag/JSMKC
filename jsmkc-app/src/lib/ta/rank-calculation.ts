@@ -102,7 +102,7 @@ export function calculateEntryTotal(entry: {
 export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWithTotal[] {
   if (stage === "finals") {
     // Finals sorting: active players first, then by lives (most first), then by time
-    return entries.sort((a, b) => {
+    return [...entries].sort((a, b) => {
       // Non-eliminated players always rank above eliminated ones
       if (a.eliminated !== b.eliminated) {
         return a.eliminated ? 1 : -1;
