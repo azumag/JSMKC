@@ -544,6 +544,127 @@ describe('Auth Configuration', () => {
       expect(result).toBe(true);
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
+
+    it('should retry on transient connection error and succeed on second attempt', async () => {
+      const transientError = new Error('fetch failed');
+      const mockDbUser = {
+        id: 'user-1',
+        email: mockUser.email,
+        name: mockUser.name,
+        image: mockUser.image,
+        role: 'member',
+      };
+
+      // First attempt: transient error, second attempt: success
+      let callCount = 0;
+      (prisma.user.findUnique as any).mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          throw transientError;
+        }
+        return Promise.resolve(mockDbUser);
+      });
+      (prisma.account.findUnique as any).mockResolvedValue(null);
+      (prisma.account as any).create.mockResolvedValue({ id: 'account-1' });
+
+      const result = await authConfig.callbacks.signIn!({
+        user: mockUser,
+        account: { provider: 'github', providerAccountId: 'github-123', type: 'oauth' },
+      });
+
+      expect(result).toBe(true);
+      expect(callCount).toBe(2); // Failed once, retried, succeeded
+    });
+
+    it('should return false after exhausting retry attempts on persistent transient error', async () => {
+      const transientError = new Error('fetch failed');
+
+      // Always throw transient error
+      (prisma.user.findUnique as any).mockRejectedValue(transientError);
+
+      const result = await authConfig.callbacks.signIn!({
+        user: mockUser,
+        account: { provider: 'github', providerAccountId: 'github-123', type: 'oauth' },
+      });
+
+      expect(result).toBe(false);
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(3); // Initial + 2 retries
+    });
+
+    it('should retry on P2024 connection error', async () => {
+      const p2024Error = new Error('P2024: Connection pool timeout');
+      const mockDbUser = {
+        id: 'user-1',
+        email: mockUser.email,
+        name: mockUser.name,
+        image: mockUser.image,
+        role: 'member',
+      };
+
+      let callCount = 0;
+      (prisma.user.findUnique as any).mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          throw p2024Error;
+        }
+        return Promise.resolve(mockDbUser);
+      });
+      (prisma.account.findUnique as any).mockResolvedValue(null);
+      (prisma.account as any).create.mockResolvedValue({ id: 'account-1' });
+
+      const result = await authConfig.callbacks.signIn!({
+        user: mockUser,
+        account: { provider: 'github', providerAccountId: 'github-123', type: 'oauth' },
+      });
+
+      expect(result).toBe(true);
+      expect(callCount).toBe(2);
+    });
+
+    it('should not retry on non-transient errors (e.g., P2002 unique constraint violation)', async () => {
+      const uniqueConstraintError = new Error('P2002: Unique constraint violation');
+
+      (prisma.user.findUnique as any).mockRejectedValue(uniqueConstraintError);
+
+      const result = await authConfig.callbacks.signIn!({
+        user: mockUser,
+        account: { provider: 'github', providerAccountId: 'github-123', type: 'oauth' },
+      });
+
+      expect(result).toBe(false);
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1); // Should not retry
+    });
+
+    it('should not retry on ECONNREFUSED if error is not in the specified patterns', async () => {
+      // ECONNREFUSED is in the list, so it should retry - test this
+      const econnrefusedError = new Error('ECONNREFUSED');
+      const mockDbUser = {
+        id: 'user-1',
+        email: mockUser.email,
+        name: mockUser.name,
+        image: mockUser.image,
+        role: 'member',
+      };
+
+      let callCount = 0;
+      (prisma.user.findUnique as any).mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          throw econnrefusedError;
+        }
+        return Promise.resolve(mockDbUser);
+      });
+      (prisma.account.findUnique as any).mockResolvedValue(null);
+      (prisma.account as any).create.mockResolvedValue({ id: 'account-1' });
+
+      const result = await authConfig.callbacks.signIn!({
+        user: mockUser,
+        account: { provider: 'github', providerAccountId: 'github-123', type: 'oauth' },
+      });
+
+      expect(result).toBe(true);
+      expect(callCount).toBe(2);
+    });
   });
 
   describe('session Callback', () => {

@@ -44,6 +44,131 @@ import { REFRESH_TOKEN_EXPIRY } from '@/lib/constants';
 const logger = createLogger('auth');
 
 // ============================================================
+// Transient Connection Error Detection
+// ============================================================
+
+/**
+ * Determines if an error is a transient connection error that should be retried.
+ *
+ * This function checks for common Prisma/Data Proxy connection error patterns
+ * that are temporary and can be resolved by retrying the operation.
+ *
+ * @param error - The error to check
+ * @returns true if the error is transient and should be retried
+ */
+function isTransientConnectionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('fetch failed') ||
+    message.includes("Can't reach database server") ||
+    message.includes('P2024') ||
+    message.includes('Connection pool timeout') ||
+    message.includes('ECONNREFUSED') ||
+    message.includes('ETIMEDOUT')
+  );
+}
+
+// ============================================================
+// OAuth Sign-In Handler
+// ============================================================
+
+/**
+ * Handles OAuth sign-in by creating or updating the user record.
+ *
+ * This function performs the following operations:
+ * 1. Checks if a user with the email already exists
+ * 2. Creates a new user if they don't exist
+ * 3. Upgrades the user to admin if they're in the Discord admin list
+ * 4. Links the OAuth account to the user record
+ *
+ * @param user - The user object from the OAuth provider
+ * @param account - The account object from the OAuth provider
+ * @param profile - The profile object from the OAuth provider
+ * @throws Error if database operations fail
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleOAuthSignIn(user: any, account: any, profile: any): Promise<void> {
+  // Check if a user with this email already exists
+  let dbUser = await prisma.user.findUnique({
+    where: { email: user.email },
+  });
+
+  // Determine the role based on Discord admin list.
+  // Only Discord accounts can have admin role because the
+  // JSMKC community uses Discord as its primary platform.
+  const isAdmin =
+    account.provider === 'discord' &&
+    profile?.id &&
+    ADMIN_DISCORD_IDS_LIST.includes(String(profile.id));
+  const role = isAdmin ? 'admin' : 'member';
+
+  if (!dbUser) {
+    // Create new user record for first-time sign-in
+    dbUser = await prisma.user.create({
+      data: {
+        email: user.email,
+        name: user.name || null,
+        image: user.image || null,
+        role,
+      },
+    });
+    logger.info('New user created via OAuth', {
+      email: user.email,
+      provider: account.provider,
+      role,
+    });
+  } else if (isAdmin && dbUser.role !== 'admin') {
+    // Upgrade existing user to admin if they're in the admin list.
+    // This handles the case where an existing user's Discord ID
+    // is added to the admin list after their first sign-in.
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: { role: 'admin' },
+    });
+    logger.info('User upgraded to admin', {
+      email: user.email,
+      userId: dbUser.id,
+    });
+  }
+
+  // Link the OAuth account to the user record if not already linked.
+  // This allows a user to sign in with multiple providers.
+  const existingAccount = await prisma.account.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+      },
+    },
+  });
+
+  if (!existingAccount) {
+    await prisma.account.create({
+      data: {
+        userId: dbUser.id,
+        type: account.type,
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+        refresh_token: account.refresh_token,
+        access_token: account.access_token,
+        expires_at: account.expires_at,
+        token_type: account.token_type,
+        scope: account.scope,
+        id_token: account.id_token,
+        session_state: account.session_state as string | undefined,
+      },
+    });
+    logger.info('OAuth account linked', {
+      userId: dbUser.id,
+      provider: account.provider,
+    });
+  }
+
+  // Set the user ID to the database ID for consistent JWT claims
+  user.id = dbUser.id;
+}
+
+// ============================================================
 // Admin Discord ID Management
 // ============================================================
 
@@ -249,91 +374,29 @@ export const authConfig = {
 
       // OAuth providers: create or update the user record
       if (account && user.email) {
-        try {
-          // Check if a user with this email already exists
-          let dbUser = await prisma.user.findUnique({
-            where: { email: user.email },
-          });
+        const MAX_RETRIES = 2;
+        const BASE_DELAY = 200;
 
-          // Determine the role based on Discord admin list.
-          // Only Discord accounts can have admin role because the
-          // JSMKC community uses Discord as its primary platform.
-          const isAdmin =
-            account.provider === 'discord' &&
-            profile?.id &&
-            ADMIN_DISCORD_IDS_LIST.includes(String(profile.id));
-          const role = isAdmin ? 'admin' : 'member';
-
-          if (!dbUser) {
-            // Create new user record for first-time sign-in
-            dbUser = await prisma.user.create({
-              data: {
-                email: user.email,
-                name: user.name || null,
-                image: user.image || null,
-                role,
-              },
-            });
-            logger.info('New user created via OAuth', {
-              email: user.email,
-              provider: account.provider,
-              role,
-            });
-          } else if (isAdmin && dbUser.role !== 'admin') {
-            // Upgrade existing user to admin if they're in the admin list.
-            // This handles the case where an existing user's Discord ID
-            // is added to the admin list after their first sign-in.
-            await prisma.user.update({
-              where: { id: dbUser.id },
-              data: { role: 'admin' },
-            });
-            logger.info('User upgraded to admin', {
-              email: user.email,
-              userId: dbUser.id,
-            });
-          }
-
-          // Link the OAuth account to the user record if not already linked.
-          // This allows a user to sign in with multiple providers.
-          const existingAccount = await prisma.account.findUnique({
-            where: {
-              provider_providerAccountId: {
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            await handleOAuthSignIn(user, account, profile);
+            return true;
+          } catch (error) {
+            if (attempt < MAX_RETRIES && isTransientConnectionError(error)) {
+              logger.warn('Transient DB error in signIn, retrying', {
+                attempt: attempt + 1,
                 provider: account.provider,
-                providerAccountId: account.providerAccountId,
-              },
-            },
-          });
-
-          if (!existingAccount) {
-            await prisma.account.create({
-              data: {
-                userId: dbUser.id,
-                type: account.type,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-                refresh_token: account.refresh_token,
-                access_token: account.access_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-                session_state: account.session_state as string | undefined,
-              },
-            });
-            logger.info('OAuth account linked', {
-              userId: dbUser.id,
+              });
+              await new Promise(resolve => setTimeout(resolve, BASE_DELAY * Math.pow(2, attempt)));
+              continue;
+            }
+            logger.error('Error in signIn callback', {
+              error: error instanceof Error ? error.message : String(error),
               provider: account.provider,
+              attempts: attempt + 1,
             });
+            return false;
           }
-
-          // Set the user ID to the database ID for consistent JWT claims
-          user.id = dbUser.id;
-        } catch (error) {
-          logger.error('Error in signIn callback', {
-            error: error instanceof Error ? error.message : String(error),
-            provider: account.provider,
-          });
-          return false;
         }
       }
 

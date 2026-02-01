@@ -60,6 +60,10 @@ export default function ErrorPage() {
         return 'アカウント作成でエラーが発生しました。'
       case 'EmailCreateAccount':
         return 'メールアドレスでのアカウント作成でエラーが発生しました。'
+      case 'AccessDenied':
+        /* This occurs when signIn returns false, which happens when
+         * there's a transient DB connection error after retry attempts. */
+        return 'アクセスが拒否されました。一時的なエラーの可能性があります。しばらくしてから再度お試しください。'
       case 'Callback':
         return 'コールバックでエラーが発生しました。'
       case 'OAuthAccountNotLinked':
@@ -91,15 +95,16 @@ export default function ErrorPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/*
-           * Contextual help text for the OAuthAccountNotLinked error.
-           * This specific error commonly occurs when users try to log in
-           * with a different provider than the one they originally used.
-           * The message reminds them to verify their jsmdc-org membership.
+           * Contextual help text for specific error types.
+           * OAuthAccountNotLinked: User tries to log in with a different provider.
+           * AccessDenied: May indicate a transient DB connection error.
            */}
           <div className="text-sm text-muted-foreground text-center">
-            {error === 'OAuthAccountNotLinked' && (
+            {(error === 'OAuthAccountNotLinked' || error === 'AccessDenied') && (
               <p>
-                jsmdc-orgのメンバーであることを確認してください。
+                {error === 'OAuthAccountNotLinked'
+                  ? 'jsmdc-orgのメンバーであることを確認してください。'
+                  : 'サーバーとの通信に問題が発生した可能性があります。時間をおいて再度ログインをお試しください。'}
               </p>
             )}
           </div>
