@@ -23,33 +23,22 @@ import {
 describe('TA Time Utils', () => {
   describe('timeToMs', () => {
     it('should convert valid time string M:SS.mmm to milliseconds', () => {
-        expect(timeToMs('1:23.456')).toBe(83456);
-        expect(timeToMs('12:34.567')).toBe(754567);
-        expect(timeToMs('59:59.999')).toBe(3599999);
-      });
-
-      it('should convert valid time string MM:SS.mmm to milliseconds', () => {
-        expect(timeToMs('1:23.456')).toBe(83456);
-        expect(timeToMs('12:34.567')).toBe(754567);
-        expect(timeToMs('59:59.999')).toBe(3599999);
-      });
-
-    it('should convert valid time string MM:SS.mmm to milliseconds', () => {
       expect(timeToMs('1:23.456')).toBe(83456);
+      expect(timeToMs('12:34.567')).toBe(754567);
       expect(timeToMs('59:59.999')).toBe(3599999);
     });
 
-    it('should handle milliseconds with 1 digit padding', () => {
-      expect(timeToMs('1:23.4')).toBe(83004);
-      expect(timeToMs('1:23.45')).toBe(83045);
+    it('should right-pad milliseconds with 1 digit to 3 digits', () => {
+      // '1:23.4' -> .4 is padded to .400 -> 1*60000 + 23*1000 + 400 = 83400
+      expect(timeToMs('1:23.4')).toBe(83400);
     });
 
-    it('should handle milliseconds with 2 digit padding', () => {
-      expect(timeToMs('1:23.4')).toBe(83004);
-      expect(timeToMs('1:23.45')).toBe(83045);
+    it('should right-pad milliseconds with 2 digits to 3 digits', () => {
+      // '1:23.45' -> .45 is padded to .450 -> 1*60000 + 23*1000 + 450 = 83450
+      expect(timeToMs('1:23.45')).toBe(83450);
     });
 
-    it('should handle milliseconds with 3 digit padding', () => {
+    it('should keep 3-digit milliseconds as-is', () => {
       expect(timeToMs('1:23.456')).toBe(83456);
     });
 

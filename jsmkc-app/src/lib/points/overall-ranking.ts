@@ -20,15 +20,26 @@
  * and persistence functions (saving/loading from the TournamentPlayerScore table).
  *
  * Database dependency: The TournamentPlayerScore model must exist in the Prisma schema.
- * The ExtendedPrismaClient type is intentionally `any` because this model may not
- * be generated yet during development cycles.
+ * The ExtendedPrismaClient type aliases PrismaClient from @prisma/client.
  */
 
-// Note: After running `npx prisma migrate dev` and `npx prisma generate`,
-// the TournamentPlayerScore model will be available on the Prisma client.
-// Using `any` until the model is fully generated and type-safe.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ExtendedPrismaClient = any;
+import { PrismaClient } from "@prisma/client";
+import { createLogger } from "@/lib/logger";
+import {
+  calculateTAQualificationPoints,
+  TAQualificationPointsResult,
+} from "./ta-qualification-points";
+import {
+  calculateQualificationPoints,
+  MatchRecord,
+  QualificationPointsResult,
+} from "./qualification-points";
+import { getFinalsPoints } from "./finals-points";
+import { timeToMs } from "@/lib/ta/time-utils";
+
+type ExtendedPrismaClient = PrismaClient;
+
+const logger = createLogger("overall-ranking");
 
 /**
  * Shape of a qualification entry from the database for BM/MR/GP modes.
@@ -51,18 +62,6 @@ interface TTEntryRecord {
   lives: number;
   totalTime: number | null;
 }
-
-import {
-  calculateTAQualificationPoints,
-  TAQualificationPointsResult,
-} from "./ta-qualification-points";
-import {
-  calculateQualificationPoints,
-  MatchRecord,
-  QualificationPointsResult,
-} from "./qualification-points";
-import { getFinalsPoints } from "./finals-points";
-import { timeToMs } from "@/lib/ta/time-utils";
 
 /**
  * Aggregated tournament score for a single player.
@@ -90,8 +89,10 @@ export interface PlayerTournamentScore {
 
   // Sum of all 8 point categories (max 12000)
   totalPoints: number;
-  // Tournament-wide rank (1-based, with ties)
-  overallRank: number;
+  // Tournament-wide rank (1-based, with ties). Null if not yet calculated.
+  overallRank: number | null;
+  // Timestamp of last DB update (only present when loaded from DB via getOverallRankings)
+  updatedAt?: string;
 }
 
 /**
@@ -327,10 +328,17 @@ export async function getTAFinalsPositions(
 /**
  * Determine BM/MR/GP finals positions from bracket results.
  *
- * SIMPLIFIED IMPLEMENTATION: Currently uses qualification ranking as a proxy
- * for finals positions. The actual implementation should analyze the
+ * **PROVISIONAL / ESTIMATED DATA**: Currently uses qualification ranking as a
+ * proxy for finals positions. The actual implementation should analyze the
  * double elimination bracket completion to determine exact placements
  * (winner of Grand Final = 1st, loser = 2nd, etc.).
+ *
+ * The positions returned by this function are NOT actual bracket results --
+ * they are estimates based on qualification seeding. Consumers should treat
+ * these values as provisional until full bracket analysis is implemented.
+ *
+ * @remarks This implementation is provisional and returns estimated positions
+ * based on qualification seeding. Use actual bracket results when available.
  *
  * TODO: Implement full bracket analysis when bracket completion tracking
  * is available in the database schema.
@@ -338,13 +346,18 @@ export async function getTAFinalsPositions(
  * @param prisma       - Prisma client instance
  * @param tournamentId - Tournament to look up
  * @param mode         - Which mode's finals to examine (BM, MR, or GP)
- * @returns Array of FinalsPosition for the top 16 players
+ * @returns Array of FinalsPosition for the top 16 players (provisional)
  */
 export async function getMatchFinalsPositions(
   prisma: ExtendedPrismaClient,
   tournamentId: string,
   mode: "BM" | "MR" | "GP"
 ): Promise<FinalsPosition[]> {
+  logger.info(
+    `getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}. ` +
+    "Returning PROVISIONAL positions based on qualification seeding, not actual bracket results."
+  );
+
   // Fetch qualification data sorted by score descending as a proxy
   // for finals placement. This is a temporary simplification.
   let qualifications;
@@ -524,12 +537,12 @@ export async function calculateOverallRankings(
       mrFinalsPoints: mrFinals,
       gpFinalsPoints: gpFinals,
       totalPoints,
-      overallRank: 0, // Placeholder -- assigned after sorting
+      overallRank: null, // Placeholder -- assigned after sorting
     });
   }
 
   // Step 6: Sort by total points descending to determine ranking
-  scores.sort((a, b) => b.totalPoints - a.totalPoints);
+  scores.sort((a, b) => b.totalPoints - a.totalPoints || a.playerId.localeCompare(b.playerId));
 
   // Step 7: Assign ranks using standard competition ranking (1224).
   // Players with the same total share a rank; the next distinct rank
@@ -629,6 +642,7 @@ interface StoredTournamentScore {
   gpFinalsPoints: number;
   totalPoints: number;
   overallRank: number | null;
+  updatedAt: Date;
 }
 
 /**
@@ -667,7 +681,8 @@ export async function getOverallRankings(
     mrFinalsPoints: s.mrFinalsPoints,
     gpFinalsPoints: s.gpFinalsPoints,
     totalPoints: s.totalPoints,
-    // Default to 0 if overallRank is null (shouldn't happen after calculation)
-    overallRank: s.overallRank ?? 0,
+    // Null if overallRank has not been calculated yet
+    overallRank: s.overallRank ?? null,
+    updatedAt: s.updatedAt.toISOString(),
   }));
 }

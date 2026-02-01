@@ -33,7 +33,7 @@ import {
  * Returns empty array if rankings haven't been calculated yet
  * (use POST to trigger calculation).
  *
- * Requires admin authentication (returns 403 for non-admin users).
+ * Requires admin authentication (returns 401 for unauthenticated, 403 for non-admin users).
  */
 export async function GET(
   request: NextRequest,
@@ -42,10 +42,18 @@ export async function GET(
   const logger = createLogger("overall-ranking-api");
   const session = await auth();
 
-  /* Admin-only access for overall rankings */
-  if (!session?.user || session.user.role !== "admin") {
+  /* Authentication check: return 401 if no session */
+  if (!session?.user) {
     return NextResponse.json(
-      { success: false, error: "Unauthorized: Admin access required" },
+      { success: false, error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
+  /* Authorization check: return 403 if not admin */
+  if (session.user.role !== "admin") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Admin access required" },
       { status: 403 }
     );
   }
@@ -68,6 +76,11 @@ export async function GET(
     /* Fetch stored rankings (pre-calculated via POST) */
     const rankings = await getOverallRankings(prisma, tournamentId);
 
+    /* Derive lastUpdated from the most recent DB record, fall back to now */
+    const lastUpdated = rankings.length > 0
+      ? new Date(Math.max(...rankings.map(r => new Date(r.updatedAt!).getTime()))).toISOString()
+      : new Date().toISOString();
+
     logger.info("Fetched overall rankings", {
       tournamentId,
       playerCount: rankings.length,
@@ -78,7 +91,7 @@ export async function GET(
       data: {
         tournamentId,
         tournamentName: tournament.name,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated,
         rankings,
       },
     });
@@ -106,7 +119,7 @@ export async function GET(
  * 5. Assign ranks with proper tie handling (equal points = equal rank)
  * 6. Save to database using upsert (create or update)
  *
- * Requires admin authentication (returns 403 for non-admin users).
+ * Requires admin authentication (returns 401 for unauthenticated, 403 for non-admin users).
  */
 export async function POST(
   request: NextRequest,
@@ -115,10 +128,18 @@ export async function POST(
   const logger = createLogger("overall-ranking-api");
   const session = await auth();
 
-  /* Admin-only access for ranking recalculation */
-  if (!session?.user || session.user.role !== "admin") {
+  /* Authentication check: return 401 if no session */
+  if (!session?.user) {
     return NextResponse.json(
-      { success: false, error: "Unauthorized: Admin access required" },
+      { success: false, error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
+  /* Authorization check: return 403 if not admin */
+  if (session.user.role !== "admin") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Admin access required" },
       { status: 403 }
     );
   }

@@ -362,10 +362,13 @@ export default function TimeAttackFinals({
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
     if (!firstEntry) return COURSE_INFO.map((c) => ({ course: c.abbr, completed: false }));
-    return COURSE_INFO.map((c) => ({
-      course: c.abbr,
-      completed: entries.every((e) => !e.eliminated && e.times?.[c.abbr]),
-    }));
+    return COURSE_INFO.map((c) => {
+      const active = entries.filter((e) => !e.eliminated);
+      return {
+        course: c.abbr,
+        completed: active.length > 0 && active.every((e) => e.times?.[c.abbr]),
+      };
+    });
   };
 
   // === Derived State ===

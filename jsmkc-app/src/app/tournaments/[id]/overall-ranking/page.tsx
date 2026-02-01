@@ -63,7 +63,7 @@ interface PlayerRanking {
   gpFinalsPoints: number;
   /* Total tournament points (max 12000) */
   totalPoints: number;
-  overallRank: number;
+  overallRank: number | null;
 }
 
 /** API response structure for the overall ranking endpoint */
@@ -164,14 +164,16 @@ export default function OverallRankingPage({
    * Format a rank number with ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
    * Handles special cases for 11th, 12th, 13th which use "th" not "st/nd/rd"
    */
-  const formatRank = (rank: number): string => {
+  const formatRank = (rank: number | null): string => {
+    if (rank === null) return "-";
     const suffixes = ["th", "st", "nd", "rd"];
     const v = rank % 100;
     return rank + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
   };
 
   /** Get badge styling variant based on rank position */
-  const getRankBadgeVariant = (rank: number): "default" | "secondary" | "outline" => {
+  const getRankBadgeVariant = (rank: number | null): "default" | "secondary" | "outline" => {
+    if (rank === null) return "outline";
     if (rank === 1) return "default";
     if (rank <= 3) return "secondary";
     return "outline";

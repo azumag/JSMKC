@@ -251,17 +251,20 @@ export default function RevivalRound1({
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
     if (!firstEntry) return COURSE_INFO.map((c) => ({ course: c.abbr, completed: false }));
-    return COURSE_INFO.map((c) => ({
-      course: c.abbr,
-      completed: entries.every((e) => !e.eliminated && e.times?.[c.abbr]),
-    }));
+    return COURSE_INFO.map((c) => {
+      const active = entries.filter((e) => !e.eliminated);
+      return {
+        course: c.abbr,
+        completed: active.length > 0 && active.every((e) => e.times?.[c.abbr]),
+      };
+    });
   };
 
   // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
   // Round is complete when only survivors remain (or fewer)
-  const isComplete = activeEntries.length <= 1 && entries.length > 0;
+  const isComplete = activeEntries.length <= 4 && entries.length > 0;
 
   // === Loading State ===
   if (loading) {
@@ -340,7 +343,7 @@ export default function RevivalRound1({
       </div>
 
       {/* Round Complete Banner */}
-      {isComplete && activeEntries.length === 1 && (
+      {isComplete && (
         <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">✓</div>
