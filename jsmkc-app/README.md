@@ -1,17 +1,17 @@
 # SMKC Score System
 
-Super Mario Kart Championship の大会運営における点数計算・順位管理システム
+SMK Championship の大会運営における点数計算・順位管理システム
 
 ## System Overview
 
 ### What is *SMKC?
 
-**SMKC (Super Mario Kart Championship)** は、スーパーファミコン版「スーパーマリオカート」の競技大会フォーマットです。
+**SMKC (SMK Championship)** は、SFC版SMKの競技大会フォーマットです。
 
 先頭の文字は各地域/組織のプレフィックスとして使用できます：
-- **JSMKC** - Japan Super Mario Kart Championship
-- **ESMKC** - Europe Super Mario Kart Championship
-- **NASMKC** - North America Super Mario Kart Championship
+- **JSMKC** - Japan SMK Championship
+- **ESMKC** - Europe SMK Championship
+- **NASMKC** - North America SMK Championship
 - etc.
 
 本システムは世界中のSMKC大会で使用可能な汎用的なスコア管理システムです。
@@ -377,7 +377,7 @@ prisma/
 
 | Term | Description |
 |------|-------------|
-| JSMKC | Japan Super Mario Kart Championship |
+| JSMKC | Japan SMK Championship |
 | Double Elimination | 2回負けると敗退するトーナメント形式 |
 | Winners Bracket | まだ負けていないプレイヤーのトーナメント枠 |
 | Losers Bracket | 1回負けたプレイヤーのトーナメント枠 |

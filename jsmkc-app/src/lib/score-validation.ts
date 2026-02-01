@@ -2,7 +2,7 @@
  * Score Validation Utilities for Battle Mode Matches
  *
  * This module provides validation logic specific to Battle Mode (BM) scoring.
- * In Super Mario Kart Battle Mode, two players pop each other's balloons.
+ * In SMK Battle Mode, two players pop each other's balloons.
  * Each player starts with 3 balloons, and scores represent balloons popped
  * (or remaining). Ties are not allowed because every battle has a definitive
  * winner -- one player always loses all balloons first.

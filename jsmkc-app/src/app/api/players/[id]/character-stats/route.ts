@@ -9,7 +9,7 @@
  * to calculate win rates per character.
  *
  * This data helps players and organizers understand character preferences
- * and performance trends in competitive Super Mario Kart.
+ * and performance trends in competitive SMK.
  *
  * Access: Admin only (requires authenticated admin session)
  *

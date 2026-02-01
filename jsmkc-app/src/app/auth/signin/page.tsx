@@ -17,7 +17,7 @@
  * - Player tab is shown by default (#131) because most users logging
  *   in during tournaments are players, not administrators.
  * - Japanese language is used for the login UI since this is primarily
- *   for the Japan Super Mario Kart Championship community.
+ *   for the JSMKC (Japan SMK Championship) community.
  * - Discord brand colors (#5865F2) are used for the admin login button
  *   to provide familiar OAuth provider branding.
  *
@@ -102,7 +102,7 @@ export default function SignInPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">JSMKC ログイン</CardTitle>
           <CardDescription>
-            Japan Super Mario Kart Championship
+            Japan SMK Championship
           </CardDescription>
         </CardHeader>
         <CardContent>

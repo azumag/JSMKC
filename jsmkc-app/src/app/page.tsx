@@ -46,8 +46,8 @@ export default function Home() {
       {/* Hero section with application title and tagline */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold">SMKC Score System</h1>
-        <p className="text-muted-foreground text-lg">
-          Super Mario Kart Championship Score Management
+          <p className="text-muted-foreground text-lg">
+          SMKC Score Management
         </p>
       </div>
 

@@ -33,7 +33,7 @@ import { SessionProvider } from "next-auth/react";
  */
 export const metadata: Metadata = {
   title: "SMKC Score System",
-  description: "Super Mario Kart Championship Score Management System",
+  description: "SMKC Score Management System",
 };
 
 /**

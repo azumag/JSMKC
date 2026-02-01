@@ -154,7 +154,7 @@ export function createCSV(
 /**
  * Formats a time in milliseconds to the standard M:SS.mmm display format.
  *
- * This is the standard time display format for Super Mario Kart
+ * This is the standard time display format for SMK
  * time trials and races. Times are displayed as minutes, seconds,
  * and milliseconds (e.g., "1:23.456").
  *

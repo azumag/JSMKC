@@ -1,6 +1,6 @@
 # JSMKC 点数計算システム
 
-Japan Super Mario Kart Championship (JSMKC) の大会運営における点数計算・順位管理を行うシステム
+SMK Championship (JSMKC) の大会運営における点数計算・順位管理を行うシステム
 
 ## 概要
 

@@ -19,7 +19,7 @@
  *   import { COURSES, POLLING_INTERVAL, MAX_BATTLE_SCORE } from '@/lib/constants';
  */
 
-// Course abbreviations in order for Super Mario Kart (20 courses total)
+// Course abbreviations in order for SMK (20 courses total)
 export const COURSES = [
   "MC1", "DP1", "GV1", "BC1",
   "MC2", "DP2", "GV2", "BC2",
@@ -57,7 +57,7 @@ export const COURSE_INFO: { abbr: CourseAbbr; name: string; cup: string }[] = [
 // Total number of courses in time attack
 export const TOTAL_COURSES = COURSES.length;
 
-// Super Mario Kart playable characters (8 total)
+// SMK playable characters (8 total)
 export const SMK_CHARACTERS = [
   'Mario',
   'Luigi',
