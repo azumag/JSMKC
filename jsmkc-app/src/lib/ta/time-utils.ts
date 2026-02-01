@@ -65,7 +65,7 @@ export function timeToMs(time: string): number | null {
 
   // Pad milliseconds to 3 digits for accurate comparison (e.g., "4" -> "400", "45" -> "450")
   while (ms.length < 3) ms += '0';
-  const milliseconds = ms === '' ? 0 : parseInt(ms, 10);
+  const milliseconds = parseInt(ms, 10);
 
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }

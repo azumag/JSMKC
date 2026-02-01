@@ -24,8 +24,22 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { createLogger } from "@/lib/logger";
+import {
+  calculateTAQualificationPoints,
+  TAQualificationPointsResult,
+} from "./ta-qualification-points";
+import {
+  calculateQualificationPoints,
+  MatchRecord,
+  QualificationPointsResult,
+} from "./qualification-points";
+import { getFinalsPoints } from "./finals-points";
+import { timeToMs } from "@/lib/ta/time-utils";
 
 type ExtendedPrismaClient = PrismaClient;
+
+const logger = createLogger("overall-ranking");
 
 /**
  * Shape of a qualification entry from the database for BM/MR/GP modes.
@@ -48,21 +62,6 @@ interface TTEntryRecord {
   lives: number;
   totalTime: number | null;
 }
-
-import { createLogger } from "@/lib/logger";
-import {
-  calculateTAQualificationPoints,
-  TAQualificationPointsResult,
-} from "./ta-qualification-points";
-import {
-  calculateQualificationPoints,
-  MatchRecord,
-  QualificationPointsResult,
-} from "./qualification-points";
-import { getFinalsPoints } from "./finals-points";
-import { timeToMs } from "@/lib/ta/time-utils";
-
-const logger = createLogger("overall-ranking");
 
 /**
  * Aggregated tournament score for a single player.
@@ -338,8 +337,8 @@ export async function getTAFinalsPositions(
  * they are estimates based on qualification seeding. Consumers should treat
  * these values as provisional until full bracket analysis is implemented.
  *
- * @deprecated Use actual bracket results when available. This function
- * currently returns estimated positions based on qualification seeding.
+ * @remarks This implementation is provisional and returns estimated positions
+ * based on qualification seeding. Use actual bracket results when available.
  *
  * TODO: Implement full bracket analysis when bracket completion tracking
  * is available in the database schema.
@@ -354,7 +353,7 @@ export async function getMatchFinalsPositions(
   tournamentId: string,
   mode: "BM" | "MR" | "GP"
 ): Promise<FinalsPosition[]> {
-  logger.warn(
+  logger.info(
     `getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}. ` +
     "Returning PROVISIONAL positions based on qualification seeding, not actual bracket results."
   );
@@ -538,7 +537,7 @@ export async function calculateOverallRankings(
       mrFinalsPoints: mrFinals,
       gpFinalsPoints: gpFinals,
       totalPoints,
-      overallRank: 0, // Placeholder -- assigned after sorting
+      overallRank: null, // Placeholder -- assigned after sorting
     });
   }
 
@@ -643,6 +642,7 @@ interface StoredTournamentScore {
   gpFinalsPoints: number;
   totalPoints: number;
   overallRank: number | null;
+  updatedAt: Date;
 }
 
 /**
@@ -683,5 +683,6 @@ export async function getOverallRankings(
     totalPoints: s.totalPoints,
     // Null if overallRank has not been calculated yet
     overallRank: s.overallRank ?? null,
+    updatedAt: s.updatedAt.toISOString(),
   }));
 }
