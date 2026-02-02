@@ -80,7 +80,7 @@ export const RATE_LIMIT_SCORE_INPUT = 20; // requests per minute for score submi
 export const RATE_LIMIT_SCORE_INPUT_DURATION = 60 * 1000; // 1 minute window
 export const RATE_LIMIT_POLLING = 12; // requests per minute for polling (5s intervals)
 export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute window
-export const RATE_LIMIT_TOKEN_VALIDATION = 10; // requests per minute for token validation
+export const RATE_LIMIT_SESSION_STATUS = 10; // requests per minute for session status checks
 
 // Score validation constants - BM rounds are best of 5 (first to 3)
 export const MIN_BATTLE_SCORE = 0;
@@ -96,9 +96,6 @@ export const POLLING_MIN_REQUEST_INTERVAL = 500; // minimum 500ms between reques
 
 // Audit log retention period
 export const AUDIT_LOG_RETENTION_DAYS = 90;
-
-// Token generation parameters
-export const TOKEN_LENGTH = 32; // hex characters (16 bytes)
 
 // HTTP status codes for special responses
 export const RATE_LIMIT_STATUS_CODE = 429;

@@ -119,8 +119,6 @@ model Tournament {
   name          String
   date          DateTime
   status        String   @default("draft") // draft, active, completed
-  token         String?  @db.Text // 32-character hex string for participant score entry
-  tokenExpiresAt DateTime? // Token expiry time
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用
   createdAt     DateTime @default(now())

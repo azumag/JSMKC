@@ -2,8 +2,8 @@
  * @module GP Score Report API Route Tests - /api/tournaments/[id]/gp/match/[matchId]/report
  *
  * Test suite for the player-facing GP score reporting endpoint. This endpoint
- * allows players to self-report match scores without requiring OAuth authentication.
- * Instead, it uses rate limiting and audit logging to prevent abuse.
+ * allows authenticated players to self-report match scores via session-based auth.
+ * Rate limiting and audit logging are used to prevent abuse.
  *
  * Key behaviors tested:
  * - POST: Reporting scores from player 1 or player 2, auto-confirmation when
@@ -17,7 +17,7 @@
  */
 // @ts-nocheck
 
-
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/rate-limit', () => ({
   rateLimit: jest.fn(),
   getClientIdentifier: jest.fn(() => '127.0.0.1'),
@@ -28,32 +28,22 @@ jest.mock('@/lib/constants', () => ({ SMK_CHARACTERS: ['mario', 'luigi', 'peach'
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
-jest.mock('@/lib/token-validation', () => ({
-  validateTournamentToken: jest.fn().mockResolvedValue({ valid: true, tournament: { id: 't1' } }),
-}));
-jest.mock('@/lib/auth', () => ({ auth: jest.fn().mockResolvedValue(null) }));
 
 import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
 import { rateLimit } from '@/lib/rate-limit';
 import { createAuditLog } from '@/lib/audit-log';
-import { validateTournamentToken } from '@/lib/token-validation';
+import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
 
-const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
-
+// Mock NextRequest class — matches the pattern used by BM/MR test suites
 class MockNextRequest {
   constructor(
     private url: string,
     private body?: any,
     private headers: Map<string, string> = new Map()
-  ) {
-    if (!headers.get('user-agent')) {
-      headers.set('user-agent', 'Test UserAgent');
-    }
-  }
+  ) {}
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
   headers = {
     get: (key: string) => this.headers.get(key)
   };
@@ -63,18 +53,25 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
   const loggerMock = { error: jest.fn(), warn: jest.fn() };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    /* Reset all prisma model mocks to ensure no queued mockResolvedValueOnce values leak between tests */
-    (prisma.gPMatch.findUnique as jest.Mock).mockReset();
-    (prisma.gPMatch.update as jest.Mock).mockReset();
-    (prisma.gPMatch.findMany as jest.Mock).mockReset();
-    (prisma.scoreEntryLog.create as jest.Mock).mockReset();
-    (prisma.matchCharacterUsage.create as jest.Mock).mockReset();
-    (prisma.gPQualification.updateMany as jest.Mock).mockReset();
+    // resetAllMocks clears mockResolvedValueOnce chains that leak between tests.
+    // All mock implementations must be re-established after reset.
+    jest.resetAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    NextResponse.json.mockImplementation((data: any, options?: any) => ({
+      data,
+      status: options?.status || 200,
+    }));
+    // Re-establish rate-limit mock implementations after reset
+    const rateLimitMocks = jest.requireMock('@/lib/rate-limit');
+    rateLimitMocks.getClientIdentifier.mockReturnValue('127.0.0.1');
+    rateLimitMocks.getUserAgent.mockReturnValue('Test UserAgent');
     (rateLimit as jest.Mock).mockResolvedValue({ success: true });
+    // Default: admin session so auth passes. Tests that check auth failure override this.
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
+    // Re-establish sanitize mock
+    const sanitizeMock = jest.requireMock('@/lib/sanitize');
+    sanitizeMock.sanitizeInput.mockImplementation((data: any) => data);
   });
 
   describe('POST - Report score for grand prix match', () => {
@@ -669,7 +666,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       });
     });
 
-    // Authorization - Returns 401 when neither token nor session is valid
+    // Authorization - Returns 401 when no valid session is present
     it('should return 401 when unauthorized', async () => {
       const mockMatch = {
         id: 'm1',
@@ -682,8 +679,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      // Override token validation to reject
-      (validateTournamentToken as jest.Mock).mockResolvedValueOnce({ valid: false });
+      // No session — user is not authenticated
+      (auth as jest.Mock).mockResolvedValueOnce(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
@@ -694,7 +691,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       expect(result.data).toEqual({
         success: false,
-        error: 'Unauthorized: Invalid token or not authorized for this match',
+        error: 'Unauthorized: Not authorized for this match',
       });
       expect(result.status).toBe(401);
     });

@@ -59,7 +59,7 @@ interface RateLimitConfig {
 export const rateLimitConfigs: Record<string, RateLimitConfig> = {
   scoreInput: { limit: 20, windowMs: 60 * 1000 },
   polling: { limit: 12, windowMs: 60 * 1000 },
-  tokenValidation: { limit: 10, windowMs: 60 * 1000 },
+  sessionStatus: { limit: 10, windowMs: 60 * 1000 },
   general: { limit: 10, windowMs: 60 * 1000 },
 };
 

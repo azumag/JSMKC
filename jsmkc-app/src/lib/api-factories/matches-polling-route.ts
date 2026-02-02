@@ -1,9 +1,9 @@
 /**
  * Matches Polling Route Factory
  *
- * Generates a GET handler for token-authenticated match polling endpoints.
- * Used by participant-facing pages to poll for match status updates
- * without requiring OAuth session authentication.
+ * Generates a GET handler for session-authenticated match polling endpoints.
+ * Used by participant-facing pages to poll for match status updates.
+ * Authentication is handled via NextAuth session (admin or player).
  *
  * This eliminates duplicated code across BM, MR, and GP matches routes
  * while preserving identical API response shapes for each event type.
@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
+import { auth } from '@/lib/auth';
 
 export interface MatchesPollingConfig {
   matchModel: string;
@@ -33,29 +34,27 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
 
     try {
       const { searchParams } = new URL(request.url);
-      const token = searchParams.get('token');
       const page = Number(searchParams.get('page')) || 1;
       const limit = Number(searchParams.get('limit')) || 50;
 
-      if (!token) {
+      // Session-based authentication: admin or player session required.
+      const session = await auth();
+      if (!session?.user) {
         return NextResponse.json(
-          { error: 'Token required' },
+          { error: 'Authentication required' },
           { status: 401 }
         );
       }
 
-      const tokenValidation = await prisma.tournament.findFirst({
-        where: {
-          id: tournamentId,
-          token,
-          tokenExpiresAt: { gt: new Date() },
-        },
+      // Verify the tournament exists before fetching matches
+      const tournament = await prisma.tournament.findFirst({
+        where: { id: tournamentId },
       });
 
-      if (!tokenValidation) {
+      if (!tournament) {
         return NextResponse.json(
-          { error: 'Invalid or expired token' },
-          { status: 401 }
+          { error: 'Tournament not found' },
+          { status: 404 }
         );
       }
 

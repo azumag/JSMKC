@@ -5,7 +5,7 @@
  * score report API routes. These helpers encapsulate the common sub-patterns
  * shared across the dual-report confirmation system:
  *
- * - Multi-method authorization (token + session)
+ * - Session-based authorization (admin + player)
  * - Score entry audit logging
  * - Character usage tracking
  * - Character validation
@@ -18,7 +18,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
-import { validateTournamentToken } from '@/lib/token-validation';
 import { auth } from '@/lib/auth';
 import { SMK_CHARACTERS } from '@/lib/constants';
 import { createLogger } from '@/lib/logger';
@@ -79,18 +78,17 @@ export interface RateLimitCheckResult {
 // ============================================================
 
 /**
- * Multi-method authorization check for score report endpoints.
+ * Session-based authorization check for score report endpoints.
  *
- * Supports three authorization paths:
- * 1. Tournament token - for link-based participant access
- * 2. Admin session - full admin override capability
- * 3. Player session - players can only report their own matches
+ * Supports two authorization paths:
+ * 1. Admin session - full admin override capability
+ * 2. Player session - players can only report their own matches
  *    (direct player login or OAuth-linked player)
  *
  * Used by BM, MR, and GP report routes.
  *
- * @param request - The incoming NextRequest
- * @param tournamentId - Tournament ID for token validation
+ * @param request - The incoming NextRequest (used for future extensions)
+ * @param tournamentId - Tournament ID (used for future extensions)
  * @param reportingPlayer - Which player position is reporting (1 or 2)
  * @param match - Match record with player IDs and userId references
  * @returns True if the request is authorized
@@ -104,13 +102,7 @@ export async function checkScoreReportAuth(
   let isAuthorized = false;
   const session = await auth();
 
-  /* Path 1: Tournament token authorization */
-  const tokenValidation = await validateTournamentToken(request, tournamentId);
-  if (tokenValidation.tournament) {
-    isAuthorized = true;
-  }
-
-  /* Path 2 & 3: Session-based authorization */
+  /* Session-based authorization: admin or player */
   if (session?.user?.id) {
     const userType = session.user.userType;
 

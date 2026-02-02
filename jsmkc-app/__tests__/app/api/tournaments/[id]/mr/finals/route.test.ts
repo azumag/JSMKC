@@ -180,8 +180,8 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         seededPlayers: expect.any(Array),
         bracketStructure: expect.any(Array),
       });
-      // Source returns 200, not 201 for finals bracket creation
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
       expect(prisma.mRMatch.create).toHaveBeenCalled();
     });
 
@@ -206,8 +206,8 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      // Source returns 200 for finals bracket creation
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
     });
 
     // Validation error case - Returns 400 when topN is not 8

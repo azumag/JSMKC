@@ -16,7 +16,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -109,10 +109,6 @@ export default function MatchRacePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [qualifications, setQualifications] = useState<MRQualification[]>([]);
-  const [matches, setMatches] = useState<MRMatch[]>([]);
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
@@ -148,33 +144,32 @@ export default function MatchRacePage({
     }
 
     const mrData = await mrResponse.json();
-    const players = await playersResponse.json();
+    const playersJson = await playersResponse.json();
 
     return {
       qualifications: mrData.qualifications || [],
       matches: mrData.matches || [],
-      allPlayers: players,
+      allPlayers: playersJson.data ?? playersJson,
     };
   }, [tournamentId]);
 
-  /* Poll every 3 seconds for live tournament updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+  /*
+   * Poll every 3 seconds for live tournament updates.
+   * cacheKey enables instant content display when returning to this tab.
+   */
+  const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
+    cacheKey: `tournament/${tournamentId}/mr`,
   });
 
-  /* Update local state when polling data arrives */
-  useEffect(() => {
-    if (pollData) {
-      setQualifications(pollData.qualifications);
-      setMatches(pollData.matches);
-      setAllPlayers(pollData.allPlayers);
-    }
-  }, [pollData]);
-
-  useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+  /*
+   * Derive display data directly from polling response.
+   * Avoids redundant local state and provides instant display from cache.
+   */
+  const qualifications: MRQualification[] = pollData?.qualifications ?? [];
+  const matches: MRMatch[] = pollData?.matches ?? [];
+  const allPlayers: Player[] = pollData?.allPlayers ?? [];
 
   /**
    * Submit group setup with player assignments.
@@ -316,8 +311,21 @@ export default function MatchRacePage({
   /* Extract unique groups for tab display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
-  /* Loading skeleton while initial data is being fetched */
-  if (loading) {
+  /* Show error state if the first fetch fails and there's no cached data */
+  if (!pollData && pollError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Match Race</h1>
+        <div className="text-center py-8">
+          <p className="text-destructive mb-4">{pollError}</p>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  /* Loading skeleton shown only on first visit (no cached data yet) */
+  if (!pollData) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -477,9 +485,6 @@ export default function MatchRacePage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
         </div>
       </div>
 

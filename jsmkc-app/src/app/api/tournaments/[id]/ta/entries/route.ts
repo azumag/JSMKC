@@ -9,8 +9,7 @@
  * This is primarily used by the participant score entry page to fetch entries
  * via polling, keeping the URL semantics clear (GET /ta/entries = fetch entries).
  *
- * The forwarding preserves all search parameters including the tournament token
- * for participant authentication.
+ * The forwarding preserves all search parameters for the main handler.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
  * GET /api/tournaments/[id]/ta/entries
  *
  * Forwards the request to the main TA endpoint (/api/tournaments/[id]/ta).
- * Preserves all query parameters (including token for participant access).
+ * Preserves all query parameters.
  * Returns the response from the main endpoint unchanged.
  */
 // Forward to the main ta endpoint for consistency
@@ -31,7 +30,7 @@ export async function GET(
   const { id: tournamentId } = await params;
   const { searchParams } = new URL(request.url);
 
-  // Preserve search params including token for participant authentication
+  // Preserve search params for the main handler
   const targetUrl = new URL(`/api/tournaments/${tournamentId}/ta`, request.url);
   targetUrl.search = searchParams.toString();
 

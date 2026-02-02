@@ -5,7 +5,7 @@
  * Covers GET, POST, PUT, DELETE endpoints for managing TA entries.
  *
  * Dependencies mocked:
- * - @/lib/auth: Authentication/session management
+ * - @/lib/auth: Session-based authentication (admin + player)
  * - @/lib/logger: Structured Winston logging (shared singleton via factory)
  * - @/lib/rate-limit: In-memory rate limiting
  * - @/lib/sanitize: Input sanitization
@@ -59,11 +59,6 @@ jest.mock('@/lib/audit-log', () => ({
     UPDATE_TA_ENTRY: 'UPDATE_TA_ENTRY',
     DELETE_TA_ENTRY: 'DELETE_TA_ENTRY',
   },
-}));
-
-// Mock token-validation - make it configurable
-jest.mock('@/lib/token-validation', () => ({
-  validateTournamentToken: jest.fn(() => Promise.resolve({ valid: true })),
 }));
 
 // Mock rank-calculation
@@ -140,14 +135,10 @@ const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
 };
 
-const tokenValidationMock = jest.requireMock('@/lib/token-validation') as {
-  validateTournamentToken: jest.Mock;
-};
-
-// Valid UUIDs for tests
-const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
-const VALID_UUID2 = '550e8400-e29b-41d4-a716-446655440001';
-const VALID_ENTRY_ID = '660e8400-e29b-41d4-a716-446655440000';
+// Valid CUIDs for tests — the TA route uses z.string().cuid() for validation
+const VALID_UUID = 'clxxxxxxxxxxxxxxxxtournmt';
+const VALID_UUID2 = 'clxxxxxxxxxxxxxxxxxplayer';
+const VALID_ENTRY_ID = 'clxxxxxxxxxxxxxxxxxxentry';
 
 describe('/api/tournaments/[id]/ta', () => {
   const { NextResponse } = jest.requireMock('next/server');
@@ -164,7 +155,6 @@ describe('/api/tournaments/[id]/ta', () => {
     rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: true }));
     rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
     rateLimitMock.getUserAgent.mockReturnValue('test-agent');
-    tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
   });
 
   afterEach(() => {
@@ -254,6 +244,11 @@ describe('/api/tournaments/[id]/ta', () => {
   // =========================================================================
   describe('POST', () => {
     it('should add a player to qualification', async () => {
+      // Admin session required — requireAdminOrPlayer() runs before creating the entry
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
+
       const mockEntry = {
         id: VALID_ENTRY_ID,
         tournamentId: VALID_UUID,
@@ -306,6 +301,10 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should return 429 when rate limited', async () => {
+      // Auth must pass before rate limit check runs for add-player action
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
       rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: false }));
 
       await taRoute.POST(
@@ -404,9 +403,9 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should return 403 for add player without token or admin auth', async () => {
+    it('should return 403 for add player without session auth', async () => {
+      // No session — neither admin nor player authenticated
       (auth as jest.Mock).mockResolvedValue(null);
-      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: false, error: 'Invalid token' });
 
       await taRoute.POST(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -422,9 +421,11 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should add player with valid token', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
-      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
+    it('should add player with valid player session', async () => {
+      // Player session — authenticated player can add themselves
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
+      });
 
       const mockEntry = {
         id: VALID_ENTRY_ID,
@@ -628,9 +629,9 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should return 403 for update times without token or admin auth', async () => {
+    it('should return 403 for update times without session auth', async () => {
+      // No session — neither admin nor player authenticated
       (auth as jest.Mock).mockResolvedValue(null);
-      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: false, error: 'Invalid token' });
 
       await taRoute.PUT(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -649,9 +650,11 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should update times with valid token', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
-      tokenValidationMock.validateTournamentToken.mockResolvedValue({ valid: true });
+    it('should update times with valid player session', async () => {
+      // Player session — authenticated player can update their times
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
+      });
 
       const existingEntry = {
         id: VALID_ENTRY_ID,

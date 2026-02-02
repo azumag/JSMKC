@@ -8,7 +8,7 @@
  * to check whether the user is authenticated and to display session info.
  *
  * Security:
- *   - Rate-limited using the 'tokenValidation' bucket to prevent abuse
+ *   - Rate-limited using the 'sessionStatus' bucket to prevent abuse
  *   - Returns rate limit headers (X-RateLimit-*) on 429 responses
  *   - Does not expose sensitive token values in the response
  *
@@ -33,10 +33,10 @@ export async function GET() {
 
   try {
     // Rate limiting: Prevent brute-force or excessive polling of session status.
-    // Uses the 'tokenValidation' bucket which has a generous limit for normal use
+    // Uses the 'sessionStatus' bucket which has a generous limit for normal use
     // but blocks rapid automated requests.
     const identifier = await getServerSideIdentifier();
-    const rateLimitResult = await checkRateLimit('tokenValidation', identifier);
+    const rateLimitResult = await checkRateLimit('sessionStatus', identifier);
 
     if (!rateLimitResult.success) {
       // Return 429 with standard rate limit headers so clients can implement

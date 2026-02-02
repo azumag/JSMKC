@@ -6,8 +6,8 @@
  *
  * Authentication strategy:
  * - Admin operations: OAuth via Discord, GitHub, or Google
- * - Player score entry: Token-based (see token-validation.ts)
- * - Player credentials: Optional bcrypt password login for players
+ * - Player score entry: Credential-based login (nickname + password)
+ *   Players are auto-identified from their session for score reporting.
  *
  * Session strategy: JWT (JSON Web Tokens)
  * - Stateless sessions stored in cookies (no server-side session store)
@@ -268,8 +268,8 @@ export const authConfig = {
      *
      * Allows players to log in with their nickname and password
      * for score entry and viewing personal statistics.
-     * This is separate from the tournament token system and
-     * provides persistent player accounts.
+     * This is the primary authentication method for player score entry,
+     * providing persistent player accounts.
      */
     Credentials({
       id: 'player-credentials',
@@ -320,12 +320,16 @@ export const authConfig = {
 
           // Return the user object that NextAuth will serialize into the JWT.
           // The 'player' type distinguishes player sessions from admin sessions.
+          // playerId and nickname are custom fields defined in src/types/next-auth.d.ts
+          // and propagated through the jwt → session callback chain below.
           logger.info('Player login successful', { nickname, playerId: player.id });
           return {
             id: player.id,
             name: player.name,
             email: `${player.nickname}@player.local`, // Synthetic email for NextAuth compatibility
             image: null,
+            playerId: player.id,       // Player's database ID for session-based score entry
+            nickname: player.nickname,  // Player's display nickname for UI auto-identification
           };
         } catch (error) {
           logger.error('Player login error', {
@@ -418,8 +422,14 @@ export const authConfig = {
 
         // Add custom claims for role-based access control.
         // These are set in the jwt callback below.
-        (session as Record<string, unknown>).role = token.role || 'member';
-        (session as Record<string, unknown>).userType = token.userType || 'oauth';
+        session.user.role = token.role || 'member';
+        session.user.userType = token.userType || 'oauth';
+
+        // Propagate player-specific fields for session-based score entry.
+        // These are set in the jwt callback for player-credentials logins
+        // and used by participant pages to auto-identify the logged-in player.
+        session.user.playerId = token.playerId as string | undefined;
+        session.user.nickname = token.nickname as string | undefined;
 
         // Add token expiry information for client-side refresh logic.
         // The client uses these timestamps to proactively refresh
@@ -476,6 +486,15 @@ export const authConfig = {
         // Set custom token claims
         token.role = role;
         token.userType = userType;
+
+        // For player-credentials login, propagate playerId and nickname
+        // into the JWT so they're available in the session callback.
+        // These are used by participant pages to auto-identify the player
+        // without a manual "select yourself" step.
+        if (account.provider === 'player-credentials') {
+          token.playerId = (user as { playerId?: string }).playerId;
+          token.nickname = (user as { nickname?: string }).nickname;
+        }
 
         // Set access and refresh token expiry timestamps.
         // Access token expires in 24 hours.

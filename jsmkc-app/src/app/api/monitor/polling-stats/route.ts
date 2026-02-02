@@ -90,7 +90,7 @@ export async function GET() {
       rateLimitStats: {
         scoreInput: await getRateLimitStats('scoreInput', oneHourAgo, now),
         polling: await getRateLimitStats('polling', oneHourAgo, now),
-        tokenValidation: await getRateLimitStats('tokenValidation', oneHourAgo, now),
+        sessionStatus: await getRateLimitStats('sessionStatus', oneHourAgo, now),
       },
 
       // Time period metadata for the statistics window

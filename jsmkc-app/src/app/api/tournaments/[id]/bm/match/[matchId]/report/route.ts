@@ -12,7 +12,7 @@
  *
  * Security features:
  * - Rate limiting to prevent abuse
- * - Tournament token or session-based authorization
+ * - Session-based authorization (admin, player, or OAuth-linked player)
  * - Input sanitization and validation
  * - Optimistic locking to prevent race conditions
  * - Score entry logging for audit trail
@@ -51,10 +51,9 @@ import { createLogger } from "@/lib/logger";
  * POST /api/tournaments/[id]/bm/match/[matchId]/report
  *
  * Report score from a player's perspective. Supports multiple authorization methods:
- * 1. Tournament token (for non-authenticated participants)
- * 2. Admin session (full access)
- * 3. Player session (restricted to own matches)
- * 4. OAuth-linked player session
+ * 1. Admin session (full access)
+ * 2. Player session (restricted to own matches)
+ * 3. OAuth-linked player session
  */
 export async function POST(
   request: NextRequest,
@@ -97,7 +96,7 @@ export async function POST(
     /* Multi-method authorization check */
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
-      return handleAuthError('Unauthorized: Invalid token or not authorized for this match');
+      return handleAuthError('Unauthorized: Not authorized for this match');
     }
 
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {

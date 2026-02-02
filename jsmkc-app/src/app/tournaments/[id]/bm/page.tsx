@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -118,12 +118,6 @@ export default function BattleModePage({
   /* Check admin role for conditional UI rendering */
   const isAdmin = session?.user && session.user.role === 'admin';
 
-  /* State for qualification data, matches, and available players */
-  const [qualifications, setQualifications] = useState<BMQualification[]>([]);
-  const [matches, setMatches] = useState<BMMatch[]>([]);
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
-
   /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [setupPlayers, setSetupPlayers] = useState<
@@ -157,34 +151,35 @@ export default function BattleModePage({
     }
 
     const bmData = await bmResponse.json();
-    const players = await playersResponse.json();
+    const playersJson = await playersResponse.json();
 
     return {
       qualifications: bmData.qualifications || [],
       matches: bmData.matches || [],
-      allPlayers: players,
+      allPlayers: playersJson.data ?? playersJson,
     };
   }, [tournamentId]);
 
-  /* Set up polling with 3-second interval for real-time updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+  /*
+   * Set up polling with 3-second interval for real-time updates.
+   * cacheKey enables cross-mount data persistence: when navigating away
+   * from this tab and back, cached data is shown instantly without
+   * a loading skeleton flash.
+   */
+  const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
+    cacheKey: `tournament/${tournamentId}/bm`,
   });
 
-  /* Update local state when polling data changes */
-  useEffect(() => {
-    if (pollData) {
-      setQualifications(pollData.qualifications);
-      setMatches(pollData.matches);
-      setAllPlayers(pollData.allPlayers);
-    }
-  }, [pollData]);
-
-  /* Sync loading state with polling status */
-  useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+  /*
+   * Derive display data directly from polling response.
+   * This avoids redundant local state and ensures data is available
+   * immediately when restored from cache on tab re-entry.
+   */
+  const qualifications: BMQualification[] = pollData?.qualifications ?? [];
+  const matches: BMMatch[] = pollData?.matches ?? [];
+  const allPlayers: Player[] = pollData?.allPlayers ?? [];
 
   /**
    * Handle group setup submission.
@@ -294,8 +289,22 @@ export default function BattleModePage({
   /* Extract unique group names for tabbed display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
-  /* Loading skeleton shown during initial data fetch */
-  if (loading) {
+  /* Show error state if the first fetch fails and there's no cached data.
+     Without this check, a network error would show a permanent skeleton. */
+  if (!pollData && pollError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Battle Mode</h1>
+        <div className="text-center py-8">
+          <p className="text-destructive mb-4">{pollError}</p>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  /* Loading skeleton shown only on first visit (no cached data yet) */
+  if (!pollData) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -465,10 +474,6 @@ export default function BattleModePage({
           </Dialog>
           )}
 
-          {/* Back navigation to tournament overview */}
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
         </div>
       </div>
 

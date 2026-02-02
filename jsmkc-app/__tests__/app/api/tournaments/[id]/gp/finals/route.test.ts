@@ -246,7 +246,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
       expect(result.data).toEqual({
         message: 'Finals bracket created',
         matches: expect.any(Array),
@@ -318,7 +319,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
     });
   });
 

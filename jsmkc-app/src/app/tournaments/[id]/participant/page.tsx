@@ -3,16 +3,14 @@
 /**
  * Participant Entry Hub Page
  *
- * Landing page for tournament participants accessing score entry via token.
- * This page serves as the hub from which participants can navigate to
- * specific game mode score entry pages.
+ * Landing page for tournament participants to navigate to game mode
+ * score entry pages. Requires player session authentication (nickname + password).
  *
  * Access Flow:
- * 1. Tournament organizer generates a token URL
- * 2. Participant opens the URL (includes token in query params)
- * 3. This page validates the token via the API
- * 4. On success, shows game mode selection cards
- * 5. Participant navigates to their desired game mode
+ * 1. Player logs in via /auth/signin with their credentials
+ * 2. Session is checked - must be a player-type user
+ * 3. Game mode selection cards are displayed
+ * 4. Player navigates to their desired game mode
  *
  * Game Modes Available:
  * - Battle Mode (BM): 1v1 balloon battle results
@@ -21,20 +19,20 @@
  * - Time Trial (TA): Individual course times
  *
  * Security:
- * - Token-based access (no OAuth login required for participants)
- * - Token is validated on page load
- * - Token is passed through to child pages via URL query params
+ * - Player session authentication via NextAuth credentials provider
+ * - Player is auto-identified from session (no manual selection needed)
  * - All actions are logged server-side for accountability
  */
 
 import { useState, useEffect, use } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, AlertTriangle, Trophy } from 'lucide-react';
+import { Shield, AlertTriangle, Trophy, LogIn } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import Link from 'next/link';
 
 /** Tournament data structure from the API */
 interface Tournament {
@@ -49,115 +47,111 @@ export default function ParticipantEntryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const searchParams = useSearchParams();
   const { id: tournamentId } = use(params);
-  const token = searchParams.get('token');
+  const { data: session, status: sessionStatus } = useSession();
 
-  // === State Management ===
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tokenValid, setTokenValid] = useState(false);
 
-  // === Token Validation and Data Fetch ===
+  /**
+   * Check if the current user is a player (authenticated via credentials).
+   * Admin users are also allowed to access participant pages for testing.
+   */
+  const isPlayer = session?.user?.userType === 'player';
+  const isAdmin = session?.user?.role === 'admin';
+  const hasAccess = isPlayer || isAdmin;
+
+  /**
+   * Fetch tournament data once session is confirmed.
+   * Session cookie is sent automatically with fetch requests.
+   */
   useEffect(() => {
-    const validateTokenAndFetchTournament = async () => {
-      if (!token) {
-        setError('Access token is required. Please use the full URL provided by the tournament organizer.');
-        setLoading(false);
-        return;
-      }
+    if (sessionStatus === 'loading') return;
 
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchTournament = async () => {
       try {
-        // Step 1: Validate the tournament access token
-        const validateResponse = await fetch(`/api/tournaments/${tournamentId}/token/validate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-tournament-token': token,
-          },
-        });
-
-        if (!validateResponse.ok) {
-          const errorData = await validateResponse.json();
-          setError(errorData.error || 'Invalid or expired token');
-          setLoading(false);
-          return;
-        }
-
-        const validateData = await validateResponse.json();
-        if (!validateData.success) {
-          setError(validateData.error || 'Token validation failed');
-          setLoading(false);
-          return;
-        }
-
-        setTokenValid(true);
-
-        // Step 2: Fetch tournament details for display
-        const tournamentResponse = await fetch(`/api/tournaments/${tournamentId}?token=${token}`);
-        if (tournamentResponse.ok) {
-          const tournamentData = await tournamentResponse.json();
-          setTournament(tournamentData);
+        const response = await fetch(`/api/tournaments/${tournamentId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setTournament(data);
         } else {
           setError('Failed to load tournament information');
         }
       } catch (err) {
-        console.error('Token validation error:', err);
-        setError('Failed to validate access token. Please check your URL and try again.');
+        console.error('Tournament fetch error:', err);
+        setError('Failed to load tournament data. Please check your connection.');
       } finally {
         setLoading(false);
       }
     };
 
-    validateTokenAndFetchTournament();
-  }, [tournamentId, token]);
+    fetchTournament();
+  }, [tournamentId, sessionStatus, hasAccess]);
 
-  // === Loading State ===
-  if (loading) {
+  /* Loading state while session or tournament data is being fetched */
+  if (sessionStatus === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="text-lg mt-4">Validating access token...</p>
+          <p className="text-lg mt-4">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // === Error / Invalid Token State ===
-  if (error || !tokenValid) {
+  /* Not authenticated or not a player - show login prompt */
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-            <CardTitle>Access Denied</CardTitle>
+            <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle>Player Login Required</CardTitle>
             <CardDescription>
-              Unable to access tournament score entry
+              Please log in with your player credentials to access score entry
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-            <div className="mt-4 text-sm text-muted-foreground">
-              <p className="mb-2">Please ensure you have:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>A valid tournament access token</li>
-                <li>The complete URL from the tournament organizer</li>
-                <li>Token that hasn&apos;t expired</li>
-              </ul>
-              <p className="mt-3">Contact the tournament organizer if you need a new access link.</p>
-            </div>
+          <CardContent className="space-y-4">
+            <Button asChild className="w-full">
+              <Link href="/auth/signin">Log In</Link>
+            </Button>
+            <p className="text-sm text-muted-foreground text-center">
+              Use the nickname and password provided by the tournament organizer.
+            </p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // === Tournament Not Found State ===
+  /* Error state */
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+            <CardTitle>Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  /* Tournament not found state */
   if (!tournament) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -174,18 +168,17 @@ export default function ParticipantEntryPage({
     );
   }
 
-  // === Main Render: Game Mode Selection ===
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Header with security badge */}
+        {/* Header with player identity */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="h-8 w-8 text-green-600" />
             <h1 className="text-3xl font-bold">Participant Score Entry</h1>
           </div>
           <Badge variant="default" className="mb-4">
-            ✓ Secure Access Verified
+            Logged in as: {session?.user?.nickname || session?.user?.name}
           </Badge>
           <p className="text-lg text-muted-foreground">
             {tournament.name}
@@ -207,9 +200,9 @@ export default function ParticipantEntryPage({
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <a href={`/tournaments/${tournamentId}/bm/participant?token=${token}`}>
+                <Link href={`/tournaments/${tournamentId}/bm/participant`}>
                   Enter Battle Scores
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -224,9 +217,9 @@ export default function ParticipantEntryPage({
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <a href={`/tournaments/${tournamentId}/mr/participant?token=${token}`}>
+                <Link href={`/tournaments/${tournamentId}/mr/participant`}>
                   Enter Race Scores
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -241,9 +234,9 @@ export default function ParticipantEntryPage({
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <a href={`/tournaments/${tournamentId}/gp/participant?token=${token}`}>
+                <Link href={`/tournaments/${tournamentId}/gp/participant`}>
                   Enter GP Scores
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -258,9 +251,9 @@ export default function ParticipantEntryPage({
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <a href={`/tournaments/${tournamentId}/ta/participant?token=${token}`}>
+                <Link href={`/tournaments/${tournamentId}/ta/participant`}>
                   Enter Time Trial
-                </a>
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -271,15 +264,10 @@ export default function ParticipantEntryPage({
           <Alert>
             <Shield className="h-4 w-4" />
             <AlertDescription>
-              This is a secure portal for tournament participants. All score entries are logged and verified.
+              You are logged in as a tournament participant. All score entries are logged and verified.
               Please ensure you&apos;re reporting accurate results for fair competition.
             </AlertDescription>
           </Alert>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-12 text-sm text-muted-foreground">
-          <p>Access granted via secure token - JSMKC Tournament Management System</p>
         </div>
       </div>
     </div>

@@ -40,12 +40,11 @@ const customJestConfig: Config = {
   // Enable Jest cache for faster subsequent runs
   cache: true,
   cacheDirectory: '<rootDir>/.jest-cache',
-  // Handle TypeScript compilation for test files
-  transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
-  },
+  // Let next/jest handle TypeScript/JSX transpilation via SWC (no Babel config needed).
+  // A root babel.config.js was previously used here but it interfered with
+  // Next.js Turbopack builds, which also pick up project-level Babel configs.
   transformIgnorePatterns: [
-    '/node_modules/',
+    'node_modules/(?!(html-encoding-sniffer|@exodus|isomorphic-dompurify|jsdom)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],

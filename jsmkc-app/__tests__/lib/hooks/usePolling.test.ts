@@ -24,7 +24,7 @@
  *   fast unmount during pending fetch, concurrent refetch calls
  */
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { usePolling } from '@/lib/hooks/usePolling';
+import { usePolling, clearPollingCache } from '@/lib/hooks/usePolling';
 
 describe('usePolling', () => {
   beforeEach(() => {
@@ -593,6 +593,182 @@ describe('usePolling', () => {
       await waitFor(() => {
         expect(result.current.data).toEqual(mockData);
       });
+    });
+  });
+
+  describe('cacheKey - cross-mount data persistence', () => {
+    beforeEach(() => {
+      /* Clear the module-level cache before each caching test
+         to ensure test isolation */
+      clearPollingCache();
+    });
+
+    it('should initialize data as null when no cacheKey is provided', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
+      const { result } = renderHook(() => usePolling(mockFetch, { immediate: false }));
+
+      expect(result.current.data).toBeNull();
+    });
+
+    it('should initialize data as null when cacheKey has no cached value', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
+      const { result } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, cacheKey: 'test/uncached' })
+      );
+
+      expect(result.current.data).toBeNull();
+    });
+
+    it('should cache data on successful fetch and restore on remount', async () => {
+      const mockData = { id: 1, name: 'cached' };
+      const mockFetch = jest.fn().mockResolvedValue(mockData);
+      const cacheKey = 'test/cache-restore';
+
+      /* First mount: fetch and cache */
+      const { result, unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { cacheKey }));
+      });
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(mockData);
+      });
+
+      /* Unmount (simulates navigating away from tab) */
+      unmount();
+
+      /* Second mount: should initialize from cache */
+      const { result: result2 } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, cacheKey })
+      );
+
+      /* Data should be available immediately from cache */
+      expect(result2.current.data).toEqual(mockData);
+    });
+
+    it('should not share cache between different cacheKeys', async () => {
+      const mockData1 = { id: 1, mode: 'bm' };
+      const mockData2 = { id: 2, mode: 'ta' };
+      const mockFetch1 = jest.fn().mockResolvedValue(mockData1);
+      const mockFetch2 = jest.fn().mockResolvedValue(mockData2);
+
+      /* Populate cache for key1 */
+      const { unmount: unmount1 } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch1, { cacheKey: 'key1' }));
+      });
+      unmount1();
+
+      /* Populate cache for key2 */
+      const { unmount: unmount2 } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch2, { cacheKey: 'key2' }));
+      });
+      unmount2();
+
+      /* Remount with key1 - should get key1's data */
+      const { result: r1 } = renderHook(() =>
+        usePolling(mockFetch1, { immediate: false, cacheKey: 'key1' })
+      );
+      expect(r1.current.data).toEqual(mockData1);
+
+      /* Remount with key2 - should get key2's data */
+      const { result: r2 } = renderHook(() =>
+        usePolling(mockFetch2, { immediate: false, cacheKey: 'key2' })
+      );
+      expect(r2.current.data).toEqual(mockData2);
+    });
+
+    it('should update cache when new data is fetched', async () => {
+      const mockData1 = { id: 1, version: 1 };
+      const mockData2 = { id: 1, version: 2 };
+      const cacheKey = 'test/cache-update';
+
+      /* First mount: cache v1 */
+      const mockFetch = jest.fn().mockResolvedValue(mockData1);
+      const { result, unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { cacheKey }));
+      });
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(mockData1);
+      });
+
+      /* Poll again with v2 */
+      mockFetch.mockResolvedValue(mockData2);
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      await waitFor(() => {
+        expect(result.current.data).toEqual(mockData2);
+      });
+
+      unmount();
+
+      /* Remount: should get v2 from cache */
+      const { result: result2 } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, cacheKey })
+      );
+      expect(result2.current.data).toEqual(mockData2);
+    });
+
+    it('clearPollingCache should remove all cached data', async () => {
+      const mockData = { id: 1 };
+      const mockFetch = jest.fn().mockResolvedValue(mockData);
+      const cacheKey = 'test/clear-cache';
+
+      /* Populate cache */
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { cacheKey }));
+      });
+      unmount();
+
+      /* Clear all cache */
+      clearPollingCache();
+
+      /* Remount: should have null data (cache cleared) */
+      const { result } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, cacheKey })
+      );
+      expect(result.current.data).toBeNull();
+    });
+
+    it('should evict oldest entries when cache exceeds max size (LRU)', async () => {
+      /*
+       * The cache has a max size of 20 (POLLING_CACHE_MAX_SIZE).
+       * Create 21 entries; the first one should be evicted.
+       */
+      const hooks: { unmount: () => void }[] = [];
+
+      /* Create 21 cached entries */
+      for (let i = 0; i < 21; i++) {
+        const mockFetch = jest.fn().mockResolvedValue({ id: i });
+        const { unmount } = await act(async () => {
+          return renderHook(() =>
+            usePolling(mockFetch, { cacheKey: `evict/key-${i}` })
+          );
+        });
+        hooks.push({ unmount });
+      }
+
+      /* Unmount all */
+      hooks.forEach((h) => h.unmount());
+
+      /* The first entry (key-0) should have been evicted */
+      const { result: evictedResult } = renderHook(() =>
+        usePolling(jest.fn().mockResolvedValue(null), {
+          immediate: false,
+          cacheKey: 'evict/key-0',
+        })
+      );
+      expect(evictedResult.current.data).toBeNull();
+
+      /* The last entry (key-20) should still be cached */
+      const { result: retainedResult } = renderHook(() =>
+        usePolling(jest.fn().mockResolvedValue(null), {
+          immediate: false,
+          cacheKey: 'evict/key-20',
+        })
+      );
+      expect(retainedResult.current.data).toEqual({ id: 20 });
     });
   });
 });

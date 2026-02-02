@@ -172,13 +172,15 @@ describe('Auth Configuration', () => {
 
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
-      // Source returns: { id, name, email (synthetic), image: null }
-      // It does NOT return userType, playerId, or nickname
+      // Source returns: { id, name, email (synthetic), image: null, playerId, nickname }
+      // playerId and nickname are included for session-based player identification
       expect(result).toEqual({
         id: mockPlayer.id,
         name: mockPlayer.name,
         email: `${mockPlayer.nickname}@player.local`,
         image: null,
+        playerId: mockPlayer.id,
+        nickname: mockPlayer.nickname,
       });
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { nickname: credentials.nickname },
@@ -694,9 +696,7 @@ describe('Auth Configuration', () => {
       expect(result.user.id).toBe(mockToken.sub);
     });
 
-    it('should assign role on session (not session.user)', async () => {
-      // Source sets (session as Record<string, unknown>).role = token.role || 'member'
-      // This means role is on the session object directly, not on session.user
+    it('should assign role on session.user', async () => {
       const session = createFreshSession();
 
       const result = await authConfig.callbacks.session!({
@@ -704,11 +704,10 @@ describe('Auth Configuration', () => {
         token: mockToken as any,
       });
 
-      expect((result as any).role).toBe(mockToken.role);
+      expect(result.user.role).toBe(mockToken.role);
     });
 
-    it('should assign userType on session (not session.user)', async () => {
-      // Source sets (session as Record<string, unknown>).userType = token.userType || 'oauth'
+    it('should assign userType on session.user', async () => {
       const session = createFreshSession();
 
       const result = await authConfig.callbacks.session!({
@@ -716,7 +715,7 @@ describe('Auth Configuration', () => {
         token: mockToken as any,
       });
 
-      expect((result as any).userType).toBe(mockToken.userType);
+      expect(result.user.userType).toBe(mockToken.userType);
     });
 
     it('should assign accessTokenExpires and refreshTokenExpires on session', async () => {
@@ -730,6 +729,40 @@ describe('Auth Configuration', () => {
       // Source sets these on the session object directly
       expect((result as any).accessTokenExpires).toBe(mockToken.accessTokenExpires);
       expect((result as any).refreshTokenExpires).toBe(mockToken.refreshTokenExpires);
+    });
+
+    it('should propagate playerId and nickname from token to session', async () => {
+      // For player-credentials logins, JWT callback stores playerId/nickname
+      // in the token. Session callback should propagate these to session.user
+      // so participant pages can auto-identify the logged-in player.
+      const session = createFreshSession();
+      const playerToken = {
+        ...mockToken,
+        playerId: 'player-1',
+        nickname: 'testplayer',
+      };
+
+      const result = await authConfig.callbacks.session!({
+        session: session as any,
+        token: playerToken as any,
+      });
+
+      expect(result.user.playerId).toBe('player-1');
+      expect(result.user.nickname).toBe('testplayer');
+    });
+
+    it('should leave playerId and nickname undefined for OAuth sessions', async () => {
+      // OAuth users don't have playerId/nickname in their JWT token.
+      // Session callback should leave these as undefined.
+      const session = createFreshSession();
+
+      const result = await authConfig.callbacks.session!({
+        session: session as any,
+        token: mockToken as any,
+      });
+
+      expect(result.user.playerId).toBeUndefined();
+      expect(result.user.nickname).toBeUndefined();
     });
 
     it('should handle missing user in session', async () => {
@@ -788,8 +821,7 @@ describe('Auth Configuration', () => {
         token: tokenNoRole as any,
       });
 
-      // Source: (session).role = token.role || 'member'
-      expect((result as any).role).toBe('member');
+      expect(result.user.role).toBe('member');
     });
 
     it('should default userType to oauth when token.userType is undefined', async () => {
@@ -801,8 +833,7 @@ describe('Auth Configuration', () => {
         token: tokenNoUserType as any,
       });
 
-      // Source: (session).userType = token.userType || 'oauth'
-      expect((result as any).userType).toBe('oauth');
+      expect(result.user.userType).toBe('oauth');
     });
   });
 
@@ -824,10 +855,12 @@ describe('Auth Configuration', () => {
       provider: 'player-credentials',
     };
 
-    const mockPlayerUser: User = {
+    const mockPlayerUser = {
       id: 'player-1',
       email: 'player@test.local',
       name: 'Test Player',
+      playerId: 'player-1',
+      nickname: 'testplayer',
     };
 
     it('should generate initial token for player credentials', async () => {
@@ -850,7 +883,10 @@ describe('Auth Configuration', () => {
       // Source sets expiry timestamps
       expect(result.accessTokenExpires).toBeGreaterThan(Date.now() - 1000);
       expect(result.refreshTokenExpires).toBeGreaterThan(Date.now() - 1000);
-      // Source does NOT set sub, playerId, or nickname on the token
+      // Source sets playerId and nickname for player-credentials logins
+      // so participant pages can auto-identify the player from session
+      expect(result.playerId).toBe('player-1');
+      expect(result.nickname).toBe('testplayer');
     });
 
     it('should generate initial token for OAuth providers', async () => {

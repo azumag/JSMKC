@@ -13,7 +13,7 @@
  * - GET: Fetch current stored overall rankings
  * - POST: Recalculate rankings from current tournament data and save
  *
- * Authentication: Admin role required for both GET and POST
+ * Authentication: GET is public (anyone can view); POST requires admin role
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -33,30 +33,13 @@ import {
  * Returns empty array if rankings haven't been calculated yet
  * (use POST to trigger calculation).
  *
- * Requires admin authentication (returns 401 for unauthenticated, 403 for non-admin users).
+ * Public endpoint: no authentication required.
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger("overall-ranking-api");
-  const session = await auth();
-
-  /* Authentication check: return 401 if no session */
-  if (!session?.user) {
-    return NextResponse.json(
-      { success: false, error: "Authentication required" },
-      { status: 401 }
-    );
-  }
-
-  /* Authorization check: return 403 if not admin */
-  if (session.user.role !== "admin") {
-    return NextResponse.json(
-      { success: false, error: "Forbidden: Admin access required" },
-      { status: 403 }
-    );
-  }
 
   const { id: tournamentId } = await params;
 

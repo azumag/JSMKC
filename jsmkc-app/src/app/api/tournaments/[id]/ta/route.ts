@@ -30,7 +30,6 @@ import { timeToMs } from "@/lib/ta/time-utils";
 import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
-import { validateTournamentToken } from "@/lib/token-validation";
 
 /**
  * Regex for validating time format strings in request validation.
@@ -52,26 +51,20 @@ async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; sess
 }
 
 /**
- * Admin or tournament token authentication helper.
- * Accepts either admin session or valid tournament token.
- * Returns an error response if both authentication methods fail.
- * Returns null if either authentication succeeds.
+ * Admin or player session authentication helper.
+ * Accepts either admin session or authenticated player session.
+ * Returns an error response if neither authentication method succeeds.
+ * Returns null if authentication succeeds.
  */
-async function requireAdminOrToken(
-  request: NextRequest,
-  tournamentId: string
-): Promise<NextResponse | null> {
+async function requireAdminOrPlayer(): Promise<NextResponse | null> {
   const session = await auth();
   if (session?.user?.role === 'admin') return null;
+  if (session?.user?.userType === 'player') return null;
 
-  const tokenResult = await validateTournamentToken(request, tournamentId);
-  if (!tokenResult.valid) {
-    return NextResponse.json(
-      { success: false, error: 'Forbidden' },
-      { status: 403 }
-    );
-  }
-  return null;
+  return NextResponse.json(
+    { success: false, error: 'Forbidden' },
+    { status: 403 }
+  );
 }
 
 /**
@@ -99,8 +92,9 @@ const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
  * - Promotion actions: Promote players to finals/revival rounds (requires auth)
  */
 const PostRequestSchema = z.object({
-  playerId: z.string().uuid().optional(),
-  players: z.array(z.string().uuid()).optional(),
+  /* Prisma uses cuid() for all IDs, not uuid */
+  playerId: z.string().cuid().optional(),
+  players: z.array(z.string().cuid()).optional(),
   action: z.enum(["add", "promote_to_finals", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
   topN: z.number().min(1).max(32).optional(),
 }).refine(
@@ -125,7 +119,7 @@ const PostRequestSchema = z.object({
  * - "reset_lives": Reset all active players' lives to initial value
  */
 const PutRequestSchema = z.object({
-  entryId: z.string().uuid(),
+  entryId: z.string().cuid(),
   course: z.string().optional(),
   time: z.string().optional(),
   times: TimesObjectSchema.optional(),
@@ -160,8 +154,9 @@ export async function GET(
   try {
 
     // Validate tournament ID format to prevent injection
-    const uuidSchema = z.string().uuid();
-    const parseResult = uuidSchema.safeParse(tournamentId);
+    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
+    const cuidSchema = z.string().cuid();
+    const parseResult = cuidSchema.safeParse(tournamentId);
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid tournament ID format" },
@@ -228,8 +223,9 @@ export async function POST(
   try {
 
     // Validate tournament ID format
-    const uuidSchema = z.string().uuid();
-    const tournamentIdResult = uuidSchema.safeParse(tournamentId);
+    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
+    const cuidSchema = z.string().cuid();
+    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
         { error: "Invalid tournament ID format" },
@@ -360,7 +356,7 @@ export async function POST(
 
     // === Add Player to Qualification ===
     // Default action: add one or more players to the qualification round
-    const authError = await requireAdminOrToken(request, tournamentId);
+    const authError = await requireAdminOrPlayer();
     if (authError) return authError;
 
     const identifier = getClientIdentifier(request);
@@ -462,8 +458,9 @@ export async function PUT(
   try {
 
     // Validate tournament ID format
-    const uuidSchema = z.string().uuid();
-    const tournamentIdResult = uuidSchema.safeParse(tournamentId);
+    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
+    const cuidSchema = z.string().cuid();
+    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
         { error: "Invalid tournament ID format" },
@@ -590,7 +587,7 @@ export async function PUT(
     // Update course times (single course or bulk)
     const { course, time, times: bulkTimes } = parseResult.data;
 
-    const authError = await requireAdminOrToken(request, tournamentId);
+    const authError = await requireAdminOrPlayer();
     if (authError) return authError;
 
     const identifier = getClientIdentifier(request);
@@ -725,8 +722,9 @@ export async function DELETE(
     }
 
     // Validate tournament ID format
-    const uuidSchema = z.string().uuid();
-    const tournamentIdResult = uuidSchema.safeParse(tournamentId);
+    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
+    const cuidSchema = z.string().cuid();
+    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
         { error: "Invalid tournament ID format" },
@@ -746,7 +744,7 @@ export async function DELETE(
     }
 
     // Validate entry ID format
-    const entryIdResult = uuidSchema.safeParse(entryId);
+    const entryIdResult = cuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
       return NextResponse.json(
         { success: false, error: "Invalid entry ID format" },

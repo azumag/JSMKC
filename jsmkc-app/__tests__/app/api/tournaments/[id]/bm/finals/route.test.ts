@@ -216,7 +216,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
       expect(result.data.message).toBe('Finals bracket created');
       expect(result.data.seededPlayers).toHaveLength(8);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
@@ -247,7 +248,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.status).toBe(200);
+      // Source returns 201 for successful resource creation (POST)
+      expect(result.status).toBe(201);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 8 }));
     });
 

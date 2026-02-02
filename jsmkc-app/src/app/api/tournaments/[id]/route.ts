@@ -28,7 +28,7 @@ import { createLogger } from "@/lib/logger";
  * results are viewable by anyone.
  *
  * The response includes:
- *   - Core tournament fields (name, date, status, token info)
+ *   - Core tournament fields (name, date, status)
  *   - bmQualifications: Player standings per group, sorted by group then score
  *   - bmMatches: All BM matches with both player details, sorted by match number
  *
@@ -56,8 +56,6 @@ export async function GET(
         name: true,
         date: true,
         status: true,
-        token: true,
-        tokenExpiresAt: true,
         createdAt: true,
         updatedAt: true,
         // BM qualification standings: sorted by group (A, B, ...) then by score descending

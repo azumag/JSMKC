@@ -10,7 +10,7 @@
  *     and resets after the time window expires.
  *   - Handles independent counters for different identifiers.
  * - checkRateLimit(): Convenience function that applies pre-configured rate
- *   limits by type (scoreInput, polling, tokenValidation, general).
+ *   limits by type (scoreInput, polling, sessionStatus, general).
  * - getClientIdentifier(): Extracts the client IP from request headers
  *   (x-forwarded-for, x-real-ip, cf-connecting-ip) with correct priority.
  * - getUserAgent(): Extracts the User-Agent header from requests.
@@ -160,9 +160,9 @@ describe('Rate Limiting', () => {
       expect(result.remaining).toBe(11);
     });
 
-    it('should use correct config for tokenValidation type', async () => {
-      // tokenValidation config: limit=10, windowMs=60000
-      const result = await checkRateLimit('tokenValidation', 'test-identifier-tokenValidation');
+    it('should use correct config for sessionStatus type', async () => {
+      // sessionStatus config: limit=10, windowMs=60000
+      const result = await checkRateLimit('sessionStatus', 'test-identifier-sessionStatus');
 
       expect(result.success).toBe(true);
       // remaining = 10 - 1 = 9 after first request

@@ -83,9 +83,10 @@ export default function ProfilePage() {
     useEffect(() => {
         async function fetchData() {
             try {
-                const res = await fetch('/api/players')
+                const res = await fetch('/api/players?limit=100')
                 if (res.ok) {
-                    const data: Player[] = await res.json()
+                    const json = await res.json()
+                    const data: Player[] = json.data ?? json
                     setPlayers(data)
 
                     /*

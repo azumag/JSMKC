@@ -7,7 +7,7 @@
  *
  * The application supports dual authentication strategies:
  * - OAuth (Google): used by administrators and members
- * - Credential-based: used by players who log in with a tournament token
+ * - Credential-based: used by players who log in with nickname + password
  *
  * The extra fields added here let both auth paths share a single Session
  * shape while carrying the data each path needs.

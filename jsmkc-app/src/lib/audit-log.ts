@@ -177,7 +177,7 @@ export async function createAuditLog(params: AuditLogParams): Promise<void> {
  * Action naming convention: VERB_RESOURCE
  * Verbs: CREATE, UPDATE, DELETE
  * Resources: TOURNAMENT, PLAYER, TA, BM, MR (match types)
- * Special: CREATE_BRACKET, REGENERATE_TOKEN, INVALIDATE_TOKEN, LOGIN_*, UNAUTHORIZED_ACCESS
+ * Special: CREATE_BRACKET, LOGIN_*, UNAUTHORIZED_ACCESS
  */
 export const AUDIT_ACTIONS = {
   // Tournament lifecycle actions
@@ -220,13 +220,9 @@ export const AUDIT_ACTIONS = {
   /** An MR match was deleted */
   DELETE_MR_MATCH: 'DELETE_MR_MATCH',
 
-  // Bracket and token management actions
+  // Bracket management actions
   /** A finals bracket was generated (double elimination) */
   CREATE_BRACKET: 'CREATE_BRACKET',
-  /** A tournament access token was regenerated */
-  REGENERATE_TOKEN: 'REGENERATE_TOKEN',
-  /** A tournament access token was invalidated/expired */
-  INVALIDATE_TOKEN: 'INVALIDATE_TOKEN',
 
   // Authentication events
   /** A user successfully authenticated via OAuth */

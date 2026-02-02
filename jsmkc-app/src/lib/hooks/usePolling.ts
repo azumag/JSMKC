@@ -10,6 +10,9 @@
  * - Configurable polling interval (default: POLLING_INTERVAL from constants = 5s)
  * - ETag-based change detection: skips state updates when data hasn't changed,
  *   reducing unnecessary re-renders
+ * - Cross-mount cache: when a cacheKey is provided, data persists across
+ *   component unmount/remount cycles, eliminating the loading skeleton flash
+ *   when navigating between tabs
  * - Automatic cleanup on unmount to prevent memory leaks and state updates
  *   on unmounted components
  * - Manual refetch capability for user-initiated refreshes
@@ -21,7 +24,7 @@
  * ```tsx
  * const { data, isLoading, error, refetch } = usePolling(
  *   () => fetch('/api/standings').then(r => r.json()),
- *   { interval: 5000, enabled: isActive }
+ *   { interval: 5000, enabled: isActive, cacheKey: 'tournament/123/bm' }
  * );
  * ```
  *
@@ -34,6 +37,59 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { POLLING_INTERVAL } from '@/lib/constants';
 
 /**
+ * Module-level LRU cache for persisting polling data across component
+ * unmount/remount cycles. When a component using usePolling unmounts
+ * (e.g., navigating away from a tournament tab) and later remounts
+ * (navigating back), the cached data is used as the initial state.
+ * This prevents the loading skeleton flash that would otherwise occur
+ * while the first poll request is in flight.
+ *
+ * The cache is keyed by the `cacheKey` option. Only hooks that
+ * specify a cacheKey participate in caching.
+ *
+ * Max size is capped to prevent unbounded memory growth during long
+ * sessions (e.g., admin browsing many tournaments). When the limit is
+ * reached, the oldest entry is evicted (Map preserves insertion order).
+ */
+const pollingCache = new Map<string, unknown>();
+
+/**
+ * Maximum number of entries in the polling cache.
+ * 20 entries covers ~4 tournaments × 5 tabs each, which is a reasonable
+ * working set for a single-user admin session.
+ */
+const POLLING_CACHE_MAX_SIZE = 20;
+
+/**
+ * Set a value in the polling cache with LRU eviction.
+ * If the key already exists, it is deleted and re-inserted to move it
+ * to the end (most recently used). If the cache exceeds the max size,
+ * the oldest entry (first in Map iteration order) is evicted.
+ */
+function setCacheEntry(key: string, value: unknown): void {
+  // Delete first to re-insert at the end (LRU ordering)
+  pollingCache.delete(key);
+  pollingCache.set(key, value);
+
+  // Evict oldest entry if over capacity
+  if (pollingCache.size > POLLING_CACHE_MAX_SIZE) {
+    const oldestKey = pollingCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      pollingCache.delete(oldestKey);
+    }
+  }
+}
+
+/**
+ * Clear all cached polling data.
+ * Exported for testing purposes and for use when the user logs out
+ * or when stale data needs to be discarded.
+ */
+export function clearPollingCache(): void {
+  pollingCache.clear();
+}
+
+/**
  * Configuration options for the usePolling hook.
  *
  * @property enabled   - When false, polling is paused and state is cleared (default: true)
@@ -41,6 +97,9 @@ import { POLLING_INTERVAL } from '@/lib/constants';
  * @property immediate - Whether to execute the first poll immediately on mount (default: true)
  * @property onSuccess - Optional callback invoked with the response data after each successful poll
  * @property onError   - Optional callback invoked with the error after a failed poll
+ * @property cacheKey  - When provided, data is cached in a module-level Map and restored on
+ *                       remount. This eliminates the loading skeleton flash when switching
+ *                       between tournament tabs. Example: "tournament/abc123/bm"
  */
 interface UsePollingOptions {
   enabled?: boolean;
@@ -48,6 +107,7 @@ interface UsePollingOptions {
   immediate?: boolean;
   onSuccess?: (data: unknown) => void;
   onError?: (error: Error) => void;
+  cacheKey?: string;
 }
 
 /**
@@ -69,10 +129,17 @@ export function usePolling<T>(
     immediate = true,
     onSuccess,
     onError,
+    cacheKey,
   } = options;
 
-  // State for the fetched data, errors, and ETag tracking
-  const [data, setData] = useState<T | null>(null);
+  // State for the fetched data, errors, and ETag tracking.
+  // Uses a lazy initializer (function form) so the cache lookup runs only
+  // on the initial mount, not on every render.
+  const [data, setData] = useState<T | null>(() =>
+    cacheKey && pollingCache.has(cacheKey)
+      ? (pollingCache.get(cacheKey) as T)
+      : null
+  );
   const [error, setError] = useState<Error | null>(null);
   const [lastETag, setLastETag] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,6 +188,12 @@ export function usePolling<T>(
       // Update the data state with the fresh response
       setData(response);
 
+      // Persist to module-level LRU cache so subsequent mounts of the same
+      // component (e.g., navigating back to this tab) start with fresh data
+      if (cacheKey) {
+        setCacheEntry(cacheKey, response);
+      }
+
       // Invoke the success callback if provided
       if (onSuccess) {
         onSuccess(response);
@@ -140,7 +213,7 @@ export function usePolling<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFn, lastETag, onSuccess, onError]);
+  }, [fetchFn, lastETag, onSuccess, onError, cacheKey]);
 
   // Keep pollRef in sync with the latest poll function.
   // This is assigned outside useEffect so the setTimeout callback

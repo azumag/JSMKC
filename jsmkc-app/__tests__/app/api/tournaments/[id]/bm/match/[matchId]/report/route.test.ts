@@ -34,7 +34,6 @@ jest.mock('@/lib/rate-limit', () => ({
   getClientIdentifier: jest.fn()
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/token-validation', () => ({ validateTournamentToken: jest.fn() }));
 jest.mock('@/lib/optimistic-locking', () => ({
   updateWithRetry: jest.fn(),
   OptimisticLockError: class OptimisticLockError extends Error {
@@ -67,7 +66,6 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/sanitize';
-import { validateTournamentToken } from '@/lib/token-validation';
 import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { validateBattleModeScores, calculateMatchResult } from '@/lib/score-validation';
 
@@ -108,8 +106,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     (getClientIdentifier as jest.Mock).mockReturnValue('test-client-ip');
     (validateBattleModeScores as jest.Mock).mockReturnValue({ isValid: true });
     (sanitizeInput as jest.Mock).mockImplementation((data) => data);
-    /* Default: no tournament token authorization (returns object with no tournament) */
-    (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: null });
     /* Default: no auth session */
     (auth as jest.Mock).mockResolvedValue(null);
     /* Reset Prisma mocks to prevent cross-test contamination from mockRejectedValue */
@@ -240,8 +236,8 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
         version: 2,
       };
 
-      const mockTournament = { id: 't1' };
-      (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: mockTournament });
+      /* Use admin session for auth in tests where we need to pass authorization */
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
@@ -252,7 +248,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result.status).toBe(200);
-      expect(validateTournamentToken).toHaveBeenCalledWith(request, 't1');
+      expect(auth).toHaveBeenCalled();
     });
 
     // Success case - Admin with admin role reports score
@@ -478,17 +474,17 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'Unauthorized: Invalid token or not authorized for this match' },
+        data: { error: 'Unauthorized: Not authorized for this match' },
         status: 401
       });
-      expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Invalid token or not authorized for this match');
+      expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Not authorized for this match');
     });
 
     // Validation error case - Returns 400 when reportingPlayer is invalid
     it('should return 400 when reportingPlayer is not 1 or 2', async () => {
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
-      /* Need valid token to pass auth check before reaching reportingPlayer validation */
-      (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: { id: 't1' } });
+      /* Need valid session to pass auth check before reaching reportingPlayer validation */
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
         id: 'm1',
         player1Id: 'p1',
@@ -511,8 +507,8 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     // Validation error case - Returns 400 when scores are invalid
     it('should return 400 when scores are invalid', async () => {
       (rateLimit as jest.Mock).mockResolvedValue({ success: true });
-      /* Need valid token to pass auth check before reaching score validation */
-      (validateTournamentToken as jest.Mock).mockResolvedValue({ tournament: { id: 't1' } });
+      /* Need valid session to pass auth check before reaching score validation */
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
         id: 'm1',
         player1Id: 'p1',

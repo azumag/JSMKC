@@ -114,7 +114,6 @@ jest.mock('@/lib/prisma', () => {
   // Single mock instance shared by both default and named exports
   const mockPrisma = {
     tournament: createMockModelWithMethods(),
-    accessToken: createMockModel(),
     auditLog: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -243,6 +242,28 @@ if (!global.fetch) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   global.fetch = require('jest-fetch-mock')
 }
+
+// Mock isomorphic-dompurify to avoid ES module transpilation issues with @exodus/bytes
+// This package uses ES modules in node_modules which Jest cannot transform
+// Implement basic sanitization to satisfy test expectations
+const basicSanitize = (html) => {
+  // Basic XSS sanitization for testing purposes
+  if (typeof html !== 'string') return html
+
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/\s+on\w+=\s*"[^"]*"/gi, '') // Remove event handlers with space before
+    .replace(/\s+on\w+=\s*'[^']*'/gi, '') // Remove event handlers (single quotes)
+    .replace(/\s+on\w+=\s*[^\s>]+/gi, '') // Remove event handlers without quotes
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+}
+
+jest.mock('isomorphic-dompurify', () => ({
+  sanitize: jest.fn((html) => basicSanitize(html)),
+  DOMPurify: {
+    sanitize: jest.fn((html) => basicSanitize(html)),
+  },
+}))
 
 // Clear all mocks before each test
 beforeEach(() => {

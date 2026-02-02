@@ -18,7 +18,7 @@
  * - Navigation to finals bracket
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useCallback, use } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -120,10 +120,6 @@ export default function GrandPrixPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [qualifications, setQualifications] = useState<GPQualification[]>([]);
-  const [matches, setMatches] = useState<GPMatch[]>([]);
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
@@ -167,33 +163,32 @@ export default function GrandPrixPage({
     }
 
     const gpData = await gpResponse.json();
-    const players = await playersResponse.json();
+    const playersJson = await playersResponse.json();
 
     return {
       qualifications: gpData.qualifications || [],
       matches: gpData.matches || [],
-      allPlayers: players,
+      allPlayers: playersJson.data ?? playersJson,
     };
   }, [tournamentId]);
 
-  /* Poll for updates every 3 seconds */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+  /*
+   * Poll every 3 seconds for live tournament updates.
+   * cacheKey enables instant content display when returning to this tab.
+   */
+  const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
+    cacheKey: `tournament/${tournamentId}/gp`,
   });
 
-  /* Update local state when polling data arrives */
-  useEffect(() => {
-    if (pollData) {
-      setQualifications(pollData.qualifications);
-      setMatches(pollData.matches);
-      setAllPlayers(pollData.allPlayers);
-    }
-  }, [pollData]);
-
-  useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+  /*
+   * Derive display data directly from polling response.
+   * Avoids redundant local state and provides instant display from cache.
+   */
+  const qualifications: GPQualification[] = pollData?.qualifications ?? [];
+  const matches: GPMatch[] = pollData?.matches ?? [];
+  const allPlayers: Player[] = pollData?.allPlayers ?? [];
 
   /**
    * Submit group setup to create qualification round-robin matches.
@@ -337,7 +332,21 @@ export default function GrandPrixPage({
   /* Extract unique groups from qualifications for tab display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
-  if (loading) {
+  /* Show error state if the first fetch fails and there's no cached data */
+  if (!pollData && pollError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Grand Prix</h1>
+        <div className="text-center py-8">
+          <p className="text-destructive mb-4">{pollError}</p>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  /* Loading skeleton shown only on first visit (no cached data yet) */
+  if (!pollData) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -498,9 +507,6 @@ export default function GrandPrixPage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
         </div>
       </div>
 

@@ -5,8 +5,8 @@
  * Both players must independently report matching scores for
  * the match to be automatically confirmed.
  *
- * Authorization supports three methods:
- * 1. Tournament token (for anonymous participant access)
+ * Authorization supports session-based methods:
+ * 1. Admin session (full access)
  * 2. Player account (matched by playerId in session)
  * 3. OAuth-linked player (matched by userId)
  *
@@ -70,7 +70,7 @@ export async function POST(
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized: Invalid token or not authorized for this match' },
+        { success: false, error: 'Unauthorized: Not authorized for this match' },
         { status: 401 }
       );
     }

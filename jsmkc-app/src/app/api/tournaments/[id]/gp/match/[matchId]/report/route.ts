@@ -94,7 +94,7 @@ export async function POST(
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized: Invalid token or not authorized for this match' },
+        { success: false, error: 'Unauthorized: Not authorized for this match' },
         { status: 401 }
       );
     }

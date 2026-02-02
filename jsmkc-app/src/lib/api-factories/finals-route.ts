@@ -252,12 +252,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
       }
 
-      return NextResponse.json({
-        message: 'Finals bracket created',
-        matches: createdMatches,
-        seededPlayers,
-        bracketStructure,
-      });
+      return NextResponse.json(
+        {
+          message: 'Finals bracket created',
+          matches: createdMatches,
+          seededPlayers,
+          bracketStructure,
+        },
+        { status: 201 }, // Return 201 for successful resource creation
+      );
     } catch (error) {
       logger.error('Failed to create finals', { error, tournamentId });
       return NextResponse.json(

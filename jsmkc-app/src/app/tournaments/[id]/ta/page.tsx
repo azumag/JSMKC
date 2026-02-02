@@ -31,7 +31,6 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,9 +111,6 @@ export default function TimeAttackPage({
   const { id: tournamentId } = use(params);
 
   // === State Management ===
-  const [entries, setEntries] = useState<TTEntry[]>([]);
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
@@ -126,7 +122,6 @@ export default function TimeAttackPage({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Promotion states
-  const [finalsCount, setFinalsCount] = useState(0);
   const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [topN, setTopN] = useState(8);
@@ -155,34 +150,34 @@ export default function TimeAttackPage({
     }
 
     const taData = await taResponse.json();
-    const players = await playersResponse.json();
+    const playersJson = await playersResponse.json();
 
     return {
       entries: taData.entries || [],
-      allPlayers: players,
+      allPlayers: playersJson.data ?? playersJson,
       finalsCount: taData.finalsCount || 0,
     };
   }, [tournamentId]);
 
-  // Poll for updates every 3 seconds during live tournament operation
-  const { data: pollData, loading: pollLoading, error: pollError, refetch } = usePolling(
+  /*
+   * Poll for updates every 3 seconds during live tournament operation.
+   * cacheKey enables instant content display when returning to this tab.
+   */
+  const { data: pollData, error: pollError, refetch } = usePolling(
     fetchTournamentData, {
     interval: 3000,
+    cacheKey: `tournament/${tournamentId}/ta`,
   });
 
-  // Sync polling data to component state
-  useEffect(() => {
-    if (pollData) {
-      setEntries(pollData.entries);
-      setAllPlayers(pollData.allPlayers);
-      setFinalsCount(pollData.finalsCount);
-    }
-  }, [pollData]);
+  /*
+   * Derive display data directly from polling response.
+   * Avoids redundant local state and provides instant display from cache.
+   */
+  const entries: TTEntry[] = pollData?.entries ?? [];
+  const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  const finalsCount: number = pollData?.finalsCount ?? 0;
 
-  useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
-
+  /* Sync polling errors to local error state for display */
   useEffect(() => {
     if (pollError) {
       setError(pollError);
@@ -374,8 +369,22 @@ export default function TimeAttackPage({
     (p) => !entries.find((e) => e.playerId === p.id)
   );
 
-  // === Loading State ===
-  if (loading) {
+  /* Show error state if the first fetch fails and there's no cached data.
+     Must be checked before the skeleton to avoid permanent loading on error. */
+  if (!pollData && error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Time Attack</h1>
+        <div className="text-center py-8">
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // === Loading State (only on first visit with no cached data) ===
+  if (!pollData) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -395,9 +404,6 @@ export default function TimeAttackPage({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Time Attack</h1>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
@@ -427,7 +433,7 @@ export default function TimeAttackPage({
           <Button
             variant="default"
             onClick={() => setIsPromoteDialogOpen(true)}
-            disabled={finalsCount === 0}
+            disabled={entries.length === 0}
           >
             Promote to Finals ({finalsCount})
           </Button>
@@ -564,9 +570,6 @@ export default function TimeAttackPage({
               </div>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
         </div>
       </div>
 

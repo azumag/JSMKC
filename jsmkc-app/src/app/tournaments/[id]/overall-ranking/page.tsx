@@ -25,7 +25,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
-import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,10 +80,8 @@ export default function OverallRankingPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
-  const [rankings, setRankings] = useState<PlayerRanking[]>([]);
-  const [tournamentName, setTournamentName] = useState<string>("");
-  const [lastUpdated, setLastUpdated] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
   const [error, setError] = useState<string | null>(null);
   const [recalculating, setRecalculating] = useState(false);
 
@@ -103,25 +101,24 @@ export default function OverallRankingPage({
     throw new Error(data.error || "Invalid response format");
   }, [tournamentId]);
 
-  /* Auto-refresh rankings every 5 seconds */
-  const { data: pollData, isLoading: pollLoading, error: pollError, refetch } = usePolling(
+  /*
+   * Auto-refresh rankings every 5 seconds.
+   * cacheKey enables instant content display when returning to this tab.
+   */
+  const { data: pollData, error: pollError, refetch } = usePolling(
     fetchRankings,
-    { interval: 5000 }
+    { interval: 5000, cacheKey: `tournament/${tournamentId}/overall-ranking` }
   );
 
-  /* Update local state when polling data arrives */
-  useEffect(() => {
-    if (pollData) {
-      setRankings(pollData.rankings);
-      setTournamentName(pollData.tournamentName);
-      setLastUpdated(pollData.lastUpdated);
-    }
-  }, [pollData]);
+  /*
+   * Derive display data directly from polling response.
+   * Avoids redundant local state and provides instant display from cache.
+   */
+  const rankings: PlayerRanking[] = pollData?.rankings ?? [];
+  const tournamentName: string = pollData?.tournamentName ?? "";
+  const lastUpdated: string = pollData?.lastUpdated ?? "";
 
-  useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
-
+  /* Sync polling errors to local error state for display */
   useEffect(() => {
     if (pollError) {
       setError(typeof pollError === 'string' ? pollError : (pollError as Error)?.message || 'Unknown error');
@@ -131,6 +128,7 @@ export default function OverallRankingPage({
   /**
    * Trigger a full recalculation of overall rankings.
    * This re-aggregates all mode data and updates the stored rankings.
+   * After recalculation, refetch polling data to display fresh results.
    */
   const handleRecalculate = async () => {
     setRecalculating(true);
@@ -146,11 +144,8 @@ export default function OverallRankingPage({
         throw new Error(errorData.error || "Failed to recalculate rankings");
       }
 
-      const data = await response.json();
-      if (data.success && data.data) {
-        setRankings(data.data.rankings);
-        setLastUpdated(data.data.lastUpdated);
-      }
+      /* Trigger immediate refetch to display the recalculated data */
+      refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to recalculate";
       console.error("Failed to recalculate rankings:", err);
@@ -186,7 +181,33 @@ export default function OverallRankingPage({
     return qual + finals;
   };
 
-  if (loading) {
+  /* Error state with retry and calculate options.
+     Must be checked before skeleton to avoid permanent loading on first-load error. */
+  if (error && !pollData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Overall Ranking</h1>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <div className="space-x-2">
+              <Button onClick={refetch}>Retry</Button>
+              {isAdmin && (
+                <Button variant="outline" onClick={handleRecalculate}>
+                  Calculate Rankings
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  /* Loading skeleton shown only on first visit (no cached data, no error yet) */
+  if (!pollData) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -196,31 +217,6 @@ export default function OverallRankingPage({
           </div>
         </div>
         <CardSkeleton />
-      </div>
-    );
-  }
-
-  /* Error state with retry and calculate options */
-  if (error && rankings.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Overall Ranking</h1>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <div className="space-x-2">
-              <Button onClick={refetch}>Retry</Button>
-              <Button variant="outline" onClick={handleRecalculate}>
-                Calculate Rankings
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -241,15 +237,14 @@ export default function OverallRankingPage({
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={handleRecalculate}
-            disabled={recalculating}
-          >
-            {recalculating ? "Recalculating..." : "Recalculate"}
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}`}>Back</Link>
-          </Button>
+          {isAdmin && (
+            <Button
+              onClick={handleRecalculate}
+              disabled={recalculating}
+            >
+              {recalculating ? "Recalculating..." : "Recalculate"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -267,9 +262,11 @@ export default function OverallRankingPage({
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
             <p className="mb-4">No rankings available yet.</p>
-            <Button onClick={handleRecalculate} disabled={recalculating}>
-              {recalculating ? "Calculating..." : "Calculate Rankings"}
-            </Button>
+            {isAdmin && (
+              <Button onClick={handleRecalculate} disabled={recalculating}>
+                {recalculating ? "Calculating..." : "Calculate Rankings"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
