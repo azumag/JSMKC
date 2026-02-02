@@ -136,6 +136,16 @@ export async function GET(
     const phaseParam = searchParams.get("phase");
     const phase = phaseParam ? PhaseSchema.safeParse(phaseParam) : null;
 
+    // Return 400 if a phase parameter was provided but is not a valid phase name.
+    // Without this check, invalid values are silently ignored, which confuses API consumers.
+    // Note: phaseParam is not reflected in the error message to avoid user input reflection.
+    if (phaseParam && !phase?.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid phase parameter. Must be one of: phase1, phase2, phase3" },
+        { status: 400 }
+      );
+    }
+
     // Fetch phase status summary (counts for all three phases)
     const phaseStatus = await getPhaseStatus(prisma, tournamentId);
 
@@ -148,10 +158,11 @@ export async function GET(
     if (phase?.success) {
       const phaseValue = phase.data;
 
-      // Fetch entries for the specified phase, ordered by rank
+      // Fetch entries for the specified phase, ordered by rank.
+      // Omit password hash from player relation to prevent credential leakage in API response.
       const entries = await prisma.tTEntry.findMany({
         where: { tournamentId, stage: phaseValue },
-        include: { player: true },
+        include: { player: { omit: { password: true } } },
         orderBy: [
           { eliminated: "asc" }, // Active players first
           { lives: "desc" },     // Most lives first (relevant for phase3)
