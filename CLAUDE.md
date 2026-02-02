@@ -23,4 +23,4 @@
 JSMKC (Japan SMK Championship) is a tournament management and scoring system for competitive SMK events. Built with Next.js 16 (App Router) and React 19.
 
 ## SRC
-under `./jsmkc-app`
+under `./smkc-score-app`
