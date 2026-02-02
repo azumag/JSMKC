@@ -100,9 +100,21 @@ export async function PUT(
   // Logger created inside function for proper test mocking
   const logger = createLogger('tt-entry-api');
 
-  // Admin authentication is required for TT entry updates
+  // Authorization: admin has full access, players can update only their own entry.
+  // This supports the self-service time entry workflow where players log in and
+  // submit their own times, while admins retain the ability to edit any entry.
   const session = await auth();
-  if (!session?.user || session.user.role !== "admin") {
+  if (!session?.user) {
+    return NextResponse.json(
+      { success: false, error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
+  const isAdmin = session.user.role === "admin";
+  const isPlayer = session.user.userType === "player";
+
+  if (!isAdmin && !isPlayer) {
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }
@@ -110,6 +122,22 @@ export async function PUT(
   }
 
   const { entryId } = await params;
+
+  // For player users, verify they own the entry being updated.
+  // Must fetch the entry first to compare playerId.
+  // Admin users bypass this check entirely (no extra DB query).
+  if (!isAdmin) {
+    const entryForAuth = await prisma.tTEntry.findUnique({
+      where: { id: entryId },
+      select: { playerId: true },
+    });
+    if (!entryForAuth || entryForAuth.playerId !== session.user.playerId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+  }
   try {
     const body = await request.json();
 

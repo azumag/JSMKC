@@ -182,8 +182,8 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.status).toBe(403);
     });
 
-    // Authorization failure case - Returns 403 when user is not admin
-    it('should return 403 when user is not admin', async () => {
+    // Authorization failure case - Returns 403 when user is not admin and not player
+    it('should return 403 when user is not admin and not player', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', role: 'member' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
@@ -192,6 +192,89 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
         rank: 1,
         eliminated: false,
         lives: 3,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization: player can update their own entry
+    it('should allow player to update their own entry', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+
+      // First findUnique call: ownership check (select: { playerId: true })
+      // Second findUnique call: re-fetch after update (include: { player, tournament })
+      const mockEntryFull = {
+        id: 'e1',
+        playerId: 'p1',
+        tournamentId: 't1',
+        times: [1000],
+        totalTime: 1000,
+        rank: 1,
+        eliminated: false,
+        lives: 3,
+        stage: 'qualification',
+        version: 2,
+        player: { id: 'p1', name: 'Player 1', nickname: 'P1' },
+        tournament: { id: 't1', name: 'Test Tournament' },
+      };
+
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ playerId: 'p1' })  // ownership check
+        .mockResolvedValueOnce(mockEntryFull);       // re-fetch after update
+
+      const updateResult = { id: 'e1', version: 2 };
+      (updateTTEntry as jest.Mock).mockResolvedValue(updateResult);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        totalTime: 1000,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.success).toBe(true);
+    });
+
+    // Authorization: player cannot update another player's entry
+    it('should return 403 when player tries to update another player\'s entry', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+
+      // Entry belongs to a different player (p2)
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce({ playerId: 'p2' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        totalTime: 1000,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.status).toBe(403);
+    });
+
+    // Authorization: player cannot update non-existent entry
+    it('should return 403 when player tries to update non-existent entry', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
+      });
+
+      // Entry doesn't exist
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
         version: 1,
       });
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });

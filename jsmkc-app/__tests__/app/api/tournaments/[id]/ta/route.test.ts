@@ -452,6 +452,50 @@ describe('/api/tournaments/[id]/ta', () => {
         { status: 201 }
       );
     });
+
+    it('should return 403 when player tries to add another player', async () => {
+      // Player session with playerId VALID_UUID2 — attempting to add a different player
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
+      });
+
+      const OTHER_PLAYER_ID = 'clxxxxxxxxxxxxxxxxotherpl';
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ playerId: OTHER_PLAYER_ID }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden: Players can only add themselves' },
+        { status: 403 }
+      );
+    });
+
+    it('should return 403 when player tries to add batch with mixed player IDs', async () => {
+      // Player session — attempting to add themselves AND another player in a batch
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
+      });
+
+      const OTHER_PLAYER_ID = 'clxxxxxxxxxxxxxxxxotherpl';
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ players: [VALID_UUID2, OTHER_PLAYER_ID] }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden: Players can only add themselves' },
+        { status: 403 }
+      );
+    });
   });
 
   // =========================================================================
@@ -651,7 +695,7 @@ describe('/api/tournaments/[id]/ta', () => {
     });
 
     it('should update times with valid player session', async () => {
-      // Player session — authenticated player can update their times
+      // Player session — authenticated player can update their own times
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
       });
@@ -659,6 +703,7 @@ describe('/api/tournaments/[id]/ta', () => {
       const existingEntry = {
         id: VALID_ENTRY_ID,
         tournamentId: VALID_UUID,
+        playerId: 'p1', // Must match session's playerId for ownership check
         stage: 'qualification',
         times: { MC1: '1:20.000' },
       };
@@ -687,6 +732,39 @@ describe('/api/tournaments/[id]/ta', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         { entry: updatedEntry }
+      );
+    });
+
+    it('should return 403 when player tries to update another player\'s times', async () => {
+      // Player session with playerId 'p1' — attempting to update entry owned by 'p2'
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
+      });
+
+      const existingEntry = {
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        playerId: 'p2', // Different from session's playerId — ownership check should fail
+        stage: 'qualification',
+        times: { MC1: '1:20.000' },
+      };
+
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(existingEntry);
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            times: { MC2: '1:25.000' },
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Forbidden: You can only update your own times' },
+        { status: 403 }
       );
     });
   });

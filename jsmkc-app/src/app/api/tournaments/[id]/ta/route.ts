@@ -52,19 +52,18 @@ async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; sess
 
 /**
  * Admin or player session authentication helper.
- * Accepts either admin session or authenticated player session.
- * Returns an error response if neither authentication method succeeds.
- * Returns null if authentication succeeds.
+ * Returns the session object for ownership verification by the caller.
+ * Admins have full access; players must additionally verify ownership
+ * of the specific resource they are modifying.
+ *
+ * Returns { error } if user is not authenticated as admin or player.
+ * Returns { session } if authentication succeeds.
  */
-async function requireAdminOrPlayer(): Promise<NextResponse | null> {
+async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: any }> {
   const session = await auth();
-  if (session?.user?.role === 'admin') return null;
-  if (session?.user?.userType === 'player') return null;
-
-  return NextResponse.json(
-    { success: false, error: 'Forbidden' },
-    { status: 403 }
-  );
+  if (session?.user?.role === 'admin') return { session };
+  if (session?.user?.userType === 'player') return { session };
+  return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) };
 }
 
 /**
@@ -356,8 +355,8 @@ export async function POST(
 
     // === Add Player to Qualification ===
     // Default action: add one or more players to the qualification round
-    const authError = await requireAdminOrPlayer();
-    if (authError) return authError;
+    const authResult = await requireAdminOrPlayerSession();
+    if (authResult.error) return authResult.error;
 
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
@@ -370,6 +369,20 @@ export async function POST(
 
     // Support both single playerId and batch players array
     const playerIds = players || (playerId ? [playerId] : []);
+
+    // Ownership check: players can only add themselves to qualification.
+    // Admins can add any player. This prevents a player from registering
+    // other players without admin privileges.
+    if (authResult.session!.user.role !== 'admin') {
+      const selfPlayerId = authResult.session!.user.playerId;
+      const isAddingSelf = playerIds.length > 0 && playerIds.every(pid => pid === selfPlayerId);
+      if (!isAddingSelf) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: Players can only add themselves' },
+          { status: 403 }
+        );
+      }
+    }
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
@@ -587,8 +600,8 @@ export async function PUT(
     // Update course times (single course or bulk)
     const { course, time, times: bulkTimes } = parseResult.data;
 
-    const authError = await requireAdminOrPlayer();
-    if (authError) return authError;
+    const authResult = await requireAdminOrPlayerSession();
+    if (authResult.error) return authResult.error;
 
     const identifier = getClientIdentifier(request);
     const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
@@ -608,6 +621,18 @@ export async function PUT(
         { success: false, error: "Entry not found" },
         { status: 404 }
       );
+    }
+
+    // Ownership check: players can only update their own entry's times.
+    // Admins can update any entry. This prevents a player from modifying
+    // another player's recorded times.
+    if (authResult.session!.user.role !== 'admin') {
+      if (authResult.session!.user.playerId !== entry.playerId) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: You can only update your own times' },
+          { status: 403 }
+        );
+      }
     }
 
     // Merge new times with existing times
@@ -662,6 +687,7 @@ export async function PUT(
     const userAgent = getUserAgent(request);
     try {
       await createAuditLog({
+        userId: authResult.session!.user.id,
         ipAddress,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
