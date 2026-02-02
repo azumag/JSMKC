@@ -191,6 +191,12 @@ export default function TimeAttackPage({
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   const finalsCount: number = pollData?.finalsCount ?? 0;
 
+  // Check if qualification entries exist in each phase's rank range.
+  // This directly mirrors the backend's getQualificationPlayersByRank checks.
+  // If no players are ranked in a phase's range, that phase can be skipped.
+  const phase1HasPlayers = entries.some(e => e.rank !== null && e.rank >= 17 && e.rank <= 24);
+  const phase2HasPlayers = entries.some(e => e.rank !== null && e.rank >= 13 && e.rank <= 16);
+
   /* Sync polling errors to local error state for display */
   useEffect(() => {
     if (pollError) {
@@ -565,8 +571,12 @@ export default function TimeAttackPage({
                                   <input
                                     type="checkbox"
                                     checked={selectedPlayerIds.includes(entry.playerId)}
+                                    // stopPropagation on click prevents parent div's onClick
+                                    // from also firing togglePlayerSelection (double-toggle).
+                                    // Must be on onClick (not onChange) because click bubbles
+                                    // to the parent div before onChange fires.
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={() => togglePlayerSelection(entry.playerId)}
-                                    className="pointer-events-none"
                                   />
                                   <span>{entry.player.nickname}</span>
                                   {entry.totalTime === null && (
@@ -657,7 +667,7 @@ export default function TimeAttackPage({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Phase 1 */}
+              {/* Phase 1: Only relevant when there are ≥17 qualified players (ranks 17-24) */}
               <div className="border rounded-lg p-4 space-y-2">
                 <h4 className="font-semibold">Phase 1</h4>
                 <p className="text-sm text-muted-foreground">Ranks 17-24 (8→4)</p>
@@ -667,11 +677,13 @@ export default function TimeAttackPage({
                     {" / "}
                     <span className="text-red-500">{phaseStatus.phase1.eliminated} eliminated</span>
                   </div>
+                ) : !phase1HasPlayers ? (
+                  <p className="text-sm text-muted-foreground">Skipped (fewer than 17 players)</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Not started</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase1 && (
+                  {!phaseStatus?.phase1 && phase1HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase1")}
@@ -688,7 +700,7 @@ export default function TimeAttackPage({
                 </div>
               </div>
 
-              {/* Phase 2 */}
+              {/* Phase 2: Accessible when Phase 1 exists OR Phase 1 is skipped (no eligible players) */}
               <div className="border rounded-lg p-4 space-y-2">
                 <h4 className="font-semibold">Phase 2</h4>
                 <p className="text-sm text-muted-foreground">Phase 1 survivors + ranks 13-16 (8→4)</p>
@@ -698,11 +710,13 @@ export default function TimeAttackPage({
                     {" / "}
                     <span className="text-red-500">{phaseStatus.phase2.eliminated} eliminated</span>
                   </div>
+                ) : !phase2HasPlayers ? (
+                  <p className="text-sm text-muted-foreground">Skipped (fewer than 13 players)</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Not started</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase2 && phaseStatus?.phase1 && (
+                  {!phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase2")}
@@ -719,7 +733,7 @@ export default function TimeAttackPage({
                 </div>
               </div>
 
-              {/* Phase 3 */}
+              {/* Phase 3: Accessible when Phase 2 exists OR Phase 1+2 are skipped */}
               <div className="border rounded-lg p-4 space-y-2">
                 <h4 className="font-semibold">Phase 3 (Finals)</h4>
                 <p className="text-sm text-muted-foreground">Phase 2 survivors + ranks 1-12 (16→1)</p>
@@ -738,7 +752,7 @@ export default function TimeAttackPage({
                   <p className="text-sm text-muted-foreground">Not started</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase3 && phaseStatus?.phase2 && (
+                  {!phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase3")}

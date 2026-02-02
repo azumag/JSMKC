@@ -180,8 +180,14 @@ export async function promoteToPhase1(
     config.qualRankEnd
   );
 
+  // If no players in ranks 17-24, Phase 1 is skipped (small tournament).
+  // Return empty results instead of throwing to allow sequential phase advancement.
   if (qualifiers.length === 0) {
-    throw new Error("No players found in qualification ranks 17-24 for Phase 1");
+    return {
+      entries: [],
+      skipped: [],
+      message: "Phase 1 skipped — no players in qualification ranks 17-24",
+    };
   }
 
   const createdEntries: TTEntry[] = [];
@@ -296,8 +302,14 @@ export async function promoteToPhase2(
   // Combine both groups into the phase 2 candidate pool
   const allPlayers = [...phase1Survivors, ...qualifiers];
 
+  // If no players available (no Phase 1 survivors and no ranks 13-16),
+  // Phase 2 is skipped. Return empty results for small tournaments.
   if (allPlayers.length === 0) {
-    throw new Error("No players available for Phase 2");
+    return {
+      entries: [],
+      skipped: [],
+      message: "Phase 2 skipped — no Phase 1 survivors and no players in ranks 13-16",
+    };
   }
 
   const createdEntries: TTEntry[] = [];
@@ -413,6 +425,9 @@ export async function promoteToPhase3(
   // Combine both groups into the finals candidate pool
   const allPlayers = [...phase2Survivors, ...qualifiers];
 
+  // Unlike Phase 1/2 (which return empty results when skipped for small tournaments),
+  // Phase 3 with 0 players is always an error: there must be at least some players
+  // in ranks 1-12 for a valid finals. This throw is intentional.
   if (allPlayers.length === 0) {
     throw new Error("No players available for Phase 3 (Finals)");
   }
@@ -672,7 +687,11 @@ export async function processPhase3Result(
     }
   }
 
-  // Check if remaining player count matches a life reset threshold
+  // Check if remaining player count matches a life reset threshold.
+  // CRITICAL: Only trigger life reset when someone was actually eliminated this round
+  // AND the new count hits a threshold. Without the eliminatedPlayers.length > 0 guard,
+  // an infinite loop occurs: e.g. 8 players remain, bottom 4 lose a life (3→2),
+  // no eliminations, remaining=8, lives reset to 3, repeat forever.
   const remainingPlayers = await getActivePhasePlayers(
     prisma,
     tournamentId,
@@ -681,9 +700,11 @@ export async function processPhase3Result(
   const remainingCount = remainingPlayers.length;
 
   let livesReset = false;
-  // Check if remaining count matches any reset threshold (8, 4, or 2 players)
-  // Using indexOf instead of includes to avoid tuple type constraint
-  if ((config.lifeResetThresholds as readonly number[]).includes(remainingCount)) {
+  // Only reset when a threshold is freshly reached (i.e., eliminations happened this round)
+  if (
+    eliminatedPlayers.length > 0 &&
+    (config.lifeResetThresholds as readonly number[]).includes(remainingCount)
+  ) {
     // Reset all remaining players to initial lives (3)
     await prisma.tTEntry.updateMany({
       where: {

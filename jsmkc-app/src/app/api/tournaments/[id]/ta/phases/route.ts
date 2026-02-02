@@ -183,6 +183,7 @@ export async function GET(
   } catch (err) {
     logger.error("Failed to fetch phase data", {
       error: err instanceof Error ? err.message : err,
+      stack: err instanceof Error ? err.stack : undefined,
       tournamentId,
     });
     return NextResponse.json(
