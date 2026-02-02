@@ -7,7 +7,8 @@
  * - calculateEntryTotal: computing total time from all 20 course time strings,
  *   handling incomplete times (returns null), and null times object
  * - sortByStage:
- *   - Qualification stage: sorts by total time ascending, excludes null-time entries
+ *   - Qualification stage: sorts by qualificationPoints descending, totalTime ascending
+ *     as tiebreaker; includes all entries (even those with 0 points)
  *   - Finals stage: sorts active (non-eliminated) players by lives then time,
  *     pushes eliminated players to the end; handles both-eliminated, null totalTime
  *   - Revival stage: sorts by total time ascending, excludes null-time entries
@@ -56,6 +57,9 @@ describe('TA Rank Calculation', () => {
       expect(result.totalTime).toBe(1330157);
       expect(result.lives).toBe(3);
       expect(result.eliminated).toBe(false);
+      // New scoring fields should be initialized to defaults
+      expect(result.courseScores).toEqual({});
+      expect(result.qualificationPoints).toBe(0);
     });
 
     it('should return null total time when entry has incomplete times', () => {
@@ -107,43 +111,110 @@ describe('TA Rank Calculation', () => {
   });
 
   describe('sortByStage - qualification', () => {
-    const entries = [
-      {
-        id: '1',
-        totalTime: 290357,
-        lives: 3,
-        eliminated: false,
-        stage: 'qualification',
-      },
-      {
-        id: '2',
-        totalTime: 754567,
-        lives: 2,
-        eliminated: false,
-        stage: 'qualification',
-      },
-      {
-        id: '3',
-        totalTime: null,
-        lives: 3,
-        eliminated: false,
-        stage: 'qualification',
-      },
-      {
-        id: '4',
-        totalTime: 830456,
-        lives: 3,
-        eliminated: false,
-        stage: 'qualification',
-      },
-    ];
+    it('should sort by qualificationPoints descending, including all entries', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: 290357,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 100,
+        },
+        {
+          id: '2',
+          totalTime: 754567,
+          lives: 2,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 200,
+        },
+        {
+          id: '3',
+          totalTime: null,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 0,
+        },
+        {
+          id: '4',
+          totalTime: 830456,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 150,
+        },
+      ];
 
-    const sorted = sortByStage(entries, 'qualification');
+      const sorted = sortByStage(entries, 'qualification');
 
-    expect(sorted.length).toBe(3);
-    expect(sorted[0].id).toBe('1');
-    expect(sorted[1].id).toBe('2');
-    expect(sorted[2].id).toBe('4');
+      // All entries included (not filtered), sorted by points descending
+      expect(sorted.length).toBe(4);
+      expect(sorted[0].id).toBe('2');   // 200 pts
+      expect(sorted[1].id).toBe('4');   // 150 pts
+      expect(sorted[2].id).toBe('1');   // 100 pts
+      expect(sorted[3].id).toBe('3');   // 0 pts
+    });
+
+    it('should use totalTime as tiebreaker when points are equal', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: 500000,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 100,
+        },
+        {
+          id: '2',
+          totalTime: 300000,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 100,
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'qualification');
+      // Same points, faster time wins
+      expect(sorted[0].id).toBe('2');
+      expect(sorted[1].id).toBe('1');
+    });
+
+    it('should sort null totalTime entries to end among same-point entries', () => {
+      const entries = [
+        {
+          id: '1',
+          totalTime: null,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 50,
+        },
+        {
+          id: '2',
+          totalTime: 300000,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 50,
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'qualification');
+      expect(sorted[0].id).toBe('2');
+      expect(sorted[1].id).toBe('1');
+    });
   });
 
   describe('sortByStage - finals', () => {
@@ -154,6 +225,8 @@ describe('TA Rank Calculation', () => {
         lives: 3,
         eliminated: false,
         stage: 'finals',
+        courseScores: {},
+        qualificationPoints: 0,
       },
       {
         id: '2',
@@ -161,6 +234,8 @@ describe('TA Rank Calculation', () => {
         lives: 2,
         eliminated: false,
         stage: 'finals',
+        courseScores: {},
+        qualificationPoints: 0,
       },
       {
         id: '3',
@@ -168,6 +243,8 @@ describe('TA Rank Calculation', () => {
         lives: 1,
         eliminated: false,
         stage: 'finals',
+        courseScores: {},
+        qualificationPoints: 0,
       },
       {
         id: '4',
@@ -175,6 +252,8 @@ describe('TA Rank Calculation', () => {
         lives: 3,
         eliminated: true,
         stage: 'finals',
+        courseScores: {},
+        qualificationPoints: 0,
       },
     ];
 
@@ -195,6 +274,8 @@ describe('TA Rank Calculation', () => {
           lives: 3,
           eliminated: true,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
         {
           id: '2',
@@ -202,6 +283,8 @@ describe('TA Rank Calculation', () => {
           lives: 2,
           eliminated: true,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
       ];
 
@@ -220,6 +303,8 @@ describe('TA Rank Calculation', () => {
           lives: 3,
           eliminated: false,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
         {
           id: '2',
@@ -227,6 +312,8 @@ describe('TA Rank Calculation', () => {
           lives: 2,
           eliminated: true,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
       ];
 
@@ -244,6 +331,8 @@ describe('TA Rank Calculation', () => {
           lives: 0,
           eliminated: true,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
         {
           id: '2',
@@ -251,6 +340,8 @@ describe('TA Rank Calculation', () => {
           lives: 3,
           eliminated: false,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
       ];
 
@@ -270,6 +361,8 @@ describe('TA Rank Calculation', () => {
           lives: 2,
           eliminated: false,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
         {
           id: '2',
@@ -277,6 +370,8 @@ describe('TA Rank Calculation', () => {
           lives: 3,
           eliminated: false,
           stage: 'finals',
+          courseScores: {},
+          qualificationPoints: 0,
         },
       ];
 
@@ -295,6 +390,8 @@ describe('TA Rank Calculation', () => {
         lives: 3,
         eliminated: false,
         stage: 'revival_1',
+        courseScores: {},
+        qualificationPoints: 0,
       },
       {
         id: '2',
@@ -302,6 +399,8 @@ describe('TA Rank Calculation', () => {
         lives: 2,
         eliminated: false,
         stage: 'revival_1',
+        courseScores: {},
+        qualificationPoints: 0,
       },
       {
         id: '3',
@@ -309,6 +408,8 @@ describe('TA Rank Calculation', () => {
         lives: 1,
         eliminated: false,
         stage: 'revival_1',
+        courseScores: {},
+        qualificationPoints: 0,
       },
     ];
 
@@ -322,9 +423,9 @@ describe('TA Rank Calculation', () => {
   describe('assignRanks', () => {
     it('should assign sequential ranks to sorted entries', () => {
       const entries = [
-        { id: '1', totalTime: 100, lives: 3, eliminated: false, stage: 'qualification' },
-        { id: '2', totalTime: 200, lives: 2, eliminated: false, stage: 'qualification' },
-        { id: '3', totalTime: 300, lives: 1, eliminated: false, stage: 'qualification' },
+        { id: '1', totalTime: 100, lives: 3, eliminated: false, stage: 'qualification', courseScores: {}, qualificationPoints: 0 },
+        { id: '2', totalTime: 200, lives: 2, eliminated: false, stage: 'qualification', courseScores: {}, qualificationPoints: 0 },
+        { id: '3', totalTime: 300, lives: 1, eliminated: false, stage: 'qualification', courseScores: {}, qualificationPoints: 0 },
       ];
 
       const rankMap = assignRanks(entries);
@@ -387,6 +488,20 @@ describe('TA Rank Calculation', () => {
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
 
+    it('should persist courseScores and qualificationPoints for qualification', async () => {
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
+
+      // Verify that update calls include courseScores and qualificationPoints
+      const updateCalls = mockPrisma.tTEntry.update.mock.calls;
+      expect(updateCalls.length).toBe(2);
+
+      // Each update should include courseScores and qualificationPoints
+      for (const call of updateCalls) {
+        expect(call[0].data).toHaveProperty('courseScores');
+        expect(call[0].data).toHaveProperty('qualificationPoints');
+      }
+    });
+
     it('should handle entries with incomplete times', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValue([
         {
@@ -405,9 +520,31 @@ describe('TA Rank Calculation', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             totalTime: null,
+            // Should still have courseScores and qualificationPoints
+            courseScores: expect.any(Object),
+            qualificationPoints: expect.any(Number),
           }),
         })
       );
+    });
+
+    it('should not persist courseScores for non-qualification stages', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValue([
+        {
+          id: '1',
+          times: { MC1: '1:23.456' },
+          lives: 1,
+          eliminated: false,
+          stage: 'revival_1',
+          player: { id: 'player-1' },
+        },
+      ]);
+
+      await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
+
+      const updateCall = mockPrisma.tTEntry.update.mock.calls[0];
+      expect(updateCall[0].data).not.toHaveProperty('courseScores');
+      expect(updateCall[0].data).not.toHaveProperty('qualificationPoints');
     });
   });
 });

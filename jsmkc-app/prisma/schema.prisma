@@ -132,6 +132,7 @@ model Tournament {
   gpMatches        GPMatch[]
   gpQualifications GPQualification[]
   ttEntries        TTEntry[]
+  ttPhaseRounds    TTPhaseRound[]
   playerScores     TournamentPlayerScore[]
 }
 
@@ -410,6 +411,28 @@ model MatchCharacterUsage {
 // ==========================================
 // Time Trial Models
 // ==========================================
+
+// TTPhaseRound - Tracks each round played within a finals phase.
+// Stores the randomly selected course, all player results, and elimination outcomes.
+// Used for:
+// - Random course selection (no repeat until all 20 used per phase)
+// - Round-by-round history display
+// - Elimination and life-reset tracking
+model TTPhaseRound {
+  id              String     @id @default(cuid())
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId    String
+  phase           String     // "phase1", "phase2", "phase3"
+  roundNumber     Int        // Sequential round number within the phase
+  course          String     // Course abbreviation (e.g., "MC1")
+  results         Json       // Array: [{playerId, timeMs, isRetry}]
+  eliminatedIds   Json?      // Array of player IDs eliminated this round
+  livesReset      Boolean    @default(false) // Whether lives were reset after this round
+  createdAt       DateTime   @default(now())
+
+  @@unique([tournamentId, phase, roundNumber])
+  @@index([tournamentId, phase])
+}
 
 model TTEntry {
   id           String     @id @default(cuid())

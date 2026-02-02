@@ -31,6 +31,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +89,10 @@ interface TTEntry {
   times: Record<string, string> | null;
   totalTime: number | null;
   rank: number | null;
+  /** Per-course scores from qualification scoring system */
+  courseScores: Record<string, number> | null;
+  /** Total qualification points: floor(sum of per-course scores) */
+  qualificationPoints: number | null;
   player: Player;
 }
 
@@ -130,6 +135,15 @@ export default function TimeAttackPage({
 
   // Export state
   const [exporting, setExporting] = useState(false);
+
+  // Phase promotion states
+  const [phaseStatus, setPhaseStatus] = useState<{
+    phase1: { total: number; active: number; eliminated: number } | null;
+    phase2: { total: number; active: number; eliminated: number } | null;
+    phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
+    currentPhase: string;
+  } | null>(null);
+  const [promotingPhase, setPromotingPhase] = useState<string | null>(null);
 
   // === Data Fetching ===
   // Fetch tournament data and player list in parallel
@@ -183,6 +197,55 @@ export default function TimeAttackPage({
       setError(pollError);
     }
   }, [pollError]);
+
+  /**
+   * Fetch phase status from the phases API.
+   * Called on mount and after promotion actions.
+   */
+  const fetchPhaseStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`);
+      if (response.ok) {
+        const data = await response.json();
+        setPhaseStatus(data.phaseStatus);
+      }
+    } catch {
+      // Phase status fetch is non-critical; silently ignore errors
+    }
+  }, [tournamentId]);
+
+  useEffect(() => {
+    fetchPhaseStatus();
+  }, [fetchPhaseStatus]);
+
+  /**
+   * Promote players to a specific phase via the phases API.
+   * Used by Phase 1/2/3 promotion buttons.
+   */
+  const handlePromoteToPhase = async (action: string) => {
+    setPromotingPhase(action);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to promote players");
+      }
+      // Refresh phase status after promotion
+      await fetchPhaseStatus();
+      if (data.skipped && data.skipped.length > 0) {
+        alert(`Promoted ${data.entries.length} players. Skipped: ${data.skipped.join(", ")} (incomplete times)`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to promote";
+      alert(errorMessage);
+    } finally {
+      setPromotingPhase(null);
+    }
+  };
 
   // === Event Handlers ===
 
@@ -437,6 +500,16 @@ export default function TimeAttackPage({
           >
             Promote to Finals ({finalsCount})
           </Button>
+          {/* Finals page link: shown only when players have been promoted.
+             Uses outline variant to visually distinguish from the adjacent
+             "Promote to Finals" primary button. */}
+          {finalsCount > 0 && (
+            <Button variant="outline" asChild>
+              <Link href={`/tournaments/${tournamentId}/ta/finals`}>
+                Go to Finals
+              </Link>
+            </Button>
+          )}
           {/* Promotion Dialog */}
           <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
             <DialogContent className="max-w-md">
@@ -573,6 +646,119 @@ export default function TimeAttackPage({
         </div>
       </div>
 
+      {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages */}
+      {entries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Finals Phases</CardTitle>
+            <CardDescription>
+              Phase 1 (ranks 17-24) → Phase 2 (+ranks 13-16) → Phase 3 (+ranks 1-12)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Phase 1 */}
+              <div className="border rounded-lg p-4 space-y-2">
+                <h4 className="font-semibold">Phase 1</h4>
+                <p className="text-sm text-muted-foreground">Ranks 17-24 (8→4)</p>
+                {phaseStatus?.phase1 ? (
+                  <div className="text-sm">
+                    <span className="text-green-600">{phaseStatus.phase1.active} active</span>
+                    {" / "}
+                    <span className="text-red-500">{phaseStatus.phase1.eliminated} eliminated</span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not started</p>
+                )}
+                <div className="flex gap-2">
+                  {!phaseStatus?.phase1 && (
+                    <Button
+                      size="sm"
+                      onClick={() => handlePromoteToPhase("promote_phase1")}
+                      disabled={promotingPhase !== null}
+                    >
+                      {promotingPhase === "promote_phase1" ? "Promoting..." : "Start Phase 1"}
+                    </Button>
+                  )}
+                  {phaseStatus?.phase1 && (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/tournaments/${tournamentId}/ta/phase1`}>Go to Phase 1</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Phase 2 */}
+              <div className="border rounded-lg p-4 space-y-2">
+                <h4 className="font-semibold">Phase 2</h4>
+                <p className="text-sm text-muted-foreground">Phase 1 survivors + ranks 13-16 (8→4)</p>
+                {phaseStatus?.phase2 ? (
+                  <div className="text-sm">
+                    <span className="text-green-600">{phaseStatus.phase2.active} active</span>
+                    {" / "}
+                    <span className="text-red-500">{phaseStatus.phase2.eliminated} eliminated</span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not started</p>
+                )}
+                <div className="flex gap-2">
+                  {!phaseStatus?.phase2 && phaseStatus?.phase1 && (
+                    <Button
+                      size="sm"
+                      onClick={() => handlePromoteToPhase("promote_phase2")}
+                      disabled={promotingPhase !== null}
+                    >
+                      {promotingPhase === "promote_phase2" ? "Promoting..." : "Start Phase 2"}
+                    </Button>
+                  )}
+                  {phaseStatus?.phase2 && (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/tournaments/${tournamentId}/ta/phase2`}>Go to Phase 2</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Phase 3 */}
+              <div className="border rounded-lg p-4 space-y-2">
+                <h4 className="font-semibold">Phase 3 (Finals)</h4>
+                <p className="text-sm text-muted-foreground">Phase 2 survivors + ranks 1-12 (16→1)</p>
+                {phaseStatus?.phase3 ? (
+                  <div className="text-sm">
+                    <span className="text-green-600">{phaseStatus.phase3.active} active</span>
+                    {" / "}
+                    <span className="text-red-500">{phaseStatus.phase3.eliminated} eliminated</span>
+                    {phaseStatus.phase3.winner && (
+                      <span className="ml-2 text-yellow-600 font-bold">
+                        Champion: {phaseStatus.phase3.winner}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not started</p>
+                )}
+                <div className="flex gap-2">
+                  {!phaseStatus?.phase3 && phaseStatus?.phase2 && (
+                    <Button
+                      size="sm"
+                      onClick={() => handlePromoteToPhase("promote_phase3")}
+                      disabled={promotingPhase !== null}
+                    >
+                      {promotingPhase === "promote_phase3" ? "Promoting..." : "Start Phase 3"}
+                    </Button>
+                  )}
+                  {phaseStatus?.phase3 && (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/tournaments/${tournamentId}/ta/finals`}>Go to Finals</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Content: Empty state or tabbed view */}
       {entries.length === 0 ? (
         <Card>
@@ -604,6 +790,7 @@ export default function TimeAttackPage({
                       <TableHead className="w-16">Rank</TableHead>
                       <TableHead>Player</TableHead>
                       <TableHead className="text-center">Progress</TableHead>
+                      <TableHead className="text-right">Points</TableHead>
                       <TableHead className="text-right">Total Time</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -625,6 +812,9 @@ export default function TimeAttackPage({
                           </TableCell>
                           <TableCell className="text-center">
                             {getEnteredTimesCount(entry)} / {TOTAL_COURSES}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {entry.qualificationPoints ?? "-"}
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             {msToDisplayTime(entry.totalTime)}

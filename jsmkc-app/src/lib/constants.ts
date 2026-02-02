@@ -97,6 +97,12 @@ export const POLLING_MIN_REQUEST_INTERVAL = 500; // minimum 500ms between reques
 // Audit log retention period
 export const AUDIT_LOG_RETENTION_DAYS = 90;
 
+// Retry penalty: When a player retries during a finals course,
+// their time is set to 9:59.990 (the maximum representable time).
+// This ensures the retrying player receives the worst possible time for that round.
+export const RETRY_PENALTY_MS = 599990; // 9 min 59 sec 990 ms
+export const RETRY_PENALTY_DISPLAY = "9:59.990";
+
 // HTTP status codes for special responses
 export const RATE_LIMIT_STATUS_CODE = 429;
 export const OPTIMISTIC_LOCK_STATUS_CODE = 409;

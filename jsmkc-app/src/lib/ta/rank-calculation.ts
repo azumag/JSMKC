@@ -4,25 +4,28 @@
  * Handles the calculation of total times and ranking of players within
  * each tournament stage. Rankings are determined by:
  *
- * - Qualification: Sorted by total time across all 20 courses (fastest first)
- * - Revival Rounds: Same as qualification (total time, fastest first)
+ * - Qualification: Sorted by qualification points (descending), then total time (ascending)
+ *   Points are calculated per-course using linear interpolation (50pt max, 0pt min).
+ * - Revival Rounds: Sorted by total time (fastest first)
  * - Finals: Sorted by elimination status, then lives remaining, then total time
  *
  * The ranking process:
  * 1. Calculate total time for each entry from individual course times
- * 2. Sort entries according to stage-specific criteria
- * 3. Assign sequential ranks (1, 2, 3, ...)
- * 4. Persist updated totalTime and rank values to the database
+ * 2. For qualification: calculate per-course scores and total qualification points
+ * 3. Sort entries according to stage-specific criteria
+ * 4. Assign sequential ranks (1, 2, 3, ...)
+ * 5. Persist updated fields to the database in a single transaction
  *
  * This module is called after every time entry update to keep rankings current.
  */
 
 import { COURSES } from "@/lib/constants";
 import { timeToMs } from "@/lib/ta/time-utils";
+import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
 import { PrismaClient } from "@prisma/client";
 
 /**
- * Represents a tournament entry with its calculated total time.
+ * Represents a tournament entry with its calculated total time and scoring data.
  * Used as an intermediate data structure during rank calculation.
  */
 export interface EntryWithTotal {
@@ -36,6 +39,10 @@ export interface EntryWithTotal {
   eliminated: boolean;
   /** Tournament stage this entry belongs to */
   stage: string;
+  /** Per-course scores for qualification (e.g., {"MC1": 42.86, "DP1": 50}) */
+  courseScores: Record<string, number>;
+  /** Total qualification points: floor(sum of courseScores) */
+  qualificationPoints: number;
 }
 
 /**
@@ -83,6 +90,9 @@ export function calculateEntryTotal(entry: {
     lives: entry.lives,
     eliminated: entry.eliminated,
     stage: entry.stage ?? '',
+    // Scoring fields initialized to empty; populated by recalculateRanks for qualification
+    courseScores: {},
+    qualificationPoints: 0,
   };
 }
 
@@ -93,7 +103,9 @@ export function calculateEntryTotal(entry: {
  * - Finals: Non-eliminated first, then by most lives, then by fastest total time
  *   (this reflects the life-based elimination system where lives matter most)
  * - Revival rounds: Only entries with valid total times, sorted by fastest time
- * - Qualification: Same as revival rounds (fastest total time)
+ * - Qualification: All entries included, sorted by qualification points (descending),
+ *   then by total time as tiebreaker (ascending). Players without any times
+ *   still appear in standings with 0 points.
  *
  * @param entries - Entries with total times calculated
  * @param stage - Tournament stage ("finals", "revival_1", "revival_2", "qualification")
@@ -124,10 +136,19 @@ export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWith
       .filter((e) => e.totalTime !== null)
       .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
   } else {
-    // Qualification: same sorting as revival (fastest total time first)
-    return entries
-      .filter((e) => e.totalTime !== null)
-      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
+    // Qualification: sort by qualification points descending, then total time ascending
+    // All entries are included (even those with 0 points) so they appear in standings
+    return [...entries].sort((a, b) => {
+      // Higher points = better rank
+      if (a.qualificationPoints !== b.qualificationPoints) {
+        return b.qualificationPoints - a.qualificationPoints;
+      }
+      // Tiebreaker: faster total time wins; null times sort to the end
+      if (a.totalTime === null && b.totalTime === null) return 0;
+      if (a.totalTime === null) return 1;
+      if (b.totalTime === null) return -1;
+      return a.totalTime - b.totalTime;
+    });
   }
 }
 
@@ -156,9 +177,10 @@ export function assignRanks(sortedEntries: EntryWithTotal[]): Map<string, number
  * It performs the full pipeline:
  * 1. Fetch all entries for the tournament/stage from the database
  * 2. Calculate total times for each entry
- * 3. Sort by stage-specific criteria
- * 4. Assign ranks
- * 5. Persist updated totalTime and rank values in a single transaction
+ * 3. For qualification: calculate per-course scores and total qualification points
+ * 4. Sort by stage-specific criteria
+ * 5. Assign ranks
+ * 6. Persist updated fields in a single transaction
  *
  * Using a database transaction ensures consistency even with concurrent updates.
  *
@@ -188,6 +210,24 @@ export async function recalculateRanks(
     })
   );
 
+  // For qualification stage: calculate per-course scores and total qualification points
+  if (stage === "qualification") {
+    const scoringEntries = entries.map((entry) => ({
+      id: entry.id,
+      times: entry.times as Record<string, string> | null,
+    }));
+    const scoreResults = calculateAllCourseScores(scoringEntries);
+
+    // Merge scoring results into entriesWithTotal
+    for (const entry of entriesWithTotal) {
+      const scoreResult = scoreResults.get(entry.id);
+      if (scoreResult) {
+        entry.courseScores = scoreResult.courseScores;
+        entry.qualificationPoints = scoreResult.qualificationPoints;
+      }
+    }
+  }
+
   // Sort entries and assign ranks based on stage-specific criteria
   const sorted = sortByStage(entriesWithTotal, stage);
   const rankMap = assignRanks(sorted);
@@ -195,12 +235,22 @@ export async function recalculateRanks(
   // Build update operations for all entries (including those without ranks)
   const updateOperations = entriesWithTotal.map((entry: EntryWithTotal) => {
     const rank = rankMap.get(entry.id) ?? null;
+
+    // Base data: always update totalTime and rank
+    const data: Record<string, unknown> = {
+      totalTime: entry.totalTime,
+      rank,
+    };
+
+    // For qualification: also persist course scores and total points
+    if (stage === "qualification") {
+      data.courseScores = entry.courseScores;
+      data.qualificationPoints = entry.qualificationPoints;
+    }
+
     return prisma.tTEntry.update({
       where: { id: entry.id },
-      data: {
-        totalTime: entry.totalTime,
-        rank,
-      },
+      data,
     });
   });
 

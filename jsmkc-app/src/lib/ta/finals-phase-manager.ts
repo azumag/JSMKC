@@ -29,6 +29,8 @@
 import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
+import { selectRandomCourse } from "@/lib/ta/course-selection";
+import { RETRY_PENALTY_MS } from "@/lib/constants";
 
 /**
  * Phase configuration constants defining the rules for each phase.
@@ -788,4 +790,361 @@ export async function getPhaseStatus(
   }
 
   return status;
+}
+
+/**
+ * Result submitted for a single player in a round.
+ * The isRetry flag triggers automatic penalty time override.
+ */
+export interface RoundResultInput {
+  playerId: string;
+  timeMs: number;
+  isRetry?: boolean;
+}
+
+/**
+ * Start a new round for a phase.
+ *
+ * Selects a random course from the unused pool (20-course cycle per phase),
+ * creates a TTPhaseRound record with an empty results array,
+ * and returns the round number and selected course.
+ *
+ * The round number is auto-incremented based on existing rounds in the phase.
+ *
+ * @param prisma - Prisma client
+ * @param context - Phase context with user/request info for audit logging
+ * @param phase - "phase1", "phase2", or "phase3"
+ * @returns Object with roundNumber and the randomly selected course abbreviation
+ * @throws Error if phase has no active players (phase not yet started)
+ */
+export async function startPhaseRound(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3"
+): Promise<{ roundNumber: number; course: string }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId, userId, ipAddress, userAgent } = context;
+
+  // Verify the phase has active players (pre-transaction guard)
+  const activePlayers = await getActivePhasePlayers(
+    prisma,
+    tournamentId,
+    phase
+  );
+  if (activePlayers.length === 0) {
+    throw new Error(`No active players in ${phase}. Promote players first.`);
+  }
+
+  // Wrap round counting, course selection, and round creation in a transaction
+  // to prevent race conditions when multiple admins start rounds concurrently.
+  // Without this, two concurrent requests could:
+  //   1. Both read existingRounds=3, both try to create roundNumber=4
+  //   2. Both see the same available courses, potentially selecting the same course
+  // The transaction's serializable isolation ensures atomicity of the entire operation.
+  const { roundNumber, course } = await prisma.$transaction(async (tx) => {
+    // Determine next round number by counting existing rounds (within transaction)
+    const existingRounds = await tx.tTPhaseRound.count({
+      where: { tournamentId, phase },
+    });
+    const txRoundNumber = existingRounds + 1;
+
+    // Select a random course from the unused pool for this phase.
+    // selectRandomCourse accepts PrismaClient | PrismaTransaction via DbClient type.
+    const txCourse = await selectRandomCourse(tx, tournamentId, phase);
+
+    // Create the round record with empty results (to be filled on submitRoundResults)
+    await tx.tTPhaseRound.create({
+      data: {
+        tournamentId,
+        phase,
+        roundNumber: txRoundNumber,
+        course: txCourse,
+        results: [], // Will be populated by submitRoundResults
+      },
+    });
+
+    return { roundNumber: txRoundNumber, course: txCourse };
+  });
+
+  // Audit log for round start (non-critical, outside transaction)
+  try {
+    await createAuditLog({
+      userId,
+      ipAddress,
+      userAgent,
+      action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+      targetId: tournamentId,
+      targetType: "Tournament",
+      details: {
+        tournamentId,
+        phase,
+        action: "start_round",
+        roundNumber,
+        course,
+        activePlayers: activePlayers.length,
+      },
+    });
+  } catch (logError) {
+    logger.error("Failed to create audit log for round start", {
+      error: logError instanceof Error ? logError.message : logError,
+    });
+  }
+
+  return { roundNumber, course };
+}
+
+/**
+ * Submit results for a phase round and trigger elimination processing.
+ *
+ * This function:
+ * 1. Validates the round exists and has not been submitted yet
+ * 2. Applies retry penalty (9:59.990) for players who flagged isRetry
+ * 3. Delegates elimination to processEliminationPhaseResult (phase1/2)
+ *    or processPhase3Result (phase3)
+ * 4. Updates the TTPhaseRound record with final results, eliminated IDs, and life reset flag
+ *
+ * @param prisma - Prisma client
+ * @param context - Phase context with user/request info
+ * @param phase - "phase1", "phase2", or "phase3"
+ * @param roundNumber - The round number to submit results for
+ * @param results - Array of player results with optional retry flag
+ * @returns Object with eliminated player IDs, whether lives were reset, and the course
+ */
+export async function submitRoundResults(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3",
+  roundNumber: number,
+  results: RoundResultInput[]
+): Promise<{ eliminatedIds: string[]; livesReset: boolean; course: string }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId } = context;
+
+  // Fetch the round record to get the course and verify it exists
+  const round = await prisma.tTPhaseRound.findUnique({
+    where: {
+      tournamentId_phase_roundNumber: {
+        tournamentId,
+        phase,
+        roundNumber,
+      },
+    },
+  });
+
+  if (!round) {
+    throw new Error(
+      `Round ${roundNumber} not found for ${phase} in tournament ${tournamentId}`
+    );
+  }
+
+  // Check if results have already been submitted (non-empty results array)
+  const existingResults = round.results as unknown[];
+  if (existingResults && existingResults.length > 0) {
+    throw new Error(
+      `Round ${roundNumber} of ${phase} has already been submitted`
+    );
+  }
+
+  // === Player ID Validation ===
+  // Ensures data integrity by verifying:
+  // 1. No duplicate player IDs in submitted results
+  // 2. All submitted IDs belong to active (non-eliminated) players in this phase
+  // 3. All active players have submitted results (no missing players)
+  const submittedIds = results.map((r) => r.playerId);
+  const uniqueIds = new Set(submittedIds);
+
+  // Check for duplicate player IDs in the submission
+  if (uniqueIds.size !== submittedIds.length) {
+    const duplicates = submittedIds.filter(
+      (id, i) => submittedIds.indexOf(id) !== i
+    );
+    throw new Error(
+      `Duplicate player IDs in results: ${[...new Set(duplicates)].join(", ")}`
+    );
+  }
+
+  // Fetch active players for validation against the phase roster
+  const activePlayers = await getActivePhasePlayers(
+    prisma,
+    tournamentId,
+    phase
+  );
+  const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
+
+  // Verify every submitted player ID belongs to an active player in this phase
+  const invalidIds = submittedIds.filter((id) => !activePlayerIds.has(id));
+  if (invalidIds.length > 0) {
+    throw new Error(
+      `Invalid player IDs (not active in ${phase}): ${invalidIds.join(", ")}`
+    );
+  }
+
+  // Verify all active players have results — prevents partial submissions
+  // that could corrupt elimination logic
+  const missingIds = [...activePlayerIds].filter((id) => !uniqueIds.has(id));
+  if (missingIds.length > 0) {
+    throw new Error(
+      `Missing results for active players: ${missingIds.join(", ")}`
+    );
+  }
+
+  // Apply retry penalty: override timeMs with RETRY_PENALTY_MS for retry-flagged results.
+  // This ensures retrying players always receive the maximum penalty time (9:59.990).
+  const processedResults: CourseResult[] = results.map((r) => ({
+    playerId: r.playerId,
+    timeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
+  }));
+
+  // Store the full results including retry flags for display/audit purposes
+  const storedResults = results.map((r) => ({
+    playerId: r.playerId,
+    timeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
+    isRetry: r.isRetry ?? false,
+  }));
+
+  let eliminatedIds: string[] = [];
+  let livesReset = false;
+
+  // Delegate elimination processing to the appropriate handler.
+  // Phase 1/2: Slowest player is eliminated (single elimination).
+  // Phase 3: Bottom half loses a life, eliminated at 0 lives, life resets at thresholds.
+  if (phase === "phase1" || phase === "phase2") {
+    eliminatedIds = await processEliminationPhaseResult(
+      prisma,
+      context,
+      phase,
+      processedResults
+    );
+  } else {
+    // phase3 — life-based elimination
+    const phase3Result = await processPhase3Result(
+      prisma,
+      context,
+      processedResults
+    );
+    eliminatedIds = phase3Result.eliminated;
+    livesReset = phase3Result.livesReset;
+  }
+
+  // Update the round record with final results and elimination outcomes
+  await prisma.tTPhaseRound.update({
+    where: { id: round.id },
+    data: {
+      results: storedResults,
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
+      livesReset,
+    },
+  });
+
+  // Audit log for round submission (non-critical)
+  try {
+    await createAuditLog({
+      userId: context.userId,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+      targetId: tournamentId,
+      targetType: "Tournament",
+      details: {
+        tournamentId,
+        phase,
+        action: "submit_round_results",
+        roundNumber,
+        course: round.course,
+        eliminatedIds,
+        livesReset,
+        resultCount: results.length,
+      },
+    });
+  } catch (logError) {
+    logger.error("Failed to create audit log for round submission", {
+      error: logError instanceof Error ? logError.message : logError,
+    });
+  }
+
+  return { eliminatedIds, livesReset, course: round.course };
+}
+
+/**
+ * Cancel (delete) an unsubmitted round.
+ *
+ * Handles the "orphaned round" scenario where an admin starts a round
+ * but decides to cancel before submitting results. Without this function,
+ * the TTPhaseRound record would remain with empty results, wasting the
+ * selected course from the 20-course cycle.
+ *
+ * Safety checks:
+ * - Round must exist
+ * - Round must not have been submitted yet (empty results array)
+ *
+ * @param prisma - Prisma client
+ * @param context - Phase context with user/request info
+ * @param phase - "phase1", "phase2", or "phase3"
+ * @param roundNumber - The round number to cancel
+ * @returns Object confirming the cancelled round number
+ * @throws Error if round not found or already submitted
+ */
+export async function cancelPhaseRound(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3",
+  roundNumber: number
+): Promise<{ cancelledRoundNumber: number }> {
+  const logger = createLogger("ta-phase-manager");
+  const { tournamentId } = context;
+
+  // Fetch the round to verify it exists and hasn't been submitted
+  const round = await prisma.tTPhaseRound.findUnique({
+    where: {
+      tournamentId_phase_roundNumber: {
+        tournamentId,
+        phase,
+        roundNumber,
+      },
+    },
+  });
+
+  if (!round) {
+    throw new Error(
+      `Round ${roundNumber} not found for ${phase}`
+    );
+  }
+
+  // Prevent cancelling a round that has already been submitted
+  const existingResults = round.results as unknown[];
+  if (existingResults && existingResults.length > 0) {
+    throw new Error(
+      `Round ${roundNumber} of ${phase} has already been submitted and cannot be cancelled`
+    );
+  }
+
+  // Delete the orphaned round record to free the course back into the pool
+  await prisma.tTPhaseRound.delete({
+    where: { id: round.id },
+  });
+
+  // Audit log for round cancellation (non-critical)
+  try {
+    await createAuditLog({
+      userId: context.userId,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+      targetId: tournamentId,
+      targetType: "Tournament",
+      details: {
+        tournamentId,
+        phase,
+        action: "cancel_round",
+        roundNumber,
+        course: round.course,
+      },
+    });
+  } catch (logError) {
+    logger.error("Failed to create audit log for round cancellation", {
+      error: logError instanceof Error ? logError.message : logError,
+    });
+  }
+
+  return { cancelledRoundNumber: roundNumber };
 }

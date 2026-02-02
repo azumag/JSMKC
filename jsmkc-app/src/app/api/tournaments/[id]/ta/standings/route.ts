@@ -100,6 +100,8 @@ export async function GET(
         totalTime: e.totalTime,
         // Format total time as M:SS for display (simplified format without ms)
         formattedTime: e.totalTime != null ? `${Math.floor(e.totalTime / 60000)}:${((e.totalTime % 60000) / 1000).toFixed(0).padStart(2, '0')}` : '-',
+        /** Total qualification points from per-course scoring system */
+        qualificationPoints: e.qualificationPoints,
         lives: e.lives,
         eliminated: e.eliminated,
       })),

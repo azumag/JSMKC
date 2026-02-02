@@ -1,33 +1,26 @@
 "use client";
 
 /**
- * Time Attack Finals - Phase 3 Page
+ * TA Elimination Phase Component (Phase 1 / Phase 2)
  *
- * Admin page for managing Phase 3 of the TA finals.
- * Phase 3 is the life-based elimination finale:
- *
- * Participants: Phase 2 survivors (4) + Qualification ranks 1-12 (12) = 16 players
+ * Shared component for managing single-elimination phases in the TA finals.
+ * Used by Phase 1 (qualification ranks 17-24) and Phase 2 (Phase 1 survivors + ranks 13-16).
  *
  * Format:
- * - Each player starts with 3 lives
- * - Each course: bottom half (slowest times) loses 1 life
- * - Players reaching 0 lives are eliminated
- * - Lives are reset to 3 at thresholds: 8, 4, and 2 players remaining
- * - Last player standing is the champion
+ * - 8 players compete per phase
+ * - One randomly selected course at a time (no repeats until all 20 used)
+ * - Slowest player is eliminated each round
+ * - Continues until targetSurvivors (4) players remain
  *
- * Uses the phases API with:
- * - Random course selection (no repeats until all 20 used)
- * - Retry penalty (9:59.990) for players who retry
- * - Server-side life deduction and elimination
- * - Round-by-round history tracking
- *
- * Also supports:
- * - Manual elimination (admin override)
- * - Champion banner when last player standing
- * - 3-second auto-refresh for live tracking
+ * Features:
+ * - Random course selection via server API (prevents manual bias)
+ * - Retry penalty button (9:59.990) for players who retry during a course
+ * - Round history with course, results, and eliminated player
+ * - Standings with active/eliminated status
+ * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,17 +41,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -70,6 +52,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+
+/** Props for the elimination phase component */
+export interface TAEliminationPhaseProps {
+  tournamentId: string;
+  phase: "phase1" | "phase2";
+  title: string;
+  description: string;
+  targetSurvivors: number;
+}
 
 /** Player data structure from API */
 interface Player {
@@ -116,7 +107,7 @@ function msToDisplayTime(ms: number | null): string {
 }
 
 /**
- * Convert time string (M:SS.mmm) to milliseconds.
+ * Convert time string (M:SS.mmm) to milliseconds for submission.
  * Returns null for empty or invalid strings.
  */
 function timeToMs(time: string): number | null {
@@ -126,40 +117,19 @@ function timeToMs(time: string): number | null {
   const minutes = parseInt(match[1], 10);
   const seconds = parseInt(match[2], 10);
   let ms = match[3];
+  // Pad milliseconds to 3 digits for accurate conversion
   while (ms.length < 3) ms += "0";
   const milliseconds = parseInt(ms, 10);
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
-/**
- * Render visual lives indicator with heart icons.
- * Hearts turn red when only 1 life remains (danger state).
- */
-function renderLives(lives: number, eliminated: boolean) {
-  if (eliminated) {
-    return <span className="text-gray-400">Eliminated</span>;
-  }
-  const hearts = [];
-  for (let i = 0; i < lives; i++) {
-    hearts.push(
-      <span
-        key={i}
-        className={lives === 1 ? "text-red-500" : "text-red-400"}
-      >
-        &#10084;&#65039;
-      </span>
-    );
-  }
-  return <span>{hearts}</span>;
-}
-
-export default function TimeAttackFinals({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: tournamentId } = use(params);
-
+export default function TAEliminationPhase({
+  tournamentId,
+  phase,
+  title,
+  description,
+  targetSurvivors,
+}: TAEliminationPhaseProps) {
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [rounds, setRounds] = useState<PhaseRound[]>([]);
@@ -175,29 +145,26 @@ export default function TimeAttackFinals({
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Round start/cancel loading state
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  // Admin action states
-  const [isEliminateDialogOpen, setIsEliminateDialogOpen] = useState(false);
-  const [entryToEliminate, setEntryToEliminate] = useState<TTEntry | null>(null);
-
-  // Map of playerId → nickname for round history display
+  // Map of playerId → nickname for display in round history
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      // Use the new phases API with phase3 parameter
       const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta/phases?phase=phase3`
+        `/api/tournaments/${tournamentId}/ta/phases?phase=${phase}`
       );
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.error || `Failed to fetch finals data: ${response.status}`
+          errorData.error || `Failed to fetch ${phase} data: ${response.status}`
         );
       }
       const data = await response.json();
@@ -206,7 +173,7 @@ export default function TimeAttackFinals({
       setEntries(fetchedEntries);
       setRounds(fetchedRounds);
 
-      // Build player name map from entries
+      // Build player name map from entries for round history display
       const nameMap: Record<string, string> = {};
       fetchedEntries.forEach((e: TTEntry) => {
         nameMap[e.playerId] = e.player.nickname;
@@ -215,8 +182,8 @@ export default function TimeAttackFinals({
 
       // Auto-recover open (unsubmitted) rounds: if there's a round with empty
       // results in the DB and the client doesn't have a currentRound set,
-      // automatically enter the time entry UI. Prevents orphaned rounds from
-      // being invisible after page reloads.
+      // automatically enter the time entry UI for that round.
+      // This handles page reloads and prevents orphaned rounds from being invisible.
       if (fetchedRounds.length > 0) {
         const lastRound = fetchedRounds[fetchedRounds.length - 1];
         const lastRoundResults = lastRound.results as unknown[];
@@ -244,14 +211,14 @@ export default function TimeAttackFinals({
     } finally {
       setLoading(false);
     }
-  }, [tournamentId]);
+  }, [tournamentId, phase]);
 
   // Initial fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh every 3 seconds
+  // Auto-refresh every 3 seconds for live tournament tracking
   useEffect(() => {
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
@@ -260,8 +227,8 @@ export default function TimeAttackFinals({
   // === Event Handlers ===
 
   /**
-   * Start a new round: calls the API to randomly select a course.
-   * The server selects from the 20-course cycle (no repeats until all used).
+   * Start a new round: calls the API to randomly select a course
+   * and create a TTPhaseRound record.
    */
   const handleStartRound = async () => {
     setStartingRound(true);
@@ -272,7 +239,7 @@ export default function TimeAttackFinals({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start_round", phase: "phase3" }),
+          body: JSON.stringify({ action: "start_round", phase }),
         }
       );
       if (!response.ok) {
@@ -309,6 +276,7 @@ export default function TimeAttackFinals({
   /**
    * Cancel the current round: calls the API to delete the unsubmitted
    * TTPhaseRound record, freeing the course back into the 20-course pool.
+   * This prevents orphaned rounds when the admin decides not to proceed.
    */
   const handleCancelRound = async () => {
     if (!currentRound) return;
@@ -322,7 +290,7 @@ export default function TimeAttackFinals({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "cancel_round",
-            phase: "phase3",
+            phase,
             roundNumber: currentRound.roundNumber,
           }),
         }
@@ -331,6 +299,7 @@ export default function TimeAttackFinals({
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to cancel round");
       }
+      // Clear client state after successful DB deletion
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
@@ -349,32 +318,31 @@ export default function TimeAttackFinals({
   /** Handle time input change for a specific player */
   const handleTimeChange = (playerId: string, value: string) => {
     setCourseTimes((prev) => ({ ...prev, [playerId]: value }));
+    // Clear retry flag when manually entering a time
     if (retryFlags[playerId]) {
       setRetryFlags((prev) => ({ ...prev, [playerId]: false }));
     }
   };
 
-  /** Toggle retry penalty: sets time to 9:59.990 and marks isRetry flag */
+  /**
+   * Toggle retry penalty for a player.
+   * Sets the time to 9:59.990 and marks the isRetry flag.
+   */
   const handleRetryToggle = (playerId: string) => {
     const isCurrentlyRetry = retryFlags[playerId];
     setRetryFlags((prev) => ({ ...prev, [playerId]: !isCurrentlyRetry }));
     if (!isCurrentlyRetry) {
-      setCourseTimes((prev) => ({
-        ...prev,
-        [playerId]: RETRY_PENALTY_DISPLAY,
-      }));
+      // Set penalty time display
+      setCourseTimes((prev) => ({ ...prev, [playerId]: RETRY_PENALTY_DISPLAY }));
     } else {
+      // Clear penalty time
       setCourseTimes((prev) => ({ ...prev, [playerId]: "" }));
     }
   };
 
   /**
-   * Submit round results: sends player times to the API.
-   * The server handles:
-   * - Retry penalty enforcement (9:59.990)
-   * - Bottom half life deduction
-   * - Elimination of players at 0 lives
-   * - Life reset at thresholds (8, 4, 2 players)
+   * Submit round results: sends player times to the API for elimination processing.
+   * The server handles retry penalty enforcement and elimination of the slowest player.
    */
   const handleSubmitResults = async () => {
     if (!currentRound) return;
@@ -383,6 +351,8 @@ export default function TimeAttackFinals({
 
     try {
       const activeEntries = entries.filter((e) => !e.eliminated);
+
+      // Build results array from entered times
       const results: Array<{
         playerId: string;
         timeMs: number;
@@ -392,6 +362,7 @@ export default function TimeAttackFinals({
       for (const entry of activeEntries) {
         const isRetry = retryFlags[entry.playerId];
         if (isRetry) {
+          // Retry penalty: server will enforce RETRY_PENALTY_MS
           results.push({
             playerId: entry.playerId,
             timeMs: RETRY_PENALTY_MS,
@@ -424,7 +395,7 @@ export default function TimeAttackFinals({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "submit_results",
-            phase: "phase3",
+            phase,
             roundNumber: currentRound.roundNumber,
             results,
           }),
@@ -436,6 +407,7 @@ export default function TimeAttackFinals({
         throw new Error(errorData.error || "Failed to submit results");
       }
 
+      // Clear current round and refresh data
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
@@ -449,49 +421,16 @@ export default function TimeAttackFinals({
     }
   };
 
-  /** Manually eliminate a specific player (admin override) */
-  const handleEliminatePlayer = async () => {
-    if (!entryToEliminate) return;
-    try {
-      // Use the main TA API for manual elimination since it supports direct entry updates
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entryId: entryToEliminate.id,
-          eliminated: true,
-          action: "eliminate",
-        }),
-      });
-      if (response.ok) {
-        setIsEliminateDialogOpen(false);
-        setEntryToEliminate(null);
-        fetchData();
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to eliminate player");
-      }
-    } catch (err) {
-      console.error("Failed to eliminate player:", err);
-      alert("Failed to eliminate player");
-    }
-  };
-
   // === Derived State ===
   const activeEntries = entries.filter((e) => !e.eliminated);
   const eliminatedEntries = entries.filter((e) => e.eliminated);
-  const isComplete = activeEntries.length <= 1 && entries.length > 0;
+  const isComplete =
+    activeEntries.length <= targetSurvivors && entries.length > 0;
 
-  // Check if there's an open (unsubmitted) round
+  // Check if the last round in the rounds list has no results yet (open round)
   const hasOpenRound =
     rounds.length > 0 &&
     (rounds[rounds.length - 1].results as unknown[]).length === 0;
-
-  // Life reset notification: show when lives were just reset
-  const lastCompletedRound = [...rounds]
-    .reverse()
-    .find((r) => (r.results as unknown[]).length > 0);
-  const livesWereJustReset = lastCompletedRound?.livesReset === true;
 
   // === Loading State ===
   if (loading) {
@@ -499,7 +438,7 @@ export default function TimeAttackFinals({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div className="space-y-3">
-            <div className="h-9 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-9 w-40 bg-muted animate-pulse rounded" />
             <div className="h-5 w-48 bg-muted animate-pulse rounded" />
           </div>
         </div>
@@ -513,7 +452,7 @@ export default function TimeAttackFinals({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Phase 3 - Finals</h1>
+          <h1 className="text-3xl font-bold">{title}</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
               Back to Qualification
@@ -530,16 +469,14 @@ export default function TimeAttackFinals({
     );
   }
 
-  // === Empty State ===
+  // === Empty State (no entries promoted yet) ===
   if (entries.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Phase 3 - Finals</h1>
-            <p className="text-muted-foreground">
-              Phase 2 survivors + Qualification ranks 1-12
-            </p>
+            <h1 className="text-3xl font-bold">{title}</h1>
+            <p className="text-muted-foreground">{description}</p>
           </div>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
@@ -549,9 +486,9 @@ export default function TimeAttackFinals({
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Yet</CardTitle>
+            <CardTitle>No Players</CardTitle>
             <CardDescription>
-              Complete Phase 1 and Phase 2, then promote players to Phase 3.
+              Promote players from the qualification stage first.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -565,13 +502,11 @@ export default function TimeAttackFinals({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">
-            Phase 3 - Finals
-          </h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete
-              ? "Tournament Complete"
-              : `${activeEntries.length} players remaining`}
+              ? "Phase Complete"
+              : `${activeEntries.length} players remaining (target: ${targetSurvivors})`}
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -581,63 +516,49 @@ export default function TimeAttackFinals({
         </Button>
       </div>
 
-      {/* Champion Banner */}
-      {isComplete && activeEntries.length === 1 && (
-        <Card className="border-yellow-500 bg-yellow-500/10">
+      {/* Phase Complete Banner */}
+      {isComplete && (
+        <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
-            <div className="text-4xl mb-2">&#127942;</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
-            <p className="text-3xl font-bold text-yellow-500 mt-2">
-              {activeEntries[0].player.nickname}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Lives remaining: {activeEntries[0].lives}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Life Reset Notification: shown when last round triggered a life reset */}
-      {livesWereJustReset && !isComplete && (
-        <Card className="border-yellow-500 bg-yellow-500/10">
-          <CardContent className="py-4 text-center">
-            <p className="text-yellow-700 font-semibold">
-              Lives have been reset to 3 for all remaining {activeEntries.length}{" "}
-              players!
-            </p>
+            <div className="text-4xl mb-2">&#10003;</div>
+            <h2 className="text-2xl font-bold">
+              Survivors ({activeEntries.length})
+            </h2>
+            <div className="mt-2 space-y-1">
+              {activeEntries.map((e) => (
+                <p key={e.id} className="font-medium">
+                  {e.player.nickname}
+                </p>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* Tabbed Content */}
-      <Tabs
-        defaultValue={currentRound ? "current" : "standings"}
-        className="space-y-4"
-      >
+      <Tabs defaultValue={currentRound ? "current" : "standings"} className="space-y-4">
         <TabsList>
-          {currentRound && (
-            <TabsTrigger value="current">Current Round</TabsTrigger>
-          )}
+          {currentRound && <TabsTrigger value="current">Current Round</TabsTrigger>}
           <TabsTrigger value="standings">Standings</TabsTrigger>
           <TabsTrigger value="history">Round History</TabsTrigger>
           {!isComplete && !currentRound && (
-            <TabsTrigger value="control">Tournament Control</TabsTrigger>
+            <TabsTrigger value="control">Round Control</TabsTrigger>
           )}
         </TabsList>
 
-        {/* Current Round Tab */}
+        {/* Current Round Tab: time entry for the active round */}
         {currentRound && (
           <TabsContent value="current">
             <Card>
               <CardHeader>
                 <CardTitle>
                   Round {currentRound.roundNumber} —{" "}
-                  {COURSE_INFO.find((c) => c.abbr === currentRound.course)
-                    ?.name || currentRound.course}
+                  {COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name ||
+                    currentRound.course}
                 </CardTitle>
                 <CardDescription>
-                  Enter times for all active players. Bottom half will lose 1
-                  life.
+                  Enter times for all active players. The slowest player will be
+                  eliminated.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -648,14 +569,14 @@ export default function TimeAttackFinals({
                 )}
                 <div className="space-y-3">
                   {activeEntries.map((entry) => (
-                    <div key={entry.id} className="flex items-center gap-3">
+                    <div
+                      key={entry.id}
+                      className="flex items-center gap-3"
+                    >
                       <div className="flex-1 min-w-0">
                         <Label className="truncate block">
                           {entry.player.nickname}
                         </Label>
-                        <div className="text-xs text-muted-foreground">
-                          {renderLives(entry.lives, entry.eliminated)}
-                        </div>
                       </div>
                       <Input
                         type="text"
@@ -667,11 +588,10 @@ export default function TimeAttackFinals({
                         disabled={retryFlags[entry.playerId]}
                         className="font-mono w-32"
                       />
+                      {/* Retry penalty button: sets time to 9:59.990 */}
                       <Button
                         variant={
-                          retryFlags[entry.playerId]
-                            ? "destructive"
-                            : "outline"
+                          retryFlags[entry.playerId] ? "destructive" : "outline"
                         }
                         size="sm"
                         onClick={() => handleRetryToggle(entry.playerId)}
@@ -693,7 +613,7 @@ export default function TimeAttackFinals({
                   <Button onClick={handleSubmitResults} disabled={submitting}>
                     {submitting
                       ? "Submitting..."
-                      : "Submit & Deduct Lives"}
+                      : "Submit & Eliminate Slowest"}
                   </Button>
                 </div>
 
@@ -735,7 +655,7 @@ export default function TimeAttackFinals({
         <TabsContent value="standings">
           <Card>
             <CardHeader>
-              <CardTitle>Finals Standings</CardTitle>
+              <CardTitle>Standings</CardTitle>
               <CardDescription>
                 {activeEntries.length} active, {eliminatedEntries.length}{" "}
                 eliminated
@@ -747,8 +667,7 @@ export default function TimeAttackFinals({
                   <TableRow>
                     <TableHead className="w-16">#</TableHead>
                     <TableHead>Player</TableHead>
-                    <TableHead className="text-center">Lives</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -770,20 +689,10 @@ export default function TimeAttackFinals({
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {renderLives(entry.lives, entry.eliminated)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {!entry.eliminated && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEntryToEliminate(entry);
-                              setIsEliminateDialogOpen(true);
-                            }}
-                          >
-                            Eliminate
-                          </Button>
+                        {entry.eliminated ? (
+                          <span className="text-gray-400">Out</span>
+                        ) : (
+                          <Badge className="bg-blue-500">Active</Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -800,8 +709,7 @@ export default function TimeAttackFinals({
             <CardHeader>
               <CardTitle>Round History</CardTitle>
               <CardDescription>
-                {rounds.filter((r) => (r.results as unknown[]).length > 0)
-                  .length}{" "}
+                {rounds.filter((r) => (r.results as unknown[]).length > 0).length}{" "}
                 rounds completed
               </CardDescription>
             </CardHeader>
@@ -819,10 +727,10 @@ export default function TimeAttackFinals({
                       const courseInfo = COURSE_INFO.find(
                         (c) => c.abbr === round.course
                       );
+                      // Sort results by time ascending for display
                       const sortedResults = [...round.results].sort(
                         (a, b) => a.timeMs - b.timeMs
                       );
-                      const halfPoint = Math.ceil(sortedResults.length / 2);
                       return (
                         <div
                           key={round.id}
@@ -830,38 +738,23 @@ export default function TimeAttackFinals({
                         >
                           <div className="flex justify-between items-center">
                             <h4 className="font-semibold">
-                              Round {round.roundNumber} —{" "}
-                              {courseInfo?.name || round.course}
+                              Round {round.roundNumber} — {courseInfo?.name || round.course}
                             </h4>
-                            <div className="flex gap-2">
-                              {round.livesReset && (
-                                <Badge className="bg-yellow-500 text-black">
-                                  Lives Reset
-                                </Badge>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className="font-mono text-xs"
-                              >
-                                {round.course}
-                              </Badge>
-                            </div>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {round.course}
+                            </Badge>
                           </div>
                           <div className="space-y-1">
                             {sortedResults.map((result, idx) => {
                               const isEliminated =
                                 round.eliminatedIds?.includes(result.playerId);
-                              // Bottom half loses a life (shown with visual indicator)
-                              const isBottomHalf = idx >= halfPoint;
                               return (
                                 <div
                                   key={result.playerId}
-                                  className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : isBottomHalf ? "text-orange-500" : ""}`}
+                                  className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : ""}`}
                                 >
                                   <span>
-                                    {idx + 1}.{" "}
-                                    {playerNames[result.playerId] ||
-                                      result.playerId}
+                                    {idx + 1}. {playerNames[result.playerId] || result.playerId}
                                     {result.isRetry && (
                                       <Badge
                                         variant="outline"
@@ -870,7 +763,6 @@ export default function TimeAttackFinals({
                                         Retry
                                       </Badge>
                                     )}
-                                    {isBottomHalf && !isEliminated && " (-1 life)"}
                                     {isEliminated && " (Eliminated)"}
                                   </span>
                                   <span className="font-mono">
@@ -889,12 +781,12 @@ export default function TimeAttackFinals({
           </Card>
         </TabsContent>
 
-        {/* Tournament Control Tab */}
+        {/* Round Control Tab */}
         {!isComplete && !currentRound && (
           <TabsContent value="control">
             <Card>
               <CardHeader>
-                <CardTitle>Tournament Control</CardTitle>
+                <CardTitle>Round Control</CardTitle>
                 <CardDescription>
                   Start a new round with a randomly selected course
                 </CardDescription>
@@ -909,9 +801,7 @@ export default function TimeAttackFinals({
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Active Players:</span>
-                      <span className="font-bold">
-                        {activeEntries.length}
-                      </span>
+                      <span className="font-bold">{activeEntries.length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Eliminated Players:</span>
@@ -920,12 +810,14 @@ export default function TimeAttackFinals({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Rounds Completed:</span>
-                      <span className="font-bold">
-                        {rounds.filter(
-                          (r) => (r.results as unknown[]).length > 0
-                        ).length}
+                      <span>Target Survivors:</span>
+                      <span className="font-bold text-blue-500">
+                        {targetSurvivors}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Rounds Completed:</span>
+                      <span className="font-bold">{rounds.filter((r) => (r.results as unknown[]).length > 0).length}</span>
                     </div>
                   </div>
                   <Button
@@ -946,28 +838,6 @@ export default function TimeAttackFinals({
           </TabsContent>
         )}
       </Tabs>
-
-      {/* Manual Elimination Confirmation Dialog */}
-      <AlertDialog
-        open={isEliminateDialogOpen}
-        onOpenChange={setIsEliminateDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminate Player?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will mark {entryToEliminate?.player.nickname} as eliminated.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleEliminatePlayer}>
-              Eliminate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
