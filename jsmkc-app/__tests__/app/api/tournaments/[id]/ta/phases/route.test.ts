@@ -327,14 +327,14 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
-    it('should use Prisma omit to exclude password from player data', async () => {
+    it('should include player relation in query (password globally omitted via lib/prisma.ts)', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
-      // Verify the Prisma query uses omit: { password: true } on the player include.
-      // This prevents the bcrypt password hash from being serialized in the API response.
+      // Player.password is globally omitted via PrismaClient config in lib/prisma.ts,
+      // so a plain `include: { player: true }` is sufficient — no per-query omit needed.
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { player: { omit: { password: true } } },
+          include: { player: true },
         })
       );
     });

@@ -297,9 +297,13 @@ export const authConfig = {
         const password = credentials.password as string;
 
         try {
-          // Look up the player by nickname (case-sensitive, unique field)
+          // Look up the player by nickname (case-sensitive, unique field).
+          // Global omit (configured in lib/prisma.ts) excludes password by default,
+          // so we must explicitly opt in here because authentication requires the
+          // bcrypt hash for password verification via bcrypt.compare().
           const player = await prisma.player.findUnique({
             where: { nickname },
+            omit: { password: false },
           });
 
           // Player not found or has no password set

@@ -33,6 +33,17 @@ const prismaClient =
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
         : ["error"],
+    // Global omit: exclude Player.password (bcrypt hash) from all query results
+    // by default. This prevents accidental credential leakage across 34+ query
+    // sites that use `include: { player: true }` or direct Player queries.
+    // Authentication code that needs the hash must explicitly opt in with
+    // `omit: { password: false }` (see src/lib/auth.ts).
+    // Requires Prisma 5.16+; we run 6.19.2.
+    omit: {
+      player: {
+        password: true,
+      },
+    },
   });
 
 export const prisma = prismaClient;

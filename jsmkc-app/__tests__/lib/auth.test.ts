@@ -182,8 +182,10 @@ describe('Auth Configuration', () => {
         playerId: mockPlayer.id,
         nickname: mockPlayer.nickname,
       });
+      // Global omit excludes password by default; auth must opt in explicitly
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { nickname: credentials.nickname },
+        omit: { password: false },
       });
       expect(bcryptCompare).toHaveBeenCalledWith(credentials.password, mockPlayer.password);
     });
@@ -233,8 +235,10 @@ describe('Auth Configuration', () => {
       const result = await (credentialsProvider as any)?.authorize?.(credentials);
 
       expect(result).toBeNull();
+      // Global omit excludes password by default; auth must opt in explicitly
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { nickname: 'nonexistent' },
+        omit: { password: false },
       });
     });
 

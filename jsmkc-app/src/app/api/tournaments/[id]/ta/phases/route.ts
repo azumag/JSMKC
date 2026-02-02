@@ -159,10 +159,10 @@ export async function GET(
       const phaseValue = phase.data;
 
       // Fetch entries for the specified phase, ordered by rank.
-      // Omit password hash from player relation to prevent credential leakage in API response.
+      // Player.password is globally omitted via PrismaClient config in lib/prisma.ts.
       const entries = await prisma.tTEntry.findMany({
         where: { tournamentId, stage: phaseValue },
-        include: { player: { omit: { password: true } } },
+        include: { player: true },
         orderBy: [
           { eliminated: "asc" }, // Active players first
           { lives: "desc" },     // Most lives first (relevant for phase3)
