@@ -12,7 +12,6 @@
 
 # testing
 /coverage
-/test-results
 /.jest-cache
 
 # next.js
@@ -47,6 +46,4 @@ next-env.d.ts
 # Backup and generated files
 __tests__.bak/
 /logs/
-/playwright-report/
-.e2e-auth-state-*.json
 .env.example.backup
