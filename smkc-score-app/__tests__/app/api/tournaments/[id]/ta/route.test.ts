@@ -78,7 +78,6 @@ jest.mock('@/lib/ta/time-utils', () => ({
 
 // Mock promotion functions
 jest.mock('@/lib/ta/promotion', () => ({
-  promoteToFinals: jest.fn(),
   promoteToRevival1: jest.fn(),
   promoteToRevival2: jest.fn(),
 }));
@@ -181,9 +180,7 @@ describe('/api/tournaments/[id]/ta', () => {
       ];
 
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      (prisma.tTEntry.count as jest.Mock)
-        .mockResolvedValueOnce(10)
-        .mockResolvedValueOnce(5);
+      (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(10);
 
       await taRoute.GET(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
@@ -201,7 +198,6 @@ describe('/api/tournaments/[id]/ta', () => {
           entries: mockEntries,
           stage: 'qualification',
           qualCount: 10,
-          finalsCount: 5,
         })
       );
     });
@@ -321,47 +317,8 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should return 403 for promote_to_finals when user is not admin', async () => {
-      (auth as jest.Mock).mockResolvedValue({
-        user: { id: 'user-1', role: 'member' },
-      });
-
-      await taRoute.POST(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'promote_to_finals',
-            players: [VALID_UUID2],
-          }),
-        }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
-    });
-
-    it('should return 403 for promote_to_finals without admin auth (null session)', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
-
-      await taRoute.POST(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'promote_to_finals',
-            players: [VALID_UUID2],
-          }),
-        }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
-    });
+    /* promote_to_finals tests removed: action was deleted from the API
+     * (superseded by Phase 1/2/3 promotion via /api/tournaments/[id]/ta/phases) */
 
     it('should return 403 for promote_to_revival_1 without admin auth', async () => {
       (auth as jest.Mock).mockResolvedValue(null);

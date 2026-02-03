@@ -5,8 +5,8 @@
  * This is the primary endpoint for managing TA qualification and promotion.
  *
  * Endpoints:
- * - GET:    Fetch entries for a tournament stage (qualification, revival_1, revival_2, finals)
- * - POST:   Add players to qualification or promote to finals/revival rounds
+ * - GET:    Fetch entries for a tournament stage (qualification, revival_1, revival_2)
+ * - POST:   Add players to qualification or promote to revival rounds
  * - PUT:    Update times, lives, or elimination status for an entry
  * - DELETE: Remove an entry from the tournament (admin only)
  *
@@ -27,7 +27,7 @@ import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
 import { timeToMs } from "@/lib/ta/time-utils";
-import { promoteToFinals, promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
+import { promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
 
@@ -70,7 +70,11 @@ async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; se
  * Valid tournament stages for TA mode.
  * "qualification" is the initial stage; others are progression stages.
  */
-const StageSchema = z.enum(["qualification", "revival_1", "revival_2", "finals"]);
+/* "finals" stage removed: legacy promote-to-finals feature was superseded by
+ * the Phase 1/2/3 system (via /api/tournaments/[id]/ta/phases).
+ * Note: "finals" values may still exist in production DB but are no longer
+ * queryable through this endpoint. */
+const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
 
 /**
  * Schema for individual time string validation in PUT requests.
@@ -88,21 +92,20 @@ const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
  * POST request body schema.
  * Supports two modes:
  * - "add": Add a player to qualification (requires playerId or players array)
- * - Promotion actions: Promote players to finals/revival rounds (requires auth)
+ * - Promotion actions: Promote players to revival rounds (requires auth)
  */
+/* promote_to_finals action removed: superseded by Phase 1/2/3 promotion
+ * via /api/tournaments/[id]/ta/phases endpoint. topN field also removed
+ * as it was only used by promote_to_finals. */
 const PostRequestSchema = z.object({
   /* Prisma uses cuid() for all IDs, not uuid */
   playerId: z.string().cuid().optional(),
   players: z.array(z.string().cuid()).optional(),
-  action: z.enum(["add", "promote_to_finals", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
-  topN: z.number().min(1).max(32).optional(),
+  action: z.enum(["add", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
 }).refine(
   (data) => {
     if (data.action === "add") {
       return data.playerId !== undefined || (data.players !== undefined && data.players.length > 0);
-    }
-    if (data.action === "promote_to_finals") {
-      return data.topN !== undefined || data.players !== undefined;
     }
     return true;
   },
@@ -141,7 +144,7 @@ const PutRequestSchema = z.object({
  * and counts for qualification and finals stages.
  *
  * Query parameters:
- * - stage: "qualification" | "revival_1" | "revival_2" | "finals" (default: "qualification")
+ * - stage: "qualification" | "revival_1" | "revival_2" (default: "qualification")
  */
 export async function GET(
   request: NextRequest,
@@ -175,19 +178,17 @@ export async function GET(
       orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
     });
 
-    // Fetch counts for qualification and finals stages in parallel
-    // These counts are used by the UI to show promotion availability
-    const [qualCount, finalsCount] = await Promise.all([
-      prisma.tTEntry.count({ where: { tournamentId, stage: "qualification" } }),
-      prisma.tTEntry.count({ where: { tournamentId, stage: "finals" } }),
-    ]);
+    /* finalsCount query removed: legacy promote-to-finals no longer creates
+     * entries with stage "finals". Phase 3 entries use stage "phase3" instead. */
+    const qualCount = await prisma.tTEntry.count({
+      where: { tournamentId, stage: "qualification" },
+    });
 
     return NextResponse.json({
       entries,
       courses: COURSES,
       stage: stageToQuery,
       qualCount,
-      finalsCount,
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
@@ -206,7 +207,6 @@ export async function GET(
  *
  * Actions:
  * - Default/add: Add player(s) to qualification round
- * - promote_to_finals: Promote top N or selected players to finals (auth required)
  * - promote_to_revival_1: Promote players 17-24 to revival round 1 (auth required)
  * - promote_to_revival_2: Promote players 13-16 + revival 1 survivors (auth required)
  *
@@ -243,7 +243,7 @@ export async function POST(
       );
     }
 
-    const { action, playerId, players, topN } = parseResult.data;
+    const { action, playerId, players } = parseResult.data;
 
     // === Revival Round 1 Promotion ===
     // Promotes players ranked 17-24 from qualification to revival_1
@@ -317,41 +317,8 @@ export async function POST(
       );
     }
 
-    // === Finals Promotion ===
-    // Promotes top N players or selected players from qualification to finals
-    if (action === "promote_to_finals") {
-      const authResult = await requireAdminAndGetSession();
-      if (authResult.error) return authResult.error;
-
-      const identifier = getClientIdentifier(request);
-      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
-      if (!rateLimitResult.success) {
-        return NextResponse.json(
-          { success: false, error: "Rate limit exceeded. Please try again later." },
-          { status: 429 }
-        );
-      }
-
-      const context: PromotionContext = {
-        tournamentId,
-        userId: authResult.session!.user.id,
-        ipAddress: getClientIdentifier(request),
-        userAgent: getUserAgent(request),
-      };
-
-      const result = await promoteToFinals(prisma, context, topN, players);
-      // Recalculate finals ranks after promotion
-      await recalculateRanks(tournamentId, "finals", prisma);
-
-      return NextResponse.json(
-        {
-          message: "Players promoted to finals",
-          entries: result.entries,
-          skipped: result.skipped,
-        },
-        { status: 201 }
-      );
-    }
+    /* promote_to_finals handler removed: superseded by Phase 1/2/3 promotion
+     * via /api/tournaments/[id]/ta/phases endpoint. */
 
     // === Add Player to Qualification ===
     // Default action: add one or more players to the qualification round

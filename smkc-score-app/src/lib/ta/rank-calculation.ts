@@ -100,37 +100,21 @@ export function calculateEntryTotal(entry: {
  * Sort entries by stage-specific ranking criteria.
  *
  * Sorting rules vary by stage:
- * - Finals: Non-eliminated first, then by most lives, then by fastest total time
- *   (this reflects the life-based elimination system where lives matter most)
  * - Revival rounds: Only entries with valid total times, sorted by fastest time
  * - Qualification: All entries included, sorted by qualification points (descending),
  *   then by total time as tiebreaker (ascending). Players without any times
  *   still appear in standings with 0 points.
  *
+ * Note: "finals" sorting branch was removed because the legacy promote-to-finals
+ * feature was superseded by the Phase 1/2/3 system, which has its own ranking
+ * logic in the phases API.
+ *
  * @param entries - Entries with total times calculated
- * @param stage - Tournament stage ("finals", "revival_1", "revival_2", "qualification")
+ * @param stage - Tournament stage ("revival_1", "revival_2", "qualification")
  * @returns New sorted array of entries
  */
 export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWithTotal[] {
-  if (stage === "finals") {
-    // Finals sorting: active players first, then by lives (most first), then by time
-    return [...entries].sort((a, b) => {
-      // Non-eliminated players always rank above eliminated ones
-      if (a.eliminated !== b.eliminated) {
-        return a.eliminated ? 1 : -1;
-      }
-      // Among active players, more lives = higher rank
-      if (a.lives !== b.lives) {
-        return b.lives - a.lives;
-      }
-      // If both eliminated, order doesn't matter for ranking purposes
-      if (a.eliminated || b.eliminated) return 0;
-      // Among active players with same lives, fastest total time wins
-      if (a.totalTime === null) return 1;
-      if (b.totalTime === null) return -1;
-      return (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
-    });
-  } else if (stage === "revival_1" || stage === "revival_2") {
+  if (stage === "revival_1" || stage === "revival_2") {
     // Revival rounds: filter to entries with valid times, sort by fastest
     return entries
       .filter((e) => e.totalTime !== null)

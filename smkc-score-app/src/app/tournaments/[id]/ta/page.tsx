@@ -19,11 +19,7 @@
  *    - Live standings sorted by rank with progress indicators
  *    - Shows completion status (N/20 courses entered)
  *
- * 4. Promotion:
- *    - Promote top N players or manually selected players to finals
- *    - Supports both automatic (top N by rank) and manual selection modes
- *
- * 5. Export:
+ * 4. Export:
  *    - Download qualification data as Excel/CSV file
  *
  * Data is refreshed every 3 seconds via polling for real-time updates
@@ -131,13 +127,6 @@ export default function TimeAttackPage({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Promotion states
-  const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
-  const [promoting, setPromoting] = useState(false);
-  const [topN, setTopN] = useState(8);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-  const [promotionMode, setPromotionMode] = useState<"topN" | "manual">("topN");
-
   // Export state
   const [exporting, setExporting] = useState(false);
 
@@ -203,7 +192,6 @@ export default function TimeAttackPage({
     return {
       entries: taData.entries || [],
       allPlayers: playersJson.data ?? playersJson,
-      finalsCount: taData.finalsCount || 0,
     };
   }, [tournamentId]);
 
@@ -223,7 +211,6 @@ export default function TimeAttackPage({
    */
   const entries: TTEntry[] = pollData?.entries ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
-  const finalsCount: number = pollData?.finalsCount ?? 0;
 
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
@@ -311,54 +298,6 @@ export default function TimeAttackPage({
       console.error("Failed to add player:", err);
       setSaveError(errorMessage);
     }
-  };
-
-  /** Promote players to finals using selected mode (topN or manual) */
-  const handlePromoteToFinals = async () => {
-    setPromoting(true);
-
-    try {
-      const body = {
-        action: "promote_to_finals",
-        ...((promotionMode === "topN") ? { topN } : { players: selectedPlayerIds }),
-      };
-
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to promote players");
-      }
-
-      const data = await response.json();
-      setIsPromoteDialogOpen(false);
-      setSelectedPlayerIds([]);
-      refetch();
-
-      // Alert user about skipped players (incomplete times)
-      if (data.skipped && data.skipped.length > 0) {
-        alert(`Promoted ${data.entries.length} players. Skipped ${data.skipped.join(", ")} (incomplete times)`);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to promote players";
-      console.error("Failed to promote players:", err);
-      alert(errorMessage);
-    } finally {
-      setPromoting(false);
-    }
-  };
-
-  /** Toggle player selection for manual promotion mode */
-  const togglePlayerSelection = (playerId: string) => {
-    setSelectedPlayerIds((prev) =>
-      prev.includes(playerId)
-        ? prev.filter((id) => id !== playerId)
-        : [...prev, playerId]
-    );
   };
 
   /** Open the time entry dialog for a specific player */
@@ -533,122 +472,9 @@ export default function TimeAttackPage({
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? tc('exporting') : tc('exportExcel')}
           </Button>
-          <Button
-            variant="default"
-            onClick={() => setIsPromoteDialogOpen(true)}
-            disabled={entries.length === 0}
-          >
-            {t('promoteToFinals', { count: finalsCount })}
-          </Button>
-          {/* Finals page link: shown only when players have been promoted.
-             Uses outline variant to visually distinguish from the adjacent
-             "Promote to Finals" primary button. */}
-          {finalsCount > 0 && (
-            <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/ta/finals`}>
-                {tc('goToFinals')}
-              </Link>
-            </Button>
-          )}
-          {/* Promotion Dialog */}
-          <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>{t('promoteDialogTitle')}</DialogTitle>
-                <DialogDescription>
-                  {t('promoteDialogDesc')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div>
-                  <Label>{t('promotionMode')}</Label>
-                  <Tabs defaultValue="topN" className="mt-2">
-                    <TabsList className="w-full">
-                      <TabsTrigger
-                        value="topN"
-                        onClick={() => setPromotionMode("topN")}
-                      >
-                        {t('topNPlayers')}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="manual"
-                        onClick={() => setPromotionMode("manual")}
-                      >
-                        {t('manualSelection')}
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="topN" className="mt-4">
-                      <Label>{t('numberOfPlayers')}</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="12"
-                        value={topN}
-                        onChange={(e) => setTopN(parseInt(e.target.value) || 1)}
-                        className="mt-2"
-                      />
-                    </TabsContent>
-                    <TabsContent value="manual" className="mt-4">
-                      {entries.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">{t('noPlayersAdded')}</p>
-                      ) : (
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {entries
-                            .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity))
-                            .map((entry) => (
-                              <div
-                                key={entry.id}
-                                className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
-                                onClick={() => togglePlayerSelection(entry.playerId)}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedPlayerIds.includes(entry.playerId)}
-                                    // stopPropagation on click prevents parent div's onClick
-                                    // from also firing togglePlayerSelection (double-toggle).
-                                    // Must be on onClick (not onChange) because click bubbles
-                                    // to the parent div before onChange fires.
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={() => togglePlayerSelection(entry.playerId)}
-                                  />
-                                  <span>{entry.player.nickname}</span>
-                                  {entry.totalTime === null && (
-                                    <Badge variant="destructive" className="text-xs">
-                                      {t('incomplete')}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="font-mono text-sm">
-                                  {msToDisplayTime(entry.totalTime)}
-                                </span>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        {t('playersSelected', { count: selectedPlayerIds.length })}
-                      </p>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsPromoteDialogOpen(false)}>
-                  {tc('cancel')}
-                </Button>
-                <Button
-                  onClick={handlePromoteToFinals}
-                  disabled={
-                    promoting ||
-                    (promotionMode === "manual" && selectedPlayerIds.length === 0)
-                  }
-                >
-                  {promoting ? tc('promoting') : t('promoteButton')}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          {/* Legacy "Promote to Finals" button and dialog removed.
+           * All promotion is now handled via the Phase 1/2/3 management card below.
+           * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
           {/* Add Player Dialog */}
           <Dialog
             open={isAddPlayerDialogOpen}

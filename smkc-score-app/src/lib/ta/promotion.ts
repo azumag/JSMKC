@@ -4,15 +4,16 @@
  * Handles the promotion of players between tournament stages in the
  * Time Attack competition mode. The promotion flow follows SMK rules:
  *
- * Qualification -> Finals:      Top N players (typically top 12)
  * Qualification -> Revival 1:   Players ranked 17-24 (8 players)
  * Qualification -> Revival 2:   Players ranked 13-16 + Revival 1 survivors (top 4)
+ *
+ * Note: The legacy "Qualification -> Finals" (promoteToFinals) pathway was removed
+ * as it was superseded by the Phase 1/2/3 system in /api/tournaments/[id]/ta/phases.
  *
  * Key behaviors:
  * - Players without valid total times are skipped (not promoted)
  * - Duplicate promotions are prevented via unique constraint check
  * - Revival round entries carry forward their qualification times
- * - Finals entries start fresh with empty times and 3 lives
  * - All promotions are audit-logged for accountability
  *
  * Note: Logger is created inside functions (not at module level) to ensure
@@ -47,124 +48,6 @@ export interface PromotionContext {
   ipAddress: string;
   /** Client user agent string for audit trail */
   userAgent: string;
-}
-
-/**
- * Promote qualifying players to the finals stage.
- *
- * Supports two selection modes:
- * - topN: Automatically selects the top N players by rank/time
- * - players: Manually specified array of player IDs
- *
- * Finals entries are created with:
- * - 3 lives (life-based elimination system)
- * - Empty times (players start fresh in finals)
- * - eliminated = false
- *
- * @param prisma - Prisma client instance
- * @param context - Promotion context with user and request info
- * @param topN - Number of top players to promote (optional, mutually exclusive with players)
- * @param players - Specific player IDs to promote (optional, mutually exclusive with topN)
- * @returns Promise with promotion result containing created entries and skipped players
- * @throws Error if neither topN nor players is provided, or if no qualifiers found
- */
-export async function promoteToFinals(
-  prisma: PrismaClient,
-  context: PromotionContext,
-  topN?: number,
-  players?: string[]
-): Promise<PromotionResult> {
-  const { tournamentId, userId, ipAddress, userAgent } = context;
-
-  // Fetch qualifying players based on selection mode
-  let qualifiers;
-  if (topN) {
-    // Auto-select top N players ordered by rank (ascending) then total time
-    qualifiers = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "qualification" },
-      include: { player: true },
-      orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-      take: topN,
-    });
-  } else if (players && players.length > 0) {
-    // Manual selection by specific player IDs
-    qualifiers = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "qualification", playerId: { in: players } },
-      include: { player: true },
-    });
-  } else {
-    throw new Error("Invalid parameters: either topN or players array required");
-  }
-
-  if (qualifiers.length === 0) {
-    throw new Error("No qualifying players found");
-  }
-
-  const createdEntries = [];
-  const skippedEntries = [];
-
-  for (const qual of qualifiers) {
-    // Skip players who haven't completed all course times
-    if (qual.totalTime === null) {
-      skippedEntries.push(qual.player.nickname);
-      continue;
-    }
-
-    // Prevent duplicate promotion using the unique compound index
-    const existingFinals = await prisma.tTEntry.findUnique({
-      where: {
-        tournamentId_playerId_stage: {
-          tournamentId,
-          playerId: qual.playerId,
-          stage: "finals",
-        },
-      },
-    });
-
-    if (!existingFinals) {
-      // Create finals entry with 3 lives and empty times (fresh start)
-      const entry = await prisma.tTEntry.create({
-        data: {
-          tournamentId,
-          playerId: qual.playerId,
-          stage: "finals",
-          lives: 3,
-          eliminated: false,
-          times: {},
-        },
-        include: { player: true },
-      });
-      createdEntries.push(entry);
-
-      // Audit log for accountability (non-critical, wrapped in try-catch)
-      try {
-        await createAuditLog({
-          userId,
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-          targetId: entry.id,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerId: qual.playerId,
-            playerNickname: entry.player.nickname,
-            qualRank: qual.rank,
-            promotedTo: "finals",
-           },
-         });
-       } catch (logError) {
-         // Logger created inside catch block for proper test mocking
-         const log = createLogger('promotion')
-         log.error("Failed to create audit log", logError instanceof Error ? { message: logError.message, stack: logError.stack } : { error: logError });
-       }
-     }
-   }
-
-  return {
-    entries: createdEntries,
-    skipped: skippedEntries,
-  };
 }
 
 /**

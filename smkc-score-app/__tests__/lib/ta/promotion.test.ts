@@ -4,13 +4,9 @@
  * Test suite for TA (Time Attack) promotion functions (`@/lib/ta/promotion`).
  *
  * Covers:
- * - promoteToFinals:
- *   - Promoting top N qualifying players to finals stage
- *   - Promoting specific players by ID
- *   - Error handling: missing parameters, no qualifying players found
- *   - Skipping players with null totalTime (incomplete course times)
- *   - Skipping players already in finals (duplicate prevention)
- *   - Graceful handling of audit log creation errors
+ * Note: promoteToFinals tests were removed because the function was deleted
+ * (superseded by Phase 1/2/3 promotion via /api/tournaments/[id]/ta/phases).
+ *
  * - promoteToRevival1:
  *   - Promoting qualification ranks 17-24 to revival round 1 with 1 life
  *   - Error on insufficient qualified players
@@ -43,7 +39,7 @@ jest.mock('@prisma/client', () => {
   };
 });
 
-import { promoteToFinals, promoteToRevival1, promoteToRevival2, PromotionContext } from '@/lib/ta/promotion';
+import { promoteToRevival1, promoteToRevival2, PromotionContext } from '@/lib/ta/promotion';
 import { PrismaClient } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
 
@@ -51,7 +47,7 @@ type TTEntry = {
   id: string;
   tournamentId: string;
   playerId: string;
-  stage: 'qualification' | 'finals' | 'revival_1' | 'revival_2';
+  stage: 'qualification' | 'revival_1' | 'revival_2';
   rank: number | null;
   totalTime: number | null;
   lives: number;
@@ -76,249 +72,6 @@ describe('TA Promotion Functions', () => {
       userAgent: 'test-agent',
     };
     jest.clearAllMocks();
-  });
-
-  describe('promoteToFinals', () => {
-    const mockQualifiers: TTEntry[] = [
-      {
-        id: 'entry-1',
-        tournamentId: 'tournament-1',
-        playerId: 'player-1',
-        stage: 'qualification',
-        rank: 1,
-        totalTime: 100000,
-        lives: 3,
-        eliminated: false,
-        times: {},
-        player: { id: 'player-1', nickname: 'Player1' },
-      },
-      {
-        id: 'entry-2',
-        tournamentId: 'tournament-1',
-        playerId: 'player-2',
-        stage: 'qualification',
-        rank: 2,
-        totalTime: 200000,
-        lives: 3,
-        eliminated: false,
-        times: {},
-        player: { id: 'player-2', nickname: 'Player2' },
-      },
-      {
-        id: 'entry-3',
-        tournamentId: 'tournament-1',
-        playerId: 'player-3',
-        stage: 'qualification',
-        rank: 3,
-        totalTime: null,
-        lives: 3,
-        eliminated: false,
-        times: {},
-        player: { id: 'player-3', nickname: 'Player3' },
-      },
-    ];
-
-    it('should promote top N players to finals', async () => {
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockQualifiers);
-      (mockPrisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-
-      const createdFinals: TTEntry[] = [
-        {
-          id: 'finals-1',
-          tournamentId: 'tournament-1',
-          playerId: 'player-1',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-1', nickname: 'Player1' },
-        },
-        {
-          id: 'finals-2',
-          tournamentId: 'tournament-1',
-          playerId: 'player-2',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-2', nickname: 'Player2' },
-        },
-      ];
-
-      (mockPrisma.tTEntry.create as jest.Mock)
-        .mockResolvedValueOnce(createdFinals[0])
-        .mockResolvedValueOnce(createdFinals[1]);
-
-      const result = await promoteToFinals(mockPrisma, mockContext, 2);
-
-      expect(result.entries).toHaveLength(2);
-      expect(result.entries[0].playerId).toBe('player-1');
-      expect(result.entries[1].playerId).toBe('player-2');
-      expect(result.skipped).toHaveLength(1);
-      expect(result.skipped).toContain('Player3');
-      expect(createAuditLog).toHaveBeenCalledTimes(2);
-    });
-
-    it('should promote specific players to finals', async () => {
-      const specificPlayers = ['player-1', 'player-2'];
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockQualifiers);
-      (mockPrisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-
-      const createdFinals: TTEntry[] = [
-        {
-          id: 'finals-1',
-          tournamentId: 'tournament-1',
-          playerId: 'player-1',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-1', nickname: 'Player1' },
-        },
-        {
-          id: 'finals-2',
-          tournamentId: 'tournament-1',
-          playerId: 'player-2',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-2', nickname: 'Player2' },
-        },
-      ];
-
-      (mockPrisma.tTEntry.create as jest.Mock)
-        .mockResolvedValueOnce(createdFinals[0])
-        .mockResolvedValueOnce(createdFinals[1]);
-
-      const result = await promoteToFinals(mockPrisma, mockContext, undefined, specificPlayers);
-
-      expect(result.entries).toHaveLength(2);
-      expect(createAuditLog).toHaveBeenCalledTimes(2);
-    });
-
-    it('should throw error when neither topN nor players provided', async () => {
-      await expect(promoteToFinals(mockPrisma, mockContext)).rejects.toThrow(
-        'Invalid parameters: either topN or players array required'
-      );
-    });
-
-    it('should throw error when no qualifying players found', async () => {
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-
-      await expect(promoteToFinals(mockPrisma, mockContext, 2)).rejects.toThrow(
-        'No qualifying players found'
-      );
-    });
-
-    it('should skip players with null totalTime', async () => {
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockQualifiers);
-      (mockPrisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-
-      const createdFinals: TTEntry[] = [
-        {
-          id: 'finals-1',
-          tournamentId: 'tournament-1',
-          playerId: 'player-1',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-1', nickname: 'Player1' },
-        },
-        {
-          id: 'finals-2',
-          tournamentId: 'tournament-1',
-          playerId: 'player-2',
-          stage: 'finals',
-          rank: null,
-          totalTime: null,
-          lives: 3,
-          eliminated: false,
-          times: {},
-          player: { id: 'player-2', nickname: 'Player2' },
-        },
-      ];
-
-      (mockPrisma.tTEntry.create as jest.Mock)
-        .mockResolvedValueOnce(createdFinals[0])
-        .mockResolvedValueOnce(createdFinals[1]);
-
-      const result = await promoteToFinals(mockPrisma, mockContext, 3);
-
-      expect(result.entries).toHaveLength(2);
-      expect(result.skipped).toHaveLength(1);
-      expect(result.skipped[0]).toBe('Player3');
-    });
-
-    it('should skip players already in finals', async () => {
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockQualifiers);
-      (mockPrisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ id: 'existing-final', playerId: 'player-1' })
-        .mockResolvedValueOnce(null);
-      (createAuditLog as jest.Mock).mockResolvedValue(undefined);
-
-      const createdFinals: TTEntry = {
-        id: 'finals-2',
-        tournamentId: 'tournament-1',
-        playerId: 'player-2',
-        stage: 'finals',
-        rank: null,
-        totalTime: null,
-        lives: 3,
-        eliminated: false,
-        times: {},
-        player: { id: 'player-2', nickname: 'Player2' },
-      };
-
-      (mockPrisma.tTEntry.create as jest.Mock).mockResolvedValue(createdFinals);
-
-      const result = await promoteToFinals(mockPrisma, mockContext, 2);
-
-      expect(result.entries).toHaveLength(1);
-      expect(result.entries[0].playerId).toBe('player-2');
-      expect(createAuditLog).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle audit log creation errors gracefully', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue([mockQualifiers[0]]);
-      (mockPrisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (createAuditLog as jest.Mock).mockRejectedValue(new Error('Audit log failed'));
-
-      const createdFinals: TTEntry = {
-        id: 'finals-1',
-        tournamentId: 'tournament-1',
-        playerId: 'player-1',
-        stage: 'finals',
-        rank: null,
-        totalTime: null,
-        lives: 3,
-        eliminated: false,
-        times: {},
-        player: { id: 'player-1', nickname: 'Player1' },
-      };
-
-      (mockPrisma.tTEntry.create as jest.Mock).mockResolvedValue(createdFinals);
-
-      const result = await promoteToFinals(mockPrisma, mockContext, 1);
-
-      expect(result.entries).toHaveLength(1);
-            // expect(consoleSpy).toHaveBeenCalledWith('Failed to create audit log:', expect.any(Error));
-      consoleSpy.mockRestore();
-    });
   });
 
   describe('promoteToRevival1', () => {
