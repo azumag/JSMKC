@@ -20,6 +20,8 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+/* i18n: useTranslations hook for internationalized strings */
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +34,9 @@ import { Button } from "@/components/ui/button";
  */
 export default function Home() {
   const { data: session } = useSession();
+  /* i18n: 'home' namespace for page-specific strings, 'common' for shared strings */
+  const t = useTranslations('home');
+  const tc = useTranslations('common');
 
   /**
    * Admin role check: OAuth-authenticated users (via Discord) are
@@ -45,9 +50,9 @@ export default function Home() {
     <div className="space-y-8">
       {/* Hero section with application title and tagline */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold">SMKC Score System</h1>
+        <h1 className="text-4xl font-bold">{tc('appTitle')}</h1>
           <p className="text-muted-foreground text-lg">
-          SMKC Score Management
+          {t('tagline')}
         </p>
       </div>
 
@@ -56,16 +61,16 @@ export default function Home() {
         {/* Players card - links to the player management/viewing page */}
         <Card>
           <CardHeader>
-            <CardTitle>Players</CardTitle>
+            <CardTitle>{tc('players')}</CardTitle>
             {/* Show admin-appropriate description based on role (#132) */}
             <CardDescription>
-              {isAdmin ? "Manage tournament participants" : "View tournament participants"}
+              {isAdmin ? t('manageParticipants') : t('viewParticipants')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
               <Link href="/players">
-                {isAdmin ? "Manage Players" : "View Players"}
+                {isAdmin ? t('managePlayers') : t('viewPlayers')}
               </Link>
             </Button>
           </CardContent>
@@ -74,14 +79,14 @@ export default function Home() {
         {/* Tournaments card - links to the tournament list page */}
         <Card>
           <CardHeader>
-            <CardTitle>Tournaments</CardTitle>
+            <CardTitle>{tc('tournaments')}</CardTitle>
             <CardDescription>
-              {isAdmin ? "Create and manage tournaments" : "View tournaments"}
+              {isAdmin ? t('manageTournaments') : t('viewTournaments')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <Link href="/tournaments">View Tournaments</Link>
+              <Link href="/tournaments">{t('viewTournamentsButton')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -98,26 +103,26 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Game Modes</CardTitle>
-            <CardDescription>Available competition formats</CardDescription>
+            <CardTitle>{t('gameModes')}</CardTitle>
+            <CardDescription>{t('availableFormats')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-4 gap-4">
               <div className="p-4 border rounded-lg text-center">
-                <h3 className="font-semibold">Time Trial</h3>
-                <p className="text-sm text-muted-foreground">Individual time-based competition</p>
+                <h3 className="font-semibold">{t('timeTrial')}</h3>
+                <p className="text-sm text-muted-foreground">{t('timeTrialDesc')}</p>
               </div>
               <div className="p-4 border rounded-lg text-center">
-                <h3 className="font-semibold">Battle Mode</h3>
-                <p className="text-sm text-muted-foreground">1v1 balloon battle</p>
+                <h3 className="font-semibold">{t('battleMode')}</h3>
+                <p className="text-sm text-muted-foreground">{t('battleModeDesc')}</p>
               </div>
               <div className="p-4 border rounded-lg text-center">
-                <h3 className="font-semibold">Match Race</h3>
-                <p className="text-sm text-muted-foreground">1v1 race competition</p>
+                <h3 className="font-semibold">{t('matchRace')}</h3>
+                <p className="text-sm text-muted-foreground">{t('matchRaceDesc')}</p>
               </div>
               <div className="p-4 border rounded-lg text-center">
-                <h3 className="font-semibold">Grand Prix</h3>
-                <p className="text-sm text-muted-foreground">Cup-based driver points</p>
+                <h3 className="font-semibold">{t('grandPrix')}</h3>
+                <p className="text-sm text-muted-foreground">{t('grandPrixDesc')}</p>
               </div>
             </div>
           </CardContent>

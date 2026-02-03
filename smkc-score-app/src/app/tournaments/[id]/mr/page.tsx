@@ -17,6 +17,7 @@
 "use client";
 
 import { useState, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -109,6 +110,8 @@ export default function MatchRacePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const t = useTranslations('mr');
+  const tc = useTranslations('common');
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
@@ -177,7 +180,7 @@ export default function MatchRacePage({
    */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
-      alert("Please add at least one player");
+      alert(tc('addAtLeastOnePlayer'));
       return;
     }
 
@@ -227,7 +230,7 @@ export default function MatchRacePage({
     /* Validate that exactly 5 unique courses are selected */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
     if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
-      alert("Please select 5 unique courses");
+      alert(tc('select5UniqueCourses'));
       return;
     }
 
@@ -237,7 +240,7 @@ export default function MatchRacePage({
 
     /* Match must have a definitive winner (first to 3) */
     if (winnerCount < 3 && loserCount < 3) {
-      alert("Match must have a winner (3 out of 5)");
+      alert(tc('matchMustHaveWinner'));
       return;
     }
 
@@ -315,10 +318,10 @@ export default function MatchRacePage({
   if (!pollData && pollError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Match Race</h1>
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{pollError}</p>
-          <Button onClick={refetch}>Retry</Button>
+          <Button onClick={refetch}>{tc('retry')}</Button>
         </div>
       </div>
     );
@@ -345,9 +348,9 @@ export default function MatchRacePage({
       {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Match Race</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground">
-            5-race course selection and point-based scoring
+            {t('qualificationDesc')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -359,12 +362,12 @@ export default function MatchRacePage({
             onClick={handleExport}
             disabled={exporting}
           >
-            {exporting ? "Exporting..." : "Export to Excel"}
+            {exporting ? tc('exporting') : tc('exportToExcel')}
           </Button>
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/mr/finals`}>
-                Go to Finals
+                {tc('goToFinals')}
               </Link>
             </Button>
           )}
@@ -372,20 +375,20 @@ export default function MatchRacePage({
           <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
-                {qualifications.length > 0 ? "Reset Setup" : "Setup Groups"}
+                {qualifications.length > 0 ? tc('resetSetup') : tc('setupGroups')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Setup Match Race Groups</DialogTitle>
+                <DialogTitle>{t('setupDialogTitle')}</DialogTitle>
                 <DialogDescription>
-                  Assign players to groups for the qualification round.
+                  {t('setupDialogDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <Label>Select Player</Label>
+                    <Label>{tc('selectPlayer')}</Label>
                     <Select
                       onValueChange={(playerId) => {
                         const player = allPlayers.find((p) => p.id === playerId);
@@ -395,7 +398,7 @@ export default function MatchRacePage({
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose player..." />
+                        <SelectValue placeholder={tc('choosePlayer')} />
                       </SelectTrigger>
                       <SelectContent>
                         {allPlayers
@@ -415,18 +418,18 @@ export default function MatchRacePage({
                 {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
-                    Selected Players ({setupPlayers.length})
+                    {tc('selectedPlayers', { count: setupPlayers.length })}
                   </h4>
                   {setupPlayers.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      No players selected yet
+                      {tc('noPlayersSelected')}
                     </p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Player</TableHead>
-                          <TableHead>Group</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead>{tc('group')}</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -469,7 +472,7 @@ export default function MatchRacePage({
                                     removePlayerFromSetup(sp.playerId)
                                   }
                                 >
-                                  Remove
+                                  {tc('remove')}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -481,7 +484,7 @@ export default function MatchRacePage({
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleSetup}>Create Groups & Matches</Button>
+                <Button onClick={handleSetup}>{t('createGroupsAndMatches')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -492,15 +495,15 @@ export default function MatchRacePage({
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No groups set up yet. Click &quot;Setup Groups&quot; to begin.
+            {t('noGroupsYet')}
           </CardContent>
         </Card>
       ) : (
         /* Standings and Matches tabs */
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="standings">Standings</TabsTrigger>
-            <TabsTrigger value="matches">Matches</TabsTrigger>
+            <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
+            <TabsTrigger value="matches">{tc('matches')}</TabsTrigger>
           </TabsList>
 
           {/* Group standings tab */}
@@ -509,9 +512,9 @@ export default function MatchRacePage({
               {groups.map((group) => (
                 <Card key={group}>
                   <CardHeader>
-                    <CardTitle>Group {group}</CardTitle>
+                    <CardTitle>{tc('groupLabel', { group })}</CardTitle>
                     <CardDescription>
-                      {qualifications.filter((q) => q.group === group).length} players
+                      {tc('playersCount', { count: qualifications.filter((q) => q.group === group).length })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -519,13 +522,13 @@ export default function MatchRacePage({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-12">#</TableHead>
-                          <TableHead>Player</TableHead>
-                          <TableHead className="text-center">MP</TableHead>
-                          <TableHead className="text-center">W</TableHead>
-                          <TableHead className="text-center">T</TableHead>
-                          <TableHead className="text-center">L</TableHead>
-                          <TableHead className="text-center">+/-</TableHead>
-                          <TableHead className="text-center">Pts</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead className="text-center">{t('mp')}</TableHead>
+                          <TableHead className="text-center">{t('w')}</TableHead>
+                          <TableHead className="text-center">{t('t')}</TableHead>
+                          <TableHead className="text-center">{t('l')}</TableHead>
+                          <TableHead className="text-center">{t('plusMinus')}</TableHead>
+                          <TableHead className="text-center">{t('pts')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -562,9 +565,9 @@ export default function MatchRacePage({
           <TabsContent value="matches">
             <Card>
               <CardHeader>
-                <CardTitle>Match List</CardTitle>
+                <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
-                  {matches.filter((m) => m.completed).length} / {matches.length} completed
+                  {tc('completedOf', { completed: matches.filter((m) => m.completed).length, total: matches.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -572,10 +575,10 @@ export default function MatchRacePage({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-16">#</TableHead>
-                      <TableHead>Player 1</TableHead>
-                      <TableHead className="text-center w-24">Score</TableHead>
-                      <TableHead>Player 2</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead>{tc('player1')}</TableHead>
+                      <TableHead className="text-center w-24">{tc('score')}</TableHead>
+                      <TableHead>{tc('player2')}</TableHead>
+                      <TableHead className="text-right">{tc('actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -612,7 +615,7 @@ export default function MatchRacePage({
                             asChild
                           >
                             <Link href={`/tournaments/${tournamentId}/mr/match/${match.id}`}>
-                              Share
+                              {tc('share')}
                             </Link>
                           </Button>
                           <Button
@@ -620,7 +623,7 @@ export default function MatchRacePage({
                             size="sm"
                             onClick={() => openMatchDialog(match)}
                           >
-                            {match.completed ? "Edit" : "Enter Result"}
+                            {match.completed ? tc('edit') : tc('enterResult')}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -637,7 +640,7 @@ export default function MatchRacePage({
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Result</DialogTitle>
+            <DialogTitle>{t('enterMatchResult')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -652,15 +655,15 @@ export default function MatchRacePage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">Race</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead className="text-center">Winner</TableHead>
+                  <TableHead className="w-16">{tc('race')}</TableHead>
+                  <TableHead>{tc('course')}</TableHead>
+                  <TableHead className="text-center">{tc('winner')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rounds.map((round, index) => (
                   <TableRow key={index}>
-                    <TableCell className="font-medium">Race {index + 1}</TableCell>
+                    <TableCell className="font-medium">{tc('race')} {index + 1}</TableCell>
                     <TableCell>
                       <Select
                         value={round.course}
@@ -671,7 +674,7 @@ export default function MatchRacePage({
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select course..." />
+                          <SelectValue placeholder={tc('selectCourse')} />
                         </SelectTrigger>
                         <SelectContent>
                           {COURSE_INFO.map((course) => (
@@ -720,7 +723,7 @@ export default function MatchRacePage({
             </Table>
           </div>
           <DialogFooter>
-            <Button onClick={handleMatchSubmit}>Save Result</Button>
+            <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

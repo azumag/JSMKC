@@ -29,6 +29,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,8 @@ interface Tournament {
  */
 export default function TournamentsPage() {
   const { data: session } = useSession();
+  const t = useTranslations('tournaments');
+  const tc = useTranslations('common');
 
   /**
    * Admin role check: only OAuth-authenticated users with admin role
@@ -145,11 +148,11 @@ export default function TournamentsPage() {
         fetchTournaments();
       } else {
         const data = await response.json();
-        setError(data.error || "Failed to create tournament");
+        setError(data.error || t('failedToCreate'));
       }
     } catch (err) {
       console.error("Failed to create tournament:", err);
-      setError("Failed to create tournament");
+      setError(t('failedToCreate'));
     }
   };
 
@@ -158,7 +161,7 @@ export default function TournamentsPage() {
    * Uses browser confirm() as a guard against accidental deletion.
    */
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this tournament?")) return;
+    if (!confirm(tc('confirmDeleteTournament'))) return;
 
     try {
       const response = await fetch(`/api/tournaments/${id}`, {
@@ -183,11 +186,11 @@ export default function TournamentsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="secondary">Draft</Badge>;
+        return <Badge variant="secondary">{t('draft')}</Badge>;
       case "active":
-        return <Badge variant="default">Active</Badge>;
+        return <Badge variant="default">{t('activeStatus')}</Badge>;
       case "completed":
-        return <Badge variant="outline">Completed</Badge>;
+        return <Badge variant="outline">{t('completed')}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -195,7 +198,7 @@ export default function TournamentsPage() {
 
   /* Simple loading text while data is fetched */
   if (loading) {
-    return <div className="text-center py-8">Loading tournaments...</div>;
+    return <div className="text-center py-8">{t('loadingTournaments')}</div>;
   }
 
   return (
@@ -203,10 +206,10 @@ export default function TournamentsPage() {
       {/* Page header with title and Create Tournament button (admin only) */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Tournaments</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           {/* Role-appropriate subtitle text */}
           <p className="text-muted-foreground">
-            {isAdmin ? "Create and manage competitions" : "View competitions"}
+            {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
           </p>
         </div>
         {/* Create Tournament dialog - only rendered for admin users */}
@@ -214,14 +217,14 @@ export default function TournamentsPage() {
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setFormData({ name: "", date: "" })}>
-                Create Tournament
+                {t('createTournament')}
               </Button>
             </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Tournament</DialogTitle>
+              <DialogTitle>{t('createNewTournament')}</DialogTitle>
               <DialogDescription>
-                Enter the tournament details below.
+                {t('enterTournamentDetails')}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -230,19 +233,19 @@ export default function TournamentsPage() {
                   <div className="text-red-500 text-sm">{error}</div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="name">Tournament Name</Label>
+                  <Label htmlFor="name">{t('tournamentName')}</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="e.g., SMKC 2025"
+                    placeholder={t('tournamentNamePlaceholder')}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
+                  <Label htmlFor="date">{t('date')}</Label>
                   <Input
                     id="date"
                     type="date"
@@ -255,7 +258,7 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Create Tournament</Button>
+                <Button type="submit">{t('createTournament')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -266,9 +269,9 @@ export default function TournamentsPage() {
       {/* Tournament list table wrapped in a card */}
       <Card>
         <CardHeader>
-          <CardTitle>Tournament List</CardTitle>
+          <CardTitle>{t('tournamentList')}</CardTitle>
           <CardDescription>
-            {tournaments.length} tournament{tournaments.length !== 1 ? "s" : ""}
+            {t('tournamentCount', { count: tournaments.length })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -276,17 +279,17 @@ export default function TournamentsPage() {
             /* Empty state message - differs by role */
             <div className="text-center py-8 text-muted-foreground">
               {isAdmin
-                ? "No tournaments created yet. Create your first tournament to get started."
-                : "No tournaments yet."}
+                ? t('noTournamentsAdmin')
+                : t('noTournamentsView')}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('name')}</TableHead>
+                  <TableHead>{t('date')}</TableHead>
+                  <TableHead>{t('status')}</TableHead>
+                  <TableHead className="text-right">{tc('actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -309,7 +312,7 @@ export default function TournamentsPage() {
                       {/* Open button navigates to tournament detail page */}
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/tournaments/${tournament.id}`}>
-                          Open
+                          {tc('open')}
                         </Link>
                       </Button>
                       {/* Delete button - admin only, with confirmation */}
@@ -319,7 +322,7 @@ export default function TournamentsPage() {
                           size="sm"
                           onClick={() => handleDelete(tournament.id)}
                         >
-                          Delete
+                          {tc('delete')}
                         </Button>
                       )}
                     </TableCell>

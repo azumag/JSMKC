@@ -20,6 +20,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +79,16 @@ export default function MatchEntryPage({
   params: Promise<{ id: string; matchId: string }>;
 }) {
   const { id: tournamentId, matchId } = use(params);
+
+  /**
+   * i18n translation hooks for the match entry page.
+   * Two namespaces are used:
+   * - 'match': Match-specific strings (score entry, submission states, results)
+   * - 'bm': Battle Mode shared strings (match title with dynamic number)
+   * Hooks must be called at the top of the component before any other hooks.
+   */
+  const tMatch = useTranslations('match');
+  const tBm = useTranslations('bm');
 
   /* Core state */
   const [match, setMatch] = useState<BMMatch | null>(null);
@@ -205,7 +216,7 @@ export default function MatchEntryPage({
   if (!match || !tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Match not found</p>
+        <p>{tMatch('matchNotFound')}</p>
       </div>
     );
   }
@@ -216,7 +227,7 @@ export default function MatchEntryPage({
         {/* Header with tournament name and match info */}
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
-          <p className="text-muted-foreground">Battle Mode - Match #{match.matchNumber}</p>
+          <p className="text-muted-foreground">{tBm('matchTitle', { number: match.matchNumber })}</p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
           </div>
@@ -245,15 +256,15 @@ export default function MatchEntryPage({
         {!match.completed && !submitted && (
           <Card>
             <CardHeader>
-              <CardTitle>Enter Score</CardTitle>
+              <CardTitle>{tMatch('enterScore')}</CardTitle>
               <CardDescription>
-                Select who you are and enter the match result
+                {tMatch('selectIdentity')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Player Self-Identification */}
               <div className="space-y-2">
-                <p className="text-sm font-medium">I am:</p>
+                <p className="text-sm font-medium">{tMatch('iAm')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={selectedPlayer === 1 ? "default" : "outline"}
@@ -276,7 +287,7 @@ export default function MatchEntryPage({
               {selectedPlayer && (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-center">
-                    Score (rounds won)
+                    {tMatch('scoreRoundsWon')}
                   </p>
                   <div className="flex items-center justify-center gap-4">
                     {/* Player 1 score with increment/decrement buttons */}
@@ -335,7 +346,7 @@ export default function MatchEntryPage({
                   {/* Validation warning: total rounds must equal 4 */}
                   {score1 + score2 !== 4 && (score1 > 0 || score2 > 0) && (
                     <p className="text-yellow-600 text-sm text-center">
-                      Total must equal 4 rounds
+                      {tMatch('totalMustEqual4')}
                     </p>
                   )}
 
@@ -350,7 +361,7 @@ export default function MatchEntryPage({
                     onClick={handleSubmit}
                     disabled={submitting || score1 + score2 !== 4}
                   >
-                    {submitting ? "Submitting..." : "Submit Score"}
+                    {submitting ? tMatch('submitting') : tMatch('submitScore')}
                   </Button>
                 </div>
               )}
@@ -363,12 +374,12 @@ export default function MatchEntryPage({
           <Card>
             <CardContent className="py-8 text-center">
               <div className="text-4xl mb-4">✓</div>
-              <h3 className="text-lg font-semibold mb-2">Score Submitted!</h3>
+              <h3 className="text-lg font-semibold mb-2">{tMatch('scoreSubmitted')}</h3>
               <p className="text-muted-foreground">
-                Waiting for the other player to confirm...
+                {tMatch('waitingConfirm')}
               </p>
               <p className="text-sm mt-4">
-                Your report: {score1} - {score2}
+                {tMatch('yourReport', { score1, score2 })}
               </p>
             </CardContent>
           </Card>
@@ -379,16 +390,16 @@ export default function MatchEntryPage({
           <Card>
             <CardContent className="py-8 text-center">
               <div className="text-4xl mb-4">🏁</div>
-              <h3 className="text-lg font-semibold mb-2">Match Complete</h3>
+              <h3 className="text-lg font-semibold mb-2">{tMatch('matchComplete')}</h3>
               <p className="text-muted-foreground">
-                Final Score: {match.score1} - {match.score2}
+                {tMatch('finalScore', { score1: match.score1, score2: match.score2 })}
               </p>
               <p className="mt-2">
                 {match.score1 >= 3
-                  ? `${match.player1.nickname} wins!`
+                  ? tMatch('playerWins', { player: match.player1.nickname })
                   : match.score2 >= 3
-                  ? `${match.player2.nickname} wins!`
-                  : "Draw"}
+                  ? tMatch('playerWins', { player: match.player2.nickname })
+                  : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -400,7 +411,7 @@ export default function MatchEntryPage({
             href={`/tournaments/${tournamentId}/bm`}
             className="text-sm text-muted-foreground hover:underline"
           >
-            ← Back to Battle Mode
+            {tMatch('backToBM')}
           </Link>
         </div>
       </div>

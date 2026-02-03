@@ -28,6 +28,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +57,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -67,7 +67,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 
@@ -159,6 +158,10 @@ export default function TimeAttackFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  /* i18n translation hooks for TA finals, finals, and common namespaces */
+  const tTaFinals = useTranslations('taFinals');
+  const tFinals = useTranslations('finals');
+  const tCommon = useTranslations('common');
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
@@ -179,12 +182,19 @@ export default function TimeAttackFinals({
   const [cancellingRound, setCancellingRound] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  // Track if user is currently editing to pause polling
+  const [isEditing, setIsEditing] = useState(false);
+
   // Admin action states
   const [isEliminateDialogOpen, setIsEliminateDialogOpen] = useState(false);
   const [entryToEliminate, setEntryToEliminate] = useState<TTEntry | null>(null);
 
   // Map of playerId → nickname for round history display
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
+
+  /** Whether the round history section is expanded. Defaults to collapsed
+   *  to keep the focus on the active round and standings. */
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
@@ -251,11 +261,16 @@ export default function TimeAttackFinals({
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh every 3 seconds
+  // Auto-refresh every 3 seconds, but pause when user is editing to prevent
+  // resetting their input. This ensures a smooth data entry experience.
   useEffect(() => {
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(() => {
+      if (!isEditing) {
+        fetchData();
+      }
+    }, 3000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, isEditing]);
 
   // === Event Handlers ===
 
@@ -334,6 +349,7 @@ export default function TimeAttackFinals({
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setIsEditing(false);
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
@@ -348,6 +364,7 @@ export default function TimeAttackFinals({
 
   /** Handle time input change for a specific player */
   const handleTimeChange = (playerId: string, value: string) => {
+    setIsEditing(true);
     setCourseTimes((prev) => ({ ...prev, [playerId]: value }));
     if (retryFlags[playerId]) {
       setRetryFlags((prev) => ({ ...prev, [playerId]: false }));
@@ -439,6 +456,7 @@ export default function TimeAttackFinals({
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setIsEditing(false);
       fetchData();
     } catch (err) {
       const errorMessage =
@@ -487,6 +505,11 @@ export default function TimeAttackFinals({
     rounds.length > 0 &&
     (rounds[rounds.length - 1].results as unknown[]).length === 0;
 
+  /** Count of completed rounds (with submitted results), used in multiple sections */
+  const completedRoundsCount = rounds.filter(
+    (r) => (r.results as unknown[]).length > 0
+  ).length;
+
   // Life reset notification: show when lives were just reset
   const lastCompletedRound = [...rounds]
     .reverse()
@@ -513,17 +536,17 @@ export default function TimeAttackFinals({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Phase 3 - Finals</h1>
+          <h1 className="text-3xl font-bold">{tTaFinals('phase3Title')}</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
-              Back to Qualification
+              {tFinals('backToQualification')}
             </Link>
           </Button>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
+            <Button onClick={fetchData}>{tCommon('retry')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -536,22 +559,22 @@ export default function TimeAttackFinals({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Phase 3 - Finals</h1>
+            <h1 className="text-3xl font-bold">{tTaFinals('phase3Title')}</h1>
             <p className="text-muted-foreground">
-              Phase 2 survivors + Qualification ranks 1-12
+              {tTaFinals('phase3Desc')}
             </p>
           </div>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
-              Back to Qualification
+              {tFinals('backToQualification')}
             </Link>
           </Button>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Yet</CardTitle>
+            <CardTitle>{tTaFinals('noFinalsYet')}</CardTitle>
             <CardDescription>
-              Complete Phase 1 and Phase 2, then promote players to Phase 3.
+              {tTaFinals('noFinalsDesc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -566,17 +589,17 @@ export default function TimeAttackFinals({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">
-            Phase 3 - Finals
+            {tTaFinals('phase3Title')}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete
-              ? "Tournament Complete"
-              : `${activeEntries.length} players remaining`}
+              ? tFinals('tournamentComplete')
+              : tTaFinals('playersRemaining', { count: activeEntries.length })}
           </p>
         </div>
         <Button variant="outline" asChild>
           <Link href={`/tournaments/${tournamentId}/ta`}>
-            Back to Qualification
+            {tFinals('backToQualification')}
           </Link>
         </Button>
       </div>
@@ -586,12 +609,12 @@ export default function TimeAttackFinals({
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">&#127942;</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
+            <h2 className="text-2xl font-bold">{tFinals('champion')}</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {activeEntries[0].player.nickname}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Lives remaining: {activeEntries[0].lives}
+              {tTaFinals('livesRemaining', { lives: activeEntries[0].lives })}
             </p>
           </CardContent>
         </Card>
@@ -602,350 +625,345 @@ export default function TimeAttackFinals({
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-4 text-center">
             <p className="text-yellow-700 font-semibold">
-              Lives have been reset to 3 for all remaining {activeEntries.length}{" "}
-              players!
+              {tTaFinals('livesResetNotice', { count: activeEntries.length })}
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Tabbed Content */}
-      <Tabs
-        defaultValue={currentRound ? "current" : "standings"}
-        className="space-y-4"
-      >
-        <TabsList>
-          {currentRound && (
-            <TabsTrigger value="current">Current Round</TabsTrigger>
-          )}
-          <TabsTrigger value="standings">Standings</TabsTrigger>
-          <TabsTrigger value="history">Round History</TabsTrigger>
-          {!isComplete && !currentRound && (
-            <TabsTrigger value="control">Tournament Control</TabsTrigger>
-          )}
-        </TabsList>
+      {/* === Round Control / Time Entry Section ===
+       * Occupies a fixed position at the top of the content area.
+       * Transitions in-place between two states without tab switching (issue #168):
+       * - No active round: stats summary + "Start Round" button
+       * - Active round: time entry form for the current course
+       */}
+      {!isComplete && (
+        currentRound ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {tTaFinals('roundCourse', {
+                  number: currentRound.roundNumber,
+                  course: COURSE_INFO.find((c) => c.abbr === currentRound.course)
+                    ?.name || currentRound.course,
+                })}
+              </CardTitle>
+              <CardDescription>
+                {tTaFinals('enterTimesDesc')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {saveError && (
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                  <p className="text-destructive text-sm">{saveError}</p>
+                </div>
+              )}
+              <div className="space-y-3">
+                {activeEntries.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <Label className="truncate block">
+                        {entry.player.nickname}
+                      </Label>
+                      <div className="text-xs text-muted-foreground">
+                        {renderLives(entry.lives, entry.eliminated)}
+                      </div>
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="M:SS.mmm"
+                      value={courseTimes[entry.playerId] || ""}
+                      onChange={(e) =>
+                        handleTimeChange(entry.playerId, e.target.value)
+                      }
+                      disabled={retryFlags[entry.playerId]}
+                      className="font-mono w-32"
+                    />
+                    <Button
+                      variant={
+                        retryFlags[entry.playerId]
+                          ? "destructive"
+                          : "outline"
+                      }
+                      size="sm"
+                      onClick={() => handleRetryToggle(entry.playerId)}
+                      title="Mark as retry (penalty: 9:59.990)"
+                    >
+                      {tCommon('retry')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={submitting || cancellingRound}
+                >
+                  {tTaFinals('cancelRound')}
+                </Button>
+                <Button onClick={handleSubmitResults} disabled={submitting}>
+                  {submitting
+                    ? tCommon('saving')
+                    : tTaFinals('submitDeductLives')}
+                </Button>
+              </div>
 
-        {/* Current Round Tab */}
-        {currentRound && (
-          <TabsContent value="current">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Round {currentRound.roundNumber} —{" "}
-                  {COURSE_INFO.find((c) => c.abbr === currentRound.course)
-                    ?.name || currentRound.course}
-                </CardTitle>
-                <CardDescription>
-                  Enter times for all active players. Bottom half will lose 1
-                  life.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              {/* Cancel confirmation dialog to prevent accidental round deletion */}
+              <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{tTaFinals('cancelRoundTitle')}</DialogTitle>
+                    <DialogDescription>
+                      {tTaFinals('cancelRoundDesc', { course: currentRound?.course })}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCancelConfirm(false)}
+                      disabled={cancellingRound}
+                    >
+                      {tTaFinals('keepRound')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleCancelRound}
+                      disabled={cancellingRound}
+                    >
+                      {cancellingRound ? tTaFinals('cancelling') : tTaFinals('yesCancelRound')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tTaFinals('tournamentControl')}</CardTitle>
+              <CardDescription>
+                {tTaFinals('startRoundDesc')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 {saveError && (
-                  <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                  <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
                     <p className="text-destructive text-sm">{saveError}</p>
                   </div>
                 )}
-                <div className="space-y-3">
-                  {activeEntries.map((entry) => (
-                    <div key={entry.id} className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <Label className="truncate block">
-                          {entry.player.nickname}
-                        </Label>
-                        <div className="text-xs text-muted-foreground">
-                          {renderLives(entry.lives, entry.eliminated)}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>{tTaFinals('activePlayers')}</span>
+                    <span className="font-bold">
+                      {activeEntries.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{tTaFinals('eliminatedPlayers')}</span>
+                    <span className="font-bold">
+                      {eliminatedEntries.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{tTaFinals('roundsCompletedLabel')}</span>
+                    <span className="font-bold">
+                      {completedRoundsCount}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleStartRound}
+                  disabled={startingRound || hasOpenRound}
+                >
+                  {startingRound
+                    ? tTaFinals('selectingCourse')
+                    : hasOpenRound
+                      ? tTaFinals('completeOpenRound')
+                      : tTaFinals('startRound', { number: rounds.length + 1 })}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      )}
+
+      {/* === Standings Section ===
+       * Always visible so admin can monitor player lives at all times,
+       * even while entering times for the current round.
+       */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{tTaFinals('finalsStandings')}</CardTitle>
+          <CardDescription>
+            {tTaFinals('activeEliminated', { active: activeEntries.length, eliminated: eliminatedEntries.length })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">#</TableHead>
+                <TableHead>{tCommon('player')}</TableHead>
+                <TableHead className="text-center">{tTaFinals('lives')}</TableHead>
+                <TableHead className="text-right">{tCommon('actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry, index) => (
+                <TableRow
+                  key={entry.id}
+                  className={entry.eliminated ? "opacity-50" : ""}
+                >
+                  <TableCell className="font-bold">{index + 1}</TableCell>
+                  <TableCell className="font-medium">
+                    {entry.player.nickname}
+                    {entry.eliminated && (
+                      <Badge
+                        variant="destructive"
+                        className="ml-2 text-xs"
+                      >
+                        {tCommon('eliminated')}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {renderLives(entry.lives, entry.eliminated)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!entry.eliminated && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEntryToEliminate(entry);
+                          setIsEliminateDialogOpen(true);
+                        }}
+                      >
+                        {tTaFinals('eliminate')}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* === Round History Section ===
+       * Collapsible to save vertical space. Uses a simple state toggle
+       * rather than an Accordion component (YAGNI -- no new dependency needed).
+       * Defaults to collapsed since admin rarely needs to review past rounds
+       * while actively running the current round.
+       */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>{tTaFinals('roundHistory')}</CardTitle>
+              <CardDescription>
+                {tTaFinals('roundsCompleted', { count: completedRoundsCount })}
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryExpanded((prev) => !prev)}
+            >
+              {historyExpanded ? tCommon('hide') : tCommon('show')}
+            </Button>
+          </div>
+        </CardHeader>
+        {historyExpanded && (
+          <CardContent>
+            {rounds.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                {tTaFinals('noRoundsYet')}
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {[...rounds]
+                  .filter((r) => (r.results as unknown[]).length > 0)
+                  .reverse()
+                  .map((round) => {
+                    const courseInfo = COURSE_INFO.find(
+                      (c) => c.abbr === round.course
+                    );
+                    const sortedResults = [...round.results].sort(
+                      (a, b) => a.timeMs - b.timeMs
+                    );
+                    const halfPoint = Math.ceil(sortedResults.length / 2);
+                    return (
+                      <div
+                        key={round.id}
+                        className="border rounded-lg p-4 space-y-2"
+                      >
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold">
+                            {tTaFinals('roundCourse', {
+                              number: round.roundNumber,
+                              course: courseInfo?.name || round.course,
+                            })}
+                          </h4>
+                          <div className="flex gap-2">
+                            {round.livesReset && (
+                              <Badge className="bg-yellow-500 text-black">
+                                {tTaFinals('livesReset')}
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
+                              {round.course}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {sortedResults.map((result, idx) => {
+                            const isEliminated =
+                              round.eliminatedIds?.includes(result.playerId);
+                            // Bottom half loses a life (shown with visual indicator)
+                            const isBottomHalf = idx >= halfPoint;
+                            return (
+                              <div
+                                key={result.playerId}
+                                className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : isBottomHalf ? "text-orange-500" : ""}`}
+                              >
+                                <span>
+                                  {idx + 1}.{" "}
+                                  {playerNames[result.playerId] ||
+                                    result.playerId}
+                                  {result.isRetry && (
+                                    <Badge
+                                      variant="outline"
+                                      className="ml-1 text-xs"
+                                    >
+                                      {tCommon('retry')}
+                                    </Badge>
+                                  )}
+                                  {isBottomHalf && !isEliminated && ` ${tTaFinals('minusOneLife')}`}
+                                  {isEliminated && ` ${tTaFinals('eliminatedTag')}`}
+                                </span>
+                                <span className="font-mono">
+                                  {msToDisplayTime(result.timeMs)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <Input
-                        type="text"
-                        placeholder="M:SS.mmm"
-                        value={courseTimes[entry.playerId] || ""}
-                        onChange={(e) =>
-                          handleTimeChange(entry.playerId, e.target.value)
-                        }
-                        disabled={retryFlags[entry.playerId]}
-                        className="font-mono w-32"
-                      />
-                      <Button
-                        variant={
-                          retryFlags[entry.playerId]
-                            ? "destructive"
-                            : "outline"
-                        }
-                        size="sm"
-                        onClick={() => handleRetryToggle(entry.playerId)}
-                        title="Mark as retry (penalty: 9:59.990)"
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowCancelConfirm(true)}
-                    disabled={submitting || cancellingRound}
-                  >
-                    Cancel Round
-                  </Button>
-                  <Button onClick={handleSubmitResults} disabled={submitting}>
-                    {submitting
-                      ? "Submitting..."
-                      : "Submit & Deduct Lives"}
-                  </Button>
-                </div>
-
-                {/* Cancel confirmation dialog to prevent accidental round deletion */}
-                <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Cancel Round?</DialogTitle>
-                      <DialogDescription>
-                        This will delete the round record and return the course
-                        ({currentRound?.course}) to the available pool. This action
-                        cannot be undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowCancelConfirm(false)}
-                        disabled={cancellingRound}
-                      >
-                        Keep Round
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={handleCancelRound}
-                        disabled={cancellingRound}
-                      >
-                        {cancellingRound ? "Cancelling..." : "Yes, Cancel Round"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
         )}
-
-        {/* Standings Tab */}
-        <TabsContent value="standings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Finals Standings</CardTitle>
-              <CardDescription>
-                {activeEntries.length} active, {eliminatedEntries.length}{" "}
-                eliminated
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">#</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-center">Lives</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry, index) => (
-                    <TableRow
-                      key={entry.id}
-                      className={entry.eliminated ? "opacity-50" : ""}
-                    >
-                      <TableCell className="font-bold">{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {entry.player.nickname}
-                        {entry.eliminated && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-2 text-xs"
-                          >
-                            Eliminated
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {renderLives(entry.lives, entry.eliminated)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {!entry.eliminated && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEntryToEliminate(entry);
-                              setIsEliminateDialogOpen(true);
-                            }}
-                          >
-                            Eliminate
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Round History Tab */}
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle>Round History</CardTitle>
-              <CardDescription>
-                {rounds.filter((r) => (r.results as unknown[]).length > 0)
-                  .length}{" "}
-                rounds completed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {rounds.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  No rounds played yet
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {[...rounds]
-                    .filter((r) => (r.results as unknown[]).length > 0)
-                    .reverse()
-                    .map((round) => {
-                      const courseInfo = COURSE_INFO.find(
-                        (c) => c.abbr === round.course
-                      );
-                      const sortedResults = [...round.results].sort(
-                        (a, b) => a.timeMs - b.timeMs
-                      );
-                      const halfPoint = Math.ceil(sortedResults.length / 2);
-                      return (
-                        <div
-                          key={round.id}
-                          className="border rounded-lg p-4 space-y-2"
-                        >
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">
-                              Round {round.roundNumber} —{" "}
-                              {courseInfo?.name || round.course}
-                            </h4>
-                            <div className="flex gap-2">
-                              {round.livesReset && (
-                                <Badge className="bg-yellow-500 text-black">
-                                  Lives Reset
-                                </Badge>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className="font-mono text-xs"
-                              >
-                                {round.course}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            {sortedResults.map((result, idx) => {
-                              const isEliminated =
-                                round.eliminatedIds?.includes(result.playerId);
-                              // Bottom half loses a life (shown with visual indicator)
-                              const isBottomHalf = idx >= halfPoint;
-                              return (
-                                <div
-                                  key={result.playerId}
-                                  className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : isBottomHalf ? "text-orange-500" : ""}`}
-                                >
-                                  <span>
-                                    {idx + 1}.{" "}
-                                    {playerNames[result.playerId] ||
-                                      result.playerId}
-                                    {result.isRetry && (
-                                      <Badge
-                                        variant="outline"
-                                        className="ml-1 text-xs"
-                                      >
-                                        Retry
-                                      </Badge>
-                                    )}
-                                    {isBottomHalf && !isEliminated && " (-1 life)"}
-                                    {isEliminated && " (Eliminated)"}
-                                  </span>
-                                  <span className="font-mono">
-                                    {msToDisplayTime(result.timeMs)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tournament Control Tab */}
-        {!isComplete && !currentRound && (
-          <TabsContent value="control">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tournament Control</CardTitle>
-                <CardDescription>
-                  Start a new round with a randomly selected course
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {saveError && (
-                    <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
-                      <p className="text-destructive text-sm">{saveError}</p>
-                    </div>
-                  )}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Active Players:</span>
-                      <span className="font-bold">
-                        {activeEntries.length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Eliminated Players:</span>
-                      <span className="font-bold">
-                        {eliminatedEntries.length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Rounds Completed:</span>
-                      <span className="font-bold">
-                        {rounds.filter(
-                          (r) => (r.results as unknown[]).length > 0
-                        ).length}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleStartRound}
-                    disabled={startingRound || hasOpenRound}
-                  >
-                    {startingRound
-                      ? "Selecting Course..."
-                      : hasOpenRound
-                        ? "Complete Open Round First"
-                        : `Start Round ${rounds.length + 1}`}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
+      </Card>
 
       {/* Manual Elimination Confirmation Dialog */}
       <AlertDialog
@@ -954,16 +972,15 @@ export default function TimeAttackFinals({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminate Player?</AlertDialogTitle>
+            <AlertDialogTitle>{tTaFinals('eliminatePlayerTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark {entryToEliminate?.player.nickname} as eliminated.
-              This action cannot be undone.
+              {tTaFinals('eliminatePlayerDesc', { player: entryToEliminate?.player.nickname || '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleEliminatePlayer}>
-              Eliminate
+              {tTaFinals('eliminate')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

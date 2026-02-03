@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 import { resolve } from "path";
+import createNextIntlPlugin from 'next-intl/plugin';
+
+/**
+ * next-intl plugin wraps the Next.js config to enable i18n support.
+ * Points to the request config at src/i18n/request.ts which handles
+ * locale detection (cookie → browser Accept-Language → default).
+ */
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   /**
@@ -13,4 +21,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

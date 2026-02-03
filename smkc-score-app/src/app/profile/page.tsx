@@ -27,6 +27,7 @@
 
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -56,6 +57,8 @@ interface Player {
  */
 export default function ProfilePage() {
     const { data: session } = useSession()
+    const t = useTranslations('profile')
+    const tc = useTranslations('common')
 
     /* Loading state for initial data fetch */
     const [loading, setLoading] = useState(true)
@@ -127,16 +130,16 @@ export default function ProfilePage() {
             })
 
             if (res.ok) {
-                toast.success("Linked successfully!")
+                toast.success(t('linkedSuccess'))
                 /* Update local state to show the linked player immediately */
                 const player = players.find(p => p.id === selectedPlayerId)
                 if (player) setLinkedPlayer(player)
             } else {
                 const error = await res.json()
-                toast.error(error.error || "Failed to link")
+                toast.error(error.error || t('failedToLink'))
             }
         } catch {
-            toast.error("Failed to link")
+            toast.error(t('failedToLink'))
         } finally {
             setIsLinking(false)
         }
@@ -157,20 +160,20 @@ export default function ProfilePage() {
 
     return (
         <div className="container max-w-2xl py-10">
-            <h1 className="text-3xl font-bold mb-8">Profile</h1>
+            <h1 className="text-3xl font-bold mb-8">{t('title')}</h1>
 
             {/* User Information Card - displays session data */}
             <Card className="mb-8">
                 <CardHeader>
-                    <CardTitle>User Information</CardTitle>
+                    <CardTitle>{t('userInfo')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-[100px_1fr] gap-4">
-                        <div className="font-medium">Name:</div>
+                        <div className="font-medium">{t('name')}</div>
                         <div>{session?.user?.name}</div>
-                        <div className="font-medium">Email:</div>
+                        <div className="font-medium">{t('email')}</div>
                         <div>{session?.user?.email}</div>
-                        <div className="font-medium">Role:</div>
+                        <div className="font-medium">{t('role')}</div>
                         <div className="capitalize">{session?.user?.role || "member"}</div>
                     </div>
                 </CardContent>
@@ -185,9 +188,9 @@ export default function ProfilePage() {
              */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Player Association</CardTitle>
+                    <CardTitle>{t('playerAssociation')}</CardTitle>
                     <CardDescription>
-                        Link your account to a player profile to submit scores.
+                        {t('linkDescription')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -195,10 +198,10 @@ export default function ProfilePage() {
                         /* Success state: player is linked to this account */
                         <div className="bg-green-50 p-4 rounded-md border border-green-200">
                             <p className="font-medium text-green-800">
-                                Encoded as: {linkedPlayer.nickname} ({linkedPlayer.name})
+                                {t('encodedAs', { nickname: linkedPlayer.nickname, name: linkedPlayer.name })}
                             </p>
                             <p className="text-sm text-green-600 mt-1">
-                                You can now submit scores for this player.
+                                {t('canSubmitScores')}
                             </p>
                         </div>
                     ) : (
@@ -209,10 +212,10 @@ export default function ProfilePage() {
                          */
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="player">Select your player profile</Label>
+                                <Label htmlFor="player">{t('selectPlayerProfile')}</Label>
                                 <Select onValueChange={setSelectedPlayerId} value={selectedPlayerId}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select a player..." />
+                                        <SelectValue placeholder={t('selectPlayerPlaceholder')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {players.filter(p => !p.userId).map(player => (
@@ -230,7 +233,7 @@ export default function ProfilePage() {
                 {!linkedPlayer && (
                     <CardFooter>
                         <Button onClick={handleLink} disabled={!selectedPlayerId || isLinking}>
-                            {isLinking ? "Linking..." : "Claim Profile"}
+                            {isLinking ? t('linking') : t('claimProfile')}
                         </Button>
                     </CardFooter>
                 )}

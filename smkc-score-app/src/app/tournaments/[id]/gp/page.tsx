@@ -19,6 +19,7 @@
  */
 
 import { useState, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -120,6 +121,8 @@ export default function GrandPrixPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const t = useTranslations('gp');
+  const tc = useTranslations('common');
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
@@ -196,7 +199,7 @@ export default function GrandPrixPage({
    */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
-      alert("Please add at least one player");
+      alert(tc('addAtLeastOnePlayer'));
       return;
     }
 
@@ -247,7 +250,7 @@ export default function GrandPrixPage({
    */
   const handleMatchSubmit = async () => {
     if (!selectedMatch || !selectedCup) {
-      alert("Please select a cup");
+      alert(tc('pleaseSelectCup'));
       return;
     }
 
@@ -257,7 +260,7 @@ export default function GrandPrixPage({
     );
 
     if (completedRaces.length !== 4) {
-      alert("Please complete all 4 races");
+      alert(tc('pleaseCompleteAllRaces'));
       return;
     }
 
@@ -336,10 +339,10 @@ export default function GrandPrixPage({
   if (!pollData && pollError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Grand Prix</h1>
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{pollError}</p>
-          <Button onClick={refetch}>Retry</Button>
+          <Button onClick={refetch}>{tc('retry')}</Button>
         </div>
       </div>
     );
@@ -366,9 +369,9 @@ export default function GrandPrixPage({
       {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Grand Prix</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground">
-            Cup-based races with driver points
+            {t('qualificationDesc')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -380,12 +383,12 @@ export default function GrandPrixPage({
             onClick={handleExport}
             disabled={exporting}
           >
-            {exporting ? "Exporting..." : "Export to Excel"}
+            {exporting ? tc('exporting') : tc('exportToExcel')}
           </Button>
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/gp/finals`}>
-                Go to Finals
+                {tc('goToFinals')}
               </Link>
             </Button>
           )}
@@ -393,21 +396,21 @@ export default function GrandPrixPage({
           <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
-                {qualifications.length > 0 ? "Reset Setup" : "Setup Groups"}
+                {qualifications.length > 0 ? tc('resetSetup') : tc('setupGroups')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Setup Grand Prix Groups</DialogTitle>
+                <DialogTitle>{t('setupDialogTitle')}</DialogTitle>
                 <DialogDescription>
-                  Assign players to groups for the qualification round.
+                  {t('setupDialogDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 {/* Player selection dropdown */}
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <Label>Select Player</Label>
+                    <Label>{tc('selectPlayer')}</Label>
                     <Select
                       onValueChange={(playerId) => {
                         const player = allPlayers.find((p) => p.id === playerId);
@@ -417,7 +420,7 @@ export default function GrandPrixPage({
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose player..." />
+                        <SelectValue placeholder={tc('choosePlayer')} />
                       </SelectTrigger>
                       <SelectContent>
                         {allPlayers
@@ -437,18 +440,18 @@ export default function GrandPrixPage({
                 {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
-                    Selected Players ({setupPlayers.length})
+                    {tc('selectedPlayers', { count: setupPlayers.length })}
                   </h4>
                   {setupPlayers.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      No players selected yet
+                      {tc('noPlayersSelected')}
                     </p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Player</TableHead>
-                          <TableHead>Group</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead>{tc('group')}</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -491,7 +494,7 @@ export default function GrandPrixPage({
                                     removePlayerFromSetup(sp.playerId)
                                   }
                                 >
-                                  Remove
+                                  {tc('remove')}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -503,7 +506,7 @@ export default function GrandPrixPage({
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleSetup}>Create Groups & Matches</Button>
+                <Button onClick={handleSetup}>{t('createGroupsAndMatches')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -514,15 +517,15 @@ export default function GrandPrixPage({
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No groups set up yet. Click &quot;Setup Groups&quot; to begin.
+            {t('noGroupsYet')}
           </CardContent>
         </Card>
       ) : (
         /* Tabs for standings and match list views */
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="standings">Standings</TabsTrigger>
-            <TabsTrigger value="matches">Matches</TabsTrigger>
+            <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
+            <TabsTrigger value="matches">{tc('matches')}</TabsTrigger>
           </TabsList>
 
           {/* Standings tab: group-by-group qualification tables */}
@@ -531,9 +534,9 @@ export default function GrandPrixPage({
               {groups.map((group) => (
                 <Card key={group}>
                   <CardHeader>
-                    <CardTitle>Group {group}</CardTitle>
+                    <CardTitle>{tc('groupLabel', { group })}</CardTitle>
                     <CardDescription>
-                      {qualifications.filter((q) => q.group === group).length} players
+                      {tc('playersCount', { count: qualifications.filter((q) => q.group === group).length })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -541,12 +544,12 @@ export default function GrandPrixPage({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-12">#</TableHead>
-                          <TableHead>Player</TableHead>
-                          <TableHead className="text-center">MP</TableHead>
-                          <TableHead className="text-center">W</TableHead>
-                          <TableHead className="text-center">T</TableHead>
-                          <TableHead className="text-center">L</TableHead>
-                          <TableHead className="text-center">Pts</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead className="text-center">{t('mp')}</TableHead>
+                          <TableHead className="text-center">{t('w')}</TableHead>
+                          <TableHead className="text-center">{t('t')}</TableHead>
+                          <TableHead className="text-center">{t('l')}</TableHead>
+                          <TableHead className="text-center">{t('pts')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -580,9 +583,9 @@ export default function GrandPrixPage({
           <TabsContent value="matches">
             <Card>
               <CardHeader>
-                <CardTitle>Match List</CardTitle>
+                <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
-                  {matches.filter((m) => m.completed).length} / {matches.length} completed
+                  {tc('completedOf', { completed: matches.filter((m) => m.completed).length, total: matches.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -590,10 +593,10 @@ export default function GrandPrixPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-16">#</TableHead>
-                      <TableHead>Player 1</TableHead>
-                      <TableHead className="text-center w-24">Points</TableHead>
-                      <TableHead>Player 2</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead>{tc('player1')}</TableHead>
+                      <TableHead className="text-center w-24">{tc('points')}</TableHead>
+                      <TableHead>{tc('player2')}</TableHead>
+                      <TableHead className="text-right">{tc('actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -630,7 +633,7 @@ export default function GrandPrixPage({
                             asChild
                           >
                             <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
-                              Share
+                              {tc('share')}
                             </Link>
                           </Button>
                           <Button
@@ -638,7 +641,7 @@ export default function GrandPrixPage({
                             size="sm"
                             onClick={() => openMatchDialog(match)}
                           >
-                            {match.completed ? "Edit" : "Enter Result"}
+                            {match.completed ? tc('edit') : tc('enterResult')}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -655,7 +658,7 @@ export default function GrandPrixPage({
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Result</DialogTitle>
+            <DialogTitle>{t('enterMatchResult')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -669,10 +672,10 @@ export default function GrandPrixPage({
           <div className="space-y-4 py-4">
             {/* Cup selection - determines which 5 courses are available */}
             <div>
-              <Label>Select Cup</Label>
+              <Label>{t('selectCup')}</Label>
               <Select value={selectedCup} onValueChange={setSelectedCup}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select cup..." />
+                  <SelectValue placeholder={t('selectCupPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {CUPS.map((cup) => (
@@ -689,10 +692,10 @@ export default function GrandPrixPage({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Race</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead className="text-center">P1 Position</TableHead>
-                    <TableHead className="text-center">P2 Position</TableHead>
+                    <TableHead className="w-16">{tc('race')}</TableHead>
+                    <TableHead>{tc('course')}</TableHead>
+                    <TableHead className="text-center">{t('p1Position')}</TableHead>
+                    <TableHead className="text-center">{t('p2Position')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -701,7 +704,7 @@ export default function GrandPrixPage({
                     return (
                       <TableRow key={index}>
                         <TableCell className="font-medium">
-                          Race {index + 1}
+                          {tc('race')} {index + 1}
                         </TableCell>
                         <TableCell>
                           <Select
@@ -713,7 +716,7 @@ export default function GrandPrixPage({
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select course..." />
+                              <SelectValue placeholder={tc('selectCourse')} />
                             </SelectTrigger>
                             <SelectContent>
                               {cupCourses.map((course) => (
@@ -738,11 +741,11 @@ export default function GrandPrixPage({
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Position..." />
+                              <SelectValue placeholder={tc('position')} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">1st</SelectItem>
-                              <SelectItem value="2">2nd</SelectItem>
+                              <SelectItem value="1">{tc('first')}</SelectItem>
+                              <SelectItem value="2">{tc('second')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -757,11 +760,11 @@ export default function GrandPrixPage({
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Position..." />
+                              <SelectValue placeholder={tc('position')} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">1st</SelectItem>
-                              <SelectItem value="2">2nd</SelectItem>
+                              <SelectItem value="1">{tc('first')}</SelectItem>
+                              <SelectItem value="2">{tc('second')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -775,7 +778,7 @@ export default function GrandPrixPage({
             {/* Live driver points calculation preview */}
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm font-medium mb-2">
-                Driver Points: 1st = 9pts, 2nd = 6pts
+                {t('driverPoints')}
               </p>
               {selectedMatch && (
                 <div className="flex gap-4 justify-center">
@@ -806,7 +809,7 @@ export default function GrandPrixPage({
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleMatchSubmit}>Save Result</Button>
+            <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

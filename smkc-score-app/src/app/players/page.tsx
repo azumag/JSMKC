@@ -26,6 +26,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,8 @@ interface Player {
  */
 export default function PlayersPage() {
   const { data: session } = useSession();
+  const t = useTranslations('players');
+  const tc = useTranslations('common');
 
   /**
    * Admin role check: only OAuth-authenticated users with admin role
@@ -183,12 +186,12 @@ export default function PlayersPage() {
         fetchPlayers();
       } else {
         const data = await response.json();
-        setError(data.error || "Failed to create player");
+        setError(data.error || t('failedToCreate'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to create player:", metadata);
-      setError("Failed to create player");
+      setError(t('failedToCreate'));
     }
   };
 
@@ -211,12 +214,12 @@ export default function PlayersPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Failed to update player");
+        setError(data.error || t('failedToUpdate'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to update player:", metadata);
-      setError("Failed to update player");
+      setError(t('failedToUpdate'));
     }
   };
 
@@ -225,7 +228,7 @@ export default function PlayersPage() {
    * Uses browser confirm() as a simple guard against accidental deletion.
    */
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this player?")) return;
+    if (!confirm(tc('confirmDeletePlayer'))) return;
 
     try {
       const response = await fetch(`/api/players/${id}`, {
@@ -298,10 +301,10 @@ export default function PlayersPage() {
       {/* Page header with title and Add Player button (admin only) */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Players</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           {/* Role-appropriate subtitle text */}
           <p className="text-muted-foreground">
-            {isAdmin ? "Manage tournament participants" : "View tournament participants"}
+            {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
           </p>
         </div>
         {/* Add Player dialog - only rendered for admin users */}
@@ -309,14 +312,14 @@ export default function PlayersPage() {
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setFormData({ name: "", nickname: "", country: "" })}>
-                Add Player
+                {tc('addPlayer')}
               </Button>
             </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Player</DialogTitle>
+              <DialogTitle>{t('addNewPlayer')}</DialogTitle>
               <DialogDescription>
-                Enter the player&apos;s information below.
+                {t('enterPlayerInfo')}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
@@ -325,43 +328,43 @@ export default function PlayersPage() {
                   <div className="text-red-500 text-sm">{error}</div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">{t('fullName')}</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="e.g., Alessandro Sona"
+                    placeholder={t('fullNamePlaceholder')}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nickname">Nickname</Label>
+                  <Label htmlFor="nickname">{t('nickname')}</Label>
                   <Input
                     id="nickname"
                     value={formData.nickname}
                     onChange={(e) =>
                       setFormData({ ...formData, nickname: e.target.value })
                     }
-                    placeholder="e.g., Ale"
+                    placeholder={t('nicknamePlaceholder')}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="country">Country (optional)</Label>
+                  <Label htmlFor="country">{t('countryOptional')}</Label>
                   <Input
                     id="country"
                     value={formData.country}
                     onChange={(e) =>
                       setFormData({ ...formData, country: e.target.value })
                     }
-                    placeholder="e.g., Italy"
+                    placeholder={t('countryPlaceholder')}
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Add Player</Button>
+                <Button type="submit">{tc('addPlayer')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -372,9 +375,9 @@ export default function PlayersPage() {
       {/* Player list table wrapped in a card */}
       <Card>
         <CardHeader>
-          <CardTitle>Player List</CardTitle>
+          <CardTitle>{t('playerList')}</CardTitle>
           <CardDescription>
-            {players.length} player{players.length !== 1 ? "s" : ""} registered
+            {t('playersRegistered', { count: players.length })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -382,18 +385,18 @@ export default function PlayersPage() {
             /* Empty state message - differs by role */
             <div className="text-center py-8 text-muted-foreground">
               {isAdmin
-                ? "No players registered yet. Add your first player to get started."
-                : "No players registered yet."}
+                ? t('noPlayersAdmin')
+                : t('noPlayersView')}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nickname</TableHead>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Country</TableHead>
+                  <TableHead>{t('nickname')}</TableHead>
+                  <TableHead>{t('fullName')}</TableHead>
+                  <TableHead>{t('country')}</TableHead>
                   {/* Actions column only visible to admins */}
-                  {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                  {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -412,14 +415,14 @@ export default function PlayersPage() {
                           size="sm"
                           onClick={() => openEditDialog(player)}
                         >
-                          Edit
+                          {tc('edit')}
                         </Button>
                         <Button
                           variant="destructive"
                           size="sm"
                           onClick={() => handleDelete(player.id)}
                         >
-                          Delete
+                          {tc('delete')}
                         </Button>
                       </TableCell>
                     )}
@@ -435,16 +438,16 @@ export default function PlayersPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Player</DialogTitle>
+            <DialogTitle>{t('editPlayer')}</DialogTitle>
             <DialogDescription>
-              Update the player&apos;s information.
+              {t('updatePlayerInfo')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate}>
             <div className="space-y-4 py-4">
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <div className="space-y-2">
-                <Label htmlFor="edit-name">Full Name</Label>
+                <Label htmlFor="edit-name">{t('fullName')}</Label>
                 <Input
                   id="edit-name"
                   value={formData.name}
@@ -455,7 +458,7 @@ export default function PlayersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-nickname">Nickname</Label>
+                <Label htmlFor="edit-nickname">{t('nickname')}</Label>
                 <Input
                   id="edit-nickname"
                   value={formData.nickname}
@@ -466,7 +469,7 @@ export default function PlayersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-country">Country (optional)</Label>
+                <Label htmlFor="edit-country">{t('countryOptional')}</Label>
                 <Input
                   id="edit-country"
                   value={formData.country}
@@ -477,7 +480,7 @@ export default function PlayersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit">{t('saveChanges')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -493,14 +496,14 @@ export default function PlayersPage() {
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Player Created Successfully</DialogTitle>
+            <DialogTitle>{t('createdSuccess')}</DialogTitle>
             <DialogDescription>
-              Save this password securely. It will only be shown once.
+              {t('savePasswordWarning')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Temporary Password</Label>
+              <Label>{t('temporaryPassword')}</Label>
               <div className="flex gap-2">
                 <Input
                   value={temporaryPassword}
@@ -514,17 +517,17 @@ export default function PlayersPage() {
                     navigator.clipboard.writeText(temporaryPassword);
                   }}
                 >
-                  Copy
+                  {tc('copy')}
                 </Button>
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
-              Please provide this password to the player. They can use it to log in with their nickname.
+              {t('passwordNote')}
             </div>
           </div>
           <DialogFooter>
             <Button onClick={() => setIsPasswordDialogOpen(false)}>
-              I&apos;ve Saved It
+              {t('savedIt')}
             </Button>
           </DialogFooter>
         </DialogContent>

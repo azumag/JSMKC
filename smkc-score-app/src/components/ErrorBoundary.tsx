@@ -20,6 +20,7 @@
  */
 
 import React, { ErrorInfo, ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,14 @@ interface ErrorBoundaryProps {
  */
 export function ErrorFallback({ error, resetError }: { error: Error | null; resetError?: () => void }) {
   /**
+   * Translation hook for the "errors" namespace.
+   * useTranslations is valid here because ErrorFallback is a function component.
+   * The class-based ErrorBoundary delegates rendering to this component,
+   * so all user-facing strings are resolved through next-intl translations.
+   */
+  const t = useTranslations("errors");
+
+  /**
    * Determine if the error is likely recoverable (transient) based on
    * keywords in the error message. Network-related errors may resolve
    * on retry, while programming errors (e.g., TypeError) generally will not.
@@ -77,23 +86,23 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
     error?.message?.includes("timeout");
 
   /**
-   * Maps error message content to user-friendly descriptions.
+   * Maps error message content to user-friendly translated descriptions.
    * Falls back to a generic message if no known pattern matches.
    * This avoids exposing raw error details to end users while still
    * providing useful guidance for common failure scenarios.
    */
   const getErrorMessage = () => {
-    if (!error?.message) return "An unexpected error occurred.";
+    if (!error?.message) return t("unexpected");
     if (error.message.includes("fetch")) {
-      return "Unable to load data. Please refresh the page.";
+      return t("fetchError");
     }
     if (error.message.includes("network")) {
-      return "Connection error. Please check your internet connection.";
+      return t("networkError");
     }
     if (error.message.includes("timeout")) {
-      return "Request timed out. Please try again.";
+      return t("timeoutError");
     }
-    return "Something went wrong. Please try again.";
+    return t("genericError");
   };
 
   return (
@@ -101,7 +110,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-5 w-5" />
-          Error Occurred
+          {t("errorOccurred")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -127,7 +136,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
           {isRecoverable && resetError && (
             <Button onClick={resetError} variant="outline" size="sm">
               <RefreshCw className="mr-2 h-4 w-4" />
-              Try Again
+              {t("tryAgain")}
             </Button>
           )}
           {/*
@@ -139,7 +148,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
             variant="outline"
             size="sm"
           >
-            Go Back
+            {t("goBack")}
           </Button>
         </div>
       </CardContent>

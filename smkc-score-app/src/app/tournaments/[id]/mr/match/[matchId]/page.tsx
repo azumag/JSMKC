@@ -16,6 +16,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,6 +92,18 @@ export default function MatchDetailPage({
   params: Promise<{ id: string; matchId: string }>;
 }) {
   const { id: tournamentId, matchId } = use(params);
+
+  /**
+   * i18n translation hooks for Match Race Match detail page.
+   * - 'match': Shared match-level strings (enter result, submit, back, etc.)
+   * - 'mr': Match Race mode-specific strings (match title)
+   * - 'common': Shared UI strings (race, course, winner, etc.)
+   * Hooks must be called at the top of the component before any state/effect hooks.
+   */
+  const tMatch = useTranslations('match');
+  const tMr = useTranslations('mr');
+  const tCommon = useTranslations('common');
+
   const [match, setMatch] = useState<MRMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
@@ -235,7 +248,8 @@ export default function MatchDetailPage({
   if (!match || !tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Match not found</p>
+        {/* i18n: Match not found message */}
+        <p>{tMatch('matchNotFound')}</p>
       </div>
     );
   }
@@ -250,7 +264,8 @@ export default function MatchDetailPage({
         {/* Tournament and match header */}
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
-          <p className="text-muted-foreground">Match Race - Match #{match.matchNumber}</p>
+          {/* i18n: Match title from 'mr' namespace with match number */}
+          <p className="text-muted-foreground">{tMr('matchTitle', { number: match.matchNumber })}</p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
           </div>
@@ -278,15 +293,17 @@ export default function MatchDetailPage({
         {!match.completed && !submitted && (
           <Card>
             <CardHeader>
-              <CardTitle>Enter Result</CardTitle>
+              {/* i18n: Score entry form header */}
+              <CardTitle>{tMatch('enterResult')}</CardTitle>
               <CardDescription>
-                Select who you are and enter the race results
+                {tMatch('selectIdentityRace')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Player identity selection */}
               <div className="space-y-2">
-                <p className="text-sm font-medium">I am:</p>
+                {/* i18n: Player identity selection label */}
+                <p className="text-sm font-medium">{tMatch('iAm')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={selectedPlayer === 1 ? "default" : "outline"}
@@ -310,7 +327,8 @@ export default function MatchDetailPage({
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-center">Current Score</p>
+                      {/* i18n: Current score label */}
+                      <p className="text-sm font-medium text-center">{tMatch('currentScore')}</p>
                       <p className="text-sm font-medium text-center">
                         {p1Wins} - {p2Wins}
                       </p>
@@ -321,7 +339,8 @@ export default function MatchDetailPage({
                   <div className="space-y-3">
                     {rounds.map((round, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <span className="text-sm font-medium w-20">Race {index + 1}</span>
+                        {/* i18n: Race number label */}
+                        <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
                         <Select
                           value={round.course}
                           onValueChange={(value) => {
@@ -351,7 +370,8 @@ export default function MatchDetailPage({
                           }}
                           className="w-24"
                         >
-                          {selectedPlayer === 1 ? "I Won" : `${match.player1.nickname} Won`}
+                          {/* i18n: Winner buttons use 'I Won' or 'Player Won' depending on identity */}
+                          {selectedPlayer === 1 ? tMatch('iWon') : tMatch('playerWon', { player: match.player1.nickname })}
                         </Button>
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
@@ -363,7 +383,7 @@ export default function MatchDetailPage({
                           }}
                           className="w-24"
                         >
-                          {selectedPlayer === 2 ? "I Won" : `${match.player2.nickname} Won`}
+                          {selectedPlayer === 2 ? tMatch('iWon') : tMatch('playerWon', { player: match.player2.nickname })}
                         </Button>
                       </div>
                     ))}
@@ -381,7 +401,8 @@ export default function MatchDetailPage({
                     onClick={handleSubmit}
                     disabled={submitting || !canSubmit()}
                   >
-                    {submitting ? "Submitting..." : "Submit Result"}
+                    {/* i18n: Submit button with loading state */}
+                    {submitting ? tMatch('submitting') : tMatch('submitResult')}
                   </Button>
                 </div>
               )}
@@ -394,12 +415,13 @@ export default function MatchDetailPage({
           <Card>
             <CardContent className="py-8 text-center">
               <div className="text-4xl mb-4">&#10003;</div>
-              <h3 className="text-lg font-semibold mb-2">Result Submitted!</h3>
+              {/* i18n: Post-submission confirmation messages */}
+              <h3 className="text-lg font-semibold mb-2">{tMatch('resultSubmitted')}</h3>
               <p className="text-muted-foreground">
-                Waiting for the other player to confirm...
+                {tMatch('waitingConfirm')}
               </p>
               <p className="text-sm mt-4">
-                Your report: {p1Wins} - {p2Wins}
+                {tMatch('yourReport', { score1: p1Wins, score2: p2Wins })}
               </p>
             </CardContent>
           </Card>
@@ -409,24 +431,27 @@ export default function MatchDetailPage({
         {match.completed && match.rounds && (
           <Card>
             <CardHeader>
-              <CardTitle>Match Complete</CardTitle>
+              {/* i18n: Completed match header with final score */}
+              <CardTitle>{tMatch('matchComplete')}</CardTitle>
               <CardDescription>
-                Final Score: {match.score1} - {match.score2}
+                {tMatch('finalScore', { score1: match.score1, score2: match.score2 })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table className="text-sm">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Race</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead>Winner</TableHead>
+                    {/* i18n: Completed match table headers */}
+                    <TableHead>{tCommon('race')}</TableHead>
+                    <TableHead>{tCommon('course')}</TableHead>
+                    <TableHead>{tCommon('winner')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {match.rounds.map((round, index) => (
                     <TableRow key={index}>
-                      <TableCell>Race {index + 1}</TableCell>
+                      {/* i18n: Race number in completed match table */}
+                      <TableCell>{tMatch('raceN', { n: index + 1 })}</TableCell>
                       <TableCell>{getCourseName(round.course)}</TableCell>
                       <TableCell className="font-medium">
                         {round.winner === 1
@@ -439,12 +464,13 @@ export default function MatchDetailPage({
                   ))}
                 </TableBody>
               </Table>
+              {/* i18n: Match winner announcement or draw */}
               <p className="mt-4 text-center">
                 {match.score1 >= 3
-                  ? `${match.player1.nickname} wins!`
+                  ? tMatch('playerWins', { player: match.player1.nickname })
                   : match.score2 >= 3
-                  ? `${match.player2.nickname} wins!`
-                  : "Draw"}
+                  ? tMatch('playerWins', { player: match.player2.nickname })
+                  : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -456,7 +482,8 @@ export default function MatchDetailPage({
             href={`/tournaments/${tournamentId}/mr`}
             className="text-sm text-muted-foreground hover:underline"
           >
-            &larr; Back to Match Race
+            {/* i18n: Back navigation to MR main page */}
+            &larr; {tMatch('backToMR')}
           </Link>
         </div>
       </div>

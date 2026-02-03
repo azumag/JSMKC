@@ -9,6 +9,7 @@
  */
 
 import { use } from "react";
+import { useTranslations } from 'next-intl';
 import TAEliminationPhase from "@/components/tournament/ta-elimination-phase";
 
 export default function Phase2Page({
@@ -17,13 +18,15 @@ export default function Phase2Page({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  /** i18n: Use taFinals namespace for phase title and description */
+  const tTaFinals = useTranslations('taFinals');
 
   return (
     <TAEliminationPhase
       tournamentId={tournamentId}
       phase="phase2"
-      title="Phase 2"
-      description="Phase 1 survivors + Qualification ranks 13-16 (8 players → 4 survivors)"
+      title={tTaFinals('phase2Title')}
+      description={tTaFinals('phase2Desc')}
       targetSurvivors={4}
     />
   );

@@ -1,0 +1,140 @@
+[01:30:15.790] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/client/components/builtin/global-not-found'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.812] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.825] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.840] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.950] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/client/components/builtin/global-not-found'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.964] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.980] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:15.999] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:16.020] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/client/components/builtin/global-not-found'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:16.039] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:16.058] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[01:30:16.079] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:38:54.009] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/client/components/builtin/global-not-found'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:38:54.037] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:38:54.047] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:38:54.056] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:39:01.937] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/client/components/builtin/global-not-found'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:39:01.947] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:39:01.957] Server  ERROR   ⨯ Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js
+[02:39:01.967] Server  ERROR   Error: Cannot find module 'next/dist/pages/_error'
+Require stack:
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/on-demand-entry-handler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/dev/hot-reloader-turbopack.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/router-server.js
+- /Users/azumag/work/JSMKC/jsmkc-app/node_modules/next/dist/server/lib/start-server.js

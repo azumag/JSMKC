@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +108,11 @@ export default function RevivalRound2({
 }) {
   const { id: tournamentId } = use(params);
 
+  // i18n: "revival" namespace for revival-round-specific strings,
+  // "common" namespace for shared UI labels (player, cancel, retry, etc.)
+  const tRevival = useTranslations('revival');
+  const tCommon = useTranslations('common');
+
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,7 +190,7 @@ export default function RevivalRound2({
       });
 
       if (entryTimes.length < 2) {
-        setSaveError("Need at least 2 valid times to compare");
+        setSaveError(tRevival('needAtLeast2Times'));
         setEliminating(false);
         return;
       }
@@ -267,15 +273,15 @@ export default function RevivalRound2({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Loser&apos;s Revival Round 2</h1>
+          <h1 className="text-3xl font-bold">{tRevival('round2Title')}</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
+            <Link href={`/tournaments/${tournamentId}/ta`}>{tRevival('backToQualification')}</Link>
           </Button>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
+            <Button onClick={fetchData}>{tCommon('retry')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -288,18 +294,18 @@ export default function RevivalRound2({
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Loser&apos;s Revival Round 2</h1>
-            <p className="text-muted-foreground">Sudden death - players 13-16 + round 1 survivors</p>
+            <h1 className="text-3xl font-bold">{tRevival('round2Title')}</h1>
+            <p className="text-muted-foreground">{tRevival('round2Subtitle')}</p>
           </div>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
+            <Link href={`/tournaments/${tournamentId}/ta`}>{tRevival('backToQualification')}</Link>
           </Button>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>No Players</CardTitle>
+            <CardTitle>{tRevival('noPlayersTitle')}</CardTitle>
             <CardDescription>
-              Complete qualification round and revival round 1, then promote players to revival round 2.
+              {tRevival('noPlayersRound2Desc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -313,13 +319,13 @@ export default function RevivalRound2({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Loser&apos;s Revival Round 2</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">{tRevival('round2Title')}</h1>
              <p className="text-muted-foreground text-sm sm:text-base">
-              {isComplete ? "Round Complete" : `${activeEntries.length} players remaining`}
+              {isComplete ? tRevival('roundComplete') : tRevival('playersRemaining', { count: activeEntries.length })}
             </p>
         </div>
         <Button variant="outline" asChild>
-          <Link href={`/tournaments/${tournamentId}/ta`}>Back to Qualification</Link>
+          <Link href={`/tournaments/${tournamentId}/ta`}>{tRevival('backToQualification')}</Link>
         </Button>
       </div>
 
@@ -328,9 +334,9 @@ export default function RevivalRound2({
         <Card className="border-green-500 bg-green-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">✓</div>
-            <h2 className="text-2xl font-bold">Finals Qualifiers (4)</h2>
+            <h2 className="text-2xl font-bold">{tRevival('finalsQualifiers', { count: 4 })}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Advancing to finals
+              {tRevival('advancingToFinals')}
             </p>
           </CardContent>
         </Card>
@@ -339,29 +345,29 @@ export default function RevivalRound2({
       {/* Tabbed Content */}
       <Tabs defaultValue="standings" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="standings">Standings</TabsTrigger>
-          <TabsTrigger value="courses">Course Progress</TabsTrigger>
-          {!isComplete && <TabsTrigger value="control">Round Control</TabsTrigger>}
+          <TabsTrigger value="standings">{tRevival('standings')}</TabsTrigger>
+          <TabsTrigger value="courses">{tRevival('courseProgress')}</TabsTrigger>
+          {!isComplete && <TabsTrigger value="control">{tRevival('roundControl')}</TabsTrigger>}
         </TabsList>
 
         {/* Standings Tab: includes Source column for revival_2 */}
         <TabsContent value="standings">
           <Card>
             <CardHeader>
-              <CardTitle>Standings</CardTitle>
+              <CardTitle>{tRevival('standings')}</CardTitle>
               <CardDescription>
-                {activeEntries.length} active, {eliminatedEntries.length} eliminated
+                {tRevival('activeEliminated', { active: activeEntries.length, eliminated: eliminatedEntries.length })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Rank</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Total Time</TableHead>
-                    <TableHead>Source</TableHead>
+                    <TableHead className="w-16">{tRevival('rank')}</TableHead>
+                    <TableHead>{tCommon('player')}</TableHead>
+                    <TableHead className="text-center">{tRevival('status')}</TableHead>
+                    <TableHead className="text-right">{tRevival('totalTime')}</TableHead>
+                    <TableHead>{tRevival('source')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -372,15 +378,15 @@ export default function RevivalRound2({
                         {entry.player.nickname}
                         {entry.eliminated && (
                           <Badge variant="destructive" className="ml-2 text-xs">
-                            Eliminated
+                            {tRevival('eliminated')}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
                         {entry.eliminated ? (
-                          <span className="text-gray-400">Out</span>
+                          <span className="text-gray-400">{tRevival('out')}</span>
                         ) : (
-                          <Badge className="bg-blue-500">Active</Badge>
+                          <Badge className="bg-blue-500">{tRevival('active')}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono">
@@ -388,7 +394,7 @@ export default function RevivalRound2({
                       </TableCell>
                       {/* Source column shows where each player came from */}
                       <TableCell className="text-xs">
-                        {entry.stage === "revival_1" ? "Revival 1" : "Qualification (13-16)"}
+                        {entry.stage === "revival_1" ? tRevival('revival1Source') : tRevival('qualificationSource')}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -402,8 +408,8 @@ export default function RevivalRound2({
         <TabsContent value="courses">
           <Card>
             <CardHeader>
-              <CardTitle>Course Progress</CardTitle>
-              <CardDescription>Track completion per course</CardDescription>
+              <CardTitle>{tRevival('courseProgress')}</CardTitle>
+              <CardDescription>{tRevival('trackCompletion')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -423,13 +429,13 @@ export default function RevivalRound2({
                       </div>
                       <div className="flex items-center gap-2">
                         {progress.completed ? (
-                          <Badge className="bg-green-500">Complete</Badge>
+                          <Badge className="bg-green-500">{tRevival('complete')}</Badge>
                         ) : !isComplete ? (
                           <Button size="sm" onClick={() => handleCourseStart(progress.course)}>
-                            Start
+                            {tRevival('start')}
                           </Button>
                         ) : (
-                          <Badge variant="outline">Skipped</Badge>
+                          <Badge variant="outline">{tRevival('skipped')}</Badge>
                         )}
                       </div>
                     </div>
@@ -445,15 +451,15 @@ export default function RevivalRound2({
           <TabsContent value="control">
             <Card>
               <CardHeader>
-                <CardTitle>Round Control</CardTitle>
+                <CardTitle>{tRevival('roundControl')}</CardTitle>
                 <CardDescription>
-                  Start courses and manage elimination tournament
+                  {tRevival('startCoursesManage')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="font-semibold mb-2">Next Course</h3>
+                    <h3 className="font-semibold mb-2">{tRevival('nextCourse')}</h3>
                     <div className="flex gap-2 flex-wrap">
                       {getCourseProgress()
                         .filter((p) => !p.completed)
@@ -472,18 +478,18 @@ export default function RevivalRound2({
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">Round Status</h3>
+                    <h3 className="font-semibold mb-2">{tRevival('roundStatus')}</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Active Players:</span>
+                        <span>{tRevival('activePlayers')}</span>
                         <span className="font-bold">{activeEntries.length}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Eliminated Players:</span>
+                        <span>{tRevival('eliminatedPlayers')}</span>
                         <span className="font-bold">{eliminatedEntries.length}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Target Survivors:</span>
+                        <span>{tRevival('targetSurvivors')}</span>
                         <span className="font-bold text-blue-500">4</span>
                       </div>
                     </div>
@@ -500,10 +506,10 @@ export default function RevivalRound2({
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedCourse && COURSE_INFO.find((c) => c.abbr === selectedCourse)?.name} - Time Entry
+              {tRevival('timeEntry', { course: COURSE_INFO.find((c) => c.abbr === selectedCourse)?.name || selectedCourse || '' })}
             </DialogTitle>
             <DialogDescription>
-              Enter times for all remaining players. Slowest player(s) will be eliminated.
+              {tRevival('enterTimesSlowEliminated')}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -535,10 +541,10 @@ export default function RevivalRound2({
               onClick={() => setIsCourseDialogOpen(false)}
               disabled={eliminating}
             >
-              Cancel
+              {tCommon('cancel')}
             </Button>
             <Button onClick={handleSaveCourseTimes} disabled={eliminating}>
-              {eliminating ? "Saving & Eliminating..." : "Save & Eliminate Slowest"}
+              {eliminating ? tRevival('savingAndEliminating') : tRevival('saveAndEliminateSlowest')}
             </Button>
           </DialogFooter>
         </DialogContent>

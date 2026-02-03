@@ -31,6 +31,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,8 @@ import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { Dice5 } from "lucide-react";
+import { toast } from "sonner";
 
 /** Player data structure from the API */
 interface Player {
@@ -114,6 +117,8 @@ export default function TimeAttackPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const t = useTranslations('ta');
+  const tc = useTranslations('common');
 
   // === State Management ===
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +140,35 @@ export default function TimeAttackPage({
 
   // Export state
   const [exporting, setExporting] = useState(false);
+
+  // Development-only: Random time fill feature
+  const isDevelopment = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || 
+     window.location.hostname === '127.0.0.1' ||
+     window.location.port === '3000' ||
+     window.location.port === '3001');
+
+  // Admin-only: Fill all course times with random values for testing
+  const handleFillRandomTimes = () => {
+    const randomTimes: Record<string, string> = {};
+    
+    COURSE_INFO.forEach((course) => {
+      // Generate random time between 45 seconds and 3 minutes 30 seconds
+      const minMs = 45000; // 45 seconds
+      const maxMs = 210000; // 3:30
+      const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+      
+      // Convert to M:SS.mmm format
+      const minutes = Math.floor(randomMs / 60000);
+      const seconds = Math.floor((randomMs % 60000) / 1000);
+      const milliseconds = randomMs % 1000;
+      
+      randomTimes[course.abbr] = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    });
+    
+    setTimeInputs(randomTimes);
+    toast.success('Random times filled for all courses');
+  };
 
   // Phase promotion states
   const [phaseStatus, setPhaseStatus] = useState<{
@@ -376,7 +410,7 @@ export default function TimeAttackPage({
 
   /** Delete an entry from the qualification round (with confirmation) */
   const handleDeleteEntry = async (entryId: string) => {
-    if (!confirm("Are you sure you want to remove this player?")) return;
+    if (!confirm(tc('confirmRemovePlayer'))) return;
 
     try {
       const response = await fetch(
@@ -443,10 +477,10 @@ export default function TimeAttackPage({
   if (!pollData && error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Time Attack</h1>
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{error}</p>
-          <Button onClick={refetch}>Retry</Button>
+          <Button onClick={refetch}>{tc('retry')}</Button>
         </div>
       </div>
     );
@@ -472,12 +506,12 @@ export default function TimeAttackPage({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Time Attack</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={refetch}>Retry</Button>
+            <Button onClick={refetch}>{tc('retry')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -490,21 +524,21 @@ export default function TimeAttackPage({
       {/* Header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Time Attack - Qualification</h1>
+          <h1 className="text-3xl font-bold">{t('qualificationTitle')}</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            Top 12 advance to finals • Players 13-16 to revival round 2 • Players 17-24 to revival round 1
+            {t('qualificationDesc')}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
-            {exporting ? "Exporting..." : "Export Excel"}
+            {exporting ? tc('exporting') : tc('exportExcel')}
           </Button>
           <Button
             variant="default"
             onClick={() => setIsPromoteDialogOpen(true)}
             disabled={entries.length === 0}
           >
-            Promote to Finals ({finalsCount})
+            {t('promoteToFinals', { count: finalsCount })}
           </Button>
           {/* Finals page link: shown only when players have been promoted.
              Uses outline variant to visually distinguish from the adjacent
@@ -512,7 +546,7 @@ export default function TimeAttackPage({
           {finalsCount > 0 && (
             <Button variant="outline" asChild>
               <Link href={`/tournaments/${tournamentId}/ta/finals`}>
-                Go to Finals
+                {tc('goToFinals')}
               </Link>
             </Button>
           )}
@@ -520,31 +554,31 @@ export default function TimeAttackPage({
           <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Promote Players to Finals</DialogTitle>
+                <DialogTitle>{t('promoteDialogTitle')}</DialogTitle>
                 <DialogDescription>
-                  Select players to promote to the finals stage
+                  {t('promoteDialogDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
                 <div>
-                  <Label>Promotion Mode</Label>
+                  <Label>{t('promotionMode')}</Label>
                   <Tabs defaultValue="topN" className="mt-2">
                     <TabsList className="w-full">
                       <TabsTrigger
                         value="topN"
                         onClick={() => setPromotionMode("topN")}
                       >
-                        Top N Players
+                        {t('topNPlayers')}
                       </TabsTrigger>
                       <TabsTrigger
                         value="manual"
                         onClick={() => setPromotionMode("manual")}
                       >
-                        Manual Selection
+                        {t('manualSelection')}
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="topN" className="mt-4">
-                      <Label>Number of players to promote</Label>
+                      <Label>{t('numberOfPlayers')}</Label>
                       <Input
                         type="number"
                         min="1"
@@ -556,7 +590,7 @@ export default function TimeAttackPage({
                     </TabsContent>
                     <TabsContent value="manual" className="mt-4">
                       {entries.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">No players added yet</p>
+                        <p className="text-muted-foreground text-sm">{t('noPlayersAdded')}</p>
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {entries
@@ -581,7 +615,7 @@ export default function TimeAttackPage({
                                   <span>{entry.player.nickname}</span>
                                   {entry.totalTime === null && (
                                     <Badge variant="destructive" className="text-xs">
-                                      Incomplete
+                                      {t('incomplete')}
                                     </Badge>
                                   )}
                                 </div>
@@ -593,7 +627,7 @@ export default function TimeAttackPage({
                         </div>
                       )}
                       <p className="text-sm text-muted-foreground">
-                        {selectedPlayerIds.length} players selected
+                        {t('playersSelected', { count: selectedPlayerIds.length })}
                       </p>
                     </TabsContent>
                   </Tabs>
@@ -601,7 +635,7 @@ export default function TimeAttackPage({
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsPromoteDialogOpen(false)}>
-                  Cancel
+                  {tc('cancel')}
                 </Button>
                 <Button
                   onClick={handlePromoteToFinals}
@@ -610,7 +644,7 @@ export default function TimeAttackPage({
                     (promotionMode === "manual" && selectedPlayerIds.length === 0)
                   }
                 >
-                  {promoting ? "Promoting..." : "Promote to Finals"}
+                  {promoting ? tc('promoting') : t('promoteButton')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -624,20 +658,20 @@ export default function TimeAttackPage({
             }}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto">Add Player</Button>
+              <Button variant="outline" className="w-full sm:w-auto">{tc('addPlayer')}</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add Player to Time Attack</DialogTitle>
+                <DialogTitle>{t('addPlayerToTA')}</DialogTitle>
                 <DialogDescription>
-                  Select a player to add to the qualification round.
+                  {t('selectPlayerToAdd')}
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">
-                <Label>Select Player</Label>
+                <Label>{tc('selectPlayer')}</Label>
                 <Select onValueChange={handleAddPlayer}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose player..." />
+                    <SelectValue placeholder={tc('choosePlayer')} />
                   </SelectTrigger>
                   <SelectContent>
                     {availablePlayers.map((player) => (
@@ -660,27 +694,27 @@ export default function TimeAttackPage({
       {entries.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Finals Phases</CardTitle>
+            <CardTitle>{t('finalsPhases')}</CardTitle>
             <CardDescription>
-              Phase 1 (ranks 17-24) → Phase 2 (+ranks 13-16) → Phase 3 (+ranks 1-12)
+              {t('finalsPhaseDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Phase 1: Only relevant when there are ≥17 qualified players (ranks 17-24) */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">Phase 1</h4>
-                <p className="text-sm text-muted-foreground">Ranks 17-24 (8→4)</p>
+                <h4 className="font-semibold">{t('phase1')}</h4>
+                <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
                 {phaseStatus?.phase1 ? (
                   <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase1.active} active</span>
+                    <span className="text-green-600">{phaseStatus.phase1.active} {tc('active')}</span>
                     {" / "}
-                    <span className="text-red-500">{phaseStatus.phase1.eliminated} eliminated</span>
+                    <span className="text-red-500">{phaseStatus.phase1.eliminated} {tc('eliminated')}</span>
                   </div>
                 ) : !phase1HasPlayers ? (
-                  <p className="text-sm text-muted-foreground">Skipped (fewer than 17 players)</p>
+                  <p className="text-sm text-muted-foreground">{t('phase1Skipped')}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Not started</p>
+                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
                   {!phaseStatus?.phase1 && phase1HasPlayers && (
@@ -689,12 +723,12 @@ export default function TimeAttackPage({
                       onClick={() => handlePromoteToPhase("promote_phase1")}
                       disabled={promotingPhase !== null}
                     >
-                      {promotingPhase === "promote_phase1" ? "Promoting..." : "Start Phase 1"}
+                      {promotingPhase === "promote_phase1" ? tc('promoting') : t('startPhase1')}
                     </Button>
                   )}
                   {phaseStatus?.phase1 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/phase1`}>Go to Phase 1</Link>
+                      <Link href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</Link>
                     </Button>
                   )}
                 </div>
@@ -702,18 +736,18 @@ export default function TimeAttackPage({
 
               {/* Phase 2: Accessible when Phase 1 exists OR Phase 1 is skipped (no eligible players) */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">Phase 2</h4>
-                <p className="text-sm text-muted-foreground">Phase 1 survivors + ranks 13-16 (8→4)</p>
+                <h4 className="font-semibold">{t('phase2')}</h4>
+                <p className="text-sm text-muted-foreground">{t('phase2Desc')}</p>
                 {phaseStatus?.phase2 ? (
                   <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase2.active} active</span>
+                    <span className="text-green-600">{phaseStatus.phase2.active} {tc('active')}</span>
                     {" / "}
-                    <span className="text-red-500">{phaseStatus.phase2.eliminated} eliminated</span>
+                    <span className="text-red-500">{phaseStatus.phase2.eliminated} {tc('eliminated')}</span>
                   </div>
                 ) : !phase2HasPlayers ? (
-                  <p className="text-sm text-muted-foreground">Skipped (fewer than 13 players)</p>
+                  <p className="text-sm text-muted-foreground">{t('phase2Skipped')}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Not started</p>
+                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
                   {!phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
@@ -722,12 +756,12 @@ export default function TimeAttackPage({
                       onClick={() => handlePromoteToPhase("promote_phase2")}
                       disabled={promotingPhase !== null}
                     >
-                      {promotingPhase === "promote_phase2" ? "Promoting..." : "Start Phase 2"}
+                      {promotingPhase === "promote_phase2" ? tc('promoting') : t('startPhase2')}
                     </Button>
                   )}
                   {phaseStatus?.phase2 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/phase2`}>Go to Phase 2</Link>
+                      <Link href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</Link>
                     </Button>
                   )}
                 </div>
@@ -735,21 +769,21 @@ export default function TimeAttackPage({
 
               {/* Phase 3: Accessible when Phase 2 exists OR Phase 1+2 are skipped */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">Phase 3 (Finals)</h4>
-                <p className="text-sm text-muted-foreground">Phase 2 survivors + ranks 1-12 (16→1)</p>
+                <h4 className="font-semibold">{t('phase3')}</h4>
+                <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
                 {phaseStatus?.phase3 ? (
                   <div className="text-sm">
-                    <span className="text-green-600">{phaseStatus.phase3.active} active</span>
+                    <span className="text-green-600">{phaseStatus.phase3.active} {tc('active')}</span>
                     {" / "}
-                    <span className="text-red-500">{phaseStatus.phase3.eliminated} eliminated</span>
+                    <span className="text-red-500">{phaseStatus.phase3.eliminated} {tc('eliminated')}</span>
                     {phaseStatus.phase3.winner && (
                       <span className="ml-2 text-yellow-600 font-bold">
-                        Champion: {phaseStatus.phase3.winner}
+                        {t('champion', { name: phaseStatus.phase3.winner })}
                       </span>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Not started</p>
+                  <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
                   {!phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
@@ -758,12 +792,12 @@ export default function TimeAttackPage({
                       onClick={() => handlePromoteToPhase("promote_phase3")}
                       disabled={promotingPhase !== null}
                     >
-                      {promotingPhase === "promote_phase3" ? "Promoting..." : "Start Phase 3"}
+                      {promotingPhase === "promote_phase3" ? tc('promoting') : t('startPhase3')}
                     </Button>
                   )}
                   {phaseStatus?.phase3 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/finals`}>Go to Finals</Link>
+                      <Link href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</Link>
                     </Button>
                   )}
                 </div>
@@ -777,35 +811,34 @@ export default function TimeAttackPage({
       {entries.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No players added yet. Click &quot;Add Player&quot; to begin.
+            {t('noPlayersYet')}
           </CardContent>
         </Card>
       ) : (
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="standings">Standings</TabsTrigger>
-            <TabsTrigger value="times">Time Entry</TabsTrigger>
+            <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
+            <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>
           </TabsList>
 
           {/* Standings Tab: Ranked list of players */}
           <TabsContent value="standings">
             <Card>
               <CardHeader>
-                <CardTitle>Qualification Standings</CardTitle>
+                <CardTitle>{t('qualificationStandings')}</CardTitle>
                 <CardDescription>
-                  {entries.filter((e) => e.totalTime !== null).length} /{" "}
-                  {entries.length} players completed
+                  {t('playersCompleted', { completed: entries.filter((e) => e.totalTime !== null).length, total: entries.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">Rank</TableHead>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="text-center">Progress</TableHead>
-                      <TableHead className="text-right">Points</TableHead>
-                      <TableHead className="text-right">Total Time</TableHead>
+                      <TableHead className="w-16">{t('rank')}</TableHead>
+                      <TableHead>{tc('player')}</TableHead>
+                      <TableHead className="text-center">{t('progress')}</TableHead>
+                      <TableHead className="text-right">{tc('points')}</TableHead>
+                      <TableHead className="text-right">{t('totalTime')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -845,19 +878,19 @@ export default function TimeAttackPage({
           <TabsContent value="times">
             <Card>
               <CardHeader>
-                <CardTitle>Time Entry</CardTitle>
+                <CardTitle>{t('timeEntry')}</CardTitle>
                 <CardDescription>
-                  Enter times for each player (format: M:SS.mmm)
+                  {t('timeEntryDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="text-center">Progress</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right w-32">Action</TableHead>
+                      <TableHead>{tc('player')}</TableHead>
+                      <TableHead className="text-center">{t('progress')}</TableHead>
+                      <TableHead className="text-right">{t('total')}</TableHead>
+                      <TableHead className="text-right w-32">{t('action')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -877,14 +910,14 @@ export default function TimeAttackPage({
                             size="sm"
                             onClick={() => openTimeEntryDialog(entry)}
                           >
-                            Edit Times
+                            {t('editTimes')}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteEntry(entry.id)}
                           >
-                            Remove
+                            {tc('remove')}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -908,10 +941,10 @@ export default function TimeAttackPage({
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Enter Times - {selectedEntry?.player.nickname}
+              {t('enterTimesFor', { nickname: selectedEntry?.player.nickname ?? '' })}
             </DialogTitle>
             <DialogDescription>
-              Enter time for each course (format: M:SS.mmm, e.g., 1:23.456)
+              {t('enterTimeCourseDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -925,7 +958,7 @@ export default function TimeAttackPage({
               {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                 <Card key={cup}>
                   <CardHeader className="py-2">
-                    <CardTitle className="text-sm">{cup} Cup</CardTitle>
+                    <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
@@ -952,15 +985,31 @@ export default function TimeAttackPage({
               ))}
             </div>
           </div>
+          
+          {/* Development-only: Fill random times button */}
+          {isDevelopment && (
+            <div className="px-6 py-2">
+              <Button
+                onClick={handleFillRandomTimes}
+                variant="outline"
+                disabled={saving}
+                className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+              >
+                <Dice5 className="h-4 w-4 mr-2" />
+                Fill Random Times (Dev Only)
+              </Button>
+            </div>
+          )}
+          
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setIsTimeEntryDialogOpen(false)}
             >
-              Cancel
+              {tc('cancel')}
             </Button>
             <Button onClick={handleSaveTimes} disabled={saving}>
-              {saving ? "Saving..." : "Save Times"}
+              {saving ? tc('saving') : tc('saveTimes')}
             </Button>
           </DialogFooter>
         </DialogContent>

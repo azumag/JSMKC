@@ -27,6 +27,8 @@
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+/* i18n: useTranslations hook for internationalized strings */
+import { useTranslations } from 'next-intl'
 import { AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -35,48 +37,51 @@ import { useSearchParams } from 'next/navigation'
  * ErrorPage - Displays authentication error with recovery options.
  *
  * Retrieves the error code using useSearchParams() hook from NextAuth's error
- * redirect flow. Maps the code to a Japanese error message and
+ * redirect flow. Maps the code to a translated error message and
  * shows contextual help for specific error types.
  */
 export default function ErrorPage() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
+  /* i18n: 'auth' namespace for all authentication-related strings */
+  const t = useTranslations('auth')
 
   /**
-   * Maps NextAuth error codes to Japanese user-friendly messages.
+   * Maps NextAuth error codes to translated user-friendly messages.
    * Each error code corresponds to a specific failure point in the
    * authentication flow, helping users understand what went wrong.
+   * Translation keys are defined in the 'auth' namespace of messages/*.json.
    *
    * @param error - The NextAuth error code string
-   * @returns Human-readable error description in Japanese
+   * @returns Translated error description
    */
   const getErrorMessage = (error: string | null) => {
     switch (error) {
       case 'OAuthSignin':
-        return 'OAuthサインインでエラーが発生しました。'
+        return t('oauthSigninError')
       case 'OAuthCallback':
-        return 'OAuthコールバックでエラーが発生しました。'
+        return t('oauthCallbackError')
       case 'OAuthCreateAccount':
-        return 'アカウント作成でエラーが発生しました。'
+        return t('oauthCreateAccountError')
       case 'EmailCreateAccount':
-        return 'メールアドレスでのアカウント作成でエラーが発生しました。'
+        return t('emailCreateAccountError')
       case 'AccessDenied':
         /* This occurs when signIn returns false, which happens when
          * there's a transient DB connection error after retry attempts. */
-        return 'アクセスが拒否されました。一時的なエラーの可能性があります。しばらくしてから再度お試しください。'
+        return t('accessDeniedError')
       case 'Callback':
-        return 'コールバックでエラーが発生しました。'
+        return t('callbackError')
       case 'OAuthAccountNotLinked':
         /* This occurs when the user's email is already associated with
          * a different OAuth provider (e.g., logged in with GitHub before,
          * now trying Discord with the same email address). */
-        return 'このメールアドレスは既に他のプロバイダーにリンクされています。'
+        return t('accountNotLinkedError')
       case 'SessionRequired':
-        return 'この操作にはセッションが必要です。'
+        return t('sessionRequiredError')
       case 'Default':
-        return '認証でエラーが発生しました。'
+        return t('genericAuthError')
       default:
-        return '認証で不明なエラーが発生しました。'
+        return t('unknownAuthError')
     }
   }
 
@@ -87,7 +92,7 @@ export default function ErrorPage() {
           {/* Error title with alert icon in destructive (red) color */}
           <CardTitle className="text-2xl flex items-center justify-center text-destructive">
             <AlertCircle className="mr-2 h-6 w-6" />
-            認証エラー
+            {t('errorTitle')}
           </CardTitle>
           <CardDescription>
             {getErrorMessage(error)}
@@ -103,8 +108,8 @@ export default function ErrorPage() {
             {(error === 'OAuthAccountNotLinked' || error === 'AccessDenied') && (
               <p>
                 {error === 'OAuthAccountNotLinked'
-                  ? 'jsmdc-orgのメンバーであることを確認してください。'
-                  : 'サーバーとの通信に問題が発生した可能性があります。時間をおいて再度ログインをお試しください。'}
+                  ? t('accountNotLinkedHelp')
+                  : t('accessDeniedHelp')}
               </p>
             )}
           </div>
@@ -112,12 +117,12 @@ export default function ErrorPage() {
           <div className="flex flex-col gap-2">
             <Button asChild>
               <Link href="/auth/signin">
-                再度ログイン
+                {t('retryLogin')}
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/">
-                トップページに戻る
+                {t('goHome')}
               </Link>
             </Button>
           </div>

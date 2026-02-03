@@ -26,6 +26,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,18 @@ export default function BattleModeFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /**
+   * i18n translation hooks for the finals page.
+   * Three namespaces are used:
+   * - 'finals': Finals-specific strings (bracket actions, dialogs, champion, etc.)
+   * - 'bm': Battle Mode shared strings (page title)
+   * - 'common': Shared UI strings (cancel, save, etc.)
+   * Hooks must be called at the top of the component before any other hooks.
+   */
+  const tFinals = useTranslations('finals');
+  const tBm = useTranslations('bm');
+  const tCommon = useTranslations('common');
 
   /* Bracket data state */
   const [matches, setMatches] = useState<BMMatch[]>([]);
@@ -291,14 +304,14 @@ export default function BattleModeFinals({
   return (
     <>
       {/* Full-screen loading overlay during bracket generation */}
-      <LoadingOverlay isOpen={creating} message="Generating bracket... Please wait." />
+      <LoadingOverlay isOpen={creating} message={tFinals('generatingBracket')} />
       <div className="space-y-6">
       {/* Page header with title, update indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode Finals</h1>
+          <h1 className="text-3xl font-bold">{tBm('finalsTitle')}</h1>
           <p className="text-muted-foreground">
-            Double Elimination Tournament
+            {tFinals('doubleElimination')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={new Date(lastETag || 0)} isPolling={!error && pollLoading} />
@@ -310,22 +323,20 @@ export default function BattleModeFinals({
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button disabled={creating} aria-label="Generate finals bracket">
-                   {creating ? "Creating..." : "Generate Bracket"}
+                   {creating ? tFinals('creating') : tFinals('generateBracket')}
                  </Button>
                </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Generate Finals Bracket?</AlertDialogTitle>
+                  <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will create a double elimination bracket using top
-                    8 players from qualification round. Make sure all
-                    qualification matches are completed.
+                    {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Generate
+                    {tFinals('generate')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -334,21 +345,20 @@ export default function BattleModeFinals({
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
-                   Reset Bracket
+                   {tFinals('resetBracket')}
                  </Button>
                </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Finals Bracket?</AlertDialogTitle>
+                  <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will delete all existing finals matches and create a
-                    new bracket. This action cannot be undone.
+                    {tFinals('resetConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Reset
+                    {tFinals('reset')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -357,7 +367,7 @@ export default function BattleModeFinals({
           {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/bm`}>
-              Back to Qualification
+              {tFinals('backToQualification')}
             </Link>
           </Button>
         </div>
@@ -368,7 +378,7 @@ export default function BattleModeFinals({
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">🏆</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
+            <h2 className="text-2xl font-bold">{tFinals('champion')}</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {champion.nickname}
             </p>
@@ -380,10 +390,10 @@ export default function BattleModeFinals({
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
-            Progress: {completedMatches} / {totalMatches} matches
+            {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
           </Badge>
           {completedMatches === totalMatches && totalMatches > 0 && (
-            <Badge className="bg-green-500">Tournament Complete</Badge>
+            <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
           )}
         </div>
       )}
@@ -392,33 +402,27 @@ export default function BattleModeFinals({
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Bracket Yet</CardTitle>
+            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
             <CardDescription>
-              Generate a bracket to start finals tournament.
+              {tFinals('generateBracketDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              The finals bracket will be generated using the top 8 players from
-              qualification standings. The bracket uses a double elimination
-              format:
+              {tFinals('bracketExplanation')}
             </p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
               <li>
-                <strong>Winners Bracket:</strong> Players who haven&apos;t lost
-                yet
+                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
               </li>
               <li>
-                <strong>Losers Bracket:</strong> Players with one loss get a
-                second chance
+                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
               </li>
               <li>
-                <strong>Grand Final:</strong> Winners champion vs Losers
-                champion
+                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
               </li>
               <li>
-                <strong>Reset Match:</strong> If Losers champion wins
-                Grand Final, a reset match determines the true champion
+                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
               </li>
             </ul>
           </CardContent>
@@ -445,7 +449,7 @@ export default function BattleModeFinals({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -513,7 +517,7 @@ export default function BattleModeFinals({
               scoreForm.score1 < 3 &&
               scoreForm.score2 < 3 && (
                 <p className="text-sm text-yellow-600 text-center">
-                  Match needs a winner (first to 3)
+                  {tFinals('matchNeedWinner')}
                 </p>
               )}
           </div>
@@ -523,7 +527,7 @@ export default function BattleModeFinals({
               onClick={handleScoreSubmit}
               disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
             >
-              Save Score
+              {tCommon('saveScore')}
             </Button>
           </DialogFooter>
         </DialogContent>

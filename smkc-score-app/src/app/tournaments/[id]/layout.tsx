@@ -22,6 +22,7 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,14 +44,16 @@ interface Tournament {
 
 /**
  * Tab configuration for the game mode navigation bar.
- * Each entry maps a URL path segment to its display label.
+ * Each entry maps a URL path segment to a translation key.
+ * The actual display label is resolved inside the component via useTranslations('tournaments'),
+ * because React hooks (including useTranslations) cannot be called outside components.
  */
 const TABS = [
-  { href: "ta", label: "Time Trial" },
-  { href: "bm", label: "Battle Mode" },
-  { href: "mr", label: "Match Race" },
-  { href: "gp", label: "Grand Prix" },
-  { href: "overall-ranking", label: "Overall" },
+  { href: "ta", labelKey: "timeTrial" },
+  { href: "bm", labelKey: "battleMode" },
+  { href: "mr", labelKey: "matchRace" },
+  { href: "gp", labelKey: "grandPrix" },
+  { href: "overall-ranking", labelKey: "overall" },
 ] as const;
 
 /**
@@ -99,6 +102,14 @@ export default function TournamentLayout({
   const { id } = use(params);
   const pathname = usePathname();
   const { data: session } = useSession();
+
+  /**
+   * Translation hooks for the tournaments namespace and common namespace.
+   * t() resolves keys from "tournaments" (e.g., tab labels, status badges).
+   * tc() resolves keys from "common" (e.g., generic messages like "not found").
+   */
+  const t = useTranslations("tournaments");
+  const tc = useTranslations("common");
 
   /**
    * Admin role check: controls visibility of status transition buttons,
@@ -169,11 +180,11 @@ export default function TournamentLayout({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="secondary">Draft</Badge>;
+        return <Badge variant="secondary">{t("draft")}</Badge>;
       case "active":
-        return <Badge variant="default">Active</Badge>;
+        return <Badge variant="default">{t("activeStatus")}</Badge>;
       case "completed":
-        return <Badge variant="outline">Completed</Badge>;
+        return <Badge variant="outline">{t("completed")}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -212,7 +223,7 @@ export default function TournamentLayout({
 
   /* 404-like state when tournament is not found or API returned an error */
   if (!tournament) {
-    return <div className="text-center py-8">Tournament not found</div>;
+    return <div className="text-center py-8">{tc("tournamentNotFound")}</div>;
   }
 
   const activeTab = getActiveTab(pathname);
@@ -240,12 +251,12 @@ export default function TournamentLayout({
              */}
             {isAdmin && tournament.status === "draft" && (
               <Button onClick={() => updateStatus("active")}>
-                Start Tournament
+                {t("startTournament")}
               </Button>
             )}
             {isAdmin && tournament.status === "active" && (
               <Button onClick={() => updateStatus("completed")}>
-                Complete Tournament
+                {t("completeTournament")}
               </Button>
             )}
             {/* Export button for downloading tournament data (admin only) */}
@@ -257,7 +268,7 @@ export default function TournamentLayout({
             )}
             {/* Back to list navigation */}
             <Button variant="outline" asChild>
-              <Link href="/tournaments">Back to List</Link>
+              <Link href="/tournaments">{t("backToList")}</Link>
             </Button>
           </div>
         </div>
@@ -288,7 +299,7 @@ export default function TournamentLayout({
                   : "hover:bg-background/50 hover:text-foreground"
               }`}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </Link>
           ))}
         </div>

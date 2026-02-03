@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,18 @@ export default function GrandPrixFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /**
+   * i18n translation hooks for Grand Prix Finals page.
+   * - 'finals': Shared finals bracket strings (generate, reset, champion, etc.)
+   * - 'gp': Grand Prix mode-specific strings (page title)
+   * - 'common': Shared UI strings (cancel, save, etc.)
+   * Hooks must be called at the top of the component before any state/effect hooks.
+   */
+  const tFinals = useTranslations('finals');
+  const tGp = useTranslations('gp');
+  const tCommon = useTranslations('common');
+
   const [matches, setMatches] = useState<GPMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
   const [seededPlayers, setSeededPlayers] = useState<SeededPlayer[]>([]);
@@ -255,9 +268,10 @@ export default function GrandPrixFinals({
       {/* Page header with bracket controls */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Grand Prix Finals</h1>
+          {/* i18n: Page title from 'gp' namespace, subtitle from 'finals' namespace */}
+          <h1 className="text-3xl font-bold">{tGp('finalsTitle')}</h1>
           <p className="text-muted-foreground">
-            Double Elimination Tournament
+            {tFinals('doubleElimination')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -269,22 +283,22 @@ export default function GrandPrixFinals({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
-                  {creating ? "Creating..." : "Generate Bracket"}
+                  {/* i18n: Generate bracket button with creating state */}
+                  {creating ? tFinals('creating') : tFinals('generateBracket')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Generate Finals Bracket?</AlertDialogTitle>
+                  {/* i18n: Generate bracket confirmation dialog */}
+                  <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will create a double elimination bracket using the top
-                    8 players from the qualification round. Make sure all
-                    qualification matches are completed.
+                    {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Generate
+                    {tFinals('generate')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -293,21 +307,22 @@ export default function GrandPrixFinals({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" disabled={creating}>
-                  Reset Bracket
+                  {/* i18n: Reset bracket button */}
+                  {tFinals('resetBracket')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Finals Bracket?</AlertDialogTitle>
+                  {/* i18n: Reset bracket confirmation dialog */}
+                  <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will delete all existing finals matches and create a
-                    new bracket. This action cannot be undone.
+                    {tFinals('resetConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Reset
+                    {tFinals('reset')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -315,7 +330,8 @@ export default function GrandPrixFinals({
           )}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/gp`}>
-              Back to Qualification
+              {/* i18n: Back navigation to qualification page */}
+              {tFinals('backToQualification')}
             </Link>
           </Button>
         </div>

@@ -26,6 +26,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,6 +81,9 @@ export default function OverallRankingPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  /* i18n translation hooks for overall ranking and common namespaces */
+  const tOverall = useTranslations('overall');
+  const tCommon = useTranslations('common');
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
   const [error, setError] = useState<string | null>(null);
@@ -187,16 +191,16 @@ export default function OverallRankingPage({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Overall Ranking</h1>
+          <h1 className="text-3xl font-bold">{tOverall('title')}</h1>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
             <div className="space-x-2">
-              <Button onClick={refetch}>Retry</Button>
+              <Button onClick={refetch}>{tCommon('retry')}</Button>
               {isAdmin && (
                 <Button variant="outline" onClick={handleRecalculate}>
-                  Calculate Rankings
+                  {tOverall('calculateRankings')}
                 </Button>
               )}
             </div>
@@ -226,13 +230,13 @@ export default function OverallRankingPage({
       {/* Page header with recalculate and back buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Overall Ranking</h1>
+          <h1 className="text-3xl font-bold">{tOverall('title')}</h1>
           <p className="text-muted-foreground">
-            {tournamentName} - Total points across all 4 modes
+            {tournamentName} - {tOverall('subtitle')}
           </p>
           {lastUpdated && (
             <p className="text-sm text-muted-foreground">
-              Last updated: {new Date(lastUpdated).toLocaleString()}
+              {tOverall('lastUpdated', { date: new Date(lastUpdated).toLocaleString() })}
             </p>
           )}
         </div>
@@ -242,7 +246,7 @@ export default function OverallRankingPage({
               onClick={handleRecalculate}
               disabled={recalculating}
             >
-              {recalculating ? "Recalculating..." : "Recalculate"}
+              {recalculating ? tOverall('recalculating') : tOverall('recalculate')}
             </Button>
           )}
         </div>
@@ -261,10 +265,10 @@ export default function OverallRankingPage({
         /* Empty state with calculate button */
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            <p className="mb-4">No rankings available yet.</p>
+            <p className="mb-4">{tOverall('noRankings')}</p>
             {isAdmin && (
               <Button onClick={handleRecalculate} disabled={recalculating}>
-                {recalculating ? "Calculating..." : "Calculate Rankings"}
+                {recalculating ? tOverall('calculating') : tOverall('calculateRankings')}
               </Button>
             )}
           </CardContent>
@@ -288,7 +292,7 @@ export default function OverallRankingPage({
                   <div className="text-3xl font-bold text-primary">
                     {ranking.totalPoints.toLocaleString()}
                   </div>
-                  <p className="text-sm text-muted-foreground">Total Points</p>
+                  <p className="text-sm text-muted-foreground">{tOverall('totalPoints')}</p>
                 </CardContent>
               </Card>
             ))}
@@ -297,22 +301,22 @@ export default function OverallRankingPage({
           {/* Full rankings table with mode-by-mode breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle>Complete Rankings</CardTitle>
+              <CardTitle>{tOverall('completeRankings')}</CardTitle>
               <CardDescription>
-                {rankings.length} players ranked by total tournament points
+                {tOverall('rankedByTotal', { count: rankings.length })}
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Rank</TableHead>
-                    <TableHead>Player</TableHead>
+                    <TableHead className="w-16">{tOverall('rank')}</TableHead>
+                    <TableHead>{tOverall('player')}</TableHead>
                     <TableHead className="text-right">TA</TableHead>
                     <TableHead className="text-right">BM</TableHead>
                     <TableHead className="text-right">MR</TableHead>
                     <TableHead className="text-right">GP</TableHead>
-                    <TableHead className="text-right font-bold">Total</TableHead>
+                    <TableHead className="text-right font-bold">{tOverall('total')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -369,22 +373,22 @@ export default function OverallRankingPage({
           {/* Points system legend explaining qualification and finals scoring */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Points System</CardTitle>
+              <CardTitle className="text-lg">{tOverall('pointsSystem')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <h4 className="font-medium mb-2">Qualification Points (max 1000 per mode)</h4>
+                  <h4 className="font-medium mb-2">{tOverall('qualificationPoints')}</h4>
                   <ul className="text-muted-foreground space-y-1">
-                    <li>TA: Linear interpolation by course rank (50 pts/course max)</li>
-                    <li>BM/MR/GP: Normalized match points (2×W + 1×T)</li>
+                    <li>{tOverall('taQualPoints')}</li>
+                    <li>{tOverall('otherQualPoints')}</li>
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-medium mb-2">Finals Points (max 2000 per mode)</h4>
+                  <h4 className="font-medium mb-2">{tOverall('finalsPoints')}</h4>
                   <ul className="text-muted-foreground space-y-1">
-                    <li>1st: 2000 | 2nd: 1600 | 3rd: 1300 | 4th: 1000</li>
-                    <li>5th-6th: 750 | 7th-8th: 550 | 9th-12th: 400</li>
+                    <li>{tOverall('finalsBreakdown1')}</li>
+                    <li>{tOverall('finalsBreakdown2')}</li>
                   </ul>
                 </div>
               </div>

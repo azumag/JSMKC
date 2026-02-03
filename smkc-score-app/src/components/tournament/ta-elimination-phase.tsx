@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,11 @@ export default function TAEliminationPhase({
   description,
   targetSurvivors,
 }: TAEliminationPhaseProps) {
+  // i18n: 'taElimination' namespace for phase-specific strings,
+  // 'common' namespace for shared UI labels (e.g., "Player")
+  const tElim = useTranslations('taElimination');
+  const tCommon = useTranslations('common');
+
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [rounds, setRounds] = useState<PhaseRound[]>([]);
@@ -455,14 +461,14 @@ export default function TAEliminationPhase({
           <h1 className="text-3xl font-bold">{title}</h1>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
-              Back to Qualification
+              {tElim('backToQualification')}
             </Link>
           </Button>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
+            <Button onClick={fetchData}>{tElim('retry')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -480,15 +486,15 @@ export default function TAEliminationPhase({
           </div>
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/ta`}>
-              Back to Qualification
+              {tElim('backToQualification')}
             </Link>
           </Button>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>No Players</CardTitle>
+            <CardTitle>{tElim('noPlayersTitle')}</CardTitle>
             <CardDescription>
-              Promote players from the qualification stage first.
+              {tElim('noPlayersDesc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -505,13 +511,13 @@ export default function TAEliminationPhase({
           <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
           <p className="text-muted-foreground text-sm sm:text-base">
             {isComplete
-              ? "Phase Complete"
-              : `${activeEntries.length} players remaining (target: ${targetSurvivors})`}
+              ? tElim('phaseComplete')
+              : tElim('playersRemaining', { count: activeEntries.length, target: targetSurvivors })}
           </p>
         </div>
         <Button variant="outline" asChild>
           <Link href={`/tournaments/${tournamentId}/ta`}>
-            Back to Qualification
+            {tElim('backToQualification')}
           </Link>
         </Button>
       </div>
@@ -522,7 +528,7 @@ export default function TAEliminationPhase({
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">&#10003;</div>
             <h2 className="text-2xl font-bold">
-              Survivors ({activeEntries.length})
+              {tElim('survivors', { count: activeEntries.length })}
             </h2>
             <div className="mt-2 space-y-1">
               {activeEntries.map((e) => (
@@ -538,11 +544,11 @@ export default function TAEliminationPhase({
       {/* Tabbed Content */}
       <Tabs defaultValue={currentRound ? "current" : "standings"} className="space-y-4">
         <TabsList>
-          {currentRound && <TabsTrigger value="current">Current Round</TabsTrigger>}
-          <TabsTrigger value="standings">Standings</TabsTrigger>
-          <TabsTrigger value="history">Round History</TabsTrigger>
+          {currentRound && <TabsTrigger value="current">{tElim('currentRound')}</TabsTrigger>}
+          <TabsTrigger value="standings">{tElim('standings')}</TabsTrigger>
+          <TabsTrigger value="history">{tElim('roundHistory')}</TabsTrigger>
           {!isComplete && !currentRound && (
-            <TabsTrigger value="control">Round Control</TabsTrigger>
+            <TabsTrigger value="control">{tElim('roundControl')}</TabsTrigger>
           )}
         </TabsList>
 
@@ -552,13 +558,10 @@ export default function TAEliminationPhase({
             <Card>
               <CardHeader>
                 <CardTitle>
-                  Round {currentRound.roundNumber} —{" "}
-                  {COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name ||
-                    currentRound.course}
+                  {tElim('roundTitle', { number: currentRound.roundNumber, course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course })}
                 </CardTitle>
                 <CardDescription>
-                  Enter times for all active players. The slowest player will be
-                  eliminated.
+                  {tElim('enterTimesDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -595,9 +598,9 @@ export default function TAEliminationPhase({
                         }
                         size="sm"
                         onClick={() => handleRetryToggle(entry.playerId)}
-                        title="Mark as retry (penalty: 9:59.990)"
+                        title={tElim('retryPenalty')}
                       >
-                        Retry
+                        {tElim('retry')}
                       </Button>
                     </div>
                   ))}
@@ -608,12 +611,12 @@ export default function TAEliminationPhase({
                     onClick={() => setShowCancelConfirm(true)}
                     disabled={submitting || cancellingRound}
                   >
-                    Cancel Round
+                    {tElim('cancelRound')}
                   </Button>
                   <Button onClick={handleSubmitResults} disabled={submitting}>
                     {submitting
-                      ? "Submitting..."
-                      : "Submit & Eliminate Slowest"}
+                      ? tElim('submitting')
+                      : tElim('submitAndEliminate')}
                   </Button>
                 </div>
 
@@ -621,11 +624,9 @@ export default function TAEliminationPhase({
                 <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Cancel Round?</DialogTitle>
+                      <DialogTitle>{tElim('cancelRoundTitle')}</DialogTitle>
                       <DialogDescription>
-                        This will delete the round record and return the course
-                        ({currentRound?.course}) to the available pool. This action
-                        cannot be undone.
+                        {tElim('cancelRoundDesc', { course: currentRound?.course || '' })}
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -634,14 +635,14 @@ export default function TAEliminationPhase({
                         onClick={() => setShowCancelConfirm(false)}
                         disabled={cancellingRound}
                       >
-                        Keep Round
+                        {tElim('keepRound')}
                       </Button>
                       <Button
                         variant="destructive"
                         onClick={handleCancelRound}
                         disabled={cancellingRound}
                       >
-                        {cancellingRound ? "Cancelling..." : "Yes, Cancel Round"}
+                        {cancellingRound ? tElim('cancelling') : tElim('yesCancelRound')}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -655,10 +656,9 @@ export default function TAEliminationPhase({
         <TabsContent value="standings">
           <Card>
             <CardHeader>
-              <CardTitle>Standings</CardTitle>
+              <CardTitle>{tElim('standings')}</CardTitle>
               <CardDescription>
-                {activeEntries.length} active, {eliminatedEntries.length}{" "}
-                eliminated
+                {tElim('activeEliminated', { active: activeEntries.length, eliminated: eliminatedEntries.length })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -666,7 +666,7 @@ export default function TAEliminationPhase({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">#</TableHead>
-                    <TableHead>Player</TableHead>
+                    <TableHead>{tCommon('player')}</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -684,15 +684,15 @@ export default function TAEliminationPhase({
                             variant="destructive"
                             className="ml-2 text-xs"
                           >
-                            Eliminated
+                            {tElim('eliminated')}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
                         {entry.eliminated ? (
-                          <span className="text-gray-400">Out</span>
+                          <span className="text-gray-400">{tElim('out')}</span>
                         ) : (
-                          <Badge className="bg-blue-500">Active</Badge>
+                          <Badge className="bg-blue-500">{tElim('active')}</Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -707,16 +707,15 @@ export default function TAEliminationPhase({
         <TabsContent value="history">
           <Card>
             <CardHeader>
-              <CardTitle>Round History</CardTitle>
+              <CardTitle>{tElim('roundHistory')}</CardTitle>
               <CardDescription>
-                {rounds.filter((r) => (r.results as unknown[]).length > 0).length}{" "}
-                rounds completed
+                {tElim('roundsCompleted', { count: rounds.filter((r) => (r.results as unknown[]).length > 0).length })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {rounds.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">
-                  No rounds played yet
+                  {tElim('noRoundsYet')}
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -738,7 +737,7 @@ export default function TAEliminationPhase({
                         >
                           <div className="flex justify-between items-center">
                             <h4 className="font-semibold">
-                              Round {round.roundNumber} — {courseInfo?.name || round.course}
+                              {tElim('roundTitle', { number: round.roundNumber, course: courseInfo?.name || round.course })}
                             </h4>
                             <Badge variant="outline" className="font-mono text-xs">
                               {round.course}
@@ -760,10 +759,10 @@ export default function TAEliminationPhase({
                                         variant="outline"
                                         className="ml-1 text-xs"
                                       >
-                                        Retry
+                                        {tElim('retry')}
                                       </Badge>
                                     )}
-                                    {isEliminated && " (Eliminated)"}
+                                    {isEliminated && ` (${tElim('eliminated')})`}
                                   </span>
                                   <span className="font-mono">
                                     {msToDisplayTime(result.timeMs)}

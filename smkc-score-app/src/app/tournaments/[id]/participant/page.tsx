@@ -26,6 +26,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +49,9 @@ export default function ParticipantEntryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  /* i18n translation hooks for participant and common namespaces */
+  const tPart = useTranslations('participant');
+  const tCommon = useTranslations('common');
   const { data: session, status: sessionStatus } = useSession();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -100,7 +104,7 @@ export default function ParticipantEntryPage({
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="text-lg mt-4">Loading...</p>
+          <p className="text-lg mt-4">{tCommon('loading')}</p>
         </div>
       </div>
     );
@@ -113,17 +117,17 @@ export default function ParticipantEntryPage({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Player Login Required</CardTitle>
+            <CardTitle>{tPart('playerLoginRequired')}</CardTitle>
             <CardDescription>
-              Please log in with your player credentials to access score entry
+              {tPart('loginToAccess')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href="/auth/signin">Log In</Link>
+              <Link href="/auth/signin">{tPart('logIn')}</Link>
             </Button>
             <p className="text-sm text-muted-foreground text-center">
-              Use the nickname and password provided by the tournament organizer.
+              {tPart('loginHelp')}
             </p>
           </CardContent>
         </Card>
@@ -138,7 +142,7 @@ export default function ParticipantEntryPage({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-            <CardTitle>Error</CardTitle>
+            <CardTitle>{tPart('error')}</CardTitle>
           </CardHeader>
           <CardContent>
             <Alert variant="destructive">
@@ -158,9 +162,9 @@ export default function ParticipantEntryPage({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Tournament Not Found</CardTitle>
+            <CardTitle>{tPart('tournamentNotFound')}</CardTitle>
             <CardDescription>
-              The requested tournament could not be loaded
+              {tPart('tournamentNotFoundDesc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -175,10 +179,10 @@ export default function ParticipantEntryPage({
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="h-8 w-8 text-green-600" />
-            <h1 className="text-3xl font-bold">Participant Score Entry</h1>
+            <h1 className="text-3xl font-bold">{tPart('scoreEntry')}</h1>
           </div>
           <Badge variant="default" className="mb-4">
-            Logged in as: {session?.user?.nickname || session?.user?.name}
+            {tPart('loggedInAs', { name: session?.user?.nickname || session?.user?.name || '' })}
           </Badge>
           <p className="text-lg text-muted-foreground">
             {tournament.name}
@@ -193,15 +197,15 @@ export default function ParticipantEntryPage({
           {/* Battle Mode Card */}
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle>Battle Mode</CardTitle>
+              <CardTitle>{tPart('battleMode')}</CardTitle>
               <CardDescription>
-                Report your 1v1 balloon battle results
+                {tPart('battleModeDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
                 <Link href={`/tournaments/${tournamentId}/bm/participant`}>
-                  Enter Battle Scores
+                  {tPart('enterBattleScores')}
                 </Link>
               </Button>
             </CardContent>
@@ -210,15 +214,15 @@ export default function ParticipantEntryPage({
           {/* Match Race Card */}
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle>Match Race</CardTitle>
+              <CardTitle>{tPart('matchRace')}</CardTitle>
               <CardDescription>
-                Report your 1v1 5-race competition results
+                {tPart('matchRaceDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
                 <Link href={`/tournaments/${tournamentId}/mr/participant`}>
-                  Enter Race Scores
+                  {tPart('enterRaceScores')}
                 </Link>
               </Button>
             </CardContent>
@@ -227,15 +231,15 @@ export default function ParticipantEntryPage({
           {/* Grand Prix Card */}
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle>Grand Prix</CardTitle>
+              <CardTitle>{tPart('grandPrix')}</CardTitle>
               <CardDescription>
-                Report your cup-based driver points results
+                {tPart('grandPrixDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
                 <Link href={`/tournaments/${tournamentId}/gp/participant`}>
-                  Enter GP Scores
+                  {tPart('enterGPScores')}
                 </Link>
               </Button>
             </CardContent>
@@ -244,15 +248,15 @@ export default function ParticipantEntryPage({
           {/* Time Trial Card */}
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle>Time Trial</CardTitle>
+              <CardTitle>{tPart('timeTrial')}</CardTitle>
               <CardDescription>
-                Enter your course times and verify results
+                {tPart('timeTrialDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
                 <Link href={`/tournaments/${tournamentId}/ta/participant`}>
-                  Enter Time Trial
+                  {tPart('enterTimeTrial')}
                 </Link>
               </Button>
             </CardContent>
@@ -264,8 +268,7 @@ export default function ParticipantEntryPage({
           <Alert>
             <Shield className="h-4 w-4" />
             <AlertDescription>
-              You are logged in as a tournament participant. All score entries are logged and verified.
-              Please ensure you&apos;re reporting accurate results for fair competition.
+              {tPart('securityNotice')}
             </AlertDescription>
           </Alert>
         </div>

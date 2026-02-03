@@ -19,6 +19,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,18 @@ export default function MatchRaceFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /**
+   * i18n translation hooks for Match Race Finals page.
+   * - 'finals': Shared finals bracket strings (generate, reset, champion, etc.)
+   * - 'mr': Match Race mode-specific strings (page title)
+   * - 'common': Shared UI strings (cancel, save, etc.)
+   * Hooks must be called at the top of the component before any state/effect hooks.
+   */
+  const tFinals = useTranslations('finals');
+  const tMr = useTranslations('mr');
+  const tCommon = useTranslations('common');
+
   const [matches, setMatches] = useState<MRMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
   const [seededPlayers, setSeededPlayers] = useState<SeededPlayer[]>([]);
@@ -330,9 +343,10 @@ export default function MatchRaceFinals({
       {/* Page header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Match Race Finals</h1>
+          {/* i18n: Page title from 'mr' namespace, subtitle from 'finals' namespace */}
+          <h1 className="text-3xl font-bold">{tMr('finalsTitle')}</h1>
           <p className="text-muted-foreground">
-            Double Elimination Tournament
+            {tFinals('doubleElimination')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -344,22 +358,22 @@ export default function MatchRaceFinals({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
-                  {creating ? "Creating..." : "Generate Bracket"}
+                  {/* i18n: Generate bracket button with creating state */}
+                  {creating ? tFinals('creating') : tFinals('generateBracket')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Generate Finals Bracket?</AlertDialogTitle>
+                  {/* i18n: Generate bracket confirmation dialog */}
+                  <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will create a double elimination bracket using top
-                    8 players from qualification round. Make sure all
-                    qualification matches are completed.
+                    {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Generate
+                    {tFinals('generate')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -368,21 +382,22 @@ export default function MatchRaceFinals({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" disabled={creating}>
-                  Reset Bracket
+                  {/* i18n: Reset bracket button */}
+                  {tFinals('resetBracket')}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Finals Bracket?</AlertDialogTitle>
+                  {/* i18n: Reset bracket confirmation dialog */}
+                  <AlertDialogTitle>{tFinals('resetConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will delete all existing finals matches and create a
-                    new bracket. This action cannot be undone.
+                    {tFinals('resetConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    Reset
+                    {tFinals('reset')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -390,7 +405,8 @@ export default function MatchRaceFinals({
           )}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/mr`}>
-              Back to Qualification
+              {/* i18n: Back navigation to qualification page */}
+              {tFinals('backToQualification')}
             </Link>
           </Button>
         </div>
@@ -401,7 +417,8 @@ export default function MatchRaceFinals({
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">&#127942;</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
+            {/* i18n: Champion announcement */}
+            <h2 className="text-2xl font-bold">{tFinals('champion')}</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {champion.nickname}
             </p>
@@ -412,11 +429,12 @@ export default function MatchRaceFinals({
       {/* Progress indicator */}
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
+          {/* i18n: Progress badge with match counts */}
           <Badge variant="outline" className="text-sm">
-            Progress: {completedMatches} / {totalMatches} matches
+            {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
           </Badge>
           {completedMatches === totalMatches && totalMatches > 0 && (
-            <Badge className="bg-green-500">Tournament Complete</Badge>
+            <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
           )}
         </div>
       )}
@@ -425,39 +443,35 @@ export default function MatchRaceFinals({
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Bracket Yet</CardTitle>
+            {/* i18n: Empty state with bracket generation instructions */}
+            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
             <CardDescription>
-              Generate a bracket to start finals tournament.
+              {tFinals('generateBracketDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* i18n: Bracket format explanation with MR-specific 5-race rules */}
             <p className="text-muted-foreground">
-              The finals bracket will be generated using the top 8 players from
-              qualification standings. The bracket uses a double elimination
-              format with 5-race matches:
+              {tFinals('bracketExplanation')}
             </p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
               <li>
-                <strong>5 Races:</strong> Each match consists of 5 unique courses
+                <strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}
               </li>
               <li>
-                <strong>First to 3:</strong> First player to win 3 races wins the match
+                <strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}
               </li>
               <li>
-                <strong>Winners Bracket:</strong> Players who haven&apos;t lost
-                yet
+                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
               </li>
               <li>
-                <strong>Losers Bracket:</strong> Players with one loss get a
-                second chance
+                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
               </li>
               <li>
-                <strong>Grand Final:</strong> Winners champion vs Losers
-                champion
+                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
               </li>
               <li>
-                <strong>Reset Match:</strong> If Losers champion wins
-                Grand Final, a reset match determines the true champion
+                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
               </li>
             </ul>
           </CardContent>
@@ -477,7 +491,8 @@ export default function MatchRaceFinals({
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enter Match Result</DialogTitle>
+            {/* i18n: Match result dialog title */}
+            <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -497,15 +512,17 @@ export default function MatchRaceFinals({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16">Race</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead className="text-center">Winner</TableHead>
+                  {/* i18n: Table headers for race entry */}
+                  <TableHead className="w-16">{tCommon('race')}</TableHead>
+                  <TableHead>{tCommon('course')}</TableHead>
+                  <TableHead className="text-center">{tCommon('winner')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rounds.map((round, index) => (
                   <TableRow key={index}>
-                    <TableCell className="font-medium">Race {index + 1}</TableCell>
+                    {/* i18n: Race number label */}
+                    <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
                     <TableCell>
                       <Select
                         value={round.course}
@@ -516,7 +533,7 @@ export default function MatchRaceFinals({
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select course..." />
+                          <SelectValue placeholder={tCommon('selectCourse')} />
                         </SelectTrigger>
                         <SelectContent>
                           {COURSE_INFO.map((course) => (
@@ -565,6 +582,7 @@ export default function MatchRaceFinals({
             </Table>
           </div>
           <DialogFooter>
+            {/* i18n: Save result button */}
             <Button
               onClick={handleMatchSubmit}
               disabled={
@@ -572,7 +590,7 @@ export default function MatchRaceFinals({
                 rounds.filter(r => r.winner === 2).length < 3
               }
             >
-              Save Result
+              {tCommon('saveResult')}
             </Button>
           </DialogFooter>
         </DialogContent>

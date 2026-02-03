@@ -24,6 +24,7 @@
 "use client";
 
 import { useState, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,8 @@ export default function BattleModePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const t = useTranslations('bm');
+  const tc = useTranslations('common');
   const { data: session } = useSession();
   /* Check admin role for conditional UI rendering */
   const isAdmin = session?.user && session.user.role === 'admin';
@@ -188,7 +191,7 @@ export default function BattleModePage({
    */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
-      alert("Please add at least one player");
+      alert(tc('addAtLeastOnePlayer'));
       return;
     }
 
@@ -294,10 +297,10 @@ export default function BattleModePage({
   if (!pollData && pollError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Battle Mode</h1>
+        <h1 className="text-3xl font-bold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{pollError}</p>
-          <Button onClick={refetch}>Retry</Button>
+          <Button onClick={refetch}>{tc('retry')}</Button>
         </div>
       </div>
     );
@@ -324,9 +327,9 @@ export default function BattleModePage({
       {/* Page header with title, polling indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Battle Mode</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground">
-            Qualification round-robin and finals
+            {t('qualificationDesc')}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -340,7 +343,7 @@ export default function BattleModePage({
               onClick={handleExport}
               disabled={exporting}
             >
-              {exporting ? "Exporting..." : "Export to Excel"}
+              {exporting ? tc('exporting') : tc('exportToExcel')}
             </Button>
           )}
 
@@ -348,7 +351,7 @@ export default function BattleModePage({
           {qualifications.length > 0 && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/bm/finals`}>
-                Go to Finals
+                {tc('goToFinals')}
               </Link>
             </Button>
           )}
@@ -358,21 +361,21 @@ export default function BattleModePage({
             <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
-                {qualifications.length > 0 ? "Reset Setup" : "Setup Groups"}
+                {qualifications.length > 0 ? tc('resetSetup') : tc('setupGroups')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Setup Battle Mode Groups</DialogTitle>
+                <DialogTitle>{t('setupDialogTitle')}</DialogTitle>
                 <DialogDescription>
-                  Assign players to groups for the qualification round.
+                  {t('setupDialogDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 {/* Player selection dropdown */}
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <Label>Select Player</Label>
+                    <Label>{tc('selectPlayer')}</Label>
                     <Select
                       onValueChange={(playerId) => {
                         const player = allPlayers.find((p) => p.id === playerId);
@@ -382,7 +385,7 @@ export default function BattleModePage({
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose player..." />
+                        <SelectValue placeholder={tc('choosePlayer')} />
                       </SelectTrigger>
                       <SelectContent>
                         {allPlayers
@@ -402,18 +405,18 @@ export default function BattleModePage({
                 {/* Selected players table with group assignment */}
                 <div className="border rounded-lg p-4">
                   <h4 className="font-medium mb-2">
-                    Selected Players ({setupPlayers.length})
+                    {tc('selectedPlayers', { count: setupPlayers.length })}
                   </h4>
                   {setupPlayers.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      No players selected yet
+                      {tc('noPlayersSelected')}
                     </p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Player</TableHead>
-                          <TableHead>Group</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead>{tc('group')}</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -456,7 +459,7 @@ export default function BattleModePage({
                                     removePlayerFromSetup(sp.playerId)
                                   }
                                 >
-                                  Remove
+                                  {tc('remove')}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -468,7 +471,7 @@ export default function BattleModePage({
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleSetup}>Create Groups & Matches</Button>
+                <Button onClick={handleSetup}>{t('createGroupsAndMatches')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -481,14 +484,14 @@ export default function BattleModePage({
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No groups set up yet. Click &quot;Setup Groups&quot; to begin.
+            {t('noGroupsYet')}
           </CardContent>
         </Card>
       ) : (
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="standings">Standings</TabsTrigger>
-            <TabsTrigger value="matches">Matches</TabsTrigger>
+            <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
+            <TabsTrigger value="matches">{tc('matches')}</TabsTrigger>
           </TabsList>
 
           {/* Standings Tab - Group-by-group qualification standings */}
@@ -497,9 +500,9 @@ export default function BattleModePage({
               {groups.map((group) => (
                 <Card key={group}>
                   <CardHeader>
-                    <CardTitle>Group {group}</CardTitle>
+                    <CardTitle>{tc('groupLabel', { group })}</CardTitle>
                     <CardDescription>
-                      {qualifications.filter((q) => q.group === group).length} players
+                      {tc('playersCount', { count: qualifications.filter((q) => q.group === group).length })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -507,13 +510,13 @@ export default function BattleModePage({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-12">#</TableHead>
-                          <TableHead>Player</TableHead>
-                          <TableHead className="text-center">MP</TableHead>
-                          <TableHead className="text-center">W</TableHead>
-                          <TableHead className="text-center">T</TableHead>
-                          <TableHead className="text-center">L</TableHead>
-                          <TableHead className="text-center">+/-</TableHead>
-                          <TableHead className="text-center">Pts</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead className="text-center">{t('mp')}</TableHead>
+                          <TableHead className="text-center">{t('w')}</TableHead>
+                          <TableHead className="text-center">{t('t')}</TableHead>
+                          <TableHead className="text-center">{t('l')}</TableHead>
+                          <TableHead className="text-center">{t('plusMinus')}</TableHead>
+                          <TableHead className="text-center">{t('pts')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -550,9 +553,9 @@ export default function BattleModePage({
           <TabsContent value="matches">
             <Card>
               <CardHeader>
-                <CardTitle>Match List</CardTitle>
+                <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
-                  {matches.filter((m) => m.completed).length} / {matches.length} completed
+                  {tc('completedOf', { completed: matches.filter((m) => m.completed).length, total: matches.length })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -560,10 +563,10 @@ export default function BattleModePage({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-16">#</TableHead>
-                      <TableHead>Player 1</TableHead>
-                      <TableHead className="text-center w-24">Score</TableHead>
-                      <TableHead>Player 2</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead>{tc('player1')}</TableHead>
+                      <TableHead className="text-center w-24">{tc('score')}</TableHead>
+                      <TableHead>{tc('player2')}</TableHead>
+                      <TableHead className="text-right">{tc('actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -601,7 +604,7 @@ export default function BattleModePage({
                             asChild
                           >
                             <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
-                              Share
+                              {tc('share')}
                             </Link>
                           </Button>
                           {/* Admin-only score entry/edit button */}
@@ -611,7 +614,7 @@ export default function BattleModePage({
                               size="sm"
                               onClick={() => openScoreDialog(match)}
                             >
-                              {match.completed ? "Edit" : "Enter Score"}
+                              {match.completed ? tc('edit') : tc('enterScore')}
                             </Button>
                           )}
                         </TableCell>
@@ -629,7 +632,7 @@ export default function BattleModePage({
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>{t('enterMatchScore')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -681,12 +684,12 @@ export default function BattleModePage({
             {/* Validation warning when total rounds != 4 */}
             {scoreForm.score1 + scoreForm.score2 !== 4 && (
               <p className="text-sm text-yellow-600 text-center">
-                Total rounds should equal 4
+                {tc('totalRoundsShouldEqual4')}
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button onClick={handleScoreSubmit}>Save Score</Button>
+            <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

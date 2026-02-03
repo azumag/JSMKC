@@ -19,9 +19,14 @@
  * Real-time Updates:
  * - Entry data is polled every 5 seconds to show ranking changes
  * - Participants can see their current rank and total time
+ *
+ * i18n:
+ * - All user-facing strings use next-intl translations
+ * - Namespaces: participant, ta, common
  */
 
 import { useState, useEffect, useCallback, use } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,9 +35,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Trophy, Users, Timer, LogIn } from 'lucide-react';
+import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5 } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, TOTAL_COURSES } from '@/lib/constants';
+import { toast } from 'sonner';
 
 /** Player data structure */
 interface Player {
@@ -96,6 +102,12 @@ export default function TimeAttackParticipantPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /** i18n: Translation hooks placed before any state/effect hooks per Rules of Hooks */
+  const tPart = useTranslations('participant');
+  const tTa = useTranslations('ta');
+  const tCommon = useTranslations('common');
+
   const { data: session, status: sessionStatus } = useSession();
 
   const playerId = session?.user?.playerId;
@@ -110,6 +122,43 @@ export default function TimeAttackParticipantPage({
   const [myEntry, setMyEntry] = useState<TTEntry | null>(null);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  /**
+   * Detect if running in local development environment.
+   * Used to enable admin-only development tools.
+   * Checks both hostname and port for common dev server setups.
+   */
+  const isDevelopment = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || 
+     window.location.hostname === '127.0.0.1' ||
+     window.location.port === '3000' ||
+     window.location.port === '3001');
+
+  /**
+   * Admin-only: Fill all course times with random values for testing.
+   * Generates realistic TA times between 45s and 3:30 per course.
+   * Only available in development environment.
+   */
+  const handleFillRandomTimes = () => {
+    const randomTimes: Record<string, string> = {};
+    
+    COURSE_INFO.forEach((course) => {
+      // Generate random time between 45 seconds and 3 minutes 30 seconds
+      const minMs = 45000; // 45 seconds
+      const maxMs = 210000; // 3:30
+      const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+      
+      // Convert to M:SS.mmm format
+      const minutes = Math.floor(randomMs / 60000);
+      const seconds = Math.floor((randomMs % 60000) / 1000);
+      const milliseconds = randomMs % 1000;
+      
+      randomTimes[course.abbr] = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    });
+    
+    setTimeInputs(randomTimes);
+    toast.success('Random times filled for all courses');
+  };
 
   /** Fetch initial data on mount */
   useEffect(() => {
@@ -185,20 +234,23 @@ export default function TimeAttackParticipantPage({
       /* Validate format M:SS.mmm (strict format for data integrity) */
       const timeRegex = /^\d+:[0-5]\d\.\d{3}$/;
       if (!timeRegex.test(timeStr)) {
-        setError(`Invalid time format for ${course.abbr}. Please use M:SS.mmm format (e.g., 1:23.456)`);
+        /** i18n: Show localized validation error with course abbreviation */
+        setError(tPart('invalidTimeFormat', { course: course.abbr }));
         return;
       }
 
       const ms = displayTimeToMs(timeStr);
       if (ms <= 0) {
-        setError(`Invalid time for ${course.abbr}. Time must be positive.`);
+        /** i18n: Show localized error for non-positive time values */
+        setError(tPart('invalidTime', { course: course.abbr }));
         return;
       }
       validTimes[course.abbr] = timeStr;
     }
 
     if (Object.keys(validTimes).length === 0) {
-      setError('Please enter at least one course time.');
+      /** i18n: Require at least one course time before submission */
+      setError(tPart('enterAtLeastOne'));
       return;
     }
 
@@ -218,7 +270,8 @@ export default function TimeAttackParticipantPage({
       const data = await response.json();
       setEntries(prev => prev.map(e => e.id === myEntry.id ? { ...e, ...data.entry } : e));
       setMyEntry({ ...myEntry, ...data.entry });
-      alert("Time trial times submitted successfully!");
+      /** i18n: Success alert after times are submitted */
+      alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit times');
     } finally {
@@ -245,7 +298,8 @@ export default function TimeAttackParticipantPage({
 
       const data = await response.json();
       setEntries(prev => [...prev, ...data.entries]);
-      alert("Successfully added to time attack!");
+      /** i18n: Success alert after adding self to time attack */
+      alert(tPart('addedToTASuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add to time attack');
     } finally {
@@ -265,30 +319,32 @@ export default function TimeAttackParticipantPage({
       .reduce((total, [, timeStr]) => total + displayTimeToMs(timeStr), 0);
   };
 
+  /** i18n: Loading state uses translated string */
   if (sessionStatus === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto mb-4 animate-pulse rounded-full bg-muted" />
-          <p className="text-lg">Loading tournament data...</p>
+          <p className="text-lg">{tPart('loadingTournament')}</p>
         </div>
       </div>
     );
   }
 
+  /** i18n: Login required card uses translated strings for title, description, button, and help text */
   if (!hasAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Player Login Required</CardTitle>
-            <CardDescription>Please log in with your player credentials to enter times</CardDescription>
+            <CardTitle>{tPart('playerLoginRequired')}</CardTitle>
+            <CardDescription>{tPart('loginToEnterTimes')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button asChild className="w-full"><Link href="/auth/signin">Log In</Link></Button>
+            <Button asChild className="w-full"><Link href="/auth/signin">{tPart('logIn')}</Link></Button>
             <p className="text-sm text-muted-foreground text-center">
-              Use the nickname and password provided by the tournament organizer.
+              {tPart('loginHelp')}
             </p>
           </CardContent>
         </Card>
@@ -296,13 +352,14 @@ export default function TimeAttackParticipantPage({
     );
   }
 
+  /** i18n: Tournament not found card uses translated title */
   if (!tournament) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Tournament Not Found</CardTitle>
+            <CardTitle>{tPart('tournamentNotFound')}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -313,7 +370,8 @@ export default function TimeAttackParticipantPage({
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Time Attack Score Entry</h1>
+          {/** i18n: Page title from participant namespace */}
+          <h1 className="text-3xl font-bold mb-2">{tPart('taTitle')}</h1>
           <p className="text-lg text-muted-foreground">{tournament.name}</p>
           <p className="text-sm text-muted-foreground">{new Date(tournament.date).toLocaleDateString()}</p>
         </div>
@@ -326,7 +384,8 @@ export default function TimeAttackParticipantPage({
                 <Users className="h-8 w-8 text-blue-600" />
                 <div>
                   <h3 className="font-semibold">{session?.user?.nickname || session?.user?.name}</h3>
-                  <p className="text-sm text-muted-foreground">Logged in as player</p>
+                  {/** i18n: Player login status label */}
+                  <p className="text-sm text-muted-foreground">{tPart('loggedInAsPlayer')}</p>
                 </div>
               </div>
             </CardContent>
@@ -345,17 +404,18 @@ export default function TimeAttackParticipantPage({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
+                    {/** i18n: Card title and description use ta namespace for "Time Attack Times" */}
                     <CardTitle className="flex items-center gap-2">
                       <Timer className="h-5 w-5" />
-                      Time Attack Times
+                      {tTa('title')}
                     </CardTitle>
                     <CardDescription>
-                      Enter your best times for each course (format: M:SS.mmm)
+                      {tTa('enterTimeCourseDesc')}
                     </CardDescription>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-muted-foreground">Progress</div>
-                    <div className="font-mono">{getEnteredTimesCount()} / {TOTAL_COURSES} courses</div>
+                    {/** i18n: Progress counter with interpolated count/total */}
+                    <div className="font-mono">{tPart('taProgress', { count: getEnteredTimesCount(), total: TOTAL_COURSES })}</div>
                   </div>
                 </div>
               </CardHeader>
@@ -365,11 +425,13 @@ export default function TimeAttackParticipantPage({
                   <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                     <div className="text-center">
                       <div className="text-2xl font-bold font-mono">{myEntry.rank ? `#${myEntry.rank}` : '-'}</div>
-                      <div className="text-sm text-muted-foreground">Current Rank</div>
+                      {/** i18n: "Current Rank" label */}
+                      <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold font-mono">{msToDisplayTime(myEntry.totalTime)}</div>
-                      <div className="text-sm text-muted-foreground">Total Time</div>
+                      {/** i18n: "Total Time" label from ta namespace */}
+                      <div className="text-sm text-muted-foreground">{tTa('totalTime')}</div>
                     </div>
                   </div>
 
@@ -378,7 +440,8 @@ export default function TimeAttackParticipantPage({
                     {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                       <Card key={cup}>
                         <CardHeader className="py-3">
-                          <CardTitle className="text-sm">{cup} Cup</CardTitle>
+                          {/** i18n: Cup name with interpolated cup parameter */}
+                          <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
@@ -400,12 +463,27 @@ export default function TimeAttackParticipantPage({
 
                   {/* Preview Total Time */}
                   <div className="p-4 bg-blue-50 rounded-lg">
-                    <div className="font-medium text-center mb-2">Preview Total Time</div>
+                    {/** i18n: "Preview Total Time" heading */}
+                    <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
                     <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(getTotalTime())}</div>
                   </div>
 
+                  {/* Admin-only: Fill random times button (development only) */}
+                  {isAdmin && isDevelopment && myEntry && (
+                    <Button
+                      onClick={handleFillRandomTimes}
+                      variant="outline"
+                      disabled={submitting}
+                      className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                    >
+                      <Dice5 className="h-4 w-4 mr-2" />
+                      Fill Random Times (Dev Only)
+                    </Button>
+                  )}
+
+                  {/** i18n: Submit button toggles between "Submitting..." (common.saving) and "Submit Times" */}
                   <Button onClick={handleSubmitTimes} disabled={submitting || getEnteredTimesCount() === 0} className="w-full">
-                    {submitting ? 'Submitting...' : 'Submit Times'}
+                    {submitting ? tCommon('saving') : tPart('submitTimes')}
                   </Button>
                 </div>
               </CardContent>
@@ -415,12 +493,14 @@ export default function TimeAttackParticipantPage({
             <Card>
               <CardContent className="py-12 text-center">
                 <Timer className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Not Registered for Time Attack</h3>
+                {/** i18n: Not registered title and description */}
+                <h3 className="text-lg font-semibold mb-2">{tPart('notRegisteredTA')}</h3>
                 <p className="text-muted-foreground mb-4">
-                  You are not registered for the time attack competition in this tournament.
+                  {tPart('notRegisteredTADesc')}
                 </p>
+                {/** i18n: Add to TA button toggles between "Adding..." and "Add to Time Attack" */}
                 <Button onClick={handleAddToTimeAttack} disabled={submitting} className="w-full max-w-xs mx-auto">
-                  {submitting ? 'Adding...' : 'Add to Time Attack'}
+                  {submitting ? tPart('adding') : tPart('addToTA')}
                 </Button>
               </CardContent>
             </Card>
@@ -428,8 +508,9 @@ export default function TimeAttackParticipantPage({
         </div>
 
         <div className="text-center mt-8">
+          {/** i18n: Back navigation button */}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/participant`}>Back to Game Selection</Link>
+            <Link href={`/tournaments/${tournamentId}/participant`}>{tPart('backToGameSelection')}</Link>
           </Button>
         </div>
       </div>

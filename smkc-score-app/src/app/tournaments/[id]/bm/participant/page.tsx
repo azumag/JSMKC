@@ -27,6 +27,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, use } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,6 +88,19 @@ export default function BattleModeParticipantPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+
+  /**
+   * i18n translation hooks for the participant score entry page.
+   * Three namespaces are used:
+   * - 'participant': Participant-specific strings (login prompts, match cards, reports)
+   * - 'bm': Battle Mode shared strings (page title, score entry header)
+   * - 'match': Match-level strings (submitting state shared across match pages)
+   * Hooks must be called at the top of the component before any other hooks.
+   */
+  const tPart = useTranslations('participant');
+  const tBm = useTranslations('bm');
+  const tMatch = useTranslations('match');
+
   const { data: session, status: sessionStatus } = useSession();
 
   /* The player's ID from session, used for auto-identification */
@@ -281,7 +295,7 @@ export default function BattleModeParticipantPage({
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto mb-4 animate-pulse rounded-full bg-muted" />
-          <p className="text-lg">Loading tournament data...</p>
+          <p className="text-lg">{tPart('loadingTournament')}</p>
         </div>
       </div>
     );
@@ -294,17 +308,17 @@ export default function BattleModeParticipantPage({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <LogIn className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Player Login Required</CardTitle>
+            <CardTitle>{tPart('playerLoginRequired')}</CardTitle>
             <CardDescription>
-              Please log in with your player credentials to report scores
+              {tPart('loginToReport')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full">
-              <Link href="/auth/signin">Log In</Link>
+              <Link href="/auth/signin">{tPart('logIn')}</Link>
             </Button>
             <p className="text-sm text-muted-foreground text-center">
-              Use the nickname and password provided by the tournament organizer.
+              {tPart('loginHelp')}
             </p>
           </CardContent>
         </Card>
@@ -319,9 +333,9 @@ export default function BattleModeParticipantPage({
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Tournament Not Found</CardTitle>
+            <CardTitle>{tPart('tournamentNotFound')}</CardTitle>
             <CardDescription>
-              The requested tournament could not be loaded
+              {tPart('tournamentNotFoundDesc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -334,7 +348,7 @@ export default function BattleModeParticipantPage({
       <div className="container mx-auto px-4 py-8">
         {/* Header with player identity and tournament info */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Battle Mode Score Entry</h1>
+          <h1 className="text-3xl font-bold mb-2">{tBm('scoreEntry')}</h1>
           <p className="text-lg text-muted-foreground">{tournament.name}</p>
           <p className="text-sm text-muted-foreground">
             {new Date(tournament.date).toLocaleDateString()}
@@ -349,7 +363,7 @@ export default function BattleModeParticipantPage({
                 <Users className="h-8 w-8 text-blue-600" />
                 <div>
                   <h3 className="font-semibold">{session?.user?.nickname || session?.user?.name}</h3>
-                  <p className="text-sm text-muted-foreground">Logged in as player</p>
+                  <p className="text-sm text-muted-foreground">{tPart('loggedInAsPlayer')}</p>
                 </div>
               </div>
             </CardContent>
@@ -368,9 +382,9 @@ export default function BattleModeParticipantPage({
             <Card>
               <CardContent className="py-12 text-center">
                 <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">No Pending Matches</h3>
+                <h3 className="text-lg font-semibold mb-2">{tPart('noPendingMatches')}</h3>
                 <p className="text-muted-foreground">
-                  You don&apos;t have any pending battle mode matches. Check back later for new matches.
+                  {tPart('noPendingBM')}
                 </p>
               </CardContent>
             </Card>
@@ -378,7 +392,7 @@ export default function BattleModeParticipantPage({
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <Trophy className="h-6 w-6 text-yellow-600" />
-                <h2 className="text-2xl font-semibold">Your Pending Matches</h2>
+                <h2 className="text-2xl font-semibold">{tPart('yourPendingMatches')}</h2>
               </div>
 
               {myMatches.map((match) => (
@@ -386,21 +400,21 @@ export default function BattleModeParticipantPage({
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="text-lg">Match #{match.matchNumber}</CardTitle>
+                        <CardTitle className="text-lg">{tPart('matchNumber', { number: match.matchNumber })}</CardTitle>
                         <CardDescription>
-                          TV {match.tvNumber} • {match.stage === 'qualification' ? 'Qualification' : 'Finals'}
+                          {tPart('tvInfo', { tv: match.tvNumber ?? '' })} • {match.stage === 'qualification' ? tPart('qualification') : 'Finals'}
                         </CardDescription>
                       </div>
                       {/* Match status badge */}
                       {match.completed ? (
                         <Badge variant="default" className="bg-green-600">
                           <CheckCircle className="h-3 w-3 mr-1" />
-                          Completed
+                          {tPart('completed')}
                         </Badge>
                       ) : (
                         <Badge variant="outline">
                           <Clock className="h-3 w-3 mr-1" />
-                          Pending
+                          {tPart('pending')}
                         </Badge>
                       )}
                     </div>
@@ -413,22 +427,22 @@ export default function BattleModeParticipantPage({
                           <div className="font-medium">
                             {match.player1.nickname}
                             {match.player1.id === playerId && (
-                              <Badge variant="default" className="ml-2 bg-blue-600">You</Badge>
+                              <Badge variant="default" className="ml-2 bg-blue-600">{tPart('you')}</Badge>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Controller {match.player1Side}
+                            {tPart('controller', { side: match.player1Side })}
                           </div>
                         </div>
                         <div className={`p-3 rounded-lg border ${match.player2.id === playerId ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
                           <div className="font-medium">
                             {match.player2.nickname}
                             {match.player2.id === playerId && (
-                              <Badge variant="default" className="ml-2 bg-blue-600">You</Badge>
+                              <Badge variant="default" className="ml-2 bg-blue-600">{tPart('you')}</Badge>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Controller {match.player2Side}
+                            {tPart('controller', { side: match.player2Side })}
                           </div>
                         </div>
                       </div>
@@ -436,10 +450,10 @@ export default function BattleModeParticipantPage({
                       {/* Score reporting form for incomplete matches */}
                       {!match.completed && (
                         <div className="border-t pt-4">
-                          <h4 className="font-medium mb-3">Report Match Result</h4>
+                          <h4 className="font-medium mb-3">{tPart('reportMatchResult')}</h4>
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                              <Label className="text-sm">{match.player1.nickname} Wins</Label>
+                              <Label className="text-sm">{tPart('playerWins', { player: match.player1.nickname })}</Label>
                               <Input
                                 type="number"
                                 min="0"
@@ -450,7 +464,7 @@ export default function BattleModeParticipantPage({
                               />
                             </div>
                             <div>
-                              <Label className="text-sm">{match.player2.nickname} Wins</Label>
+                              <Label className="text-sm">{tPart('playerWins', { player: match.player2.nickname })}</Label>
                               <Input
                                 type="number"
                                 min="0"
@@ -466,7 +480,7 @@ export default function BattleModeParticipantPage({
                             disabled={submitting === match.id || !reportingScores[match.id]?.score1 || !reportingScores[match.id]?.score2}
                             className="w-full"
                           >
-                            {submitting === match.id ? 'Submitting...' : 'Submit Scores'}
+                            {submitting === match.id ? tMatch('submitting') : tPart('submitScores')}
                           </Button>
                         </div>
                       )}
@@ -474,17 +488,17 @@ export default function BattleModeParticipantPage({
                       {/* Display of previous score reports from both players */}
                       {(match.player1ReportedScore1 !== undefined || match.player2ReportedScore1 !== undefined) && (
                         <div className="border-t pt-4">
-                          <h4 className="font-medium mb-2">Previous Reports</h4>
+                          <h4 className="font-medium mb-2">{tPart('previousReports')}</h4>
                           <div className="space-y-2 text-sm">
                             {match.player1ReportedScore1 !== undefined && (
                               <div className="flex justify-between p-2 bg-gray-50 rounded">
-                                <span>{match.player1.nickname} reported:</span>
+                                <span>{tPart('playerReported', { player: match.player1.nickname })}</span>
                                 <span className="font-mono">{match.player1ReportedScore1} - {match.player1ReportedScore2}</span>
                               </div>
                             )}
                             {match.player2ReportedScore1 !== undefined && (
                               <div className="flex justify-between p-2 bg-gray-50 rounded">
-                                <span>{match.player2.nickname} reported:</span>
+                                <span>{tPart('playerReported', { player: match.player2.nickname })}</span>
                                 <span className="font-mono">{match.player2ReportedScore1} - {match.player2ReportedScore2}</span>
                               </div>
                             )}
@@ -503,7 +517,7 @@ export default function BattleModeParticipantPage({
         <div className="text-center mt-8">
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/participant`}>
-              Back to Game Selection
+              {tPart('backToGameSelection')}
             </Link>
           </Button>
         </div>
