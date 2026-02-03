@@ -291,7 +291,8 @@
     "pts": "得点",
     "finalsTitle": "グランプリ 決勝",
     "matchTitle": "グランプリ - 試合 #{number}",
-    "scoreEntry": "グランプリ スコア入力"
+    "scoreEntry": "グランプリ スコア入力",
+    "cupLabel": "{cup}カップ"
   },
   "finals": {
     "doubleElimination": "ダブルエリミネーション トーナメント",
@@ -353,6 +354,9 @@
     "backToMR": "マッチレースに戻る",
     "backToGP": "グランプリに戻る",
     "matchNotFound": "試合が見つかりません",
+    "selectPlayer": "自分がどちらのプレイヤーか選択してください",
+    "select4UniqueCourses": "4つの異なるコースを選択してください",
+    "completeAllPositions": "すべてのレース順位を入力してください",
     "currentScore": "現在のスコア",
     "raceN": "レース {n}",
     "iWon": "勝利",

@@ -291,7 +291,8 @@
     "pts": "Pts",
     "finalsTitle": "Grand Prix Finals",
     "matchTitle": "Grand Prix - Match #{number}",
-    "scoreEntry": "Grand Prix Score Entry"
+    "scoreEntry": "Grand Prix Score Entry",
+    "cupLabel": "{cup} Cup"
   },
   "finals": {
     "doubleElimination": "Double Elimination Tournament",
@@ -353,6 +354,9 @@
     "backToMR": "Back to Match Race",
     "backToGP": "Back to Grand Prix",
     "matchNotFound": "Match not found",
+    "selectPlayer": "Please select which player you are",
+    "select4UniqueCourses": "Please select 4 unique courses",
+    "completeAllPositions": "Please complete all race positions",
     "currentScore": "Current Score",
     "raceN": "Race {n}",
     "iWon": "I Won",

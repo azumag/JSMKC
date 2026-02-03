@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,6 +88,10 @@ export default function GPMatchPage({
   params: Promise<{ id: string; matchId: string }>;
 }) {
   const { id: tournamentId, matchId } = use(params);
+  /* i18n translation hooks for match, GP, and common namespaces */
+  const tMatch = useTranslations('match');
+  const tGp = useTranslations('gp');
+  const tCommon = useTranslations('common');
   const [match, setMatch] = useState<GPMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,14 +154,14 @@ export default function GPMatchPage({
    */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
-      setError("Please select which player you are");
+      setError(tMatch('selectPlayer'));
       return;
     }
 
     /* Validate 4 unique courses are selected */
     const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
     if (usedCourses.length !== 4 || new Set(usedCourses).size !== 4) {
-      setError("Please select 4 unique courses");
+      setError(tMatch('select4UniqueCourses'));
       return;
     }
 
@@ -165,7 +170,7 @@ export default function GPMatchPage({
       (r) => r.position1 === null || r.position2 === null
     );
     if (incompleteRaces.length > 0) {
-      setError("Please complete all race positions");
+      setError(tMatch('completeAllPositions'));
       return;
     }
 
@@ -190,11 +195,11 @@ export default function GPMatchPage({
         refetch();
       } else {
         const data = await response.json();
-        setError(data.error || "Failed to submit result");
+        setError(data.error || tMatch('submitResult'));
       }
     } catch (err) {
       console.error("Failed to submit:", err);
-      setError("Failed to submit result");
+      setError(tMatch('submitResult'));
     } finally {
       setSubmitting(false);
     }
@@ -240,7 +245,7 @@ export default function GPMatchPage({
   if (!match || !tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Match not found</p>
+        <p>{tMatch('matchNotFound')}</p>
       </div>
     );
   }
@@ -252,7 +257,7 @@ export default function GPMatchPage({
         <div className="text-center">
           <h1 className="text-xl font-bold">{tournament.name}</h1>
           <p className="text-muted-foreground">
-            Grand Prix - Match #{match.matchNumber}
+            {tGp('matchTitle', { number: match.matchNumber })}
           </p>
           <div className="mt-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
@@ -281,15 +286,15 @@ export default function GPMatchPage({
         {!match.completed && !submitted && (
           <Card>
             <CardHeader>
-              <CardTitle>Enter Result</CardTitle>
+              <CardTitle>{tMatch('enterResult')}</CardTitle>
               <CardDescription>
-                Select who you are and enter the race results
+                {tMatch('selectIdentityRace')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Player identity selection */}
               <div className="space-y-2">
-                <p className="text-sm font-medium">I am:</p>
+                <p className="text-sm font-medium">{tMatch('iAm')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={selectedPlayer === 1 ? "default" : "outline"}
@@ -314,7 +319,7 @@ export default function GPMatchPage({
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-sm font-medium text-center">
-                        Current Score
+                        {tMatch('currentScore')}
                       </p>
                       <p className="text-sm font-medium text-center">
                         {totalPoints1} - {totalPoints2}
@@ -328,7 +333,7 @@ export default function GPMatchPage({
                       <div key={index} className="border rounded-lg p-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium w-20">
-                            Race {index + 1}
+                            {tMatch('raceN', { n: index + 1 })}
                           </span>
                           <Select
                             value={race.course}
@@ -339,7 +344,7 @@ export default function GPMatchPage({
                             }}
                           >
                             <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Course..." />
+                              <SelectValue placeholder={tCommon('selectCourse')} />
                             </SelectTrigger>
                             <SelectContent>
                               {COURSE_INFO.map((course) => (
@@ -366,8 +371,8 @@ export default function GPMatchPage({
                             className="flex-1"
                           >
                             {selectedPlayer === 1
-                              ? "I Won (1st)"
-                              : `${match.player1.nickname} Won (1st)`}
+                              ? tMatch('iWon1st')
+                              : tMatch('playerWon1st', { player: match.player1.nickname })}
                           </Button>
                           <Button
                             variant={
@@ -383,8 +388,8 @@ export default function GPMatchPage({
                             className="flex-1"
                           >
                             {selectedPlayer === 2
-                              ? "I Won (1st)"
-                              : `${match.player2.nickname} Won (1st)`}
+                              ? tMatch('iWon1st')
+                              : tMatch('playerWon1st', { player: match.player2.nickname })}
                           </Button>
                         </div>
                       </div>
@@ -400,7 +405,7 @@ export default function GPMatchPage({
                     onClick={handleSubmit}
                     disabled={submitting || !canSubmit(races)}
                   >
-                    {submitting ? "Submitting..." : "Submit Result"}
+                    {submitting ? tMatch('submitting') : tMatch('submitResult')}
                   </Button>
                 </div>
               )}
@@ -414,13 +419,13 @@ export default function GPMatchPage({
             <CardContent className="py-8 text-center">
               <div className="text-4xl mb-4">✓</div>
               <h3 className="text-lg font-semibold mb-2">
-                Result Submitted!
+                {tMatch('resultSubmitted')}
               </h3>
               <p className="text-muted-foreground">
-                Waiting for the other player to confirm...
+                {tMatch('waitingConfirm')}
               </p>
               <p className="text-sm mt-4">
-                Your report: {totalPoints1} - {totalPoints2}
+                {tMatch('yourReport', { score1: totalPoints1, score2: totalPoints2 })}
               </p>
             </CardContent>
           </Card>
@@ -431,10 +436,10 @@ export default function GPMatchPage({
           <Card>
             <CardHeader>
               <CardTitle>
-                {match.cup} Cup - Race Results
+                {tMatch('cupRaceResults', { cup: match.cup ?? '' })}
               </CardTitle>
               <CardDescription>
-                Final Score: {match.points1} - {match.points2}
+                {tMatch('finalScore', { score1: match.points1, score2: match.points2 })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -442,7 +447,7 @@ export default function GPMatchPage({
                 {match.races.map((race, index) => (
                   <div key={index} className="border rounded-lg p-4">
                     <h3 className="font-medium mb-3">
-                      Race {index + 1}:{" "}
+                      {tMatch('raceN', { n: index + 1 })}:{" "}
                       {getCourseName(race.course as CourseAbbr)}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -457,10 +462,10 @@ export default function GPMatchPage({
                           {match.player1.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {race.position1 === 1 ? "1st" : "2nd"}
+                          {race.position1 === 1 ? tCommon('first') : tCommon('second')}
                         </p>
                         <p className="text-sm font-bold text-green-600">
-                          {race.points1} pts
+                          {tMatch('pts', { points: race.points1 })}
                         </p>
                       </div>
                       <div
@@ -474,10 +479,10 @@ export default function GPMatchPage({
                           {match.player2.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {race.position2 === 1 ? "1st" : "2nd"}
+                          {race.position2 === 1 ? tCommon('first') : tCommon('second')}
                         </p>
                         <p className="text-sm font-bold text-green-600">
-                          {race.points2} pts
+                          {tMatch('pts', { points: race.points2 })}
                         </p>
                       </div>
                     </div>
@@ -491,22 +496,22 @@ export default function GPMatchPage({
                     <p className="text-sm text-muted-foreground">
                       {match.player1.nickname}
                     </p>
-                    <p className="text-3xl font-bold">{match.points1} pts</p>
+                    <p className="text-3xl font-bold">{tMatch('pts', { points: match.points1 })}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-muted-foreground">
                       {match.player2.nickname}
                     </p>
-                    <p className="text-3xl font-bold">{match.points2} pts</p>
+                    <p className="text-3xl font-bold">{tMatch('pts', { points: match.points2 })}</p>
                   </div>
                 </div>
               </div>
               <p className="mt-4 text-center">
                 {match.points1 > match.points2
-                  ? `${match.player1.nickname} wins!`
+                  ? tMatch('playerWins', { player: match.player1.nickname })
                   : match.points2 > match.points1
-                  ? `${match.player2.nickname} wins!`
-                  : "Draw"}
+                  ? tMatch('playerWins', { player: match.player2.nickname })
+                  : tMatch('draw')}
               </p>
             </CardContent>
           </Card>
@@ -518,7 +523,7 @@ export default function GPMatchPage({
             href={`/tournaments/${tournamentId}/gp`}
             className="text-sm text-muted-foreground hover:underline"
           >
-            ← Back to Grand Prix
+            {tMatch('backToGP')}
           </Link>
         </div>
       </div>
