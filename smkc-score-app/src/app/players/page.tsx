@@ -212,7 +212,13 @@ export default function PlayersPage() {
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        // Success: close dialog, reset form, refresh list
+        setIsEditDialogOpen(false);
+        setEditingPlayerId(null);
+        setFormData({ name: "", nickname: "", country: "" });
+        fetchPlayers();
+      } else {
         const data = await response.json();
         setError(data.error || t('failedToUpdate'));
       }
@@ -220,6 +226,8 @@ export default function PlayersPage() {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to update player:", metadata);
       setError(t('failedToUpdate'));
+    } finally {
+      setLoading(false);
     }
   };
 
