@@ -56,13 +56,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
@@ -126,6 +120,10 @@ export default function TimeAttackPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Bulk player add: track selected player IDs and search query for filtering
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -276,27 +274,35 @@ export default function TimeAttackPage({
 
   // === Event Handlers ===
 
-  /** Add a player to the qualification round */
-  const handleAddPlayer = async (playerId: string) => {
+  /** Add multiple selected players to the qualification round in batch.
+   *  Uses the existing batch API endpoint (players: string[]) for efficiency. */
+  const handleAddPlayers = async () => {
+    if (selectedPlayerIds.length === 0) return;
+    setSaving(true);
     setSaveError(null);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ players: selectedPlayerIds, action: "add" }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to add player");
+        throw new Error(errorData.error || "Failed to add players");
       }
 
+      // Reset dialog state on success
       setIsAddPlayerDialogOpen(false);
+      setSelectedPlayerIds([]);
+      setPlayerSearchQuery("");
       refetch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to add player";
-      console.error("Failed to add player:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to add players";
+      console.error("Failed to add players:", err);
       setSaveError(errorMessage);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -411,6 +417,17 @@ export default function TimeAttackPage({
     (p) => !entries.find((e) => e.playerId === p.id)
   );
 
+  /** Players filtered by search query for the add-player dialog (case-insensitive partial match) */
+  const filteredPlayers = availablePlayers.filter((p) => {
+    if (!playerSearchQuery) return true;
+    const q = playerSearchQuery.toLowerCase();
+    return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+  });
+
+  /** Whether all currently visible (filtered) players are selected */
+  const allFilteredSelected = filteredPlayers.length > 0 &&
+    filteredPlayers.every((p) => selectedPlayerIds.includes(p.id));
+
   /* Show error state if the first fetch fails and there's no cached data.
      Must be checked before the skeleton to avoid permanent loading on error. */
   if (!pollData && error) {
@@ -475,42 +492,104 @@ export default function TimeAttackPage({
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
-          {/* Add Player Dialog */}
+          {/* Add Players Dialog: checkbox-based bulk selection */}
           <Dialog
             open={isAddPlayerDialogOpen}
             onOpenChange={(open) => {
               setIsAddPlayerDialogOpen(open);
-              if (!open) setSaveError(null);
+              if (!open) {
+                // Reset selection state when dialog closes
+                setSaveError(null);
+                setSelectedPlayerIds([]);
+                setPlayerSearchQuery("");
+              }
             }}
           >
             <DialogTrigger asChild>
               <Button variant="outline" className="w-full sm:w-auto">{tc('addPlayer')}</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>{t('addPlayerToTA')}</DialogTitle>
                 <DialogDescription>
-                  {t('selectPlayerToAdd')}
+                  {t('selectPlayersToAdd')}
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
-                <Label>{tc('selectPlayer')}</Label>
-                <Select onValueChange={handleAddPlayer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={tc('choosePlayer')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePlayers.map((player) => (
-                      <SelectItem key={player.id} value={player.id}>
-                        {player.nickname} ({player.name})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3 py-2">
+                {/* Search filter: narrow down players by name or nickname */}
+                <Input
+                  placeholder={t('searchPlayers')}
+                  value={playerSearchQuery}
+                  onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                />
+                {/* Select All / Deselect All toggle for filtered results */}
+                {filteredPlayers.length > 0 && (
+                  <div className="flex items-center gap-2 py-1 border-b">
+                    <Checkbox
+                      id="select-all"
+                      checked={allFilteredSelected}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          // Add all filtered players to selection (preserving already-selected non-filtered ones)
+                          const filteredIds = filteredPlayers.map((p) => p.id);
+                          setSelectedPlayerIds((prev) => [
+                            ...new Set([...prev, ...filteredIds]),
+                          ]);
+                        } else {
+                          // Remove only the filtered players from selection
+                          const filteredIds = new Set(filteredPlayers.map((p) => p.id));
+                          setSelectedPlayerIds((prev) =>
+                            prev.filter((id) => !filteredIds.has(id))
+                          );
+                        }
+                      }}
+                    />
+                    <Label htmlFor="select-all" className="cursor-pointer font-medium">
+                      {t('selectAll')}
+                    </Label>
+                  </div>
+                )}
+                {/* Scrollable player list with checkboxes */}
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {filteredPlayers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm py-2">
+                      {tc('noPlayersSelected')}
+                    </p>
+                  ) : (
+                    filteredPlayers.map((player) => (
+                      <div key={player.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50">
+                        <Checkbox
+                          id={`player-${player.id}`}
+                          checked={selectedPlayerIds.includes(player.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedPlayerIds((prev) =>
+                              checked
+                                ? [...prev, player.id]
+                                : prev.filter((id) => id !== player.id)
+                            );
+                          }}
+                        />
+                        <Label htmlFor={`player-${player.id}`} className="cursor-pointer flex-1">
+                          {player.nickname} ({player.name})
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
                 {saveError && (
-                  <p className="text-destructive text-sm mt-2">{saveError}</p>
+                  <p className="text-destructive text-sm">{saveError}</p>
                 )}
               </div>
+              <DialogFooter>
+                <Button
+                  onClick={handleAddPlayers}
+                  disabled={selectedPlayerIds.length === 0 || saving}
+                >
+                  {saving
+                    ? t('adding')
+                    : t('addSelectedPlayers', { count: selectedPlayerIds.length })}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

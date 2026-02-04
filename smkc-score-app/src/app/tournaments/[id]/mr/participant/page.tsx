@@ -373,7 +373,7 @@ export default function MatchRaceParticipantPage({
                           {/* i18n: Match card header with match number and stage info */}
                           <CardTitle className="text-lg">{tPart('matchNumber', { number: match.matchNumber })}</CardTitle>
                           <CardDescription>
-                            {tPart('tvInfo', { tv: match.tvNumber })} &bull; {match.stage === 'qualification' ? tPart('qualification') : tPart('completed')}
+                            {tPart('tvInfo', { tv: match.tvNumber ?? '-' })} &bull; {match.stage === 'qualification' ? tPart('qualification') : tPart('completed')}
                           </CardDescription>
                         </div>
                         {match.completed ? (

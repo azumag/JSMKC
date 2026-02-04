@@ -25,9 +25,14 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const prismaClient =
+// Explicit PrismaClient type annotation: the `omit` config option narrows the
+// generic type (PrismaClient<{omit:…}>) making it incompatible with bare
+// PrismaClient in 20+ function signatures across the codebase. Casting here
+// ensures all consumers receive the standard PrismaClient type. The omit
+// behaviour still works at runtime regardless of the TypeScript-level cast.
+const prismaClient: PrismaClient =
   globalForPrisma.prisma ??
-  new PrismaClient({
+  (new PrismaClient({
     // Development: log queries for debugging; Production: errors only
     log:
       process.env.NODE_ENV === "development"
@@ -44,7 +49,7 @@ const prismaClient =
         password: true,
       },
     },
-  });
+  }) as PrismaClient);
 
 export const prisma = prismaClient;
 
