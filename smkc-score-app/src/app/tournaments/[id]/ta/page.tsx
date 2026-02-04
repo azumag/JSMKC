@@ -114,10 +114,32 @@ export default function TimeAttackPage({
   const tc = useTranslations('common');
 
   /**
-   * Admin role check: only admin users can add/remove players, edit times,
-   * and promote to finals. Non-admin users see read-only standings.
+   * Admin role check: only admin users can add/remove players,
+   * promote to finals, and edit any player's times.
    */
   const isAdmin = session?.user && session.user.role === 'admin';
+
+  /**
+   * Player self-edit check: logged-in players can edit their own times.
+   * Uses session.user.playerId (set during player-credential login) to
+   * identify which entry belongs to the current user.
+   * The API enforces the same ownership check server-side via requireAdminOrPlayerSession().
+   */
+  const currentPlayerId = session?.user?.playerId;
+
+  /**
+   * Whether the current user can edit a specific entry's times.
+   * Admins can edit any entry; players can only edit their own.
+   */
+  const canEditEntry = (entry: TTEntry): boolean => {
+    if (isAdmin) return true;
+    if (currentPlayerId && entry.playerId === currentPlayerId) return true;
+    return false;
+  };
+
+  /** Whether the Time Entry tab should be visible.
+   *  Shown for admins (edit all) and for logged-in players (edit own). */
+  const showTimeEntryTab = isAdmin || !!currentPlayerId;
 
   // === State Management ===
   const [error, setError] = useState<string | null>(null);
@@ -758,8 +780,8 @@ export default function TimeAttackPage({
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
-            {/* Time Entry tab: admin-only since non-admins cannot edit times */}
-            {isAdmin && <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>}
+            {/* Time Entry tab: visible for admins (edit all) and players (edit own) */}
+            {showTimeEntryTab && <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>}
           </TabsList>
 
           {/* Standings Tab: Ranked list of players */}
@@ -815,8 +837,8 @@ export default function TimeAttackPage({
             </Card>
           </TabsContent>
 
-          {/* Time Entry Tab: Admin-only - edit times for each player */}
-          {isAdmin && <TabsContent value="times">
+          {/* Time Entry Tab: visible for admins (edit all) and players (edit own times) */}
+          {showTimeEntryTab && <TabsContent value="times">
             <Card>
               <CardHeader>
                 <CardTitle>{t('timeEntry')}</CardTitle>
@@ -847,26 +869,32 @@ export default function TimeAttackPage({
                           {msToDisplayTime(entry.totalTime)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                          <Button
-                            size="sm"
-                            onClick={() => openTimeEntryDialog(entry)}
-                          >
-                            {t('editTimes')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteEntry(entry.id)}
-                          >
-                            {tc('remove')}
-                          </Button>
+                          {/* Edit button: admin can edit all; player can edit own entry only */}
+                          {canEditEntry(entry) && (
+                            <Button
+                              size="sm"
+                              onClick={() => openTimeEntryDialog(entry)}
+                            >
+                              {t('editTimes')}
+                            </Button>
+                          )}
+                          {/* Remove button: admin-only (players cannot remove entries) */}
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteEntry(entry.id)}
+                            >
+                              {tc('remove')}
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
                 {/* Development-only: Fill random times for ALL players at once */}
-                {isDevelopment && entries.length > 0 && (
+                {isDevelopment && isAdmin && entries.length > 0 && (
                   <div className="mt-4">
                     <Button
                       onClick={handleFillAllPlayersTimes}
@@ -887,8 +915,10 @@ export default function TimeAttackPage({
         </Tabs>
       )}
 
-      {/* Time Entry Dialog: Admin-only, course-by-course time input */}
-      {isAdmin && <Dialog
+      {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
+       * The dialog is opened via openTimeEntryDialog() which is only callable
+       * through the canEditEntry() gated "Edit Times" button. */}
+      {showTimeEntryTab && <Dialog
         open={isTimeEntryDialogOpen}
         onOpenChange={(open) => {
           setIsTimeEntryDialogOpen(open);
@@ -943,8 +973,8 @@ export default function TimeAttackPage({
             </div>
           </div>
           
-          {/* Development-only: Fill random times button */}
-          {isDevelopment && (
+          {/* Development-only: Fill random times button (admin only) */}
+          {isDevelopment && isAdmin && (
             <div className="px-6 py-2">
               <Button
                 onClick={handleFillRandomTimes}
