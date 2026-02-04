@@ -31,7 +31,9 @@ interface MockHeaders {
   get: jest.Mock;
 }
 
-describe('Rate Limiting', () => {
+// Rate limit functionality is currently disabled (see ARCH.md / Issue #171).
+// These tests are skipped but retained for potential future re-enablement.
+describe.skip('Rate Limiting', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     clearRateLimitStore();

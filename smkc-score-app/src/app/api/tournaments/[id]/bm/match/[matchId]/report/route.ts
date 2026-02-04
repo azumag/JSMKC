@@ -11,7 +11,6 @@
  * 4. If reports differ -> flagged for admin review (mismatch)
  *
  * Security features:
- * - Rate limiting to prevent abuse
  * - Session-based authorization (admin, player, or OAuth-linked player)
  * - Input sanitization and validation
  * - Optimistic locking to prevent race conditions
@@ -21,7 +20,6 @@
 
 import { NextRequest } from "next/server";
 
-// Rate limiting removed — internal tournament tool with few concurrent users
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -32,6 +30,7 @@ import {
 import { sanitizeInput } from "@/lib/sanitize";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
+import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import {
   checkScoreReportAuth,
   createScoreEntryLog,
@@ -98,13 +97,14 @@ export async function POST(
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
+    const clientIp = getClientIdentifier(request);
+    const userAgent = getUserAgent(request);
 
     /* Audit logging via shared helpers */
     await createScoreEntryLog(logger, {
       tournamentId, matchId, matchType: 'BM', playerId: reportingPlayerId,
       reportedData: { reportingPlayer, score1, score2 },
-      clientIp: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
+      clientIp, userAgent,
     });
 
     if (character) {

@@ -26,6 +26,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,10 @@ export default function BattleModeFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
+
+  /** Admin role check: only admins can generate/reset brackets and enter scores */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   /**
    * i18n translation hooks for the finals page.
@@ -318,8 +323,8 @@ export default function BattleModeFinals({
           </div>
         </div>
         <div className="flex gap-2">
-          {/* Generate or Reset bracket buttons with confirmation dialogs */}
-          {matches.length === 0 ? (
+          {/* Generate or Reset bracket buttons: admin-only */}
+          {isAdmin && (matches.length === 0 ? (
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button disabled={creating} aria-label="Generate finals bracket">
@@ -363,7 +368,7 @@ export default function BattleModeFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
+          ))}
           {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/bm`}>
@@ -434,12 +439,12 @@ export default function BattleModeFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          onMatchClick={openScoreDialog}
+          onMatchClick={isAdmin ? openScoreDialog : undefined}
         />
       )}
 
-      {/* Score Entry Dialog for individual finals matches */}
-      <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
+      {/* Score Entry Dialog: admin-only */}
+      {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent
           onOpenAutoFocus={(e) => {
             /* Auto-focus the first score input for keyboard usability */
@@ -531,7 +536,7 @@ export default function BattleModeFinals({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
     </>
   );

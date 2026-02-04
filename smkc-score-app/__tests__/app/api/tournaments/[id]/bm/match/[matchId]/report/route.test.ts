@@ -15,7 +15,6 @@
  *   - Admin score reporting via tournament token and admin role
  *   - Auto-confirmation when both players report matching scores (triggers qualification update)
  *   - Score mismatch detection and flagging for admin review
- *   - Rate limiting enforcement (429 responses)
  *   - Input validation: invalid characters, missing matches, completed matches,
  *     invalid reportingPlayer values, invalid score combinations
  *   - Authentication: unauthorized users, OAuth-linked players
@@ -29,9 +28,9 @@
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('@/lib/rate-limit', () => ({
-  rateLimit: jest.fn(),
-  getClientIdentifier: jest.fn()
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn(),
+  getUserAgent: jest.fn()
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/optimistic-locking', () => ({
@@ -64,7 +63,7 @@ jest.mock('@/lib/error-handling', () => ({
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
+import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { validateBattleModeScores, calculateMatchResult } from '@/lib/score-validation';
@@ -104,6 +103,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     (getClientIdentifier as jest.Mock).mockReturnValue('test-client-ip');
+    (getUserAgent as jest.Mock).mockReturnValue('test-agent');
     (validateBattleModeScores as jest.Mock).mockReturnValue({ isValid: true });
     (sanitizeInput as jest.Mock).mockImplementation((data) => data);
     /* Default: no auth session */
@@ -141,7 +141,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -193,7 +192,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -238,7 +236,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       /* Use admin session for auth in tests where we need to pass authorization */
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -274,7 +271,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'admin1', userType: 'admin', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -286,7 +282,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(result.status).toBe(200);
     });
 
-    // Success case - Auto-confirms match when both players report matching scores
+      // Success case - Auto-confirms match when both players report matching scores
     it('should auto-confirm match when both players report matching scores', async () => {
       const mockMatch = {
         id: 'm1',
@@ -318,7 +314,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock)
         .mockResolvedValueOnce(mockUpdateResult)
@@ -364,7 +359,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -385,26 +379,9 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       });
     });
 
-    // Rate limit error case - Returns 429 when rate limit is exceeded
-    it('should return 429 when rate limit is exceeded', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: false, retryAfter: 30 });
-
-      const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
-      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
-      const result = await POST(request, { params });
-
-      expect(result).toEqual({
-        data: { error: 'Rate limit exceeded', retryAfter: 30 },
-        status: 429
-      });
-      expect(handleRateLimitError).toHaveBeenCalledWith(30);
-      expect(prisma.bMMatch.findUnique).not.toHaveBeenCalled();
-    });
 
     // Validation error case - Returns 400 when character is invalid
     it('should return 400 when character is not valid', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
-
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1, character: 'invalid-character' });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
@@ -418,7 +395,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
     // Validation error case - Returns 400 when match is not found
     it('should return 400 when match does not exist', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(null);
 
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
@@ -440,7 +416,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
         completed: true,
       };
 
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
@@ -466,7 +441,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user3', userType: 'player', playerId: 'p3' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
 
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
@@ -482,7 +456,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
     // Validation error case - Returns 400 when reportingPlayer is invalid
     it('should return 400 when reportingPlayer is not 1 or 2', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       /* Need valid session to pass auth check before reaching reportingPlayer validation */
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
@@ -506,7 +479,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
     // Validation error case - Returns 400 when scores are invalid
     it('should return 400 when scores are invalid', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       /* Need valid session to pass auth check before reaching score validation */
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
@@ -543,7 +515,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockRejectedValue(new OptimisticLockError('Match was updated by another user'));
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -570,7 +541,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
@@ -607,7 +577,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockRejectedValue(new Error('Log creation failed'));
@@ -643,7 +612,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user1', userType: 'player', playerId: 'p1' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -680,7 +648,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'oauth-user1', userType: 'oauth' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -720,7 +687,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
         jest.clearAllMocks();
         (createLogger as jest.Mock).mockReturnValue(loggerMock);
         (auth as jest.Mock).mockResolvedValue(mockAuth);
-        (rateLimit as jest.Mock).mockResolvedValue({ success: true });
         (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
         (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
         (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
@@ -757,7 +723,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
 
       const mockAuth = { user: { id: 'user2', userType: 'player', playerId: 'p2' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (rateLimit as jest.Mock).mockResolvedValue({ success: true });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });

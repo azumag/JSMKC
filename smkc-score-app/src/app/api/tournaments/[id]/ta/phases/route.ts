@@ -10,8 +10,7 @@
  * - GET:  Fetch phase status, entries, rounds, and available courses
  * - POST: Promote players to phases, start rounds, or submit round results
  *
- * All POST operations require admin authentication, are rate-limited,
- * and are audit-logged.
+ * All POST operations require admin authentication and are audit-logged.
  *
  * CRITICAL: Logger is created INSIDE each handler function (not at module level)
  * to ensure proper test mocking per the project's mock architecture pattern.

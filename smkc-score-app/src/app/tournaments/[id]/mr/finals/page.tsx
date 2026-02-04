@@ -19,6 +19,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -124,6 +125,10 @@ export default function MatchRaceFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
+
+  /** Admin role check: only admins can generate/reset brackets and enter scores */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   /**
    * i18n translation hooks for Match Race Finals page.
@@ -353,8 +358,8 @@ export default function MatchRaceFinals({
           </div>
         </div>
         <div className="flex gap-2">
-          {/* Generate or Reset bracket with confirmation */}
-          {matches.length === 0 ? (
+          {/* Generate or Reset bracket: admin-only */}
+          {isAdmin && (matches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
@@ -402,7 +407,7 @@ export default function MatchRaceFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
+          ))}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/mr`}>
               {/* i18n: Back navigation to qualification page */}
@@ -483,12 +488,12 @@ export default function MatchRaceFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          onMatchClick={openMatchDialog}
+          onMatchClick={isAdmin ? openMatchDialog : undefined}
         />
       )}
 
-      {/* Match result entry dialog */}
-      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+      {/* Match result entry dialog: admin-only */}
+      {isAdmin && <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             {/* i18n: Match result dialog title */}
@@ -594,7 +599,7 @@ export default function MatchRaceFinals({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 }

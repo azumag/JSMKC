@@ -9,15 +9,17 @@
  * - Score entry audit logging
  * - Character usage tracking
  * - Character validation
- * - Rate limiting with standard 429 response
  *
  * Each score report route (BM/MR/GP) imports only the helpers it needs
  * and retains its own event-type-specific orchestration logic.
+ *
+ * Note: Rate limiting has been removed from this project as it is an
+ * internal tournament tool with few concurrent users. The rate-limiting
+ * functions are no longer used and have been removed.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
 import { auth } from '@/lib/auth';
 import { SMK_CHARACTERS } from '@/lib/constants';
 import { createLogger } from '@/lib/logger';
@@ -59,18 +61,6 @@ export interface CharacterUsageLogData {
   playerId: string;
   character: string;
   tournamentId: string;
-}
-
-/**
- * Result of the applyRateLimit helper.
- */
-export interface RateLimitCheckResult {
-  /** Whether the request is allowed (under the limit) */
-  allowed: boolean;
-  /** Client IP extracted from the request */
-  clientIp: string;
-  /** Pre-built 429 response when rate limited (only set when allowed is false) */
-  response?: NextResponse;
 }
 
 // ============================================================
@@ -221,45 +211,4 @@ export async function createCharacterUsageLog(
 export function validateCharacter(character: string | undefined): boolean {
   if (!character) return true;
   return SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number]);
-}
-
-// ============================================================
-// Rate Limiting
-// ============================================================
-
-/**
- * Apply rate limiting and return a pre-built 429 response if limited.
- *
- * Extracts the client IP from the request, checks the rate limit,
- * and returns a result object. The caller can immediately return
- * the `response` field if `allowed` is false.
- *
- * Used by MR and GP routes which use raw NextResponse for rate limit errors.
- * BM uses its own rate limit handling with handleRateLimitError.
- *
- * @param request - The incoming NextRequest
- * @param maxRequests - Maximum requests allowed in the window
- * @param durationMs - Time window in milliseconds
- * @returns Rate limit check result with client IP and optional 429 response
- */
-export async function applyRateLimit(
-  request: NextRequest,
-  maxRequests: number,
-  durationMs: number,
-): Promise<RateLimitCheckResult> {
-  const clientIp = getClientIdentifier(request);
-  const rateLimitResult = await rateLimit(clientIp, maxRequests, durationMs);
-
-  if (!rateLimitResult.success) {
-    return {
-      allowed: false,
-      clientIp,
-      response: NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 },
-      ),
-    };
-  }
-
-  return { allowed: true, clientIp };
 }

@@ -16,8 +16,8 @@
  *
  * Security:
  * - Player session is validated via NextAuth credentials provider
- * - Score reports go through the /report API which has rate limiting
- * - All score entries are audit-logged server-side
+ * - Score reports are audit-logged server-side with IP and User-Agent tracking
+ * - Dual-report confirmation system prevents fraudulent score reports
  *
  * Real-time updates:
  * - Matches are polled every 5 seconds

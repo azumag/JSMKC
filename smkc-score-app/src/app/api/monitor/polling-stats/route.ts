@@ -10,21 +10,18 @@
  *   - Response times (to detect performance degradation)
  *   - Active connections (to monitor server load)
  *   - Error rates (to detect systemic issues)
- *   - Rate limit effectiveness (to tune throttling)
  *
  * Currently uses mock data generators that demonstrate the expected
  * response structure. In production, these would be replaced with actual
  * queries to an analytics database or monitoring service (DataDog, etc.).
  *
  * Access: Authenticated users only (any role)
- * Rate-limited: Uses the 'polling' bucket
  *
  * Response:
  *   { success: true, data: { totalRequests, averageResponseTime, ... } }
  */
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-// Rate limiting removed — internal tournament tool with few concurrent users
 import { createLogger } from '@/lib/logger';
 
 export async function GET() {
@@ -61,14 +58,6 @@ export async function GET() {
 
       // Error rate as a percentage of total requests
       errorRate: await getErrorRate(oneHourAgo, now),
-
-      // Per-bucket rate limiting statistics showing how many requests
-      // were allowed vs blocked for each rate limit category
-      rateLimitStats: {
-        scoreInput: await getRateLimitStats('scoreInput', oneHourAgo, now),
-        polling: await getRateLimitStats('polling', oneHourAgo, now),
-        sessionStatus: await getRateLimitStats('sessionStatus', oneHourAgo, now),
-      },
 
       // Time period metadata for the statistics window
       timePeriod: {
@@ -109,17 +98,15 @@ export async function GET() {
 // replaced with actual queries to:
 //   - An analytics database (request counts, response times)
 //   - A monitoring service like DataDog or New Relic
-//   - In-memory counters for rate limit statistics
+//   - In-memory counters for statistics tracking
 //   - WebSocket connection tracking for active connections
 
 /**
  * Returns the total number of polling requests in the given time window.
  * Mock: generates a random number between 500 and 1500.
  */
-async function getPollingRequestCount(startDate: Date, endDate: Date): Promise<number> {
-  // Parameters are unused in mock implementation but required for the interface
-  void startDate;
-  void endDate;
+async function getPollingRequestCount(_startDate: Date, _endDate: Date): Promise<number> {
+  // Date parameters unused in mock; will be used in production implementation
   return Math.floor(Math.random() * 1000) + 500;
 }
 
@@ -127,9 +114,8 @@ async function getPollingRequestCount(startDate: Date, endDate: Date): Promise<n
  * Returns the average API response time in milliseconds.
  * Mock: generates a random number between 100ms and 600ms.
  */
-async function getAverageResponseTime(startDate: Date, endDate: Date): Promise<number> {
-  void startDate;
-  void endDate;
+async function getAverageResponseTime(_startDate: Date, _endDate: Date): Promise<number> {
+  // Date parameters unused in mock; will be used in production implementation
   return Math.floor(Math.random() * 500) + 100;
 }
 
@@ -145,36 +131,9 @@ async function getActiveConnectionCount(): Promise<number> {
  * Returns the error rate as a percentage (0-5%).
  * Mock: generates a random percentage.
  */
-async function getErrorRate(startDate: Date, endDate: Date): Promise<number> {
-  void startDate;
-  void endDate;
+async function getErrorRate(_startDate: Date, _endDate: Date): Promise<number> {
+  // Date parameters unused in mock; will be used in production implementation
   return Math.random() * 5;
-}
-
-/**
- * Returns rate limiting statistics for a specific bucket type.
- * Shows total requests, how many were blocked vs allowed, and the block rate.
- */
-async function getRateLimitStats(type: string, startDate: Date, endDate: Date): Promise<{
-  total: number;
-  blocked: number;
-  allowed: number;
-  rate: number;
-}> {
-  // Parameters are unused in mock but required for production interface
-  void type;
-  void startDate;
-  void endDate;
-  const total = Math.floor(Math.random() * 200) + 100;
-  const blocked = Math.floor(Math.random() * 20);
-  const allowed = total - blocked;
-
-  return {
-    total,
-    blocked,
-    allowed,
-    rate: total > 0 ? (blocked / total) * 100 : 0, // Percentage of requests blocked
-  };
 }
 
 /**

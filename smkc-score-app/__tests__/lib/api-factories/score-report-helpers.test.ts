@@ -189,10 +189,12 @@ describe('Score Report Helpers', () => {
   });
 
   // ============================================================
-  // applyRateLimit Tests (2 cases)
+  // applyRateLimit Tests (2 cases) - SKIPPED
+  // Rate limiting has been removed from the application.
+  // Tests retained for potential future re-enablement.
   // ============================================================
 
-  describe('applyRateLimit', () => {
+  describe.skip('applyRateLimit', () => {
     const mockRequest = new NextRequest('http://localhost:3000', {
       headers: new Headers({ 'x-forwarded-for': '192.168.1.1' }),
     });

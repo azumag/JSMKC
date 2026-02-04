@@ -24,6 +24,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -112,9 +113,16 @@ export default function RevivalRound1({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
   /* i18n translation hooks: 'revival' for revival-specific strings, 'common' for shared UI labels */
   const tRevival = useTranslations('revival');
   const tCommon = useTranslations('common');
+
+  /**
+   * Admin role check: only admin users can start courses, enter times,
+   * and trigger elimination. Non-admin users see read-only standings.
+   */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
@@ -364,7 +372,8 @@ export default function RevivalRound1({
         <TabsList>
           <TabsTrigger value="standings">{tRevival('standings')}</TabsTrigger>
           <TabsTrigger value="courses">{tRevival('courseProgress')}</TabsTrigger>
-          {!isComplete && <TabsTrigger value="control">{tRevival('roundControl')}</TabsTrigger>}
+          {/* Round Control tab: admin-only */}
+          {isAdmin && !isComplete && <TabsTrigger value="control">{tRevival('roundControl')}</TabsTrigger>}
         </TabsList>
 
         {/* Standings Tab */}
@@ -442,10 +451,12 @@ export default function RevivalRound1({
                       <div className="flex items-center gap-2">
                         {progress.completed ? (
                           <Badge className="bg-green-500">{tRevival('complete')}</Badge>
-                        ) : !isComplete ? (
+                        ) : isAdmin && !isComplete ? (
                           <Button size="sm" onClick={() => handleCourseStart(progress.course)}>
                             {tRevival('start')}
                           </Button>
+                        ) : !isComplete ? (
+                          <Badge variant="outline">{tRevival('status')}</Badge>
                         ) : (
                           <Badge variant="outline">{tRevival('skipped')}</Badge>
                         )}
@@ -458,8 +469,8 @@ export default function RevivalRound1({
           </Card>
         </TabsContent>
 
-        {/* Round Control Tab (only shown while round is active) */}
-        {!isComplete && (
+        {/* Round Control Tab: admin-only, shown while round is active */}
+        {isAdmin && !isComplete && (
           <TabsContent value="control">
             <Card>
               <CardHeader>
@@ -513,8 +524,8 @@ export default function RevivalRound1({
         )}
       </Tabs>
 
-      {/* Course Time Entry Dialog */}
-      <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
+      {/* Course Time Entry Dialog: admin-only */}
+      {isAdmin && <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -560,7 +571,7 @@ export default function RevivalRound1({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 }

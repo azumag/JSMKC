@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,10 @@ export default function GrandPrixFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
+
+  /** Admin role check: only admins can generate/reset brackets and enter scores */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   /**
    * i18n translation hooks for Grand Prix Finals page.
@@ -278,8 +283,8 @@ export default function GrandPrixFinals({
           </div>
         </div>
         <div className="flex gap-2">
-          {/* Generate or Reset bracket buttons with confirmation dialogs */}
-          {matches.length === 0 ? (
+          {/* Generate or Reset bracket buttons: admin-only */}
+          {isAdmin && (matches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
@@ -327,7 +332,7 @@ export default function GrandPrixFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
+          ))}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/gp`}>
               {/* i18n: Back navigation to qualification page */}
@@ -404,12 +409,12 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          onMatchClick={openScoreDialog}
+          onMatchClick={isAdmin ? openScoreDialog : undefined}
         />
       )}
 
-      {/* Score entry dialog */}
-      <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
+      {/* Score entry dialog: admin-only */}
+      {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enter Match Score</DialogTitle>
@@ -483,7 +488,7 @@ export default function GrandPrixFinals({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 }

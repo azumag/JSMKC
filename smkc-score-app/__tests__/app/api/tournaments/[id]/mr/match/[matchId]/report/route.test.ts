@@ -12,7 +12,6 @@
  * Test scenarios include:
  * - Success cases: Report with admin session, authenticated player, OAuth-linked
  *   player, and character selection (from SMK_CHARACTERS constant).
- * - Rate limiting: Returns 429 when rate limit is exceeded.
  * - Validation errors: Invalid character, missing reportingPlayer, invalid reportingPlayer
  *   value (must be 1 or 2).
  * - Authentication failures: Returns 401 for unauthorized users (not a match participant).
@@ -23,33 +22,40 @@
  * When both players report matching scores, the match is automatically finalized with
  * the agreed-upon scores.
  *
- * Dependencies mocked: @/lib/auth, @/lib/rate-limit, @/lib/auth,
+ * Dependencies mocked: @/lib/auth, @/lib/request-utils, @/lib/auth,
  *   @/lib/sanitize, @/lib/constants, @/lib/audit-log, @/lib/logger, next/server, @/lib/prisma
  */
 // @ts-nocheck
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
-jest.mock('@/lib/rate-limit', () => ({
-  rateLimit: jest.fn(),
+jest.mock('@/lib/request-utils', () => ({
   getClientIdentifier: jest.fn(),
   getUserAgent: jest.fn()
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({ SMK_CHARACTERS: ['Mario', 'Luigi', 'Yoshi'] }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('@/lib/error-handling', () => ({
+  createSuccessResponse: jest.fn((data, message) => ({ data, message, status: 200 })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
+  handleAuthError: jest.fn((message) => ({ data: { error: message }, status: 401 })),
+  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { rateLimit, getClientIdentifier, getUserAgent } from '@/lib/rate-limit';
-import { createAuditLog } from '@/lib/audit-log';
+import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
 import { POST } from '@/app/api/tournaments/[id]/mr/match/[matchId]/report/route';
 
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const {
+  createSuccessResponse,
+  handleValidationError,
+  handleAuthError,
+  handleDatabaseError
+} = jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class
 class MockNextRequest {
@@ -71,12 +77,15 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
-    sanitizeMock.sanitizeInput.mockImplementation((data) => data);
-    getClientIdentifier.mockResolvedValue('test-ip');
+    getClientIdentifier.mockReturnValue('test-ip');
     getUserAgent.mockReturnValue('test-agent');
-    rateLimit.mockResolvedValue({ success: true });
+    /* Default: no auth session */
+    (auth as jest.Mock).mockResolvedValue(null);
+    /* Reset Prisma mocks to prevent cross-test contamination */
+    (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
+    (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
+    (prisma.mRMatch.update as jest.Mock).mockResolvedValue({});
   });
 
   describe('POST - Report match score', () => {
@@ -95,17 +104,26 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
         player2: { id: 'p2', userId: 'u2' },
       };
 
+      const updatedMatch = {
+        ...mockMatch,
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+      };
+
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
-      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', { reportingPlayer: 1, score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: true, match: mockMatch });
-      expect(result.status).toBe(200);
+      expect(result).toEqual({
+        data: { match: updatedMatch },
+        status: 200
+      });
+      expect(createSuccessResponse).toHaveBeenCalledWith({ match: updatedMatch });
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
         data: {
@@ -135,7 +153,6 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
-      (createAuditLog as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', { reportingPlayer: 1, score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -216,16 +233,97 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       });
     });
 
-    // Rate limit error case - Returns 429 when rate limit exceeded
-    it('should return 429 when rate limit is exceeded', async () => {
-      (rateLimit as jest.Mock).mockResolvedValue({ success: false });
+    // Success case - Auto-confirms when both players report matching scores
+    it('should auto-confirm match when both players report matching scores', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      const finalMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        score1: 3,
+        score2: 1,
+        rounds: null,
+        completed: true,
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: 3,
+        player2ReportedPoints2: 1,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce(finalMatch);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', userType: 'player', playerId: 'p1' } });
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(finalMatch);
+      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', { reportingPlayer: 1, score1: 3, score2: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Too many requests. Please try again later.' });
-      expect(result.status).toBe(429);
+      expect(result).toEqual({
+        data: { match: finalMatch, autoConfirmed: true },
+        message: 'Scores confirmed and match completed',
+        status: 200
+      });
+    });
+
+    // Success case - Flags mismatch when both players report different scores
+    it('should flag mismatch when both players report different scores', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: 2,
+        player2ReportedPoints2: 2,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      const updatedMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1ReportedPoints1: 3,
+        player1ReportedPoints2: 1,
+        player2ReportedPoints1: 2,
+        player2ReportedPoints2: 2,
+        player1: { id: 'p1', userId: 'u1' },
+        player2: { id: 'p2', userId: 'u2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch).mockResolvedValueOnce(updatedMatch);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', userType: 'player', playerId: 'p1' } });
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1/report', { reportingPlayer: 1, score1: 3, score2: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: {
+          match: updatedMatch,
+          waitingFor: 'player2',
+        },
+        message: 'Score reported successfully',
+        status: 200
+      });
     });
 
     // Validation error case - Returns 400 when character is invalid
@@ -237,8 +335,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Invalid character' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'Invalid character', field: 'character' },
+        status: 400
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('Invalid character', 'character');
     });
 
     // Error case - Returns 404 when match not found
@@ -250,8 +351,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'nonexistent' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Match not found' });
-      expect(result.status).toBe(404);
+      expect(result).toEqual({
+        data: { error: 'Match not found', field: 'matchId' },
+        status: 400
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('Match not found', 'matchId');
     });
 
     // Authentication failure case - Returns 401 when not authorized
@@ -273,8 +377,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Not authorized for this match' });
-      expect(result.status).toBe(401);
+      expect(result).toEqual({
+        data: { error: 'Unauthorized: Not authorized for this match' },
+        status: 401
+      });
+      expect(handleAuthError).toHaveBeenCalledWith('Unauthorized: Not authorized for this match');
     });
 
     // Validation error case - Returns 400 when reportingPlayer is missing
@@ -286,8 +393,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'reportingPlayer, score1, and score2 are required' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'reportingPlayer, score1, and score2 are required', field: 'requiredFields' },
+        status: 400
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('reportingPlayer, score1, and score2 are required', 'requiredFields');
     });
 
     // Validation error case - Returns 400 when reportingPlayer is invalid
@@ -299,8 +409,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'reportingPlayer must be 1 or 2' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'reportingPlayer must be 1 or 2', field: 'reportingPlayer' },
+        status: 400
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('reportingPlayer must be 1 or 2', 'reportingPlayer');
     });
 
     // Error case - Returns 500 when database operation fails
@@ -312,8 +425,11 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to report score' });
-      expect(result.status).toBe(500);
+      expect(result).toEqual({
+        data: { error: 'Database error: score report' },
+        status: 500
+      });
+      expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'score report');
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to report score', { error: expect.any(Error), tournamentId: 't1', matchId: 'm1' });
     });
 

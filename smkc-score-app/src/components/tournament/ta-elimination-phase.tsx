@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -132,10 +133,17 @@ export default function TAEliminationPhase({
   description,
   targetSurvivors,
 }: TAEliminationPhaseProps) {
+  const { data: session } = useSession();
   // i18n: 'taElimination' namespace for phase-specific strings,
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
   const tCommon = useTranslations('common');
+
+  /**
+   * Admin role check: only admin users can start rounds, enter times,
+   * and submit results. Non-admin users see read-only standings and history.
+   */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
@@ -576,11 +584,12 @@ export default function TAEliminationPhase({
       )}
 
       {/* === Round Control / Time Entry Section ===
-       * Fixed position at top, transitions in-place between two states:
+       * Admin-only: non-admin users see read-only standings and history.
+       * Transitions in-place between two states:
        * - No active round: stats summary + "Start Round" button
        * - Active round: time entry form for the current course
        */}
-      {!isComplete && (
+      {isAdmin && !isComplete && (
         currentRound ? (
           <Card>
             <CardHeader>

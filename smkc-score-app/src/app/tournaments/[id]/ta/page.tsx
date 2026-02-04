@@ -27,6 +27,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -108,8 +109,15 @@ export default function TimeAttackPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
   const t = useTranslations('ta');
   const tc = useTranslations('common');
+
+  /**
+   * Admin role check: only admin users can add/remove players, edit times,
+   * and promote to finals. Non-admin users see read-only standings.
+   */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   // === State Management ===
   const [error, setError] = useState<string | null>(null);
@@ -514,7 +522,8 @@ export default function TimeAttackPage({
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
-          {/* Add Players Dialog: checkbox-based bulk selection */}
+          {/* Add Players Dialog: admin-only, checkbox-based bulk selection */}
+          {isAdmin && (
           <Dialog
             open={isAddPlayerDialogOpen}
             onOpenChange={(open) => {
@@ -614,6 +623,7 @@ export default function TimeAttackPage({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
@@ -644,7 +654,8 @@ export default function TimeAttackPage({
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase1 && phase1HasPlayers && (
+                  {/* Promotion button: admin-only */}
+                  {isAdmin && !phaseStatus?.phase1 && phase1HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase1")}
@@ -677,7 +688,8 @@ export default function TimeAttackPage({
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
+                  {/* Promotion button: admin-only */}
+                  {isAdmin && !phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase2")}
@@ -713,7 +725,8 @@ export default function TimeAttackPage({
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
                 <div className="flex gap-2">
-                  {!phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
+                  {/* Promotion button: admin-only */}
+                  {isAdmin && !phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase3")}
@@ -745,7 +758,8 @@ export default function TimeAttackPage({
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
-            <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>
+            {/* Time Entry tab: admin-only since non-admins cannot edit times */}
+            {isAdmin && <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>}
           </TabsList>
 
           {/* Standings Tab: Ranked list of players */}
@@ -801,8 +815,8 @@ export default function TimeAttackPage({
             </Card>
           </TabsContent>
 
-          {/* Time Entry Tab: Edit times for each player */}
-          <TabsContent value="times">
+          {/* Time Entry Tab: Admin-only - edit times for each player */}
+          {isAdmin && <TabsContent value="times">
             <Card>
               <CardHeader>
                 <CardTitle>{t('timeEntry')}</CardTitle>
@@ -869,12 +883,12 @@ export default function TimeAttackPage({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       )}
 
-      {/* Time Entry Dialog: Course-by-course time input */}
-      <Dialog
+      {/* Time Entry Dialog: Admin-only, course-by-course time input */}
+      {isAdmin && <Dialog
         open={isTimeEntryDialogOpen}
         onOpenChange={(open) => {
           setIsTimeEntryDialogOpen(open);
@@ -956,7 +970,7 @@ export default function TimeAttackPage({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 }

@@ -10,7 +10,7 @@
  * - PUT:    Update times, lives, or elimination status for an entry
  * - DELETE: Remove an entry from the tournament (admin only)
  *
- * All mutation operations are rate-limited and audit-logged.
+ * All mutation operations are audit-logged.
  * Promotion operations require admin authentication via NextAuth session.
  *
  * CRITICAL: Logger is created INSIDE each handler function (not at module level)
@@ -209,8 +209,6 @@ export async function GET(
  * - Default/add: Add player(s) to qualification round
  * - promote_to_revival_1: Promote players 17-24 to revival round 1 (auth required)
  * - promote_to_revival_2: Promote players 13-16 + revival 1 survivors (auth required)
- *
- * Rate limited: 10 requests/minute for adds, 5 requests/minute for promotions.
  */
 export async function POST(
   request: NextRequest,
@@ -399,7 +397,6 @@ export async function POST(
  * - "update_times" / default: Update course time(s)
  *
  * After any update, ranks are automatically recalculated for the affected stage.
- * Rate limited: 10 requests/minute.
  */
 export async function PUT(
   request: NextRequest,
@@ -654,8 +651,6 @@ export async function PUT(
  *
  * Query parameters:
  * - entryId: UUID of the entry to delete (required)
- *
- * Rate limited: 5 requests/minute.
  */
 export async function DELETE(
   request: NextRequest,

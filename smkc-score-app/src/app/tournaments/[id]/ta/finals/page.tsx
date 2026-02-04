@@ -28,6 +28,7 @@
  */
 
 import { useState, useEffect, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -160,10 +161,18 @@ export default function TimeAttackFinals({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
   /* i18n translation hooks for TA finals, finals, and common namespaces */
   const tTaFinals = useTranslations('taFinals');
   const tFinals = useTranslations('finals');
   const tCommon = useTranslations('common');
+
+  /**
+   * Admin role check: only admin users can start rounds, enter times,
+   * submit results, and eliminate players. Non-admin users see read-only
+   * standings, history, and champion banner.
+   */
+  const isAdmin = session?.user && session.user.role === 'admin';
 
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
@@ -660,12 +669,12 @@ export default function TimeAttackFinals({
       )}
 
       {/* === Round Control / Time Entry Section ===
-       * Occupies a fixed position at the top of the content area.
+       * Admin-only: non-admin users see read-only standings and history.
        * Transitions in-place between two states without tab switching (issue #168):
        * - No active round: stats summary + "Start Round" button
        * - Active round: time entry form for the current course
        */}
-      {!isComplete && (
+      {isAdmin && !isComplete && (
         currentRound ? (
           <Card>
             <CardHeader>
@@ -851,7 +860,8 @@ export default function TimeAttackFinals({
                 <TableHead className="w-16">#</TableHead>
                 <TableHead>{tCommon('player')}</TableHead>
                 <TableHead className="text-center">{tTaFinals('lives')}</TableHead>
-                <TableHead className="text-right">{tCommon('actions')}</TableHead>
+                {/* Actions column: admin-only (manual elimination) */}
+                {isAdmin && <TableHead className="text-right">{tCommon('actions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -875,6 +885,8 @@ export default function TimeAttackFinals({
                   <TableCell className="text-center">
                     {renderLives(entry.lives, entry.eliminated)}
                   </TableCell>
+                  {/* Admin-only: manual elimination button */}
+                  {isAdmin && (
                   <TableCell className="text-right">
                     {!entry.eliminated && (
                       <Button
@@ -889,6 +901,7 @@ export default function TimeAttackFinals({
                       </Button>
                     )}
                   </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -1007,8 +1020,8 @@ export default function TimeAttackFinals({
         )}
       </Card>
 
-      {/* Manual Elimination Confirmation Dialog */}
-      <AlertDialog
+      {/* Manual Elimination Confirmation Dialog: admin-only */}
+      {isAdmin && <AlertDialog
         open={isEliminateDialogOpen}
         onOpenChange={setIsEliminateDialogOpen}
       >
@@ -1026,7 +1039,7 @@ export default function TimeAttackFinals({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </div>
   );
 }

@@ -17,6 +17,7 @@
 "use client";
 
 import { useState, useCallback, use } from "react";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -110,8 +111,12 @@ export default function MatchRacePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: tournamentId } = use(params);
+  const { data: session } = useSession();
   const t = useTranslations('mr');
   const tc = useTranslations('common');
+
+  /** Admin role check: only admins can setup groups, enter results, and reset */
+  const isAdmin = session?.user && session.user.role === 'admin';
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
@@ -371,8 +376,8 @@ export default function MatchRacePage({
               </Link>
             </Button>
           )}
-          {/* Setup/Reset dialog */}
-          <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
+          {/* Setup/Reset dialog: admin-only */}
+          {isAdmin && <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
             <DialogTrigger asChild>
               <Button variant={qualifications.length > 0 ? "outline" : "default"}>
                 {qualifications.length > 0 ? tc('resetSetup') : tc('setupGroups')}
@@ -487,7 +492,7 @@ export default function MatchRacePage({
                 <Button onClick={handleSetup}>{t('createGroupsAndMatches')}</Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </div>
 
@@ -618,6 +623,8 @@ export default function MatchRacePage({
                               {tc('share')}
                             </Link>
                           </Button>
+                          {/* Enter/Edit result: admin-only */}
+                          {isAdmin && (
                           <Button
                             variant={match.completed ? "outline" : "default"}
                             size="sm"
@@ -625,6 +632,7 @@ export default function MatchRacePage({
                           >
                             {match.completed ? tc('edit') : tc('enterResult')}
                           </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

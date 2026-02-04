@@ -8,8 +8,6 @@
  * to check whether the user is authenticated and to display session info.
  *
  * Security:
- *   - Rate-limited using the 'sessionStatus' bucket to prevent abuse
- *   - Returns rate limit headers (X-RateLimit-*) on 429 responses
  *   - Does not expose sensitive token values in the response
  *
  * Response format:
@@ -17,12 +15,9 @@
  *     { success: true, data: { authenticated: true, user: {...}, tokenInfo: {...} } }
  *   Failure (no session):
  *     { success: false, error: 'No active session', requiresAuth: true }
- *   Rate limited:
- *     { success: false, error: '...', retryAfter: <seconds> } (HTTP 429)
  */
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-// Rate limiting removed — internal tournament tool with few concurrent users
 import { createLogger } from '@/lib/logger';
 
 export async function GET() {

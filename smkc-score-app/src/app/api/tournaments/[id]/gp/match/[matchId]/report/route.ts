@@ -10,26 +10,31 @@
  * (9 for 1st, 6 for 2nd, 3 for 3rd, 1 for 4th).
  *
  * Features:
- * - Rate limiting (10 requests/minute per IP)
  * - Score entry logging for audit trail
  * - Character usage tracking
  * - Auto-confirmation when both players agree
  * - Mismatch detection for admin review
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
-import { getUserAgent } from "@/lib/rate-limit";
+import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
-import { createAuditLog } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 import {
   createScoreEntryLog,
   createCharacterUsageLog,
   validateCharacter,
-  applyRateLimit,
   checkScoreReportAuth,
 } from "@/lib/api-factories/score-report-helpers";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleAuthError,
+  handleDatabaseError,
+} from "@/lib/error-handling";
+import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 
 /**
  * Driver points table indexed by finishing position.
@@ -61,10 +66,7 @@ export async function POST(
   const logger = createLogger('gp-score-report-api');
   const { id: tournamentId, matchId } = await params;
   try {
-    /* Rate limit: 10 requests per minute per IP */
-    const rl = await applyRateLimit(request, 10, 60 * 1000);
-    if (!rl.allowed) return rl.response!;
-    const clientIp = rl.clientIp;
+    const clientIp = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
     const body = sanitizeInput(await request.json());
@@ -80,28 +82,22 @@ export async function POST(
     });
 
     if (!match) {
-      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+      return handleValidationError("Match not found", "matchId");
     }
 
     if (match.completed) {
-      return NextResponse.json(
-        { error: "Match already completed" },
-        { status: 400 }
-      );
+      return handleValidationError("Match already completed", "matchStatus");
     }
 
     /* Authorization check (consistent with BM and MR report routes) */
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Not authorized for this match' },
-        { status: 401 }
-      );
+      return handleAuthError('Unauthorized: Not authorized for this match');
     }
 
     /* Validate character selection */
     if (!validateCharacter(character)) {
-      return NextResponse.json({ error: "Invalid character" }, { status: 400 });
+      return handleValidationError("Invalid character", "character");
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
@@ -137,88 +133,120 @@ export async function POST(
       });
     }
 
-    /* Store reported scores (no optimistic locking for GP) */
-    const updateData =
-      reportingPlayer === 1
-        ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: processedRaces }
-        : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: processedRaces };
+    /*
+     * Optimistic locking: safely update reported scores.
+     * Prevents race conditions when both players submit simultaneously.
+     */
+    let updatedMatch;
+    try {
+      updatedMatch = await updateWithRetry(prisma, async (tx) => {
+        const currentMatch = await tx.gPMatch.findUnique({
+          where: { id: matchId },
+          select: { version: true }
+        });
 
-    const updatedMatch = await prisma.gPMatch.update({
-      where: { id: matchId },
-      data: updateData,
-    });
+        if (!currentMatch) {
+          throw new Error("Match not found");
+        }
 
-    /* Audit log outside the confirmation block (GP-specific behavior) */
-    await createAuditLog({
-      ipAddress: clientIp,
-      userAgent,
-      action: "REPORT_GP_SCORE",
-      targetId: matchId,
-      targetType: "GPMatch",
-      details: {
-        tournamentId,
-        reportingPlayer,
-        points1: totalPoints1,
-        points2: totalPoints2,
-      },
-    });
+        const updateData =
+          reportingPlayer === 1
+            ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: processedRaces, version: { increment: 1 } }
+            : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: processedRaces, version: { increment: 1 } };
+
+        const updateResult = await tx.gPMatch.update({
+          where: { id: matchId, version: currentMatch.version },
+          data: updateData,
+          select: {
+            id: true,
+            player1ReportedPoints1: true, player1ReportedPoints2: true, player1ReportedRaces: true,
+            player2ReportedPoints1: true, player2ReportedPoints2: true, player2ReportedRaces: true,
+            completed: true, version: true,
+          },
+        });
+
+        if (!updateResult) {
+          throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+        }
+
+        return updateResult;
+      });
+    } catch (error) {
+      if (error instanceof OptimisticLockError) {
+        return createErrorResponse(
+          "This match was updated by someone else. Please refresh and try again.",
+          409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+        );
+      }
+      return handleDatabaseError(error, "score report update");
+    }
 
     /* Check dual-report: auto-confirm or flag mismatch */
-    const finalMatch = await prisma.gPMatch.findUnique({
-      where: { id: matchId },
-      include: { player1: true, player2: true },
-    });
-
-    const p1p1 = finalMatch!.player1ReportedPoints1;
-    const p1p2 = finalMatch!.player1ReportedPoints2;
-    const p2p1 = finalMatch!.player2ReportedPoints1;
-    const p2p2 = finalMatch!.player2ReportedPoints2;
+    const p1p1 = updatedMatch.player1ReportedPoints1;
+    const p1p2 = updatedMatch.player1ReportedPoints2;
+    const p2p1 = updatedMatch.player2ReportedPoints1;
+    const p2p2 = updatedMatch.player2ReportedPoints2;
 
     /* Auto-confirm when both reports match */
     if (
       p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null &&
       p1p1 === p2p1 && p1p2 === p2p2
     ) {
-      const racesToUse = finalMatch!.player1ReportedRaces || finalMatch!.player2ReportedRaces;
+      const racesToUse = updatedMatch.player1ReportedRaces || updatedMatch.player2ReportedRaces;
 
-      const confirmedMatch = await prisma.gPMatch.update({
-        where: { id: matchId },
-        data: { points1: p1p1, points2: p1p2, races: racesToUse || [], completed: true },
-        include: { player1: true, player2: true },
-      });
+      try {
+        const confirmedMatch = await updateWithRetry(prisma, async (tx) => {
+          const currentMatch = await tx.gPMatch.findUnique({
+            where: { id: matchId },
+            select: { version: true }
+          });
 
-      await recalculatePlayerStats(tournamentId, confirmedMatch.player1Id);
-      await recalculatePlayerStats(tournamentId, confirmedMatch.player2Id);
+          if (!currentMatch) {
+            throw new Error("Match not found");
+          }
 
-      return NextResponse.json({
-        message: "Scores confirmed and match completed",
-        match: confirmedMatch,
-        autoConfirmed: true,
-      });
+          const finalResult = await tx.gPMatch.update({
+            where: { id: matchId, version: currentMatch.version },
+            data: { points1: p1p1, points2: p1p2, races: racesToUse || [], completed: true, version: { increment: 1 } },
+            include: { player1: true, player2: true },
+          });
+
+          if (!finalResult) {
+            throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+          }
+
+          return finalResult;
+        });
+
+        await recalculatePlayerStats(tournamentId, confirmedMatch.player1Id);
+        await recalculatePlayerStats(tournamentId, confirmedMatch.player2Id);
+
+        return createSuccessResponse({
+          match: confirmedMatch,
+          autoConfirmed: true,
+        }, "Scores confirmed and match completed");
+      } catch (error) {
+        return handleDatabaseError(error, "match completion");
+      }
     }
 
     /* Mismatch: both reported but scores disagree */
     if (p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null) {
-      return NextResponse.json({
-        message: "Score reported but mismatch detected - awaiting admin review",
+      return createSuccessResponse({
         match: updatedMatch,
         mismatch: true,
         player1Report: { points1: p1p1, points2: p1p2 },
         player2Report: { points1: p2p1, points2: p2p2 },
-      });
+      }, "Score reported but mismatch detected - awaiting admin review");
     }
 
-    return NextResponse.json({
-      message: "Score reported successfully",
+    return createSuccessResponse({
       match: updatedMatch,
       waitingFor: reportingPlayer === 1 ? "player2" : "player1",
-    });
+    }, "Score reported successfully");
   } catch (error) {
     logger.error("Failed to report score", { error, tournamentId, matchId });
-    return NextResponse.json(
-      { error: "Failed to report score" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "score report");
   }
 }
 
