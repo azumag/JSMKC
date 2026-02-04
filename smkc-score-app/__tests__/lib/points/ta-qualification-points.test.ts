@@ -10,6 +10,7 @@ import {
   calculateCourseRankings,
   calculateTAQualificationPoints,
 } from "@/lib/points/ta-qualification-points";
+import { COURSES } from "@/lib/constants";
 
 describe("TA Qualification Points", () => {
   describe("calculateCoursePoints", () => {
@@ -125,16 +126,7 @@ describe("TA Qualification Points", () => {
       const playerTimes = new Map<string, Record<string, number | null>>();
       const times: Record<string, number | null> = {};
 
-      // Use 20 course abbreviations from constants
-      const courses = [
-        "MC1", "DP1", "GV1", "BC1",
-        "MC2", "DP2", "GV2", "BC2",
-        "MC3", "DP3", "GV3", "BC3",
-        "CI1", "CI2", "RR", "VL1",
-        "VL2", "KD", "MC4", "KB1",
-      ];
-
-      courses.forEach((course) => {
+      COURSES.forEach((course) => {
         times[course] = 80000; // 1:20.000
       });
 
@@ -154,14 +146,7 @@ describe("TA Qualification Points", () => {
       playerTimes.set("player1", { MC1: 80000 });
       // Player 2 has all courses at slower times
       const player2Times: Record<string, number | null> = {};
-      const courses = [
-        "MC1", "DP1", "GV1", "BC1",
-        "MC2", "DP2", "GV2", "BC2",
-        "MC3", "DP3", "GV3", "BC3",
-        "CI1", "CI2", "RR", "VL1",
-        "VL2", "KD", "MC4", "KB1",
-      ];
-      courses.forEach((course) => {
+      COURSES.forEach((course) => {
         player2Times[course] = 90000;
       });
       playerTimes.set("player2", player2Times);

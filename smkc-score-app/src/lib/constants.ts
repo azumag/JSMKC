@@ -19,39 +19,66 @@
  *   import { COURSES, POLLING_INTERVAL, MAX_BATTLE_SCORE } from '@/lib/constants';
  */
 
-// Course abbreviations in order for SMK (20 courses total)
+/**
+ * Course abbreviations in order for SMK (20 courses total).
+ * Grouped by cup (5 courses per cup) in round order:
+ *
+ * Mushroom Cup: MC1, DP1, GV1, BC1, MC2
+ * Flower Cup:   CI1, GV2, DP2, BC2, MC3
+ * Star Cup:     KB1, CI2, VL1, BC3, MC4
+ * Special Cup:  DP3, KB2, GV3, VL2, RR
+ *
+ * NOTE: "KB2" was previously "KD". If existing DB records have "KD" as a
+ * times JSON key, a migration (renaming "KD" → "KB2" in TTEntry.times) is needed.
+ */
 export const COURSES = [
-  "MC1", "DP1", "GV1", "BC1",
-  "MC2", "DP2", "GV2", "BC2",
-  "MC3", "DP3", "GV3", "BC3",
-  "CI1", "CI2", "RR", "VL1",
-  "VL2", "KD", "MC4", "KB1"
+  "MC1", "DP1", "GV1", "BC1", "MC2",
+  "CI1", "GV2", "DP2", "BC2", "MC3",
+  "KB1", "CI2", "VL1", "BC3", "MC4",
+  "DP3", "KB2", "GV3", "VL2", "RR"
 ] as const;
 
 export type CourseAbbr = typeof COURSES[number];
 
-// Course info with full names and cup assignment
+/**
+ * Course metadata with full English names and cup assignment.
+ * Ordered by cup round (matches COURSES array order).
+ *
+ * Cup-course mapping (official SMK / SFC course order):
+ * ┌─────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+ * │ Cup         │ Round 1         │ Round 2         │ Round 3         │ Round 4         │ Round 5         │
+ * ├─────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+ * │ Mushroom    │ Mario Circuit 1 │ Donut Plains 1  │ Ghost Valley 1  │ Bowser Castle 1 │ Mario Circuit 2 │
+ * │ Flower      │ Choco Island 1  │ Ghost Valley 2  │ Donut Plains 2  │ Bowser Castle 2 │ Mario Circuit 3 │
+ * │ Star        │ Koopa Beach 1   │ Choco Island 2  │ Vanilla Lake 1  │ Bowser Castle 3 │ Mario Circuit 4 │
+ * │ Special     │ Donut Plains 3  │ Koopa Beach 2   │ Ghost Valley 3  │ Vanilla Lake 2  │ Rainbow Road    │
+ * └─────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+ */
 export const COURSE_INFO: { abbr: CourseAbbr; name: string; cup: string }[] = [
+  // Mushroom Cup
   { abbr: "MC1", name: "Mario Circuit 1", cup: "Mushroom" },
   { abbr: "DP1", name: "Donut Plains 1", cup: "Mushroom" },
   { abbr: "GV1", name: "Ghost Valley 1", cup: "Mushroom" },
   { abbr: "BC1", name: "Bowser Castle 1", cup: "Mushroom" },
-  { abbr: "MC2", name: "Mario Circuit 2", cup: "Flower" },
-  { abbr: "DP2", name: "Donut Plains 2", cup: "Flower" },
+  { abbr: "MC2", name: "Mario Circuit 2", cup: "Mushroom" },
+  // Flower Cup
+  { abbr: "CI1", name: "Choco Island 1", cup: "Flower" },
   { abbr: "GV2", name: "Ghost Valley 2", cup: "Flower" },
+  { abbr: "DP2", name: "Donut Plains 2", cup: "Flower" },
   { abbr: "BC2", name: "Bowser Castle 2", cup: "Flower" },
-  { abbr: "MC3", name: "Mario Circuit 3", cup: "Star" },
-  { abbr: "DP3", name: "Donut Plains 3", cup: "Star" },
-  { abbr: "GV3", name: "Ghost Valley 3", cup: "Star" },
+  { abbr: "MC3", name: "Mario Circuit 3", cup: "Flower" },
+  // Star Cup
+  { abbr: "KB1", name: "Koopa Beach 1", cup: "Star" },
+  { abbr: "CI2", name: "Choco Island 2", cup: "Star" },
+  { abbr: "VL1", name: "Vanilla Lake 1", cup: "Star" },
   { abbr: "BC3", name: "Bowser Castle 3", cup: "Star" },
-  { abbr: "CI1", name: "Choco Island 1", cup: "Special" },
-  { abbr: "CI2", name: "Choco Island 2", cup: "Special" },
-  { abbr: "RR", name: "Rainbow Road", cup: "Special" },
-  { abbr: "VL1", name: "Vanilla Lake 1", cup: "Special" },
+  { abbr: "MC4", name: "Mario Circuit 4", cup: "Star" },
+  // Special Cup
+  { abbr: "DP3", name: "Donut Plains 3", cup: "Special" },
+  { abbr: "KB2", name: "Koopa Beach 2", cup: "Special" },
+  { abbr: "GV3", name: "Ghost Valley 3", cup: "Special" },
   { abbr: "VL2", name: "Vanilla Lake 2", cup: "Special" },
-  { abbr: "KD", name: "Koopa Beach 1", cup: "Special" },
-  { abbr: "MC4", name: "Mario Circuit 4", cup: "Special" },
-  { abbr: "KB1", name: "Koopa Beach 2", cup: "Special" },
+  { abbr: "RR", name: "Rainbow Road", cup: "Special" },
 ];
 
 // Total number of courses in time attack
