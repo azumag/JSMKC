@@ -7,6 +7,7 @@
     "signOut": "Sign Out",
     "login": "Login",
     "cancel": "Cancel",
+    "close": "Close",
     "save": "Save",
     "delete": "Delete",
     "edit": "Edit",
@@ -236,7 +237,16 @@
     "editTimes": "Edit Times",
     "enterTimesFor": "Enter Times - {nickname}",
     "enterTimeCourseDesc": "Enter time for each course (format: M:SS.mmm, e.g., 1:23.456)",
-    "cup": "{cup} Cup"
+    "cup": "{cup} Cup",
+    "viewTimes": "View Times",
+    "viewTimesFor": "View Times - {nickname}",
+    "courseRankings": "By Course",
+    "courseRankingsDesc": "View rankings per course",
+    "noTimeRecorded": "No time",
+    "timeList": "Time List",
+    "timeListDesc": "View times for each player",
+    "courseScore": "Score",
+    "time": "Time"
   },
   "bm": {
     "title": "Battle Mode",

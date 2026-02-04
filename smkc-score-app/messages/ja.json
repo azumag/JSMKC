@@ -7,6 +7,7 @@
     "signOut": "ログアウト",
     "login": "ログイン",
     "cancel": "キャンセル",
+    "close": "閉じる",
     "save": "保存",
     "delete": "削除",
     "edit": "編集",
@@ -236,7 +237,16 @@
     "editTimes": "タイム編集",
     "enterTimesFor": "タイム入力 - {nickname}",
     "enterTimeCourseDesc": "各コースのタイムを入力 (形式: M:SS.mmm, 例: 1:23.456)",
-    "cup": "{cup}カップ"
+    "cup": "{cup}カップ",
+    "viewTimes": "タイム閲覧",
+    "viewTimesFor": "タイム閲覧 - {nickname}",
+    "courseRankings": "コース別",
+    "courseRankingsDesc": "コース別のランキングを確認",
+    "noTimeRecorded": "未記録",
+    "timeList": "タイム一覧",
+    "timeListDesc": "各プレイヤーのタイムを閲覧",
+    "courseScore": "スコア",
+    "time": "タイム"
   },
   "bm": {
     "title": "バトルモード",

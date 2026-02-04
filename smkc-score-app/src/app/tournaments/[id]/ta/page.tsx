@@ -59,13 +59,15 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
-import { generateRandomTimeString } from "@/lib/ta/time-utils";
+import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { Dice5 } from "lucide-react";
+import { Dice5, ChevronDown, ChevronRight, Eye } from "lucide-react";
 import { toast } from "sonner";
+
+/** Unique cup names derived from course metadata, used for grouping course displays */
+const CUP_NAMES = [...new Set(COURSE_INFO.map((c) => c.cup))];
 
 /** Player data structure from the API */
 interface Player {
@@ -89,18 +91,6 @@ interface TTEntry {
   /** Total qualification points: floor(sum of per-course scores) */
   qualificationPoints: number | null;
   player: Player;
-}
-
-/**
- * Convert milliseconds to human-readable display format (M:SS.mmm).
- * Returns "-" for null values (no time recorded).
- */
-function msToDisplayTime(ms: number | null): string {
-  if (ms === null) return "-";
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const milliseconds = ms % 1000;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
 export default function TimeAttackPage({
@@ -137,9 +127,9 @@ export default function TimeAttackPage({
     return false;
   };
 
-  /** Whether the Time Entry tab should be visible.
-   *  Shown for admins (edit all) and for logged-in players (edit own). */
-  const showTimeEntryTab = isAdmin || !!currentPlayerId;
+  /** Whether the current user can edit any entries (admin or player with own entry).
+   *  Controls whether editable time entry features are shown. */
+  const canEditAnyEntry = isAdmin || !!currentPlayerId;
 
   // === State Management ===
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +141,13 @@ export default function TimeAttackPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // View-only dialog state: opened when non-admin/non-owner clicks "View Times"
+  const [isViewTimesDialogOpen, setIsViewTimesDialogOpen] = useState(false);
+  const [viewEntry, setViewEntry] = useState<TTEntry | null>(null);
+
+  // Course rankings accordion state: tracks which courses are expanded
+  const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
 
   // Bulk player add: track selected player IDs and search query for filtering
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
@@ -364,6 +361,41 @@ export default function TimeAttackPage({
     setTimeInputs(entry.times || {});
     setSaveError(null);
     setIsTimeEntryDialogOpen(true);
+  };
+
+  /** Open the read-only view dialog for a specific player's times */
+  const openViewTimesDialog = (entry: TTEntry) => {
+    setViewEntry(entry);
+    setIsViewTimesDialogOpen(true);
+  };
+
+  /** Toggle course expansion in the course rankings accordion */
+  const toggleCourse = (courseAbbr: string) => {
+    setExpandedCourses((prev) => {
+      const next = new Set(prev);
+      if (next.has(courseAbbr)) {
+        next.delete(courseAbbr);
+      } else {
+        next.add(courseAbbr);
+      }
+      return next;
+    });
+  };
+
+  /**
+   * Get ranked players for a specific course, sorted by time (fastest first).
+   * Uses timeToMs() for correct numeric comparison (localeCompare on time
+   * strings produces wrong order when minute digits differ, e.g. "2:05" vs "1:59").
+   * Only includes players who have recorded a time for this course.
+   */
+  const getCourseRankings = (courseAbbr: string) => {
+    return entries
+      .filter((e) => e.times && e.times[courseAbbr] && e.times[courseAbbr] !== "")
+      .sort((a, b) => {
+        const msA = timeToMs(a.times![courseAbbr]) ?? Infinity;
+        const msB = timeToMs(b.times![courseAbbr]) ?? Infinity;
+        return msA - msB;
+      });
   };
 
   /** Handle individual course time input change */
@@ -780,8 +812,13 @@ export default function TimeAttackPage({
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
-            {/* Time Entry tab: visible for admins (edit all) and players (edit own) */}
-            {showTimeEntryTab && <TabsTrigger value="times">{t('timeEntry')}</TabsTrigger>}
+            {/* Time list tab: visible to all users.
+             *  Admin/player sees "タイム入力", others see "タイム一覧" */}
+            <TabsTrigger value="times">
+              {canEditAnyEntry ? t('timeEntry') : t('timeList')}
+            </TabsTrigger>
+            {/* Course rankings tab: per-course accordion view, visible to all */}
+            <TabsTrigger value="courseRankings">{t('courseRankings')}</TabsTrigger>
           </TabsList>
 
           {/* Standings Tab: Ranked list of players */}
@@ -837,14 +874,33 @@ export default function TimeAttackPage({
             </Card>
           </TabsContent>
 
-          {/* Time Entry Tab: visible for admins (edit all) and players (edit own times) */}
-          {showTimeEntryTab && <TabsContent value="times">
+          {/* Time List/Entry Tab: visible to all users.
+           *  Admin/player can edit times; others can view times read-only. */}
+          <TabsContent value="times">
             <Card>
               <CardHeader>
-                <CardTitle>{t('timeEntry')}</CardTitle>
-                <CardDescription>
-                  {t('timeEntryDesc')}
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>{canEditAnyEntry ? t('timeEntry') : t('timeList')}</CardTitle>
+                    <CardDescription>
+                      {canEditAnyEntry ? t('timeEntryDesc') : t('timeListDesc')}
+                    </CardDescription>
+                  </div>
+                  {/* Quick-access button: lets logged-in players open their own
+                   *  time entry dialog directly without scrolling the table.
+                   *  Only shown when the player has an entry in this tournament. */}
+                  {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId) && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const myEntry = entries.find((e) => e.playerId === currentPlayerId);
+                        if (myEntry) openTimeEntryDialog(myEntry);
+                      }}
+                    >
+                      {t('editTimes')}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -870,12 +926,22 @@ export default function TimeAttackPage({
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {/* Edit button: admin can edit all; player can edit own entry only */}
-                          {canEditEntry(entry) && (
+                          {canEditEntry(entry) ? (
                             <Button
                               size="sm"
                               onClick={() => openTimeEntryDialog(entry)}
                             >
                               {t('editTimes')}
+                            </Button>
+                          ) : (
+                            /* View button: read-only access for all other users */
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openViewTimesDialog(entry)}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              {t('viewTimes')}
                             </Button>
                           )}
                           {/* Remove button: admin-only (players cannot remove entries) */}
@@ -911,14 +977,100 @@ export default function TimeAttackPage({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>}
+          </TabsContent>
+
+          {/* Course Rankings Tab: per-course accordion view, visible to all users.
+           *  Shows all 20 courses grouped by cup. Expanding a course reveals
+           *  all players' times ranked fastest-first. */}
+          <TabsContent value="courseRankings">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('courseRankings')}</CardTitle>
+                <CardDescription>{t('courseRankingsDesc')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {CUP_NAMES.map((cup) => (
+                  <div key={cup} className="space-y-1">
+                    <h4 className="font-semibold text-sm text-muted-foreground pt-2">
+                      {t('cup', { cup })}
+                    </h4>
+                    {COURSE_INFO.filter((c) => c.cup === cup).map((course) => {
+                      const isExpanded = expandedCourses.has(course.abbr);
+                      const rankings = isExpanded ? getCourseRankings(course.abbr) : [];
+                      return (
+                        <div key={course.abbr} className="border rounded-lg">
+                          {/* Course header: click to expand/collapse */}
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors"
+                            onClick={() => toggleCourse(course.abbr)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-medium w-10">
+                                {course.abbr}
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                {course.name}
+                              </span>
+                            </div>
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          </button>
+                          {/* Expanded: show player rankings for this course */}
+                          {isExpanded && (
+                            <div className="border-t px-3 pb-3">
+                              {rankings.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-2">
+                                  {t('noTimeRecorded')}
+                                </p>
+                              ) : (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-12">{t('rank')}</TableHead>
+                                      <TableHead>{tc('player')}</TableHead>
+                                      <TableHead className="text-right">{t('time')}</TableHead>
+                                      <TableHead className="text-right">{t('courseScore')}</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {rankings.map((entry, idx) => (
+                                      <TableRow key={entry.id}>
+                                        <TableCell className="font-bold">
+                                          {idx + 1}
+                                        </TableCell>
+                                        <TableCell className="font-medium">
+                                          {entry.player.nickname}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">
+                                          {entry.times![course.abbr]}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-muted-foreground">
+                                          {entry.courseScores?.[course.abbr]?.toFixed(1) ?? "-"}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       )}
 
       {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
        * The dialog is opened via openTimeEntryDialog() which is only callable
        * through the canEditEntry() gated "Edit Times" button. */}
-      {showTimeEntryTab && <Dialog
+      {canEditAnyEntry && <Dialog
         open={isTimeEntryDialogOpen}
         onOpenChange={(open) => {
           setIsTimeEntryDialogOpen(open);
@@ -942,7 +1094,7 @@ export default function TimeAttackPage({
             )}
             {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
             <div className="grid grid-cols-2 gap-4">
-              {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
+              {CUP_NAMES.map((cup) => (
                 <Card key={cup}>
                   <CardHeader className="py-2">
                     <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
@@ -1001,6 +1153,57 @@ export default function TimeAttackPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>}
+
+      {/* View Times Dialog: read-only view of a player's times.
+       *  Opened by the "View Times" button for entries the user cannot edit.
+       *  Same layout as the edit dialog but displays text instead of inputs. */}
+      <Dialog
+        open={isViewTimesDialogOpen}
+        onOpenChange={setIsViewTimesDialogOpen}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {t('viewTimesFor', { nickname: viewEntry?.player.nickname ?? '' })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {/* Course times displayed as read-only text, organized by cup */}
+            <div className="grid grid-cols-2 gap-4">
+              {CUP_NAMES.map((cup) => (
+                <Card key={cup}>
+                  <CardHeader className="py-2">
+                    <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
+                      <div
+                        key={course.abbr}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="w-12 text-xs font-mono text-muted-foreground">
+                          {course.abbr}
+                        </span>
+                        <span className="font-mono text-sm">
+                          {viewEntry?.times?.[course.abbr] || t('noTimeRecorded')}
+                        </span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsViewTimesDialogOpen(false)}
+            >
+              {tc('close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
