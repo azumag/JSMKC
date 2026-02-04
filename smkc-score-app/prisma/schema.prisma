@@ -119,6 +119,7 @@ model Tournament {
   name          String
   date          DateTime
   status        String   @default("draft") // draft, active, completed
+  frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用
   createdAt     DateTime @default(now())

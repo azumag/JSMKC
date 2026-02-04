@@ -63,7 +63,7 @@ import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { Dice5, ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 
 /** Unique cup names derived from course metadata, used for grouping course displays */
@@ -119,9 +119,11 @@ export default function TimeAttackPage({
 
   /**
    * Whether the current user can edit a specific entry's times.
-   * Admins can edit any entry; players can only edit their own.
+   * Returns false if the entry's stage is frozen (applies to both admins and players).
+   * Otherwise: admins can edit any entry; players can only edit their own.
    */
   const canEditEntry = (entry: TTEntry): boolean => {
+    if (frozenStages.includes(entry.stage)) return false;
     if (isAdmin) return true;
     if (currentPlayerId && entry.playerId === currentPlayerId) return true;
     return false;
@@ -239,6 +241,7 @@ export default function TimeAttackPage({
     return {
       entries: taData.entries || [],
       allPlayers: playersJson.data ?? playersJson,
+      frozenStages: taData.frozenStages || [],
     };
   }, [tournamentId]);
 
@@ -258,6 +261,8 @@ export default function TimeAttackPage({
    */
   const entries: TTEntry[] = pollData?.entries ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  /** Frozen stages from the tournament - stages in this array cannot be edited */
+  const frozenStages: string[] = pollData?.frozenStages ?? [];
 
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
@@ -318,6 +323,49 @@ export default function TimeAttackPage({
       alert(errorMessage);
     } finally {
       setPromotingPhase(null);
+    }
+  };
+
+  /**
+   * Toggle freeze/unfreeze for a specific TA stage (admin only).
+   * Updates the tournament's frozenStages array via the tournament PUT endpoint.
+   * When a stage is frozen, all time edits for entries in that stage are blocked.
+   */
+  /**
+   * Map internal stage names to localized display names for toast messages.
+   * Uses existing i18n keys where available.
+   */
+  const stageDisplayName = (stage: string): string => {
+    const names: Record<string, string> = {
+      qualification: t('qualificationTitle'),
+      phase1: t('phase1'),
+      phase2: t('phase2'),
+      phase3: t('phase3'),
+    };
+    return names[stage] || stage;
+  };
+
+  const handleToggleFreeze = async (stage: string) => {
+    const newFrozen = frozenStages.includes(stage)
+      ? frozenStages.filter((s) => s !== stage)
+      : [...frozenStages, stage];
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ frozenStages: newFrozen }),
+      });
+      if (!response.ok) throw new Error("Failed to update freeze state");
+      refetch();
+      const displayName = stageDisplayName(stage);
+      toast.success(
+        frozenStages.includes(stage)
+          ? `${t('unfreeze')}: ${displayName}`
+          : `${t('freeze')}: ${displayName}`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to toggle freeze");
     }
   };
 
@@ -564,12 +612,35 @@ export default function TimeAttackPage({
       {/* Header with action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t('qualificationTitle')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold">{t('qualificationTitle')}</h1>
+            {/* Show frozen badge when qualification stage is locked */}
+            {frozenStages.includes("qualification") && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
+                <Lock className="h-3 w-3" />
+                {t('frozenBadge')}
+              </span>
+            )}
+          </div>
           <p className="text-muted-foreground text-sm sm:text-base">
             {t('qualificationDesc')}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {/* Freeze/Unfreeze qualification stage (admin only) */}
+          {isAdmin && (
+            <Button
+              variant={frozenStages.includes("qualification") ? "destructive" : "outline"}
+              onClick={() => handleToggleFreeze("qualification")}
+              size="sm"
+            >
+              {frozenStages.includes("qualification") ? (
+                <><Unlock className="h-4 w-4 mr-1" />{t('unfreeze')}</>
+              ) : (
+                <><Lock className="h-4 w-4 mr-1" />{t('freeze')}</>
+              )}
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? tc('exporting') : tc('exportExcel')}
           </Button>
@@ -694,7 +765,14 @@ export default function TimeAttackPage({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Phase 1: Only relevant when there are ≥17 qualified players (ranks 17-24) */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">{t('phase1')}</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold">{t('phase1')}</h4>
+                  {frozenStages.includes("phase1") && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                      <Lock className="h-3 w-3" />{t('frozenBadge')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
                 {phaseStatus?.phase1 ? (
                   <div className="text-sm">
@@ -707,7 +785,7 @@ export default function TimeAttackPage({
                 ) : (
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
                   {isAdmin && !phaseStatus?.phase1 && phase1HasPlayers && (
                     <Button
@@ -723,12 +801,30 @@ export default function TimeAttackPage({
                       <Link href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</Link>
                     </Button>
                   )}
+                  {/* Freeze toggle for Phase 1 (admin only, shown after phase is started) */}
+                  {isAdmin && phaseStatus?.phase1 && (
+                    <Button
+                      size="sm"
+                      variant={frozenStages.includes("phase1") ? "destructive" : "outline"}
+                      onClick={() => handleToggleFreeze("phase1")}
+                    >
+                      {frozenStages.includes("phase1") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                      {frozenStages.includes("phase1") ? t('unfreeze') : t('freeze')}
+                    </Button>
+                  )}
                 </div>
               </div>
 
               {/* Phase 2: Accessible when Phase 1 exists OR Phase 1 is skipped (no eligible players) */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">{t('phase2')}</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold">{t('phase2')}</h4>
+                  {frozenStages.includes("phase2") && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                      <Lock className="h-3 w-3" />{t('frozenBadge')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{t('phase2Desc')}</p>
                 {phaseStatus?.phase2 ? (
                   <div className="text-sm">
@@ -741,7 +837,7 @@ export default function TimeAttackPage({
                 ) : (
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
                   {isAdmin && !phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
                     <Button
@@ -757,12 +853,30 @@ export default function TimeAttackPage({
                       <Link href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</Link>
                     </Button>
                   )}
+                  {/* Freeze toggle for Phase 2 (admin only, shown after phase is started) */}
+                  {isAdmin && phaseStatus?.phase2 && (
+                    <Button
+                      size="sm"
+                      variant={frozenStages.includes("phase2") ? "destructive" : "outline"}
+                      onClick={() => handleToggleFreeze("phase2")}
+                    >
+                      {frozenStages.includes("phase2") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                      {frozenStages.includes("phase2") ? t('unfreeze') : t('freeze')}
+                    </Button>
+                  )}
                 </div>
               </div>
 
               {/* Phase 3: Accessible when Phase 2 exists OR Phase 1+2 are skipped */}
               <div className="border rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold">{t('phase3')}</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold">{t('phase3')}</h4>
+                  {frozenStages.includes("phase3") && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                      <Lock className="h-3 w-3" />{t('frozenBadge')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
                 {phaseStatus?.phase3 ? (
                   <div className="text-sm">
@@ -778,7 +892,7 @@ export default function TimeAttackPage({
                 ) : (
                   <p className="text-sm text-muted-foreground">{tc('notStarted')}</p>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
                   {isAdmin && !phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
                     <Button
@@ -792,6 +906,17 @@ export default function TimeAttackPage({
                   {phaseStatus?.phase3 && (
                     <Button size="sm" variant="outline" asChild>
                       <Link href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</Link>
+                    </Button>
+                  )}
+                  {/* Freeze toggle for Phase 3 (admin only, shown after phase is started) */}
+                  {isAdmin && phaseStatus?.phase3 && (
+                    <Button
+                      size="sm"
+                      variant={frozenStages.includes("phase3") ? "destructive" : "outline"}
+                      onClick={() => handleToggleFreeze("phase3")}
+                    >
+                      {frozenStages.includes("phase3") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                      {frozenStages.includes("phase3") ? t('unfreeze') : t('freeze')}
                     </Button>
                   )}
                 </div>

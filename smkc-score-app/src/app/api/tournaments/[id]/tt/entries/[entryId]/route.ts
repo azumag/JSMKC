@@ -25,6 +25,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
+import { checkStageFrozen } from "@/lib/ta/freeze-check";
 
 /**
  * GET /api/tournaments/[id]/tt/entries/[entryId]
@@ -129,7 +130,7 @@ export async function PUT(
   if (!isAdmin) {
     const entryForAuth = await prisma.tTEntry.findUnique({
       where: { id: entryId },
-      select: { playerId: true },
+      select: { playerId: true, stage: true, tournamentId: true },
     });
     if (!entryForAuth || entryForAuth.playerId !== session.user.playerId) {
       return NextResponse.json(
@@ -137,6 +138,24 @@ export async function PUT(
         { status: 403 }
       );
     }
+    // Reject updates if the entry's stage is frozen (applies to both players and admins)
+    const freezeError = await checkStageFrozen(prisma, entryForAuth.tournamentId, entryForAuth.stage);
+    if (freezeError) return freezeError;
+  } else {
+    // Admin path: fetch entry's stage to check freeze status
+    const entryForFreeze = await prisma.tTEntry.findUnique({
+      where: { id: entryId },
+      select: { stage: true, tournamentId: true },
+    });
+    if (!entryForFreeze) {
+      return NextResponse.json(
+        { success: false, error: "Entry not found" },
+        { status: 404 }
+      );
+    }
+    // Admins are also blocked from editing frozen stages (intentional lock)
+    const freezeError = await checkStageFrozen(prisma, entryForFreeze.tournamentId, entryForFreeze.stage);
+    if (freezeError) return freezeError;
   }
   try {
     const body = await request.json();

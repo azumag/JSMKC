@@ -30,6 +30,7 @@ import { timeToMs } from "@/lib/ta/time-utils";
 import { promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
+import { checkStageFrozen } from "@/lib/ta/freeze-check";
 
 /**
  * Regex for validating time format strings in request validation.
@@ -171,24 +172,29 @@ export async function GET(
     const stage = StageSchema.safeParse(searchParams.get("stage"));
     const stageToQuery = stage.success ? stage.data : "qualification";
 
-    // Fetch entries with player data, ordered by rank for display
-    const entries = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: stageToQuery },
-      include: { player: true },
-      orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-    });
-
-    /* finalsCount query removed: legacy promote-to-finals no longer creates
-     * entries with stage "finals". Phase 3 entries use stage "phase3" instead. */
-    const qualCount = await prisma.tTEntry.count({
-      where: { tournamentId, stage: "qualification" },
-    });
+    // Fetch entries and tournament frozenStages in parallel for efficiency
+    const [entries, tournament, qualCount] = await Promise.all([
+      prisma.tTEntry.findMany({
+        where: { tournamentId, stage: stageToQuery },
+        include: { player: true },
+        orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+      }),
+      prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { frozenStages: true },
+      }),
+      prisma.tTEntry.count({
+        where: { tournamentId, stage: "qualification" },
+      }),
+    ]);
 
     return NextResponse.json({
       entries,
       courses: COURSES,
       stage: stageToQuery,
       qualCount,
+      // Return frozen stages so the UI can disable editing for frozen phases
+      frozenStages: (tournament?.frozenStages as string[]) || [],
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
@@ -446,6 +452,10 @@ export async function PUT(
         return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
       }
 
+      // Reject lives changes if the entry's stage is frozen
+      const livesFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
+      if (livesFreeze) return livesFreeze;
+
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: action === "reset_lives" ? { lives: 3 } : { lives: { increment: livesDelta } },
@@ -499,6 +509,10 @@ export async function PUT(
         return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
       }
 
+      // Reject elimination changes if the entry's stage is frozen
+      const elimFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
+      if (elimFreeze) return elimFreeze;
+
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: { eliminated },
@@ -550,6 +564,10 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Reject time updates if the entry's stage is frozen by an admin
+    const timeFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
+    if (timeFreeze) return timeFreeze;
 
     // Ownership check: players can only update their own entry's times.
     // Admins can update any entry. This prevents a player from modifying
@@ -707,6 +725,10 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Reject deletion if the entry's stage is frozen
+    const deleteFreeze = await checkStageFrozen(prisma, tournamentId, entryToDelete.stage);
+    if (deleteFreeze) return deleteFreeze;
 
     // Delete the entry from the database
     await prisma.tTEntry.delete({

@@ -49,6 +49,10 @@ jest.mock('@/lib/optimistic-locking', () => ({
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+// Mock freeze-check: default to "not frozen" for all existing tests
+jest.mock('@/lib/ta/freeze-check', () => ({
+  checkStageFrozen: jest.fn(() => Promise.resolve(null)),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';

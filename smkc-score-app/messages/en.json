@@ -246,7 +246,11 @@
     "timeList": "Time List",
     "timeListDesc": "View times for each player",
     "courseScore": "Score",
-    "time": "Time"
+    "time": "Time",
+    "freeze": "Freeze",
+    "unfreeze": "Unfreeze",
+    "stageFrozen": "This stage is frozen. Time edits are not allowed.",
+    "frozenBadge": "Frozen"
   },
   "bm": {
     "title": "Battle Mode",

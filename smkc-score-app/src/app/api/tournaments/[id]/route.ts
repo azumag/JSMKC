@@ -56,6 +56,7 @@ export async function GET(
         name: true,
         date: true,
         status: true,
+        frozenStages: true,
         createdAt: true,
         updatedAt: true,
         // BM qualification standings: sorted by group (A, B, ...) then by score descending
@@ -130,7 +131,24 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status } = body;
+    const { name, date, status, frozenStages } = body;
+
+    // Validate frozenStages if provided: must be an array of valid TA stage names.
+    // This prevents arbitrary strings from being stored in the frozen list.
+    const VALID_FROZEN_STAGES = ["qualification", "phase1", "phase2", "phase3"];
+    if (frozenStages !== undefined) {
+      if (
+        !Array.isArray(frozenStages) ||
+        !frozenStages.every(
+          (s: unknown) => typeof s === "string" && VALID_FROZEN_STAGES.includes(s)
+        )
+      ) {
+        return NextResponse.json(
+          { success: false, error: "frozenStages must be an array of valid stage names" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Use spread conditionals to only update fields that were provided.
     // This prevents accidentally nullifying fields that weren't included
@@ -141,6 +159,7 @@ export async function PUT(
         ...(name && { name }),
         ...(date && { date: new Date(date) }),
         ...(status && { status }),
+        ...(frozenStages !== undefined && { frozenStages }),
       },
     });
 
@@ -159,6 +178,7 @@ export async function PUT(
           name,
           date,
           status,
+          frozenStages,
         },
       });
     } catch (logError) {

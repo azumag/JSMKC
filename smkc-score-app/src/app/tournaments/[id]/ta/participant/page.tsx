@@ -35,7 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5 } from 'lucide-react';
+import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, TOTAL_COURSES } from '@/lib/constants';
 import { toast } from 'sonner';
@@ -117,6 +117,8 @@ export default function TimeAttackParticipantPage({
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [entries, setEntries] = useState<TTEntry[]>([]);
+  /** Frozen stages from the tournament - when "qualification" is frozen, editing is blocked */
+  const [frozenStages, setFrozenStages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myEntry, setMyEntry] = useState<TTEntry | null>(null);
@@ -175,6 +177,7 @@ export default function TimeAttackParticipantPage({
         if (entriesRes.ok) {
           const data = await entriesRes.json();
           setEntries(data.entries || []);
+          setFrozenStages(data.frozenStages || []);
         }
       } catch (err) {
         console.error('Data fetch error:', err);
@@ -201,6 +204,10 @@ export default function TimeAttackParticipantPage({
   useEffect(() => {
     if (pollingData && typeof pollingData === 'object' && 'entries' in pollingData) {
       setEntries(pollingData.entries as TTEntry[]);
+      // Update frozen stages from polling to reflect admin changes in real-time
+      if ('frozenStages' in pollingData) {
+        setFrozenStages(pollingData.frozenStages as string[]);
+      }
     }
     if (pollingError) console.error('Polling error:', pollingError);
   }, [pollingData, pollingError]);
@@ -398,6 +405,16 @@ export default function TimeAttackParticipantPage({
             </Alert>
           )}
 
+          {/* Frozen stage warning: shown when qualification is locked by admin */}
+          {frozenStages.includes("qualification") && (
+            <Alert className="mb-6 border-destructive/50 bg-destructive/5">
+              <Lock className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-destructive">
+                {tTa('stageFrozen')}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Time Entry Form (shown if player has a qualification entry) */}
           {myEntry ? (
             <Card>
@@ -452,6 +469,7 @@ export default function TimeAttackParticipantPage({
                                 placeholder="M:SS.mmm"
                                 value={timeInputs[course.abbr] || ''}
                                 onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
+                                disabled={frozenStages.includes("qualification")}
                                 className="font-mono text-sm"
                               />
                             </div>
@@ -481,8 +499,13 @@ export default function TimeAttackParticipantPage({
                     </Button>
                   )}
 
-                  {/** i18n: Submit button toggles between "Submitting..." (common.saving) and "Submit Times" */}
-                  <Button onClick={handleSubmitTimes} disabled={submitting || getEnteredTimesCount() === 0} className="w-full">
+                  {/** i18n: Submit button toggles between "Submitting..." (common.saving) and "Submit Times".
+                   *  Disabled when qualification stage is frozen to prevent edits. */}
+                  <Button
+                    onClick={handleSubmitTimes}
+                    disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification")}
+                    className="w-full"
+                  >
                     {submitting ? tCommon('saving') : tPart('submitTimes')}
                   </Button>
                 </div>

@@ -246,7 +246,11 @@
     "timeList": "タイム一覧",
     "timeListDesc": "各プレイヤーのタイムを閲覧",
     "courseScore": "スコア",
-    "time": "タイム"
+    "time": "タイム",
+    "freeze": "凍結",
+    "unfreeze": "凍結解除",
+    "stageFrozen": "このステージは凍結されています。タイムの編集はできません。",
+    "frozenBadge": "凍結中"
   },
   "bm": {
     "title": "バトルモード",

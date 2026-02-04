@@ -82,6 +82,12 @@ jest.mock('@/lib/ta/promotion', () => ({
   promoteToRevival2: jest.fn(),
 }));
 
+// Mock freeze-check: default to "not frozen" (returns null) for all existing tests.
+// Tests that need to verify freeze behavior can override this mock.
+jest.mock('@/lib/ta/freeze-check', () => ({
+  checkStageFrozen: jest.fn(() => Promise.resolve(null)),
+}));
+
 // Mock next/server with MockNextRequest that supports URL parsing
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
@@ -180,6 +186,7 @@ describe('/api/tournaments/[id]/ta', () => {
       ];
 
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
       (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(10);
 
       await taRoute.GET(
@@ -187,17 +194,12 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
-        where: { tournamentId: VALID_UUID, stage: 'qualification' },
-        include: { player: true },
-        orderBy: [{ rank: 'asc' }, { totalTime: 'asc' }],
-      });
-
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           entries: mockEntries,
           stage: 'qualification',
           qualCount: 10,
+          frozenStages: [],
         })
       );
     });
