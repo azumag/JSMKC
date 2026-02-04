@@ -22,7 +22,7 @@
  */
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
+// Rate limiting removed — internal tournament tool with few concurrent users
 import { createLogger } from '@/lib/logger';
 
 export async function GET() {
@@ -32,32 +32,6 @@ export async function GET() {
   const logger = createLogger('auth-session');
 
   try {
-    // Rate limiting: Prevent brute-force or excessive polling of session status.
-    // Uses the 'sessionStatus' bucket which has a generous limit for normal use
-    // but blocks rapid automated requests.
-    const identifier = await getServerSideIdentifier();
-    const rateLimitResult = await checkRateLimit('sessionStatus', identifier);
-
-    if (!rateLimitResult.success) {
-      // Return 429 with standard rate limit headers so clients can implement
-      // proper backoff behavior.
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Too many requests. Please try again later.',
-          retryAfter: rateLimitResult.retryAfter
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': (rateLimitResult.limit ?? 0).toString(),
-            'X-RateLimit-Remaining': (rateLimitResult.remaining ?? 0).toString(),
-            'X-RateLimit-Reset': (rateLimitResult.reset ?? 0).toString(),
-          }
-        }
-      );
-    }
-
     // Retrieve the current session from NextAuth.
     // Returns null if the user is not authenticated.
     const session = await auth();

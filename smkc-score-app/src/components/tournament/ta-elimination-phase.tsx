@@ -50,9 +50,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
+import { generateRandomTimeString } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { Dice5 } from "lucide-react";
 
 /** Props for the elimination phase component */
 export interface TAEliminationPhaseProps {
@@ -152,6 +153,10 @@ export default function TAEliminationPhase({
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Development-only flag: uses NODE_ENV which is inlined at build time by Next.js,
+  // ensuring the dev button JSX is tree-shaken from production builds entirely.
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
   // Round start/cancel loading state
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
@@ -159,6 +164,10 @@ export default function TAEliminationPhase({
 
   // Map of playerId → nickname for display in round history
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
+
+  /** Whether the round history section is expanded. Defaults to collapsed
+   *  to keep the focus on the active round and standings. */
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
@@ -321,6 +330,26 @@ export default function TAEliminationPhase({
     }
   };
 
+  /**
+   * Fill random times for all active players in the current round (Dev only).
+   * Uses shared generateRandomTimeString (45s-3:30 range) for consistency
+   * with the qualifying page's random time fill feature.
+   */
+  const handleFillRandomTimes = () => {
+    const activePlayerEntries = entries.filter((e) => !e.eliminated);
+    const randomTimes: Record<string, string> = {};
+    const clearedRetry: Record<string, boolean> = {};
+
+    activePlayerEntries.forEach((entry) => {
+      randomTimes[entry.playerId] = generateRandomTimeString();
+      clearedRetry[entry.playerId] = false;
+    });
+
+    setCourseTimes(randomTimes);
+    // Clear retry flags since we're filling with normal times
+    setRetryFlags(clearedRetry);
+  };
+
   /** Handle time input change for a specific player */
   const handleTimeChange = (playerId: string, value: string) => {
     setCourseTimes((prev) => ({ ...prev, [playerId]: value }));
@@ -438,6 +467,11 @@ export default function TAEliminationPhase({
     rounds.length > 0 &&
     (rounds[rounds.length - 1].results as unknown[]).length === 0;
 
+  /** Count of completed rounds (with submitted results) */
+  const completedRoundsCount = rounds.filter(
+    (r) => (r.results as unknown[]).length > 0
+  ).length;
+
   // === Loading State ===
   if (loading) {
     return (
@@ -541,302 +575,300 @@ export default function TAEliminationPhase({
         </Card>
       )}
 
-      {/* Tabbed Content */}
-      <Tabs defaultValue={currentRound ? "current" : "standings"} className="space-y-4">
-        <TabsList>
-          {currentRound && <TabsTrigger value="current">{tElim('currentRound')}</TabsTrigger>}
-          <TabsTrigger value="standings">{tElim('standings')}</TabsTrigger>
-          <TabsTrigger value="history">{tElim('roundHistory')}</TabsTrigger>
-          {!isComplete && !currentRound && (
-            <TabsTrigger value="control">{tElim('roundControl')}</TabsTrigger>
-          )}
-        </TabsList>
+      {/* === Round Control / Time Entry Section ===
+       * Fixed position at top, transitions in-place between two states:
+       * - No active round: stats summary + "Start Round" button
+       * - Active round: time entry form for the current course
+       */}
+      {!isComplete && (
+        currentRound ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {tElim('roundTitle', { number: currentRound.roundNumber, course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course })}
+              </CardTitle>
+              <CardDescription>
+                {tElim('enterTimesDesc')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {saveError && (
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                  <p className="text-destructive text-sm">{saveError}</p>
+                </div>
+              )}
+              <div className="space-y-3">
+                {activeEntries.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <Label className="truncate block">
+                        {entry.player.nickname}
+                      </Label>
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="M:SS.mmm"
+                      value={courseTimes[entry.playerId] || ""}
+                      onChange={(e) =>
+                        handleTimeChange(entry.playerId, e.target.value)
+                      }
+                      disabled={retryFlags[entry.playerId]}
+                      className="font-mono w-32"
+                    />
+                    {/* Retry penalty button: sets time to 9:59.990 */}
+                    <Button
+                      variant={
+                        retryFlags[entry.playerId] ? "destructive" : "outline"
+                      }
+                      size="sm"
+                      onClick={() => handleRetryToggle(entry.playerId)}
+                      title={tElim('retryPenalty')}
+                    >
+                      {tElim('retry')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {/* Development-only: Fill random times for all active players */}
+              {isDevelopment && (
+                <div className="mt-4">
+                  <Button
+                    onClick={handleFillRandomTimes}
+                    variant="outline"
+                    disabled={submitting}
+                    className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                  >
+                    <Dice5 className="h-4 w-4 mr-2" />
+                    Fill Random Times (Dev Only)
+                  </Button>
+                </div>
+              )}
+              <div className="mt-6 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={submitting || cancellingRound}
+                >
+                  {tElim('cancelRound')}
+                </Button>
+                <Button onClick={handleSubmitResults} disabled={submitting}>
+                  {submitting
+                    ? tElim('submitting')
+                    : tElim('submitAndEliminate')}
+                </Button>
+              </div>
 
-        {/* Current Round Tab: time entry for the active round */}
-        {currentRound && (
-          <TabsContent value="current">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {tElim('roundTitle', { number: currentRound.roundNumber, course: COURSE_INFO.find((c) => c.abbr === currentRound.course)?.name || currentRound.course })}
-                </CardTitle>
-                <CardDescription>
-                  {tElim('enterTimesDesc')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              {/* Cancel confirmation dialog */}
+              <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{tElim('cancelRoundTitle')}</DialogTitle>
+                    <DialogDescription>
+                      {tElim('cancelRoundDesc', { course: currentRound?.course || '' })}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCancelConfirm(false)}
+                      disabled={cancellingRound}
+                    >
+                      {tElim('keepRound')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleCancelRound}
+                      disabled={cancellingRound}
+                    >
+                      {cancellingRound ? tElim('cancelling') : tElim('yesCancelRound')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tElim('roundControl')}</CardTitle>
+              <CardDescription>
+                {tElim('startRoundDesc')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 {saveError && (
-                  <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                  <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
                     <p className="text-destructive text-sm">{saveError}</p>
                   </div>
                 )}
-                <div className="space-y-3">
-                  {activeEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <Label className="truncate block">
-                          {entry.player.nickname}
-                        </Label>
-                      </div>
-                      <Input
-                        type="text"
-                        placeholder="M:SS.mmm"
-                        value={courseTimes[entry.playerId] || ""}
-                        onChange={(e) =>
-                          handleTimeChange(entry.playerId, e.target.value)
-                        }
-                        disabled={retryFlags[entry.playerId]}
-                        className="font-mono w-32"
-                      />
-                      {/* Retry penalty button: sets time to 9:59.990 */}
-                      <Button
-                        variant={
-                          retryFlags[entry.playerId] ? "destructive" : "outline"
-                        }
-                        size="sm"
-                        onClick={() => handleRetryToggle(entry.playerId)}
-                        title={tElim('retryPenalty')}
-                      >
-                        {tElim('retry')}
-                      </Button>
-                    </div>
-                  ))}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>{tElim('activePlayers')}</span>
+                    <span className="font-bold">{activeEntries.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{tElim('eliminatedPlayers')}</span>
+                    <span className="font-bold">{eliminatedEntries.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{tElim('targetSurvivors')}</span>
+                    <span className="font-bold text-blue-500">{targetSurvivors}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{tElim('roundsCompletedLabel')}</span>
+                    <span className="font-bold">{completedRoundsCount}</span>
+                  </div>
                 </div>
-                <div className="mt-6 flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowCancelConfirm(true)}
-                    disabled={submitting || cancellingRound}
-                  >
-                    {tElim('cancelRound')}
-                  </Button>
-                  <Button onClick={handleSubmitResults} disabled={submitting}>
-                    {submitting
-                      ? tElim('submitting')
-                      : tElim('submitAndEliminate')}
-                  </Button>
-                </div>
-
-                {/* Cancel confirmation dialog to prevent accidental round deletion */}
-                <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{tElim('cancelRoundTitle')}</DialogTitle>
-                      <DialogDescription>
-                        {tElim('cancelRoundDesc', { course: currentRound?.course || '' })}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowCancelConfirm(false)}
-                        disabled={cancellingRound}
-                      >
-                        {tElim('keepRound')}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={handleCancelRound}
-                        disabled={cancellingRound}
-                      >
-                        {cancellingRound ? tElim('cancelling') : tElim('yesCancelRound')}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* Standings Tab */}
-        <TabsContent value="standings">
-          <Card>
-            <CardHeader>
-              <CardTitle>{tElim('standings')}</CardTitle>
-              <CardDescription>
-                {tElim('activeEliminated', { active: activeEntries.length, eliminated: eliminatedEntries.length })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">#</TableHead>
-                    <TableHead>{tCommon('player')}</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry, index) => (
-                    <TableRow
-                      key={entry.id}
-                      className={entry.eliminated ? "opacity-50" : ""}
-                    >
-                      <TableCell className="font-bold">{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {entry.player.nickname}
-                        {entry.eliminated && (
-                          <Badge
-                            variant="destructive"
-                            className="ml-2 text-xs"
-                          >
-                            {tElim('eliminated')}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {entry.eliminated ? (
-                          <span className="text-gray-400">{tElim('out')}</span>
-                        ) : (
-                          <Badge className="bg-blue-500">{tElim('active')}</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleStartRound}
+                  disabled={startingRound || hasOpenRound}
+                >
+                  {startingRound
+                    ? tElim('selectingCourse')
+                    : hasOpenRound
+                      ? tElim('completeOpenRound')
+                      : tElim('startRound', { number: rounds.length + 1 })}
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )
+      )}
 
-        {/* Round History Tab */}
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
+      {/* === Standings Section ===
+       * Always visible so admin can monitor player status at all times. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{tElim('standings')}</CardTitle>
+          <CardDescription>
+            {tElim('activeEliminated', { active: activeEntries.length, eliminated: eliminatedEntries.length })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">#</TableHead>
+                <TableHead>{tCommon('player')}</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry, index) => (
+                <TableRow
+                  key={entry.id}
+                  className={entry.eliminated ? "opacity-50" : ""}
+                >
+                  <TableCell className="font-bold">{index + 1}</TableCell>
+                  <TableCell className="font-medium">
+                    {entry.player.nickname}
+                    {entry.eliminated && (
+                      <Badge variant="destructive" className="ml-2 text-xs">
+                        {tElim('eliminated')}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {entry.eliminated ? (
+                      <span className="text-gray-400">{tElim('out')}</span>
+                    ) : (
+                      <Badge className="bg-blue-500">{tElim('active')}</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* === Round History Section ===
+       * Collapsible to save vertical space. Defaults to collapsed. */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
               <CardTitle>{tElim('roundHistory')}</CardTitle>
               <CardDescription>
-                {tElim('roundsCompleted', { count: rounds.filter((r) => (r.results as unknown[]).length > 0).length })}
+                {tElim('roundsCompleted', { count: completedRoundsCount })}
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {rounds.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  {tElim('noRoundsYet')}
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {[...rounds]
-                    .filter((r) => (r.results as unknown[]).length > 0)
-                    .reverse()
-                    .map((round) => {
-                      const courseInfo = COURSE_INFO.find(
-                        (c) => c.abbr === round.course
-                      );
-                      // Sort results by time ascending for display
-                      const sortedResults = [...round.results].sort(
-                        (a, b) => a.timeMs - b.timeMs
-                      );
-                      return (
-                        <div
-                          key={round.id}
-                          className="border rounded-lg p-4 space-y-2"
-                        >
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">
-                              {tElim('roundTitle', { number: round.roundNumber, course: courseInfo?.name || round.course })}
-                            </h4>
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {round.course}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
-                            {sortedResults.map((result, idx) => {
-                              const isEliminated =
-                                round.eliminatedIds?.includes(result.playerId);
-                              return (
-                                <div
-                                  key={result.playerId}
-                                  className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : ""}`}
-                                >
-                                  <span>
-                                    {idx + 1}. {playerNames[result.playerId] || result.playerId}
-                                    {result.isRetry && (
-                                      <Badge
-                                        variant="outline"
-                                        className="ml-1 text-xs"
-                                      >
-                                        {tElim('retry')}
-                                      </Badge>
-                                    )}
-                                    {isEliminated && ` (${tElim('eliminated')})`}
-                                  </span>
-                                  <span className="font-mono">
-                                    {msToDisplayTime(result.timeMs)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryExpanded((prev) => !prev)}
+            >
+              {historyExpanded ? tCommon('hide') : tCommon('show')}
+            </Button>
+          </div>
+        </CardHeader>
+        {historyExpanded && (
+          <CardContent>
+            {rounds.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                {tElim('noRoundsYet')}
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {[...rounds]
+                  .filter((r) => (r.results as unknown[]).length > 0)
+                  .reverse()
+                  .map((round) => {
+                    const courseInfo = COURSE_INFO.find(
+                      (c) => c.abbr === round.course
+                    );
+                    const sortedResults = [...round.results].sort(
+                      (a, b) => a.timeMs - b.timeMs
+                    );
+                    return (
+                      <div
+                        key={round.id}
+                        className="border rounded-lg p-4 space-y-2"
+                      >
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold">
+                            {tElim('roundTitle', { number: round.roundNumber, course: courseInfo?.name || round.course })}
+                          </h4>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {round.course}
+                          </Badge>
                         </div>
-                      );
-                    })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Round Control Tab */}
-        {!isComplete && !currentRound && (
-          <TabsContent value="control">
-            <Card>
-              <CardHeader>
-                <CardTitle>Round Control</CardTitle>
-                <CardDescription>
-                  Start a new round with a randomly selected course
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {saveError && (
-                    <div className="p-3 bg-destructive/10 border border-destructive rounded-md">
-                      <p className="text-destructive text-sm">{saveError}</p>
-                    </div>
-                  )}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Active Players:</span>
-                      <span className="font-bold">{activeEntries.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Eliminated Players:</span>
-                      <span className="font-bold">
-                        {eliminatedEntries.length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Target Survivors:</span>
-                      <span className="font-bold text-blue-500">
-                        {targetSurvivors}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Rounds Completed:</span>
-                      <span className="font-bold">{rounds.filter((r) => (r.results as unknown[]).length > 0).length}</span>
-                    </div>
-                  </div>
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleStartRound}
-                    disabled={startingRound || hasOpenRound}
-                  >
-                    {startingRound
-                      ? "Selecting Course..."
-                      : hasOpenRound
-                        ? "Complete Open Round First"
-                        : `Start Round ${rounds.length + 1}`}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                        <div className="space-y-1">
+                          {sortedResults.map((result, idx) => {
+                            const isEliminated =
+                              round.eliminatedIds?.includes(result.playerId);
+                            return (
+                              <div
+                                key={result.playerId}
+                                className={`flex justify-between text-sm ${isEliminated ? "text-red-500 font-semibold" : ""}`}
+                              >
+                                <span>
+                                  {idx + 1}. {playerNames[result.playerId] || result.playerId}
+                                  {result.isRetry && (
+                                    <Badge variant="outline" className="ml-1 text-xs">
+                                      {tElim('retry')}
+                                    </Badge>
+                                  )}
+                                  {isEliminated && ` (${tElim('eliminated')})`}
+                                </span>
+                                <span className="font-mono">
+                                  {msToDisplayTime(result.timeMs)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
         )}
-      </Tabs>
+      </Card>
     </div>
   );
 }

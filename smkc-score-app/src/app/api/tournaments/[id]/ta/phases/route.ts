@@ -19,7 +19,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -228,16 +228,6 @@ export async function POST(
   const { error: authError, session } = await requireAdminAndGetSession();
   if (authError) return authError;
 
-  // Rate limit: 5 requests per minute for phase operations
-  const clientId = getClientIdentifier(request);
-  const rateLimitResult = rateLimit(`ta-phases-${clientId}`, 5, 60000);
-  if (!rateLimitResult.success) {
-    return NextResponse.json(
-      { success: false, error: "Rate limit exceeded" },
-      { status: 429 }
-    );
-  }
-
   try {
     // Parse and validate request body
     const body = await request.json();
@@ -266,7 +256,7 @@ export async function POST(
     const context: PhaseContext = {
       tournamentId,
       userId: session!.user.id,
-      ipAddress: clientId,
+      ipAddress: getClientIdentifier(request),
       userAgent: getUserAgent(request),
     };
 

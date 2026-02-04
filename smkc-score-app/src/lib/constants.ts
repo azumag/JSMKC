@@ -75,12 +75,13 @@ export type SMKCharacter = typeof SMK_CHARACTERS[number];
 export const ACCESS_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 export const REFRESH_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-// Rate limiting constants - controls API request throttling per client
-export const RATE_LIMIT_SCORE_INPUT = 20; // requests per minute for score submission
+// Rate limiting constants - loose limits to prevent only obvious abuse.
+// This is an internal tournament management tool with a small number of admin users.
+export const RATE_LIMIT_SCORE_INPUT = 120; // requests per minute for score submission
 export const RATE_LIMIT_SCORE_INPUT_DURATION = 60 * 1000; // 1 minute window
-export const RATE_LIMIT_POLLING = 12; // requests per minute for polling (5s intervals)
+export const RATE_LIMIT_POLLING = 120; // requests per minute for polling
 export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute window
-export const RATE_LIMIT_SESSION_STATUS = 10; // requests per minute for session status checks
+export const RATE_LIMIT_SESSION_STATUS = 60; // requests per minute for session status checks
 
 // Score validation constants - BM rounds are best of 5 (first to 3)
 export const MIN_BATTLE_SCORE = 0;

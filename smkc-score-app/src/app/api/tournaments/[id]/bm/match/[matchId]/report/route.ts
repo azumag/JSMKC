@@ -21,22 +21,17 @@
 
 import { NextRequest } from "next/server";
 
-import { rateLimit, getClientIdentifier } from "@/lib/rate-limit";
+// Rate limiting removed — internal tournament tool with few concurrent users
 import {
   createErrorResponse,
   createSuccessResponse,
   handleValidationError,
   handleAuthError,
-  handleRateLimitError,
   handleDatabaseError
 } from "@/lib/error-handling";
 import { sanitizeInput } from "@/lib/sanitize";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
-import {
-  RATE_LIMIT_SCORE_INPUT,
-  RATE_LIMIT_SCORE_INPUT_DURATION,
-} from "@/lib/constants";
 import {
   checkScoreReportAuth,
   createScoreEntryLog,
@@ -63,13 +58,6 @@ export async function POST(
   const { id: tournamentId, matchId } = await params;
 
   try {
-    /* Rate limiting with BM-specific constants and structured error response */
-    const clientIp = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(clientIp, RATE_LIMIT_SCORE_INPUT, RATE_LIMIT_SCORE_INPUT_DURATION);
-    if (!rateLimitResult.success) {
-      return handleRateLimitError(rateLimitResult.retryAfter);
-    }
-
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2, character } = body;
 
@@ -115,7 +103,8 @@ export async function POST(
     await createScoreEntryLog(logger, {
       tournamentId, matchId, matchType: 'BM', playerId: reportingPlayerId,
       reportedData: { reportingPlayer, score1, score2 },
-      clientIp, userAgent: request.headers.get('user-agent') || 'unknown',
+      clientIp: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown',
     });
 
     if (character) {

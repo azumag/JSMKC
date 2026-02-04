@@ -56,11 +56,13 @@ interface RateLimitConfig {
 /**
  * Predefined rate limit configurations for different API operation types.
  */
+// Loose limits — this is an internal tournament tool with few concurrent users.
+// Only meant to catch runaway loops or obvious abuse, not throttle normal usage.
 export const rateLimitConfigs: Record<string, RateLimitConfig> = {
-  scoreInput: { limit: 20, windowMs: 60 * 1000 },
-  polling: { limit: 12, windowMs: 60 * 1000 },
-  sessionStatus: { limit: 10, windowMs: 60 * 1000 },
-  general: { limit: 10, windowMs: 60 * 1000 },
+  scoreInput: { limit: 120, windowMs: 60 * 1000 },
+  polling: { limit: 120, windowMs: 60 * 1000 },
+  sessionStatus: { limit: 60, windowMs: 60 * 1000 },
+  general: { limit: 60, windowMs: 60 * 1000 },
 };
 
 // ============================================================

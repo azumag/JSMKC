@@ -118,6 +118,20 @@ export function calculateTotalTime(times: Record<string, string> | null): number
 }
 
 /**
+ * Generate a random time string in M:SS.mmm format within a given range.
+ * Used by dev-only "Fill Random Times" buttons to accelerate manual testing
+ * of qualification and elimination flows.
+ *
+ * @param minMs - Minimum time in milliseconds (default: 45000 = 0:45.000)
+ * @param maxMs - Maximum time in milliseconds (default: 210000 = 3:30.000)
+ * @returns Random time string in M:SS.mmm format
+ */
+export function generateRandomTimeString(minMs = 45000, maxMs = 210000): string {
+  const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  return msToDisplayTime(randomMs);
+}
+
+/**
  * Validate that all required courses have valid times entered.
  *
  * Checks each required course against the provided times record.

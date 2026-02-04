@@ -68,7 +68,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
+import { generateRandomTimeString } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { Dice5 } from "lucide-react";
 
 /** Player data structure from API */
 interface Player {
@@ -182,6 +184,10 @@ export default function TimeAttackFinals({
   const [cancellingRound, setCancellingRound] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  // Development-only flag: uses NODE_ENV which is inlined at build time by Next.js,
+  // ensuring the dev button JSX is tree-shaken from production builds entirely.
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
   // Track if user is currently editing to pause polling
   const [isEditing, setIsEditing] = useState(false);
 
@@ -194,7 +200,7 @@ export default function TimeAttackFinals({
 
   /** Whether the round history section is expanded. Defaults to collapsed
    *  to keep the focus on the active round and standings. */
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
@@ -360,6 +366,28 @@ export default function TimeAttackFinals({
     } finally {
       setCancellingRound(false);
     }
+  };
+
+  /**
+   * Fill random times for all active players in the current round (Dev only).
+   * Uses shared generateRandomTimeString (45s-3:30 range) for consistency
+   * with the qualifying page's random time fill feature.
+   */
+  const handleFillRandomTimes = () => {
+    const activePlayerEntries = entries.filter((e) => !e.eliminated);
+    const randomTimes: Record<string, string> = {};
+    const clearedRetry: Record<string, boolean> = {};
+
+    activePlayerEntries.forEach((entry) => {
+      randomTimes[entry.playerId] = generateRandomTimeString();
+      clearedRetry[entry.playerId] = false;
+    });
+
+    setCourseTimes(randomTimes);
+    // Clear retry flags since we're filling with normal times
+    setRetryFlags(clearedRetry);
+    // Mark as editing so auto-refresh doesn't overwrite the filled values
+    setIsEditing(true);
   };
 
   /** Handle time input change for a specific player */
@@ -694,6 +722,20 @@ export default function TimeAttackFinals({
                   </div>
                 ))}
               </div>
+              {/* Development-only: Fill random times for all active players */}
+              {isDevelopment && (
+                <div className="mt-4">
+                  <Button
+                    onClick={handleFillRandomTimes}
+                    variant="outline"
+                    disabled={submitting}
+                    className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                  >
+                    <Dice5 className="h-4 w-4 mr-2" />
+                    Fill Random Times (Dev Only)
+                  </Button>
+                </div>
+              )}
               <div className="mt-6 flex justify-end gap-2">
                 <Button
                   variant="outline"

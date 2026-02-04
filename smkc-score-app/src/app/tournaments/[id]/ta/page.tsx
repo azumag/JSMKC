@@ -60,6 +60,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
+import { generateRandomTimeString } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
@@ -128,33 +129,54 @@ export default function TimeAttackPage({
   // Export state
   const [exporting, setExporting] = useState(false);
 
-  // Development-only: Random time fill feature
-  const isDevelopment = typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || 
-     window.location.hostname === '127.0.0.1' ||
-     window.location.port === '3000' ||
-     window.location.port === '3001');
+  // Development-only flag: inlined at build time, tree-shaken in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
-  // Admin-only: Fill all course times with random values for testing
+  // Fill random times for all courses in the single-player time entry dialog
   const handleFillRandomTimes = () => {
     const randomTimes: Record<string, string> = {};
-    
     COURSE_INFO.forEach((course) => {
-      // Generate random time between 45 seconds and 3 minutes 30 seconds
-      const minMs = 45000; // 45 seconds
-      const maxMs = 210000; // 3:30
-      const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-      
-      // Convert to M:SS.mmm format
-      const minutes = Math.floor(randomMs / 60000);
-      const seconds = Math.floor((randomMs % 60000) / 1000);
-      const milliseconds = randomMs % 1000;
-      
-      randomTimes[course.abbr] = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+      randomTimes[course.abbr] = generateRandomTimeString();
     });
-    
     setTimeInputs(randomTimes);
     toast.success('Random times filled for all courses');
+  };
+
+  // Track bulk fill progress (null = not running)
+  const [bulkFillProgress, setBulkFillProgress] = useState<string | null>(null);
+
+  /**
+   * Fill and save random times for ALL players in one click (Dev only).
+   * Sequentially calls the PUT API for each entry to avoid race conditions.
+   */
+  const handleFillAllPlayersTimes = async () => {
+    if (!confirm(`Fill random times for all ${entries.length} players?`)) return;
+    setBulkFillProgress(`0 / ${entries.length}`);
+    let successCount = 0;
+
+    for (const entry of entries) {
+      // Generate random times for all 20 courses
+      const randomTimes: Record<string, string> = {};
+      COURSE_INFO.forEach((course) => {
+        randomTimes[course.abbr] = generateRandomTimeString();
+      });
+
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entryId: entry.id, times: randomTimes }),
+        });
+        if (response.ok) successCount++;
+      } catch {
+        // Continue with remaining players even if one fails
+      }
+      setBulkFillProgress(`${successCount} / ${entries.length}`);
+    }
+
+    setBulkFillProgress(null);
+    toast.success(`Random times saved for ${successCount} / ${entries.length} players`);
+    refetch();
   };
 
   // Phase promotion states
@@ -829,6 +851,22 @@ export default function TimeAttackPage({
                     ))}
                   </TableBody>
                 </Table>
+                {/* Development-only: Fill random times for ALL players at once */}
+                {isDevelopment && entries.length > 0 && (
+                  <div className="mt-4">
+                    <Button
+                      onClick={handleFillAllPlayersTimes}
+                      variant="outline"
+                      disabled={bulkFillProgress !== null}
+                      className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                    >
+                      <Dice5 className="h-4 w-4 mr-2" />
+                      {bulkFillProgress !== null
+                        ? `Filling... (${bulkFillProgress})`
+                        : `Fill All Players Random Times (${entries.length} players, Dev Only)`}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

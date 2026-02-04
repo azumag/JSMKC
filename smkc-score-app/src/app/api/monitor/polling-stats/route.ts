@@ -24,7 +24,7 @@
  */
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
+// Rate limiting removed — internal tournament tool with few concurrent users
 import { createLogger } from '@/lib/logger';
 
 export async function GET() {
@@ -32,29 +32,6 @@ export async function GET() {
   const logger = createLogger('monitor');
 
   try {
-    // Rate limiting: prevent excessive polling of the stats endpoint itself.
-    // Uses the 'polling' bucket which allows moderate request rates.
-    const identifier = await getServerSideIdentifier();
-    const rateLimitResult = await checkRateLimit('polling', identifier);
-
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Too many requests. Please try again later.',
-          retryAfter: rateLimitResult.retryAfter
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': (rateLimitResult.limit ?? 0).toString(),
-            'X-RateLimit-Remaining': (rateLimitResult.remaining ?? 0).toString(),
-            'X-RateLimit-Reset': (rateLimitResult.reset ?? 0).toString(),
-          }
-        }
-      );
-    }
-
     // Authentication: only authenticated users can view monitoring stats.
     // This prevents public enumeration of server health information.
     const session = await auth();

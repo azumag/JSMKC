@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
-import { rateLimit, getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -251,15 +251,6 @@ export async function POST(
       const authResult = await requireAdminAndGetSession();
       if (authResult.error) return authResult.error;
 
-      const identifier = getClientIdentifier(request);
-      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
-      if (!rateLimitResult.success) {
-        return NextResponse.json(
-          { success: false, error: "Rate limit exceeded. Please try again later." },
-          { status: 429 }
-        );
-      }
-
       const context: PromotionContext = {
         tournamentId,
         userId: authResult.session!.user.id,
@@ -286,15 +277,6 @@ export async function POST(
     if (action === "promote_to_revival_2") {
       const authResult = await requireAdminAndGetSession();
       if (authResult.error) return authResult.error;
-
-      const identifier = getClientIdentifier(request);
-      const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
-      if (!rateLimitResult.success) {
-        return NextResponse.json(
-          { success: false, error: "Rate limit exceeded. Please try again later." },
-          { status: 429 }
-        );
-      }
 
       const context: PromotionContext = {
         tournamentId,
@@ -324,15 +306,6 @@ export async function POST(
     // Default action: add one or more players to the qualification round
     const authResult = await requireAdminOrPlayerSession();
     if (authResult.error) return authResult.error;
-
-    const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Please try again later." },
-        { status: 429 }
-      );
-    }
 
     // Support both single playerId and batch players array
     const playerIds = players || (playerId ? [playerId] : []);
@@ -570,15 +543,6 @@ export async function PUT(
     const authResult = await requireAdminOrPlayerSession();
     if (authResult.error) return authResult.error;
 
-    const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 10, 60 * 1000);
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Please try again later." },
-        { status: 429 }
-      );
-    }
-
     const entry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
     });
@@ -704,15 +668,6 @@ export async function DELETE(
 
     const authResult = await requireAdminAndGetSession();
     if (authResult.error) return authResult.error;
-
-    const identifier = getClientIdentifier(request);
-    const rateLimitResult = await rateLimit(identifier, 5, 60 * 1000);
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Please try again later." },
-        { status: 429 }
-      );
-    }
 
     // Validate tournament ID format
     /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
