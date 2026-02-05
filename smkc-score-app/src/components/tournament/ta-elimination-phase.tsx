@@ -165,6 +165,10 @@ export default function TAEliminationPhase({
   // ensuring the dev button JSX is tree-shaken from production builds entirely.
   const isDevelopment = process.env.NODE_ENV === 'development';
 
+  // Tracks whether the user is actively editing times.
+  // When true, polling is paused to prevent fetchData from overwriting input.
+  const [isEditing, setIsEditing] = useState(false);
+
   // Round start/cancel loading state
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
@@ -241,11 +245,16 @@ export default function TAEliminationPhase({
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh every 3 seconds for live tournament tracking
+  // Auto-refresh every 3 seconds, but pause when user is editing to prevent
+  // resetting their input. This matches the guard used in finals/page.tsx.
   useEffect(() => {
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(() => {
+      if (!isEditing) {
+        fetchData();
+      }
+    }, 3000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, isEditing]);
 
   // === Event Handlers ===
 
@@ -322,10 +331,11 @@ export default function TAEliminationPhase({
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to cancel round");
       }
-      // Clear client state after successful DB deletion
+      // Clear client state after successful DB deletion and resume polling
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setIsEditing(false);
       setShowCancelConfirm(false);
       fetchData();
     } catch (err) {
@@ -353,6 +363,7 @@ export default function TAEliminationPhase({
       clearedRetry[entry.playerId] = false;
     });
 
+    setIsEditing(true);
     setCourseTimes(randomTimes);
     // Clear retry flags since we're filling with normal times
     setRetryFlags(clearedRetry);
@@ -360,6 +371,7 @@ export default function TAEliminationPhase({
 
   /** Handle time input change for a specific player */
   const handleTimeChange = (playerId: string, value: string) => {
+    setIsEditing(true);
     setCourseTimes((prev) => ({ ...prev, [playerId]: value }));
     // Clear retry flag when manually entering a time
     if (retryFlags[playerId]) {
@@ -372,6 +384,7 @@ export default function TAEliminationPhase({
    * Sets the time to 9:59.990 and marks the isRetry flag.
    */
   const handleRetryToggle = (playerId: string) => {
+    setIsEditing(true);
     const isCurrentlyRetry = retryFlags[playerId];
     setRetryFlags((prev) => ({ ...prev, [playerId]: !isCurrentlyRetry }));
     if (!isCurrentlyRetry) {
@@ -450,10 +463,11 @@ export default function TAEliminationPhase({
         throw new Error(errorData.error || "Failed to submit results");
       }
 
-      // Clear current round and refresh data
+      // Clear current round and resume polling
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setIsEditing(false);
       fetchData();
     } catch (err) {
       const errorMessage =
