@@ -752,8 +752,10 @@ export default function TimeAttackPage({
         </div>
       </div>
 
-      {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages */}
-      {entries.length > 0 && (
+      {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages.
+       * Only shown after qualification is frozen (completed) or if any phase has already started,
+       * preventing premature access to finals controls while qualification is still in progress. */}
+      {entries.length > 0 && (frozenStages.includes("qualification") || phaseStatus?.phase1 || phaseStatus?.phase2 || phaseStatus?.phase3) && (
         <Card>
           <CardHeader>
             <CardTitle>{t('finalsPhases')}</CardTitle>
@@ -815,8 +817,9 @@ export default function TimeAttackPage({
                 </div>
               </div>
 
-              {/* Phase 2: Accessible when Phase 1 exists OR Phase 1 is skipped (no eligible players) */}
-              <div className="border rounded-lg p-4 space-y-2">
+              {/* Phase 2: Only shown when Phase 1 has been started or skipped (no eligible players).
+               * This prevents displaying Phase 2 controls before Phase 1 is resolved. */}
+              {(phaseStatus?.phase1 || !phase1HasPlayers) && <div className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="font-semibold">{t('phase2')}</h4>
                   {frozenStages.includes("phase2") && (
@@ -865,10 +868,11 @@ export default function TimeAttackPage({
                     </Button>
                   )}
                 </div>
-              </div>
+              </div>}
 
-              {/* Phase 3: Accessible when Phase 2 exists OR Phase 1+2 are skipped */}
-              <div className="border rounded-lg p-4 space-y-2">
+              {/* Phase 3: Only shown when Phase 2 has been started or skipped.
+               * Both Phase 1 and Phase 2 must be resolved before Phase 3 appears. */}
+              {(phaseStatus?.phase2 || (!phase1HasPlayers && !phase2HasPlayers) || (phaseStatus?.phase1 && !phase2HasPlayers)) && <div className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="font-semibold">{t('phase3')}</h4>
                   {frozenStages.includes("phase3") && (
@@ -920,7 +924,7 @@ export default function TimeAttackPage({
                     </Button>
                   )}
                 </div>
-              </div>
+              </div>}
             </div>
           </CardContent>
         </Card>
