@@ -20,6 +20,25 @@
  * - ErrorFallback component: standalone tests for error messages,
  *   action buttons, and error display formatting.
  */
+/**
+ * Mock next-intl: the ErrorBoundary component imports useTranslations from
+ * next-intl, which ships as ESM-only. Jest cannot parse ESM by default.
+ * The mock maps translation keys to English strings matching en.json.
+ */
+const errorTranslations: Record<string, string> = {
+  errorOccurred: 'Error Occurred',
+  unexpected: 'An unexpected error occurred.',
+  fetchError: 'Unable to load data. Please refresh the page.',
+  networkError: 'Connection error. Please check your internet connection.',
+  timeoutError: 'Request timed out. Please try again.',
+  genericError: 'Something went wrong. Please try again.',
+  tryAgain: 'Try Again',
+  goBack: 'Go Back',
+};
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => errorTranslations[key] ?? key,
+}));
+
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 

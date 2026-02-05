@@ -7,35 +7,33 @@
  * 2. Global metadata (title, description) for SEO
  * 3. NextAuth SessionProvider for client-side session access
  * 4. NextIntlClientProvider for i18n translation support
- * 5. Shared navigation header with authentication-aware UI
+ * 5. Shared navigation header with AuthHeader client component
  * 6. Language switcher for toggling between English and Japanese
  * 7. Main content container with consistent padding
  *
- * Authentication display logic:
- * - Logged-in users see their name/nickname and a Sign Out button
- * - Player accounts display their nickname (userType === 'player')
- * - Admin/OAuth accounts display their name or email
- * - Anonymous visitors see a Login link
+ * Authentication display:
+ * - AuthHeader uses client-side useSession() + signOut() to stay
+ *   in sync with the SessionProvider, preventing stale session bugs
  *
  * i18n strategy:
  * - No URL-based locale routing; locale is determined by cookie or browser language
  * - NextIntlClientProvider wraps all children to provide useTranslations() in client components
  * - Server-side locale detection happens in src/i18n/request.ts
  *
- * This component is a Server Component (async) that fetches the
- * session on the server side for initial render, then wraps
- * children in SessionProvider for client-side session hooks.
+ * This component is a Server Component (async) that fetches
+ * locale data on the server side. Session handling is fully
+ * client-side via SessionProvider and AuthHeader.
  */
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import Link from "next/link";
 import "./globals.css";
-import { auth, signOut } from "@/lib/auth";
 import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { AuthHeader } from "@/components/AuthHeader";
 
 /**
  * Page metadata for SEO and browser tab display.
@@ -49,9 +47,8 @@ export const metadata: Metadata = {
 /**
  * RootLayout - The top-level server component that wraps all pages.
  *
- * Fetches the current authentication session and locale server-side so that
- * the navigation header can render the correct auth state and language on
- * the initial page load without a client-side hydration flash.
+ * Fetches locale server-side for initial render. Auth state is handled
+ * entirely client-side by AuthHeader to avoid stale session issues.
  *
  * @param children - The page content rendered inside this layout
  */
@@ -60,9 +57,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  /* Fetch session on the server for SSR of auth-aware navigation */
-  const session = await auth();
-
   /* Fetch locale and translation messages for i18n */
   const locale = await getLocale();
   const messages = await getMessages();
@@ -113,47 +107,13 @@ export default async function RootLayout({
                       <LocaleSwitcher />
 
                       {/*
-                       * Authentication-aware navigation section:
-                       * - Authenticated: Show user identity + sign out button
-                       * - Player accounts: Display nickname for recognition
-                       * - Admin/OAuth accounts: Display name or email fallback
-                       * - Unauthenticated: Show login link
+                       * AuthHeader: Client component for authentication-aware UI.
+                       * Uses client-side useSession() + signOut() to ensure the
+                       * header's auth state stays in sync with the SessionProvider
+                       * that page components also consume. This prevents stale
+                       * session bugs after logout.
                        */}
-                      {session ? (
-                        <div className="flex items-center gap-4">
-                          <Link
-                            href="/profile"
-                            className="text-sm font-medium hover:underline text-foreground"
-                          >
-                            {session.user?.userType === 'player'
-                              ? session.user?.nickname
-                              : session.user?.name || session.user?.email
-                            }
-                          </Link>
-                          {/*
-                           * Server Action form for sign out.
-                           * Uses "use server" directive to execute signOut()
-                           * on the server, avoiding client-side token handling.
-                           */}
-                          <form
-                            action={async () => {
-                              "use server"
-                              await signOut()
-                            }}
-                          >
-                            <button className="text-sm font-medium hover:underline text-destructive">
-                              <NavLabel messageKey="signOut" />
-                            </button>
-                          </form>
-                        </div>
-                      ) : (
-                        <Link
-                          href="/auth/signin"
-                          className="text-sm font-medium hover:underline"
-                        >
-                          <NavLabel messageKey="login" />
-                        </Link>
-                      )}
+                      <AuthHeader />
                     </div>
                   </nav>
                 </div>

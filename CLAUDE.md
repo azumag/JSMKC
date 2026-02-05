@@ -2,12 +2,20 @@
 
 # BASE
 - Detailed comments must be included in the source code to justify the implementation of such logic
+- use T-wada TDD
 
 # LAW
 具体的作業をできるだけ subagent に委任し、コンテキストウィンドウを節約すること.
 作業内容は、subagent を用いて厳しいレビューを受けて下さい。
+以下の３種類のレビューを受けること
+- 自己レビュー
+- gemini-cli を用いたレビュー
+- codex cli を用いたレビュー
+
 コードの重複や簡潔性、無駄なファイルを作っていないかどうか、使いやすさ、
 セキュリティリスク、コストなどのあらゆる点について厳しく指摘するよう指示してください
+
+- テストに失敗したら、作業に関係なくとも、修正すること
 
 ## review aspects
 - Code quality and best practices

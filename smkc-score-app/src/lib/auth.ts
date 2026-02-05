@@ -571,7 +571,9 @@ export const authConfig = {
  * Exports:
  * - handlers: GET and POST handlers for the /api/auth/* routes
  * - signIn: Server-side sign-in function
- * - signOut: Server-side sign-out function
+ * - signOut: Server-side sign-out function (DO NOT use for user-facing logout;
+ *   use signOut() from 'next-auth/react' in client components instead to
+ *   properly clear the SessionProvider cache and prevent stale session bugs)
  * - auth: Server-side session getter function
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

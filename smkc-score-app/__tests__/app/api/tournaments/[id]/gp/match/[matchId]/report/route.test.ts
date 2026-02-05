@@ -55,13 +55,6 @@ const {
   handleDatabaseError
 } = jest.requireMock('@/lib/error-handling');
 
-const {
-  createSuccessResponse,
-  handleValidationError,
-  handleAuthError,
-  handleDatabaseError
-} = jest.requireMock('@/lib/error-handling');
-
 // Mock NextRequest class — matches the pattern used by BM/MR test suites
 class MockNextRequest {
   constructor(
@@ -85,6 +78,16 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     const requestUtilsMocks = jest.requireMock('@/lib/request-utils');
     requestUtilsMocks.getClientIdentifier.mockReturnValue('127.0.0.1');
     requestUtilsMocks.getUserAgent.mockReturnValue('Test UserAgent');
+    // Re-establish sanitizeInput: resetAllMocks clears the passthrough implementation
+    const sanitizeMock = jest.requireMock('@/lib/sanitize');
+    sanitizeMock.sanitizeInput.mockImplementation((data: unknown) => data);
+    // Re-establish error-handling mock implementations after resetAllMocks
+    const errorHandling = jest.requireMock('@/lib/error-handling');
+    errorHandling.createSuccessResponse.mockImplementation((data: unknown, message: string) => ({ data, message, status: 200 }));
+    errorHandling.createErrorResponse.mockImplementation((message: string, status: number, code: string, details: unknown) => ({ data: { error: message, code, details }, status }));
+    errorHandling.handleValidationError.mockImplementation((message: string, field: string) => ({ data: { error: message, field }, status: 400 }));
+    errorHandling.handleAuthError.mockImplementation((message: string) => ({ data: { error: message }, status: 401 }));
+    errorHandling.handleDatabaseError.mockImplementation((error: unknown, operation: string) => ({ data: { error: `Database error: ${operation}` }, status: 500 }));
     // Default: admin session so auth passes. Tests that check auth failure override this.
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
     // Reset Prisma mocks to prevent cross-test contamination

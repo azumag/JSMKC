@@ -3,6 +3,8 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Use native Node.js addon instead of standalone binary engine to reduce deployment size
+  engineType = "library"
 }
 
 datasource db {
