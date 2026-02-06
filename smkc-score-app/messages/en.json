@@ -33,6 +33,8 @@
     "goToFinals": "Go to Finals",
     "setupGroups": "Setup Groups",
     "resetSetup": "Reset Setup",
+    "editGroups": "Edit Groups",
+    "updateGroups": "Update Groups",
     "standings": "Standings",
     "matches": "Matches",
     "matchList": "Match List",
@@ -70,7 +72,9 @@
     "pleaseSelectCup": "Please select a cup",
     "pleaseCompleteAllRaces": "Please complete all 4 races",
     "show": "Show",
-    "hide": "Hide"
+    "hide": "Hide",
+    "randomAssign": "Random Assign",
+    "randomAssignDesc": "Randomly distribute players across groups"
   },
   "home": {
     "tagline": "SMKC Score Management",
@@ -269,7 +273,11 @@
     "pts": "Pts",
     "finalsTitle": "Battle Mode Finals",
     "matchTitle": "Battle Mode - Match #{number}",
-    "scoreEntry": "Battle Mode Score Entry"
+    "scoreEntry": "Battle Mode Score Entry",
+    "editGroupsTitle": "Edit Battle Mode Groups",
+    "editGroupsDesc": "Modify player group assignments. Existing match results will be regenerated.",
+    "searchPlayers": "Search players...",
+    "selectAll": "Select All"
   },
   "mr": {
     "title": "Match Race",
@@ -287,7 +295,11 @@
     "pts": "Pts",
     "finalsTitle": "Match Race Finals",
     "matchTitle": "Match Race - Match #{number}",
-    "scoreEntry": "Match Race Score Entry"
+    "scoreEntry": "Match Race Score Entry",
+    "editGroupsTitle": "Edit Match Race Groups",
+    "editGroupsDesc": "Modify player group assignments. Existing match results will be regenerated.",
+    "searchPlayers": "Search players...",
+    "selectAll": "Select All"
   },
   "gp": {
     "title": "Grand Prix",
@@ -310,7 +322,11 @@
     "finalsTitle": "Grand Prix Finals",
     "matchTitle": "Grand Prix - Match #{number}",
     "scoreEntry": "Grand Prix Score Entry",
-    "cupLabel": "{cup} Cup"
+    "cupLabel": "{cup} Cup",
+    "editGroupsTitle": "Edit Grand Prix Groups",
+    "editGroupsDesc": "Modify player group assignments. Existing match results will be regenerated.",
+    "searchPlayers": "Search players...",
+    "selectAll": "Select All"
   },
   "finals": {
     "doubleElimination": "Double Elimination Tournament",

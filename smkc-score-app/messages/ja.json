@@ -33,6 +33,8 @@
     "goToFinals": "決勝へ",
     "setupGroups": "グループ設定",
     "resetSetup": "設定リセット",
+    "editGroups": "グループ編集",
+    "updateGroups": "グループ更新",
     "standings": "順位表",
     "matches": "試合一覧",
     "matchList": "試合リスト",
@@ -70,7 +72,9 @@
     "pleaseSelectCup": "カップを選択してください",
     "pleaseCompleteAllRaces": "4レースすべてを入力してください",
     "show": "表示",
-    "hide": "非表示"
+    "hide": "非表示",
+    "randomAssign": "ランダム割り当て",
+    "randomAssignDesc": "プレイヤーをグループにランダム分配"
   },
   "home": {
     "tagline": "SMKC スコア管理",
@@ -269,7 +273,11 @@
     "pts": "得点",
     "finalsTitle": "バトルモード 決勝",
     "matchTitle": "バトルモード - 試合 #{number}",
-    "scoreEntry": "バトルモード スコア入力"
+    "scoreEntry": "バトルモード スコア入力",
+    "editGroupsTitle": "バトルモード グループ編集",
+    "editGroupsDesc": "プレイヤーのグループ割り当てを変更します。既存の試合結果は再生成されます。",
+    "searchPlayers": "プレイヤーを検索...",
+    "selectAll": "すべて選択"
   },
   "mr": {
     "title": "マッチレース",
@@ -287,7 +295,11 @@
     "pts": "得点",
     "finalsTitle": "マッチレース 決勝",
     "matchTitle": "マッチレース - 試合 #{number}",
-    "scoreEntry": "マッチレース スコア入力"
+    "scoreEntry": "マッチレース スコア入力",
+    "editGroupsTitle": "マッチレース グループ編集",
+    "editGroupsDesc": "プレイヤーのグループ割り当てを変更します。既存の試合結果は再生成されます。",
+    "searchPlayers": "プレイヤーを検索...",
+    "selectAll": "すべて選択"
   },
   "gp": {
     "title": "グランプリ",
@@ -310,7 +322,11 @@
     "finalsTitle": "グランプリ 決勝",
     "matchTitle": "グランプリ - 試合 #{number}",
     "scoreEntry": "グランプリ スコア入力",
-    "cupLabel": "{cup}カップ"
+    "cupLabel": "{cup}カップ",
+    "editGroupsTitle": "グランプリ グループ編集",
+    "editGroupsDesc": "プレイヤーのグループ割り当てを変更します。既存の試合結果は再生成されます。",
+    "searchPlayers": "プレイヤーを検索...",
+    "selectAll": "すべて選択"
   },
   "finals": {
     "doubleElimination": "ダブルエリミネーション トーナメント",

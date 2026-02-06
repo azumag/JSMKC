@@ -21,7 +21,7 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import {
   Card,
   CardContent,
@@ -44,7 +44,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -278,18 +277,6 @@ export default function MatchRacePage({
     }
   };
 
-  /** Add a player to the setup list with default group A */
-  const addPlayerToSetup = (playerId: string, group: string) => {
-    if (!setupPlayers.find((p) => p.playerId === playerId)) {
-      setSetupPlayers([...setupPlayers, { playerId, group }]);
-    }
-  };
-
-  /** Remove a player from the setup list */
-  const removePlayerFromSetup = (playerId: string) => {
-    setSetupPlayers(setupPlayers.filter((p) => p.playerId !== playerId));
-  };
-
   /** Export MR data as CSV download */
   const handleExport = async () => {
     setExporting(true);
@@ -369,130 +356,30 @@ export default function MatchRacePage({
           >
             {exporting ? tc('exporting') : tc('exportToExcel')}
           </Button>
-          {qualifications.length > 0 && (
+          {/* Link to finals page (only shown when ALL qualification matches are completed) */}
+          {qualifications.length > 0 &&
+           matches.length > 0 &&
+           matches.every((m) => m.completed) && (
             <Button asChild>
               <Link href={`/tournaments/${tournamentId}/mr/finals`}>
                 {tc('goToFinals')}
               </Link>
             </Button>
           )}
-          {/* Setup/Reset dialog: admin-only */}
-          {isAdmin && <Dialog open={isSetupDialogOpen} onOpenChange={setIsSetupDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant={qualifications.length > 0 ? "outline" : "default"}>
-                {qualifications.length > 0 ? tc('resetSetup') : tc('setupGroups')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>{t('setupDialogTitle')}</DialogTitle>
-                <DialogDescription>
-                  {t('setupDialogDesc')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label>{tc('selectPlayer')}</Label>
-                    <Select
-                      onValueChange={(playerId) => {
-                        const player = allPlayers.find((p) => p.id === playerId);
-                        if (player) {
-                          addPlayerToSetup(playerId, "A");
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={tc('choosePlayer')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allPlayers
-                          .filter(
-                            (p) => !setupPlayers.find((sp) => sp.playerId === p.id)
-                          )
-                          .map((player) => (
-                            <SelectItem key={player.id} value={player.id}>
-                              {player.nickname} ({player.name})
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Selected players table with group assignment */}
-                <div className="border rounded-lg p-4">
-                  <h4 className="font-medium mb-2">
-                    {tc('selectedPlayers', { count: setupPlayers.length })}
-                  </h4>
-                  {setupPlayers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
-                      {tc('noPlayersSelected')}
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{tc('player')}</TableHead>
-                          <TableHead>{tc('group')}</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {setupPlayers.map((sp) => {
-                          const player = allPlayers.find(
-                            (p) => p.id === sp.playerId
-                          );
-                          return (
-                            <TableRow key={sp.playerId}>
-                              <TableCell>{player?.nickname}</TableCell>
-                              <TableCell>
-                                <Select
-                                  value={sp.group}
-                                  onValueChange={(group) => {
-                                    setSetupPlayers(
-                                      setupPlayers.map((p) =>
-                                        p.playerId === sp.playerId
-                                          ? { ...p, group }
-                                          : p
-                                      )
-                                    );
-                                  }}
-                                >
-                                  <SelectTrigger className="w-20">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="A">A</SelectItem>
-                                    <SelectItem value="B">B</SelectItem>
-                                    <SelectItem value="C">C</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    removePlayerFromSetup(sp.playerId)
-                                  }
-                                >
-                                  {tc('remove')}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleSetup}>{t('createGroupsAndMatches')}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>}
+          {/* Admin-only group setup/edit dialog (shared component) */}
+          {isAdmin && <GroupSetupDialog
+            mode="mr"
+            allPlayers={allPlayers}
+            setupPlayers={setupPlayers}
+            setSetupPlayers={setSetupPlayers}
+            isOpen={isSetupDialogOpen}
+            setIsOpen={setIsSetupDialogOpen}
+            onSave={handleSetup}
+            existingAssignments={qualifications.map((q) => ({
+              playerId: q.playerId,
+              group: q.group,
+            }))}
+          />}
         </div>
       </div>
 
