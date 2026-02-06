@@ -19,7 +19,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,13 +118,6 @@ export function GroupSetupDialog({
     }
     setIsOpen(open);
   };
-
-  /* Reset search when dialog closes (handles external close) */
-  useEffect(() => {
-    if (!isOpen) {
-      setPlayerSearchQuery("");
-    }
-  }, [isOpen]);
 
   /** Add a player to the setup list with a default group */
   const addPlayerToSetup = (playerId: string, group: string) => {

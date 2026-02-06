@@ -23,6 +23,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
+import type { Session } from "next-auth";
 import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
@@ -43,7 +44,7 @@ const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
  * Returns { error } if user is not authenticated or not admin.
  * Returns { session } if authentication succeeds.
  */
-async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: any }> {
+async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: Session | null }> {
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) };
@@ -60,7 +61,7 @@ async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; sess
  * Returns { error } if user is not authenticated as admin or player.
  * Returns { session } if authentication succeeds.
  */
-async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: any }> {
+async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; session?: Session | null }> {
   const session = await auth();
   if (session?.user?.role === 'admin') return { session };
   if (session?.user?.userType === 'player') return { session };
@@ -257,7 +258,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: authResult.session!.user.id,
+        userId: authResult.session!.user.id!,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
@@ -284,7 +285,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: authResult.session!.user.id,
+        userId: authResult.session!.user.id!,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };
@@ -468,7 +469,7 @@ export async function PUT(
       const userAgent = getUserAgent(request);
       try {
         await createAuditLog({
-          userId: authResult.session!.user.id,
+          userId: authResult.session!.user.id!,
           ipAddress,
           userAgent,
           action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
@@ -526,7 +527,7 @@ export async function PUT(
       const userAgent = getUserAgent(request);
       try {
         await createAuditLog({
-          userId: authResult.session!.user.id,
+          userId: authResult.session!.user.id!,
           ipAddress,
           userAgent,
           action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
@@ -633,7 +634,7 @@ export async function PUT(
     const userAgent = getUserAgent(request);
     try {
       await createAuditLog({
-        userId: authResult.session!.user.id,
+        userId: authResult.session!.user.id!,
         ipAddress,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
@@ -743,7 +744,7 @@ export async function DELETE(
     const userAgent = getUserAgent(request);
     try {
       await createAuditLog({
-        userId: authResult.session!.user.id,
+        userId: authResult.session!.user.id!,
         ipAddress,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_TA_ENTRY,

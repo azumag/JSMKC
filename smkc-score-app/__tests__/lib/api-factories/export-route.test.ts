@@ -56,7 +56,7 @@ jest.mock('next/server', () => {
 
 import prisma from '@/lib/prisma';
 import { createCSV } from '@/lib/excel';
-import { createExportHandlers } from '@/lib/api-factories/export-route';
+import { createExportHandlers, ExportQualification, ExportMatch } from '@/lib/api-factories/export-route';
 
 /** Factory for creating test config with mock row mappers */
 const createMockConfig = (overrides = {}) => ({
@@ -65,11 +65,11 @@ const createMockConfig = (overrides = {}) => ({
   matchModel: 'bMMatch',
   eventCode: 'BM',
   qualificationHeaders: ['Rank', 'Player', 'Score'],
-  qualificationRowMapper: jest.fn((q: { player: { name: string }; score: number }, index: number) => [
-    String(index + 1), q.player.name, String(q.score),
+  qualificationRowMapper: jest.fn((q: ExportQualification, index: number) => [
+    String(index + 1), q.player.name, String(q['score']),
   ]),
   matchHeaders: ['Match #', 'Player 1', 'Player 2'],
-  matchRowMapper: jest.fn((m: { matchNumber: number; player1: { name: string }; player2: { name: string } }) => [
+  matchRowMapper: jest.fn((m: ExportMatch) => [
     String(m.matchNumber), m.player1.name, m.player2.name,
   ]),
   ...overrides,

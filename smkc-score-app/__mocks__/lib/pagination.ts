@@ -1,5 +1,5 @@
 // Create mock functions for pagination module
-export function getPaginationParams(options = {}) {
+export function getPaginationParams(options: { page?: number | string; limit?: number | string } = {}) {
   const page = Math.max(1, Number(options.page) || 1);
   const limit = Number(options.limit);
   const finalLimit = limit && limit > 0 ? Math.min(100, limit) : 50;

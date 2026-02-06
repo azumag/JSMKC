@@ -58,21 +58,37 @@ jest.mock('@/lib/logger', () => {
 
 jest.mock('next/server', () => {
   const mockJson = jest.fn();
+
+  // Type for mock request init options
+  type MockInit = {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string> | Headers | Map<string, string>;
+  };
+
   class MockNextRequest {
-    constructor(url, init = {}) {
+    url: string;
+    method: string;
+    _body: unknown;
+    headers: {
+      get: (key: string) => string | null;
+      forEach: (cb: (value: string, key: string) => void) => void;
+    };
+
+    constructor(url: string, init: MockInit = {}) {
       this.url = url;
       this.method = init.method || 'GET';
       this._body = init.body;
       const h = init.headers || {};
       this.headers = {
-        get: (key) => {
+        get: (key: string): string | null => {
           if (h instanceof Headers) return h.get(key);
-          if (h instanceof Map) return h.get(key);
-          return h[key] || null;
+          if (h instanceof Map) return h.get(key) ?? null;
+          return (h as Record<string, string>)[key] ?? null;
         },
-        forEach: (cb) => {
+        forEach: (cb: (value: string, key: string) => void) => {
           if (h instanceof Headers) { h.forEach(cb); return; }
-          Object.entries(h).forEach(([k, v]) => cb(v, k));
+          Object.entries(h).forEach(([k, v]) => cb(v as string, k));
         },
       };
     }
