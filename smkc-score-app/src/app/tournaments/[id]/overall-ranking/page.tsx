@@ -47,6 +47,10 @@ import { Badge } from "@/components/ui/badge";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { POLLING_INTERVAL } from "@/lib/constants";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-overall-ranking' });
 
 /** Player ranking data returned from the overall ranking API */
 interface PlayerRanking {
@@ -153,7 +157,7 @@ export default function OverallRankingPage({
       refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to recalculate";
-      console.error("Failed to recalculate rankings:", err);
+      logger.error("Failed to recalculate rankings:", { error: err, tournamentId });
       setError(errorMessage);
     } finally {
       setRecalculating(false);
