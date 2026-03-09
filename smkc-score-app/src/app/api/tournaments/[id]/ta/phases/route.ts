@@ -36,7 +36,6 @@ import {
 } from "@/lib/ta/finals-phase-manager";
 import { getAvailableCourses, getPlayedCourses } from "@/lib/ta/course-selection";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
-import { checkStageFrozen } from "@/lib/ta/freeze-check";
 
 /**
  * Admin authentication helper that returns the session.
@@ -288,11 +287,8 @@ export async function POST(
     }
 
     // === Round Management Actions ===
-    // All round operations (start, cancel, submit) are blocked when the phase is frozen.
     if (action === "start_round") {
       const { phase } = parsed.data;
-      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
-      if (freezeError) return freezeError;
       const result = await startPhaseRound(prisma, context, phase);
       return NextResponse.json({
         success: true,
@@ -302,8 +298,6 @@ export async function POST(
 
     if (action === "cancel_round") {
       const { phase, roundNumber } = parsed.data;
-      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
-      if (freezeError) return freezeError;
       const result = await cancelPhaseRound(prisma, context, phase, roundNumber);
       return NextResponse.json({
         success: true,
@@ -313,10 +307,6 @@ export async function POST(
 
     if (action === "submit_results") {
       const { phase, roundNumber, results } = parsed.data;
-
-      // Reject result submission if the phase is frozen by an admin
-      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
-      if (freezeError) return freezeError;
 
       const roundResults: RoundResultInput[] = results;
       const result = await submitRoundResults(
@@ -358,7 +348,8 @@ export async function POST(
         internalMessage.includes("already been submitted") ||
         internalMessage.includes("cannot be cancelled") ||
         internalMessage.includes("already promoted") ||
-        internalMessage.includes("Promote players first"));
+        internalMessage.includes("Promote players first") ||
+        internalMessage.startsWith("Tie detected"));
 
     return NextResponse.json(
       {

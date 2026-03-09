@@ -544,8 +544,15 @@ export async function processEliminationPhaseResult(
   // Sort results by time descending (slowest first) to find elimination target
   const sortedResults = [...courseResults].sort((a, b) => b.timeMs - a.timeMs);
 
-  // Eliminate the slowest player (first in descending sort)
+  // Guard against tied slowest times: if multiple players share the worst time,
+  // elimination is ambiguous and requires admin manual resolution.
   const slowestPlayer = sortedResults[0];
+  const tiedCount = sortedResults.filter(r => r.timeMs === slowestPlayer.timeMs).length;
+  if (tiedCount > 1) {
+    throw new Error(
+      `Tie detected: ${tiedCount} players share the slowest time (${slowestPlayer.timeMs}ms). Admin must resolve the tie manually before continuing.`
+    );
+  }
 
   await prisma.tTEntry.update({
     where: {

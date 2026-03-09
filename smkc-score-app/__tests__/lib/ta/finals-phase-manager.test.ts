@@ -152,6 +152,30 @@ describe("TA Finals Phase Manager", () => {
       expect(eliminated).toEqual([]);
       expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
     });
+
+    it("should throw error when slowest time is tied between multiple players", async () => {
+      // 5 active players, but two share the slowest time - admin must resolve
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false },
+        { playerId: "p2", eliminated: false },
+        { playerId: "p3", eliminated: false },
+        { playerId: "p4", eliminated: false },
+        { playerId: "p5", eliminated: false },
+      ]);
+
+      const courseResults = [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 85000 },
+        { playerId: "p3", timeMs: 90000 },
+        { playerId: "p4", timeMs: 100000 }, // Tied slowest
+        { playerId: "p5", timeMs: 100000 }, // Tied slowest
+      ];
+
+      await expect(
+        processEliminationPhaseResult(mockPrismaClient as any, context, "phase1", courseResults)
+      ).rejects.toThrow("Tie detected");
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
   });
 
   describe("processPhase3Result", () => {
