@@ -19,6 +19,7 @@ import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
 import { createLogger } from "@/lib/logger";
+import { BM_FINALS_TARGET_WINS } from "@/lib/constants";
 
 /**
  * Zod schema for validating match update requests.
@@ -30,8 +31,8 @@ import { createLogger } from "@/lib/logger";
  * - completed: Optional explicit completion flag
  */
 const UpdateMatchSchema = z.object({
-  score1: z.number().int().min(0).max(5),
-  score2: z.number().int().min(0).max(5),
+  score1: z.number().int().min(0).max(BM_FINALS_TARGET_WINS),
+  score2: z.number().int().min(0).max(BM_FINALS_TARGET_WINS),
   rounds: z.array(z.object({
     arena: z.string(),
     winner: z.number().int().min(1).max(2),
@@ -115,8 +116,7 @@ export async function PUT(
      * BM finals use best-of-9 format (first to 5 wins), so reaching
      * 5 round wins automatically completes the match.
      */
-    const targetWins = 5;
-    const isComplete = data.completed || data.score1 >= targetWins || data.score2 >= targetWins;
+    const isComplete = data.completed || data.score1 >= BM_FINALS_TARGET_WINS || data.score2 >= BM_FINALS_TARGET_WINS;
 
     /* Build the update payload */
     const updateData: BMMatchUpdateData = {

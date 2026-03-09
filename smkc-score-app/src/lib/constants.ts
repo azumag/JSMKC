@@ -110,11 +110,13 @@ export const RATE_LIMIT_POLLING = 120; // requests per minute for polling
 export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute window
 export const RATE_LIMIT_SESSION_STATUS = 60; // requests per minute for session status checks
 
-// Score validation constants - BM is a fixed 4-round format (score1 + score2 = 4).
+// Score validation constants for BM qualification: fixed 4-round format (score1 + score2 = 4).
 // A player wins by taking 3 or more rounds; 2-2 is a tie.
 export const MIN_BATTLE_SCORE = 0;
-export const MAX_BATTLE_SCORE = 4; // Maximum rounds a single player can win in a 4-round match
-export const TOTAL_BM_ROUNDS = 4; // BM matches always consist of exactly 4 rounds
+export const MAX_BATTLE_SCORE = 4; // Max rounds one player can win in a qualification match
+export const TOTAL_BM_ROUNDS = 4; // BM qualification matches consist of exactly 4 rounds
+// BM finals use best-of-9 format: first player to reach this many round wins takes the match.
+export const BM_FINALS_TARGET_WINS = 5;
 
 // Optimistic locking constants - retry parameters for concurrent update conflicts
 export const MAX_RETRY_ATTEMPTS = 3;

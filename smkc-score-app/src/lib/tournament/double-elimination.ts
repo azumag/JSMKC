@@ -10,6 +10,8 @@
  * with player assignments for tournament execution.
  */
 
+import { BM_FINALS_TARGET_WINS } from '@/lib/constants';
+
 /** Full bracket structure with winner, loser, and grand final sections */
 export interface DoubleEliminationBracket {
   winnerBracket: MatchNode[];
@@ -186,7 +188,7 @@ export function generateDoubleEliminationBracket(
  * @returns 'complete' if the match has a winner, 'ongoing' otherwise
  */
 export function calculateMatchProgression(match: MatchNode, player1Wins: number, player2Wins: number): 'ongoing' | 'complete' {
-  const targetWins = 5; // BM target is 5 wins (best of 9)
+  const targetWins = BM_FINALS_TARGET_WINS; // BM finals: best-of-9, first to 5 wins
 
   if (match.isGrandFinal) {
     // Grand Final: WB champion can lose once (reset), LB champion cannot
