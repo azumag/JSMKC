@@ -15,6 +15,10 @@ import { useLocale } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { createLogger } from '@/lib/client-logger'
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'locale-switcher' })
 
 /** Valid locale types supported by the application */
 type Locale = 'en' | 'ja'
@@ -61,7 +65,7 @@ export function LocaleSwitcher() {
       // Refresh the page to apply the new locale
       router.refresh()
     } catch (error) {
-      console.error('Locale switch failed:', error)
+      logger.error('Locale switch failed:', { error })
       toast.error(newLocale === 'ja' ? '言語の切り替えに失敗しました' : 'Failed to switch language')
     } finally {
       setIsLoading(false)

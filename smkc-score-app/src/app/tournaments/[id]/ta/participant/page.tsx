@@ -38,6 +38,10 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/client-logger';
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-ta-participant' });
 
 /** Player data structure */
 interface Player {
@@ -179,7 +183,7 @@ export default function TimeAttackParticipantPage({
           setFrozenStages(data.frozenStages || []);
         }
       } catch (err) {
-        console.error('Data fetch error:', err);
+        logger.error('Data fetch error:', { error: err, tournamentId });
         setError('Failed to load tournament data.');
       } finally {
         setLoading(false);
@@ -208,7 +212,7 @@ export default function TimeAttackParticipantPage({
         setFrozenStages(pollingData.frozenStages as string[]);
       }
     }
-    if (pollingError) console.error('Polling error:', pollingError);
+    if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
   }, [pollingData, pollingError]);
 
   /** Sync selected player's entry from the entries list */

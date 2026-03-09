@@ -59,6 +59,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-list' });
 
 /**
  * Tournament data model matching the API response shape.
@@ -116,7 +120,7 @@ export default function TournamentsPage() {
         setTournaments(Array.isArray(result) ? result : result.data || []);
       }
     } catch (err) {
-      console.error("Failed to fetch tournaments:", err);
+      logger.error("Failed to fetch tournaments:", { error: err });
     } finally {
       setLoading(false);
     }
@@ -151,7 +155,7 @@ export default function TournamentsPage() {
         setError(data.error || t('failedToCreate'));
       }
     } catch (err) {
-      console.error("Failed to create tournament:", err);
+      logger.error("Failed to create tournament:", { error: err });
       setError(t('failedToCreate'));
     }
   };
@@ -172,7 +176,7 @@ export default function TournamentsPage() {
         fetchTournaments();
       }
     } catch (err) {
-      console.error("Failed to delete tournament:", err);
+      logger.error("Failed to delete tournament:", { error: err, tournamentId: id });
     }
   };
 

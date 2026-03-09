@@ -55,6 +55,10 @@ import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/cons
 import { generateRandomTimeString } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'ta-elimination-phase' });
 
 /** Props for the elimination phase component */
 export interface TAEliminationPhaseProps {
@@ -233,12 +237,12 @@ export default function TAEliminationPhase({
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch data";
-      console.error("Failed to fetch data:", err);
+      logger.error("Failed to fetch data:", { error: err });
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [tournamentId, phase]);
+  }, [tournamentId, phase, currentRound]);
 
   // Initial fetch
   useEffect(() => {
