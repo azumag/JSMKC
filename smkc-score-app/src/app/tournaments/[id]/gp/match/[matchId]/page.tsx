@@ -39,6 +39,9 @@ import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants"
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-gp-match' });
 
 interface Player {
   id: string;
@@ -198,7 +201,7 @@ export default function GPMatchPage({
         setError(data.error || tMatch('submitResult'));
       }
     } catch (err) {
-      console.error("Failed to submit:", err);
+      logger.error("Failed to submit result:", { error: err });
       setError(tMatch('submitResult'));
     } finally {
       setSubmitting(false);

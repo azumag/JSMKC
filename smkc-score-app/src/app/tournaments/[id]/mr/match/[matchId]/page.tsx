@@ -46,6 +46,9 @@ import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants"
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-mr-match' });
 
 /** Player data from the API */
 interface Player {
@@ -217,7 +220,7 @@ export default function MatchDetailPage({
         setError(data.error || "Failed to submit result");
       }
     } catch (err) {
-      console.error("Failed to submit:", err);
+      logger.error("Failed to submit result:", { error: err });
       setError("Failed to submit result");
     } finally {
       setSubmitting(false);

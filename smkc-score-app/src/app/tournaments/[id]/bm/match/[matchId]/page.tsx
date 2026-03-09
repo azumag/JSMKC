@@ -35,6 +35,9 @@ import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-bm-match' });
 
 /** Player data structure */
 interface Player {
@@ -191,7 +194,7 @@ export default function MatchEntryPage({
         setError(data.error || "Failed to submit score");
       }
     } catch (err) {
-      console.error("Failed to submit:", err);
+      logger.error("Failed to submit score:", { error: err });
       setError("Failed to submit score");
     } finally {
       setSubmitting(false);
