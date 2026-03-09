@@ -73,6 +73,10 @@ const mockPrisma = {
   bMQualification: { findMany: jest.fn() },
   mRQualification: { findMany: jest.fn() },
   gPQualification: { findMany: jest.fn() },
+  // Match models for finals bracket analysis
+  bMMatch: { findMany: jest.fn() },
+  mRMatch: { findMany: jest.fn() },
+  gPMatch: { findMany: jest.fn() },
   player: { findMany: jest.fn() },
   tournamentPlayerScore: {
     findMany: jest.fn(),
@@ -254,35 +258,85 @@ describe('Overall Ranking module', () => {
 
   // =========================================================================
   describe('getMatchFinalsPositions', () => {
-    it('returns top 16 players by qualification score for BM', async () => {
-      const quals = Array.from({ length: 20 }, (_, i) => ({ playerId: `p${i + 1}` }));
-      mockPrisma.bMQualification.findMany.mockResolvedValue(quals);
+    /** Helper: build a completed finals match row for BM/MR */
+    function makeMatch(matchNumber: number, round: string, player1Id: string, player2Id: string, score1: number, score2: number) {
+      return { matchNumber, round, player1Id, player2Id, score1, score2 };
+    }
+
+    it('returns empty array when no completed finals exist (BM)', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
 
-      expect(positions).toHaveLength(16);
-      expect(positions[0]).toEqual({ playerId: 'p1', position: 1 });
-      expect(positions[15]).toEqual({ playerId: 'p16', position: 16 });
+      expect(positions).toEqual([]);
     });
 
-    it('returns all players if fewer than 16 exist (MR)', async () => {
-      mockPrisma.mRQualification.findMany.mockResolvedValue([
-        { playerId: 'p1' },
-        { playerId: 'p2' },
+    it('determines 1st and 2nd from Grand Final winner/loser (BM)', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        makeMatch(16, 'grand_final', 'p1', 'p2', 5, 3),
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      expect(positions.find(p => p.playerId === 'p1')).toEqual({ playerId: 'p1', position: 1 });
+      expect(positions.find(p => p.playerId === 'p2')).toEqual({ playerId: 'p2', position: 2 });
+    });
+
+    it('uses GF Reset result when both GF and GF Reset are completed (BM)', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        makeMatch(16, 'grand_final', 'p1', 'p2', 3, 5), // GF: p2 wins
+        makeMatch(17, 'grand_final_reset', 'p1', 'p2', 5, 2), // Reset: p1 wins
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      // Reset result overrides GF result for 1st/2nd
+      expect(positions.find(p => p.position === 1)?.playerId).toBe('p1');
+      expect(positions.find(p => p.position === 2)?.playerId).toBe('p2');
+    });
+
+    it('assigns 3rd to Losers Final loser (MR)', async () => {
+      mockPrisma.mRMatch.findMany.mockResolvedValue([
+        makeMatch(15, 'losers_final', 'p3', 'p4', 3, 0), // p3 wins, p4 gets 3rd
+        makeMatch(16, 'grand_final', 'p1', 'p3', 5, 2),  // p1 wins GF
       ]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'MR');
 
-      expect(positions).toHaveLength(2);
+      expect(positions.find(p => p.playerId === 'p4')?.position).toBe(3);
     });
 
-    it('uses GP qualifications when mode is GP', async () => {
-      mockPrisma.gPQualification.findMany.mockResolvedValue([{ playerId: 'p1' }]);
+    it('assigns 4th to Losers SF loser, 5th to Losers R3 losers, 7th to Losers R2 losers', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        makeMatch(16, 'grand_final', 'p1', 'p2', 5, 3),
+        makeMatch(15, 'losers_final', 'p2', 'p3', 5, 2), // p3 gets 3rd
+        makeMatch(14, 'losers_sf', 'p4', 'p5', 5, 1),   // p5 gets 4th
+        makeMatch(12, 'losers_r3', 'p6', 'p7', 5, 0),   // p7 gets 5th
+        makeMatch(13, 'losers_r3', 'p8', 'p9', 0, 5),   // p8 gets 5th
+        makeMatch(10, 'losers_r2', 'p10', 'p11', 5, 2), // p11 gets 7th
+        makeMatch(11, 'losers_r2', 'p12', 'p13', 1, 5), // p12 gets 7th
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      expect(positions.find(p => p.playerId === 'p3')?.position).toBe(3);
+      expect(positions.find(p => p.playerId === 'p5')?.position).toBe(4);
+      expect(positions.find(p => p.playerId === 'p7')?.position).toBe(5);
+      expect(positions.find(p => p.playerId === 'p8')?.position).toBe(5);
+      expect(positions.find(p => p.playerId === 'p11')?.position).toBe(7);
+      expect(positions.find(p => p.playerId === 'p12')?.position).toBe(7);
+    });
+
+    it('uses points1/points2 for GP mode', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValue([
+        { matchNumber: 16, round: 'grand_final', player1Id: 'p1', player2Id: 'p2', points1: 18, points2: 15 },
+      ]);
 
       const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'GP');
 
-      expect(mockPrisma.gPQualification.findMany).toHaveBeenCalled();
-      expect(positions[0]).toEqual({ playerId: 'p1', position: 1 });
+      expect(mockPrisma.gPMatch.findMany).toHaveBeenCalled();
+      expect(positions.find(p => p.playerId === 'p1')?.position).toBe(1);
+      expect(positions.find(p => p.playerId === 'p2')?.position).toBe(2);
     });
   });
 
@@ -317,6 +371,10 @@ describe('Overall Ranking module', () => {
       mockPrisma.mRQualification.findMany.mockResolvedValue([]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([]);
       getMockCalculateQualificationPoints().mockReturnValue([]);
+      // getMatchFinalsPositions now reads match tables; return empty (no finals played)
+      mockPrisma.bMMatch.findMany.mockResolvedValue([]);
+      mockPrisma.mRMatch.findMany.mockResolvedValue([]);
+      mockPrisma.gPMatch.findMany.mockResolvedValue([]);
       mockPrisma.player.findMany.mockResolvedValue([PLAYER_P1, PLAYER_P2]);
       getMockGetFinalsPoints().mockReturnValue(0);
     }

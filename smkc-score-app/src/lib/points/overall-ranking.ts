@@ -332,27 +332,56 @@ export async function getTAFinalsPositions(
 }
 
 /**
- * Determine BM/MR/GP finals positions from bracket results.
+ * Internal shape for a completed finals match record.
+ * Unifies the BM/MR/GP models (GP uses points1/points2 while BM/MR use score1/score2).
+ */
+interface FinalsMatchRecord {
+  player1Id: string;
+  player2Id: string;
+  /** Player 1's score (wins for BM/MR, driver points for GP) */
+  p1Score: number;
+  /** Player 2's score */
+  p2Score: number;
+  round: string | null;
+  matchNumber: number;
+}
+
+/**
+ * Determine the winner and loser of a completed finals match.
+ * In case of a draw (shouldn't occur for completed matches), defaults to player 1 as winner.
+ */
+function resolveWinnerLoser(
+  m: FinalsMatchRecord
+): { winner: string; loser: string } {
+  if (m.p1Score > m.p2Score) return { winner: m.player1Id, loser: m.player2Id };
+  if (m.p2Score > m.p1Score) return { winner: m.player2Id, loser: m.player1Id };
+  return { winner: m.player1Id, loser: m.player2Id };
+}
+
+/**
+ * Determine BM/MR/GP finals positions from double-elimination bracket results.
  *
- * **PROVISIONAL / ESTIMATED DATA**: Currently uses qualification ranking as a
- * proxy for finals positions. The actual implementation should analyze the
- * double elimination bracket completion to determine exact placements
- * (winner of Grand Final = 1st, loser = 2nd, etc.).
+ * Reads completed finals matches from the DB and maps bracket rounds to final
+ * placements based on the JSMKC 8-player double-elimination structure:
  *
- * The positions returned by this function are NOT actual bracket results --
- * they are estimates based on qualification seeding. Consumers should treat
- * these values as provisional until full bracket analysis is implemented.
+ *   1st: Grand Final (or GF Reset if played) winner
+ *   2nd: Grand Final (or GF Reset) loser
+ *   3rd: Losers Final loser
+ *   4th: Losers SF loser
+ *   5th–6th (tied): Losers R3 losers
+ *   7th–8th (tied): Losers R2 losers
+ *   9th–12th (tied): Losers R1 losers
  *
- * @remarks This implementation is provisional and returns estimated positions
- * based on qualification seeding. Use actual bracket results when available.
+ * Returns an empty array when no completed finals exist (e.g. finals not yet played).
+ * Falls back gracefully so that `calculateOverallRankings` can handle missing data.
  *
- * TODO: Implement full bracket analysis when bracket completion tracking
- * is available in the database schema.
+ * GP matches use `points1`/`points2`; BM/MR matches use `score1`/`score2`.
+ * Both are normalised to `p1Score`/`p2Score` internally.
  *
  * @param prisma       - Prisma client instance
  * @param tournamentId - Tournament to look up
  * @param mode         - Which mode's finals to examine (BM, MR, or GP)
- * @returns Array of FinalsPosition for the top 16 players (provisional)
+ * @returns Array of FinalsPosition derived from actual bracket results
  */
 export async function getMatchFinalsPositions(
   prisma: ExtendedPrismaClient,
@@ -360,37 +389,115 @@ export async function getMatchFinalsPositions(
   mode: "BM" | "MR" | "GP"
 ): Promise<FinalsPosition[]> {
   logger.info(
-    `getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}. ` +
-    "Returning PROVISIONAL positions based on qualification seeding, not actual bracket results."
+    `getMatchFinalsPositions called for mode=${mode}, tournament=${tournamentId}.`
   );
 
-  // Fetch qualification data sorted by score descending as a proxy
-  // for finals placement. This is a temporary simplification.
-  let qualifications;
+  // Fetch all completed, non-deleted finals matches ordered by match number.
+  // GP uses points1/points2 as the score fields; BM/MR use score1/score2.
+  let matches: FinalsMatchRecord[];
 
   if (mode === "BM") {
-    qualifications = await prisma.bMQualification.findMany({
-      where: { tournamentId },
-      orderBy: { score: "desc" },
+    const rows = await prisma.bMMatch.findMany({
+      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      orderBy: { matchNumber: "asc" },
+      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, matchNumber: true },
     });
+    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; matchNumber: number }) => ({
+      player1Id: r.player1Id,
+      player2Id: r.player2Id,
+      p1Score: r.score1,
+      p2Score: r.score2,
+      round: r.round,
+      matchNumber: r.matchNumber,
+    }));
   } else if (mode === "MR") {
-    qualifications = await prisma.mRQualification.findMany({
-      where: { tournamentId },
-      orderBy: { score: "desc" },
+    const rows = await prisma.mRMatch.findMany({
+      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      orderBy: { matchNumber: "asc" },
+      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, matchNumber: true },
     });
+    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; matchNumber: number }) => ({
+      player1Id: r.player1Id,
+      player2Id: r.player2Id,
+      p1Score: r.score1,
+      p2Score: r.score2,
+      round: r.round,
+      matchNumber: r.matchNumber,
+    }));
   } else {
-    qualifications = await prisma.gPQualification.findMany({
-      where: { tournamentId },
-      orderBy: { score: "desc" },
+    // GP uses points1/points2 instead of score1/score2
+    const rows = await prisma.gPMatch.findMany({
+      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      orderBy: { matchNumber: "asc" },
+      select: { player1Id: true, player2Id: true, points1: true, points2: true, round: true, matchNumber: true },
     });
+    matches = rows.map((r: { player1Id: string; player2Id: string; points1: number; points2: number; round: string | null; matchNumber: number }) => ({
+      player1Id: r.player1Id,
+      player2Id: r.player2Id,
+      p1Score: r.points1,
+      p2Score: r.points2,
+      round: r.round,
+      matchNumber: r.matchNumber,
+    }));
   }
 
-  // Take top 16 (the standard finals bracket size) and assign
-  // sequential positions as a simplified placement proxy
-  return qualifications.slice(0, 16).map((q: { playerId: string }, index: number) => ({
-    playerId: q.playerId,
-    position: index + 1, // Simplified -- actual position should come from bracket analysis
-  }));
+  // No finals played yet: return empty array (caller should treat as "not yet determined")
+  if (matches.length === 0) {
+    logger.warn(`No completed finals found for mode=${mode}, tournament=${tournamentId}. Returning empty positions.`);
+    return [];
+  }
+
+  const positions: FinalsPosition[] = [];
+
+  /*
+   * Position mapping from JSMKC double-elimination bracket rounds
+   * (see src/lib/double-elimination.ts for full bracket definition):
+   *
+   *   grand_final / grand_final_reset → 1st (winner), 2nd (loser)
+   *   losers_final                    → 3rd (loser)
+   *   losers_sf                       → 4th (loser)
+   *   losers_r3  (2 matches)          → 5th (both losers share 5th–6th)
+   *   losers_r2  (2 matches)          → 7th (both losers share 7th–8th)
+   *   losers_r1  (up to 2 matches)    → 9th (losers share 9th–12th)
+   */
+
+  // Grand Final: use the last completed GF match (GF Reset if it was played)
+  const gfMatches = matches
+    .filter((m) => m.round === "grand_final" || m.round === "grand_final_reset")
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+
+  if (gfMatches.length > 0) {
+    const { winner, loser } = resolveWinnerLoser(gfMatches[gfMatches.length - 1]);
+    positions.push({ playerId: winner, position: 1 });
+    positions.push({ playerId: loser, position: 2 });
+  }
+
+  // Losers Final loser → 3rd
+  for (const m of matches.filter((m) => m.round === "losers_final")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 3 });
+  }
+
+  // Losers SF loser → 4th
+  for (const m of matches.filter((m) => m.round === "losers_sf")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 4 });
+  }
+
+  // Losers R3 losers → 5th (both get 5; finals-points table groups 5th–6th equally)
+  for (const m of matches.filter((m) => m.round === "losers_r3")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 5 });
+  }
+
+  // Losers R2 losers → 7th (finals-points table groups 7th–8th equally)
+  for (const m of matches.filter((m) => m.round === "losers_r2")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 7 });
+  }
+
+  // Losers R1 losers → 9th (finals-points table groups 9th–12th equally)
+  for (const m of matches.filter((m) => m.round === "losers_r1")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 9 });
+  }
+
+  return positions;
 }
 
 /**
