@@ -406,6 +406,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         data: { error: 'Battle Mode scores must be integers', field: 'scores' },
         status: 400,
       });
+      /* Database write must be short-circuited */
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
 
@@ -420,6 +421,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         data: { error: 'Battle Mode scores must be integers', field: 'scores' },
         status: 400,
       });
+      /* Database write must be short-circuited */
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
 

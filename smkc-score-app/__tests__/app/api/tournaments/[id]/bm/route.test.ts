@@ -379,47 +379,28 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMQualification.updateMany).toHaveBeenCalledTimes(2);
     });
 
-    // Success case - Calculates tie result correctly
-    it('should handle tie results correctly', async () => {
-      const mockMatch = {
-        id: 'm1',
-        player1Id: 'p1',
-        player2Id: 'p2',
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      };
-
-      (prisma.bMMatch.update as jest.Mock).mockResolvedValue(mockMatch);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
+    // Validation error - 2-2 tie is rejected by validateBattleModeScores (tie check)
+    it('should reject tie results (2-2) with 400', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { matchId: 'm1', score1: 2, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
-      expect(result.status).toBe(200);
+      // validateBattleModeScores rejects 2-2: sum=4 (valid) but scores are equal (tie)
+      expect(result.status).toBe(400);
+      expect(result.data).toEqual({ error: 'Scores must be different' });
+      expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
-    // Success case - Handles incomplete match (total rounds != 4)
-    it('should handle incomplete match (total rounds not equal to 4)', async () => {
-      const mockMatch = {
-        id: 'm1',
-        player1Id: 'p1',
-        player2Id: 'p2',
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      };
-
-      (prisma.bMMatch.update as jest.Mock).mockResolvedValue(mockMatch);
-      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
+    // Validation error - 2-1 (sum=3) is rejected by validateBattleModeScores (sum check)
+    it('should reject scores not totalling 4 rounds (2-1 = sum 3) with 400', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { matchId: 'm1', score1: 2, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
+      // validateBattleModeScores rejects 2+1=3 (must equal TOTAL_BM_ROUNDS=4)
+      expect(result.status).toBe(400);
+      expect(result.data).toEqual({ error: 'Scores must total exactly 4 rounds (got 3)' });
+      expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
     // Success case - Includes rounds data when provided

@@ -8,6 +8,7 @@
 
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
+import { validateBattleModeScores } from '@/lib/score-validation';
 
 /**
  * Calculate BM match result from round scores.
@@ -27,6 +28,7 @@ function calculateMatchResult(score1: number, score2: number): MatchResult {
 }
 
 export const bmConfig: EventTypeConfig = {
+  eventTypeCode: 'bm',
   qualificationModel: 'bMQualification',
   matchModel: 'bMMatch',
   loggerName: 'bm-api',
@@ -46,6 +48,13 @@ export const bmConfig: EventTypeConfig = {
     };
     if (!matchId || score1 === undefined || score2 === undefined) {
       return { valid: false, error: 'matchId, score1, and score2 are required' };
+    }
+    // Validate BM score rules: integers, range [0,4], sum === 4, no tie.
+    // Prevents silent data corruption where invalid scores (e.g. 5-0) would
+    // be stored and then treated as a tie by calculateMatchResult (sum !== 4).
+    const scoreValidation = validateBattleModeScores(score1, score2);
+    if (!scoreValidation.isValid) {
+      return { valid: false, error: scoreValidation.error };
     }
     return { valid: true, data: { matchId, score1, score2, rounds } };
   },

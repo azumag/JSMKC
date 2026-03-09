@@ -78,8 +78,8 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
   }
 
   // Sum check: BM matches are exactly TOTAL_BM_ROUNDS rounds. Without this check,
-  // a score like 5-0 passes range validation but is silently treated as a tie by
-  // the match result calculation (which requires totalRounds === 4).
+  // a score like 1-2 (sum = 3) passes range validation but is silently treated
+  // as a tie by the match result calculation (which requires totalRounds === 4).
   if (score1 + score2 !== TOTAL_BM_ROUNDS) {
     return {
       isValid: false,
