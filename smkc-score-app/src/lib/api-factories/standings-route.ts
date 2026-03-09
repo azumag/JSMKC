@@ -144,7 +144,6 @@ export function createStandingsHandlers(config: StandingsConfig) {
          */
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ranked: any[] = [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (let i = 0; i < qualifications.length; i++) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const q = qualifications[i] as any;
