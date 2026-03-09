@@ -15,7 +15,7 @@
  * - Reset Match: If losers champion wins Grand Final, a deciding match is played
  *
  * Features:
- * - Real-time polling (3s) for bracket updates
+ * - Real-time polling for bracket updates
  * - Confirmation dialogs for destructive actions (generate/reset)
  * - Score entry dialog with round-based validation
  * - Champion announcement when tournament completes
@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -157,7 +158,7 @@ export default function BattleModeFinals({
 
   /**
    * Fetch finals data including matches, bracket structure, and round names.
-   * This is the polling function called every 3 seconds.
+   * This is the polling function called at the standard interval.
    */
   const fetchFinalsData = useCallback(async () => {
     const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`);
@@ -175,9 +176,9 @@ export default function BattleModeFinals({
     };
   }, [tournamentId]);
 
-  /* Set up polling with 3-second interval */
+  /* Set up polling with the standard interval */
   const { data: pollData, isLoading: pollLoading, error, lastETag, refetch } = usePolling(fetchFinalsData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
   });
 
   /* Update bracket state when polling data changes */

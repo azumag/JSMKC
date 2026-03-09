@@ -9,7 +9,7 @@
  * - Navigating to finals bracket
  *
  * Features:
- * - Real-time polling (3s interval) for live tournament updates
+ * - Real-time polling for live tournament updates
  * - Tabbed view switching between Standings and Matches
  * - Admin-only controls gated by session role
  * - Score entry dialog for individual matches
@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -87,6 +88,9 @@ interface BMQualification {
 interface BMMatch {
   id: string;
   matchNumber: number;
+  roundNumber?: number;  // サークル方式のDay番号
+  isBye?: boolean;       // BREAK不戦勝マッチ
+  tvNumber?: number;     // 配信台番号
   player1Id: string;
   player2Id: string;
   player1Side: number;
@@ -117,8 +121,9 @@ export default function BattleModePage({
   /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [setupPlayers, setSetupPlayers] = useState<
-    { playerId: string; group: string }[]
+    { playerId: string; group: string; seeding?: number }[]
   >([]);
+  const [groupCount, setGroupCount] = useState(3);
   /* State for score entry dialog */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
@@ -129,7 +134,7 @@ export default function BattleModePage({
 
   /**
    * Fetch both BM qualification data and all players in parallel.
-   * This is the polling function called every 3 seconds for live updates.
+   * This is the polling function called at the standard interval for live updates.
    */
   const fetchTournamentData = useCallback(async () => {
     const [bmResponse, playersResponse] = await Promise.all([
@@ -156,14 +161,14 @@ export default function BattleModePage({
   }, [tournamentId]);
 
   /*
-   * Set up polling with 3-second interval for real-time updates.
+   * Set up polling at the standard interval for real-time updates.
    * cacheKey enables cross-mount data persistence: when navigating away
    * from this tab and back, cached data is shown instantly without
    * a loading skeleton flash.
    */
   const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/bm`,
   });
 
@@ -230,6 +235,23 @@ export default function BattleModePage({
       }
     } catch (err) {
       console.error("Failed to update score:", err);
+    }
+  };
+
+  /**
+   * Handle TV number assignment for a match.
+   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
+   */
+  const handleTvAssign = async (matchId: string, tvNumber: number | null) => {
+    try {
+      await fetch(`/api/tournaments/${tournamentId}/bm`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, tvNumber }),
+      });
+      refetch();
+    } catch (err) {
+      console.error("Failed to assign TV:", err);
     }
   };
 
@@ -351,7 +373,10 @@ export default function BattleModePage({
               existingAssignments={qualifications.map((q) => ({
                 playerId: q.playerId,
                 group: q.group,
+                seeding: q.seeding ?? undefined,
               }))}
+              groupCount={groupCount}
+              setGroupCount={setGroupCount}
             />
           )}
 
@@ -427,79 +452,143 @@ export default function BattleModePage({
             </div>
           </TabsContent>
 
-          {/* Matches Tab - Full match list with score entry */}
+          {/* Matches Tab - Day-grouped match list with TV# assignment and BYE styling */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
                 <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
-                  {tc('completedOf', { completed: matches.filter((m) => m.completed).length, total: matches.length })}
+                  {tc('completedOf', {
+                    completed: matches.filter((m) => m.completed).length,
+                    total: matches.filter((m) => !m.isBye).length,
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>{tc('player1')}</TableHead>
-                      <TableHead className="text-center w-24">{tc('score')}</TableHead>
-                      <TableHead>{tc('player2')}</TableHead>
-                      <TableHead className="text-right">{tc('actions')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {matches.map((match) => (
-                      <TableRow key={match.id}>
-                        <TableCell>{match.matchNumber}</TableCell>
-                        <TableCell
-                          className={
-                            match.completed && match.score1 >= 3
-                              ? "font-bold"
-                              : ""
-                          }
-                        >
-                          {match.player1.nickname}
-                        </TableCell>
-                        <TableCell className="text-center font-mono">
-                          {match.completed
-                            ? `${match.score1} - ${match.score2}`
-                            : "- - -"}
-                        </TableCell>
-                        <TableCell
-                          className={
-                            match.completed && match.score2 >= 3
-                              ? "font-bold"
-                              : ""
-                          }
-                        >
-                          {match.player2.nickname}
-                        </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {/* Share link for participant score entry page */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                          >
-                            <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
-                              {tc('share')}
-                            </Link>
-                          </Button>
-                          {/* Admin-only score entry/edit button */}
-                          {isAdmin && (
-                            <Button
-                              variant={match.completed ? "outline" : "default"}
-                              size="sm"
-                              onClick={() => openScoreDialog(match)}
-                            >
-                              {match.completed ? tc('edit') : tc('enterScore')}
-                            </Button>
+                {(() => {
+                  /*
+                   * Group matches by roundNumber (Day) for circle-method display.
+                   * Falls back to a flat list when roundNumber is not set (legacy data).
+                   */
+                  const hasRoundNumbers = matches.some((m) => m.roundNumber != null);
+                  const matchesByDay = hasRoundNumbers
+                    ? matches.reduce<Record<number, BMMatch[]>>((acc, m) => {
+                        const day = m.roundNumber ?? 0;
+                        if (!acc[day]) acc[day] = [];
+                        acc[day].push(m);
+                        return acc;
+                      }, {})
+                    : { 0: matches };
+                  const sortedDays = Object.keys(matchesByDay)
+                    .map(Number)
+                    .sort((a, b) => a - b);
+
+                  return (
+                    <div className="space-y-6">
+                      {sortedDays.map((day) => (
+                        <div key={day}>
+                          {/* Day header (only shown when round-robin scheduling is active) */}
+                          {hasRoundNumbers && day > 0 && (
+                            <h3 className="font-semibold text-sm text-muted-foreground mb-2">
+                              {tc('dayLabel', { day })}
+                            </h3>
                           )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>{tc('player1')}</TableHead>
+                                <TableHead className="text-center w-24">{tc('score')}</TableHead>
+                                <TableHead>{tc('player2')}</TableHead>
+                                {/* TV# column for broadcast assignment */}
+                                <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                <TableHead className="text-right">{tc('actions')}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {matchesByDay[day].map((match) => (
+                                <TableRow
+                                  key={match.id}
+                                  className={match.isBye ? "opacity-50 bg-muted/30" : ""}
+                                >
+                                  <TableCell>{match.matchNumber}</TableCell>
+                                  <TableCell
+                                    className={
+                                      match.completed && match.score1 >= 3
+                                        ? "font-bold"
+                                        : ""
+                                    }
+                                  >
+                                    {match.player1.nickname}
+                                  </TableCell>
+                                  <TableCell className="text-center font-mono">
+                                    {match.isBye
+                                      ? `${match.score1} - ${match.score2}`
+                                      : match.completed
+                                        ? `${match.score1} - ${match.score2}`
+                                        : "- - -"}
+                                  </TableCell>
+                                  <TableCell
+                                    className={
+                                      !match.isBye && match.completed && match.score2 >= 3
+                                        ? "font-bold"
+                                        : ""
+                                    }
+                                  >
+                                    {match.isBye ? tc('bye') : match.player2.nickname}
+                                  </TableCell>
+                                  {/* TV# assignment: admin can select TV number, others see read-only */}
+                                  <TableCell className="text-center">
+                                    {isAdmin && !match.isBye ? (
+                                      <select
+                                        className="w-14 h-8 text-center text-sm border rounded bg-background"
+                                        value={match.tvNumber ?? ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          handleTvAssign(match.id, val ? parseInt(val) : null);
+                                        }}
+                                      >
+                                        <option value="">-</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                      </select>
+                                    ) : (
+                                      match.tvNumber ? `${match.tvNumber}` : "-"
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right space-x-2">
+                                    {/* Share link (not for BYE matches) */}
+                                    {!match.isBye && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                                          {tc('share')}
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    {/* Admin-only score entry/edit button (not for BYE matches) */}
+                                    {isAdmin && !match.isBye && (
+                                      <Button
+                                        variant={match.completed ? "outline" : "default"}
+                                        size="sm"
+                                        onClick={() => openScoreDialog(match)}
+                                      >
+                                        {match.completed ? tc('edit') : tc('enterScore')}
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

@@ -14,7 +14,7 @@
  * - Setup dialog for creating groups and round-robin matches
  * - Match result dialog with cup selection and race position entry
  * - CSV/Excel export
- * - Real-time polling (3s interval)
+ * - Real-time polling at the standard interval
  * - Navigation to finals bracket
  */
 
@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -185,12 +185,12 @@ export default function GrandPrixPage({
   }, [tournamentId]);
 
   /*
-   * Poll every 3 seconds for live tournament updates.
+   * Poll at the standard interval for live tournament updates.
    * cacheKey enables instant content display when returning to this tab.
    */
   const { data: pollData, error: pollError, lastUpdated, isPolling, refetch } = usePolling(
     fetchTournamentData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/gp`,
   });
 

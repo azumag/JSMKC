@@ -31,6 +31,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -130,10 +131,10 @@ export default function MatchEntryPage({
     };
   }, [tournamentId, matchId]);
 
-  /* Poll every 3 seconds for real-time match updates */
+  /* Poll at the standard interval for real-time match updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchMatchData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
   });
 
   /* Update local state when polling returns new data */

@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -147,10 +147,10 @@ export default function MatchDetailPage({
     };
   }, [tournamentId, matchId]);
 
-  /* Poll every 3 seconds for live updates */
+  /* Poll at the standard interval for live updates */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchMatchData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
   });
 
   /* Update local state from polling data */

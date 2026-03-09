@@ -12,7 +12,7 @@
  * - Race result entry with course selection
  * - Auto-calculated scores from race results
  * - Previous report display
- * - Real-time polling for match updates (5s interval)
+ * - Real-time polling for match updates (standard polling interval)
  *
  * @route /tournaments/[id]/mr/participant
  */
@@ -30,7 +30,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Flag, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO } from '@/lib/constants';
+import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
 
 /** Player data from the API */
 interface Player {
@@ -144,7 +144,7 @@ export default function MatchRaceParticipantPage({
   }, [tournamentId, hasAccess]);
 
   const { data: pollingData, error: pollingError } = usePolling(
-    fetchMatchesPoll, { interval: 5000, enabled: hasAccess && !loading }
+    fetchMatchesPoll, { interval: POLLING_INTERVAL, enabled: hasAccess && !loading }
   );
 
   useEffect(() => {

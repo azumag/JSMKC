@@ -13,7 +13,7 @@
  * - Live driver points calculation preview
  * - Completed match display with race-by-race results
  * - Result submission with confirmation flow
- * - Real-time polling (3s interval)
+ * - Real-time polling at the standard interval
  */
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -131,10 +131,10 @@ export default function GPMatchPage({
     };
   }, [tournamentId, matchId]);
 
-  /* Poll for match updates every 3 seconds */
+  /* Poll for match updates at the standard interval */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchMatchData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
   });
 
   useEffect(() => {

@@ -269,7 +269,7 @@ export default function TimeAttackFinals({
     } finally {
       setLoading(false);
     }
-  }, [tournamentId]);
+  }, [tournamentId, currentRound]);
 
   // Initial fetch
   useEffect(() => {

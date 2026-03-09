@@ -12,7 +12,7 @@
  * - Race-by-race result entry with driver points auto-calculation
  * - Dual-report system with auto-confirmation
  * - Previous report display for transparency
- * - Real-time match polling (5s interval)
+ * - Real-time match polling at the standard interval
  *
  * Driver points: 1st=9, 2nd=6, 3rd=3, 4th=1
  */
@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO } from '@/lib/constants';
+import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
 
 interface Player {
   id: string;
@@ -147,9 +147,9 @@ export default function GrandPrixParticipantPage({
       }
     };
     fetchData();
-  }, [tournamentId, sessionStatus, hasAccess]);
+  }, [tournamentId, sessionStatus, hasAccess, tErrors]);
 
-  /** Poll for match updates every 5 seconds */
+  /** Poll for match updates at the standard interval */
   const fetchMatchesPoll = useCallback(async () => {
     if (!hasAccess) return { matches: [] };
     const response = await fetch(`/api/tournaments/${tournamentId}/gp`);
@@ -158,7 +158,7 @@ export default function GrandPrixParticipantPage({
   }, [tournamentId, hasAccess]);
 
   const { data: pollingData, error: pollingError } = usePolling(
-    fetchMatchesPoll, { interval: 5000, enabled: hasAccess && !loading }
+    fetchMatchesPoll, { interval: POLLING_INTERVAL, enabled: hasAccess && !loading }
   );
 
   useEffect(() => {

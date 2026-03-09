@@ -15,7 +15,7 @@
  * - Bracket reset with confirmation
  * - Champion announcement
  * - Progress tracking (completed/total matches)
- * - Real-time polling (3s interval)
+ * - Real-time polling at the standard interval
  */
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -143,10 +144,10 @@ export default function GrandPrixFinals({
     };
   }, [tournamentId]);
 
-  /* Poll for bracket updates every 3 seconds */
+  /* Poll for bracket updates at the standard interval */
   const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
     fetchFinalsData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
   });
 
   useEffect(() => {

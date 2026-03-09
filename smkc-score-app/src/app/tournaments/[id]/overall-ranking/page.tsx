@@ -21,7 +21,7 @@
  * - Full rankings table with mode-by-mode breakdown
  * - On-demand recalculation button
  * - Points system legend
- * - Auto-refresh polling (5s interval)
+ * - Auto-refresh polling (3s interval via POLLING_INTERVAL constant)
  */
 
 import { useState, useEffect, useCallback, use } from "react";
@@ -46,6 +46,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { POLLING_INTERVAL } from "@/lib/constants";
 
 /** Player ranking data returned from the overall ranking API */
 interface PlayerRanking {
@@ -106,12 +107,12 @@ export default function OverallRankingPage({
   }, [tournamentId]);
 
   /*
-   * Auto-refresh rankings every 5 seconds.
+   * Auto-refresh rankings at the standard POLLING_INTERVAL (3s).
    * cacheKey enables instant content display when returning to this tab.
    */
   const { data: pollData, error: pollError, refetch } = usePolling(
     fetchRankings,
-    { interval: 5000, cacheKey: `tournament/${tournamentId}/overall-ranking` }
+    { interval: POLLING_INTERVAL, cacheKey: `tournament/${tournamentId}/overall-ranking` }
   );
 
   /*

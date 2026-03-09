@@ -22,7 +22,7 @@
  * 4. Export:
  *    - Download qualification data as Excel/CSV file
  *
- * Data is refreshed every 3 seconds via polling for real-time updates
+ * Data is refreshed at the standard polling interval for real-time updates
  * during live tournament operation.
  */
 
@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, TOTAL_COURSES } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -246,12 +246,12 @@ export default function TimeAttackPage({
   }, [tournamentId]);
 
   /*
-   * Poll for updates every 3 seconds during live tournament operation.
+   * Poll at the standard interval during live tournament operation.
    * cacheKey enables instant content display when returning to this tab.
    */
   const { data: pollData, error: pollError, refetch } = usePolling(
     fetchTournamentData, {
-    interval: 3000,
+    interval: POLLING_INTERVAL,
     cacheKey: `tournament/${tournamentId}/ta`,
   });
 
@@ -327,28 +327,15 @@ export default function TimeAttackPage({
   };
 
   /**
-   * Toggle freeze/unfreeze for a specific TA stage (admin only).
+   * Toggle freeze/unfreeze for the qualification stage (admin only).
    * Updates the tournament's frozenStages array via the tournament PUT endpoint.
-   * When a stage is frozen, all time edits for entries in that stage are blocked.
+   * When frozen, all time edits for qualification entries are blocked.
    */
-  /**
-   * Map internal stage names to localized display names for toast messages.
-   * Uses existing i18n keys where available.
-   */
-  const stageDisplayName = (stage: string): string => {
-    const names: Record<string, string> = {
-      qualification: t('qualificationTitle'),
-      phase1: t('phase1'),
-      phase2: t('phase2'),
-      phase3: t('phase3'),
-    };
-    return names[stage] || stage;
-  };
-
-  const handleToggleFreeze = async (stage: string) => {
-    const newFrozen = frozenStages.includes(stage)
-      ? frozenStages.filter((s) => s !== stage)
-      : [...frozenStages, stage];
+  const handleToggleFreeze = async () => {
+    const isFrozen = frozenStages.includes("qualification");
+    const newFrozen = isFrozen
+      ? frozenStages.filter((s) => s !== "qualification")
+      : [...frozenStages, "qualification"];
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
@@ -358,12 +345,7 @@ export default function TimeAttackPage({
       });
       if (!response.ok) throw new Error("Failed to update freeze state");
       refetch();
-      const displayName = stageDisplayName(stage);
-      toast.success(
-        frozenStages.includes(stage)
-          ? `${t('unfreeze')}: ${displayName}`
-          : `${t('freeze')}: ${displayName}`
-      );
+      toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to toggle freeze");
     }
@@ -631,13 +613,13 @@ export default function TimeAttackPage({
           {isAdmin && (
             <Button
               variant={frozenStages.includes("qualification") ? "destructive" : "outline"}
-              onClick={() => handleToggleFreeze("qualification")}
+              onClick={handleToggleFreeze}
               size="sm"
             >
               {frozenStages.includes("qualification") ? (
-                <><Unlock className="h-4 w-4 mr-1" />{t('unfreeze')}</>
+                <><Unlock className="h-4 w-4 mr-1" />{t('unfreezeQualification')}</>
               ) : (
-                <><Lock className="h-4 w-4 mr-1" />{t('freeze')}</>
+                <><Lock className="h-4 w-4 mr-1" />{t('freezeQualification')}</>
               )}
             </Button>
           )}
@@ -769,11 +751,6 @@ export default function TimeAttackPage({
               <div className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="font-semibold">{t('phase1')}</h4>
-                  {frozenStages.includes("phase1") && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                      <Lock className="h-3 w-3" />{t('frozenBadge')}
-                    </span>
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">{t('phase1Desc')}</p>
                 {phaseStatus?.phase1 ? (
@@ -803,17 +780,6 @@ export default function TimeAttackPage({
                       <Link href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</Link>
                     </Button>
                   )}
-                  {/* Freeze toggle for Phase 1 (admin only, shown after phase is started) */}
-                  {isAdmin && phaseStatus?.phase1 && (
-                    <Button
-                      size="sm"
-                      variant={frozenStages.includes("phase1") ? "destructive" : "outline"}
-                      onClick={() => handleToggleFreeze("phase1")}
-                    >
-                      {frozenStages.includes("phase1") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                      {frozenStages.includes("phase1") ? t('unfreeze') : t('freeze')}
-                    </Button>
-                  )}
                 </div>
               </div>
 
@@ -822,11 +788,6 @@ export default function TimeAttackPage({
               {(phaseStatus?.phase1 || !phase1HasPlayers) && <div className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="font-semibold">{t('phase2')}</h4>
-                  {frozenStages.includes("phase2") && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                      <Lock className="h-3 w-3" />{t('frozenBadge')}
-                    </span>
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">{t('phase2Desc')}</p>
                 {phaseStatus?.phase2 ? (
@@ -856,17 +817,6 @@ export default function TimeAttackPage({
                       <Link href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</Link>
                     </Button>
                   )}
-                  {/* Freeze toggle for Phase 2 (admin only, shown after phase is started) */}
-                  {isAdmin && phaseStatus?.phase2 && (
-                    <Button
-                      size="sm"
-                      variant={frozenStages.includes("phase2") ? "destructive" : "outline"}
-                      onClick={() => handleToggleFreeze("phase2")}
-                    >
-                      {frozenStages.includes("phase2") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                      {frozenStages.includes("phase2") ? t('unfreeze') : t('freeze')}
-                    </Button>
-                  )}
                 </div>
               </div>}
 
@@ -875,11 +825,6 @@ export default function TimeAttackPage({
               {(phaseStatus?.phase2 || (!phase1HasPlayers && !phase2HasPlayers) || (phaseStatus?.phase1 && !phase2HasPlayers)) && <div className="border rounded-lg p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <h4 className="font-semibold">{t('phase3')}</h4>
-                  {frozenStages.includes("phase3") && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                      <Lock className="h-3 w-3" />{t('frozenBadge')}
-                    </span>
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">{t('phase3Desc')}</p>
                 {phaseStatus?.phase3 ? (
@@ -910,17 +855,6 @@ export default function TimeAttackPage({
                   {phaseStatus?.phase3 && (
                     <Button size="sm" variant="outline" asChild>
                       <Link href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</Link>
-                    </Button>
-                  )}
-                  {/* Freeze toggle for Phase 3 (admin only, shown after phase is started) */}
-                  {isAdmin && phaseStatus?.phase3 && (
-                    <Button
-                      size="sm"
-                      variant={frozenStages.includes("phase3") ? "destructive" : "outline"}
-                      onClick={() => handleToggleFreeze("phase3")}
-                    >
-                      {frozenStages.includes("phase3") ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                      {frozenStages.includes("phase3") ? t('unfreeze') : t('freeze')}
                     </Button>
                   )}
                 </div>

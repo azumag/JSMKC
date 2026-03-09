@@ -20,7 +20,7 @@
  * - Dual-report confirmation system prevents fraudulent score reports
  *
  * Real-time updates:
- * - Matches are polled every 5 seconds
+ * - Matches are polled at the standard polling interval
  * - Match completion and score changes are reflected in real-time
  */
 
@@ -29,6 +29,7 @@
 import { useState, useEffect, useCallback, use } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
+import { POLLING_INTERVAL } from '@/lib/constants';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -169,10 +170,10 @@ export default function BattleModeParticipantPage({
     return response.json();
   }, [tournamentId, hasAccess]);
 
-  /* Poll every 5 seconds for match updates */
+  /* Poll at the standard interval for match updates */
   const { data: pollingData, error: pollingError } = usePolling(
     fetchMatches, {
-    interval: 5000,
+    interval: POLLING_INTERVAL,
     enabled: hasAccess && !loading,
   });
 

@@ -17,7 +17,7 @@
  * - All score entries are audit-logged server-side
  *
  * Real-time Updates:
- * - Entry data is polled every 5 seconds to show ranking changes
+ * - Entry data is polled at the standard interval to show ranking changes
  * - Participants can see their current rank and total time
  *
  * i18n:
@@ -33,11 +33,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO, TOTAL_COURSES } from '@/lib/constants';
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { toast } from 'sonner';
 
 /** Player data structure */
@@ -189,7 +188,7 @@ export default function TimeAttackParticipantPage({
     fetchData();
   }, [tournamentId, sessionStatus, hasAccess]);
 
-  /** Poll entry data every 5 seconds to show ranking updates */
+  /** Poll entry data at the standard interval to show ranking updates */
   const fetchEntriesPoll = useCallback(async () => {
     if (!hasAccess) return { entries: [] };
     const response = await fetch(`/api/tournaments/${tournamentId}/ta`);
@@ -198,7 +197,7 @@ export default function TimeAttackParticipantPage({
   }, [tournamentId, hasAccess]);
 
   const { data: pollingData, error: pollingError } = usePolling(
-    fetchEntriesPoll, { interval: 5000, enabled: hasAccess && !loading }
+    fetchEntriesPoll, { interval: POLLING_INTERVAL, enabled: hasAccess && !loading }
   );
 
   useEffect(() => {
