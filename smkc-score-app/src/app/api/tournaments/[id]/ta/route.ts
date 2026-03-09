@@ -321,7 +321,7 @@ export async function POST(
 
       const context: PromotionContext = {
         tournamentId,
-        userId: session!.user!.id as string,
+        userId: session!.user.id!,
         ipAddress: getClientIdentifier(request),
         userAgent: getUserAgent(request),
       };

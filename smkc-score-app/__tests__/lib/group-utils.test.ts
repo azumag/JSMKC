@@ -10,8 +10,10 @@ import {
   GROUPS,
   assignGroupsBySeeding,
   randomlyAssignGroups,
-  type SetupPlayer,
 } from '@/lib/group-utils';
+
+// Local type alias (mirrors SetupPlayer from group-utils) - avoids Babel "import type" parsing issues
+type SetupPlayer = { playerId: string; group: string; seeding?: number };
 
 describe('GROUPS constant', () => {
   it('should contain A, B, C, D for 4-group support', () => {

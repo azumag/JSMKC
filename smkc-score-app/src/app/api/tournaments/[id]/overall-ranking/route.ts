@@ -61,7 +61,7 @@ export async function GET(
 
     /* Derive lastUpdated from the most recent DB record, fall back to now */
     const lastUpdated = rankings.length > 0
-      ? new Date(Math.max(...rankings.map(r => new Date(r.updatedAt!).getTime()))).toISOString()
+      ? new Date(Math.max(...rankings.map(r => new Date(r.updatedAt ?? new Date()).getTime()))).toISOString()
       : new Date().toISOString();
 
     logger.info("Fetched overall rankings", {
