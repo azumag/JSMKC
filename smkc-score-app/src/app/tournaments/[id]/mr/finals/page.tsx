@@ -219,12 +219,12 @@ export default function MatchRaceFinals({
         refetch();
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to create bracket");
+        alert(error.error || tFinals('failedCreateBracket'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to create bracket:", metadata);
-      alert("Failed to create bracket");
+      alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
     }
@@ -314,12 +314,12 @@ export default function MatchRaceFinals({
         }
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to update match");
+        alert(error.error || tFinals('failedUpdateMatch'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to update match:", metadata);
-      alert("Failed to update match");
+      alert(tFinals('failedUpdateMatch'));
     }
   };
 
