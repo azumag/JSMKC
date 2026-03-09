@@ -29,6 +29,7 @@ import {
   createCharacterUsageLog,
   validateCharacter,
 } from "@/lib/api-factories/score-report-helpers";
+import { validateMatchRaceScores } from "@/lib/score-validation";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -91,6 +92,12 @@ export async function POST(
 
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+    }
+
+    /* Validate MR scores are in legal range (0-3 race wins each) */
+    const scoreValidation = validateMatchRaceScores(score1, score2);
+    if (!scoreValidation.isValid) {
+      return handleValidationError(scoreValidation.error!, "scores");
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;

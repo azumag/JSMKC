@@ -27,6 +27,7 @@ import {
   validateCharacter,
   checkScoreReportAuth,
 } from "@/lib/api-factories/score-report-helpers";
+import { validateGPRacePosition } from "@/lib/score-validation";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -101,6 +102,17 @@ export async function POST(
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
+
+    /* Validate GP race positions are in legal range (1-4) before processing */
+    if (!Array.isArray(races) || races.length !== 4) {
+      return handleValidationError("races must be an array of 4 entries", "races");
+    }
+    for (const race of races as Array<{ position1: number; position2: number; course: string }>) {
+      const pos1Result = validateGPRacePosition(race.position1);
+      if (!pos1Result.isValid) return handleValidationError(pos1Result.error!, "position1");
+      const pos2Result = validateGPRacePosition(race.position2);
+      if (!pos2Result.isValid) return handleValidationError(pos2Result.error!, "position2");
+    }
 
     /* Process races: convert finishing positions to driver points */
     let totalPoints1 = 0;

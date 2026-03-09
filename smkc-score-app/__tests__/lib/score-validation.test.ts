@@ -24,7 +24,16 @@
  */
 // __tests__/lib/score-validation.test.ts
 import { describe, it, expect } from '@jest/globals';
-import { validateBattleModeScores, isPlayer1Win, calculateMatchResult } from '@/lib/score-validation';
+import {
+  validateBattleModeScores,
+  isPlayer1Win,
+  calculateMatchResult,
+  validateMatchRaceScores,
+  validateGPRacePosition,
+  MAX_RACE_WIN_SCORE,
+  MIN_GP_POSITION,
+  MAX_GP_POSITION,
+} from '@/lib/score-validation';
 import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE } from '@/lib/constants';
 
 describe('Score Validation Utilities', () => {
@@ -299,6 +308,65 @@ describe('Score Validation Utilities', () => {
       expect(result.result2).toBe('loss');
       expect(typeof result.result1).toBe('string');
       expect(typeof result.result2).toBe('string');
+    });
+  });
+
+  describe('validateMatchRaceScores', () => {
+    it('should accept valid scores within range', () => {
+      expect(validateMatchRaceScores(3, 0).isValid).toBe(true);
+      expect(validateMatchRaceScores(0, 3).isValid).toBe(true);
+      expect(validateMatchRaceScores(2, 2).isValid).toBe(true);
+      expect(validateMatchRaceScores(0, 0).isValid).toBe(true);
+    });
+
+    it('should accept boundary values', () => {
+      expect(validateMatchRaceScores(MAX_RACE_WIN_SCORE, 0).isValid).toBe(true);
+      expect(validateMatchRaceScores(0, MAX_RACE_WIN_SCORE).isValid).toBe(true);
+    });
+
+    it('should reject scores above MAX_RACE_WIN_SCORE', () => {
+      const result = validateMatchRaceScores(MAX_RACE_WIN_SCORE + 1, 0);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain(`${MAX_RACE_WIN_SCORE}`);
+    });
+
+    it('should reject negative scores', () => {
+      const result = validateMatchRaceScores(-1, 2);
+      expect(result.isValid).toBe(false);
+    });
+
+    it('should reject non-integer scores', () => {
+      expect(validateMatchRaceScores(1.5, 2).isValid).toBe(false);
+      expect(validateMatchRaceScores(2, 0.5).isValid).toBe(false);
+    });
+  });
+
+  describe('validateGPRacePosition', () => {
+    it('should accept valid positions 1-4', () => {
+      expect(validateGPRacePosition(MIN_GP_POSITION).isValid).toBe(true);
+      expect(validateGPRacePosition(2).isValid).toBe(true);
+      expect(validateGPRacePosition(3).isValid).toBe(true);
+      expect(validateGPRacePosition(MAX_GP_POSITION).isValid).toBe(true);
+    });
+
+    it('should reject position 0', () => {
+      const result = validateGPRacePosition(0);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain(`${MIN_GP_POSITION}`);
+    });
+
+    it('should reject position 5 and above', () => {
+      expect(validateGPRacePosition(5).isValid).toBe(false);
+      expect(validateGPRacePosition(MAX_GP_POSITION + 1).isValid).toBe(false);
+    });
+
+    it('should reject negative positions', () => {
+      expect(validateGPRacePosition(-1).isValid).toBe(false);
+    });
+
+    it('should reject non-integer positions', () => {
+      expect(validateGPRacePosition(1.5).isValid).toBe(false);
+      expect(validateGPRacePosition(2.9).isValid).toBe(false);
     });
   });
 
