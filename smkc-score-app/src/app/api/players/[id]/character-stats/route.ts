@@ -61,7 +61,7 @@ export async function GET(
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { error: 'Unauthorized: Admin access required' },
+      { success: false, error: 'Unauthorized: Admin access required' },
       { status: 403 }
     );
   }
@@ -188,7 +188,7 @@ export async function GET(
       playerId: (await params).id,
     });
     return NextResponse.json(
-      { error: "Failed to fetch character stats" },
+      { success: false, error: "Failed to fetch character stats" },
       { status: 500 }
     );
   }

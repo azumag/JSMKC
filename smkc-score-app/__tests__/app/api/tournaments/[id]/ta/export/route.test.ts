@@ -212,7 +212,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
       });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Tournament not found' },
+        { success: false, error: 'Tournament not found' },
         { status: 404 }
       );
     });
@@ -271,7 +271,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Failed to export tournament' },
+        { success: false, error: 'Failed to export tournament' },
         { status: 500 }
       );
     });

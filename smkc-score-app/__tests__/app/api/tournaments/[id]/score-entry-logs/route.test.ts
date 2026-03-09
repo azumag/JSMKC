@@ -68,7 +68,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
 
       // The source returns 403 for unauthenticated/non-admin users
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 403 }
       );
     });

@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     // The error object preserves the original stack trace for debugging.
     logger.error("Failed to fetch players", { error });
     return NextResponse.json(
-      { error: "Failed to fetch players" },
+      { success: false, error: "Failed to fetch players" },
       { status: 500 }
     );
   }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { error: 'Unauthorized: Admin access required' },
+      { success: false, error: 'Unauthorized: Admin access required' },
       { status: 403 }
     );
   }
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields before database operations
     if (!name || !nickname) {
       return NextResponse.json(
-        { error: "Name and nickname are required" },
+        { success: false, error: "Name and nickname are required" },
         { status: 400 }
       );
     }
@@ -177,12 +177,12 @@ export async function POST(request: NextRequest) {
       error.code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "A player with this nickname already exists" },
+        { success: false, error: "A player with this nickname already exists" },
         { status: 409 }
       );
     }
     return NextResponse.json(
-      { error: "Failed to create player" },
+      { success: false, error: "Failed to create player" },
       { status: 500 }
     );
   }

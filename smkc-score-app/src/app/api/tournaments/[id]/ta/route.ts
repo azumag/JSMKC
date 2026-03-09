@@ -142,7 +142,7 @@ export async function GET(
     const parseResult = cuidSchema.safeParse(tournamentId);
     if (!parseResult.success) {
       return NextResponse.json(
-        { error: "Invalid tournament ID format" },
+        { success: false, error: "Invalid tournament ID format" },
         { status: 400 }
       );
     }
@@ -207,7 +207,7 @@ export async function POST(
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
-        { error: "Invalid tournament ID format" },
+        { success: false, error: "Invalid tournament ID format" },
         { status: 400 }
       );
     }
@@ -218,7 +218,7 @@ export async function POST(
     const parseResult = PostRequestSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
-        { error: parseResult.error.issues[0]?.message || "Invalid request body" },
+        { success: false, error: parseResult.error.issues[0]?.message || "Invalid request body" },
         { status: 400 }
       );
     }
@@ -338,7 +338,7 @@ export async function PUT(
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
-        { error: "Invalid tournament ID format" },
+        { success: false, error: "Invalid tournament ID format" },
         { status: 400 }
       );
     }
@@ -349,7 +349,7 @@ export async function PUT(
     const parseResult = PutRequestSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
-        { error: parseResult.error.issues[0]?.message || "Invalid request body" },
+        { success: false, error: parseResult.error.issues[0]?.message || "Invalid request body" },
         { status: 400 }
       );
     }
@@ -607,7 +607,7 @@ export async function DELETE(
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
       return NextResponse.json(
-        { error: "Invalid tournament ID format" },
+        { success: false, error: "Invalid tournament ID format" },
         { status: 400 }
       );
     }

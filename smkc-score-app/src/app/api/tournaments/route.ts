@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to fetch tournaments", { error });
     return NextResponse.json(
-      { error: "Failed to fetch tournaments" },
+      { success: false, error: "Failed to fetch tournaments" },
       { status: 500 }
     );
   }
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!name || !date) {
       return NextResponse.json(
-        { error: "Name and date are required" },
+        { success: false, error: "Name and date are required" },
         { status: 400 }
       );
     }
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to create tournament", { error });
     return NextResponse.json(
-      { error: "Failed to create tournament" },
+      { success: false, error: "Failed to create tournament" },
       { status: 500 }
     );
   }

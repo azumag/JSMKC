@@ -47,7 +47,7 @@ export async function GET(
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json(
-      { error: 'Unauthorized: Admin access required' },
+      { success: false, error: 'Unauthorized: Admin access required' },
       { status: 403 }
     );
   }
@@ -113,7 +113,7 @@ export async function GET(
     // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch TA standings", { error, tournamentId });
     return NextResponse.json(
-      { error: "Failed to fetch TA standings" },
+      { success: false, error: "Failed to fetch TA standings" },
       { status: 500 }
     );
   }

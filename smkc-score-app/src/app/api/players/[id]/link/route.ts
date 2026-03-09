@@ -33,7 +33,7 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
-      { error: "Unauthorized" },
+      { success: false, error: "Unauthorized" },
       { status: 401 }
     );
   }
@@ -48,7 +48,7 @@ export async function POST(
 
     if (!player) {
       return NextResponse.json(
-        { error: "Player not found" },
+        { success: false, error: "Player not found" },
         { status: 404 }
       );
     }
@@ -57,7 +57,7 @@ export async function POST(
     // Each player can only be associated with one OAuth account.
     if (player.userId) {
       return NextResponse.json(
-        { error: "Player already linked to a user" },
+        { success: false, error: "Player already linked to a user" },
         { status: 409 }
       );
     }
@@ -71,7 +71,7 @@ export async function POST(
 
     if (existingLink) {
       return NextResponse.json(
-        { error: "You are already linked to a player profile" },
+        { success: false, error: "You are already linked to a player profile" },
         { status: 409 }
       );
     }
@@ -91,7 +91,7 @@ export async function POST(
       userId: session.user.id,
     });
     return NextResponse.json(
-      { error: "Failed to link player" },
+      { success: false, error: "Failed to link player" },
       { status: 500 }
     );
   }

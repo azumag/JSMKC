@@ -210,7 +210,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format' },
         { status: 400 }
       );
     });
@@ -292,7 +292,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format' },
         { status: 400 }
       );
     });
@@ -313,7 +313,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Rate limit exceeded. Please try again later.' },
+        { success: false, error: 'Rate limit exceeded. Please try again later.' },
         { status: 429 }
       );
     });
@@ -491,7 +491,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format' },
         { status: 400 }
       );
     });

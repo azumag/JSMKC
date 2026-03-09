@@ -258,7 +258,7 @@ describe('GET /api/players', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Failed to fetch players' },
+        { success: false, error: 'Failed to fetch players' },
         { status: 500 }
       );
     });
@@ -485,7 +485,7 @@ describe('POST /api/players', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'A player with this nickname already exists' },
+        { success: false, error: 'A player with this nickname already exists' },
         { status: 409 }
       );
     });

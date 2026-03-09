@@ -45,7 +45,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Tournament not found" }, { status: 404 });
     }
 
     // Fetch all entries ordered by rank for export
@@ -87,6 +87,6 @@ export async function GET(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to export tournament", { error, tournamentId });
-    return NextResponse.json({ error: "Failed to export tournament" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to export tournament" }, { status: 500 });
   }
 }

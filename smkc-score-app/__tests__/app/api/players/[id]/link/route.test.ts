@@ -314,7 +314,7 @@ describe('POST /api/players/[id]/link', () => {
 
       // The source returns "Failed to link player" on errors
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Failed to link player' },
+        { success: false, error: 'Failed to link player' },
         { status: 500 }
       );
     });

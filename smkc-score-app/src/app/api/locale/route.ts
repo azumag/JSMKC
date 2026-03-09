@@ -17,29 +17,36 @@ import { NextResponse } from 'next/server'
 import { locales, LOCALE_COOKIE, type Locale } from '@/i18n/config'
 
 export async function POST(request: Request) {
-  const body = await request.json()
-  const { locale } = body
+  try {
+    const body = await request.json()
+    const { locale } = body
 
-  /* Validate that the requested locale is supported */
-  if (!locale || !locales.includes(locale as Locale)) {
+    /* Validate that the requested locale is supported */
+    if (!locale || !locales.includes(locale as Locale)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid locale' },
+        { status: 400 }
+      )
+    }
+
+    const response = NextResponse.json({ success: true })
+
+    /**
+     * Set the NEXT_LOCALE cookie with a 1-year expiry.
+     * This cookie is read by src/i18n/request.ts to determine
+     * the user's preferred locale on each server request.
+     */
+    response.cookies.set(LOCALE_COOKIE, locale, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      sameSite: 'lax',
+    })
+
+    return response
+  } catch {
     return NextResponse.json(
-      { error: 'Invalid locale' },
+      { success: false, error: 'Invalid request body' },
       { status: 400 }
     )
   }
-
-  const response = NextResponse.json({ success: true })
-
-  /**
-   * Set the NEXT_LOCALE cookie with a 1-year expiry.
-   * This cookie is read by src/i18n/request.ts to determine
-   * the user's preferred locale on each server request.
-   */
-  response.cookies.set(LOCALE_COOKIE, locale, {
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365, // 1 year
-    sameSite: 'lax',
-  })
-
-  return response
 }

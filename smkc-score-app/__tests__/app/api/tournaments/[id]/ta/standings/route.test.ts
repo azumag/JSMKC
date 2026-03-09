@@ -151,7 +151,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 403 }
       );
     });
@@ -167,7 +167,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 403 }
       );
     });
@@ -398,7 +398,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { error: 'Failed to fetch TA standings' },
+        { success: false, error: 'Failed to fetch TA standings' },
         { status: 500 }
       );
     });

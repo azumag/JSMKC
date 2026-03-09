@@ -77,7 +77,7 @@ export async function GET(
 
     if (!tournament) {
       return NextResponse.json(
-        { error: "Tournament not found" },
+        { success: false, error: "Tournament not found" },
         { status: 404 }
       );
     }
@@ -87,7 +87,7 @@ export async function GET(
     // Log with tournament ID for easy filtering in log aggregation
     logger.error("Failed to fetch tournament", { error, id });
     return NextResponse.json(
-      { error: "Failed to fetch tournament" },
+      { success: false, error: "Failed to fetch tournament" },
       { status: 500 }
     );
   }
@@ -133,9 +133,9 @@ export async function PUT(
     const body = sanitizeInput(await request.json());
     const { name, date, status, frozenStages } = body;
 
-    // Validate frozenStages if provided: must be an array of valid TA stage names.
-    // This prevents arbitrary strings from being stored in the frozen list.
-    const VALID_FROZEN_STAGES = ["qualification", "phase1", "phase2", "phase3"];
+    // Validate frozenStages if provided: only "qualification" is supported.
+    // Phase freeze was removed because phase operations are admin-only.
+    const VALID_FROZEN_STAGES = ["qualification"];
     if (frozenStages !== undefined) {
       if (
         !Array.isArray(frozenStages) ||
@@ -203,13 +203,13 @@ export async function PUT(
       error.code === "P2025"
     ) {
       return NextResponse.json(
-        { error: "Tournament not found" },
+        { success: false, error: "Tournament not found" },
         { status: 404 }
       );
     }
 
     return NextResponse.json(
-      { error: "Failed to update tournament" },
+      { success: false, error: "Failed to update tournament" },
       { status: 500 }
     );
   }
@@ -290,13 +290,13 @@ export async function DELETE(
       error.code === "P2025"
     ) {
       return NextResponse.json(
-        { error: "Tournament not found" },
+        { success: false, error: "Tournament not found" },
         { status: 404 }
       );
     }
 
     return NextResponse.json(
-      { error: "Failed to delete tournament" },
+      { success: false, error: "Failed to delete tournament" },
       { status: 500 }
     );
   }
