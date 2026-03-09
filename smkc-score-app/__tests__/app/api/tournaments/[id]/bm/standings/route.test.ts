@@ -3,21 +3,18 @@
  *
  * Test suite for the Battle Mode standings endpoint: /api/tournaments/[id]/bm/standings
  *
- * This file covers the GET method which retrieves paginated BM qualification standings
+ * This file covers the GET method which retrieves BM qualification standings
  * with server-side caching support via ETag and Cache-Control headers.
+ * BM uses the non-paginated path with H2H tiebreaker (§4.1 step 3).
  *
  * Key behaviors tested:
  *   - Cached standings retrieval when cache is valid (with _cached flag and ETag header)
  *   - Fresh data fetching when cache is unavailable or expired
  *   - Cache bypass via If-None-Match: * header
- *   - Custom pagination parameters (page, limit)
- *   - Authentication enforcement: 403 for unauthenticated users, missing user objects,
- *     non-admin roles, and undefined roles
- *   - Error handling: pagination failures, cache get/set operation failures
- *   - Graceful degradation: data returned even when cache set fails
- *   - Edge cases: empty standings, invalid/NaN pagination parameters
- *   - ETag generation and correct stage identifier ('qualification') for caching
- *   - ISO timestamp in lastUpdated field
+ *   - Authentication enforcement: 403 for unauthenticated/non-admin
+ *   - Error handling and graceful degradation
+ *   - H2H tiebreaker for tied players within same group
+ *   - Rank computation and transform
  */
 // @ts-nocheck
 
@@ -29,7 +26,6 @@ jest.mock('@/lib/standings-cache', () => ({
   isExpired: jest.fn(() => false),
   generateETag: jest.fn(() => 'etag-123'),
 }));
-jest.mock('@/lib/pagination', () => ({ paginate: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
@@ -37,13 +33,12 @@ import _prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
-import { paginate } from '@/lib/pagination';
 import { GET } from '@/app/api/tournaments/[id]/bm/standings/route';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _NextResponseMock = jest.requireMock('next/server') as any;
 
-// Mock NextRequest class - uses private backing fields to avoid property collisions
+// Mock NextRequest class
 class MockNextRequest {
   private _url: string;
   private _headersMap: Map<string, string>;
@@ -61,6 +56,7 @@ class MockNextRequest {
 
 describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
   const loggerMock = { error: jest.fn() };
+  const prisma = jest.requireMock('@/lib/prisma').default;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -70,10 +66,8 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
   });
 
   describe('GET - Fetch BM standings with caching', () => {
-    // Success case - Returns cached standings when available and not expired
     it('should return cached standings when cache is valid', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [
@@ -88,8 +82,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       (isExpired as jest.Mock).mockReturnValue(false);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ ...cachedData.data, _cached: true });
       expect(result.headers).toEqual({
@@ -97,54 +90,53 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
         'Cache-Control': 'public, max-age=300',
       });
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
-      expect(paginate).not.toHaveBeenCalled();
     });
 
-    // Success case - Fetches fresh data when cache is not available
     it('should fetch fresh data when cache is not available', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
-      const mockPaginateResult = {
-        data: [
-          { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 10 },
-          { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 8 },
-        ],
-        meta: { page: 1, limit: 50, total: 2, totalPages: 1 },
-      };
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
+        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+      ];
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
+      // No H2H matches needed (no ties)
       (set as jest.Mock).mockResolvedValue(undefined);
       (generateETag as jest.Mock).mockReturnValue('new-etag-123');
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({
-        tournamentId: 't1',
-        stage: 'qualification',
-        lastUpdated: expect.any(String),
-        ...mockPaginateResult.data,
+      expect(result.data.tournamentId).toBe('t1');
+      expect(result.data.stage).toBe('qualification');
+      expect(result.data.qualifications).toHaveLength(2);
+      expect(result.data.qualifications[0]).toEqual({
+        rank: 1,
+        playerId: 'p1',
+        playerName: 'Player 1',
+        playerNickname: 'P1',
+        group: 'A',
+        matchesPlayed: 3,
+        wins: 3,
+        ties: 0,
+        losses: 0,
+        winRounds: 10,
+        lossRounds: 2,
+        points: 4,
+        score: 6,
       });
-      expect(paginate).toHaveBeenCalledWith(
-        {
-          findMany: expect.any(Function),
-          count: expect.any(Function),
-        },
-        { tournamentId: 't1' },
-        // BM orderBy: group asc, score desc, points desc (per requirements.md §4.1)
-        { group: 'asc', score: 'desc', points: 'desc' },
-        { page: 1, limit: 50 }
-      );
-      expect(set).toHaveBeenCalledWith('t1', 'qualification', mockPaginateResult.data, 'new-etag-123');
+      expect(result.data.qualifications[1].rank).toBe(2);
+      expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
+        where: { tournamentId: 't1' },
+        include: { player: true },
+        orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
+      });
     });
 
-    // Success case - Fetches fresh data when cache is expired
     it('should fetch fresh data when cache is expired', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [],
@@ -152,35 +144,21 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
         timestamp: Date.now() - 400000,
       };
 
-      const mockPaginateResult = {
-        data: [
-          { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 10 },
-        ],
-        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
-      };
-
       (get as jest.Mock).mockResolvedValue(cachedData);
       (isExpired as jest.Mock).mockReturnValue(true);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({
-        tournamentId: 't1',
-        stage: 'qualification',
-        lastUpdated: expect.any(String),
-        ...mockPaginateResult.data,
-      });
-      expect(paginate).toHaveBeenCalled();
+      expect(result.data.tournamentId).toBe('t1');
+      expect(result.data.qualifications).toEqual([]);
+      expect(prisma.bMQualification.findMany).toHaveBeenCalled();
     });
 
-    // Success case - Bypasses cache when If-None-Match header is '*'
     it('should bypass cache when If-None-Match header is *', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       const cachedData = {
         data: [],
@@ -188,323 +166,274 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
         timestamp: Date.now(),
       };
 
-      const mockPaginateResult = {
-        data: [
-          { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 10 },
-        ],
-        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
-      };
-
       (get as jest.Mock).mockResolvedValue(cachedData);
       (isExpired as jest.Mock).mockReturnValue(false);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings', new Map([['if-none-match', '*']]));
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({
-        tournamentId: 't1',
-        stage: 'qualification',
-        lastUpdated: expect.any(String),
-        ...mockPaginateResult.data,
-      });
-      expect(paginate).toHaveBeenCalled();
+      expect(result.data.tournamentId).toBe('t1');
+      expect(prisma.bMQualification.findMany).toHaveBeenCalled();
     });
 
-    // Success case - Uses custom pagination parameters
-    it('should use custom page and limit parameters', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [],
-        meta: { page: 2, limit: 20, total: 0, totalPages: 0 },
-      };
-
-      (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
-      (set as jest.Mock).mockResolvedValue(undefined);
-
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings?page=2&limit=20');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
-
-      expect(result.data).toEqual({
-        tournamentId: 't1',
-        stage: 'qualification',
-        lastUpdated: expect.any(String),
-      });
-      expect(paginate).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        { page: 2, limit: 20 }
-      );
-    });
-
-    // Authentication failure case - Returns 403 when user is not authenticated
+    // Authentication tests
     it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
-      expect(get).not.toHaveBeenCalled();
-      expect(paginate).not.toHaveBeenCalled();
     });
 
-    // Authentication failure case - Returns 403 when user has no user object
     it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
 
-    // Authentication failure case - Returns 403 when user is not admin
     it('should return 403 when user role is not admin', async () => {
-      const mockAuth = { user: { id: 'player1', role: 'player' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'player1', role: 'player' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
 
-    // Authentication failure case - Returns 403 when user role is undefined
     it('should return 403 when user role is undefined', async () => {
-      const mockAuth = { user: { id: 'user1' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1' } });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
 
-    // Error case - Returns 500 when pagination function fails
-    it('should return 500 when pagination function fails', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+    // Error handling
+    it('should return 500 when findMany fails', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockRejectedValue(new Error('Pagination error'));
+      prisma.bMQualification.findMany.mockRejectedValue(new Error('DB error'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Failed to fetch BM standings' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM standings', { error: expect.any(Error), tournamentId: 't1' });
     });
 
-    // Error case - Returns 500 when cache get operation fails
     it('should return 500 when cache get operation fails', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockRejectedValue(new Error('Cache error'));
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toEqual({ error: 'Failed to fetch BM standings' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM standings', { error: expect.any(Error), tournamentId: 't1' });
     });
 
-    // Error case - Returns 500 when cache set operation fails
-    // The source code does not have a separate try/catch for the set operation,
-    // so a cache set failure propagates to the outer catch block and returns 500.
-    it('should return 500 when cache set operation fails', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [
-          { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 10 },
-        ],
-        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
-      };
-
-      (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
-      (set as jest.Mock).mockRejectedValue(new Error('Cache set failed'));
-
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
-
-      expect(result.data).toEqual({ error: 'Failed to fetch BM standings' });
-      expect(result.status).toBe(500);
-      expect(paginate).toHaveBeenCalled();
-    });
-
-    // Edge case - Handles empty standings
+    // Edge cases
     it('should handle empty standings correctly', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [],
-        meta: { page: 1, limit: 50, total: 0, totalPages: 0 },
-      };
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({
-        tournamentId: 't1',
-        stage: 'qualification',
-        lastUpdated: expect.any(String),
-      });
+      expect(result.data.qualifications).toEqual([]);
       expect(result.status).toBe(200);
     });
 
-    // Edge case - Handles invalid page parameter (NaN)
-    it('should handle invalid page parameter gracefully', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [],
-        meta: { page: 1, limit: 50, total: 0, totalPages: 0 },
-      };
-
-      (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
-      (set as jest.Mock).mockResolvedValue(undefined);
-
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings?page=invalid');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
-
-      // Number('invalid') returns NaN, which defaults to 1
-      expect(result.status).toBe(200);
-      expect(paginate).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        { page: 1, limit: 50 }
-      );
-    });
-
-    // Edge case - Handles invalid limit parameter (NaN)
-    it('should handle invalid limit parameter gracefully', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [],
-        meta: { page: 1, limit: 50, total: 0, totalPages: 0 },
-      };
-
-      (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
-      (set as jest.Mock).mockResolvedValue(undefined);
-
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings?limit=invalid');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
-
-      expect(result.status).toBe(200);
-      expect(paginate).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        { page: 1, limit: 50 }
-      );
-    });
-
-    // Edge case - Generates ETag correctly
     it('should generate and set ETag correctly for fresh data', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
-      const mockPaginateResult = {
-        data: [{ id: 'q1', playerId: 'p1' }],
-        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
-      };
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
+      ];
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
       (set as jest.Mock).mockResolvedValue(undefined);
       (generateETag as jest.Mock).mockReturnValue('generated-etag-456');
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      await GET(request, { params });
+      await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(generateETag).toHaveBeenCalledWith(mockPaginateResult.data);
-      expect(set).toHaveBeenCalledWith('t1', 'qualification', mockPaginateResult.data, 'generated-etag-456');
+      expect(generateETag).toHaveBeenCalledWith(mockQualifications);
+      expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'generated-etag-456');
     });
 
-    // Edge case - Includes timestamp in lastUpdated field
     it('should include ISO timestamp in lastUpdated field', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [{ id: 'q1', playerId: 'p1' }],
-        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
-      };
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(result.data).toHaveProperty('lastUpdated');
       expect(typeof result.data.lastUpdated).toBe('string');
-      // Verify it's a valid ISO date
       expect(new Date(result.data.lastUpdated).toISOString()).toBe(result.data.lastUpdated);
     });
 
-    // Edge case - Caches with correct stage identifier
     it('should use correct stage identifier for caching', async () => {
-      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-
-      const mockPaginateResult = {
-        data: [],
-        meta: { page: 1, limit: 50, total: 0, totalPages: 0 },
-      };
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
       (get as jest.Mock).mockResolvedValue(null);
-      (paginate as jest.Mock).mockResolvedValue(mockPaginateResult);
+      prisma.bMQualification.findMany.mockResolvedValue([]);
       (set as jest.Mock).mockResolvedValue(undefined);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
-      const params = Promise.resolve({ id: 't1' });
-      const result = await GET(request, { params });
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
-      expect(set).toHaveBeenCalledWith('t1', 'qualification', mockPaginateResult.data, expect.any(String));
+      expect(set).toHaveBeenCalledWith('t1', 'qualification', expect.anything(), expect.any(String));
       expect(result.data).toHaveProperty('stage', 'qualification');
+    });
+  });
+
+  describe('H2H tiebreaker (§4.1 step 3)', () => {
+    it('should resolve ties by H2H direct match results', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+
+      // Two players tied on score=4 and points=2 in group A
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
+        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+      ];
+
+      // P2 beat P1 in their direct match (3-1)
+      const h2hMatches = [
+        { player1Id: 'p1', player2Id: 'p2', score1: 1, score2: 3 },
+      ];
+
+      (get as jest.Mock).mockResolvedValue(null);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
+      prisma.bMMatch.findMany.mockResolvedValue(h2hMatches);
+      (set as jest.Mock).mockResolvedValue(undefined);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      // P2 wins H2H, should be rank 1; P1 should be rank 2
+      const qualifications = result.data.qualifications;
+      expect(qualifications[0].playerId).toBe('p2');
+      expect(qualifications[0].rank).toBe(1);
+      expect(qualifications[1].playerId).toBe('p1');
+      expect(qualifications[1].rank).toBe(2);
+
+      // Verify H2H match query was made
+      expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
+        where: {
+          tournamentId: 't1',
+          stage: 'qualification',
+          completed: true,
+          player1Id: { in: ['p1', 'p2'] },
+          player2Id: { in: ['p1', 'p2'] },
+        },
+        select: {
+          player1Id: true,
+          player2Id: true,
+          score1: true,
+          score2: true,
+        },
+      });
+    });
+
+    it('should keep players tied when H2H is a draw', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
+        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+      ];
+
+      // Draw: 2-2 in BM means a tie
+      const h2hMatches = [
+        { player1Id: 'p1', player2Id: 'p2', score1: 2, score2: 2 },
+      ];
+
+      (get as jest.Mock).mockResolvedValue(null);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
+      prisma.bMMatch.findMany.mockResolvedValue(h2hMatches);
+      (set as jest.Mock).mockResolvedValue(undefined);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      // Both should have rank 1 (still tied)
+      expect(result.data.qualifications[0].rank).toBe(1);
+      expect(result.data.qualifications[1].rank).toBe(1);
+    });
+
+    it('should not affect non-tied players', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 6, points: 4, mp: 3, wins: 3, ties: 0, losses: 0, winRounds: 10, lossRounds: 2, player: { name: 'Player 1', nickname: 'P1' } },
+        { id: 'q2', playerId: 'p2', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+        { id: 'q3', playerId: 'p3', group: 'A', score: 2, points: 0, mp: 3, wins: 1, ties: 0, losses: 2, winRounds: 6, lossRounds: 6, player: { name: 'Player 3', nickname: 'P3' } },
+      ];
+
+      (get as jest.Mock).mockResolvedValue(null);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
+      // No H2H needed since no ties exist
+      (set as jest.Mock).mockResolvedValue(undefined);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      expect(result.data.qualifications[0].rank).toBe(1);
+      expect(result.data.qualifications[1].rank).toBe(2);
+      expect(result.data.qualifications[2].rank).toBe(3);
+      // No H2H match query for non-tied groups
+      expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should handle cross-group ties (no H2H possible)', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+
+      // Players tied on score/points but in different groups (same group value in orderBy)
+      // Since BM orderBy includes group, players in different groups can't be "tied"
+      // in the orderBy sense unless they have same group AND same score AND same points.
+      // This test verifies that cross-group players with same stats get different ranks
+      // because group ordering separates them.
+      const mockQualifications = [
+        { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
+        { id: 'q2', playerId: 'p2', group: 'B', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
+      ];
+
+      (get as jest.Mock).mockResolvedValue(null);
+      prisma.bMQualification.findMany.mockResolvedValue(mockQualifications);
+      (set as jest.Mock).mockResolvedValue(undefined);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
+      const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      // Different groups → different ranks (not tied in orderBy because group differs)
+      expect(result.data.qualifications[0].rank).toBe(1);
+      expect(result.data.qualifications[1].rank).toBe(2);
+      // No H2H query needed
+      expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     });
   });
 });

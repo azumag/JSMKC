@@ -6,8 +6,8 @@
  * config's model names, pagination mode, and transform functions.
  *
  * Supports two fetch patterns:
- * - Paginated (BM): Uses paginate() utility with page/limit query params
- * - Direct (MR/GP): Uses findMany with player include and transform mapping
+ * - Paginated: Uses paginate() utility with page/limit query params (no H2H support)
+ * - Direct (BM/MR/GP): Uses findMany with player include, H2H tiebreaker, and transform mapping
  *
  * All routes share identical auth, caching, and error handling logic.
  * This eliminates ~200 lines of duplicated code across BM, MR, and GP standings.
@@ -46,7 +46,7 @@ export interface StandingsConfig {
   transformQualification?: (q: any, index: number) => Record<string, unknown>;
   /**
    * Prisma model name for match records, used for H2H tiebreaking (requirements §4.1 step 3).
-   * Only applies to the non-paginated path (MR/GP). BM pagination is not supported.
+   * Only applies to the non-paginated path (usePagination=false).
    * When set, tied players are re-sorted by their direct match results within the tied group.
    */
   matchModel?: string;

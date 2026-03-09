@@ -6,7 +6,7 @@
  * Covers:
  * - Admin authentication requirement (403 for non-admin)
  * - In-memory cache with ETag: cache hit, cache expired, cache bypass
- * - Two fetch modes: paginated (BM) and direct findMany (MR/GP)
+ * - Two fetch modes: paginated and direct findMany (BM/MR/GP)
  * - Optional transformQualification mapping function
  * - Query parameter parsing (page, limit)
  * - Database error handling (500)
@@ -31,7 +31,7 @@ import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { createStandingsHandlers } from '@/lib/api-factories/standings-route';
 
-/** Factory for pagination-mode config (BM pattern) */
+/** Factory for pagination-mode config */
 const createPaginatedConfig = (overrides = {}) => ({
   loggerName: 'test-standings-api',
   errorMessage: 'Failed to fetch standings',
