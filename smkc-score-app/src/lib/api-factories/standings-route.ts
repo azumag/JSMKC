@@ -133,9 +133,37 @@ export function createStandingsHandlers(config: StandingsConfig) {
 
         await set(tournamentId, 'qualification', qualifications, etag);
 
+        /*
+         * Pre-compute tie-aware ranks (standard competition / 1224 ranking).
+         * Two entries share a rank when all their orderBy field values are equal.
+         * Inject the computed rank as `_rank` on each record before transforming so
+         * that transform functions can use `q._rank` instead of (errorprone) `index + 1`.
+         *
+         * Uses an imperative loop (not Array.map) so that the previous entry's rank
+         * is available when computing the current entry's rank.
+         */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ranked: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (let i = 0; i < qualifications.length; i++) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const q = qualifications[i] as any;
+          if (i === 0) {
+            ranked.push({ ...q, _rank: 1 });
+          } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const prev = qualifications[i - 1] as any;
+            const isTied = (config.orderBy ?? []).every((ob) => {
+              const field = Object.keys(ob)[0];
+              return q[field] === prev[field];
+            });
+            ranked.push({ ...q, _rank: isTied ? ranked[i - 1]._rank : i + 1 });
+          }
+        }
+
         const transformed = config.transformQualification
-          ? qualifications.map(config.transformQualification)
-          : qualifications;
+          ? ranked.map(config.transformQualification)
+          : ranked;
 
         return NextResponse.json({
           tournamentId,

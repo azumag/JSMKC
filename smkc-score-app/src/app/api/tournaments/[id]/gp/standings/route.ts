@@ -22,8 +22,9 @@ const { GET } = createStandingsHandlers({
   // with match score (Win=2, Tie=1, Loss=0) as tiebreaker
   orderBy: [{ points: 'desc' }, { score: 'desc' }],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  transformQualification: (q: any, index: number) => ({
-    rank: index + 1,
+  transformQualification: (q: any) => ({
+    // q._rank is pre-computed by the factory using tie-aware (1224) ranking
+    rank: q._rank,
     playerId: q.playerId,
     playerName: q.player.name,
     playerNickname: q.player.nickname,

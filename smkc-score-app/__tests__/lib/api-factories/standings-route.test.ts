@@ -272,12 +272,35 @@ describe('Standings Route Factory', () => {
       const response = await GET(request, { params });
 
       const json = await response.json();
-      // transform is called via Array.map, so receives (element, index, array)
+      // Factory injects _rank before calling transform; both records have distinct scores
       expect(transform).toHaveBeenCalledTimes(2);
       expect(json.qualifications).toEqual([
-        { ...mockQualifications[0], transformed: true },
-        { ...mockQualifications[1], transformed: true },
+        { ...mockQualifications[0], _rank: 1, transformed: true },
+        { ...mockQualifications[1], _rank: 2, transformed: true },
       ]);
+    });
+
+    // Tie-aware ranking: Tied players share the same rank (1224 style)
+    it('should assign the same rank to players with identical sort field values', async () => {
+      const tiedQualifications = [
+        { id: 'q1', playerId: 'p1', score: 100, points: 50, player: { name: 'Player 1' } },
+        { id: 'q2', playerId: 'p2', score: 100, points: 50, player: { name: 'Player 2' } },  // Tied with p1
+        { id: 'q3', playerId: 'p3', score: 80, points: 40, player: { name: 'Player 3' } },
+      ];
+      const config = createDirectConfig({ transformQualification: undefined });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQualifications);
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings');
+      const params = Promise.resolve({ id: 't1' });
+      const response = await GET(request, { params });
+
+      const json = await response.json();
+      // p1 and p2 are tied → both rank 1; p3 is at position 3 (standard 1224 ranking)
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[1]._rank).toBe(1);
+      expect(json.qualifications[2]._rank).toBe(3);
     });
 
     // No transform: Returns raw qualifications when transform not provided
@@ -292,7 +315,11 @@ describe('Standings Route Factory', () => {
       const response = await GET(request, { params });
 
       const json = await response.json();
-      expect(json.qualifications).toEqual(mockQualifications);
+      // Without transform, factory returns ranked objects (with injected _rank field)
+      expect(json.qualifications).toEqual([
+        { ...mockQualifications[0], _rank: 1 },
+        { ...mockQualifications[1], _rank: 2 },
+      ]);
     });
   });
 
