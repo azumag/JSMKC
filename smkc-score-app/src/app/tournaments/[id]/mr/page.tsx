@@ -57,6 +57,10 @@ import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants"
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-mr' });
 
 /** Player data from the API */
 interface Player {
@@ -205,7 +209,7 @@ export default function MatchRacePage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to setup:", err);
+      logger.error("Failed to setup:", { error: err, tournamentId });
     }
   };
 
@@ -225,7 +229,7 @@ export default function MatchRacePage({
       });
       refetch();
     } catch (err) {
-      console.error("Failed to assign TV:", err);
+      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
     }
   };
 
@@ -294,7 +298,7 @@ export default function MatchRacePage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to update match:", err);
+      logger.error("Failed to update match:", { error: err, tournamentId });
     }
   };
 
@@ -318,7 +322,7 @@ export default function MatchRacePage({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error("Failed to export:", err);
+      logger.error("Failed to export:", { error: err, tournamentId });
     } finally {
       setExporting(false);
     }

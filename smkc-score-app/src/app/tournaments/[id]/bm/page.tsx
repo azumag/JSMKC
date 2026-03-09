@@ -59,6 +59,10 @@ import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-bm' });
 
 /** Player data structure */
 interface Player {
@@ -205,7 +209,7 @@ export default function BattleModePage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to setup:", err);
+      logger.error("Failed to setup:", { error: err, tournamentId });
     }
   };
 
@@ -234,7 +238,7 @@ export default function BattleModePage({
         refetch();
       }
     } catch (err) {
-      console.error("Failed to update score:", err);
+      logger.error("Failed to update score:", { error: err, tournamentId });
     }
   };
 
@@ -251,7 +255,7 @@ export default function BattleModePage({
       });
       refetch();
     } catch (err) {
-      console.error("Failed to assign TV:", err);
+      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
     }
   };
 
@@ -285,7 +289,7 @@ export default function BattleModePage({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      console.error("Failed to export:", err);
+      logger.error("Failed to export:", { error: err, tournamentId });
     } finally {
       setExporting(false);
     }

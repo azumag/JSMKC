@@ -247,7 +247,7 @@ export default function GrandPrixPage({
       });
       refetch();
     } catch (err) {
-      console.error("Failed to assign TV:", err);
+      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
     }
   };
 
