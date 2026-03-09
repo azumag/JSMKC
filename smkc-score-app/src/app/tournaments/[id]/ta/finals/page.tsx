@@ -72,6 +72,9 @@ import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/cons
 import { generateRandomTimeString } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
 /** Player data structure from API */
 interface Player {
@@ -264,7 +267,7 @@ export default function TimeAttackFinals({
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch data";
-      console.error("Failed to fetch data:", err);
+      logger.error("Failed to fetch data:", { error: err, tournamentId });
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -527,7 +530,7 @@ export default function TimeAttackFinals({
         alert(error.error || "Failed to eliminate player");
       }
     } catch (err) {
-      console.error("Failed to eliminate player:", err);
+      logger.error("Failed to eliminate player:", { error: err, tournamentId });
       alert("Failed to eliminate player");
     }
   };

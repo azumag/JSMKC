@@ -65,6 +65,9 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
+import { createLogger } from "@/lib/client-logger";
+
+const logger = createLogger({ serviceName: 'tournaments-ta' });
 
 /** Unique cup names derived from course metadata, used for grouping course displays */
 const CUP_NAMES = [...new Set(COURSE_INFO.map((c) => c.cup))];
@@ -378,7 +381,7 @@ export default function TimeAttackPage({
       refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to add players";
-      console.error("Failed to add players:", err);
+      logger.error("Failed to add players:", { error: err, tournamentId });
       setSaveError(errorMessage);
     } finally {
       setSaving(false);
@@ -460,7 +463,7 @@ export default function TimeAttackPage({
       refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save times";
-      console.error("Failed to save times:", err);
+      logger.error("Failed to save times:", { error: err, tournamentId });
       setSaveError(errorMessage);
     } finally {
       setSaving(false);
@@ -485,7 +488,7 @@ export default function TimeAttackPage({
       refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to delete entry";
-      console.error("Failed to delete entry:", err);
+      logger.error("Failed to delete entry:", { error: err, tournamentId });
       setError(errorMessage);
     }
   };
@@ -511,7 +514,7 @@ export default function TimeAttackPage({
       document.body.removeChild(a);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to export";
-      console.error("Failed to export:", err);
+      logger.error("Failed to export:", { error: err, tournamentId });
       setError(errorMessage);
     } finally {
       setExporting(false);
