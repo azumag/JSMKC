@@ -549,7 +549,12 @@
     "phase1Title": "Phase 1",
     "phase1Desc": "Qualification ranks 17-24 (8 players → 4 survivors)",
     "phase2Title": "Phase 2",
-    "phase2Desc": "Phase 1 survivors + Qualification ranks 13-16 (8 players → 4 survivors)"
+    "phase2Desc": "Phase 1 survivors + Qualification ranks 13-16 (8 players → 4 survivors)",
+    "undoLastRound": "Undo Last Round",
+    "undoRoundTitle": "Undo Last Round?",
+    "undoRoundDesc": "This will clear the results of the last submitted round and restore player status to before that round. The course will remain assigned so you can re-enter times.",
+    "yesUndoRound": "Yes, Undo Round",
+    "undoing": "Undoing..."
   },
   "revival": {
     "round1Title": "Loser's Revival Round 1",
@@ -634,7 +639,13 @@
     "noPlayersTitle": "No Players",
     "noPlayersDesc": "Promote players from the qualification stage first.",
     "invalidTimeFor": "Invalid time for {player}. Enter M:SS.mmm format.",
-    "needAtLeast2Players": "Need at least 2 players to submit results"
+    "needAtLeast2Players": "Need at least 2 players to submit results",
+    "undoLastRound": "Undo Last Round",
+    "undoRoundTitle": "Undo Last Round?",
+    "undoRoundDesc": "This will clear the results of the last submitted round and restore player status to before that round. The course will remain assigned so you can re-enter times.",
+    "keepRound": "Keep Round",
+    "yesUndoRound": "Yes, Undo Round",
+    "undoing": "Undoing..."
   },
   "errors": {
     "errorOccurred": "Error Occurred",

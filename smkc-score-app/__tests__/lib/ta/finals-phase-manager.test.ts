@@ -12,6 +12,7 @@ import {
   processEliminationPhaseResult,
   processPhase3Result,
   getPhaseStatus,
+  undoLastPhaseRound,
 } from "@/lib/ta/finals-phase-manager";
 
 // Mock Prisma client
@@ -22,6 +23,10 @@ const mockPrismaClient = {
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+  },
+  tTPhaseRound: {
+    findMany: jest.fn(),
+    update: jest.fn(),
   },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
@@ -311,6 +316,184 @@ describe("TA Finals Phase Manager", () => {
         eliminated: 1,
         winner: "Winner",
       });
+    });
+  });
+
+  describe("undoLastPhaseRound", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "admin1",
+      ipAddress: "127.0.0.1",
+      userAgent: "test",
+    };
+
+    it("should undo the last submitted phase1 round and restore eliminated player", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase1",
+          course: "MC1",
+          results: [{ playerId: "p1", timeMs: 80000 }, { playerId: "p2", timeMs: 90000 }],
+          eliminatedIds: ["p2"],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await undoLastPhaseRound(mockPrismaClient as any, context, "phase1");
+
+      expect(result.undoneRoundNumber).toBe(1);
+      // Should clear round results
+      expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "round1" } })
+      );
+      // Should restore eliminated player
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: ["p2"] } }),
+          data: { eliminated: false },
+        })
+      );
+    });
+
+    it("should throw if no submitted rounds exist", async () => {
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase1",
+          course: "MC1",
+          results: [], // Not yet submitted
+          eliminatedIds: null,
+          livesReset: false,
+        },
+      ]);
+
+      await expect(
+        undoLastPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow("No submitted rounds found for phase1");
+    });
+
+    it("should replay phase3 rounds and reconstruct lives for undo", async () => {
+      // Two submitted rounds: first round has bottom half (p3,p4) lose 1 life,
+      // second round is the one being undone
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase3",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 50000 },
+            { playerId: "p2", timeMs: 60000 },
+            { playerId: "p3", timeMs: 70000 },
+            { playerId: "p4", timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+        {
+          id: "round2",
+          roundNumber: 2,
+          phase: "phase3",
+          course: "DP1",
+          results: [
+            { playerId: "p1", timeMs: 55000 },
+            { playerId: "p2", timeMs: 65000 },
+            { playerId: "p3", timeMs: 75000 },
+            { playerId: "p4", timeMs: 85000 },
+          ],
+          eliminatedIds: ["p3", "p4"],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 4 });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1" },
+        { playerId: "p2" },
+        { playerId: "p3" },
+        { playerId: "p4" },
+      ]);
+
+      const result = await undoLastPhaseRound(mockPrismaClient as any, context, "phase3");
+
+      expect(result.undoneRoundNumber).toBe(2);
+      // Should reset all phase3 entries first
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tournamentId: "t1", stage: "phase3" },
+          data: { lives: 3, eliminated: false },
+        })
+      );
+      // After replaying round1: p1,p2 have 3 lives; p3,p4 have 2 lives
+      // Should batch updateMany by state group
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p1", "p2"]) } }),
+          data: { lives: 3, eliminated: false },
+        })
+      );
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ playerId: { in: expect.arrayContaining(["p3", "p4"]) } }),
+          data: { lives: 2, eliminated: false },
+        })
+      );
+    });
+
+    it("should correctly restore lives after livesReset in phase3 undo", async () => {
+      // Round 1: bottom half (p3,p4) lose a life (3→2); then lives reset to 3
+      // Round 2 is being undone; after undo, all should have 3 lives
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        {
+          id: "round1",
+          roundNumber: 1,
+          phase: "phase3",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 50000 },
+            { playerId: "p2", timeMs: 60000 },
+            { playerId: "p3", timeMs: 70000 },
+            { playerId: "p4", timeMs: 80000 },
+          ],
+          eliminatedIds: [],
+          livesReset: true, // Lives reset after this round
+        },
+        {
+          id: "round2",
+          roundNumber: 2,
+          phase: "phase3",
+          course: "DP1",
+          results: [{ playerId: "p1", timeMs: 55000 }],
+          eliminatedIds: [],
+          livesReset: false,
+        },
+      ]);
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 4 });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1" },
+        { playerId: "p2" },
+        { playerId: "p3" },
+        { playerId: "p4" },
+      ]);
+
+      const result = await undoLastPhaseRound(mockPrismaClient as any, context, "phase3");
+      expect(result.undoneRoundNumber).toBe(2);
+
+      // After replaying round1 with livesReset=true: all 4 players have lives=3
+      // So the final updateMany should set all to lives=3 in one batch call
+      expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            playerId: { in: expect.arrayContaining(["p1", "p2", "p3", "p4"]) },
+          }),
+          data: { lives: 3, eliminated: false },
+        })
+      );
     });
   });
 });

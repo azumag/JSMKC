@@ -549,7 +549,12 @@
     "phase1Title": "フェーズ1",
     "phase1Desc": "予選17-24位（8名 → 4名通過）",
     "phase2Title": "フェーズ2",
-    "phase2Desc": "フェーズ1通過者 + 予選13-16位（8名 → 4名通過）"
+    "phase2Desc": "フェーズ1通過者 + 予選13-16位（8名 → 4名通過）",
+    "undoLastRound": "直前ラウンドを取り消す",
+    "undoRoundTitle": "直前ラウンドを取り消しますか？",
+    "undoRoundDesc": "直前に提出したラウンドの結果を消去し、プレイヤーの状態をそのラウンド前に戻します。コースは変わらないので、タイムを再入力できます。",
+    "yesUndoRound": "はい、取り消す",
+    "undoing": "取り消し中..."
   },
   "revival": {
     "round1Title": "敗者復活戦 ラウンド1",
@@ -634,7 +639,13 @@
     "noPlayersTitle": "プレイヤーなし",
     "noPlayersDesc": "予選ステージからプレイヤーを昇格してください。",
     "invalidTimeFor": "{player}のタイムが無効です。M:SS.mmm形式で入力してください。",
-    "needAtLeast2Players": "結果を送信するには最低2名のプレイヤーが必要です"
+    "needAtLeast2Players": "結果を送信するには最低2名のプレイヤーが必要です",
+    "undoLastRound": "直前ラウンドを取り消す",
+    "undoRoundTitle": "直前ラウンドを取り消しますか？",
+    "undoRoundDesc": "直前に提出したラウンドの結果を消去し、プレイヤーの状態をそのラウンド前に戻します。コースは変わらないので、タイムを再入力できます。",
+    "keepRound": "キャンセルしない",
+    "yesUndoRound": "はい、取り消す",
+    "undoing": "取り消し中..."
   },
   "errors": {
     "errorOccurred": "エラーが発生しました",

@@ -31,6 +31,7 @@ import {
   startPhaseRound,
   submitRoundResults,
   cancelPhaseRound,
+  undoLastPhaseRound,
   type PhaseContext,
   type RoundResultInput,
 } from "@/lib/ta/finals-phase-manager";
@@ -83,6 +84,12 @@ const PostRequestSchema = z.discriminatedUnion("action", [
     action: z.literal("cancel_round"),
     phase: PhaseSchema,
     roundNumber: z.number().int().positive(),
+  }),
+
+  // Undo the last submitted round: clears results and restores player state
+  z.object({
+    action: z.literal("undo_round"),
+    phase: PhaseSchema,
   }),
 
   // Submit results for a round: triggers elimination processing
@@ -312,6 +319,18 @@ export async function POST(
       });
     }
 
+    if (action === "undo_round") {
+      const { phase } = parsed.data;
+      // Prevent undoing rounds in a frozen phase
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
+      const result = await undoLastPhaseRound(prisma, context, phase);
+      return NextResponse.json({
+        success: true,
+        ...result,
+      });
+    }
+
     if (action === "submit_results") {
       const { phase, roundNumber, results } = parsed.data;
       // Prevent submitting results in a frozen phase
@@ -357,6 +376,7 @@ export async function POST(
         internalMessage.startsWith("Duplicate player") ||
         internalMessage.includes("already been submitted") ||
         internalMessage.includes("cannot be cancelled") ||
+        internalMessage.includes("No submitted rounds") ||
         internalMessage.includes("already promoted") ||
         internalMessage.includes("Promote players first") ||
         internalMessage.startsWith("Tie detected"));

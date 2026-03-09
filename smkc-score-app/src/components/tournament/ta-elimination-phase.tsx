@@ -173,10 +173,12 @@ export default function TAEliminationPhase({
   // When true, polling is paused to prevent fetchData from overwriting input.
   const [isEditing, setIsEditing] = useState(false);
 
-  // Round start/cancel loading state
+  // Round start/cancel/undo loading state
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [undoingRound, setUndoingRound] = useState(false);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
   // Map of playerId → nickname for display in round history
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -349,6 +351,42 @@ export default function TAEliminationPhase({
       setShowCancelConfirm(false);
     } finally {
       setCancellingRound(false);
+    }
+  };
+
+  /**
+   * Undo the last submitted round: clears results and restores player state.
+   * Admin-only. Allows recovery from incorrect time entry after submission.
+   */
+  const handleUndoRound = async () => {
+    setUndoingRound(true);
+    setSaveError(null);
+    try {
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/ta/phases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "undo_round", phase }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to undo round");
+      }
+      setShowUndoConfirm(false);
+      setCurrentRound(null);
+      setCourseTimes({});
+      setRetryFlags({});
+      setIsEditing(false);
+      fetchData();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to undo round";
+      setSaveError(errorMessage);
+      setShowUndoConfirm(false);
+    } finally {
+      setUndoingRound(false);
     }
   };
 
@@ -759,7 +797,46 @@ export default function TAEliminationPhase({
                       ? tElim('completeOpenRound')
                       : tElim('startRound', { number: rounds.length + 1 })}
                 </Button>
+                {/* Undo last round: only shown when there are completed rounds */}
+                {completedRoundsCount > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
+                    onClick={() => setShowUndoConfirm(true)}
+                    disabled={undoingRound || startingRound || hasOpenRound}
+                  >
+                    {tElim('undoLastRound')}
+                  </Button>
+                )}
               </div>
+
+              {/* Undo confirmation dialog */}
+              <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{tElim('undoRoundTitle')}</DialogTitle>
+                    <DialogDescription>
+                      {tElim('undoRoundDesc')}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUndoConfirm(false)}
+                      disabled={undoingRound}
+                    >
+                      {tElim('keepRound')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleUndoRound}
+                      disabled={undoingRound}
+                    >
+                      {undoingRound ? tElim('undoing') : tElim('yesUndoRound')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         )
