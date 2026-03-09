@@ -62,6 +62,13 @@ export interface MatchDetailConfig {
   includeSuccessInGetErrors?: boolean;
   /** Whether PUT endpoint requires admin authentication */
   putRequiresAuth?: boolean;
+  /**
+   * Optional score validation function called before updateMatchScore.
+   * Receives the two score values from the request body.
+   * Return { isValid: false, error: string } to reject the request with 400.
+   * If omitted, no score validation is performed on the admin PUT path.
+   */
+  validateScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
 }
 
 /**
@@ -194,6 +201,21 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
           { success: false, error: msg },
           { status: 400 },
         );
+      }
+
+      /* Optional score validation (e.g. BM: sum must be 4, no ties) */
+      if (config.validateScores) {
+        const scoreValidation = config.validateScores(val1, val2);
+        if (!scoreValidation.isValid) {
+          const msg = scoreValidation.error ?? 'Invalid scores';
+          if (config.responseStyle === 'structured') {
+            return handleValidationError(msg, 'scores');
+          }
+          return NextResponse.json(
+            { success: false, error: msg },
+            { status: 400 },
+          );
+        }
       }
 
       const result = await config.updateMatchScore(

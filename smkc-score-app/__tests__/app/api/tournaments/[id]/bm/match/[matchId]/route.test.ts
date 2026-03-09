@@ -395,85 +395,32 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
 
-    // Edge case - null score1 passes validation because source checks `=== undefined` not `=== null`
-    // null !== undefined, so null values pass through to the optimistic locking update
-    it('should treat null score1 as valid (null !== undefined)', async () => {
-      const mockMatch = {
-        id: 'm1',
-        player1Id: 'p1',
-        player2Id: 'p2',
-        score1: null,
-        score2: 1,
-        completed: false,
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      };
-
-      const updateResult = { match: mockMatch, version: 2 };
-
-      (updateBMMatchScore as jest.Mock).mockResolvedValue(updateResult);
-      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
-        ...mockMatch,
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      });
-
+    // BM score validation: null score1 is now rejected by validateBattleModeScores (not an integer)
+    it('should reject null score1 as invalid (not an integer)', async () => {
       const request = new MockNextRequest({ score1: null, score2: 1, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      /* Source code checks `score1 === undefined`, and null !== undefined,
-         so null scores pass validation and proceed to the update */
-      expect(result.status).toBe(200);
-      expect(updateBMMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        null,
-        1,
-        undefined,
-        undefined
-      );
+      /* validateBattleModeScores rejects null via Number.isInteger(null) === false */
+      expect(result).toEqual({
+        data: { error: 'Battle Mode scores must be integers', field: 'scores' },
+        status: 400,
+      });
+      expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
 
-    // Edge case - null score2 passes validation because source checks `=== undefined` not `=== null`
-    it('should treat null score2 as valid (null !== undefined)', async () => {
-      const mockMatch = {
-        id: 'm1',
-        player1Id: 'p1',
-        player2Id: 'p2',
-        score1: 3,
-        score2: null,
-        completed: false,
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      };
-
-      const updateResult = { match: mockMatch, version: 2 };
-
-      (updateBMMatchScore as jest.Mock).mockResolvedValue(updateResult);
-      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue({
-        ...mockMatch,
-        player1: { id: 'p1' },
-        player2: { id: 'p2' },
-      });
-
+    // BM score validation: null score2 is now rejected by validateBattleModeScores (not an integer)
+    it('should reject null score2 as invalid (not an integer)', async () => {
       const request = new MockNextRequest({ score1: 3, score2: null, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      /* Source code checks `score2 === undefined`, and null !== undefined,
-         so null scores pass validation and proceed to the update */
-      expect(result.status).toBe(200);
-      expect(updateBMMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        3,
-        null,
-        undefined,
-        undefined
-      );
+      /* validateBattleModeScores rejects null via Number.isInteger(null) === false */
+      expect(result).toEqual({
+        data: { error: 'Battle Mode scores must be integers', field: 'scores' },
+        status: 400,
+      });
+      expect(updateBMMatchScore).not.toHaveBeenCalled();
     });
 
     // Validation error case - Returns 400 when version is missing
