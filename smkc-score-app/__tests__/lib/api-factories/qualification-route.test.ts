@@ -52,13 +52,13 @@ import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
 describe('Qualification Route Factory', () => {
-  let mockAuth: jest.MockedFunction<typeof auth>;
-  let mockCreateAuditLog: jest.MockedFunction<typeof createAuditLog>;
-  let mockGetServerSideIdentifier: jest.MockedFunction<typeof getServerSideIdentifier>;
-  let mockSanitizeInput: jest.MockedFunction<typeof sanitizeInput>;
+  let mockAuth: jest.Mock;
+  let mockCreateAuditLog: jest.Mock;
+  let mockGetServerSideIdentifier: jest.Mock;
+  let mockSanitizeInput: jest.Mock;
   let mockLogger: ReturnType<typeof createLogger>;
 
-  const createMockConfig = (overrides = {}): EventTypeConfig => ({
+  const createMockConfig = (overrides = {}) => ({
     eventTypeCode: 'bm',
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',
@@ -464,6 +464,40 @@ describe('Qualification Route Factory', () => {
           where: expect.objectContaining({ tournamentId: 'tournament-123' }),
         }),
       );
+    });
+
+    it('should sort players by seeding within each group before generating round-robin schedule', async () => {
+      /*
+       * The circle method uses the first player as the "anchor" position,
+       * so placing the top-seeded player first ensures seeding-aware match ordering
+       * per requirements §10.4. Players supplied in reverse seeding order must still
+       * generate matches with seeding:1 appearing first (as player1 in match 1).
+       */
+      const playersReverseSeedingOrder = [
+        { playerId: 'player-2', group: 'A', seeding: 2 }, // seeding 2 listed first
+        { playerId: 'player-1', group: 'A', seeding: 1 }, // seeding 1 listed second
+      ];
+
+      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
+      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players: playersReverseSeedingOrder }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // player-1 (seeding:1) must be player1 even though player-2 was listed first.
+      expect((prisma.bMMatch as any).create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          matchNumber: 1,
+          player1Id: 'player-1',
+          player2Id: 'player-2',
+        }),
+      });
     });
   });
 

@@ -142,7 +142,19 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const byeRecipientIds: Set<string> = new Set();
 
       for (const group of groups) {
-        const groupPlayers = players.filter((p: { group: string }) => p.group === group);
+        /*
+         * Sort players by seeding within each group before generating the schedule.
+         * The circle method fixes the first player as the "anchor" (position 0),
+         * so placing the top-seeded player first ensures seeding-aware match ordering
+         * per requirements §10.4. Players without seeding are placed last.
+         */
+        const groupPlayers = players
+          .filter((p: { group: string }) => p.group === group)
+          .sort((a: { seeding?: number }, b: { seeding?: number }) => {
+            const sa = a.seeding ?? Infinity;
+            const sb = b.seeding ?? Infinity;
+            return sa - sb;
+          });
         const playerIds = groupPlayers.map((p: { playerId: string }) => p.playerId);
         const schedule = generateRoundRobinSchedule(playerIds);
 
