@@ -547,7 +547,7 @@ describe('TA Promotion Functions', () => {
 // ============================================================
 
 describe('promoteRevivalToFinals', () => {
-  let mockPrismaForFinals: ReturnType<typeof PrismaClient>;
+  let mockPrismaForFinals: InstanceType<typeof PrismaClient>;
   const finalsContext: PromotionContext = {
     tournamentId: 'tournament-finals',
     userId: 'admin-1',
@@ -586,7 +586,7 @@ describe('promoteRevivalToFinals', () => {
   ];
 
   beforeEach(() => {
-    mockPrismaForFinals = new PrismaClient() as unknown as ReturnType<typeof PrismaClient>;
+    mockPrismaForFinals = new PrismaClient() as unknown as InstanceType<typeof PrismaClient>;
     jest.clearAllMocks();
   });
 
