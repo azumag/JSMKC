@@ -199,6 +199,7 @@ model BMMatch {
   score1       Int        @default(0) // Player 1's wins (e.g., 4 in "4-0")
   score2       Int        @default(0) // Player 2's wins
   completed    Boolean    @default(false)
+  assignedCourses Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
   rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
 
   // Double elimination fields

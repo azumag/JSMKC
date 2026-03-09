@@ -31,7 +31,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { POLLING_INTERVAL, COURSE_INFO } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -57,6 +57,8 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  /** Pre-assigned courses for this match (§5.4, §6.3). Set at qualification setup. */
+  assignedCourses?: string[];
   player1: Player;
   player2: Player;
   /** Player 1's self-reported scores */
@@ -254,6 +256,18 @@ export default function MatchEntryPage({
               </CardDescription>
             )}
           </CardHeader>
+          {/* Pre-assigned courses for this match (§5.4: コース1からコース4まで順番に使用) */}
+          {match.assignedCourses && match.assignedCourses.length > 0 && (
+            <CardContent className="pt-0 pb-3">
+              <p className="text-xs text-muted-foreground mb-1">Courses (play in order):</p>
+              <ol className="list-decimal list-inside text-sm space-y-0.5">
+                {match.assignedCourses.map((abbr, i) => {
+                  const info = COURSE_INFO.find(c => c.abbr === abbr);
+                  return <li key={i}>{info ? info.name : abbr}</li>;
+                })}
+              </ol>
+            </CardContent>
+          )}
         </Card>
 
         {/* Score Entry UI - shown when match is not completed and score not yet submitted */}

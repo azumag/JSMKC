@@ -38,6 +38,11 @@ export const bmConfig: EventTypeConfig = {
   putRequiresAuth: true,
   auditAction: AUDIT_ACTIONS.CREATE_BM_MATCH,
   setupCompleteMessage: 'Battle mode setup complete',
+  /*
+   * §5.4, §6.3: Randomly shuffle all 20 courses and assign 4 to each match sequentially.
+   * Players use "コース1からコース4まで" (courses 1-4 in order) from the match card.
+   */
+  assignCoursesRandomly: true,
 
   parsePutBody: (body) => {
     const { matchId, score1, score2, rounds } = body as {
