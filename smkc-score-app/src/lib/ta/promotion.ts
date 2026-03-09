@@ -10,6 +10,11 @@
  * Note: The legacy "Qualification -> Finals" (promoteToFinals) pathway was removed
  * as it was superseded by the Phase 1/2/3 system in /api/tournaments/[id]/ta/phases.
  *
+ * @deprecated The revival_1/revival_2 staging system itself is also deprecated in
+ * favour of the phase1/phase2/phase3 system managed by finals-phase-manager.ts.
+ * New tournaments should use the phase-based workflow via /api/tournaments/[id]/ta/phases.
+ * These functions remain for backward compatibility with existing tournament data.
+ *
  * Key behaviors:
  * - Players without valid total times are skipped (not promoted)
  * - Duplicate promotions are prevented via unique constraint check

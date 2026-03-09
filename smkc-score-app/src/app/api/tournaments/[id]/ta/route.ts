@@ -6,7 +6,8 @@
  *
  * Endpoints:
  * - GET:    Fetch entries for a tournament stage (qualification, revival_1, revival_2)
- * - POST:   Add players to qualification or promote to revival rounds
+ * - POST:   Add players to qualification or promote to revival rounds (DEPRECATED;
+ *           prefer the phase-based endpoint at /api/tournaments/[id]/ta/phases)
  * - PUT:    Update times, lives, or elimination status for an entry
  * - DELETE: Remove an entry from the tournament (admin only)
  *
@@ -251,7 +252,10 @@ export async function POST(
     const { action, playerId, players } = parseResult.data;
 
     // === Revival Round 1 Promotion ===
-    // Promotes players ranked 17-24 from qualification to revival_1
+    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="start_phase1"
+    // instead. The revival_* system predates the phase system and will be removed
+    // in a future release. Existing tournaments using revival stages continue to
+    // work; new tournaments should use the phase-based workflow.
     if (action === "promote_to_revival_1") {
       const authResult = await requireAdminAndGetSession();
       if (authResult.error) return authResult.error;
@@ -278,7 +282,8 @@ export async function POST(
     }
 
     // === Revival Round 2 Promotion ===
-    // Promotes players 13-16 from qualification + revival 1 survivors to revival_2
+    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="start_phase2"
+    // instead. See above note on promote_to_revival_1 for context.
     if (action === "promote_to_revival_2") {
       const authResult = await requireAdminAndGetSession();
       if (authResult.error) return authResult.error;
