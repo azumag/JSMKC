@@ -17,7 +17,8 @@ const { GET } = createStandingsHandlers({
   errorMessage: 'Failed to fetch BM standings',
   qualificationModel: 'bMQualification',
   usePagination: true,
-  orderBy: [],
+  // Per requirements.md §4.1: sort by group (display), then match score desc, then round differential desc
+  orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
 });
 
 export { GET };

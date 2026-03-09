@@ -99,13 +99,24 @@ export function createStandingsHandlers(config: StandingsConfig) {
         const page = Number(searchParams.get('page')) || 1;
         const limit = Number(searchParams.get('limit')) || 50;
 
+        /*
+         * Merge orderBy array into a single object for the paginate() signature.
+         * Prisma accepts both { a: 'asc', b: 'desc' } and [{ a: 'asc' }, { b: 'desc' }].
+         * Since paginate() expects Record<string, unknown>, we merge the array into one object.
+         * Fields are distinct (group / score / points), so no key collision occurs.
+         */
+        const orderByForPaginate = (config.orderBy ?? []).reduce<Record<string, unknown>>(
+          (acc, ob) => ({ ...acc, ...ob }),
+          {}
+        );
+
         const result = await paginate(
           {
             findMany: qualModel(prisma).findMany.bind(qualModel(prisma)),
             count: qualModel(prisma).count.bind(qualModel(prisma)),
           },
           { tournamentId },
-          {},
+          orderByForPaginate,
           { page, limit },
         );
 

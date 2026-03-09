@@ -46,7 +46,7 @@ const createDirectConfig = (overrides = {}) => ({
   errorMessage: 'Failed to fetch standings',
   qualificationModel: 'mRQualification',
   usePagination: false,
-  orderBy: [{ score: 'desc' }, { points: 'desc' }] as Record<string, 'asc' | 'desc'>[],
+  orderBy: [{ score: 'desc' as const }, { points: 'desc' as const }],
   ...overrides,
 });
 

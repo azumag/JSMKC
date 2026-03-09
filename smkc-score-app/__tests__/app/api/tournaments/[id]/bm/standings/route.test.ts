@@ -40,7 +40,8 @@ import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { GET } from '@/app/api/tournaments/[id]/bm/standings/route';
 
-const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _NextResponseMock = jest.requireMock('next/server') as any;
 
 // Mock NextRequest class - uses private backing fields to avoid property collisions
 class MockNextRequest {
@@ -133,7 +134,8 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
           count: expect.any(Function),
         },
         { tournamentId: 't1' },
-        {},
+        // BM orderBy: group asc, score desc, points desc (per requirements.md §4.1)
+        { group: 'asc', score: 'desc', points: 'desc' },
         { page: 1, limit: 50 }
       );
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockPaginateResult.data, 'new-etag-123');
