@@ -1,9 +1,13 @@
 /**
  * Match Race (MR) Event Type Configuration
  *
- * MR qualification uses best-of-5 races per match (first to 3 wins).
- * If no races have been played (0-0), the result is a tie.
+ * MR qualification uses a fixed 4-course format (§6.3, §10.5):
+ * all 4 pre-assigned courses are always played; the player who wins more
+ * races takes the match. A 2-2 result is recorded as a draw.
  * Standings use round differential (winRounds - lossRounds) as tiebreaker.
+ *
+ * Courses are randomly shuffled at qualification setup time (assignCoursesRandomly: true)
+ * and 4 courses are assigned to each match sequentially from the shuffled list.
  *
  * Security fix: postRequiresAuth is now true (previously MR POST had no auth check).
  */
@@ -13,19 +17,20 @@ import { validateMatchRaceScores } from '@/lib/score-validation';
 
 /**
  * Calculate MR match result from race win counts.
- * First to 3 wins takes the match; 0 total = match not started (tie).
+ *
+ * In the 4-course format, the player with more wins takes the match.
+ * A 2-2 tie is valid and recorded as a draw in standings.
+ * 0-0 indicates the match has not started yet (also treated as tie/pending).
  */
 function calculateMatchResult(score1: number, score2: number): MatchResult {
-  const totalRounds = score1 + score2;
-  if (totalRounds === 0) {
+  if (score1 === score2) {
+    // Covers 0-0 (not started), 1-1, 2-2 (draw), etc.
     return { winner: null, result1: 'tie', result2: 'tie' };
   }
-  if (score1 >= 3) {
+  if (score1 > score2) {
     return { winner: 1, result1: 'win', result2: 'loss' };
-  } else if (score2 >= 3) {
-    return { winner: 2, result1: 'loss', result2: 'win' };
   }
-  return { winner: null, result1: 'tie', result2: 'tie' };
+  return { winner: 2, result1: 'loss', result2: 'win' };
 }
 
 export const mrConfig: EventTypeConfig = {
@@ -39,6 +44,12 @@ export const mrConfig: EventTypeConfig = {
   putRequiresAuth: true,
   /* No audit logging for MR POST (matches original behavior) */
   setupCompleteMessage: 'Match race setup complete',
+  /*
+   * §10.5: Randomly shuffle all 20 courses and assign 4 to each match sequentially.
+   * This ensures courses are pre-determined before matches begin, so players use
+   * the courses specified on the "match card" rather than freely selecting them.
+   */
+  assignCoursesRandomly: true,
 
   parsePutBody: (body) => {
     const { matchId, score1, score2, rounds } = body as {
@@ -50,7 +61,7 @@ export const mrConfig: EventTypeConfig = {
     if (!matchId || score1 === undefined || score2 === undefined) {
       return { valid: false, error: 'matchId, score1, and score2 are required' };
     }
-    // Validate MR score rules: each score must be an integer in [0, MAX_RACE_WIN_SCORE].
+    // Validate MR score rules: each score must be an integer in [0, 4] and sum to 4.
     // BYE matches (score 4-0) are auto-completed at creation, not via PUT, so they
     // never reach this validation path.
     const scoreValidation = validateMatchRaceScores(score1, score2);

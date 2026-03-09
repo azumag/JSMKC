@@ -22,6 +22,53 @@ import {
   getByeMatchData,
   BREAK_PLAYER_ID,
 } from '@/lib/round-robin';
+import { COURSES, TOTAL_MR_RACES } from '@/lib/constants';
+
+/**
+ * Shuffle an array using the Fisher-Yates algorithm.
+ * Returns a new array (does not mutate the original).
+ *
+ * Used by course assignment to generate a random course order at setup time.
+ * This is a cryptographically-weak shuffle (Math.random), which is acceptable
+ * for tournament course ordering since fairness only requires unpredictability
+ * at the start of each event, not cryptographic security.
+ */
+function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * Generate a shuffled course list for MR match assignment (§10.5).
+ *
+ * All 20 courses are shuffled once at qualification setup time.
+ * If there are more than 5 matches (> 20 courses needed), the list wraps
+ * using modulo indexing — the first few courses appear twice, which is
+ * unavoidable when there are more matches than distinct courses.
+ *
+ * @returns Array of 20 shuffled course abbreviations
+ */
+function generateShuffledCourseList(): string[] {
+  return fisherYatesShuffle(COURSES);
+}
+
+/**
+ * Extract 4 consecutive courses from the shuffled list for a single match.
+ * Uses modulo wrapping so the list extends infinitely if match count > 5.
+ *
+ * @param shuffled - The pre-shuffled course list (20 items)
+ * @param matchIndex - Zero-based index of the match in the overall sequence
+ * @returns Array of TOTAL_MR_RACES (4) course abbreviations
+ */
+function getAssignedCourses(shuffled: string[], matchIndex: number): string[] {
+  return Array.from({ length: TOTAL_MR_RACES }, (_, i) =>
+    shuffled[(matchIndex * TOTAL_MR_RACES + i) % shuffled.length]
+  );
+}
 
 /**
  * Create qualification route handlers from an event type configuration.
@@ -133,6 +180,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const groups = [...new Set(players.map((p: { group: string }) => p.group))];
       let matchNumber = 1;
       const byeData = getByeMatchData(config.eventTypeCode);
+
+      /*
+       * §10.5 course assignment: generate one shuffled course list for the entire
+       * tournament at setup time. Courses are assigned sequentially (4 per match)
+       * so each match has its own pre-determined course card.
+       * Only applies when config.assignCoursesRandomly is true (MR only).
+       */
+      const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
+      // matchSequenceIndex tracks the overall match number across all groups
+      // for consistent sequential course assignment from the shared list.
+      let matchSequenceIndex = 0;
       /*
        * Track players who receive BYE matches so their qualification stats
        * can be updated immediately after setup (BYE = auto-completed win).
@@ -169,6 +227,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             : m.player1Id;
           const p2Id = m.isBye ? BREAK_PLAYER_ID : m.player2Id;
 
+          /*
+           * §10.5: Assign 4 pre-determined courses to this match from the shuffled list.
+           * BYE matches receive courses too (for record consistency), but the courses
+           * are not actually played since BYE is auto-completed immediately.
+           */
+          const assignedCourses = shuffledCourses
+            ? getAssignedCourses(shuffledCourses, matchSequenceIndex)
+            : undefined;
+
           await matchModel(prisma).create({
             data: {
               tournamentId,
@@ -180,6 +247,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
               player2Side: 2,
               roundNumber: m.day,
               isBye: m.isBye,
+              /* Pre-assigned courses for the match (undefined for BM/GP without course assignment) */
+              ...(assignedCourses ? { assignedCourses } : {}),
               /* Auto-complete BYE matches with fixed scores (§10.2) */
               ...(m.isBye ? { completed: true, ...byeData } : {}),
             },
@@ -190,6 +259,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           }
 
           matchNumber++;
+          matchSequenceIndex++;
         }
       }
 

@@ -499,6 +499,83 @@ describe('Qualification Route Factory', () => {
         }),
       });
     });
+
+    // Course assignment tests (§10.5)
+    it('should assign 4 pre-assigned courses per match when assignCoursesRandomly is true', async () => {
+      /*
+       * When assignCoursesRandomly is true (MR config), each match creation call
+       * must include an `assignedCourses` field with exactly 4 course abbreviations
+       * from the COURSES constant. The actual order is random, so we only verify
+       * the structure (array of 4 valid course strings).
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+      ];
+
+      (prisma.mRQualification as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (prisma.mRMatch as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const config = createMockConfig({
+        eventTypeCode: 'mr',
+        matchModel: 'mRMatch',
+        qualificationModel: 'mRQualification',
+        assignCoursesRandomly: true,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // Each match must have assignedCourses: array of 4 course abbreviations
+      expect((prisma.mRMatch as any).create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          assignedCourses: expect.arrayContaining([expect.any(String)]),
+        }),
+      });
+      const createCall = (prisma.mRMatch as any).create.mock.calls[0];
+      expect(createCall[0].data.assignedCourses).toHaveLength(4);
+    });
+
+    it('should NOT assign courses when assignCoursesRandomly is false (BM/GP)', async () => {
+      /*
+       * BM and GP configs do not set assignCoursesRandomly, so match creation
+       * must NOT include an `assignedCourses` field.
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+      ];
+
+      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
+      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+
+      // Default BM config has no assignCoursesRandomly
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // No assignedCourses for BM matches
+      const createCall = (prisma.bMMatch as any).create.mock.calls[0];
+      expect(createCall[0].data.assignedCourses).toBeUndefined();
+    });
   });
 
   // ============================================================

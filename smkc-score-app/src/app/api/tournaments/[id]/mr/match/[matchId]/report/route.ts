@@ -30,6 +30,7 @@ import {
   validateCharacter,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateMatchRaceScores } from "@/lib/score-validation";
+import { TOTAL_MR_RACES } from "@/lib/constants";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -94,10 +95,31 @@ export async function POST(
       return handleAuthError('Unauthorized: Not authorized for this match');
     }
 
-    /* Validate MR scores are in legal range (0-3 race wins each) */
+    /* Validate MR scores are in legal range (sum must equal TOTAL_MR_RACES=4) */
     const scoreValidation = validateMatchRaceScores(score1, score2);
     if (!scoreValidation.isValid) {
       return handleValidationError(scoreValidation.error!, "scores");
+    }
+
+    /*
+     * Validate that submitted rounds use the pre-assigned courses (§10.5).
+     * Prevents players from submitting arbitrary course names that would corrupt
+     * match records. Only validates when the match has pre-assigned courses;
+     * matches created before this feature was deployed may have null assignedCourses.
+     */
+    if (match.assignedCourses && Array.isArray(match.assignedCourses) && Array.isArray(rounds)) {
+      const assigned = match.assignedCourses as string[];
+      const submittedCourses = (rounds as { course?: string; winner?: number }[])
+        .map(r => r.course);
+      const invalidCourses = submittedCourses.filter(
+        (course, i) => course !== undefined && course !== assigned[i]
+      );
+      if (invalidCourses.length > 0) {
+        return handleValidationError(
+          "Submitted courses do not match the pre-assigned courses for this match",
+          "rounds"
+        );
+      }
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
@@ -166,10 +188,13 @@ export async function POST(
     }
 
     /*
-     * Auto-confirm when both players report matching scores
-     * and the match has a definitive winner (score >= 3).
+     * Auto-confirm when both players report matching scores and all races are complete.
+     * In the 4-course format, a match is complete when score1 + score2 = TOTAL_MR_RACES (4).
+     * This handles all outcomes: 4-0, 3-1, 2-2 (draw), 1-3, 0-4.
+     * Previously this used `score1 >= 3 || score2 >= 3` (best-of-5 logic) which
+     * would not auto-confirm 2-2 draws. The sum check correctly handles all cases.
      */
-    if (score1 >= 3 || score2 >= 3) {
+    if (score1 + score2 === TOTAL_MR_RACES) {
       const p1Score1 = result.player1ReportedPoints1;
       const p1Score2 = result.player1ReportedPoints2;
       const p2Score1 = result.player2ReportedPoints1;

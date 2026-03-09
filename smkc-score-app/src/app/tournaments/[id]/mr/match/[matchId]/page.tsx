@@ -7,7 +7,7 @@
  * Features:
  * - Real-time match status display with polling
  * - Player identity selection (I am Player 1/2)
- * - 5-race course and winner entry
+ * - 4-race winner entry (courses are pre-assigned at qualification setup per §10.5)
  * - Completed match display with race details
  * - Post-submission confirmation view
  *
@@ -35,14 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -68,6 +61,8 @@ interface MRMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  /** Pre-assigned course abbreviations for this match (§10.5). Set at qualification setup. */
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
@@ -112,14 +107,20 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
-  /* Initialize 5 empty rounds for match entry */
-  const [rounds, setRounds] = useState<Round[]>([
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-  ]);
+  /*
+   * Initialize TOTAL_MR_RACES (4) empty rounds for match entry.
+   * Courses are pre-assigned at qualification setup (§10.5) and populated
+   * via useEffect when the match data arrives from the API.
+   */
+  const [rounds, setRounds] = useState<Round[]>(
+    Array.from({ length: TOTAL_MR_RACES }, () => ({ course: "" as CourseAbbr | "", winner: null }))
+  );
+  /*
+   * Track whether courses have been initialized from assignedCourses.
+   * We only populate course values once on initial load to avoid overwriting
+   * user-selected winners on subsequent poll updates.
+   */
+  const [coursesInitialized, setCoursesInitialized] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
@@ -164,13 +165,39 @@ export default function MatchDetailPage({
     }
   }, [pollData]);
 
+  /*
+   * Populate round courses from pre-assigned course list (§10.5).
+   * Runs once when the first match data arrives — courses are determined at
+   * qualification setup and should not change between polls.
+   * We only set courses on the initial load; subsequent polls must not
+   * reset user-entered winner selections.
+   */
+  useEffect(() => {
+    if (!coursesInitialized && pollData?.match?.assignedCourses?.length) {
+      const assigned = pollData.match.assignedCourses as string[];
+      setRounds(prev =>
+        prev.map((r, i) => ({
+          ...r,
+          course: (assigned[i] as CourseAbbr) ?? r.course,
+        }))
+      );
+      setCoursesInitialized(true);
+    }
+  }, [pollData, coursesInitialized]);
+
   useEffect(() => {
     setLoading(pollLoading);
   }, [pollLoading]);
 
   /**
    * Submit match result after validation.
-   * Requires player selection, 5 unique courses, and a winner.
+   *
+   * Requires:
+   * - Player identity selected
+   * - All TOTAL_MR_RACES (4) race winners selected
+   * - Courses are pre-assigned (no free course selection needed)
+   *
+   * A 2-2 draw is a valid result per §6.3 — no majority winner required.
    */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
@@ -178,21 +205,16 @@ export default function MatchDetailPage({
       return;
     }
 
-    /* Validate 5 unique courses */
-    const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
-    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
-      setError("Please select 5 unique courses");
+    /* Validate all 4 race winners are selected */
+    const allWinnersSelected = rounds.every(r => r.winner !== null);
+    if (!allWinnersSelected) {
+      setError(`Please select the winner for all ${TOTAL_MR_RACES} races`);
       return;
     }
 
-    /* Count wins and validate a winner exists */
+    /* Count race wins for each player (2-2 draw is valid) */
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
-
-    if (winnerCount < 3 && loserCount < 3) {
-      setError("Match must have a winner (3 out of 5)");
-      return;
-    }
 
     setSubmitting(true);
     setError("");
@@ -338,31 +360,23 @@ export default function MatchDetailPage({
                     </div>
                   </div>
 
-                  {/* 5-race entry rows */}
+                  {/*
+                   * Race entry rows — one per pre-assigned course (§10.5).
+                   * Courses are determined at qualification setup; players only
+                   * select who won each race, not the course itself.
+                   */}
                   <div className="space-y-3">
                     {rounds.map((round, index) => (
                       <div key={index} className="flex items-center gap-2">
                         {/* i18n: Race number label */}
                         <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
-                        <Select
-                          value={round.course}
-                          onValueChange={(value) => {
-                            const newRounds = [...rounds];
-                            newRounds[index].course = value as CourseAbbr;
-                            setRounds(newRounds);
-                          }}
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Course..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COURSE_INFO.map((course) => (
-                              <SelectItem key={course.abbr} value={course.abbr}>
-                                {course.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/*
+                         * Pre-assigned course display: course is fixed at setup time (§10.5),
+                         * so we show the course name as a static label instead of a dropdown.
+                         */}
+                        <span className="flex-1 text-sm border rounded px-3 py-2 bg-muted text-muted-foreground">
+                          {round.course ? getCourseName(round.course) : "—"}
+                        </span>
                         <Button
                           variant={round.winner === 1 ? "default" : "outline"}
                           size="sm"
@@ -392,9 +406,6 @@ export default function MatchDetailPage({
                     ))}
                   </div>
 
-                  {usedCoursesWarning()}
-                  {winnerWarning()}
-
                   {error && (
                     <p className="text-red-500 text-sm text-center">{error}</p>
                   )}
@@ -402,7 +413,7 @@ export default function MatchDetailPage({
                   <Button
                     className="w-full h-14 text-lg"
                     onClick={handleSubmit}
-                    disabled={submitting || !canSubmit()}
+                    disabled={submitting || !rounds.every(r => r.winner !== null)}
                   >
                     {/* i18n: Submit button with loading state */}
                     {submitting ? tMatch('submitting') : tMatch('submitResult')}
@@ -467,11 +478,13 @@ export default function MatchDetailPage({
                   ))}
                 </TableBody>
               </Table>
-              {/* i18n: Match winner announcement or draw */}
+              {/* i18n: Match winner announcement or draw.
+                  A player wins by taking more than half the races (> TOTAL_MR_RACES/2).
+                  For 4 races this means 3 or more wins; a 2-2 result is a draw. */}
               <p className="mt-4 text-center">
-                {match.score1 >= 3
+                {match.score1 > TOTAL_MR_RACES / 2
                   ? tMatch('playerWins', { player: match.player1.nickname })
-                  : match.score2 >= 3
+                  : match.score2 > TOTAL_MR_RACES / 2
                   ? tMatch('playerWins', { player: match.player2.nickname })
                   : tMatch('draw')}
               </p>
@@ -494,17 +507,3 @@ export default function MatchDetailPage({
   );
 }
 
-/** Placeholder for course uniqueness warning (reserved for future enhancement) */
-function usedCoursesWarning() {
-  return null;
-}
-
-/** Placeholder for winner validation warning (reserved for future enhancement) */
-function winnerWarning() {
-  return null;
-}
-
-/** Placeholder for submit readiness check (reserved for future enhancement) */
-function canSubmit() {
-  return true;
-}

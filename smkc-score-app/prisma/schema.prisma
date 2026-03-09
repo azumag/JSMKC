@@ -188,6 +188,8 @@ model BMMatch {
   stage        String     @default("qualification") // qualification, finals, grand_final
   round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
+  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
+  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
   player1      Player     @relation("BMPlayer1", fields: [player1Id], references: [id])
   player1Id    String
   player1Side  Int        @default(1) // 1 or 2 (which controller)
@@ -253,6 +255,8 @@ model MRMatch {
   stage        String     @default("qualification") // qualification, finals, grand_final
   round        String? // For finals: "wb-r1", "wb-r2", "wb-semi", "wb-final", "lb-r1", "lb-r2", etc.
   tvNumber     Int?
+  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
+  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
   player1      Player     @relation("MRPlayer1", fields: [player1Id], references: [id])
   player1Id    String
   player1Side  Int        @default(1) // 1 or 2 (which controller)
@@ -262,6 +266,7 @@ model MRMatch {
   score1       Int        @default(0)
   score2       Int        @default(0)
   completed    Boolean    @default(false)
+  assignedCourses Json? // Pre-assigned courses for this match (§10.5): ["MC1", "DP1", "GV1", "BC1"]
   rounds       Json? // [{course: "MC1", winner: 1}, ...]
 
   // Double elimination fields
@@ -319,6 +324,8 @@ model GPMatch {
   round        String?
   cup          String? // Mushroom, Flower, Star, Special
   tvNumber     Int?
+  roundNumber  Int?       // サークル方式のDay番号 (1-based, qualification only)
+  isBye        Boolean    @default(false) // BREAK不戦勝マッチ
   player1      Player     @relation("GPPlayer1", fields: [player1Id], references: [id])
   player1Id    String
   player1Side  Int        @default(1)

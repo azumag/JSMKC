@@ -34,7 +34,10 @@ jest.mock('@/lib/request-utils', () => ({
   getUserAgent: jest.fn()
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/constants', () => ({ SMK_CHARACTERS: ['Mario', 'Luigi', 'Yoshi'] }));
+jest.mock('@/lib/constants', () => ({
+  SMK_CHARACTERS: ['Mario', 'Luigi', 'Yoshi'],
+  TOTAL_MR_RACES: 4,
+}));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/error-handling', () => ({
   createSuccessResponse: jest.fn((data, message) => ({ data, message, status: 200 })),

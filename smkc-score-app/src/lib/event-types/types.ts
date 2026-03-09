@@ -38,6 +38,8 @@ export type QualificationPutData = {
  * generate GET/POST/PUT handlers.
  */
 export interface EventTypeConfig {
+  /** Event type code for mode-specific logic (e.g., bye scores) */
+  eventTypeCode: 'bm' | 'mr' | 'gp';
   /** Prisma model name for qualification records (e.g., 'bMQualification') */
   qualificationModel: string;
   /** Prisma model name for match records (e.g., 'bMMatch') */
@@ -50,6 +52,13 @@ export interface EventTypeConfig {
 
   /** Sort order for qualification standings query */
   qualificationOrderBy: Array<Record<string, 'asc' | 'desc'>>;
+
+  /**
+   * Whether to randomly assign courses to matches at qualification setup time (§10.5).
+   * When true, the POST handler shuffles COURSES and distributes 4 per match sequentially.
+   * Only used for MR; BM/GP do not pre-assign courses this way.
+   */
+  assignCoursesRandomly?: boolean;
 
   /** Whether POST endpoint requires authentication */
   postRequiresAuth: boolean;

@@ -310,14 +310,17 @@ describe('Score Validation Utilities', () => {
   });
 
   describe('validateMatchRaceScores', () => {
-    it('should accept valid scores within range', () => {
-      expect(validateMatchRaceScores(3, 0).isValid).toBe(true);
-      expect(validateMatchRaceScores(0, 3).isValid).toBe(true);
-      expect(validateMatchRaceScores(2, 2).isValid).toBe(true);
-      expect(validateMatchRaceScores(0, 0).isValid).toBe(true);
+    // MR qualification: fixed 4-course format (§6.3, §10.5).
+    // All 4 courses are always played; score1 + score2 must equal 4.
+    it('should accept all valid 4-course outcomes', () => {
+      expect(validateMatchRaceScores(4, 0).isValid).toBe(true); // clean sweep
+      expect(validateMatchRaceScores(3, 1).isValid).toBe(true); // 3-1 win
+      expect(validateMatchRaceScores(2, 2).isValid).toBe(true); // draw
+      expect(validateMatchRaceScores(1, 3).isValid).toBe(true); // 1-3 loss
+      expect(validateMatchRaceScores(0, 4).isValid).toBe(true); // 0-4 loss
     });
 
-    it('should accept boundary values', () => {
+    it('should accept boundary values (4-0 and 0-4)', () => {
       expect(validateMatchRaceScores(MAX_RACE_WIN_SCORE, 0).isValid).toBe(true);
       expect(validateMatchRaceScores(0, MAX_RACE_WIN_SCORE).isValid).toBe(true);
     });
@@ -325,7 +328,14 @@ describe('Score Validation Utilities', () => {
     it('should reject scores above MAX_RACE_WIN_SCORE', () => {
       const result = validateMatchRaceScores(MAX_RACE_WIN_SCORE + 1, 0);
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain(`${MAX_RACE_WIN_SCORE}`);
+    });
+
+    it('should reject scores that do not sum to 4 (incomplete match entry)', () => {
+      // 0-0 means no races entered
+      expect(validateMatchRaceScores(0, 0).isValid).toBe(false);
+      // 3-0 would be valid range but sum ≠ 4 (old best-of-5 partial)
+      expect(validateMatchRaceScores(3, 0).isValid).toBe(false);
+      expect(validateMatchRaceScores(0, 3).isValid).toBe(false);
     });
 
     it('should reject negative scores', () => {
