@@ -4,11 +4,10 @@
  * Test suite for the score validation utilities (score-validation.ts).
  *
  * Covers the following functionality:
- * - validateBattleModeScores(): Validates that two player scores are within
- *   the allowed range (MIN_BATTLE_SCORE to MAX_BATTLE_SCORE) and are not
- *   equal (ties are not allowed in Battle Mode).
- *   - Tests boundary values, out-of-range scores, ties, and edge cases with
- *     null/undefined/decimal inputs.
+ * - validateBattleModeScores(): Validates BM scores according to 4-round match rules.
+ *   Checks: integer type, range [0, MAX_BATTLE_SCORE=4], sum === 4, no tie.
+ *   - Tests valid combos (1-3, 3-1, 0-4, 4-0), invalid sums, ties, out-of-range,
+ *     non-integer, null, and undefined inputs.
  * - isPlayer1Win(): Determines whether player 1 won based on score comparison.
  *   - Tests normal wins, losses, ties, and edge cases with null/undefined/negative
  *     and decimal values.
@@ -18,9 +17,6 @@
  *   - Tests all combinations of win/loss/tie outcomes and edge cases.
  * - Score validation edge cases: very small decimal differences, boundary values,
  *   and large decimal differences.
- *
- * Documents actual JavaScript coercion behavior for null/undefined score inputs,
- * which is important for understanding production behavior.
  */
 // __tests__/lib/score-validation.test.ts
 import { describe, it, expect } from '@jest/globals';
@@ -34,110 +30,90 @@ import {
   MIN_GP_POSITION,
   MAX_GP_POSITION,
 } from '@/lib/score-validation';
-import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE } from '@/lib/constants';
+import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS } from '@/lib/constants';
 
 describe('Score Validation Utilities', () => {
   describe('validateBattleModeScores', () => {
-    it('should validate valid scores within range', () => {
-      const result = validateBattleModeScores(2, 3);
+    // === Valid cases: integer, in range [0,4], sum === 4, not tied ===
+
+    it('should accept 3-1 (player 1 wins with 3 rounds)', () => {
+      const result = validateBattleModeScores(3, 1);
       expect(result.isValid).toBe(true);
       expect(result.error).toBeUndefined();
     });
 
-    it('should validate scores at minimum boundary', () => {
-      const result = validateBattleModeScores(MIN_BATTLE_SCORE, 1);
+    it('should accept 1-3 (player 2 wins with 3 rounds)', () => {
+      const result = validateBattleModeScores(1, 3);
       expect(result.isValid).toBe(true);
       expect(result.error).toBeUndefined();
     });
 
-    it('should validate scores at maximum boundary', () => {
-      const result = validateBattleModeScores(MAX_BATTLE_SCORE, MAX_BATTLE_SCORE - 1);
+    it('should accept 4-0 (player 1 wins all rounds)', () => {
+      const result = validateBattleModeScores(MAX_BATTLE_SCORE, MIN_BATTLE_SCORE);
       expect(result.isValid).toBe(true);
       expect(result.error).toBeUndefined();
     });
+
+    it('should accept 0-4 (player 2 wins all rounds)', () => {
+      const result = validateBattleModeScores(MIN_BATTLE_SCORE, MAX_BATTLE_SCORE);
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
+
+    // === Integer check ===
+
+    it('should reject decimal scores (non-integer values)', () => {
+      const result = validateBattleModeScores(1.5, 2.5);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe('Battle Mode scores must be integers');
+    });
+
+    it('should reject null score for player 1', () => {
+      const result = validateBattleModeScores(null as unknown as number, 3);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe('Battle Mode scores must be integers');
+    });
+
+    it('should reject null score for player 2', () => {
+      const result = validateBattleModeScores(3, null as unknown as number);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe('Battle Mode scores must be integers');
+    });
+
+    it('should reject undefined score for player 1', () => {
+      const result = validateBattleModeScores(undefined as unknown as number, 3);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe('Battle Mode scores must be integers');
+    });
+
+    it('should reject undefined score for player 2', () => {
+      const result = validateBattleModeScores(3, undefined as unknown as number);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe('Battle Mode scores must be integers');
+    });
+
+    // === Range check ===
 
     it('should reject score below minimum for player 1', () => {
-      const result = validateBattleModeScores(MIN_BATTLE_SCORE - 1, 2);
+      const result = validateBattleModeScores(MIN_BATTLE_SCORE - 1, 3);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
 
     it('should reject score below minimum for player 2', () => {
-      const result = validateBattleModeScores(2, MIN_BATTLE_SCORE - 1);
+      const result = validateBattleModeScores(3, MIN_BATTLE_SCORE - 1);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
 
     it('should reject score above maximum for player 1', () => {
-      const result = validateBattleModeScores(MAX_BATTLE_SCORE + 1, 2);
+      const result = validateBattleModeScores(MAX_BATTLE_SCORE + 1, 0);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
 
     it('should reject score above maximum for player 2', () => {
-      const result = validateBattleModeScores(2, MAX_BATTLE_SCORE + 1);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
-    });
-
-    it('should reject ties (equal scores)', () => {
-      const result = validateBattleModeScores(2, 2);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Scores must be different');
-    });
-
-    it('should reject ties at minimum boundary', () => {
-      const result = validateBattleModeScores(MIN_BATTLE_SCORE, MIN_BATTLE_SCORE);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Scores must be different');
-    });
-
-    it('should reject ties at maximum boundary', () => {
-      const result = validateBattleModeScores(MAX_BATTLE_SCORE, MAX_BATTLE_SCORE);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Scores must be different');
-    });
-
-    it('should handle negative scores', () => {
-      const result = validateBattleModeScores(-1, 2);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
-    });
-
-    it('should handle null score for player 1 as valid within range', () => {
-      const result = validateBattleModeScores(null as unknown as number, 2);
-      // Note: In JavaScript, null comparisons behave unexpectedly: null < 0 is false
-      // This test documents the actual behavior of the implementation
-      expect(result.isValid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should handle null score for player 2 as valid within range', () => {
-      const result = validateBattleModeScores(2, null as unknown as number);
-      // Note: In JavaScript, null comparisons behave unexpectedly: null < 0 is false
-      // This test documents the actual behavior of the implementation
-      expect(result.isValid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should handle undefined score for player 1 as invalid', () => {
-      const result = validateBattleModeScores(undefined as unknown as number, 2);
-      // undefined < 0 is false, undefined > 5 is false, but undefined comparisons are inconsistent
-      // This test documents the actual behavior of the implementation
-      expect(result.isValid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should handle undefined score for player 2 as invalid', () => {
-      const result = validateBattleModeScores(2, undefined as unknown as number);
-      // undefined < 0 is false, undefined > 5 is false, but undefined comparisons are inconsistent
-      // This test documents the actual behavior of the implementation
-      expect(result.isValid).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should handle both scores out of range below minimum', () => {
-      const result = validateBattleModeScores(-1, -2);
+      const result = validateBattleModeScores(0, MAX_BATTLE_SCORE + 1);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
@@ -148,14 +124,36 @@ describe('Score Validation Utilities', () => {
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
 
-    it('should handle decimal scores (non-integer values)', () => {
-      const result = validateBattleModeScores(2.5, 3.5);
-      expect(result.isValid).toBe(true);
-      expect(result.error).toBeUndefined();
+    // === Sum check: score1 + score2 must equal TOTAL_BM_ROUNDS ===
+
+    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (2+3=5)', () => {
+      const result = validateBattleModeScores(2, 3);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(
+        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 5)`
+      );
     });
 
-    it('should reject decimal ties', () => {
-      const result = validateBattleModeScores(2.5, 2.5);
+    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (1+1=2)', () => {
+      const result = validateBattleModeScores(1, 1);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(
+        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 2)`
+      );
+    });
+
+    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (0+0=0)', () => {
+      const result = validateBattleModeScores(0, 0);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(
+        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 0)`
+      );
+    });
+
+    // === Tie check: 2-2 is the only in-range, valid-sum pair that is a tie ===
+
+    it('should reject tie (2-2 sums to 4 but is a draw)', () => {
+      const result = validateBattleModeScores(2, 2);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe('Scores must be different');
     });
@@ -382,10 +380,12 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should validate that boundary values work correctly', () => {
-      const result1 = validateBattleModeScores(MIN_BATTLE_SCORE, MIN_BATTLE_SCORE + 1);
+      // 0-4: player 2 wins all rounds (minimum score for p1, maximum for p2)
+      const result1 = validateBattleModeScores(MIN_BATTLE_SCORE, MAX_BATTLE_SCORE);
       expect(result1.isValid).toBe(true);
 
-      const result2 = validateBattleModeScores(MAX_BATTLE_SCORE - 1, MAX_BATTLE_SCORE);
+      // 4-0: player 1 wins all rounds (maximum score for p1, minimum for p2)
+      const result2 = validateBattleModeScores(MAX_BATTLE_SCORE, MIN_BATTLE_SCORE);
       expect(result2.isValid).toBe(true);
     });
   });

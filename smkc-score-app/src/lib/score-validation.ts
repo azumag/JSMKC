@@ -3,8 +3,9 @@
  *
  * This module provides validation logic for all three 2P competition modes:
  *
- * - BM (Battle Mode): Players pop each other's balloons (best-of-5, first to 3).
- *   Scores are 0-5 (balloons remaining/popped); ties are not allowed.
+ * - BM (Battle Mode): Fixed 4-round match format (score1 + score2 must equal 4).
+ *   Scores represent rounds won (0–4); a player wins by taking 3 or more rounds.
+ *   Ties (2-2) indicate a data entry error and are not allowed.
  *
  * - MR (Match Race): Players race head-to-head (best-of-5, first to 3 wins).
  *   Scores represent race wins, valid range 0-3; a player cannot win more than
@@ -19,7 +20,7 @@
  * MR and GP bounds are defined as module constants here.
  */
 
-import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE } from './constants';
+import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS } from './constants';
 
 /** MR: best-of-5 match race. Maximum race wins per match = 3 (first to win 3). */
 export const MAX_RACE_WIN_SCORE = 3;
@@ -41,21 +42,33 @@ export interface ScoreValidationResult {
 /**
  * Validate battle mode scores according to the tournament rules.
  *
- * Two checks are performed:
- * 1. Range check: Both scores must fall within [MIN_BATTLE_SCORE, MAX_BATTLE_SCORE].
- *    This prevents out-of-bounds values that would be nonsensical (e.g., negative
- *    balloon counts or scores exceeding the best-of-5 maximum).
- * 2. Tie check: Scores must differ. Battle Mode always produces a winner because
- *    one player's balloons are fully depleted before the other's. A tie would
- *    indicate a data entry error.
+ * BM matches consist of exactly TOTAL_BM_ROUNDS (4) rounds. Four checks are performed
+ * in priority order:
+ * 1. Integer check: Both scores must be whole numbers. Non-integers (floats, null,
+ *    undefined) are rejected because rounds won is always a discrete count.
+ * 2. Range check: Both scores must fall within [MIN_BATTLE_SCORE, MAX_BATTLE_SCORE].
+ *    Since each player can win at most all 4 rounds, MAX_BATTLE_SCORE = 4.
+ * 3. Sum check: score1 + score2 must equal TOTAL_BM_ROUNDS (4). This enforces that
+ *    exactly 4 rounds were played and recorded. A sum ≠ 4 indicates missing or extra
+ *    rounds in the entry, which would silently corrupt match results.
+ * 4. Tie check: Scores must differ (i.e., reject 2-2). Battle Mode always produces a
+ *    winner; a tie would indicate a data entry error that requires a rematch.
  *
- * @param score1 - Score for player 1 (number of rounds won or balloons remaining)
- * @param score2 - Score for player 2
- * @returns Validation result; `isValid` is true if both checks pass
+ * @param score1 - Rounds won by player 1 (integer 0–4)
+ * @param score2 - Rounds won by player 2 (integer 0–4)
+ * @returns Validation result; `isValid` is true if all four checks pass
  */
 export function validateBattleModeScores(score1: number, score2: number): ScoreValidationResult {
-  // Range validation: ensure both scores fall within the acceptable bounds
-  // defined by the tournament constants. This guards against malformed input.
+  // Integer check: round counts are discrete values. Number.isInteger rejects
+  // floats, null, undefined, and NaN without requiring explicit type guards.
+  if (!Number.isInteger(score1) || !Number.isInteger(score2)) {
+    return {
+      isValid: false,
+      error: "Battle Mode scores must be integers",
+    };
+  }
+
+  // Range validation: ensure both scores fall within [0, MAX_BATTLE_SCORE].
   if (score1 < MIN_BATTLE_SCORE || score1 > MAX_BATTLE_SCORE ||
       score2 < MIN_BATTLE_SCORE || score2 > MAX_BATTLE_SCORE) {
     return {
@@ -64,11 +77,18 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
     };
   }
 
-  // Tie check: Battle Mode does not permit draws. Using Math.abs with a
-  // threshold of 1 ensures integer equality is properly detected, while
-  // also being robust against floating point comparison if scores were
-  // ever inadvertently represented as non-integers.
-  if (Math.abs(score1 - score2) < 1) {
+  // Sum check: BM matches are exactly TOTAL_BM_ROUNDS rounds. Without this check,
+  // a score like 5-0 passes range validation but is silently treated as a tie by
+  // the match result calculation (which requires totalRounds === 4).
+  if (score1 + score2 !== TOTAL_BM_ROUNDS) {
+    return {
+      isValid: false,
+      error: `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got ${score1 + score2})`,
+    };
+  }
+
+  // Tie check: a 2-2 result requires a rematch and should not be recorded as-is.
+  if (score1 === score2) {
     return {
       isValid: false,
       error: "Scores must be different",
