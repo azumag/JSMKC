@@ -19,6 +19,8 @@ const { GET } = createStandingsHandlers({
   qualificationModel: 'mRQualification',
   usePagination: false,
   orderBy: [{ score: 'desc' }, { points: 'desc' }],
+  // H2H tiebreaker (requirements §4.1 step 3): resolve tied players by direct match results
+  matchModel: 'mRMatch',
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformQualification: (q: any) => ({
     // q._rank is pre-computed by the factory using tie-aware (1224) ranking

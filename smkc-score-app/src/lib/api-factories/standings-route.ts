@@ -44,6 +44,18 @@ export interface StandingsConfig {
   /** Transform function for mapping qualification records to response shape (only used when usePagination=false) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformQualification?: (q: any, index: number) => Record<string, unknown>;
+  /**
+   * Prisma model name for match records, used for H2H tiebreaking (requirements §4.1 step 3).
+   * Only applies to the non-paginated path (MR/GP). BM pagination is not supported.
+   * When set, tied players are re-sorted by their direct match results within the tied group.
+   */
+  matchModel?: string;
+  /**
+   * Score field names on the match model used to determine H2H winner.
+   * Defaults to { p1: 'score1', p2: 'score2' } (BM/MR convention).
+   * Set to { p1: 'points1', p2: 'points2' } for GP.
+   */
+  matchScoreFields?: { p1: string; p2: string };
 }
 
 /**
@@ -173,6 +185,85 @@ export function createStandingsHandlers(config: StandingsConfig) {
             });
             ranked.push({ ...q, _rank: isTied ? ranked[i - 1]._rank : i + 1 });
           }
+        }
+
+        /*
+         * H2H tiebreaker: re-sort tied groups by direct match results (requirements §4.1 step 3).
+         * Only runs when matchModel is configured. Players tied after points + wins/losses
+         * are re-sorted by how many H2H matches they won within the tied group.
+         * Players from different groups (who never played each other) stay tied → admin resolves via sudden death.
+         */
+        if (config.matchModel) {
+          const scoreFields = config.matchScoreFields ?? { p1: 'score1', p2: 'score2' };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mModel = (p: any) => p[config.matchModel!];
+
+          /* Group entries by _rank to find tied sets */
+          const rankGroups = new Map<number, typeof ranked>();
+          for (const entry of ranked) {
+            const g = rankGroups.get(entry._rank) ?? [];
+            g.push(entry);
+            rankGroups.set(entry._rank, g);
+          }
+
+          const resolved: typeof ranked = [];
+          for (const [rank, group] of [...rankGroups.entries()].sort(([a], [b]) => a - b)) {
+            if (group.length < 2) {
+              resolved.push(...group);
+              continue;
+            }
+
+            /*
+             * Fetch completed qualification matches between players in this tied group.
+             * player1Id IN group AND player2Id IN group captures all pairwise matches.
+             * Cross-group players won't have matches against each other, so their H2H wins = 0
+             * and they remain tied (requiring admin sudden-death to resolve per §4.1 step 4).
+             */
+            const playerIds = group.map((e: { playerId: string }) => e.playerId);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const h2hMatches: any[] = await mModel(prisma).findMany({
+              where: {
+                tournamentId,
+                stage: 'qualification',
+                completed: true,
+                player1Id: { in: playerIds },
+                player2Id: { in: playerIds },
+              },
+              select: {
+                player1Id: true,
+                player2Id: true,
+                [scoreFields.p1]: true,
+                [scoreFields.p2]: true,
+              },
+            });
+
+            /* Tally H2H wins; draws (s1 === s2) award no win to either player */
+            const h2hWins = new Map<string, number>(playerIds.map((id) => [id, 0]));
+            for (const m of h2hMatches) {
+              const s1: number = m[scoreFields.p1];
+              const s2: number = m[scoreFields.p2];
+              if (s1 > s2) h2hWins.set(m.player1Id, (h2hWins.get(m.player1Id) ?? 0) + 1);
+              else if (s2 > s1) h2hWins.set(m.player2Id, (h2hWins.get(m.player2Id) ?? 0) + 1);
+            }
+
+            /* Sort by H2H wins desc; preserve original order on equal wins (stable JS sort) */
+            const sortedGroup = [...group].sort(
+              (a, b) => (h2hWins.get(b.playerId) ?? 0) - (h2hWins.get(a.playerId) ?? 0),
+            );
+
+            /* Re-assign _rank within the group using 1224 competition ranking */
+            let subRank = rank;
+            for (let i = 0; i < sortedGroup.length; i++) {
+              if (i > 0) {
+                const prevWins = h2hWins.get(sortedGroup[i - 1].playerId) ?? 0;
+                const curWins = h2hWins.get(sortedGroup[i].playerId) ?? 0;
+                if (curWins !== prevWins) subRank = rank + i;
+              }
+              resolved.push({ ...sortedGroup[i], _rank: subRank });
+            }
+          }
+
+          ranked.splice(0, ranked.length, ...resolved);
         }
 
         const transformed = config.transformQualification

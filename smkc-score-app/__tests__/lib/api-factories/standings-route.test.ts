@@ -323,6 +323,141 @@ describe('Standings Route Factory', () => {
     });
   });
 
+  // === H2H TIEBREAKER ===
+
+  describe('H2H tiebreaker (matchModel)', () => {
+    /*
+     * Tests for requirements §4.1 step 3: direct match results resolve ties
+     * after points and wins/losses are equal.
+     */
+
+    it('should re-sort tied players by H2H win count (2-way tie)', async () => {
+      /*
+       * p1 and p2 are tied (same score/points). p1 beat p2 in their direct match.
+       * After H2H: p1 → rank 1, p2 → rank 2 (tie is broken).
+       */
+      const tiedQuals = [
+        { id: 'q1', playerId: 'p1', score: 6, points: 6, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', score: 6, points: 6, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'mRQualification',
+        matchModel: 'mRMatch',
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
+      // H2H: p1 beat p2 (score1=4, score2=0)
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
+        { player1Id: 'p1', player2Id: 'p2', score1: 4, score2: 0 },
+      ]);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // p1 has 1 H2H win → rank 1; p2 has 0 → rank 2 (tie broken)
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[0].playerId).toBe('p1');
+      expect(json.qualifications[1]._rank).toBe(2);
+      expect(json.qualifications[1].playerId).toBe('p2');
+    });
+
+    it('should keep players tied when H2H result is also tied (no mutual wins)', async () => {
+      const tiedQuals = [
+        { id: 'q1', playerId: 'p1', score: 6, points: 6, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', score: 6, points: 6, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'mRQualification',
+        matchModel: 'mRMatch',
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
+      // No H2H match exists between them (e.g. cross-group tie)
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // Both remain at rank 1 (still tied, requires sudden death)
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[1]._rank).toBe(1);
+    });
+
+    it('should use custom matchScoreFields for GP (points1/points2)', async () => {
+      const tiedQuals = [
+        { id: 'q1', playerId: 'p1', points: 30, score: 4, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', points: 30, score: 4, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'gPQualification',
+        matchModel: 'gPMatch',
+        matchScoreFields: { p1: 'points1', p2: 'points2' },
+        orderBy: [{ points: 'desc' as const }, { score: 'desc' as const }],
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
+      // GP H2H: p2 had more driver points (45 vs 9)
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([
+        { player1Id: 'p1', player2Id: 'p2', points1: 9, points2: 45 },
+      ]);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/gp/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // p2 won H2H → p2 rank 1, p1 rank 2
+      expect(json.qualifications[0].playerId).toBe('p2');
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[1].playerId).toBe('p1');
+      expect(json.qualifications[1]._rank).toBe(2);
+    });
+
+    it('should not affect non-tied entries', async () => {
+      const quals = [
+        { id: 'q1', playerId: 'p1', score: 8, points: 8, player: { name: 'P1' } }, // rank 1, unique
+        { id: 'q2', playerId: 'p2', score: 6, points: 6, player: { name: 'P2' } }, // rank 2
+        { id: 'q3', playerId: 'p3', score: 6, points: 6, player: { name: 'P3' } }, // rank 2 (tied)
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'mRQualification',
+        matchModel: 'mRMatch',
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
+      // H2H: p2 beat p3
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
+        { player1Id: 'p2', player2Id: 'p3', score1: 4, score2: 0 },
+      ]);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // p1 stays at rank 1; p2 → rank 2; p3 → rank 3
+      expect(json.qualifications[0]).toMatchObject({ playerId: 'p1', _rank: 1 });
+      expect(json.qualifications[1]).toMatchObject({ playerId: 'p2', _rank: 2 });
+      expect(json.qualifications[2]).toMatchObject({ playerId: 'p3', _rank: 3 });
+    });
+  });
+
   // === ERROR HANDLING ===
 
   describe('Error handling', () => {

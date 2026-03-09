@@ -21,6 +21,10 @@ const { GET } = createStandingsHandlers({
   // GP ranking uses drivers points as primary criterion (per requirements.md Section 4.1),
   // with match score (Win=2, Tie=1, Loss=0) as tiebreaker
   orderBy: [{ points: 'desc' }, { score: 'desc' }],
+  // H2H tiebreaker (requirements §4.1 step 3): resolve tied players by direct match results
+  // GP matches store driver points as points1/points2 (not score1/score2 like BM/MR)
+  matchModel: 'gPMatch',
+  matchScoreFields: { p1: 'points1', p2: 'points2' },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformQualification: (q: any) => ({
     // q._rank is pre-computed by the factory using tie-aware (1224) ranking
