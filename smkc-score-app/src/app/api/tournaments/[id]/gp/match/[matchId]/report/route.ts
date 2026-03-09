@@ -90,6 +90,11 @@ export async function POST(
       return handleValidationError("Match already completed", "matchStatus");
     }
 
+    /* Validate reportingPlayer before auth check to prevent invalid values propagating */
+    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
+      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+    }
+
     /* Authorization check (consistent with BM and MR report routes) */
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {

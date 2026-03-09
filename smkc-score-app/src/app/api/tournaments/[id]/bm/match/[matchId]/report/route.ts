@@ -80,14 +80,15 @@ export async function POST(
       return handleValidationError("Match already completed", "matchStatus");
     }
 
+    /* Validate reportingPlayer before auth check to prevent invalid values propagating */
+    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
+      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+    }
+
     /* Multi-method authorization check */
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return handleAuthError('Unauthorized: Not authorized for this match');
-    }
-
-    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return handleValidationError("Invalid reporting player", "reportingPlayer");
     }
 
     /* BM-specific score validation */

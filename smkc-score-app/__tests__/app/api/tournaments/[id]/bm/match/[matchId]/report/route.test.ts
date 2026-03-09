@@ -472,7 +472,7 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'Invalid reporting player', field: 'reportingPlayer' },
+        data: { error: 'reportingPlayer must be 1 or 2', field: 'reportingPlayer' },
         status: 400
       });
     });

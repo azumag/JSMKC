@@ -79,19 +79,19 @@ export async function POST(
       return handleValidationError("Match already completed", "matchStatus");
     }
 
+    /* Validate required fields before auth to fail fast on malformed requests */
+    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
+      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
+    }
+
+    if (score1 === undefined || score2 === undefined) {
+      return handleValidationError("score1 and score2 are required", "requiredFields");
+    }
+
     /* Multi-method authorization check */
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return handleAuthError('Unauthorized: Not authorized for this match');
-    }
-
-    /* Validate required fields */
-    if (!reportingPlayer || score1 === undefined || score2 === undefined) {
-      return handleValidationError("reportingPlayer, score1, and score2 are required", "requiredFields");
-    }
-
-    if (reportingPlayer !== 1 && reportingPlayer !== 2) {
-      return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
     }
 
     /* Validate MR scores are in legal range (0-3 race wins each) */

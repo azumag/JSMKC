@@ -396,11 +396,12 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
+      // reportingPlayer validation runs before score validation
       expect(result).toEqual({
-        data: { error: 'reportingPlayer, score1, and score2 are required', field: 'requiredFields' },
+        data: { error: 'reportingPlayer must be 1 or 2', field: 'reportingPlayer' },
         status: 400
       });
-      expect(handleValidationError).toHaveBeenCalledWith('reportingPlayer, score1, and score2 are required', 'requiredFields');
+      expect(handleValidationError).toHaveBeenCalledWith('reportingPlayer must be 1 or 2', 'reportingPlayer');
     });
 
     // Validation error case - Returns 400 when reportingPlayer is invalid
