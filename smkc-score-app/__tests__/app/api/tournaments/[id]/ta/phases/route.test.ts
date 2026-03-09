@@ -72,16 +72,21 @@ jest.mock('@/lib/logger', () => {
   };
 });
 
-// Mock finals-phase-manager: only getPhaseStatus is used by the GET handler
+// Mock finals-phase-manager: all exported functions
 jest.mock('@/lib/ta/finals-phase-manager', () => ({
   getPhaseStatus: jest.fn(),
-  // POST handler imports (unused in GET tests but required for module resolution)
   promoteToPhase1: jest.fn(),
   promoteToPhase2: jest.fn(),
   promoteToPhase3: jest.fn(),
   startPhaseRound: jest.fn(),
   submitRoundResults: jest.fn(),
   cancelPhaseRound: jest.fn(),
+  undoLastPhaseRound: jest.fn(),
+}));
+
+// Mock freeze-check: checkStageFrozen returns null (not frozen) by default
+jest.mock('@/lib/ta/freeze-check', () => ({
+  checkStageFrozen: jest.fn(),
 }));
 
 // Mock course-selection: getPlayedCourses and getAvailableCourses used by GET handler
@@ -136,8 +141,19 @@ jest.mock('next/server', () => {
 
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getPhaseStatus } from '@/lib/ta/finals-phase-manager';
+import {
+  getPhaseStatus,
+  promoteToPhase1,
+  promoteToPhase2,
+  promoteToPhase3,
+  startPhaseRound,
+  submitRoundResults,
+  cancelPhaseRound,
+  undoLastPhaseRound,
+} from '@/lib/ta/finals-phase-manager';
 import { getPlayedCourses, getAvailableCourses } from '@/lib/ta/course-selection';
+import { checkStageFrozen } from '@/lib/ta/freeze-check';
+import { auth } from '@/lib/auth';
 import * as phasesRoute from '@/app/api/tournaments/[id]/ta/phases/route';
 
 const { NextResponse } = jest.requireMock('next/server');
@@ -456,5 +472,222 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
         { status: 500 }
       );
     });
+  });
+});
+
+describe('POST /api/tournaments/[id]/ta/phases', () => {
+  const mockParams = Promise.resolve({ id: 'tournament-1' });
+
+  /**
+   * Helper: create a POST request with a JSON body.
+   */
+  function createPostRequest(body: unknown) {
+    return new NextRequest('http://localhost:3000/api/tournaments/tournament-1/ta/phases', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Admin session fixture */
+  const adminSession = {
+    user: { id: 'admin-user-1', role: 'admin' },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    loggerMock.createLogger.mockReturnValue(loggerInstance);
+    // Default: authenticated as admin
+    (auth as jest.Mock).mockResolvedValue(adminSession);
+    // Default: tournament exists
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 'tournament-1' });
+    // Default: phase not frozen
+    (checkStageFrozen as jest.Mock).mockResolvedValue(null);
+  });
+
+  it('should return 403 when not authenticated', async () => {
+    (auth as jest.Mock).mockResolvedValue(null);
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      { success: false, error: 'Forbidden' },
+      { status: 403 }
+    );
+  });
+
+  it('should return 403 when authenticated but not admin', async () => {
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'user-1', role: 'user' } });
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      { success: false, error: 'Forbidden' },
+      { status: 403 }
+    );
+  });
+
+  it('should return 400 for invalid action', async () => {
+    await phasesRoute.POST(createPostRequest({ action: 'invalid_action' }), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Invalid request' }),
+      { status: 400 }
+    );
+  });
+
+  it('should return 404 when tournament not found', async () => {
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      { success: false, error: 'Tournament not found' },
+      { status: 404 }
+    );
+  });
+
+  it('should call promoteToPhase1 and return success', async () => {
+    (promoteToPhase1 as jest.Mock).mockResolvedValue({ promoted: 8 });
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+
+    expect(promoteToPhase1).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 8 });
+  });
+
+  it('should call promoteToPhase2 and return success', async () => {
+    (promoteToPhase2 as jest.Mock).mockResolvedValue({ promoted: 8 });
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase2' }), { params: mockParams });
+
+    expect(promoteToPhase2).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 8 });
+  });
+
+  it('should call promoteToPhase3 and return success', async () => {
+    (promoteToPhase3 as jest.Mock).mockResolvedValue({ promoted: 16 });
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase3' }), { params: mockParams });
+
+    expect(promoteToPhase3).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 16 });
+  });
+
+  it('should call startPhaseRound and return success', async () => {
+    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 1, course: 'MC1' });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1' }), { params: mockParams });
+
+    expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase1');
+    expect(startPhaseRound).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }), 'phase1');
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, roundNumber: 1, course: 'MC1' });
+  });
+
+  it('should return freeze error when phase is frozen for start_round', async () => {
+    // Return a non-null truthy object to simulate a frozen response.
+    // NextResponse.json is mocked and returns undefined, so we need a real-looking object.
+    const frozenResponse = { status: 423, body: { success: false, error: 'Phase is frozen' } };
+    (checkStageFrozen as jest.Mock).mockResolvedValue(frozenResponse);
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1' }), { params: mockParams });
+
+    expect(startPhaseRound).not.toHaveBeenCalled();
+  });
+
+  it('should call cancelPhaseRound and return success', async () => {
+    (cancelPhaseRound as jest.Mock).mockResolvedValue({ cancelled: true, roundNumber: 3 });
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'cancel_round', phase: 'phase2', roundNumber: 3 }),
+      { params: mockParams }
+    );
+
+    expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase2');
+    expect(cancelPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase2',
+      3
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, cancelled: true, roundNumber: 3 });
+  });
+
+  it('should call undoLastPhaseRound and return success', async () => {
+    (undoLastPhaseRound as jest.Mock).mockResolvedValue({ undoneRoundNumber: 5 });
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'undo_round', phase: 'phase3' }),
+      { params: mockParams }
+    );
+
+    expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase3');
+    expect(undoLastPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase3'
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, undoneRoundNumber: 5 });
+  });
+
+  it('should return 400 with business error when undoLastPhaseRound throws "No submitted rounds"', async () => {
+    (undoLastPhaseRound as jest.Mock).mockRejectedValue(new Error('No submitted rounds found for phase3'));
+
+    await phasesRoute.POST(
+      createPostRequest({ action: 'undo_round', phase: 'phase3' }),
+      { params: mockParams }
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      { success: false, error: 'No submitted rounds found for phase3' },
+      { status: 400 }
+    );
+  });
+
+  it('should return 400 for invalid phase in start_round', async () => {
+    await phasesRoute.POST(
+      createPostRequest({ action: 'start_round', phase: 'invalid_phase' }),
+      { params: mockParams }
+    );
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'Invalid request' }),
+      { status: 400 }
+    );
+  });
+
+  it('should call submitRoundResults and return success', async () => {
+    (submitRoundResults as jest.Mock).mockResolvedValue({ eliminated: ['player-1'] });
+    const body = {
+      action: 'submit_results',
+      phase: 'phase1',
+      roundNumber: 1,
+      results: [
+        { playerId: 'claaaaaaaaaaaaaaaaaaaaaaaaaa', timeMs: 63000 },
+        { playerId: 'clbbbbbbbbbbbbbbbbbbbbbbbbbb', timeMs: 65000 },
+      ],
+    };
+
+    await phasesRoute.POST(createPostRequest(body), { params: mockParams });
+
+    expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase1');
+    expect(submitRoundResults).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase1',
+      1,
+      body.results
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, eliminated: ['player-1'] });
+  });
+
+  it('should return 500 for unexpected errors', async () => {
+    (promoteToPhase1 as jest.Mock).mockRejectedValue(new Error('DB connection lost'));
+
+    await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
   });
 });
