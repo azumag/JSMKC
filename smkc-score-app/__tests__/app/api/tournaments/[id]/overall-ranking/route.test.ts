@@ -122,6 +122,25 @@ describe('Overall Ranking Route', () => {
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
       expect(response.data.data.rankings).toEqual([]);
+      /* lastUpdated falls back to now() when rankings is empty */
+      expect(response.data.data.lastUpdated).toBeDefined();
+      expect(() => new Date(response.data.data.lastUpdated)).not.toThrow();
+    });
+
+    it('returns a valid lastUpdated timestamp derived from rankings', async () => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
+
+      const response = await GET(
+        {} as any,
+        mockParams('tournament-1')
+      );
+
+      expect(response.status).toBe(200);
+      /* lastUpdated should be a valid ISO date string derived from updatedAt */
+      const { lastUpdated } = response.data.data;
+      expect(lastUpdated).toBeDefined();
+      expect(new Date(lastUpdated).toISOString()).toBe(lastUpdated);
     });
 
     it('returns 404 when tournament is not found', async () => {
@@ -210,6 +229,7 @@ describe('Overall Ranking Route', () => {
       expect(response.status).toBe(200);
       expect(response.data.success).toBe(true);
       expect(response.data.data.rankings).toEqual(mockRankings);
+      expect(response.data.data.tournamentName).toBe('Test Tournament 2026');
       expect(calculateOverallRankings).toHaveBeenCalledWith(
         prisma,
         'tournament-1'
@@ -219,6 +239,25 @@ describe('Overall Ranking Route', () => {
         'tournament-1',
         mockRankings
       );
+    });
+
+    it('returns 500 when saveOverallRankings fails', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
+      (saveOverallRankings as jest.Mock).mockRejectedValue(
+        new Error('DB write failed')
+      );
+
+      const response = await POST(
+        {} as any,
+        mockParams('tournament-1')
+      );
+
+      expect(response.status).toBe(500);
+      expect(response.data.success).toBe(false);
     });
 
     it('returns 500 when calculation fails', async () => {

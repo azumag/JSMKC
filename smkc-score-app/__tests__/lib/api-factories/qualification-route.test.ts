@@ -433,7 +433,10 @@ describe('Qualification Route Factory', () => {
 
       (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
       (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
-      // Each BYE recipient's completed matches (including the BYE) are queried for recalculation
+      /*
+       * findMany is called once per BYE recipient to fetch their completed matches.
+       * Return a BYE match for each player (simplified - same data for all 3 calls).
+       */
       (prisma.bMMatch as any).findMany.mockResolvedValue([
         { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 4, score2: 0, completed: true, isBye: true },
       ]);
@@ -448,10 +451,19 @@ describe('Qualification Route Factory', () => {
       });
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
-      // aggregatePlayerStats should be called for each BYE recipient (3 BYE matches in a 3-player group)
+      /*
+       * In a 3-player group (odd), BREAK is added → 4 participants → 3 days × 2 matches.
+       * Each player receives exactly 1 BYE match (player-1, player-2, player-3 all get one).
+       * aggregatePlayerStats and updateMany must each be called 3 times (once per BYE recipient).
+       */
       expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(3);
-      // updateMany should be called to persist the BYE win stats
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalled();
+      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledTimes(3);
+      /* Verify each updateMany call targets the correct player via the where clause */
+      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tournamentId: 'tournament-123' }),
+        }),
+      );
     });
   });
 
