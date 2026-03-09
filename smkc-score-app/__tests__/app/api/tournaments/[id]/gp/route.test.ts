@@ -294,6 +294,9 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       (prisma.gPQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
       (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      // BYE stat recalculation: each BYE recipient's completed matches are fetched
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });

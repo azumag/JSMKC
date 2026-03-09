@@ -3,7 +3,7 @@
  *
  * Test suite for qualification route factory from `@/lib/api-factories/qualification-route`.
  *
- * This suite validates the factory function that generates GET/POST/PUT handlers
+ * This suite validates the factory function that generates GET/POST/PUT/PATCH handlers
  * for qualification API routes. Tests cover:
  *
  * - GET handler: Fetching qualification standings and matches
@@ -18,7 +18,14 @@
  *   - Match update via config.updateMatch
  *   - Match result calculation
  *   - Player stats aggregation and qualification record updates
+ *   - BYE match: skip player2 (BREAK) recalculation
  *   - Error handling for DB failures and invalid input
+ * - PATCH handler: TV number assignment for broadcast streams
+ *   - Admin-only authentication
+ *   - Input validation (matchId required, tvNumber positive int or null)
+ *   - sanitizeInput applied to request body
+ *   - tournamentId ownership check (IDOR prevention)
+ *   - Error handling for DB failures
  *
  * Tests mock all dependencies including prisma, auth, audit-log, rate-limit,
  * sanitize, and logger to isolate the factory function behavior.
@@ -52,6 +59,7 @@ describe('Qualification Route Factory', () => {
   let mockLogger: ReturnType<typeof createLogger>;
 
   const createMockConfig = (overrides = {}): EventTypeConfig => ({
+    eventTypeCode: 'bm',
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',
     loggerName: 'bm-qualification',
@@ -204,21 +212,23 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(201);
 
-      // Group A: player-1 vs player-2 (1 match)
-      // Group B: player-3 vs player-4 (1 match)
-      // Total: 2 qualification records + 2 matches
+      // Group A: player-1 vs player-2 (1 match via circle method)
+      // Group B: player-3 vs player-4 (1 match via circle method)
+      // Total: 4 qualification records + 2 matches
       expect((prisma.bMQualification as any).create).toHaveBeenCalledTimes(4);
       expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(2);
 
-      // Verify match generation: Group A has 2 players, so 1 match (1 vs 2)
+      // Verify match generation includes round-robin fields (roundNumber, player1Side, etc.)
       expect((prisma.bMMatch as any).create).toHaveBeenCalledWith({
-        data: {
+        data: expect.objectContaining({
           tournamentId: 'tournament-123',
           matchNumber: 1,
           stage: 'qualification',
-          player1Id: 'player-1',
-          player2Id: 'player-2',
-        },
+          roundNumber: 1,
+          isBye: false,
+          player1Side: 1,
+          player2Side: 2,
+        }),
       });
     });
 
@@ -246,7 +256,10 @@ describe('Qualification Route Factory', () => {
       });
 
       expect(response.status).toBe(201);
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(4); // 3 in group A + 1 in group B
+      // Group A: 3 players (odd) → BREAK added → 3 days × 2 matches = 6 (3 real + 3 bye)
+      // Group B: 2 players → 1 day × 1 match = 1
+      // Total: 6 + 1 = 7
+      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(7);
     });
 
     it('should create audit log when auditAction is configured', async () => {
@@ -403,6 +416,42 @@ describe('Qualification Route Factory', () => {
 
       expect(mockSanitizeInput).toHaveBeenCalled();
       expect(response.status).toBe(201);
+    });
+
+    it('should update qualification stats for BYE recipients immediately after group setup', async () => {
+      /*
+       * When a group has odd players, BREAK is added and BYE matches are auto-completed.
+       * The BYE recipient's qualification stats (wins/points) must be updated right away
+       * so standings reflect the BYE win without waiting for their first real match.
+       * Fix: POST handler recalculates stats for each BYE recipient after match creation.
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A' },
+        { playerId: 'player-2', group: 'A' },
+        { playerId: 'player-3', group: 'A' }, // Odd group → BREAK added → 3 BYE matches generated
+      ];
+
+      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
+      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      // Each BYE recipient's completed matches (including the BYE) are queried for recalculation
+      (prisma.bMMatch as any).findMany.mockResolvedValue([
+        { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 4, score2: 0, completed: true, isBye: true },
+      ]);
+      (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // aggregatePlayerStats should be called for each BYE recipient (3 BYE matches in a 3-player group)
+      expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(3);
+      // updateMany should be called to persist the BYE win stats
+      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalled();
     });
   });
 
@@ -660,5 +709,237 @@ describe('Qualification Route Factory', () => {
 
     // NOTE: Rate limiting test removed - qualification-route.ts does not implement rate limiting
     // The getServerSideIdentifier import exists but rate limit check is not implemented in the route
+
+    it('should skip player2 recalculation for BYE matches', async () => {
+      const requestBody = { matchId: 'bye-match-1', score1: 4, score2: 0, completed: true };
+
+      /* updateMatch returns a BYE match (isBye: true, player2Id is BREAK) */
+      const config = createMockConfig({
+        updateMatch: jest.fn().mockResolvedValue({
+          match: { id: 'bye-match-1', player1Id: 'player-1', player2Id: '__BREAK__', isBye: true },
+          score1OrPoints1: 4,
+          score2OrPoints2: 0,
+        }),
+      });
+
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+      (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const { PUT } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+
+      /*
+       * For BYE matches, only player1's stats should be recalculated.
+       * player2 (BREAK) has no qualification record, so aggregation is skipped.
+       */
+      expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(1);
+      expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
+        expect.anything(), 'player-1', config.calculateMatchResult,
+      );
+      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledTimes(1);
+      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tournament-123', playerId: 'player-1' },
+        data: expect.any(Object),
+      });
+    });
+  });
+
+  // ============================================================
+  // PATCH Handler Tests (6 cases)
+  // ============================================================
+
+  describe('PATCH Handler', () => {
+    it('should return 403 when user is not authenticated', async () => {
+      mockAuth.mockResolvedValue(null);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 1 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(403);
+      const json = await response.json();
+      expect(json.error).toBe('Forbidden');
+    });
+
+    it('should return 403 when user is not admin', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'member' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 1 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 when matchId is missing', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ tvNumber: 1 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('matchId is required');
+    });
+
+    it('should return 400 when tvNumber is invalid (negative, fractional)', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      /* Negative number */
+      let request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: -1 }),
+      });
+      let response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      expect(response.status).toBe(400);
+
+      /* Fractional number */
+      request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 1.5 }),
+      });
+      response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it('should update TV number successfully with tournamentId constraint', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+
+      const mockMatch = {
+        id: 'match-1',
+        tvNumber: 2,
+        player1: { id: 'p1', nickname: 'Alice' },
+        player2: { id: 'p2', nickname: 'Bob' },
+      };
+      (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.match).toEqual(mockMatch);
+
+      /* Verify tournamentId is included in the where clause (IDOR prevention) */
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: 'match-1', tournamentId: 'tournament-123' },
+        data: { tvNumber: 2 },
+        include: { player1: true, player2: true },
+      });
+    });
+
+    it('should set tvNumber to null when removing assignment', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+
+      const mockMatch = { id: 'match-1', tvNumber: null };
+      (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: null }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: 'match-1', tournamentId: 'tournament-123' },
+        data: { tvNumber: null },
+        include: { player1: true, player2: true },
+      });
+    });
+
+    it('should apply sanitizeInput to request body', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+      (prisma.bMMatch as any).update.mockResolvedValue({ id: 'match-1' });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 1 }),
+      });
+      await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      /* sanitizeInput should be called on the parsed request body */
+      expect(mockSanitizeInput).toHaveBeenCalled();
+    });
+
+    it('should return 500 on database error', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+      (prisma.bMMatch as any).update.mockRejectedValue(new Error('DB error'));
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 1 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.error).toBe('Failed to update TV number');
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to update TV number', {
+        error: expect.any(Error),
+        tournamentId: 'tournament-123',
+      });
+    });
   });
 });
