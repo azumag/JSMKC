@@ -10,7 +10,10 @@
  * with player assignments for tournament execution.
  */
 
-import { BM_FINALS_TARGET_WINS } from '@/lib/constants';
+import { BM_FINALS_TARGET_WINS, MR_FINALS_TARGET_WINS } from '@/lib/constants';
+
+// Re-export MR_FINALS_TARGET_WINS so callers don't need a separate constants import
+export { MR_FINALS_TARGET_WINS };
 
 /** Full bracket structure with winner, loser, and grand final sections */
 export interface DoubleEliminationBracket {
@@ -182,14 +185,20 @@ export function generateDoubleEliminationBracket(
  * Regular matches end when one player reaches the target wins.
  * Grand finals have special rules since the WB champion has an extra life.
  *
- * @param match - The match node to check
+ * @param match      - The match node to check
  * @param player1Wins - Current wins for player 1
  * @param player2Wins - Current wins for player 2
+ * @param targetWins  - Round wins required to take the match; defaults to
+ *                      BM_FINALS_TARGET_WINS (5). Pass MR_FINALS_TARGET_WINS (7)
+ *                      when evaluating MR finals matches.
  * @returns 'complete' if the match has a winner, 'ongoing' otherwise
  */
-export function calculateMatchProgression(match: MatchNode, player1Wins: number, player2Wins: number): 'ongoing' | 'complete' {
-  const targetWins = BM_FINALS_TARGET_WINS; // BM finals: best-of-9, first to 5 wins
-
+export function calculateMatchProgression(
+  match: MatchNode,
+  player1Wins: number,
+  player2Wins: number,
+  targetWins = BM_FINALS_TARGET_WINS,
+): 'ongoing' | 'complete' {
   if (match.isGrandFinal) {
     // Grand Final: WB champion can lose once (reset), LB champion cannot
     if (match.player2Wins === targetWins || player1Wins === targetWins) {
