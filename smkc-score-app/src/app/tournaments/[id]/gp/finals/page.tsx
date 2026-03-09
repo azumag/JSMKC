@@ -57,6 +57,10 @@ import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
+import { createLogger } from "@/lib/client-logger";
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
 
 interface Player {
   id: string;
@@ -187,7 +191,7 @@ export default function GrandPrixFinals({
         alert(error.error || "Failed to create bracket");
       }
     } catch (err) {
-      console.error("Failed to create bracket:", err);
+      logger.error("Failed to create bracket:", { error: err, tournamentId });
       alert("Failed to create bracket");
     } finally {
       setCreating(false);
@@ -246,7 +250,7 @@ export default function GrandPrixFinals({
         alert(error.error || "Failed to update score");
       }
     } catch (err) {
-      console.error("Failed to update score:", err);
+      logger.error("Failed to update score:", { error: err, tournamentId });
       alert("Failed to update score");
     }
   };
