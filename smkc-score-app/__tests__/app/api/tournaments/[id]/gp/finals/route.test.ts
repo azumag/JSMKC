@@ -169,7 +169,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch grand prix finals data' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch grand prix finals data' });
       expect(result.status).toBe(500);
       expect(logger.error).toHaveBeenCalledWith('Failed to fetch grand prix finals data', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -196,7 +196,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -208,7 +208,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -264,7 +264,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Currently only 8-player brackets are supported' });
+      expect(result.data).toEqual({ success: false, error: 'Currently only 8-player brackets are supported' });
       expect(result.status).toBe(400);
     });
 
@@ -280,7 +280,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Not enough players qualified. Need 8, found 1' });
+      expect(result.data).toEqual({ success: false, error: 'Not enough players qualified. Need 8, found 1' });
       expect(result.status).toBe(400);
     });
 
@@ -292,7 +292,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to create grand prix finals bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to create grand prix finals bracket' });
       expect(result.status).toBe(500);
       expect(logger.error).toHaveBeenCalledWith('Failed to create finals', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -333,7 +333,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -345,7 +345,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -523,7 +523,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -533,7 +533,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -543,7 +543,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -555,7 +555,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Finals match not found' });
+      expect(result.data).toEqual({ success: false, error: 'Finals match not found' });
       expect(result.status).toBe(404);
     });
 
@@ -576,7 +576,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Match must have a winner (best of 5: first to 3)' });
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (best of 5: first to 3)' });
       expect(result.status).toBe(400);
     });
 
@@ -588,7 +588,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to update match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(logger.error).toHaveBeenCalledWith('Failed to update finals match', { error: expect.any(Error), tournamentId: 't1' });
     });

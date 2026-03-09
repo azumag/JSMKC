@@ -41,7 +41,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
       const session = await auth();
       if (!session?.user) {
         return NextResponse.json(
-          { error: 'Authentication required' },
+          { success: false, error: 'Authentication required' },
           { status: 401 }
         );
       }
@@ -53,7 +53,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
 
       if (!tournament) {
         return NextResponse.json(
-          { error: 'Tournament not found' },
+          { success: false, error: 'Tournament not found' },
           { status: 404 }
         );
       }
@@ -73,7 +73,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
     } catch (error) {
       logger.error(config.errorMessage, { error, tournamentId });
       return NextResponse.json(
-        { error: config.errorMessage },
+        { success: false, error: config.errorMessage },
         { status: 500 }
       );
     }

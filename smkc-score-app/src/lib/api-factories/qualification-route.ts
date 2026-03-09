@@ -109,7 +109,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
       return NextResponse.json(
-        { error: `Failed to fetch ${config.eventDisplayName} data` },
+        { success: false, error: `Failed to fetch ${config.eventDisplayName} data` },
         { status: 500 },
       );
     }
@@ -139,7 +139,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
         return NextResponse.json(
-          { error: 'Forbidden' },
+          { success: false, error: 'Forbidden' },
           { status: 403 },
         );
       }
@@ -154,7 +154,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
       if (!players || !Array.isArray(players) || players.length === 0) {
         return NextResponse.json(
-          { error: 'Players array is required' },
+          { success: false, error: 'Players array is required' },
           { status: 400 },
         );
       }
@@ -319,7 +319,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     } catch (error) {
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
       return NextResponse.json(
-        { error: `Failed to setup ${config.eventDisplayName}` },
+        { success: false, error: `Failed to setup ${config.eventDisplayName}` },
         { status: 500 },
       );
     }
@@ -339,7 +339,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
         return NextResponse.json(
-          { error: 'Forbidden' },
+          { success: false, error: 'Forbidden' },
           { status: 403 },
         );
       }
@@ -352,7 +352,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const parseResult = config.parsePutBody(body);
 
       if (!parseResult.valid) {
-        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: parseResult.error }, { status: 400 });
       }
 
       const putData = parseResult.data!;
@@ -407,7 +407,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     } catch (error) {
       logger.error('Failed to update match', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to update match' },
+        { success: false, error: 'Failed to update match' },
         { status: 500 },
       );
     }
@@ -427,7 +427,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
     const { id: tournamentId } = await params;
@@ -437,14 +437,14 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const { matchId, tvNumber } = body;
 
       if (!matchId) {
-        return NextResponse.json({ error: 'matchId is required' }, { status: 400 });
+        return NextResponse.json({ success: false, error: 'matchId is required' }, { status: 400 });
       }
 
       /* tvNumber must be a positive integer or null (to remove assignment) */
       if (tvNumber !== null && tvNumber !== undefined &&
           (typeof tvNumber !== 'number' || tvNumber < 1 || !Number.isInteger(tvNumber))) {
         return NextResponse.json(
-          { error: 'tvNumber must be a positive integer or null' },
+          { success: false, error: 'tvNumber must be a positive integer or null' },
           { status: 400 },
         );
       }
@@ -464,7 +464,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     } catch (error) {
       logger.error('Failed to update TV number', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to update TV number' },
+        { success: false, error: 'Failed to update TV number' },
         { status: 500 },
       );
     }

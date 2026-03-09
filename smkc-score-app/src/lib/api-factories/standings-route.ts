@@ -84,7 +84,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
 
     if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 403 },
       );
     }
@@ -280,7 +280,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
     } catch (error) {
       logger.error(config.errorMessage, { error, tournamentId });
       return NextResponse.json(
-        { error: config.errorMessage },
+        { success: false, error: config.errorMessage },
         { status: 500 },
       );
     }

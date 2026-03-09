@@ -312,7 +312,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.findMany).not.toHaveBeenCalled();
     });
@@ -327,7 +327,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.findMany).not.toHaveBeenCalled();
     });
@@ -340,7 +340,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
 
@@ -354,7 +354,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(403);
     });
 
@@ -370,7 +370,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch GP standings' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch GP standings' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch GP standings', { error: expect.any(Error), tournamentId: 't1' });
     });

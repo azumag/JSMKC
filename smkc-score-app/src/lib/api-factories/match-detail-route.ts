@@ -36,7 +36,6 @@ import { createLogger } from '@/lib/logger';
  * @property getErrorMessage - Error message for GET 500 response (raw style)
  * @property getLogMessage - Log message for GET errors (raw style, defaults to getErrorMessage)
  * @property putErrorMessage - Error message for PUT 500 response (raw style)
- * @property includeSuccessInGetErrors - Whether to include success:false in GET error responses (raw style)
  */
 export interface MatchDetailConfig {
   matchModel: string;
@@ -59,7 +58,6 @@ export interface MatchDetailConfig {
   getErrorMessage?: string;
   getLogMessage?: string;
   putErrorMessage?: string;
-  includeSuccessInGetErrors?: boolean;
   /** Whether PUT endpoint requires admin authentication */
   putRequiresAuth?: boolean;
   /**
@@ -105,14 +103,8 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         if (config.responseStyle === 'structured') {
           return handleValidationError('Match not found', 'matchId');
         }
-        if (config.includeSuccessInGetErrors) {
-          return NextResponse.json(
-            { success: false, error: 'Match not found' },
-            { status: 404 },
-          );
-        }
         return NextResponse.json(
-          { error: 'Match not found' },
+          { success: false, error: 'Match not found' },
           { status: 404 },
         );
       }
@@ -128,14 +120,8 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
 
       logger.error(getLogMsg, { error, matchId });
 
-      if (config.includeSuccessInGetErrors) {
-        return NextResponse.json(
-          { success: false, error: getErrMsg },
-          { status: 500 },
-        );
-      }
       return NextResponse.json(
-        { error: getErrMsg },
+        { success: false, error: getErrMsg },
         { status: 500 },
       );
     }

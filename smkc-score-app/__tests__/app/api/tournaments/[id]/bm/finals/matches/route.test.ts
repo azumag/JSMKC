@@ -243,7 +243,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
       expect(prisma.player.findUnique).not.toHaveBeenCalled();
     });
@@ -258,7 +258,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
     });
 
@@ -273,7 +273,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
     });
 
@@ -377,7 +377,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'One or both players not found' });
+      expect(result.data).toEqual({ success: false, error: 'One or both players not found' });
       expect(result.status).toBe(404);
     });
 
@@ -396,7 +396,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'One or both players not found' });
+      expect(result.data).toEqual({ success: false, error: 'One or both players not found' });
       expect(result.status).toBe(404);
     });
 
@@ -413,7 +413,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to create match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to create match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to create match', { error: expect.any(Error), tournamentId: 't1' });
     });

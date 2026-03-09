@@ -130,7 +130,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch battle mode data' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch battle mode data' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch battle mode data', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -216,7 +216,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.bMQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -229,7 +229,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.bMQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -243,7 +243,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.bMQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -259,7 +259,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -272,7 +272,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -285,7 +285,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -300,7 +300,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to setup battle mode' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to setup battle mode' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup battle mode', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -332,7 +332,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -344,7 +344,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -387,7 +387,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       // validateBattleModeScores rejects 2-2: sum=4 (valid) but scores are equal (tie)
       expect(result.status).toBe(400);
-      expect(result.data).toEqual({ error: 'Scores must be different' });
+      expect(result.data).toEqual({ success: false, error: 'Scores must be different' });
       expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
@@ -399,7 +399,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       // validateBattleModeScores rejects 2+1=3 (must equal TOTAL_BM_ROUNDS=4)
       expect(result.status).toBe(400);
-      expect(result.data).toEqual({ error: 'Scores must total exactly 4 rounds (got 3)' });
+      expect(result.data).toEqual({ success: false, error: 'Scores must total exactly 4 rounds (got 3)' });
       expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
@@ -434,7 +434,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -444,7 +444,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -454,7 +454,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -466,7 +466,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to update match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), tournamentId: 't1' });
     });

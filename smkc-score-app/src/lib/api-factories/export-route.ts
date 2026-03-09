@@ -57,7 +57,7 @@ export function createExportHandlers(config: ExportConfig) {
       });
 
       if (!tournament) {
-        return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+        return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
       }
 
       const qualifications = await qualModel(prisma).findMany({
@@ -94,7 +94,7 @@ export function createExportHandlers(config: ExportConfig) {
       });
     } catch (error) {
       logger.error('Failed to export tournament', { error, tournamentId });
-      return NextResponse.json({ error: 'Failed to export tournament' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Failed to export tournament' }, { status: 500 });
     }
   }
 

@@ -150,7 +150,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });
       return NextResponse.json(
-        { error: config.getErrorMessage },
+        { success: false, error: config.getErrorMessage },
         { status: 500 },
       );
     }
@@ -171,7 +171,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
         return NextResponse.json(
-          { error: 'Forbidden' },
+          { success: false, error: 'Forbidden' },
           { status: 403 },
         );
       }
@@ -186,7 +186,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       if (topN !== 8) {
         return NextResponse.json(
-          { error: 'Currently only 8-player brackets are supported' },
+          { success: false, error: 'Currently only 8-player brackets are supported' },
           { status: 400 },
         );
       }
@@ -201,6 +201,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       if (qualifications.length < topN) {
         return NextResponse.json(
           {
+            success: false,
             error: `Not enough players qualified. Need ${topN}, found ${qualifications.length}`,
           },
           { status: 400 },
@@ -264,7 +265,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     } catch (error) {
       logger.error('Failed to create finals', { error, tournamentId });
       return NextResponse.json(
-        { error: config.postErrorMessage },
+        { success: false, error: config.postErrorMessage },
         { status: 500 },
       );
     }
@@ -285,7 +286,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
         return NextResponse.json(
-          { error: 'Forbidden' },
+          { success: false, error: 'Forbidden' },
           { status: 403 },
         );
       }
@@ -300,7 +301,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       if (!matchId || score1 === undefined || score2 === undefined) {
         return NextResponse.json(
-          { error: 'matchId, score1, and score2 are required' },
+          { success: false, error: 'matchId, score1, and score2 are required' },
           { status: 400 },
         );
       }
@@ -312,7 +313,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       if (!match || match.stage !== 'finals') {
         return NextResponse.json(
-          { error: 'Finals match not found' },
+          { success: false, error: 'Finals match not found' },
           { status: 404 },
         );
       }
@@ -323,7 +324,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       if (!winnerId) {
         return NextResponse.json(
-          { error: 'Match must have a winner (best of 5: first to 3)' },
+          { success: false, error: 'Match must have a winner (best of 5: first to 3)' },
           { status: 400 },
         );
       }
@@ -459,7 +460,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     } catch (error) {
       logger.error('Failed to update finals match', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to update match' },
+        { success: false, error: 'Failed to update match' },
         { status: 500 },
       );
     }

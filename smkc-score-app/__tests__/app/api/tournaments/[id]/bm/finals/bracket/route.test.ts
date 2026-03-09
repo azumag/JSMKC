@@ -189,7 +189,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch bracket' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch bracket', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -339,7 +339,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
       expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
     });
@@ -352,7 +352,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
     });
 
@@ -365,7 +365,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
       expect(result.status).toBe(401);
     });
 
@@ -380,7 +380,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'No qualification results found' });
+      expect(result.data).toEqual({ success: false, error: 'No qualification results found' });
       expect(result.status).toBe(400);
       expect(generateDoubleEliminationBracket).not.toHaveBeenCalled();
     });
@@ -396,7 +396,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to generate bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to generate bracket' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to generate bracket', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -419,7 +419,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to generate bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to generate bracket' });
       expect(result.status).toBe(500);
     });
 

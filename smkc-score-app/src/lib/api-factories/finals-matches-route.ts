@@ -77,7 +77,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
     /* Admin authentication required for match creation */
     if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 401 },
       );
     }
@@ -96,7 +96,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       const parseResult = CreateMatchSchema.safeParse(body);
       if (!parseResult.success) {
         return NextResponse.json(
-          { error: parseResult.error.issues[0]?.message || 'Invalid request body' },
+          { success: false, error: parseResult.error.issues[0]?.message || 'Invalid request body' },
           { status: 400 },
         );
       }
@@ -111,7 +111,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
 
       if (!player1 || !player2) {
         return NextResponse.json(
-          { error: 'One or both players not found' },
+          { success: false, error: 'One or both players not found' },
           { status: 404 },
         );
       }
@@ -178,7 +178,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
     } catch (error) {
       logger.error('Failed to create match', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to create match' },
+        { success: false, error: 'Failed to create match' },
         { status: 500 },
       );
     }

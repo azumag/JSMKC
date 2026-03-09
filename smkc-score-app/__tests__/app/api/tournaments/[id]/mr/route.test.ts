@@ -113,7 +113,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch match race data' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch match race data' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match race data', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -187,7 +187,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -200,7 +200,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -214,7 +214,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
       expect(prisma.mRQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -228,7 +228,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -241,7 +241,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -254,7 +254,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
       expect(result.status).toBe(400);
     });
 
@@ -270,7 +270,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to setup match race' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to setup match race' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup match race', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -285,7 +285,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -297,7 +297,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
       expect(result.status).toBe(403);
     });
 
@@ -387,7 +387,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -397,7 +397,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
@@ -407,28 +407,29 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'matchId, score1, and score2 are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required' });
       expect(result.status).toBe(400);
     });
 
-    // Validation error case - Rejects out-of-range scores (MR max is 3)
+    // Validation error case - Rejects out-of-range scores (MR max is 4, one per course)
     it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 4, score2: 0 });
+      // score1=5 exceeds the 4-race maximum
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 5, score2: 0 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4' });
       expect(result.status).toBe(400);
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
 
     // Validation error case - Rejects negative scores
     it('should return 400 when score is negative', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: -1, score2: 3 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: -1, score2: 4 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4' });
       expect(result.status).toBe(400);
       expect(prisma.mRMatch.update).not.toHaveBeenCalled();
     });
@@ -441,7 +442,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to update match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), tournamentId: 't1' });
     });

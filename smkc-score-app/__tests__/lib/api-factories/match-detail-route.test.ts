@@ -144,7 +144,6 @@ describe('Match Detail Route Factory', () => {
         updateMatchScore: jest.fn(),
         responseStyle: 'raw' as const,
         getErrorMessage: 'Failed to fetch MR match',
-        includeSuccessInGetErrors: true,
       };
 
       const { GET } = createMatchDetailHandlers(config);
@@ -194,7 +193,6 @@ describe('Match Detail Route Factory', () => {
         detailField: 'rounds',
         updateMatchScore: jest.fn(),
         responseStyle: 'raw' as const,
-        includeSuccessInGetErrors: true,
       };
 
       const { GET } = createMatchDetailHandlers(config);

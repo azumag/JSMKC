@@ -433,7 +433,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const _result = await GET(request, { params });
 
-      expect(_result.data).toEqual({ error: 'Tournament not found' });
+      expect(_result.data).toEqual({ success: false, error: 'Tournament not found' });
       expect(_result.status).toBe(404);
     });
 
@@ -445,7 +445,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const _result = await GET(request, { params });
 
-      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.data).toEqual({ success: false, error: 'Failed to export tournament' });
       expect(_result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -465,7 +465,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const _result = await GET(request, { params });
 
-      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.data).toEqual({ success: false, error: 'Failed to export tournament' });
       expect(_result.status).toBe(500);
     });
 
@@ -485,7 +485,7 @@ describe('BM Export API Route - /api/tournaments/[id]/bm/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const _result = await GET(request, { params });
 
-      expect(_result.data).toEqual({ error: 'Failed to export tournament' });
+      expect(_result.data).toEqual({ success: false, error: 'Failed to export tournament' });
       expect(_result.status).toBe(500);
     });
 

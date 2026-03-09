@@ -93,7 +93,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     } catch (error) {
       logger.error('Failed to fetch bracket', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to fetch bracket' },
+        { success: false, error: 'Failed to fetch bracket' },
         { status: 500 },
       );
     }
@@ -114,7 +114,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     /* Admin authentication required for bracket generation */
     if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin access required' },
+        { success: false, error: 'Unauthorized: Admin access required' },
         { status: 401 },
       );
     }
@@ -131,7 +131,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
 
       if (qualifications.length === 0) {
         return NextResponse.json(
-          { error: 'No qualification results found' },
+          { success: false, error: 'No qualification results found' },
           { status: 400 },
         );
       }
@@ -182,7 +182,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     } catch (error) {
       logger.error('Failed to generate bracket', { error, tournamentId });
       return NextResponse.json(
-        { error: 'Failed to generate bracket' },
+        { success: false, error: 'Failed to generate bracket' },
         { status: 500 },
       );
     }

@@ -116,7 +116,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Authentication required' });
+      expect(result.data).toEqual({ success: false, error: 'Authentication required' });
       expect(result.status).toBe(401);
       // Tournament lookup should not be called when session is missing
       expect(prisma.tournament.findFirst).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Tournament not found' });
+      expect(result.data).toEqual({ success: false, error: 'Tournament not found' });
       expect(result.status).toBe(404);
       expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
         where: { id: 't1' },
@@ -148,7 +148,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ error: 'Failed to fetch grand prix matches' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch grand prix matches' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch grand prix matches', { error: expect.any(Error), tournamentId: 't1' });
     });
