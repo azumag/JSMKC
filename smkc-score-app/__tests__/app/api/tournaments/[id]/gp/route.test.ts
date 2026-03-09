@@ -469,6 +469,46 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(result.status).toBe(400);
     });
 
+    // Validation error case - Rejects out-of-range race position
+    it('should return 400 when race position is out of range', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
+        matchId: 'm1',
+        cup: 'Mushroom Cup',
+        races: [
+          { course: 'Mario Circuit 1', position1: 5, position2: 2 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data.error).toContain('Race 1 position1');
+      expect(result.status).toBe(400);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
+    // Validation error case - Rejects position 0 (invalid, must be 1-4)
+    it('should return 400 when race position is 0', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
+        matchId: 'm1',
+        cup: 'Mushroom Cup',
+        races: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 0 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data.error).toContain('Race 1 position2');
+      expect(result.status).toBe(400);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (prisma.gPMatch.update as jest.Mock).mockRejectedValue(new Error('Database error'));

@@ -8,6 +8,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { validateGPRacePosition } from '@/lib/score-validation';
 
 /**
  * SMK driver points lookup table indexed by finishing position.
@@ -57,6 +58,21 @@ export const gpConfig: EventTypeConfig = {
     };
     if (!matchId || !cup || !races || races.length !== 4) {
       return { valid: false, error: 'matchId, cup, and 4 races are required' };
+    }
+    // Validate all race finishing positions are in the legal range [1, 4].
+    // Positions outside this range (e.g. 0, 5) are rejected to prevent silent
+    // data corruption — the driver points lookup returns 0 for unknown positions,
+    // making invalid input indistinguishable from a last-place finish.
+    for (let i = 0; i < races.length; i++) {
+      const race = races[i];
+      const p1Result = validateGPRacePosition(race.position1);
+      if (!p1Result.isValid) {
+        return { valid: false, error: `Race ${i + 1} position1: ${p1Result.error}` };
+      }
+      const p2Result = validateGPRacePosition(race.position2);
+      if (!p2Result.isValid) {
+        return { valid: false, error: `Race ${i + 1} position2: ${p2Result.error}` };
+      }
     }
     return { valid: true, data: { matchId, cup, races } };
   },
