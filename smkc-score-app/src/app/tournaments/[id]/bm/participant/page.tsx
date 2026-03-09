@@ -39,6 +39,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, LogIn } from 'lucide-react';
 import Link from 'next/link';
+import { createLogger } from '@/lib/client-logger';
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-bm-participant' });
 
 /** Player data structure */
 interface Player {
@@ -149,7 +153,7 @@ export default function BattleModeParticipantPage({
           setMatches(data.matches || []);
         }
       } catch (err) {
-        console.error('Data fetch error:', err);
+        logger.error('Data fetch error:', { error: err, tournamentId });
         setError('Failed to load tournament data. Please check your connection.');
       } finally {
         setLoading(false);
@@ -183,7 +187,7 @@ export default function BattleModeParticipantPage({
       setMatches(pollingData.matches as BMMatch[]);
     }
     if (pollingError) {
-      console.error('Polling error:', pollingError);
+      logger.error('Polling error:', { error: pollingError, tournamentId });
     }
   }, [pollingData, pollingError]);
 

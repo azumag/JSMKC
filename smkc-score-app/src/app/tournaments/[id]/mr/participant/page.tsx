@@ -31,6 +31,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Flag, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
+import { createLogger } from '@/lib/client-logger';
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-mr-participant' });
 
 /** Player data from the API */
 interface Player {
@@ -126,7 +130,7 @@ export default function MatchRaceParticipantPage({
           setMatches(data.matches || []);
         }
       } catch (err) {
-        console.error('Data fetch error:', err);
+        logger.error('Data fetch error:', { error: err, tournamentId });
         setError('Failed to load tournament data.');
       } finally {
         setLoading(false);
@@ -151,7 +155,7 @@ export default function MatchRaceParticipantPage({
     if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as MRMatch[]);
     }
-    if (pollingError) console.error('Polling error:', pollingError);
+    if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
   }, [pollingData, pollingError]);
 
   /* Filter matches for the current player (only pending ones) */

@@ -34,6 +34,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, AlertTriangle, Trophy, LogIn } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import Link from 'next/link';
+import { createLogger } from '@/lib/client-logger';
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-participant' });
 
 /** Tournament data structure from the API */
 interface Tournament {
@@ -88,7 +92,7 @@ export default function ParticipantEntryPage({
           setError('Failed to load tournament information');
         }
       } catch (err) {
-        console.error('Tournament fetch error:', err);
+        logger.error('Tournament fetch error:', { error: err, tournamentId });
         setError('Failed to load tournament data. Please check your connection.');
       } finally {
         setLoading(false);

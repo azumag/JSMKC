@@ -30,6 +30,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
+import { createLogger } from '@/lib/client-logger';
+
+/** Client-side logger for error tracking */
+const logger = createLogger({ serviceName: 'tournaments-gp-participant' });
 
 interface Player {
   id: string;
@@ -140,7 +144,7 @@ export default function GrandPrixParticipantPage({
           setMatches(data.matches || []);
         }
       } catch (err) {
-        console.error('Data fetch error:', err);
+        logger.error('Data fetch error:', { error: err, tournamentId });
         setError(tErrors('fetchError'));
       } finally {
         setLoading(false);
@@ -165,7 +169,7 @@ export default function GrandPrixParticipantPage({
     if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as GPMatch[]);
     }
-    if (pollingError) console.error('Polling error:', pollingError);
+    if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
   }, [pollingData, pollingError]);
 
   /* Filter matches for selected player and initialize race result forms */
