@@ -214,7 +214,6 @@ export function calculateFinalsPoints(
  * @param _mode - The competition mode (currently unused; all modes return 2000)
  * @returns Maximum finals points (2000)
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function getMaxFinalsPoints(_mode: FinalsMode): number {
   // All modes currently have the same 1st-place value.
   // The mode parameter is retained for API consistency and future extensibility.

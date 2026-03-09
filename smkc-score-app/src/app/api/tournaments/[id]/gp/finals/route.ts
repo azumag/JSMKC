@@ -11,7 +11,8 @@ const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   loggerName: 'gp-finals-api',
-  qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }],
+  // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
+  qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
   getErrorMessage: 'Failed to fetch grand prix finals data',

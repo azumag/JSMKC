@@ -32,6 +32,9 @@ export interface ExportConfig {
   qualificationRowMapper: (q: ExportQualification, index: number) => string[];
   matchHeaders: string[];
   matchRowMapper: (m: ExportMatch) => string[];
+  /** Custom orderBy for qualification query. Defaults to [{ score: 'desc' }, { points: 'desc' }].
+   *  GP should use [{ points: 'desc' }, { score: 'desc' }] per requirements.md Section 4.1. */
+  qualificationOrderBy?: Record<string, string>[];
 }
 
 export function createExportHandlers(config: ExportConfig) {
@@ -60,7 +63,7 @@ export function createExportHandlers(config: ExportConfig) {
       const qualifications = await qualModel(prisma).findMany({
         where: { tournamentId },
         include: { player: true },
-        orderBy: [{ score: 'desc' }, { points: 'desc' }],
+        orderBy: config.qualificationOrderBy ?? [{ score: 'desc' }, { points: 'desc' }],
       });
 
       const matches = await matchModel(prisma).findMany({

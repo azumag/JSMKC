@@ -5,6 +5,8 @@ const { GET } = createExportHandlers({
   qualificationModel: 'gPQualification',
   matchModel: 'gPMatch',
   eventCode: 'GP',
+  // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
+  qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
   qualificationHeaders: ['Rank', 'Player Name', 'Nickname', 'Matches', 'Wins', 'Ties', 'Losses', 'Driver Points', 'Score'],
   qualificationRowMapper: (q, index) => [
     String(index + 1), q.player.name, q.player.nickname,

@@ -22,16 +22,11 @@ interface LogMetadata extends Record<string, unknown> {
 }
 
 // Silent test logger to avoid noise in test output
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createTestLogger = (_serviceName: string) => {
   return {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     error: (_message: string, _meta?: LogMetadata) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     warn: (_message: string, _meta?: LogMetadata) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     info: (_message: string, _meta?: LogMetadata) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     debug: (_message: string, _meta?: LogMetadata) => {},
   };
 };

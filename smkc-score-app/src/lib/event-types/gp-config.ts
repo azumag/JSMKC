@@ -1,7 +1,7 @@
 /**
  * Grand Prix (GP) Event Type Configuration
  *
- * GP qualification uses cup-based races with driver points (1st=9, 2nd=6).
+ * GP qualification uses cup-based races with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
  * Match outcome is determined by total driver points across 4 races.
  * Standings use accumulated total driver points as tiebreaker (not differential).
  * Unlike BM/MR, GP has no group-based ordering in qualifications.
@@ -10,12 +10,19 @@
 import { EventTypeConfig, MatchResult } from './types';
 
 /**
+ * SMK driver points lookup table indexed by finishing position.
+ * Index 0 is unused (positions are 1-based); positions beyond 4th earn 0 points.
+ * Per requirements.md glossary: 1st=9, 2nd=6, 3rd=3, 4th=1.
+ */
+const DRIVER_POINTS = [0, 9, 6, 3, 1] as const;
+
+/**
  * Calculate driver points from race finishing positions.
- * 1st place = 9 points, 2nd place = 6 points, other = 0.
+ * 1st=9, 2nd=6, 3rd=3, 4th=1, 5th+=0.
  */
 function calculateDriverPoints(position1: number, position2: number) {
-  const points1 = position1 === 1 ? 9 : position1 === 2 ? 6 : 0;
-  const points2 = position2 === 1 ? 9 : position2 === 2 ? 6 : 0;
+  const points1 = DRIVER_POINTS[position1] ?? 0;
+  const points2 = DRIVER_POINTS[position2] ?? 0;
   return { points1, points2 };
 }
 
@@ -30,11 +37,13 @@ function calculateMatchResult(points1: number, points2: number): MatchResult {
 }
 
 export const gpConfig: EventTypeConfig = {
+  eventTypeCode: 'gp',
   qualificationModel: 'gPQualification',
   matchModel: 'gPMatch',
   loggerName: 'gp-api',
   eventDisplayName: 'grand prix',
-  qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }],
+  // Per requirements.md §4.1: GP uses driver points as primary ranking criterion
+  qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
   postRequiresAuth: true,
   putRequiresAuth: true,
   /* No audit logging for GP POST (matches original behavior) */

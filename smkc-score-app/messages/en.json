@@ -28,6 +28,8 @@
     "noPlayersSelected": "No players selected yet",
     "selectedPlayers": "Selected Players ({count})",
     "exporting": "Exporting...",
+    "export": "Export",
+    "exportAll": "Export All",
     "exportToExcel": "Export to Excel",
     "exportExcel": "Export Excel",
     "goToFinals": "Go to Finals",
@@ -74,7 +76,15 @@
     "show": "Show",
     "hide": "Hide",
     "randomAssign": "Random Assign",
-    "randomAssignDesc": "Randomly distribute players across groups"
+    "randomAssignDesc": "Randomly distribute players across groups",
+    "seeding": "Seed",
+    "groupCount": "Groups",
+    "autoDistribute": "Distribute by Seed",
+    "autoDistributeDesc": "Distribute players to groups by seeding (snake pattern)",
+    "enterSeedingFirst": "Enter seeding numbers first",
+    "dayLabel": "Day {day}",
+    "tvNumber": "TV#",
+    "bye": "BREAK"
   },
   "home": {
     "tagline": "SMKC Score Management",
@@ -251,8 +261,8 @@
     "timeListDesc": "View times for each player",
     "courseScore": "Score",
     "time": "Time",
-    "freeze": "Freeze",
-    "unfreeze": "Unfreeze",
+    "freezeQualification": "End Qualification (Confirm Times)",
+    "unfreezeQualification": "Reopen Qualification (Unfreeze)",
     "stageFrozen": "This stage is frozen. Time edits are not allowed.",
     "frozenBadge": "Frozen"
   },

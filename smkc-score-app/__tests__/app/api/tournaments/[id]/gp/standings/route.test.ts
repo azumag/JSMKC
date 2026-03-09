@@ -191,9 +191,10 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: true },
+        // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
         orderBy: [
-          { score: 'desc' },
           { points: 'desc' },
+          { score: 'desc' },
         ],
       });
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'etag-123');
@@ -425,7 +426,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
     });
 
     // Edge case - Correctly sorts qualifications by score then points
-    it('should correctly sort qualifications by score then points', async () => {
+    it('should correctly sort qualifications by drivers points then match score', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       const mockQualifications = [
         {

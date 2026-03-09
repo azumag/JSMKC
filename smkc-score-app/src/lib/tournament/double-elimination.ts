@@ -55,7 +55,6 @@ export interface BracketPlayer {
  */
 export function generateDoubleEliminationBracket(
   players: BracketPlayer[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _matchType: 'BM' | 'MR'
 ): DoubleEliminationBracket {
   const totalPlayers = players.length;

@@ -69,7 +69,6 @@ export interface QualificationPointsResult {
 export function calculateMatchPoints(
   wins: number,
   ties: number,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _losses: number
 ): number {
   // Formula: 2 points per win, 1 point per tie, 0 for loss.

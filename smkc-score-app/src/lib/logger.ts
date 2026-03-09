@@ -49,16 +49,11 @@ const level = () => {
 }
 
 // Test logger that suppresses all output to avoid console noise in test runs
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const createTestLogger = (_service: string) => {
   return {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     error: (_message: string, _meta?: Record<string, unknown>) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     warn: (_message: string, _meta?: Record<string, unknown>) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     info: (_message: string, _meta?: Record<string, unknown>) => {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     debug: (_message: string, _meta?: Record<string, unknown>) => {},
   }
 }

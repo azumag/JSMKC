@@ -26,7 +26,9 @@
 import { PrismaClient } from "@prisma/client";
 import { createLogger } from "@/lib/logger";
 import {
-  calculateTAQualificationPoints,
+  calculateAllCourseScores,
+} from "@/lib/ta/qualification-scoring";
+import type {
   TAQualificationPointsResult,
 } from "./ta-qualification-points";
 import {
@@ -35,7 +37,7 @@ import {
   QualificationPointsResult,
 } from "./qualification-points";
 import { getFinalsPoints } from "./finals-points";
-import { timeToMs } from "@/lib/ta/time-utils";
+
 
 type ExtendedPrismaClient = PrismaClient;
 
@@ -119,29 +121,33 @@ export async function calculateTAQualificationPointsFromDB(
     include: { player: true },
   });
 
-  // Build a map of playerId -> { courseAbbr -> timeMs }
-  // Time strings are converted to milliseconds for numeric comparison
-  const playerTimes = new Map<string, Record<string, number | null>>();
+  // Use the same scoring algorithm as the TA qualification page (qualification-scoring.ts)
+  // to ensure consistent points between the TA page and overall ranking.
+  // This uses single-floor-at-total approach (raw floats per course, Math.floor only on sum).
+  const scoringEntries = entries.map((e) => ({
+    id: e.id,
+    times: e.times as Record<string, string> | null,
+  }));
 
+  const scoringResults = calculateAllCourseScores(scoringEntries);
+
+  // Map entry ID -> player ID for the result
+  const entryToPlayer = new Map<string, string>();
   for (const entry of entries) {
-    const times = entry.times as Record<string, string> | null;
-    if (!times) continue;
-
-    // Convert each course's time string (e.g., "1:23.45") to milliseconds
-    const courseTimes: Record<string, number | null> = {};
-    for (const [course, timeStr] of Object.entries(times)) {
-      courseTimes[course] = timeStr ? timeToMs(timeStr) : null;
-    }
-    playerTimes.set(entry.playerId, courseTimes);
+    entryToPlayer.set(entry.id, entry.playerId);
   }
 
-  // Run the TA qualification points algorithm
-  const results = calculateTAQualificationPoints(playerTimes);
-
-  // Convert array to Map for O(1) lookup by playerId
+  // Convert to TAQualificationPointsResult keyed by playerId
   const resultMap = new Map<string, TAQualificationPointsResult>();
-  for (const result of results) {
-    resultMap.set(result.playerId, result);
+  for (const [entryId, result] of scoringResults) {
+    const playerId = entryToPlayer.get(entryId);
+    if (!playerId) continue;
+
+    resultMap.set(playerId, {
+      playerId,
+      coursePoints: result.courseScores as Record<string, number>,
+      totalPoints: result.qualificationPoints,
+    });
   }
 
   return resultMap;

@@ -28,6 +28,8 @@
     "noPlayersSelected": "プレイヤーが選択されていません",
     "selectedPlayers": "選択済みプレイヤー ({count})",
     "exporting": "エクスポート中...",
+    "export": "エクスポート",
+    "exportAll": "全データエクスポート",
     "exportToExcel": "Excelにエクスポート",
     "exportExcel": "Excel出力",
     "goToFinals": "決勝へ",
@@ -74,7 +76,15 @@
     "show": "表示",
     "hide": "非表示",
     "randomAssign": "ランダム割り当て",
-    "randomAssignDesc": "プレイヤーをグループにランダム分配"
+    "randomAssignDesc": "プレイヤーをグループにランダム分配",
+    "seeding": "シード",
+    "groupCount": "グループ数",
+    "autoDistribute": "シード順で振分け",
+    "autoDistributeDesc": "シード順に基づきスネーク方式でグループ自動振分け",
+    "enterSeedingFirst": "先にシード番号を入力してください",
+    "dayLabel": "Day {day}",
+    "tvNumber": "TV#",
+    "bye": "BREAK"
   },
   "home": {
     "tagline": "SMKC スコア管理",
@@ -251,8 +261,8 @@
     "timeListDesc": "各プレイヤーのタイムを閲覧",
     "courseScore": "スコア",
     "time": "タイム",
-    "freeze": "凍結",
-    "unfreeze": "凍結解除",
+    "freezeQualification": "予選を終了（タイム確定）",
+    "unfreezeQualification": "予選を再開（凍結解除）",
     "stageFrozen": "このステージは凍結されています。タイムの編集はできません。",
     "frozenBadge": "凍結中"
   },

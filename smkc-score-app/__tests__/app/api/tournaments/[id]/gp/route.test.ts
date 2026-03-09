@@ -87,7 +87,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: true },
-        orderBy: [{ score: 'desc' }, { points: 'desc' }],
+        orderBy: [{ points: 'desc' }, { score: 'desc' }],
       });
       expect(prisma.gPMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
@@ -280,6 +280,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
     });
 
     // Edge case - Creates correct number of matches for round-robin format
+    // 3 players (odd) → BREAK added → 4 players → 3 days × 2 matches = 6
+    // (3 real matches + 3 BYE matches via circle method)
     it('should create correct number of round-robin matches', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
@@ -298,7 +300,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(3);
+      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(6);
     });
   });
 
@@ -490,7 +492,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
     });
 
     // Edge case - Calculates correct driver points
-    // GP route calculateDriverPoints: 1st=9pts, 2nd=6pts, other=0pts
+    // GP driver points per requirements.md glossary: 1st=9, 2nd=6, 3rd=3, 4th=1, 5th+=0
     it('should calculate correct driver points for each race', async () => {
       const mockMatch = {
         id: 'm1',
@@ -505,12 +507,12 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       /*
-       * Race positions and expected driver points (1st=9, 2nd=6, other=0):
+       * Race positions and expected driver points (1st=9, 2nd=6, 3rd=3, 4th=1):
        * Race 1: P1=1st(9), P2=2nd(6)
        * Race 2: P1=2nd(6), P2=1st(9)
-       * Race 3: P1=1st(9), P2=3rd(0) - position 3 yields 0 in GP route
-       * Race 4: P1=2nd(6), P2=4th(0) - position 4 yields 0 in GP route
-       * Totals: P1=9+6+9+6=30, P2=6+9+0+0=15
+       * Race 3: P1=1st(9), P2=3rd(3)
+       * Race 4: P1=2nd(6), P2=4th(1)
+       * Totals: P1=9+6+9+6=30, P2=6+9+3+1=19
        */
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
         matchId: 'm1',
@@ -528,7 +530,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(result.status).toBe(200);
       const updateCall = (prisma.gPMatch.update as jest.Mock).mock.calls[0];
       expect(updateCall[0].data.points1).toBe(30);
-      expect(updateCall[0].data.points2).toBe(15);
+      expect(updateCall[0].data.points2).toBe(19);
     });
 
     // Edge case - Recalculates stats correctly for multiple matches

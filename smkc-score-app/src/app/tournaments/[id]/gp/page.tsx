@@ -6,7 +6,7 @@
  * Admin page for managing GP qualification rounds.
  * GP uses cup-based races with driver points (1st=9, 2nd=6).
  * Players compete in round-robin groups, and standings are
- * calculated by match score (wins×2 + ties×1) with driver points as tiebreaker.
+ * calculated by driver points (primary) with match score (wins×2 + ties×1) as tiebreaker.
  *
  * Features:
  * - Group standings display with sortable columns
@@ -90,6 +90,9 @@ interface GPQualification {
 interface GPMatch {
   id: string;
   matchNumber: number;
+  roundNumber?: number;  // サークル方式のDay番号
+  isBye?: boolean;       // BREAK不戦勝マッチ
+  tvNumber?: number;     // 配信台番号
   player1Id: string;
   player2Id: string;
   player1Side: number;
@@ -140,8 +143,9 @@ export default function GrandPrixPage({
     { course: "", position1: null, position2: null },
   ]);
   const [setupPlayers, setSetupPlayers] = useState<
-    { playerId: string; group: string }[]
+    { playerId: string; group: string; seeding?: number }[]
   >([]);
+  const [groupCount, setGroupCount] = useState(3);
   const [exporting, setExporting] = useState(false);
 
   /** SMK has 4 cups, each with 5 courses */
@@ -230,6 +234,23 @@ export default function GrandPrixPage({
    * Open the match result dialog pre-populated with existing data.
    * If the match already has results, load them into the form.
    */
+  /**
+   * Handle TV number assignment for a match.
+   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
+   */
+  const handleTvAssign = async (matchId: string, tvNumber: number | null) => {
+    try {
+      await fetch(`/api/tournaments/${tournamentId}/gp`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, tvNumber }),
+      });
+      refetch();
+    } catch (err) {
+      console.error("Failed to assign TV:", err);
+    }
+  };
+
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
     if (match.cup && match.races && match.races.length === 4) {
@@ -400,7 +421,10 @@ export default function GrandPrixPage({
             existingAssignments={qualifications.map((q) => ({
               playerId: q.playerId,
               group: q.group,
+              seeding: q.seeding ?? undefined,
             }))}
+            groupCount={groupCount}
+            setGroupCount={setGroupCount}
           />}
         </div>
       </div>
@@ -471,78 +495,126 @@ export default function GrandPrixPage({
             </div>
           </TabsContent>
 
-          {/* Matches tab: all qualification matches */}
+          {/* Matches Tab - Day-grouped match list with TV# assignment and BYE styling */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
                 <CardTitle>{tc('matchList')}</CardTitle>
                 <CardDescription>
-                  {tc('completedOf', { completed: matches.filter((m) => m.completed).length, total: matches.length })}
+                  {tc('completedOf', {
+                    completed: matches.filter((m) => m.completed).length,
+                    total: matches.filter((m) => !m.isBye).length,
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>{tc('player1')}</TableHead>
-                      <TableHead className="text-center w-24">{tc('points')}</TableHead>
-                      <TableHead>{tc('player2')}</TableHead>
-                      <TableHead className="text-right">{tc('actions')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {matches.map((match) => (
-                      <TableRow key={match.id}>
-                        <TableCell>{match.matchNumber}</TableCell>
-                        <TableCell
-                          className={
-                            match.completed && match.points1 > match.points2
-                              ? "font-bold"
-                              : ""
-                          }
-                        >
-                          {match.player1.nickname}
-                        </TableCell>
-                        <TableCell className="text-center font-mono">
-                          {match.completed
-                            ? `${match.points1} - ${match.points2}`
-                            : "- - -"}
-                        </TableCell>
-                        <TableCell
-                          className={
-                            match.completed && match.points2 > match.points1
-                              ? "font-bold"
-                              : ""
-                          }
-                        >
-                          {match.player2.nickname}
-                        </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                          >
-                            <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
-                              {tc('share')}
-                            </Link>
-                          </Button>
-                          {/* Enter/Edit result: admin-only */}
-                          {isAdmin && (
-                          <Button
-                            variant={match.completed ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => openMatchDialog(match)}
-                          >
-                            {match.completed ? tc('edit') : tc('enterResult')}
-                          </Button>
+                {(() => {
+                  const hasRoundNumbers = matches.some((m) => m.roundNumber != null);
+                  const matchesByDay = hasRoundNumbers
+                    ? matches.reduce<Record<number, GPMatch[]>>((acc, m) => {
+                        const day = m.roundNumber ?? 0;
+                        if (!acc[day]) acc[day] = [];
+                        acc[day].push(m);
+                        return acc;
+                      }, {})
+                    : { 0: matches };
+                  const sortedDays = Object.keys(matchesByDay).map(Number).sort((a, b) => a - b);
+
+                  return (
+                    <div className="space-y-6">
+                      {sortedDays.map((day) => (
+                        <div key={day}>
+                          {hasRoundNumbers && day > 0 && (
+                            <h3 className="font-semibold text-sm text-muted-foreground mb-2">
+                              {tc('dayLabel', { day })}
+                            </h3>
                           )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>{tc('player1')}</TableHead>
+                                <TableHead className="text-center w-24">{tc('points')}</TableHead>
+                                <TableHead>{tc('player2')}</TableHead>
+                                <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                <TableHead className="text-right">{tc('actions')}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {matchesByDay[day].map((match) => (
+                                <TableRow
+                                  key={match.id}
+                                  className={match.isBye ? "opacity-50 bg-muted/30" : ""}
+                                >
+                                  <TableCell>{match.matchNumber}</TableCell>
+                                  <TableCell
+                                    className={
+                                      match.completed && match.points1 > match.points2
+                                        ? "font-bold"
+                                        : ""
+                                    }
+                                  >
+                                    {match.player1.nickname}
+                                  </TableCell>
+                                  <TableCell className="text-center font-mono">
+                                    {match.isBye || match.completed
+                                      ? `${match.points1} - ${match.points2}`
+                                      : "- - -"}
+                                  </TableCell>
+                                  <TableCell
+                                    className={
+                                      !match.isBye && match.completed && match.points2 > match.points1
+                                        ? "font-bold"
+                                        : ""
+                                    }
+                                  >
+                                    {match.isBye ? tc('bye') : match.player2.nickname}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {isAdmin && !match.isBye ? (
+                                      <select
+                                        className="w-14 h-8 text-center text-sm border rounded bg-background"
+                                        value={match.tvNumber ?? ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          handleTvAssign(match.id, val ? parseInt(val) : null);
+                                        }}
+                                      >
+                                        <option value="">-</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                      </select>
+                                    ) : (
+                                      match.tvNumber ? `${match.tvNumber}` : "-"
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right space-x-2">
+                                    {!match.isBye && (
+                                      <Button variant="ghost" size="sm" asChild>
+                                        <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
+                                          {tc('share')}
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    {isAdmin && !match.isBye && (
+                                      <Button
+                                        variant={match.completed ? "outline" : "default"}
+                                        size="sm"
+                                        onClick={() => openMatchDialog(match)}
+                                      >
+                                        {match.completed ? tc('edit') : tc('enterResult')}
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

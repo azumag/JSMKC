@@ -2,8 +2,8 @@
  * ExportButton Component
  *
  * Provides a one-click export action for tournament data. The component
- * fetches an Excel (.xlsx) file from the server API and triggers a
- * browser download using a dynamically created anchor element.
+ * fetches a CSV file from the server API and triggers a browser download
+ * using a dynamically created anchor element.
  *
  * Supports exporting either the full tournament or individual competition
  * modes (TA, BM, MR, GP). The API endpoint is constructed based on the
@@ -22,6 +22,7 @@
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
+import { useTranslations } from "next-intl";
 
 /**
  * Module-level logger for export operations.
@@ -78,6 +79,7 @@ export function ExportButton({
   size = "sm",
   disabled = false
 }: ExportButtonProps) {
+  const t = useTranslations("common");
 
   /**
    * Handles the export action: fetches the file, extracts the filename,
@@ -120,7 +122,7 @@ export function ExportButton({
        * with underscores) and appending the mode and .xlsx extension.
        */
       const contentDisposition = response.headers.get("content-disposition");
-      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-${mode}-export.xlsx`;
+      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-${mode}-export.csv`;
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
@@ -161,8 +163,8 @@ export function ExportButton({
       disabled={disabled}
     >
       <Download className="w-4 h-4 mr-2" />
-      {/* Display custom children label, or generate one from the mode */}
-      {children || `Export ${mode === "full" ? "All" : mode.toUpperCase()}`}
+      {/* Display custom children label, or use translated export label */}
+      {children || (mode === "full" ? t("exportAll") : `${t("export")} ${mode.toUpperCase()}`)}
     </Button>
   );
 }

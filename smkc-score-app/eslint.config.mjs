@@ -18,13 +18,16 @@ const eslintConfig = defineConfig([
   {
     rules: {
       '@typescript-eslint/ban-ts-comment': 'off',
+      // Allow underscore-prefixed parameters/variables to be unused.
+      // This is the standard convention for intentionally unused parameters
+      // (e.g., mock functions that document future production signatures).
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
   {
     files: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 ]);

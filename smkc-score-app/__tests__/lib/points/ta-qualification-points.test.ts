@@ -73,7 +73,9 @@ describe("TA Qualification Points", () => {
       expect(results[2]).toEqual({ playerId: "p3", rank: 3, points: 0 });
     });
 
-    it("should handle ties correctly (same rank, same points)", () => {
+    it("should handle ties correctly with averaged points", () => {
+      // Per tournament rules: tied players share the average of the points
+      // for all positions they occupy.
       const entries = [
         { playerId: "p1", timeMs: 90000 },
         { playerId: "p2", timeMs: 85000 }, // Tied for 1st
@@ -83,16 +85,115 @@ describe("TA Qualification Points", () => {
 
       const results = calculateCourseRankings(entries);
 
-      // p2 and p3 should both have rank 1
+      // p2 and p3 tied for 1st: occupy positions 1 and 2
+      // Rank 1 points: 50*(4-1)/(4-1) = 50
+      // Rank 2 points: 50*(4-2)/(4-1) = floor(33.33) = 33
+      // Average: floor((50+33)/2) = floor(41.5) = 41
       const p2Result = results.find((r) => r.playerId === "p2");
       const p3Result = results.find((r) => r.playerId === "p3");
       expect(p2Result?.rank).toBe(1);
       expect(p3Result?.rank).toBe(1);
+      expect(p2Result?.points).toBe(41);
+      expect(p3Result?.points).toBe(41);
       expect(p2Result?.points).toBe(p3Result?.points);
 
       // p1 should have rank 3 (skipping rank 2)
       const p1Result = results.find((r) => r.playerId === "p1");
       expect(p1Result?.rank).toBe(3);
+      // Rank 3 points: 50*(4-3)/(4-1) = floor(16.66) = 16
+      expect(p1Result?.points).toBe(16);
+    });
+
+    it("should handle 3-way tie with averaged points", () => {
+      // 3 players tie at positions 2-3-4 out of 5 players
+      const entries = [
+        { playerId: "p1", timeMs: 80000 }, // 1st
+        { playerId: "p2", timeMs: 90000 }, // Tied 2nd
+        { playerId: "p3", timeMs: 90000 }, // Tied 2nd
+        { playerId: "p4", timeMs: 90000 }, // Tied 2nd
+        { playerId: "p5", timeMs: 100000 }, // 5th
+      ];
+
+      const results = calculateCourseRankings(entries);
+
+      // p1 = rank 1, 50 points
+      expect(results.find((r) => r.playerId === "p1")?.points).toBe(50);
+
+      // p2, p3, p4 tied: occupy positions 2, 3, 4
+      // Rank 2: 50*(5-2)/(5-1) = floor(37.5) = 37
+      // Rank 3: 50*(5-3)/(5-1) = 25
+      // Rank 4: 50*(5-4)/(5-1) = floor(12.5) = 12
+      // Average: floor((37+25+12)/3) = floor(24.66) = 24
+      const p2 = results.find((r) => r.playerId === "p2");
+      const p3 = results.find((r) => r.playerId === "p3");
+      const p4 = results.find((r) => r.playerId === "p4");
+      expect(p2?.rank).toBe(2);
+      expect(p3?.rank).toBe(2);
+      expect(p4?.rank).toBe(2);
+      expect(p2?.points).toBe(24);
+      expect(p3?.points).toBe(24);
+      expect(p4?.points).toBe(24);
+
+      // p5 = rank 5, 0 points
+      expect(results.find((r) => r.playerId === "p5")?.points).toBe(0);
+    });
+
+    it("should handle all players tied (same time)", () => {
+      const entries = [
+        { playerId: "p1", timeMs: 90000 },
+        { playerId: "p2", timeMs: 90000 },
+        { playerId: "p3", timeMs: 90000 },
+      ];
+
+      const results = calculateCourseRankings(entries);
+
+      // All tied: occupy positions 1, 2, 3
+      // Rank 1: 50, Rank 2: 25, Rank 3: 0
+      // Average: floor((50+25+0)/3) = floor(25) = 25
+      expect(results).toHaveLength(3);
+      for (const r of results) {
+        expect(r.rank).toBe(1);
+        expect(r.points).toBe(25);
+      }
+    });
+
+    it("should handle 2-player tie at last positions", () => {
+      const entries = [
+        { playerId: "p1", timeMs: 80000 }, // 1st
+        { playerId: "p2", timeMs: 85000 }, // 2nd
+        { playerId: "p3", timeMs: 100000 }, // Tied last
+        { playerId: "p4", timeMs: 100000 }, // Tied last
+      ];
+
+      const results = calculateCourseRankings(entries);
+
+      // p3 and p4 tied at positions 3-4
+      // Rank 3: floor(50*(4-3)/(4-1)) = floor(16.66) = 16
+      // Rank 4: 0
+      // Average: floor((16+0)/2) = 8
+      const p3 = results.find((r) => r.playerId === "p3");
+      const p4 = results.find((r) => r.playerId === "p4");
+      expect(p3?.rank).toBe(3);
+      expect(p4?.rank).toBe(3);
+      expect(p3?.points).toBe(8);
+      expect(p4?.points).toBe(8);
+    });
+
+    it("should handle exactly 2 players tied", () => {
+      const entries = [
+        { playerId: "p1", timeMs: 90000 },
+        { playerId: "p2", timeMs: 90000 },
+      ];
+
+      const results = calculateCourseRankings(entries);
+
+      // Both at positions 1-2: 50 and 0
+      // Average: floor((50+0)/2) = 25
+      expect(results).toHaveLength(2);
+      expect(results[0].rank).toBe(1);
+      expect(results[0].points).toBe(25);
+      expect(results[1].rank).toBe(1);
+      expect(results[1].points).toBe(25);
     });
 
     it("should filter out invalid times", () => {
