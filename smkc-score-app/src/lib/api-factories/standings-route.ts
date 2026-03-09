@@ -35,8 +35,12 @@ export interface StandingsConfig {
   qualificationModel: string;
   /** If true, use paginate() for fetching (BM pattern). If false, use findMany with transform. */
   usePagination: boolean;
-  /** Order by for the findMany query (only used when usePagination=false) */
-  orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+  /**
+   * Order by for the findMany query (only used when usePagination=false).
+   * Each element is a Prisma-style sort object with one field key; other keys are absent.
+   * Using Partial allows single-key objects like { score: 'desc' } without type errors.
+   */
+  orderBy?: Array<Partial<Record<string, 'asc' | 'desc'>>>;
   /** Transform function for mapping qualification records to response shape (only used when usePagination=false) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformQualification?: (q: any, index: number) => Record<string, unknown>;
