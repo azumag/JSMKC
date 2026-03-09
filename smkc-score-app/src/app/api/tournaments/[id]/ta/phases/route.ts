@@ -35,6 +35,7 @@ import {
   type RoundResultInput,
 } from "@/lib/ta/finals-phase-manager";
 import { getAvailableCourses, getPlayedCourses } from "@/lib/ta/course-selection";
+import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 
 /**
@@ -289,6 +290,9 @@ export async function POST(
     // === Round Management Actions ===
     if (action === "start_round") {
       const { phase } = parsed.data;
+      // Prevent starting rounds in a frozen phase (admin locked after completion)
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
       const result = await startPhaseRound(prisma, context, phase);
       return NextResponse.json({
         success: true,
@@ -298,6 +302,9 @@ export async function POST(
 
     if (action === "cancel_round") {
       const { phase, roundNumber } = parsed.data;
+      // Prevent cancelling rounds in a frozen phase
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
       const result = await cancelPhaseRound(prisma, context, phase, roundNumber);
       return NextResponse.json({
         success: true,
@@ -307,6 +314,9 @@ export async function POST(
 
     if (action === "submit_results") {
       const { phase, roundNumber, results } = parsed.data;
+      // Prevent submitting results in a frozen phase
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
 
       const roundResults: RoundResultInput[] = results;
       const result = await submitRoundResults(
