@@ -125,7 +125,8 @@ export const MAX_RETRY_ATTEMPTS = 3;
 export const RETRY_BASE_DELAY = 100; // milliseconds, exponentially increases
 
 // Polling constants - client-side data refresh intervals
-export const POLLING_INTERVAL = 5000; // 5 seconds between polls
+// Per ta-user-manual.md: pages auto-refresh at 3-second intervals
+export const POLLING_INTERVAL = 3000; // 3 seconds between polls
 export const POLLING_MIN_REQUEST_INTERVAL = 500; // minimum 500ms between requests
 
 // Audit log retention period

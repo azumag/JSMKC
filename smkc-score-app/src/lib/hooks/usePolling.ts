@@ -7,7 +7,7 @@
  * states up to date in real time during active competitions.
  *
  * Features:
- * - Configurable polling interval (default: POLLING_INTERVAL from constants = 5s)
+ * - Configurable polling interval (default: POLLING_INTERVAL from constants = 3s)
  * - ETag-based change detection: skips state updates when data hasn't changed,
  *   reducing unnecessary re-renders
  * - Cross-mount cache: when a cacheKey is provided, data persists across
@@ -24,7 +24,7 @@
  * ```tsx
  * const { data, isLoading, error, refetch } = usePolling(
  *   () => fetch('/api/standings').then(r => r.json()),
- *   { interval: 5000, enabled: isActive, cacheKey: 'tournament/123/bm' }
+ *   { interval: POLLING_INTERVAL, enabled: isActive, cacheKey: 'tournament/123/bm' }
  * );
  * ```
  *
@@ -93,7 +93,7 @@ export function clearPollingCache(): void {
  * Configuration options for the usePolling hook.
  *
  * @property enabled   - When false, polling is paused and state is cleared (default: true)
- * @property interval  - Milliseconds between polls (default: POLLING_INTERVAL = 5000)
+ * @property interval  - Milliseconds between polls (default: POLLING_INTERVAL = 3000)
  * @property immediate - Whether to execute the first poll immediately on mount (default: true)
  * @property onSuccess - Optional callback invoked with the response data after each successful poll
  * @property onError   - Optional callback invoked with the error after a failed poll
