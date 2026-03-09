@@ -277,6 +277,28 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(result.status).toBe(400);
     });
 
+    // Validation error case - Rejects out-of-range MR score (max is 3)
+    it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 4, score2: 0, version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.status).toBe(400);
+      expect(updateMRMatchScore).not.toHaveBeenCalled();
+    });
+
+    // Validation error case - Rejects negative MR score
+    it('should return 400 when score is negative', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: -1, score2: 3, version: 1 });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.status).toBe(400);
+      expect(updateMRMatchScore).not.toHaveBeenCalled();
+    });
+
     // Optimistic lock conflict case - Returns 409 when version conflict occurs
     it('should return 409 when optimistic lock conflict occurs', async () => {
       (updateMRMatchScore as jest.Mock).mockRejectedValue(new OptimisticLockError('Version conflict', 5));

@@ -411,6 +411,28 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(result.status).toBe(400);
     });
 
+    // Validation error case - Rejects out-of-range scores (MR max is 3)
+    it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 4, score2: 0 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.status).toBe(400);
+      expect(prisma.mRMatch.update).not.toHaveBeenCalled();
+    });
+
+    // Validation error case - Rejects negative scores
+    it('should return 400 when score is negative', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: -1, score2: 3 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ error: 'Match race score must be an integer between 0 and 3' });
+      expect(result.status).toBe(400);
+      expect(prisma.mRMatch.update).not.toHaveBeenCalled();
+    });
+
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (prisma.mRMatch.update as jest.Mock).mockRejectedValue(new Error('Database error'));

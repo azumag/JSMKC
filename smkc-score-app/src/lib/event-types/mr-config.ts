@@ -9,6 +9,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { validateMatchRaceScores } from '@/lib/score-validation';
 
 /**
  * Calculate MR match result from race win counts.
@@ -28,6 +29,7 @@ function calculateMatchResult(score1: number, score2: number): MatchResult {
 }
 
 export const mrConfig: EventTypeConfig = {
+  eventTypeCode: 'mr',
   qualificationModel: 'mRQualification',
   matchModel: 'mRMatch',
   loggerName: 'mr-api',
@@ -47,6 +49,13 @@ export const mrConfig: EventTypeConfig = {
     };
     if (!matchId || score1 === undefined || score2 === undefined) {
       return { valid: false, error: 'matchId, score1, and score2 are required' };
+    }
+    // Validate MR score rules: each score must be an integer in [0, MAX_RACE_WIN_SCORE].
+    // BYE matches (score 4-0) are auto-completed at creation, not via PUT, so they
+    // never reach this validation path.
+    const scoreValidation = validateMatchRaceScores(score1, score2);
+    if (!scoreValidation.isValid) {
+      return { valid: false, error: scoreValidation.error };
     }
     return { valid: true, data: { matchId, score1, score2, rounds } };
   },

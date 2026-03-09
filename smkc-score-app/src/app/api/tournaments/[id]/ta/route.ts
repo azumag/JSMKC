@@ -97,9 +97,10 @@ const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
  * - "add": Add a player to qualification (requires playerId or players array)
  * - Promotion actions: Promote players to revival rounds (requires auth)
  */
-/* promote_to_finals action removed: superseded by Phase 1/2/3 promotion
- * via /api/tournaments/[id]/ta/phases endpoint. topN field also removed
- * as it was only used by promote_to_finals. */
+/* promote_to_finals action is deprecated (not removed): superseded by Phase 1/2/3 promotion
+ * via /api/tournaments/[id]/ta/phases endpoint (action="promote_phase3"). Retained for
+ * backward compatibility with pre-Phase-system tournaments. topN field was removed
+ * as it was only used by the old promote_to_finals path. */
 const PostRequestSchema = z.object({
   /* Prisma uses cuid() for all IDs, not uuid */
   playerId: z.string().cuid().optional(),

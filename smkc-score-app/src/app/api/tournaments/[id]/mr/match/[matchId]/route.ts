@@ -4,10 +4,14 @@
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual MR match data with optimistic locking.
  * Uses raw response style with sanitized input.
+ *
+ * Score validation enforces MR rules: each score must be an integer in [0, 3].
+ * BYE matches (score 4-0) are auto-completed at creation and never reach this PUT handler.
  */
 
 import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-route';
 import { updateMRMatchScore } from '@/lib/optimistic-locking';
+import { validateMatchRaceScores } from '@/lib/score-validation';
 
 const { GET, PUT } = createMatchDetailHandlers({
   matchModel: 'mRMatch',
@@ -16,6 +20,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   detailField: 'rounds',
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail),
+  validateScores: validateMatchRaceScores,
   sanitizeBody: true,
   responseStyle: 'raw',
   putRequiresAuth: true,
