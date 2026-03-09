@@ -75,8 +75,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       player2Seed: seedPairs[i][1],
       // Winners of QF matches 1&2 go to SF match 5; QF matches 3&4 go to SF match 6
       winnerGoesTo: 5 + Math.floor(i / 2),
-      // Losers drop to Losers Bracket R1: QF 1&2 losers to L_R1 match 9; QF 3&4 losers to match 10
-      loserGoesTo: 9 + Math.floor(i / 2),
+      // Losers drop to Losers Bracket R1: QF 1&2 losers to L_R1 match 8; QF 3&4 losers to match 9
+      loserGoesTo: 8 + Math.floor(i / 2),
       // Position alternates 1,2,1,2 for the receiving semi-final match slots
       position: ((i % 2) + 1) as 1 | 2,
     });
@@ -91,9 +91,9 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       bracket: "winners",
       // Both SF winners advance to the Winners Final (match 7)
       winnerGoesTo: 7,
-      // SF losers drop to Losers R3 (matches 13-14), giving them another
+      // SF losers drop to Losers R3 (matches 12-13), giving them another
       // chance to reach the Grand Final through the losers side
-      loserGoesTo: 13 + i,
+      loserGoesTo: 12 + i,
       // Position 1 or 2 in the Winners Final
       position: (i + 1) as 1 | 2,
     });
@@ -124,8 +124,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       matchNumber: matchNumber,
       round: "losers_r1",
       bracket: "losers",
-      // Winners advance to Losers R2 (matches 11-12)
-      winnerGoesTo: 11 + i,
+      // Winners advance to Losers R2 (matches 10-11)
+      winnerGoesTo: 10 + i,
       // No loserGoesTo -- losing here means elimination (second loss)
       position: 1,
     });
@@ -139,8 +139,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       matchNumber: matchNumber,
       round: "losers_r2",
       bracket: "losers",
-      // Winners advance to Losers R3 (matches 13-14)
-      winnerGoesTo: 13 + i,
+      // Winners advance to Losers R3 (matches 12-13)
+      winnerGoesTo: 12 + i,
       // Position 2: enters as the second player in the next losers match
       position: 2,
     });
@@ -155,8 +155,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
       matchNumber: matchNumber,
       round: "losers_r3",
       bracket: "losers",
-      // Winners advance to Losers SF (match 15)
-      winnerGoesTo: 15,
+      // Winners advance to Losers SF (match 14)
+      winnerGoesTo: 14,
       // Position alternates for the Losers SF slots
       position: (i + 1) as 1 | 2,
     });
@@ -168,8 +168,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
     matchNumber: matchNumber,
     round: "losers_sf",
     bracket: "losers",
-    // Winner advances to Losers Final (match 16)
-    winnerGoesTo: 16,
+    // Winner advances to Losers Final (match 15)
+    winnerGoesTo: 15,
     position: 1,
   });
   matchNumber++;
@@ -180,8 +180,8 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
     matchNumber: matchNumber,
     round: "losers_final",
     bracket: "losers",
-    // Winner becomes the Losers Bracket champion and enters Grand Final
-    winnerGoesTo: 17,
+    // Winner becomes the Losers Bracket champion and enters Grand Final (match 16)
+    winnerGoesTo: 16,
     // Enters Grand Final as player 2 (the one-loss challenger)
     position: 2,
   });
@@ -193,12 +193,12 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
   // If the Winners champion wins, the tournament is over.
   // If the Losers champion wins, a reset match is required because
   // both players would then have exactly one loss.
+  // Note: winnerGoesTo is not set here — Grand Final advancement is handled
+  // by special-case logic in the finals route (uses round: 'grand_final_reset' lookup).
   matches.push({
     matchNumber: matchNumber,
     round: "grand_final",
     bracket: "grand_final",
-    // Points to reset match if needed
-    winnerGoesTo: 18,
   });
   matchNumber++;
 

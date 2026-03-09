@@ -67,13 +67,13 @@ describe('Double Elimination Bracket Structure', () => {
       const qfMatch4 = matches.find(m => m.matchNumber === 4);
 
       expect(qfMatch1?.winnerGoesTo).toBe(5);
-      expect(qfMatch1?.loserGoesTo).toBe(9);
+      expect(qfMatch1?.loserGoesTo).toBe(8);
       expect(qfMatch2?.winnerGoesTo).toBe(5);
-      expect(qfMatch2?.loserGoesTo).toBe(9);
+      expect(qfMatch2?.loserGoesTo).toBe(8);
       expect(qfMatch3?.winnerGoesTo).toBe(6);
-      expect(qfMatch3?.loserGoesTo).toBe(10);
+      expect(qfMatch3?.loserGoesTo).toBe(9);
       expect(qfMatch4?.winnerGoesTo).toBe(6);
-      expect(qfMatch4?.loserGoesTo).toBe(10);
+      expect(qfMatch4?.loserGoesTo).toBe(9);
     });
 
     it('should create correct Winners Bracket Semi Finals structure', () => {
@@ -92,8 +92,8 @@ describe('Double Elimination Bracket Structure', () => {
       const sfMatch1 = matches.find(m => m.matchNumber === 5);
       const sfMatch2 = matches.find(m => m.matchNumber === 6);
 
-      expect(sfMatch1?.loserGoesTo).toBe(13);
-      expect(sfMatch2?.loserGoesTo).toBe(14);
+      expect(sfMatch1?.loserGoesTo).toBe(12);
+      expect(sfMatch2?.loserGoesTo).toBe(13);
     });
 
     it('should create correct Winners Final structure', () => {
@@ -113,8 +113,8 @@ describe('Double Elimination Bracket Structure', () => {
       expect(losersR1).toHaveLength(2);
       expect(losersR1[0].matchNumber).toBe(8);
       expect(losersR1[1].matchNumber).toBe(9);
-      expect(losersR1[0].winnerGoesTo).toBe(11);
-      expect(losersR1[1].winnerGoesTo).toBe(12);
+      expect(losersR1[0].winnerGoesTo).toBe(10);
+      expect(losersR1[1].winnerGoesTo).toBe(11);
     });
 
     it('should create correct Losers Bracket Round 2 structure', () => {
@@ -124,8 +124,8 @@ describe('Double Elimination Bracket Structure', () => {
       expect(losersR2).toHaveLength(2);
       expect(losersR2[0].matchNumber).toBe(10);
       expect(losersR2[1].matchNumber).toBe(11);
-      expect(losersR2[0].winnerGoesTo).toBe(13);
-      expect(losersR2[1].winnerGoesTo).toBe(14);
+      expect(losersR2[0].winnerGoesTo).toBe(12);
+      expect(losersR2[1].winnerGoesTo).toBe(13);
     });
 
     it('should create correct Losers Bracket Round 3 structure', () => {
@@ -135,8 +135,8 @@ describe('Double Elimination Bracket Structure', () => {
       expect(losersR3).toHaveLength(2);
       expect(losersR3[0].matchNumber).toBe(12);
       expect(losersR3[1].matchNumber).toBe(13);
-      expect(losersR3[0].winnerGoesTo).toBe(15);
-      expect(losersR3[1].winnerGoesTo).toBe(15);
+      expect(losersR3[0].winnerGoesTo).toBe(14);
+      expect(losersR3[1].winnerGoesTo).toBe(14);
     });
 
     it('should create correct Losers Semi Final structure', () => {
@@ -145,7 +145,7 @@ describe('Double Elimination Bracket Structure', () => {
 
       expect(losersSF).toBeDefined();
       expect(losersSF?.matchNumber).toBe(14);
-      expect(losersSF?.winnerGoesTo).toBe(16);
+      expect(losersSF?.winnerGoesTo).toBe(15);
     });
 
     it('should create correct Losers Final structure', () => {
@@ -154,7 +154,7 @@ describe('Double Elimination Bracket Structure', () => {
 
       expect(losersFinal).toBeDefined();
       expect(losersFinal?.matchNumber).toBe(15);
-      expect(losersFinal?.winnerGoesTo).toBe(17);
+      expect(losersFinal?.winnerGoesTo).toBe(16);
     });
 
     it('should create correct Grand Final structure', () => {
@@ -163,7 +163,8 @@ describe('Double Elimination Bracket Structure', () => {
 
       expect(grandFinal).toBeDefined();
       expect(grandFinal?.matchNumber).toBe(16);
-      expect(grandFinal?.winnerGoesTo).toBe(18);
+      // Grand Final uses special-case reset logic (not winnerGoesTo) so no routing target is set
+      expect(grandFinal?.winnerGoesTo).toBeUndefined();
     });
 
     it('should create Grand Final Reset match', () => {
@@ -253,7 +254,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return next match for winner of Losers Final', () => {
       const result = getNextMatchInfo(matches, 15, true);
       expect(result).toEqual({
-        nextMatchNumber: 17,
+        nextMatchNumber: 16,
         position: 2
       });
     });
@@ -261,7 +262,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return correct position for loser of Winners QF match 1', () => {
       const result = getNextMatchInfo(matches, 1, false);
       expect(result).toEqual({
-        nextMatchNumber: 9,
+        nextMatchNumber: 8,
         position: 1
       });
     });
@@ -269,7 +270,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return correct position for loser of Winners QF match 2', () => {
       const result = getNextMatchInfo(matches, 2, false);
       expect(result).toEqual({
-        nextMatchNumber: 9,
+        nextMatchNumber: 8,
         position: 2
       });
     });
@@ -277,7 +278,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return correct position for loser of Winners QF match 3', () => {
       const result = getNextMatchInfo(matches, 3, false);
       expect(result).toEqual({
-        nextMatchNumber: 10,
+        nextMatchNumber: 9,
         position: 1
       });
     });
@@ -285,7 +286,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return correct position for loser of Winners QF match 4', () => {
       const result = getNextMatchInfo(matches, 4, false);
       expect(result).toEqual({
-        nextMatchNumber: 10,
+        nextMatchNumber: 9,
         position: 2
       });
     });
@@ -293,7 +294,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return next match for loser of Winners SF match 5', () => {
       const result = getNextMatchInfo(matches, 5, false);
       expect(result).toEqual({
-        nextMatchNumber: 13,
+        nextMatchNumber: 12,
         position: 1
       });
     });
@@ -301,7 +302,7 @@ describe('Double Elimination Bracket Structure', () => {
     it('should return next match for loser of Winners SF match 6', () => {
       const result = getNextMatchInfo(matches, 6, false);
       expect(result).toEqual({
-        nextMatchNumber: 14,
+        nextMatchNumber: 13,
         position: 1
       });
     });
@@ -324,12 +325,11 @@ describe('Double Elimination Bracket Structure', () => {
       expect(result).toBeNull();
     });
 
-    it('should handle matches with default position when position is undefined', () => {
+    it('should return null for winner of Grand Final (no automatic routing; reset handled separately)', () => {
+      // Grand Final advancement uses special-case logic (round: 'grand_final_reset' lookup),
+      // not the generic winnerGoesTo mechanism. So getNextMatchInfo returns null.
       const result = getNextMatchInfo(matches, 16, true);
-      expect(result).toEqual({
-        nextMatchNumber: 18,
-        position: 1
-      });
+      expect(result).toBeNull();
     });
   });
 

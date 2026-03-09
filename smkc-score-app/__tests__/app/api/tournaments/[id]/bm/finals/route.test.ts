@@ -493,10 +493,9 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.bMMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, completed: true });
-      /* findFirst is called multiple times: for winnerGoesTo (match 18, doesn't exist),
-         and for grand_final_reset round lookup */
+      /* Grand Final has no winnerGoesTo (reset is handled by grand_final_reset round lookup),
+         so findFirst is called exactly once: for the grand_final_reset match */
       (prisma.bMMatch.findFirst as jest.Mock)
-        .mockResolvedValueOnce(null) // winnerGoesTo match 18 doesn't exist
         .mockResolvedValueOnce(mockResetMatch); // grand_final_reset round lookup
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 1, score2: 3 });
