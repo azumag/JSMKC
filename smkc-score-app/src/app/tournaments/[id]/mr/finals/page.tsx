@@ -260,7 +260,7 @@ export default function MatchRaceFinals({
     /* Validate 5 unique courses */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
     if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
-      alert("Please select 5 unique courses");
+      alert(tCommon('select5UniqueCourses'));
       return;
     }
 
@@ -269,7 +269,7 @@ export default function MatchRaceFinals({
     const loserCount = rounds.filter(r => r.winner === 2).length;
 
     if (winnerCount < 3 && loserCount < 3) {
-      alert("Match must have a winner (3 out of 5)");
+      alert(tCommon('matchMustHaveWinner'));
       return;
     }
 

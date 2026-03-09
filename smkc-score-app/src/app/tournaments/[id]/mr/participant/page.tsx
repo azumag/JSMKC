@@ -253,7 +253,7 @@ export default function MatchRaceParticipantPage({
       const data = await response.json();
       setRaceResults(prev => ({ ...prev, [match.id]: [] }));
       setMatches(prev => prev.map(m => m.id === match.id ? { ...m, ...data.match } : m));
-      alert("Match result reported successfully! Both players must report matching results for confirmation.");
+      alert(tPart('matchReportedSuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit match result');
     } finally {

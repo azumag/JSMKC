@@ -281,7 +281,7 @@ export default function BattleModeParticipantPage({
       ));
 
       /* Inform the user about the dual-confirmation system */
-      alert("Scores reported successfully! Both players must report matching scores for confirmation.");
+      alert(tPart('scoresReportedSuccess'));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit scores';
       setError(errorMessage);
