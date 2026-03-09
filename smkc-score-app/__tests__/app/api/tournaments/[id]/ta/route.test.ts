@@ -66,8 +66,11 @@ jest.mock('@/lib/ta/rank-calculation', () => ({
   recalculateRanks: jest.fn(() => Promise.resolve()),
 }));
 
-// Mock time-utils with a simple implementation for validation
+// Mock time-utils: preserve real Zod schemas (TimeStringSchema, TimesObjectSchema)
+// since they are used in route-level Zod schema definitions. Only mock timeToMs
+// with an equivalent implementation for test isolation.
 jest.mock('@/lib/ta/time-utils', () => ({
+  ...jest.requireActual('@/lib/ta/time-utils'),
   timeToMs: jest.fn((val) => {
     if (!val || val === '') return null;
     const match = val.match(/^(\d{1,2}):(\d{2})\.(\d{1,3})$/);

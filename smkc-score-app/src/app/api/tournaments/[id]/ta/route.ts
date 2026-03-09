@@ -28,17 +28,11 @@ import type { Session } from "next-auth";
 import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
-import { timeToMs } from "@/lib/ta/time-utils";
+import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 import { promoteToRevival1, promoteToRevival2, promoteRevivalToFinals } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
-
-/**
- * Regex for validating time format strings in request validation.
- * Matches M:SS.mmm or MM:SS.mmm format.
- */
-const timeFormatRegex = /^(\d{1,2}):(\d{2})\.(\d{1,3})$/;
 
 /**
  * Admin authentication helper that returns the session.
@@ -78,18 +72,6 @@ async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; se
  * Note: "finals" values may still exist in production DB but are no longer
  * queryable through this endpoint. */
 const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
-
-/**
- * Schema for individual time string validation in PUT requests.
- * Allows empty strings (clearing a time) or valid time format strings.
- */
-const TimeStringSchema = z.string().refine(
-  (val) => val === "" || timeFormatRegex.test(val),
-  { message: "Invalid time format. Expected M:SS.mmm or MM:SS.mmm" }
-);
-
-/** Schema for bulk time updates: record of course abbreviation to time string */
-const TimesObjectSchema = z.record(z.string(), TimeStringSchema);
 
 /**
  * POST request body schema.
