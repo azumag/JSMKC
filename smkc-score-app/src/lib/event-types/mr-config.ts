@@ -13,6 +13,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateMatchRaceScores } from '@/lib/score-validation';
 
 /**
@@ -42,7 +43,8 @@ export const mrConfig: EventTypeConfig = {
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
   postRequiresAuth: true,
   putRequiresAuth: true,
-  /* No audit logging for MR POST (matches original behavior) */
+  // Audit MR qualification setup for consistency with BM (§10.6 traceability)
+  auditAction: AUDIT_ACTIONS.CREATE_MR_MATCH,
   setupCompleteMessage: 'Match race setup complete',
   /*
    * §10.5: Randomly shuffle all 20 courses and assign 4 to each match sequentially.

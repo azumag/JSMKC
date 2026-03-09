@@ -8,6 +8,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
 
 /**
@@ -47,7 +48,8 @@ export const gpConfig: EventTypeConfig = {
   qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
   postRequiresAuth: true,
   putRequiresAuth: true,
-  /* No audit logging for GP POST (matches original behavior) */
+  // Audit GP qualification setup for consistency with BM/MR (§10.6 traceability)
+  auditAction: AUDIT_ACTIONS.CREATE_GP_MATCH,
   setupCompleteMessage: 'Grand prix setup complete',
 
   parsePutBody: (body) => {

@@ -2,14 +2,15 @@
  * TA (Time Attack) Main API Route
  *
  * Handles CRUD operations for Time Attack entries within a tournament.
- * This is the primary endpoint for managing TA qualification and promotion.
+ * This is the primary endpoint for managing TA qualification entries.
  *
  * Endpoints:
  * - GET:    Fetch entries for a tournament stage (qualification, revival_1, revival_2)
- * - POST:   Add players to qualification or promote to revival rounds (DEPRECATED;
- *           prefer the phase-based endpoint at /api/tournaments/[id]/ta/phases)
+ * - POST:   Add player(s) to qualification round
  * - PUT:    Update times, lives, or elimination status for an entry
  * - DELETE: Remove an entry from the tournament (admin only)
+ *
+ * Phase promotion (Phase 1/2/3) is handled by /api/tournaments/[id]/ta/phases.
  *
  * All mutation operations are audit-logged.
  * Promotion operations require admin authentication via NextAuth session.
@@ -29,8 +30,7 @@ import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
 import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
-import { promoteToRevival1, promoteToRevival2, promoteRevivalToFinals } from "@/lib/ta/promotion";
-import type { PromotionContext } from "@/lib/ta/promotion";
+// Promotion functions moved to /api/tournaments/[id]/ta/phases endpoint
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 
@@ -75,27 +75,22 @@ const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
 
 /**
  * POST request body schema.
- * Supports two modes:
- * - "add": Add a player to qualification (requires playerId or players array)
- * - Promotion actions: Promote players to revival rounds (requires auth)
+ * Only supports "add" action to add players to qualification.
+ * Promotion actions have been moved to /api/tournaments/[id]/ta/phases endpoint.
  */
-/* promote_to_finals action is deprecated (not removed): superseded by Phase 1/2/3 promotion
- * via /api/tournaments/[id]/ta/phases endpoint (action="promote_phase3"). Retained for
- * backward compatibility with pre-Phase-system tournaments. topN field was removed
- * as it was only used by the old promote_to_finals path. */
 const PostRequestSchema = z.object({
   /* Prisma uses cuid() for all IDs, not uuid */
   playerId: z.string().cuid().optional(),
   players: z.array(z.string().cuid()).optional(),
-  action: z.enum(["add", "promote_to_revival_1", "promote_to_revival_2", "promote_to_finals"]).optional(),
+  action: z.enum(["add"]).optional(),
 }).refine(
   (data) => {
-    if (data.action === "add") {
+    if (!data.action || data.action === "add") {
       return data.playerId !== undefined || (data.players !== undefined && data.players.length > 0);
     }
     return true;
   },
-  { message: "Invalid request for action" }
+  { message: "playerId or players array is required" }
 );
 
 /**
@@ -194,13 +189,8 @@ export async function GET(
 /**
  * POST /api/tournaments/[id]/ta
  *
- * Add players to TA qualification or promote players to advanced stages.
- *
- * Actions:
- * - Default/add: Add player(s) to qualification round
- * - promote_to_revival_1: Promote players 17-24 to revival round 1 (auth required)
- * - promote_to_revival_2: Promote players 13-16 + revival 1 survivors (auth required)
- * - promote_to_finals: Promote revival_2 survivors + ranks 1-12 to phase3 finals (auth required, deprecated)
+ * Add player(s) to TA qualification round.
+ * For promotion to finals phases, use POST /api/tournaments/[id]/ta/phases.
  */
 export async function POST(
   request: NextRequest,
@@ -233,96 +223,9 @@ export async function POST(
       );
     }
 
-    const { action, playerId, players } = parseResult.data;
-
-    // === Revival Round 1 Promotion ===
-    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="start_phase1"
-    // instead. The revival_* system predates the phase system and will be removed
-    // in a future release. Existing tournaments using revival stages continue to
-    // work; new tournaments should use the phase-based workflow.
-    if (action === "promote_to_revival_1") {
-      const authResult = await requireAdminAndGetSession();
-      if (authResult.error) return authResult.error;
-
-      const context: PromotionContext = {
-        tournamentId,
-        userId: authResult.session!.user.id!,
-        ipAddress: getClientIdentifier(request),
-        userAgent: getUserAgent(request),
-      };
-
-      const result = await promoteToRevival1(prisma, context);
-      // Recalculate ranks after promotion to ensure correct ordering
-      await recalculateRanks(tournamentId, "revival_1", prisma);
-
-      return NextResponse.json(
-        {
-          message: "Players promoted to revival round 1",
-          entries: result.entries,
-          skipped: result.skipped,
-        },
-        { status: 201 }
-      );
-    }
-
-    // === Revival Round 2 Promotion ===
-    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="start_phase2"
-    // instead. See above note on promote_to_revival_1 for context.
-    if (action === "promote_to_revival_2") {
-      const authResult = await requireAdminAndGetSession();
-      if (authResult.error) return authResult.error;
-
-      const context: PromotionContext = {
-        tournamentId,
-        userId: authResult.session!.user.id!,
-        ipAddress: getClientIdentifier(request),
-        userAgent: getUserAgent(request),
-      };
-
-      const result = await promoteToRevival2(prisma, context);
-      // Recalculate ranks after promotion
-      await recalculateRanks(tournamentId, "revival_2", prisma);
-
-      return NextResponse.json(
-        {
-          message: "Players promoted to revival round 2",
-          entries: result.entries,
-          skipped: result.skipped,
-        },
-        { status: 201 }
-      );
-    }
-
-    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="promote_phase3"
-    // for new tournaments. This action exists solely for backward compatibility with
-    // tournaments that used the revival system before the Phase 1/2/3 system was introduced.
-    // It promotes revival_2 survivors + qualification ranks 1-12 to the "phase3" stage,
-    // enabling the Phase 3 lifecycle (start_round / submit_results) to be used directly.
-    if (action === "promote_to_finals") {
-      const { error: authError, session } = await requireAdminAndGetSession();
-      if (authError) return authError;
-
-      const context: PromotionContext = {
-        tournamentId,
-        userId: session!.user.id!,
-        ipAddress: getClientIdentifier(request),
-        userAgent: getUserAgent(request),
-      };
-
-      const result = await promoteRevivalToFinals(prisma, context);
-
-      return NextResponse.json(
-        {
-          message: "Players promoted to finals",
-          entries: result.entries,
-          skipped: result.skipped,
-        },
-        { status: 201 }
-      );
-    }
+    const { playerId, players } = parseResult.data;
 
     // === Add Player to Qualification ===
-    // Default action: add one or more players to the qualification round
     const authResult = await requireAdminOrPlayerSession();
     if (authResult.error) return authResult.error;
 

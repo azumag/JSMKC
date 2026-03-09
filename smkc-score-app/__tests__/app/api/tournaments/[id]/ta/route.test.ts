@@ -11,7 +11,7 @@
  * - @/lib/sanitize: Input sanitization
  * - @/lib/audit-log: Audit trail for CRUD operations
  * - @/lib/ta/rank-calculation: Rank recalculation after entry changes
- * - @/lib/ta/promotion: Stage promotion logic (finals, revival rounds)
+ * - @/lib/ta/promotion: (removed — promotion is now in /ta/phases)
  * - @/lib/ta/time-utils: Time parsing utilities
  * - next/server: NextResponse.json mock for response assertions
  */
@@ -79,11 +79,7 @@ jest.mock('@/lib/ta/time-utils', () => ({
   }),
 }));
 
-// Mock promotion functions
-jest.mock('@/lib/ta/promotion', () => ({
-  promoteToRevival1: jest.fn(),
-  promoteToRevival2: jest.fn(),
-}));
+// Promotion functions removed — promotion is now handled by /ta/phases endpoint
 
 // Mock freeze-check: default to "not frozen" (returns null) for all existing tests.
 // Tests that need to verify freeze behavior can override this mock.
@@ -322,12 +318,9 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    /* promote_to_finals tests removed: action was deleted from the API
-     * (superseded by Phase 1/2/3 promotion via /api/tournaments/[id]/ta/phases) */
-
-    it('should return 403 for promote_to_revival_1 without admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
-
+    // Deprecated promotion actions (promote_to_revival_1, promote_to_revival_2,
+    // promote_to_finals) were removed. They now return 400 validation error.
+    it('should return 400 for deprecated promote_to_revival_1 action', async () => {
       await taRoute.POST(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
           method: 'POST',
@@ -340,28 +333,8 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
-      );
-    });
-
-    it('should return 403 for promote_to_revival_2 without admin auth', async () => {
-      (auth as jest.Mock).mockResolvedValue(null);
-
-      await taRoute.POST(
-        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'promote_to_revival_2',
-            players: [VALID_UUID2],
-          }),
-        }),
-        { params: Promise.resolve({ id: VALID_UUID }) }
-      );
-
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
-        { status: 403 }
+        expect.objectContaining({ error: expect.stringContaining('Invalid') }),
+        { status: 400 }
       );
     });
 

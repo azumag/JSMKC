@@ -220,6 +220,10 @@ export const AUDIT_ACTIONS = {
   /** An MR match was deleted */
   DELETE_MR_MATCH: 'DELETE_MR_MATCH',
 
+  // Grand Prix (GP) actions
+  /** A GP match was created (qualification setup) */
+  CREATE_GP_MATCH: 'CREATE_GP_MATCH',
+
   // Bracket management actions
   /** A finals bracket was generated (double elimination) */
   CREATE_BRACKET: 'CREATE_BRACKET',
