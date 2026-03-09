@@ -348,7 +348,7 @@ export default function GrandPrixFinals({
         <Card className="border-yellow-500 bg-yellow-500/10">
           <CardContent className="py-6 text-center">
             <div className="text-4xl mb-2">🏆</div>
-            <h2 className="text-2xl font-bold">Champion</h2>
+            <h2 className="text-2xl font-bold">{tFinals('champion')}</h2>
             <p className="text-3xl font-bold text-yellow-500 mt-2">
               {champion.nickname}
             </p>
@@ -360,10 +360,10 @@ export default function GrandPrixFinals({
       {matches.length > 0 && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm">
-            Progress: {completedMatches} / {totalMatches} matches
+            {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
           </Badge>
           {completedMatches === totalMatches && totalMatches > 0 && (
-            <Badge className="bg-green-500">Tournament Complete</Badge>
+            <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
           )}
         </div>
       )}
@@ -372,33 +372,27 @@ export default function GrandPrixFinals({
       {matches.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>No Finals Bracket Yet</CardTitle>
+            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
             <CardDescription>
-              Generate a bracket to start the finals tournament.
+              {tFinals('generateBracketDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              The finals bracket will be generated using the top 8 players from
-              the qualification standings. The bracket uses a double elimination
-              format:
+              {tFinals('bracketExplanation')}
             </p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
               <li>
-                <strong>Winners Bracket:</strong> Players who haven&apos;t lost
-                yet
+                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
               </li>
               <li>
-                <strong>Losers Bracket:</strong> Players with one loss get a
-                second chance
+                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
               </li>
               <li>
-                <strong>Grand Final:</strong> Winners champion vs Losers
-                champion
+                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
               </li>
               <li>
-                <strong>Reset Match:</strong> If the Losers champion wins the
-                Grand Final, a reset match determines the true champion
+                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
               </li>
             </ul>
           </CardContent>
@@ -418,7 +412,7 @@ export default function GrandPrixFinals({
       {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Match Score</DialogTitle>
+            <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
             <DialogDescription>
               {selectedMatch && (
                 <>
@@ -476,7 +470,7 @@ export default function GrandPrixFinals({
               scoreForm.score1 < 3 &&
               scoreForm.score2 < 3 && (
                 <p className="text-sm text-yellow-600 text-center">
-                  Match needs a winner (first to 3)
+                  {tFinals('matchNeedWinner')}
                 </p>
               )}
           </div>
@@ -485,7 +479,7 @@ export default function GrandPrixFinals({
               onClick={handleScoreSubmit}
               disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
             >
-              Save Score
+              {tCommon('saveScore')}
             </Button>
           </DialogFooter>
         </DialogContent>
