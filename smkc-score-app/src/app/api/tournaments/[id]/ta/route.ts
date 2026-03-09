@@ -29,7 +29,7 @@ import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
 import { timeToMs } from "@/lib/ta/time-utils";
-import { promoteToRevival1, promoteToRevival2 } from "@/lib/ta/promotion";
+import { promoteToRevival1, promoteToRevival2, promoteRevivalToFinals } from "@/lib/ta/promotion";
 import type { PromotionContext } from "@/lib/ta/promotion";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
@@ -104,7 +104,7 @@ const PostRequestSchema = z.object({
   /* Prisma uses cuid() for all IDs, not uuid */
   playerId: z.string().cuid().optional(),
   players: z.array(z.string().cuid()).optional(),
-  action: z.enum(["add", "promote_to_revival_1", "promote_to_revival_2"]).optional(),
+  action: z.enum(["add", "promote_to_revival_1", "promote_to_revival_2", "promote_to_finals"]).optional(),
 }).refine(
   (data) => {
     if (data.action === "add") {
@@ -217,6 +217,7 @@ export async function GET(
  * - Default/add: Add player(s) to qualification round
  * - promote_to_revival_1: Promote players 17-24 to revival round 1 (auth required)
  * - promote_to_revival_2: Promote players 13-16 + revival 1 survivors (auth required)
+ * - promote_to_finals: Promote revival_2 survivors + ranks 1-12 to phase3 finals (auth required, deprecated)
  */
 export async function POST(
   request: NextRequest,
@@ -309,8 +310,33 @@ export async function POST(
       );
     }
 
-    /* promote_to_finals handler removed: superseded by Phase 1/2/3 promotion
-     * via /api/tournaments/[id]/ta/phases endpoint. */
+    // @deprecated Use POST /api/tournaments/[id]/ta/phases with action="promote_phase3"
+    // for new tournaments. This action exists solely for backward compatibility with
+    // tournaments that used the revival system before the Phase 1/2/3 system was introduced.
+    // It promotes revival_2 survivors + qualification ranks 1-12 to the "phase3" stage,
+    // enabling the Phase 3 lifecycle (start_round / submit_results) to be used directly.
+    if (action === "promote_to_finals") {
+      const { error: authError, session } = await requireAdminAndGetSession();
+      if (authError) return authError;
+
+      const context: PromotionContext = {
+        tournamentId,
+        userId: session!.user!.id as string,
+        ipAddress: getClientIdentifier(request),
+        userAgent: getUserAgent(request),
+      };
+
+      const result = await promoteRevivalToFinals(prisma, context);
+
+      return NextResponse.json(
+        {
+          message: "Players promoted to finals",
+          entries: result.entries,
+          skipped: result.skipped,
+        },
+        { status: 201 }
+      );
+    }
 
     // === Add Player to Qualification ===
     // Default action: add one or more players to the qualification round

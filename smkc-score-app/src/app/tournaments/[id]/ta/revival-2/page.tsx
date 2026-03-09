@@ -130,6 +130,8 @@ export default function RevivalRound2({
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [eliminating, setEliminating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [promotingToFinals, setPromotingToFinals] = useState(false);
+  const [promotionError, setPromotionError] = useState<string | null>(null);
 
   // === Data Fetching ===
   const fetchData = useCallback(async () => {
@@ -243,6 +245,29 @@ export default function RevivalRound2({
     }
   };
 
+  /** Promote revival_2 survivors + qualification ranks 1-12 to phase3 finals */
+  const handlePromoteToFinals = async () => {
+    setPromotingToFinals(true);
+    setPromotionError(null);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "promote_to_finals" }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || `Promotion failed: ${response.status}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to promote to finals";
+      console.error("Failed to promote to finals:", err);
+      setPromotionError(msg);
+    } finally {
+      setPromotingToFinals(false);
+    }
+  };
+
   /** Get completion status for each course */
   const getCourseProgress = (): Array<{ course: string; completed: boolean }> => {
     const firstEntry = entries.find((e) => e.times);
@@ -346,6 +371,21 @@ export default function RevivalRound2({
             <p className="text-sm text-muted-foreground mt-1">
               {tRevival('advancingToFinals')}
             </p>
+            {/* Admin-only: promote revival survivors + top 12 to phase3 finals */}
+            {isAdmin && (
+              <div className="mt-4">
+                <Button
+                  onClick={handlePromoteToFinals}
+                  disabled={promotingToFinals}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {promotingToFinals ? tCommon('loading') : tRevival('promoteToFinals')}
+                </Button>
+                {promotionError && (
+                  <p className="text-sm text-red-500 mt-2">{promotionError}</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -563,6 +563,7 @@
     "advancingToRevival2": "復活戦ラウンド2に進出",
     "finalsQualifiers": "決勝進出者 ({count})",
     "advancingToFinals": "決勝に進出",
+    "promoteToFinals": "決勝（フェーズ3）に昇格させる",
     "standings": "順位表",
     "courseProgress": "コース進捗",
     "roundControl": "ラウンド管理",

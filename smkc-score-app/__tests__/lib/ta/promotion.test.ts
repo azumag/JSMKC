@@ -39,7 +39,7 @@ jest.mock('@prisma/client', () => {
   };
 });
 
-import { promoteToRevival1, promoteToRevival2, PromotionContext } from '@/lib/ta/promotion';
+import { promoteToRevival1, promoteToRevival2, promoteRevivalToFinals, PromotionContext } from '@/lib/ta/promotion';
 import { PrismaClient } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit-log';
 
@@ -539,5 +539,128 @@ describe('TA Promotion Functions', () => {
             // expect(consoleSpy).toHaveBeenCalledWith('Failed to create audit log:', expect.any(Error));
       consoleSpy.mockRestore();
     });
+  });
+});
+
+// ============================================================
+// promoteRevivalToFinals tests
+// ============================================================
+
+describe('promoteRevivalToFinals', () => {
+  let mockPrismaForFinals: ReturnType<typeof PrismaClient>;
+  const finalsContext: PromotionContext = {
+    tournamentId: 'tournament-finals',
+    userId: 'admin-1',
+    ipAddress: '127.0.0.1',
+    userAgent: 'test-agent',
+  };
+
+  const mockRevival2Survivors: TTEntry[] = [
+    {
+      id: 'revival-2-survivor-1',
+      tournamentId: 'tournament-finals',
+      playerId: 'survivor-1',
+      stage: 'revival_2',
+      rank: 1,
+      totalTime: 140000,
+      lives: 1,
+      eliminated: false,
+      times: { MC1: '1:20.000' },
+      player: { id: 'survivor-1', nickname: 'Survivor1' },
+    },
+  ];
+
+  const mockQualTop12: TTEntry[] = [
+    {
+      id: 'qual-top-1',
+      tournamentId: 'tournament-finals',
+      playerId: 'qual-top-1',
+      stage: 'qualification',
+      rank: 1,
+      totalTime: 120000,
+      lives: 1,
+      eliminated: false,
+      times: { MC1: '1:00.000' },
+      player: { id: 'qual-top-1', nickname: 'QualTop1' },
+    },
+  ];
+
+  beforeEach(() => {
+    mockPrismaForFinals = new PrismaClient() as unknown as ReturnType<typeof PrismaClient>;
+    jest.clearAllMocks();
+  });
+
+  it('should promote revival_2 survivors and top 12 qualifiers to phase3', async () => {
+    (mockPrismaForFinals.tTEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce(mockRevival2Survivors)   // revival_2 survivors
+      .mockResolvedValueOnce(mockQualTop12);          // qualification top 12
+
+    (mockPrismaForFinals.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const createdEntry: TTEntry = {
+      id: 'phase3-survivor-1',
+      tournamentId: 'tournament-finals',
+      playerId: 'survivor-1',
+      stage: 'revival_2', // source stage
+      rank: 1,
+      totalTime: 140000,
+      lives: 3, // FINALS_INITIAL_LIVES
+      eliminated: false,
+      times: { MC1: '1:20.000' },
+      player: { id: 'survivor-1', nickname: 'Survivor1' },
+    };
+
+    (mockPrismaForFinals.tTEntry.create as jest.Mock).mockResolvedValue(createdEntry);
+    (createAuditLog as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await promoteRevivalToFinals(mockPrismaForFinals, finalsContext);
+
+    // Should create entries for both groups
+    expect(result.entries).toHaveLength(2);
+    expect(result.skipped).toHaveLength(0);
+
+    // Should use phase3 stage and 3 lives
+    const createCalls = (mockPrismaForFinals.tTEntry.create as jest.Mock).mock.calls;
+    expect(createCalls[0][0].data.stage).toBe('phase3');
+    expect(createCalls[0][0].data.lives).toBe(3);
+  });
+
+  it('should throw when no players are available', async () => {
+    (mockPrismaForFinals.tTEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce([])  // no revival_2 survivors
+      .mockResolvedValueOnce([]); // no qualification players
+
+    await expect(promoteRevivalToFinals(mockPrismaForFinals, finalsContext))
+      .rejects.toThrow('No players available for Finals');
+  });
+
+  it('should skip players with null totalTime', async () => {
+    const nullTimeSurvivor: TTEntry = {
+      ...mockRevival2Survivors[0],
+      totalTime: null,
+    };
+
+    (mockPrismaForFinals.tTEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce([nullTimeSurvivor])
+      .mockResolvedValueOnce([]);
+
+    const result = await promoteRevivalToFinals(mockPrismaForFinals, finalsContext);
+
+    expect(result.entries).toHaveLength(0);
+    expect(result.skipped).toContain('Survivor1');
+  });
+
+  it('should not create duplicate phase3 entries', async () => {
+    (mockPrismaForFinals.tTEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce(mockRevival2Survivors)
+      .mockResolvedValueOnce([]);
+
+    // Simulate existing phase3 entry (already promoted)
+    (mockPrismaForFinals.tTEntry.findUnique as jest.Mock).mockResolvedValue({ id: 'existing' });
+
+    const result = await promoteRevivalToFinals(mockPrismaForFinals, finalsContext);
+
+    expect(result.entries).toHaveLength(0);
+    expect(mockPrismaForFinals.tTEntry.create).not.toHaveBeenCalled();
   });
 });

@@ -6,9 +6,9 @@
  *
  * Qualification -> Revival 1:   Players ranked 17-24 (8 players)
  * Qualification -> Revival 2:   Players ranked 13-16 + Revival 1 survivors (top 4)
- *
- * Note: The legacy "Qualification -> Finals" (promoteToFinals) pathway was removed
- * as it was superseded by the Phase 1/2/3 system in /api/tournaments/[id]/ta/phases.
+ * Revival 2     -> Finals:      Qualification ranks 1-12 + Revival 2 survivors (top 4)
+ *                               Promotes to "phase3" stage so the Phase 3 lifecycle
+ *                               (start_round / submit_results) works seamlessly.
  *
  * @deprecated The revival_1/revival_2 staging system itself is also deprecated in
  * favour of the phase1/phase2/phase3 system managed by finals-phase-manager.ts.
@@ -265,6 +265,124 @@ export async function promoteToRevival2(
        }
      }
    }
+
+  return {
+    entries: createdEntries,
+    skipped: skippedEntries,
+  };
+}
+
+/**
+ * Promote players to Finals (Phase 3) from the revival system.
+ *
+ * Bridges the legacy revival system to the phase-based finals infrastructure:
+ * 1. Revival Round 2 survivors (top 4 non-eliminated players)
+ * 2. Qualification ranks 1-12 (top qualifiers with a first-round bye)
+ *
+ * Promotes to the "phase3" stage so the Phase 3 lifecycle
+ * (start_round / submit_results via /api/tournaments/[id]/ta/phases)
+ * works without modification.
+ *
+ * Finals entries start with 3 lives (standard Phase 3 configuration).
+ *
+ * @param prisma   - Prisma client instance
+ * @param context  - Promotion context with user and request info
+ * @returns Promise with promotion result
+ * @throws Error if no players are available for finals
+ */
+export async function promoteRevivalToFinals(
+  prisma: PrismaClient,
+  context: PromotionContext
+): Promise<PromotionResult> {
+  const { tournamentId, userId, ipAddress, userAgent } = context;
+
+  // Phase 3 initial lives (mirrors PHASE_CONFIG.phase3.initialLives in finals-phase-manager.ts)
+  const FINALS_INITIAL_LIVES = 3;
+
+  // Group 1: Revival Round 2 survivors (non-eliminated, top 4 by rank)
+  const revival2Survivors = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "revival_2", eliminated: false },
+    include: { player: true },
+    orderBy: { rank: "asc" },
+    take: 4,
+  });
+
+  // Group 2: Qualification ranks 1-12 (top performers who earned a bye)
+  const qualifiers = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "qualification" },
+    include: { player: true },
+    orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
+    take: 12,
+  });
+
+  const allPlayers = [...revival2Survivors, ...qualifiers];
+
+  if (allPlayers.length === 0) {
+    throw new Error("No players available for Finals");
+  }
+
+  const createdEntries: TTEntry[] = [];
+  const skippedEntries: string[] = [];
+
+  for (const source of allPlayers) {
+    // Skip players without completed times
+    if (source.totalTime === null) {
+      skippedEntries.push(source.player.nickname);
+      continue;
+    }
+
+    // Prevent duplicate promotion (idempotent)
+    const existing = await prisma.tTEntry.findUnique({
+      where: {
+        tournamentId_playerId_stage: {
+          tournamentId,
+          playerId: source.playerId,
+          stage: "phase3",
+        },
+      },
+    });
+
+    if (!existing) {
+      const entry = await prisma.tTEntry.create({
+        data: {
+          tournamentId,
+          playerId: source.playerId,
+          stage: "phase3",
+          lives: FINALS_INITIAL_LIVES,
+          eliminated: false,
+          times: source.times as Prisma.InputJsonValue,
+          totalTime: source.totalTime,
+          rank: source.rank,
+        },
+        include: { player: true },
+      });
+      createdEntries.push(entry);
+
+      // Audit log for accountability (non-critical)
+      try {
+        await createAuditLog({
+          userId,
+          ipAddress,
+          userAgent,
+          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+          targetId: entry.id,
+          targetType: "TTEntry",
+          details: {
+            tournamentId,
+            playerId: source.playerId,
+            playerNickname: entry.player.nickname,
+            sourceStage: source.stage,
+            promotedTo: "phase3",
+            initialLives: FINALS_INITIAL_LIVES,
+          },
+        });
+      } catch (logError) {
+        // Logger created inside catch block for proper test mocking
+        const log = createLogger('promotion');
+        log.error("Failed to create audit log", logError instanceof Error ? { message: logError.message, stack: logError.stack } : { error: logError });
+      }
+    }
+  }
 
   return {
     entries: createdEntries,
