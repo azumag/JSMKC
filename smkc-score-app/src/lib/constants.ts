@@ -117,6 +117,8 @@ export const MAX_BATTLE_SCORE = 4; // Max rounds one player can win in a qualifi
 export const TOTAL_BM_ROUNDS = 4; // BM qualification matches consist of exactly 4 rounds
 // BM finals use best-of-9 format: first player to reach this many round wins takes the match.
 export const BM_FINALS_TARGET_WINS = 5;
+// MR finals use best-of-13 format: first player to reach this many race wins takes the match.
+export const MR_FINALS_TARGET_WINS = 7;
 
 // Optimistic locking constants - retry parameters for concurrent update conflicts
 export const MAX_RETRY_ATTEMPTS = 3;

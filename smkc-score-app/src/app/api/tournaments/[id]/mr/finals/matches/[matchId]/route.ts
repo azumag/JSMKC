@@ -15,6 +15,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { z } from "zod";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import { MR_FINALS_TARGET_WINS } from "@/lib/constants";
 
 /**
  * Validation schema for updating a finals match.
@@ -22,8 +23,8 @@ import { createLogger } from "@/lib/logger";
  * Rounds track individual course results for MR format.
  */
 const UpdateMatchSchema = z.object({
-  score1: z.number().int().min(0).max(7),
-  score2: z.number().int().min(0).max(7),
+  score1: z.number().int().min(0).max(MR_FINALS_TARGET_WINS),
+  score2: z.number().int().min(0).max(MR_FINALS_TARGET_WINS),
   /** Individual race results with course and winner */
   rounds: z.array(z.object({
     course: z.string(),
@@ -93,9 +94,8 @@ export async function PUT(
       );
     }
 
-    /* Auto-complete when either player reaches the target win count (7) */
-    const targetWins = 7;
-    const isComplete = data.completed || data.score1 >= targetWins || data.score2 >= targetWins;
+    /* Auto-complete when either player reaches the target win count */
+    const isComplete = data.completed || data.score1 >= MR_FINALS_TARGET_WINS || data.score2 >= MR_FINALS_TARGET_WINS;
 
     const updateData: MRMatchUpdateData = {
       score1: data.score1,
