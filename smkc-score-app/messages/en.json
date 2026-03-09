@@ -215,7 +215,7 @@
   "ta": {
     "title": "Time Attack",
     "qualificationTitle": "Time Attack - Qualification",
-    "qualificationDesc": "Top 12 advance to finals • Players 13-16 to revival round 2 • Players 17-24 to revival round 1",
+    "qualificationDesc": "Top 12 advance to finals • Players 13-16 to Phase 2 • Players 17-24 to Phase 1",
     "addPlayerToTA": "Add Players to Time Attack",
     "selectPlayersToAdd": "Check the players to add to the qualification round.",
     "searchPlayers": "Search players...",

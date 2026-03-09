@@ -215,7 +215,7 @@
   "ta": {
     "title": "タイムアタック",
     "qualificationTitle": "タイムアタック - 予選",
-    "qualificationDesc": "上位12名が決勝進出 • 13-16位は復活戦2へ • 17-24位は復活戦1へ",
+    "qualificationDesc": "上位12名が決勝進出 • 13-16位はフェーズ2へ • 17-24位はフェーズ1へ",
     "addPlayerToTA": "タイムアタックにプレイヤー追加",
     "selectPlayersToAdd": "予選に追加するプレイヤーをチェックしてください。",
     "searchPlayers": "プレイヤーを検索...",
