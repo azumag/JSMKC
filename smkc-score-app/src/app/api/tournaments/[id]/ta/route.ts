@@ -375,6 +375,7 @@ export async function POST(
         // Audit log for accountability (non-critical, failure is logged)
         try {
           await createAuditLog({
+            userId: authResult.session!.user.id!,
             ipAddress,
             userAgent,
             action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
