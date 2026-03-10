@@ -219,7 +219,7 @@ export default function TAEliminationPhase({
       // This handles page reloads and prevents orphaned rounds from being invisible.
       if (fetchedRounds.length > 0) {
         const lastRound = fetchedRounds[fetchedRounds.length - 1];
-        const lastRoundResults = lastRound.results as unknown[];
+        const lastRoundResults = lastRound.results;
         if (lastRoundResults.length === 0 && !currentRound) {
           const activeEntries = fetchedEntries.filter((e) => !e.eliminated);
           const initialTimes: Record<string, string> = {};
@@ -529,11 +529,11 @@ export default function TAEliminationPhase({
   // Check if the last round in the rounds list has no results yet (open round)
   const hasOpenRound =
     rounds.length > 0 &&
-    (rounds[rounds.length - 1].results as unknown[]).length === 0;
+    (rounds[rounds.length - 1].results).length === 0;
 
   /** Count of completed rounds (with submitted results) */
   const completedRoundsCount = rounds.filter(
-    (r) => (r.results as unknown[]).length > 0
+    (r) => (r.results).length > 0
   ).length;
 
   // === Loading State ===
@@ -918,7 +918,7 @@ export default function TAEliminationPhase({
             ) : (
               <div className="space-y-4">
                 {[...rounds]
-                  .filter((r) => (r.results as unknown[]).length > 0)
+                  .filter((r) => (r.results).length > 0)
                   .reverse()
                   .map((round) => {
                     const courseInfo = COURSE_INFO.find(
