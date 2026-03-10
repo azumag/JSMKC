@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createCSV, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
+import { createErrorResponse } from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/[id]/ta/export
@@ -45,7 +46,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json({ success: false, error: "Tournament not found" }, { status: 404 });
+      return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
 
     // Fetch all entries ordered by rank for export
@@ -87,6 +88,6 @@ export async function GET(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to export tournament", { error, tournamentId });
-    return NextResponse.json({ success: false, error: "Failed to export tournament" }, { status: 500 });
+    return createErrorResponse('Failed to export tournament', 500, 'INTERNAL_ERROR');
   }
 }

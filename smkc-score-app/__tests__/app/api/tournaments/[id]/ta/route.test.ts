@@ -210,7 +210,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     });
@@ -230,7 +230,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to fetch time attack data' },
+        { success: false, error: 'Failed to fetch time attack data', code: 'INTERNAL_ERROR' },
         { status: 500 }
       );
     });
@@ -292,7 +292,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     });
@@ -351,7 +351,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -405,7 +405,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden: Players can only add themselves' },
+        { success: false, error: 'Forbidden: Players can only add themselves', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -427,7 +427,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden: Players can only add themselves' },
+        { success: false, error: 'Forbidden: Players can only add themselves', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -491,7 +491,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format' },
+        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     });
@@ -518,7 +518,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to update times' },
+        { success: false, error: 'Failed to update times', code: 'INTERNAL_ERROR' },
         { status: 500 }
       );
     });
@@ -541,7 +541,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -562,7 +562,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -583,7 +583,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -603,7 +603,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -624,7 +624,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -698,7 +698,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden: You can only update your own times' },
+        { success: false, error: 'Forbidden: You can only update your own times', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -747,7 +747,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -765,7 +765,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Forbidden', code: 'FORBIDDEN' },
         { status: 403 }
       );
     });
@@ -785,7 +785,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Entry not found' },
+        { success: false, error: 'Entry not found', code: 'NOT_FOUND' },
         { status: 404 }
       );
     });
@@ -811,7 +811,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to delete entry' },
+        { success: false, error: 'Failed to delete entry', code: 'INTERNAL_ERROR' },
         { status: 500 }
       );
     });

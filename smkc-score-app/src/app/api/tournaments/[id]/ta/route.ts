@@ -33,6 +33,7 @@ import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 // Promotion functions moved to /api/tournaments/[id]/ta/phases endpoint
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
+import { createErrorResponse } from "@/lib/error-handling";
 
 /**
  * Admin authentication helper that returns the session.
@@ -42,7 +43,7 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 async function requireAdminAndGetSession(): Promise<{ error?: NextResponse; session?: Session | null }> {
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) };
+    return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
   }
   return { session };
 }
@@ -60,7 +61,7 @@ async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; se
   const session = await auth();
   if (session?.user?.role === 'admin') return { session };
   if (session?.user?.userType === 'player') return { session };
-  return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) };
+  return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
 }
 
 /**
@@ -141,10 +142,7 @@ export async function GET(
     const cuidSchema = z.string().cuid();
     const parseResult = cuidSchema.safeParse(tournamentId);
     if (!parseResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid tournament ID format" },
-        { status: 400 }
-      );
+      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
     }
 
     // Parse optional stage query parameter (defaults to "qualification")
@@ -179,10 +177,7 @@ export async function GET(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch TA data", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch time attack data" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
 }
 
@@ -206,10 +201,7 @@ export async function POST(
     const cuidSchema = z.string().cuid();
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid tournament ID format" },
-        { status: 400 }
-      );
+      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
     }
 
     // Sanitize input to prevent XSS/injection attacks
@@ -217,10 +209,7 @@ export async function POST(
 
     const parseResult = PostRequestSchema.safeParse(body);
     if (!parseResult.success) {
-      return NextResponse.json(
-        { success: false, error: parseResult.error.issues[0]?.message || "Invalid request body" },
-        { status: 400 }
-      );
+      return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
     const { playerId, players } = parseResult.data;
@@ -239,10 +228,7 @@ export async function POST(
       const selfPlayerId = authResult.session!.user.playerId;
       const isAddingSelf = playerIds.length > 0 && playerIds.every(pid => pid === selfPlayerId);
       if (!isAddingSelf) {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden: Players can only add themselves' },
-          { status: 403 }
-        );
+        return createErrorResponse('Forbidden: Players can only add themselves', 403, 'FORBIDDEN');
       }
     }
     const ipAddress = getClientIdentifier(request);
@@ -304,10 +290,7 @@ export async function POST(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to add player to TA", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: (error as Error).message || "Failed to add player to time attack" },
-      { status: 500 }
-    );
+    return createErrorResponse((error as Error).message || "Failed to add player to time attack", 500, "INTERNAL_ERROR");
   }
 }
 
@@ -337,10 +320,7 @@ export async function PUT(
     const cuidSchema = z.string().cuid();
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid tournament ID format" },
-        { status: 400 }
-      );
+      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
     }
 
     // Sanitize and validate request body
@@ -348,10 +328,7 @@ export async function PUT(
 
     const parseResult = PutRequestSchema.safeParse(body);
     if (!parseResult.success) {
-      return NextResponse.json(
-        { success: false, error: parseResult.error.issues[0]?.message || "Invalid request body" },
-        { status: 400 }
-      );
+      return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
     const { entryId, action, eliminated, livesDelta } = parseResult.data;
@@ -368,7 +345,7 @@ export async function PUT(
       });
 
       if (!entry) {
-        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
+        return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
       }
 
       // Reject lives changes if the entry's stage is frozen
@@ -413,10 +390,7 @@ export async function PUT(
       if (authResult.error) return authResult.error;
 
       if (eliminated === undefined) {
-        return NextResponse.json(
-          { success: false, error: "eliminated boolean is required" },
-          { status: 400 }
-        );
+        return createErrorResponse("eliminated boolean is required", 400, "VALIDATION_ERROR");
       }
 
       const entry = await prisma.tTEntry.findUnique({
@@ -425,7 +399,7 @@ export async function PUT(
       });
 
       if (!entry) {
-        return NextResponse.json({ success: false, error: "Entry not found" }, { status: 404 });
+        return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
       }
 
       // Reject elimination changes if the entry's stage is frozen
@@ -478,10 +452,7 @@ export async function PUT(
     });
 
     if (!entry) {
-      return NextResponse.json(
-        { success: false, error: "Entry not found" },
-        { status: 404 }
-      );
+      return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
     }
 
     // Reject time updates if the entry's stage is frozen by an admin
@@ -493,10 +464,7 @@ export async function PUT(
     // another player's recorded times.
     if (authResult.session!.user.role !== 'admin') {
       if (authResult.session!.user.playerId !== entry.playerId) {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden: You can only update your own times' },
-          { status: 403 }
-        );
+        return createErrorResponse('Forbidden: You can only update your own times', 403, 'FORBIDDEN');
       }
     }
 
@@ -510,26 +478,17 @@ export async function PUT(
     } else if (course && time !== undefined) {
       // Single course update: validate course abbreviation
       if (!COURSES.includes(course as CourseAbbr)) {
-        return NextResponse.json(
-          { success: false, error: "Invalid course abbreviation" },
-          { status: 400 }
-        );
+        return createErrorResponse("Invalid course abbreviation", 400, "VALIDATION_ERROR");
       }
       updatedTimes = { ...currentTimes, [course]: time };
     } else {
-      return NextResponse.json(
-        { success: false, error: "Either (course and time) or times object is required" },
-        { status: 400 }
-      );
+      return createErrorResponse("Either (course and time) or times object is required", 400, "VALIDATION_ERROR");
     }
 
     // Validate all time formats before saving
     for (const [c, t] of Object.entries(updatedTimes)) {
       if (t && t !== "" && timeToMs(t) === null) {
-        return NextResponse.json(
-          { success: false, error: `Invalid time format for ${c}: ${t}` },
-          { status: 400 }
-        );
+        return createErrorResponse(`Invalid time format for ${c}: ${t}`, 400, "VALIDATION_ERROR");
       }
     }
 
@@ -573,10 +532,7 @@ export async function PUT(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to update times", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to update times" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to update times", 500, "INTERNAL_ERROR");
   }
 }
 
@@ -606,10 +562,7 @@ export async function DELETE(
     const cuidSchema = z.string().cuid();
     const tournamentIdResult = cuidSchema.safeParse(tournamentId);
     if (!tournamentIdResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid tournament ID format" },
-        { status: 400 }
-      );
+      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
     }
 
     // Get entry ID from query parameters
@@ -617,19 +570,13 @@ export async function DELETE(
     const entryId = searchParams.get("entryId");
 
     if (!entryId) {
-      return NextResponse.json(
-        { success: false, error: "entryId is required" },
-        { status: 400 }
-      );
+      return createErrorResponse("entryId is required", 400, "VALIDATION_ERROR");
     }
 
     // Validate entry ID format
     const entryIdResult = cuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid entry ID format" },
-        { status: 400 }
-      );
+      return createErrorResponse("Invalid entry ID format", 400, "VALIDATION_ERROR");
     }
 
     // Fetch entry to confirm existence and get player data for audit log
@@ -639,10 +586,7 @@ export async function DELETE(
     });
 
     if (!entryToDelete) {
-      return NextResponse.json(
-        { success: false, error: "Entry not found" },
-        { status: 404 }
-      );
+      return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
     }
 
     // Reject deletion if the entry's stage is frozen
@@ -686,9 +630,6 @@ export async function DELETE(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to delete entry", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to delete entry" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to delete entry", 500, "INTERNAL_ERROR");
   }
 }
