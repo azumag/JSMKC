@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
+import { COURSE_INFO, POLLING_INTERVAL, getDriverPoints } from '@/lib/constants';
 import { createLogger } from '@/lib/client-logger';
 
 /** Client-side logger for error tracking */
@@ -80,16 +80,6 @@ interface RaceResult {
   points2: number;
 }
 
-/**
- * Driver points lookup table indexed by finishing position.
- * 1st=9, 2nd=6, 3rd=3, 4th=1 (simplified F1-style scoring).
- */
-const DRIVER_POINTS = {
-  1: 9,
-  2: 6,
-  3: 3,
-  4: 1,
-};
 
 export default function GrandPrixParticipantPage({
   params,
@@ -203,7 +193,7 @@ export default function GrandPrixParticipantPage({
 
   /**
    * Update a race result field and auto-calculate driver points.
-   * When position changes, points are recalculated from the DRIVER_POINTS table.
+   * When position changes, points are recalculated via getDriverPoints().
    */
   const updateRaceResult = (matchId: string, index: number, field: keyof RaceResult, value: string | number) => {
     setRaceResults(prev => {
@@ -215,8 +205,8 @@ export default function GrandPrixParticipantPage({
           if (field === 'position1' || field === 'position2') {
             const pos1 = field === 'position1' ? (value as number) : result.position1;
             const pos2 = field === 'position2' ? (value as number) : result.position2;
-            updatedResult.points1 = DRIVER_POINTS[pos1 as keyof typeof DRIVER_POINTS] || 0;
-            updatedResult.points2 = DRIVER_POINTS[pos2 as keyof typeof DRIVER_POINTS] || 0;
+            updatedResult.points1 = getDriverPoints(pos1);
+            updatedResult.points2 = getDriverPoints(pos2);
           }
           return updatedResult;
         }

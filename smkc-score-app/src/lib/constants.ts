@@ -144,3 +144,21 @@ export const RETRY_PENALTY_DISPLAY = "9:59.990";
 // HTTP status codes for special responses
 export const RATE_LIMIT_STATUS_CODE = 429;
 export const OPTIMISTIC_LOCK_STATUS_CODE = 409;
+
+/**
+ * GP driver points awarded per finishing position in a 4-player race.
+ * Index 0 is unused (positions are 1-indexed): 1st=9, 2nd=6, 3rd=3, 4th=1.
+ * Position 5+ awards 0 points (out of bounds returns undefined → fallback to 0).
+ *
+ * Source: §7 of requirements.md
+ */
+export const DRIVER_POINTS = [0, 9, 6, 3, 1] as const;
+
+/**
+ * Convert a finishing position (1-4) to driver points.
+ * Returns 0 for invalid positions (outside 1-4 range).
+ */
+export function getDriverPoints(position: number): number {
+  if (position < 1 || position > 4) return 0;
+  return DRIVER_POINTS[position];
+}

@@ -23,7 +23,11 @@ jest.mock('@/lib/request-utils', () => ({
   getUserAgent: jest.fn(() => 'Test UserAgent'),
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/constants', () => ({ SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'] }));
+jest.mock('@/lib/constants', () => ({
+  SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
+  DRIVER_POINTS: [0, 9, 6, 3, 1],
+  getDriverPoints: (pos) => [0, 9, 6, 3, 1][pos] ?? 0,
+}));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/optimistic-locking', () => ({
   updateWithRetry: jest.fn(),

@@ -30,6 +30,7 @@ import {
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
+import { getDriverPoints } from "@/lib/constants";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -53,21 +54,6 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
   useRoundDifferential: false,
 };
 
-/**
- * Driver points table indexed by finishing position.
- * Position 0 is unused (placeholder for 1-indexed positions).
- * 1st place = 9pts, 2nd = 6pts, 3rd = 3pts, 4th = 1pt.
- */
-const DRIVER_POINTS = [0, 9, 6, 3, 1];
-
-/**
- * Convert a finishing position to driver points.
- * Returns 0 for invalid positions (outside 1-4 range).
- */
-function getPointsFromPosition(position: number): number {
-  if (position < 1 || position > 4) return 0;
-  return DRIVER_POINTS[position];
-}
 
 /**
  * POST /api/tournaments/[id]/gp/match/[matchId]/report
@@ -140,8 +126,8 @@ export async function POST(
     let totalPoints2 = 0;
 
     const processedRaces = races.map((race: { position1: number; position2: number; course: string }) => {
-      const points1 = getPointsFromPosition(race.position1);
-      const points2 = getPointsFromPosition(race.position2);
+      const points1 = getDriverPoints(race.position1);
+      const points2 = getDriverPoints(race.position2);
       totalPoints1 += points1;
       totalPoints2 += points2;
       return {

@@ -25,7 +25,6 @@ import {
   createScoreEntryLog,
   createCharacterUsageLog,
   recalculatePlayerStats,
-  type RecalculateStatsConfig,
 } from '@/lib/api-factories/score-report-helpers';
 
 import { NextRequest } from 'next/server';

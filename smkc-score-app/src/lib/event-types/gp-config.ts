@@ -10,17 +10,11 @@
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
-
-/**
- * SMK driver points lookup table indexed by finishing position.
- * Index 0 is unused (positions are 1-based); positions beyond 4th earn 0 points.
- * Per requirements.md glossary: 1st=9, 2nd=6, 3rd=3, 4th=1.
- */
-const DRIVER_POINTS = [0, 9, 6, 3, 1] as const;
+import { DRIVER_POINTS } from '@/lib/constants';
 
 /**
  * Calculate driver points from race finishing positions.
- * 1st=9, 2nd=6, 3rd=3, 4th=1, 5th+=0.
+ * Uses centralized DRIVER_POINTS table from constants.ts.
  */
 function calculateDriverPoints(position1: number, position2: number) {
   const points1 = DRIVER_POINTS[position1] ?? 0;

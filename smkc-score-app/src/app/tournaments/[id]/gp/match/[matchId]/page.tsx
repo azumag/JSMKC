@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -214,20 +214,13 @@ export default function GPMatchPage({
     return course ? course.name : abbr;
   };
 
-  /** Convert finishing position to driver points (1st=9, 2nd=6) */
-  const getPointsFromPosition = (position: number) => {
-    if (position === 1) return 9;
-    if (position === 2) return 6;
-    return 0;
-  };
-
-  /* Calculate running totals for the points preview */
+  /* Calculate running totals for the points preview using centralized driver points */
   const totalPoints1 = races.reduce(
-    (sum, r) => sum + (r.position1 ? getPointsFromPosition(r.position1) : 0),
+    (sum, r) => sum + (r.position1 ? getDriverPoints(r.position1) : 0),
     0
   );
   const totalPoints2 = races.reduce(
-    (sum, r) => sum + (r.position2 ? getPointsFromPosition(r.position2) : 0),
+    (sum, r) => sum + (r.position2 ? getDriverPoints(r.position2) : 0),
     0
   );
 
