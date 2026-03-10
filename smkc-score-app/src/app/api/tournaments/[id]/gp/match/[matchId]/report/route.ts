@@ -26,6 +26,8 @@ import {
   createCharacterUsageLog,
   validateCharacter,
   checkScoreReportAuth,
+  recalculatePlayerStats,
+  type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
 import {
@@ -36,6 +38,20 @@ import {
   handleDatabaseError,
 } from "@/lib/error-handling";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
+
+/**
+ * GP-specific stats recalculation config.
+ * Direct driver-points comparison for win/loss/tie.
+ * Accumulates total driver points as the `points` field (not round differential).
+ */
+const GP_RECALC_CONFIG: RecalculateStatsConfig = {
+  matchModel: 'gPMatch',
+  qualificationModel: 'gPQualification',
+  scoreFields: { p1: 'points1', p2: 'points2' },
+  determineResult: (myPoints, oppPoints) =>
+    myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie',
+  useRoundDifferential: false,
+};
 
 /**
  * Driver points table indexed by finishing position.
@@ -235,8 +251,8 @@ export async function POST(
           return finalResult;
         });
 
-        await recalculatePlayerStats(tournamentId, confirmedMatch.player1Id);
-        await recalculatePlayerStats(tournamentId, confirmedMatch.player2Id);
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, confirmedMatch.player1Id);
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, confirmedMatch.player2Id);
 
         return createSuccessResponse({
           match: confirmedMatch,
@@ -265,40 +281,4 @@ export async function POST(
     logger.error("Failed to report score", { error, tournamentId, matchId });
     return handleDatabaseError(error, "score report");
   }
-}
-
-/**
- * Recalculate GP qualification stats for a player.
- * GP-specific: tracks total driver points across matches.
- */
-async function recalculatePlayerStats(tournamentId: string, playerId: string) {
-  const matches = await prisma.gPMatch.findMany({
-    where: {
-      tournamentId, stage: "qualification", completed: true,
-      OR: [{ player1Id: playerId }, { player2Id: playerId }],
-    },
-  });
-
-  let totalPoints = 0;
-  let wins = 0;
-  let ties = 0;
-  let losses = 0;
-
-  for (const m of matches) {
-    const isPlayer1 = m.player1Id === playerId;
-    const myPoints = isPlayer1 ? m.points1 : m.points2;
-    const oppPoints = isPlayer1 ? m.points2 : m.points1;
-    totalPoints += myPoints;
-
-    if (myPoints > oppPoints) wins++;
-    else if (myPoints < oppPoints) losses++;
-    else ties++;
-  }
-
-  const score = wins * 2 + ties;
-
-  await prisma.gPQualification.updateMany({
-    where: { tournamentId, playerId },
-    data: { mp: matches.length, wins, ties, losses, points: totalPoints, score },
-  });
 }

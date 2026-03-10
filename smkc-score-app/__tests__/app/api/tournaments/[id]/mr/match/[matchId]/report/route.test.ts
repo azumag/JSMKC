@@ -55,6 +55,7 @@ jest.mock('@/lib/api-factories/score-report-helpers', () => ({
   createScoreEntryLog: jest.fn(),
   createCharacterUsageLog: jest.fn(),
   validateCharacter: jest.fn(),
+  recalculatePlayerStats: jest.fn(),
 }));
 /**
  * Mock optimistic-locking: the route uses updateWithRetry for all DB writes.

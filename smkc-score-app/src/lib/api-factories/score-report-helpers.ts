@@ -212,3 +212,116 @@ export function validateCharacter(character: string | undefined): boolean {
   if (!character) return true;
   return SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number]);
 }
+
+// ============================================================
+// Player Stats Recalculation
+// ============================================================
+
+/**
+ * Possible match outcome from the perspective of a single player.
+ */
+export type MatchOutcome = 'win' | 'loss' | 'tie';
+
+/**
+ * Configuration for recalculatePlayerStats, parameterized per game mode.
+ *
+ * Each 2P mode (BM, MR, GP) uses the same recalculation pattern:
+ * query completed qualification matches → accumulate stats → update qualification record.
+ *
+ * The differences are:
+ * - Prisma model names for matches and qualifications
+ * - Score field names (BM/MR: score1/score2, GP: points1/points2)
+ * - Win/loss determination logic (BM uses calculateMatchResult, MR/GP use direct comparison)
+ * - Points accumulation (BM/MR: round differential, GP: absolute driver points)
+ */
+export interface RecalculateStatsConfig {
+  /** Prisma model name for match queries (e.g. 'bMMatch') */
+  matchModel: string;
+  /** Prisma model name for qualification stats updates (e.g. 'bMQualification') */
+  qualificationModel: string;
+  /** Field names on the match model for player 1 and player 2 scores */
+  scoreFields: { p1: string; p2: string };
+  /** Determine match outcome from the reporting player's perspective */
+  determineResult: (myScore: number, oppScore: number) => MatchOutcome;
+  /**
+   * If true, tracks winRounds/lossRounds per match and stores their
+   * differential as the `points` field (BM/MR pattern).
+   * If false, accumulates the player's score as total `points` (GP pattern).
+   */
+  useRoundDifferential: boolean;
+}
+
+/**
+ * Recalculate qualification stats for a player from all completed matches.
+ *
+ * This is called after a match is confirmed (dual-report agreement or admin override)
+ * to ensure the player's aggregate stats are consistent with the match results.
+ *
+ * Common formula across all 2P modes:
+ * - score (match points) = wins × 2 + ties
+ * - mp (matches played) = count of completed matches
+ *
+ * Mode-specific behavior is injected via the config parameter.
+ *
+ * @param config - Mode-specific configuration (models, fields, win logic)
+ * @param tournamentId - Tournament identifier
+ * @param playerId - Player identifier to recalculate stats for
+ */
+export async function recalculatePlayerStats(
+  config: RecalculateStatsConfig,
+  tournamentId: string,
+  playerId: string,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const matchDelegate = (prisma as any)[config.matchModel];
+
+  const matches = await matchDelegate.findMany({
+    where: {
+      tournamentId,
+      stage: 'qualification',
+      completed: true,
+      OR: [{ player1Id: playerId }, { player2Id: playerId }],
+    },
+  });
+
+  let mp = 0, wins = 0, ties = 0, losses = 0;
+  let winRounds = 0, lossRounds = 0, totalPoints = 0;
+
+  for (const m of matches) {
+    mp++;
+    const isPlayer1 = m.player1Id === playerId;
+    const myScore: number = isPlayer1
+      ? m[config.scoreFields.p1]
+      : m[config.scoreFields.p2];
+    const oppScore: number = isPlayer1
+      ? m[config.scoreFields.p2]
+      : m[config.scoreFields.p1];
+
+    const result = config.determineResult(myScore, oppScore);
+    if (result === 'win') wins++;
+    else if (result === 'loss') losses++;
+    else ties++;
+
+    if (config.useRoundDifferential) {
+      winRounds += myScore;
+      lossRounds += oppScore;
+    } else {
+      totalPoints += myScore;
+    }
+  }
+
+  const score = wins * 2 + ties;
+
+  /* Build update data based on mode configuration */
+  const data = config.useRoundDifferential
+    ? { mp, wins, ties, losses, winRounds, lossRounds, points: winRounds - lossRounds, score }
+    : { mp, wins, ties, losses, points: totalPoints, score };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qualDelegate = (prisma as any)[config.qualificationModel];
+
+  await qualDelegate.updateMany({
+    where: { tournamentId, playerId },
+    data,
+  });
+}

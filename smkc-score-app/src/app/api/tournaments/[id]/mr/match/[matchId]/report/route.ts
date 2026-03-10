@@ -28,6 +28,8 @@ import {
   createScoreEntryLog,
   createCharacterUsageLog,
   validateCharacter,
+  recalculatePlayerStats,
+  type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateMatchRaceScores } from "@/lib/score-validation";
 import { TOTAL_MR_RACES } from "@/lib/constants";
@@ -39,6 +41,20 @@ import {
   handleDatabaseError
 } from "@/lib/error-handling";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
+
+/**
+ * MR-specific stats recalculation config.
+ * Direct score comparison for win/loss/tie (MR allows 2-2 draws).
+ * Tracks round differential (winRounds - lossRounds) as the `points` field.
+ */
+const MR_RECALC_CONFIG: RecalculateStatsConfig = {
+  matchModel: 'mRMatch',
+  qualificationModel: 'mRQualification',
+  scoreFields: { p1: 'score1', p2: 'score2' },
+  determineResult: (myScore, oppScore) =>
+    myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie',
+  useRoundDifferential: true,
+};
 
 /**
  * POST /api/tournaments/[id]/mr/match/[matchId]/report
@@ -235,8 +251,8 @@ export async function POST(
             return finalResult;
           });
 
-          await recalculatePlayerStats(tournamentId, completedMatch.player1Id);
-          await recalculatePlayerStats(tournamentId, completedMatch.player2Id);
+          await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, completedMatch.player1Id);
+          await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, completedMatch.player2Id);
 
           return createSuccessResponse({
             match: completedMatch,
@@ -269,41 +285,3 @@ export async function POST(
   }
 }
 
-/**
- * Recalculate MR qualification stats for a player.
- * MR-specific: tracks winRounds/lossRounds and round differential.
- *
- * Reads from the match's final score fields (score1/score2) which are set
- * when both players report matching scores. Uses correct field names
- * per MRMatch schema, which differs from GPMatch (points1/points2).
- */
-async function recalculatePlayerStats(tournamentId: string, playerId: string) {
-  const matches = await prisma.mRMatch.findMany({
-    where: {
-      tournamentId, stage: "qualification", completed: true,
-      OR: [{ player1Id: playerId }, { player2Id: playerId }],
-    },
-  });
-
-  const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
-
-  for (const m of matches) {
-    stats.mp++;
-    const isPlayer1 = m.player1Id === playerId;
-    const myScore = isPlayer1 ? m.score1 : m.score2;
-    const oppScore = isPlayer1 ? m.score2 : m.score1;
-    stats.winRounds += myScore;
-    stats.lossRounds += oppScore;
-
-    if (myScore > oppScore) stats.wins++;
-    else if (myScore < oppScore) stats.losses++;
-    else stats.ties++;
-  }
-
-  const score = stats.wins * 2 + stats.ties;
-
-  await prisma.mRQualification.updateMany({
-    where: { tournamentId, playerId },
-    data: { ...stats, points: stats.winRounds - stats.lossRounds, score },
-  });
-}

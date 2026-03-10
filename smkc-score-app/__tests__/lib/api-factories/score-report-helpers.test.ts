@@ -10,21 +10,22 @@
  *   - Admin session authorization with full override capability
  *   - Player session authorization (direct login and OAuth-linked)
  * - validateCharacter: Character validation against SMK roster
- * - applyRateLimit: Rate limiting with 429 response on exceeded limits
  * - createScoreEntryLog: Audit trail logging (non-critical, graceful failure)
  * - createCharacterUsageLog: Character usage tracking (non-critical, graceful failure)
+ * - recalculatePlayerStats: Shared player stats recalculation (BM/MR/GP)
  *
- * Tests mock all dependencies including prisma, auth, rate-limit,
- * and logger to isolate the helper functions for independent testing.
+ * Tests mock all dependencies including prisma, auth, and logger
+ * to isolate the helper functions for independent testing.
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
 import {
   checkScoreReportAuth,
   validateCharacter,
-  applyRateLimit,
   createScoreEntryLog,
   createCharacterUsageLog,
+  recalculatePlayerStats,
+  type RecalculateStatsConfig,
 } from '@/lib/api-factories/score-report-helpers';
 
 import { NextRequest } from 'next/server';
@@ -33,28 +34,20 @@ import { SMK_CHARACTERS } from '@/lib/constants';
 // Mock dependencies
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/auth');
-jest.mock('@/lib/rate-limit');
 jest.mock('@/lib/logger');
 
-import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
 
 describe('Score Report Helpers', () => {
-  let mockRateLimit: jest.MockedFunction<typeof rateLimit>;
-  let mockGetClientIdentifier: jest.MockedFunction<typeof getClientIdentifier>;
   let mockAuth: jest.MockedFunction<typeof auth>;
   let mockLogger: ReturnType<typeof createLogger>;
   let mockPrisma: typeof prisma;
 
   beforeEach(() => {
-    // Reset all mocks
     jest.clearAllMocks();
 
-    // Setup mocks
-    mockRateLimit = rateLimit as jest.MockedFunction<typeof rateLimit>;
-    mockGetClientIdentifier = getClientIdentifier as jest.MockedFunction<typeof getClientIdentifier>;
     mockAuth = auth as jest.MockedFunction<typeof auth>;
     mockLogger = {
       error: jest.fn(),
@@ -63,15 +56,8 @@ describe('Score Report Helpers', () => {
       debug: jest.fn(),
     };
 
-    // Mock createLogger to return test logger
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
-
-    // Mock prisma
     mockPrisma = prisma as jest.Mocked<typeof prisma>;
-
-    // Default successful responses
-    mockRateLimit.mockResolvedValue({ success: true, remaining: 19 });
-    mockGetClientIdentifier.mockReturnValue('192.168.1.1');
   });
 
   // ============================================================
@@ -189,43 +175,6 @@ describe('Score Report Helpers', () => {
   });
 
   // ============================================================
-  // applyRateLimit Tests (2 cases) - SKIPPED
-  // Rate limiting has been removed from the application.
-  // Tests retained for potential future re-enablement.
-  // ============================================================
-
-  describe.skip('applyRateLimit', () => {
-    const mockRequest = new NextRequest('http://localhost:3000', {
-      headers: new Headers({ 'x-forwarded-for': '192.168.1.1' }),
-    });
-
-    it('should return { allowed: true } when rate limit check succeeds', async () => {
-      mockRateLimit.mockResolvedValue({ success: true, remaining: 19 });
-
-      const result = await applyRateLimit(mockRequest, 20, 60000);
-
-      expect(result.allowed).toBe(true);
-      expect(result.clientIp).toBe('192.168.1.1');
-      expect(result.response).toBeUndefined();
-      expect(mockGetClientIdentifier).toHaveBeenCalledWith(mockRequest);
-      expect(mockRateLimit).toHaveBeenCalledWith('192.168.1.1', 20, 60000);
-    });
-
-    it('should return { allowed: false, response: 429 } when rate limit check fails', async () => {
-      mockRateLimit.mockResolvedValue({ success: false, remaining: 0, retryAfter: 30 });
-
-      const result = await applyRateLimit(mockRequest, 20, 60000);
-
-      expect(result.allowed).toBe(false);
-      expect(result.clientIp).toBe('192.168.1.1');
-      expect(result.response).toBeDefined();
-      expect(result.response?.status).toBe(429);
-      expect(mockGetClientIdentifier).toHaveBeenCalledWith(mockRequest);
-      expect(mockRateLimit).toHaveBeenCalledWith('192.168.1.1', 20, 60000);
-    });
-  });
-
-  // ============================================================
   // createScoreEntryLog Tests (2 cases)
   // ============================================================
 
@@ -326,6 +275,178 @@ describe('Score Report Helpers', () => {
           character: mockCharacterData.character,
         }
       );
+    });
+  });
+
+  // ============================================================
+  // recalculatePlayerStats Tests
+  // ============================================================
+
+  describe('recalculatePlayerStats', () => {
+    /**
+     * Create a mock match record with player IDs and score fields.
+     * Supports both score1/score2 (BM/MR) and points1/points2 (GP) patterns.
+     */
+    function createMockMatch(
+      player1Id: string,
+      player2Id: string,
+      scores: Record<string, number>,
+    ) {
+      return { player1Id, player2Id, ...scores };
+    }
+
+    /** Config for round-differential mode (BM/MR pattern) */
+    const differentialConfig: RecalculateStatsConfig = {
+      matchModel: 'testMatch',
+      qualificationModel: 'testQualification',
+      scoreFields: { p1: 'score1', p2: 'score2' },
+      determineResult: (my, opp) =>
+        my > opp ? 'win' : my < opp ? 'loss' : 'tie',
+      useRoundDifferential: true,
+    };
+
+    /** Config for absolute-points mode (GP pattern) */
+    const absoluteConfig: RecalculateStatsConfig = {
+      matchModel: 'testMatch',
+      qualificationModel: 'testQualification',
+      scoreFields: { p1: 'points1', p2: 'points2' },
+      determineResult: (my, opp) =>
+        my > opp ? 'win' : my < opp ? 'loss' : 'tie',
+      useRoundDifferential: false,
+    };
+
+    let mockFindMany: jest.Mock;
+    let mockUpdateMany: jest.Mock;
+
+    beforeEach(() => {
+      mockFindMany = jest.fn();
+      mockUpdateMany = jest.fn();
+      /* Dynamic model access: prisma[config.matchModel].findMany */
+      (mockPrisma as any).testMatch = { findMany: mockFindMany };
+      (mockPrisma as any).testQualification = { updateMany: mockUpdateMany };
+    });
+
+    it('should correctly calculate stats with round differential (BM/MR)', async () => {
+      /* Player p1 played 3 matches: 1 win (3-1), 1 loss (1-3), 1 tie (2-2) */
+      mockFindMany.mockResolvedValue([
+        createMockMatch('p1', 'p2', { score1: 3, score2: 1 }),
+        createMockMatch('p1', 'p3', { score1: 1, score2: 3 }),
+        createMockMatch('p4', 'p1', { score1: 2, score2: 2 }),
+      ]);
+
+      await recalculatePlayerStats(differentialConfig, 'tourney-1', 'p1');
+
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: {
+          tournamentId: 'tourney-1',
+          stage: 'qualification',
+          completed: true,
+          OR: [{ player1Id: 'p1' }, { player2Id: 'p1' }],
+        },
+      });
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', playerId: 'p1' },
+        data: {
+          mp: 3,
+          wins: 1,
+          ties: 1,
+          losses: 1,
+          winRounds: 6,     // 3 + 1 + 2 (as player2 in 3rd match)
+          lossRounds: 6,    // 1 + 3 + 2
+          points: 0,        // 6 - 6 = 0 differential
+          score: 3,         // 1*2 + 1 = 3 match points
+        },
+      });
+    });
+
+    it('should correctly calculate stats with absolute points (GP)', async () => {
+      /* Player p1 played 2 matches: 1 win (18-12), 1 loss (6-15) */
+      mockFindMany.mockResolvedValue([
+        createMockMatch('p1', 'p2', { points1: 18, points2: 12 }),
+        createMockMatch('p3', 'p1', { points1: 15, points2: 6 }),
+      ]);
+
+      await recalculatePlayerStats(absoluteConfig, 'tourney-1', 'p1');
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', playerId: 'p1' },
+        data: {
+          mp: 2,
+          wins: 1,
+          ties: 0,
+          losses: 1,
+          points: 24,       // 18 + 6 = total driver points
+          score: 2,         // 1*2 + 0 = 2 match points
+        },
+      });
+    });
+
+    it('should handle empty match list (no completed matches)', async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      await recalculatePlayerStats(differentialConfig, 'tourney-1', 'p1');
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', playerId: 'p1' },
+        data: {
+          mp: 0, wins: 0, ties: 0, losses: 0,
+          winRounds: 0, lossRounds: 0, points: 0, score: 0,
+        },
+      });
+    });
+
+    it('should correctly resolve player side when player is player2', async () => {
+      /* Player is always player2 in these matches */
+      mockFindMany.mockResolvedValue([
+        createMockMatch('other', 'p1', { score1: 1, score2: 3 }), // p1 wins
+        createMockMatch('other', 'p1', { score1: 4, score2: 0 }), // p1 loses
+      ]);
+
+      await recalculatePlayerStats(differentialConfig, 'tourney-1', 'p1');
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', playerId: 'p1' },
+        data: {
+          mp: 2,
+          wins: 1,
+          losses: 1,
+          ties: 0,
+          winRounds: 3,     // 3 + 0
+          lossRounds: 5,    // 1 + 4
+          points: -2,       // 3 - 5 = -2
+          score: 2,         // 1*2 + 0
+        },
+      });
+    });
+
+    it('should support custom determineResult function (BM-style)', async () => {
+      /**
+       * BM-specific: calculateMatchResult requires score sum = 4.
+       * Simulate with a custom determiner that always returns 'tie' for 2-2.
+       */
+      const bmConfig: RecalculateStatsConfig = {
+        ...differentialConfig,
+        determineResult: (my, opp) => {
+          if (my + opp !== 4) return 'tie'; // invalid BM score → tie
+          return my > opp ? 'win' : my < opp ? 'loss' : 'tie';
+        },
+      };
+
+      mockFindMany.mockResolvedValue([
+        createMockMatch('p1', 'p2', { score1: 3, score2: 1 }),
+        createMockMatch('p1', 'p3', { score1: 2, score2: 2 }),
+      ]);
+
+      await recalculatePlayerStats(bmConfig, 'tourney-1', 'p1');
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tourney-1', playerId: 'p1' },
+        data: {
+          mp: 2, wins: 1, ties: 1, losses: 0,
+          winRounds: 5, lossRounds: 3, points: 2, score: 3,
+        },
+      });
     });
   });
 });

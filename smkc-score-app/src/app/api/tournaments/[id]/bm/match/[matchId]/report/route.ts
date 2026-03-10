@@ -36,10 +36,28 @@ import {
   createScoreEntryLog,
   createCharacterUsageLog,
   validateCharacter,
+  recalculatePlayerStats,
+  type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
+
+/**
+ * BM-specific stats recalculation config.
+ * Uses calculateMatchResult() for win/loss/tie determination (handles BM's sum=4 constraint).
+ * Tracks round differential (winRounds - lossRounds) as the `points` field.
+ */
+const BM_RECALC_CONFIG: RecalculateStatsConfig = {
+  matchModel: 'bMMatch',
+  qualificationModel: 'bMQualification',
+  scoreFields: { p1: 'score1', p2: 'score2' },
+  determineResult: (myScore, oppScore) => {
+    const { result1 } = calculateMatchResult(myScore, oppScore);
+    return result1;
+  },
+  useRoundDifferential: true,
+};
 
 /**
  * POST /api/tournaments/[id]/bm/match/[matchId]/report
@@ -196,8 +214,8 @@ export async function POST(
           return finalResult;
         });
 
-        await recalculatePlayerStats(tournamentId, finalMatch.player1Id);
-        await recalculatePlayerStats(tournamentId, finalMatch.player2Id);
+        await recalculatePlayerStats(BM_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
+        await recalculatePlayerStats(BM_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
 
         return createSuccessResponse({
           match: finalMatch,
@@ -228,42 +246,3 @@ export async function POST(
   }
 }
 
-/**
- * Recalculate BM qualification stats for a player.
- * BM-specific: tracks winRounds/lossRounds and round differential.
- */
-async function recalculatePlayerStats(tournamentId: string, playerId: string) {
-  const matches = await prisma.bMMatch.findMany({
-    where: {
-      tournamentId, stage: "qualification", completed: true,
-      OR: [{ player1Id: playerId }, { player2Id: playerId }],
-    },
-  });
-
-  const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
-
-  for (const m of matches) {
-    stats.mp++;
-    const isPlayer1 = m.player1Id === playerId;
-    const myScore = isPlayer1 ? m.score1 : m.score2;
-    const oppScore = isPlayer1 ? m.score2 : m.score1;
-    stats.winRounds += myScore;
-    stats.lossRounds += oppScore;
-
-    const { result1 } = calculateMatchResult(
-      isPlayer1 ? m.score1 : m.score2,
-      isPlayer1 ? m.score2 : m.score1
-    );
-
-    if (result1 === "win") stats.wins++;
-    else if (result1 === "loss") stats.losses++;
-    else stats.ties++;
-  }
-
-  const score = stats.wins * 2 + stats.ties;
-
-  await prisma.bMQualification.updateMany({
-    where: { tournamentId, playerId },
-    data: { ...stats, points: stats.winRounds - stats.lossRounds, score },
-  });
-}
