@@ -2,15 +2,14 @@
  * Match Detail Route Factory
  *
  * Generates GET/PUT handlers for individual match API routes.
- * Supports two response styles:
- * - 'structured': Uses error-handling helpers (BM pattern)
- * - 'raw': Uses raw NextResponse.json (MR/GP pattern)
+ * Uses structured responses (error-handling helpers) for consistent
+ * API response format across all game modes (BM, MR, GP).
  *
  * Eliminates duplicated code across BM, MR, and GP match detail routes
  * while preserving identical API response shapes for each event type.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { OptimisticLockError } from '@/lib/optimistic-locking';
@@ -32,10 +31,8 @@ import { createLogger } from '@/lib/logger';
  * @property detailField - Detail field name ('rounds' for BM/MR, 'races' for GP)
  * @property updateMatchScore - Optimistic locking update function
  * @property sanitizeBody - Whether to apply sanitizeInput to the request body
- * @property responseStyle - 'structured' (BM) or 'raw' (MR/GP)
- * @property getErrorMessage - Error message for GET 500 response (raw style)
- * @property getLogMessage - Log message for GET errors (raw style, defaults to getErrorMessage)
- * @property putErrorMessage - Error message for PUT 500 response (raw style)
+ * @property putRequiresAuth - Whether PUT endpoint requires admin authentication
+ * @property validateScores - Optional score validation function
  */
 export interface MatchDetailConfig {
   matchModel: string;
@@ -54,10 +51,6 @@ export interface MatchDetailConfig {
     detail?: any,
   ) => Promise<{ version: number }>;
   sanitizeBody?: boolean;
-  responseStyle: 'structured' | 'raw';
-  getErrorMessage?: string;
-  getLogMessage?: string;
-  putErrorMessage?: string;
   /** Whether PUT endpoint requires admin authentication */
   putRequiresAuth?: boolean;
   /**
@@ -79,10 +72,6 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const model = (p: any) => p[config.matchModel];
 
-  const getErrMsg = config.getErrorMessage || 'Failed to fetch match';
-  const getLogMsg = config.getLogMessage || getErrMsg;
-  const putErrMsg = config.putErrorMessage || 'Failed to update match';
-
   /**
    * GET handler: Fetch a single match by matchId with player details.
    */
@@ -90,7 +79,6 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     request: NextRequest,
     { params }: { params: Promise<{ id: string; matchId: string }> },
   ) {
-    const logger = createLogger(config.loggerName);
     const { matchId } = await params;
 
     try {
@@ -100,30 +88,12 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       });
 
       if (!match) {
-        if (config.responseStyle === 'structured') {
-          return handleValidationError('Match not found', 'matchId');
-        }
-        return NextResponse.json(
-          { success: false, error: 'Match not found' },
-          { status: 404 },
-        );
+        return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
 
-      if (config.responseStyle === 'structured') {
-        return createSuccessResponse(match);
-      }
-      return NextResponse.json(match);
+      return createSuccessResponse(match);
     } catch (error) {
-      if (config.responseStyle === 'structured') {
-        return handleDatabaseError(error, 'fetch match');
-      }
-
-      logger.error(getLogMsg, { error, matchId });
-
-      return NextResponse.json(
-        { success: false, error: getErrMsg },
-        { status: 500 },
-      );
+      return handleDatabaseError(error, 'fetch match');
     }
   }
 
@@ -141,13 +111,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        if (config.responseStyle === 'structured') {
-          return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
-        }
-        return NextResponse.json(
-          { success: false, error: 'Forbidden' },
-          { status: 403 },
-        );
+        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
     }
 
@@ -168,39 +132,19 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       /* Both score fields are required for any match update */
       if (val1 === undefined || val2 === undefined) {
         const msg = `${config.scoreFields.field1} and ${config.scoreFields.field2} are required`;
-        if (config.responseStyle === 'structured') {
-          return handleValidationError(msg, 'scores');
-        }
-        return NextResponse.json(
-          { success: false, error: msg },
-          { status: 400 },
-        );
+        return handleValidationError(msg, 'scores');
       }
 
       /* Version is mandatory to enable optimistic locking */
       if (typeof version !== 'number') {
-        const msg = 'version is required and must be a number';
-        if (config.responseStyle === 'structured') {
-          return handleValidationError(msg, 'version');
-        }
-        return NextResponse.json(
-          { success: false, error: msg },
-          { status: 400 },
-        );
+        return handleValidationError('version is required and must be a number', 'version');
       }
 
       /* Optional score validation (e.g. BM: sum must be 4, no ties) */
       if (config.validateScores) {
         const scoreValidation = config.validateScores(val1, val2);
         if (!scoreValidation.isValid) {
-          const msg = scoreValidation.error ?? 'Invalid scores';
-          if (config.responseStyle === 'structured') {
-            return handleValidationError(msg, 'scores');
-          }
-          return NextResponse.json(
-            { success: false, error: msg },
-            { status: 400 },
-          );
+          return handleValidationError(scoreValidation.error ?? 'Invalid scores', 'scores');
         }
       }
 
@@ -214,47 +158,23 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         include: { player1: true, player2: true },
       });
 
-      if (config.responseStyle === 'structured') {
-        return createSuccessResponse({
-          match: updatedMatch,
-          version: result.version,
-        });
-      }
-      return NextResponse.json({
-        success: true,
-        data: updatedMatch,
+      return createSuccessResponse({
+        match: updatedMatch,
         version: result.version,
       });
     } catch (error) {
-      logger.error(putErrMsg, { error, matchId });
+      logger.error('Failed to update match', { error, matchId });
 
       if (error instanceof OptimisticLockError) {
-        if (config.responseStyle === 'structured') {
-          return createErrorResponse(
-            'The match was modified by another user. Please refresh and try again.',
-            409,
-            'VERSION_CONFLICT',
-            { currentVersion: error.currentVersion },
-          );
-        }
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Version conflict',
-            message: 'The match was modified by another user. Please refresh and try again.',
-            currentVersion: error.currentVersion,
-          },
-          { status: 409 },
+        return createErrorResponse(
+          'The match was modified by another user. Please refresh and try again.',
+          409,
+          'VERSION_CONFLICT',
+          { currentVersion: error.currentVersion },
         );
       }
 
-      if (config.responseStyle === 'structured') {
-        return handleDatabaseError(error, 'update match');
-      }
-      return NextResponse.json(
-        { success: false, error: putErrMsg },
-        { status: 500 },
-      );
+      return handleDatabaseError(error, 'update match');
     }
   }
 

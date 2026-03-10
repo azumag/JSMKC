@@ -3,7 +3,6 @@
  *
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual BM match data with optimistic locking.
- * Uses structured response style (error-handling helpers).
  *
  * Score validation is applied on PUT to enforce BM rules (4 rounds total, no ties),
  * preventing silent data corruption where invalid scores (e.g. 5-0) would be stored
@@ -22,7 +21,6 @@ const { GET, PUT } = createMatchDetailHandlers({
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   validateScores: validateBattleModeScores,
-  responseStyle: 'structured',
   putRequiresAuth: true,
 });
 

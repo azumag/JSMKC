@@ -7,20 +7,20 @@
  * individual match API routes. Tests cover:
  *
  * - GET handler: Fetching match with player details
- *   - Structured response style (BM pattern) using createSuccessResponse
- *   - Raw response style (MR/GP pattern) using NextResponse.json
- *   - 404 handling when match not found
- *   - 500 error handling for database errors
+ *   - Success response using createSuccessResponse
+ *   - 404 handling when match not found (createErrorResponse with 404)
+ *   - 500 error handling for database errors (handleDatabaseError)
  * - PUT handler: Updating match score with optimistic locking
  *   - Authentication requirement (putRequiresAuth)
  *   - Input sanitization (sanitizeBody)
  *   - Version validation
  *   - Score field validation
+ *   - Custom score validation (validateScores)
  *   - OptimisticLockError handling with currentVersion in response
- *   - Response style variations (structured vs raw)
+ *   - Database error handling
  *
- * Tests mock all dependencies including prisma, auth, sanitize, error-handling,
- * and logger to isolate the factory function behavior.
+ * All responses use structured error-handling helpers (createSuccessResponse,
+ * createErrorResponse, handleValidationError, handleDatabaseError).
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
@@ -60,6 +60,15 @@ describe('Match Detail Route Factory', () => {
     player2: { id: 'player-2', name: 'Player 2' },
     ...overrides,
   });
+
+  /** Minimal config shared across tests — override per-test as needed */
+  const baseConfig = {
+    matchModel: 'bMMatch',
+    loggerName: 'bm-match',
+    scoreFields: { field1: 'score1', field2: 'score2' },
+    detailField: 'rounds',
+    updateMatchScore: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -101,27 +110,18 @@ describe('Match Detail Route Factory', () => {
   });
 
   // ============================================================
-  // GET Handler Tests (4 cases)
+  // GET Handler Tests
   // ============================================================
 
   describe('GET Handler', () => {
-    it('should return structured response when responseStyle is structured', async () => {
+    it('should return match data via createSuccessResponse', async () => {
       const mockMatch = createMockMatch();
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
 
-      const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'structured' as const,
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
 
       const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
+      await GET(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -132,133 +132,36 @@ describe('Match Detail Route Factory', () => {
       });
     });
 
-    it('should return raw response when responseStyle is raw', async () => {
-      const mockMatch = createMockMatch();
-      (prisma.mRMatch as any).findUnique.mockResolvedValue(mockMatch);
-
-      const config = {
-        matchModel: 'mRMatch',
-        loggerName: 'mr-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'raw' as const,
-        getErrorMessage: 'Failed to fetch MR match',
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
-
-      const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
-        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
-      });
-
-      // Should return NextResponse.json with match data (no success wrapper for GET)
-      expect(response.status).toBe(200);
-      expect((prisma.mRMatch as any).findUnique).toHaveBeenCalledWith({
-        where: { id: 'match-123' },
-        include: { player1: true, player2: true },
-      });
-    });
-
-    it('should return 404 when match not found (structured style)', async () => {
+    it('should return 404 via createErrorResponse when match not found', async () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(null);
 
-      const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'structured' as const,
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
 
       const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
+      await GET(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockHandleValidationError).toHaveBeenCalledWith('Match not found', 'matchId');
+      /* Factory now uses createErrorResponse with 404 (not handleValidationError) */
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Match not found', 404, 'NOT_FOUND');
     });
 
-    it('should return 404 when match not found (raw style)', async () => {
-      (prisma.mRMatch as any).findUnique.mockResolvedValue(null);
-
-      const config = {
-        matchModel: 'mRMatch',
-        loggerName: 'mr-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'raw' as const,
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
-
-      const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
-        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
-      });
-
-      expect(response.status).toBe(404);
-      expect(response.json()).resolves.toEqual({ success: false, error: 'Match not found' });
-    });
-
-    it('should return 500 on database error (structured style)', async () => {
+    it('should delegate database errors to handleDatabaseError', async () => {
       (prisma.bMMatch as any).findUnique.mockRejectedValue(new Error('DB error'));
 
-      const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'structured' as const,
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
 
       const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
+      await GET(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
       expect(mockHandleDatabaseError).toHaveBeenCalledWith(new Error('DB error'), 'fetch match');
     });
-
-    it('should return 500 on database error (raw style)', async () => {
-      (prisma.mRMatch as any).findUnique.mockRejectedValue(new Error('DB error'));
-
-      const config = {
-        matchModel: 'mRMatch',
-        loggerName: 'mr-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'raw' as const,
-        getErrorMessage: 'Failed to fetch match',
-        getLogMessage: 'Failed to fetch MR match',
-      };
-
-      const { GET } = createMatchDetailHandlers(config);
-
-      const request = new NextRequest('http://localhost:3000');
-      const response = await GET(request, {
-        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
-      });
-
-      expect(response.status).toBe(500);
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to fetch MR match', {
-        error: expect.any(Error),
-        matchId: 'match-123',
-      });
-    });
   });
 
   // ============================================================
-  // PUT Handler Tests (8 cases)
+  // PUT Handler Tests
   // ============================================================
 
   describe('PUT Handler', () => {
@@ -268,17 +171,12 @@ describe('Match Detail Route Factory', () => {
       const sanitizedBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
-      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, version: 2 });
       mockSanitizeInput.mockReturnValue(sanitizedBody);
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
+        ...baseConfig,
         updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
         sanitizeBody: true,
-        responseStyle: 'structured' as const,
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -287,27 +185,22 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
       expect(mockSanitizeInput).toHaveBeenCalledWith(mockRequestBody);
     });
 
-    it('should execute updateMatchScore when version check passes', async () => {
+    it('should execute updateMatchScore with correct arguments', async () => {
       const mockMatch = createMockMatch({ version: 1 });
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
-      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, version: 2 });
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
+        ...baseConfig,
         updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
-        responseStyle: 'structured' as const,
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -316,7 +209,7 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -331,20 +224,15 @@ describe('Match Detail Route Factory', () => {
       );
     });
 
-    it('should return structured success response', async () => {
-      const mockMatch = createMockMatch({ version: 1 });
+    it('should return success response with match and version', async () => {
       const updatedMatch = createMockMatch({ version: 2, score1: 3, score2: 1 });
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
 
       (prisma.bMMatch as any).findUnique.mockResolvedValue(updatedMatch);
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
+        ...baseConfig,
         updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
-        responseStyle: 'structured' as const,
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -353,7 +241,7 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -363,59 +251,16 @@ describe('Match Detail Route Factory', () => {
       });
     });
 
-    it('should return raw success response', async () => {
-      const mockMatch = createMockMatch({ version: 1 });
-      const updatedMatch = createMockMatch({ version: 2, score1: 3, score2: 1 });
-      const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
-
-      (prisma.mRMatch as any).findUnique.mockResolvedValue(updatedMatch);
-
-      const config = {
-        matchModel: 'mRMatch',
-        loggerName: 'mr-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
-        responseStyle: 'raw' as const,
-      };
-
-      const { PUT } = createMatchDetailHandlers(config);
-
-      const request = new NextRequest('http://localhost:3000', {
-        method: 'PUT',
-        body: JSON.stringify(mockRequestBody),
-      });
-      const response = await PUT(request, {
-        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
-      });
-
-      expect(response.status).toBe(200);
-      expect(response.json()).resolves.toEqual({
-        success: true,
-        data: updatedMatch,
-        version: 2,
-      });
-    });
-
-    it('should return 400 when val1 or val2 is undefined', async () => {
+    it('should return 400 when score fields are missing', async () => {
       const mockRequestBody = { score1: 3, version: 1 };
 
-      const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'structured' as const,
-      };
-
-      const { PUT } = createMatchDetailHandlers(config);
+      const { PUT } = createMatchDetailHandlers({ ...baseConfig });
 
       const request = new NextRequest('http://localhost:3000', {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -428,22 +273,13 @@ describe('Match Detail Route Factory', () => {
     it('should return 400 when version is not a number', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 'invalid', rounds: [] };
 
-      const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
-        responseStyle: 'structured' as const,
-      };
-
-      const { PUT } = createMatchDetailHandlers(config);
+      const { PUT } = createMatchDetailHandlers({ ...baseConfig });
 
       const request = new NextRequest('http://localhost:3000', {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -453,16 +289,12 @@ describe('Match Detail Route Factory', () => {
       );
     });
 
-    it('should return 409 with currentVersion on OptimisticLockError (structured)', async () => {
-      const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+    it('should return 400 when validateScores rejects', async () => {
+      const mockRequestBody = { score1: 5, score2: 0, completed: true, version: 1, rounds: [] };
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn().mockRejectedValue(new OptimisticLockError('Version conflict', 5)),
-        responseStyle: 'structured' as const,
+        ...baseConfig,
+        validateScores: jest.fn().mockReturnValue({ isValid: false, error: 'Sum must be 4' }),
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -471,7 +303,29 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(config.validateScores).toHaveBeenCalledWith(5, 0);
+      expect(mockHandleValidationError).toHaveBeenCalledWith('Sum must be 4', 'scores');
+    });
+
+    it('should return 409 with currentVersion on OptimisticLockError', async () => {
+      const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
+
+      const config = {
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockRejectedValue(new OptimisticLockError('Version conflict', 5)),
+      };
+
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -483,16 +337,12 @@ describe('Match Detail Route Factory', () => {
       );
     });
 
-    it('should return 409 with currentVersion on OptimisticLockError (raw)', async () => {
+    it('should delegate database errors to handleDatabaseError on PUT', async () => {
       const mockRequestBody = { score1: 3, score2: 1, completed: true, version: 1, rounds: [] };
 
       const config = {
-        matchModel: 'mRMatch',
-        loggerName: 'mr-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn().mockRejectedValue(new OptimisticLockError('Version conflict', 5)),
-        responseStyle: 'raw' as const,
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockRejectedValue(new Error('DB write error')),
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -501,17 +351,11 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(response.status).toBe(409);
-      expect(response.json()).resolves.toEqual({
-        success: false,
-        error: 'Version conflict',
-        message: 'The match was modified by another user. Please refresh and try again.',
-        currentVersion: 5,
-      });
+      expect(mockHandleDatabaseError).toHaveBeenCalledWith(new Error('DB write error'), 'update match');
     });
 
     it('should return 403 when putRequiresAuth and user is not authenticated', async () => {
@@ -520,13 +364,8 @@ describe('Match Detail Route Factory', () => {
       mockAuth.mockResolvedValue(null);
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
+        ...baseConfig,
         putRequiresAuth: true,
-        responseStyle: 'structured' as const,
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -535,7 +374,7 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
@@ -554,13 +393,8 @@ describe('Match Detail Route Factory', () => {
       });
 
       const config = {
-        matchModel: 'bMMatch',
-        loggerName: 'bm-match',
-        scoreFields: { field1: 'score1', field2: 'score2' },
-        detailField: 'rounds',
-        updateMatchScore: jest.fn(),
+        ...baseConfig,
         putRequiresAuth: true,
-        responseStyle: 'structured' as const,
       };
 
       const { PUT } = createMatchDetailHandlers(config);
@@ -569,7 +403,7 @@ describe('Match Detail Route Factory', () => {
         method: 'PUT',
         body: JSON.stringify(mockRequestBody),
       });
-      const response = await PUT(request, {
+      await PUT(request, {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 

@@ -3,7 +3,6 @@
  *
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual MR match data with optimistic locking.
- * Uses raw response style with sanitized input.
  *
  * Score validation enforces MR rules: each score must be an integer in [0, 3].
  * BYE matches (score 4-0) are auto-completed at creation and never reach this PUT handler.
@@ -22,7 +21,6 @@ const { GET, PUT } = createMatchDetailHandlers({
     updateMRMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   validateScores: validateMatchRaceScores,
   sanitizeBody: true,
-  responseStyle: 'raw',
   putRequiresAuth: true,
 });
 

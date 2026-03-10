@@ -3,7 +3,7 @@
  *
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual GP match data with optimistic locking.
- * Uses raw response style with points-based scoring.
+ * Uses points-based scoring (driver points).
  */
 
 import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-route';
@@ -16,9 +16,6 @@ const { GET, PUT } = createMatchDetailHandlers({
   detailField: 'races',
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateGPMatchScore(prisma, matchId, version, val1, val2, completed, detail),
-  responseStyle: 'raw',
-  getErrorMessage: 'Failed to fetch grand prix match',
-  getLogMessage: 'Failed to fetch GP match',
   putRequiresAuth: true,
 });
 

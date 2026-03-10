@@ -9,14 +9,12 @@
  *   Tests include success cases (valid matchId), error cases (match not found, database failure).
  * - PUT: Updates a match score using optimistic locking to prevent concurrent modification
  *   conflicts. Tests include success cases (with/without rounds data, incomplete matches),
- *   validation errors (missing score1/score2/version, non-numeric version), optimistic lock
- *   conflict (409 status), error cases (database failure), and edge cases (zero scores,
- *   version increment verification).
+ *   validation errors (missing score1/score2/version, non-numeric version), MR-specific score
+ *   validation (range [0,4]), optimistic lock conflict (409 status), error cases (database
+ *   failure), and edge cases (zero scores, version increment verification).
  *
- * The optimistic locking mechanism ensures that concurrent updates to the same match are
- * detected and rejected with a 409 Conflict response, prompting the client to refresh.
- *
- * Dependencies mocked: @/lib/optimistic-locking, @/lib/sanitize, @/lib/logger, next/server, @/lib/prisma
+ * All responses use structured error-handling helpers (createSuccessResponse,
+ * createErrorResponse, handleValidationError, handleDatabaseError).
  */
 // @ts-nocheck
 
@@ -32,9 +30,18 @@ jest.mock('@/lib/optimistic-locking', () => ({
   },
 }));
 
+jest.mock('@/lib/error-handling', () => ({
+  createSuccessResponse: jest.fn((data) => ({ data, status: 200 })),
+  createErrorResponse: jest.fn((message, status, code, details) => ({ data: { error: message, code, details }, status })),
+  handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
+  handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+}));
+
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn() })) }));
-jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })) }));
+jest.mock('@/lib/score-validation', () => ({
+  validateMatchRaceScores: jest.requireActual('@/lib/score-validation').validateMatchRaceScores,
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -42,33 +49,26 @@ import { createLogger } from '@/lib/logger';
 import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
 
-const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
-const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  handleValidationError,
+  handleDatabaseError,
+} = jest.requireMock('@/lib/error-handling');
 
 // Mock NextRequest class
 class MockNextRequest {
   constructor(
     private url: string,
     private body?: Record<string, unknown>,
-    private headers: Map<string, string> = new Map()
   ) {}
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
-  headers = {
-    get: (key: string) => this.headers.get(key)
-  };
 }
 
 describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => {
-  const loggerMock = { error: jest.fn() };
-
   beforeEach(() => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
-    (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
-    sanitizeMock.sanitizeInput.mockImplementation((data) => data);
   });
 
   describe('GET - Fetch single match', () => {
@@ -92,8 +92,8 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual(mockMatch);
-      expect(result.status).toBe(200);
+      expect(result).toEqual({ data: mockMatch, status: 200 });
+      expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect(prisma.mRMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
         include: { player1: true, player2: true },
@@ -108,8 +108,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'nonexistent' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match not found' });
-      expect(result.status).toBe(404);
+      expect(result).toEqual({
+        data: { error: 'Match not found', code: 'NOT_FOUND', details: undefined },
+        status: 404,
+      });
+      expect(createErrorResponse).toHaveBeenCalledWith('Match not found', 404, 'NOT_FOUND');
     });
 
     // Error case - Returns 500 when database query fails
@@ -120,9 +123,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch match' });
-      expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch match', { error: expect.any(Error), matchId: 'm1' });
+      expect(result).toEqual({
+        data: { error: 'Database error: fetch match' },
+        status: 500,
+      });
+      expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'fetch match');
     });
   });
 
@@ -135,8 +140,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
-      expect(result.status).toBe(403);
+      expect(result).toEqual({
+        data: { error: 'Forbidden', code: 'FORBIDDEN', details: undefined },
+        status: 403,
+      });
+      expect(createErrorResponse).toHaveBeenCalledWith('Forbidden', 403, 'FORBIDDEN');
     });
 
     // Authorization failure case - Returns 403 when user is not admin
@@ -147,8 +155,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
-      expect(result.status).toBe(403);
+      expect(result).toEqual({
+        data: { error: 'Forbidden', code: 'FORBIDDEN', details: undefined },
+        status: 403,
+      });
     });
 
     // Success case - Updates match score successfully
@@ -169,20 +179,13 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({
-        success: true,
-        data: mockUpdatedMatch,
-        version: 2
+      expect(result).toEqual({
+        data: { match: mockUpdatedMatch, version: 2 },
+        status: 200,
       });
-      expect(result.status).toBe(200);
+      expect(createSuccessResponse).toHaveBeenCalledWith({ match: mockUpdatedMatch, version: 2 });
       expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        3,
-        1,
-        true,
-        [1, 2, 3, 4]
+        prisma, 'm1', 1, 3, 1, true, [1, 2, 3, 4]
       );
     });
 
@@ -206,17 +209,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
       expect(result.status).toBe(200);
       expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        2,
-        2,
-        undefined,
-        undefined
+        prisma, 'm1', 1, 2, 2, undefined, undefined
       );
     });
 
-    // Success case - Updates incomplete match (2-2 draw, all 4 races played)
+    // Success case - Updates incomplete match (2-2 draw)
     it('should update incomplete match (not completed)', async () => {
       const mockUpdatedMatch = {
         id: 'm1',
@@ -230,7 +227,6 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockUpdatedMatch);
 
-      // score1+score2=4: all 4 courses played, 2-2 draw
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 2, score2: 2, completed: false, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
@@ -244,8 +240,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'score1 and score2 are required' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'score1 and score2 are required', field: 'scores' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('score1 and score2 are required', 'scores');
     });
 
     // Validation error case - Returns 400 when score2 is missing
@@ -254,8 +253,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'score1 and score2 are required' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'score1 and score2 are required', field: 'scores' },
+        status: 400,
+      });
     });
 
     // Validation error case - Returns 400 when version is missing
@@ -264,8 +265,11 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'version is required and must be a number', field: 'version' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith('version is required and must be a number', 'version');
     });
 
     // Validation error case - Returns 400 when version is not a number
@@ -274,19 +278,22 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'version is required and must be a number', field: 'version' },
+        status: 400,
+      });
     });
 
-    // Validation error case - Rejects out-of-range MR score (max is 4 per 4-course match)
+    // Validation error case - Rejects out-of-range MR score
     it('should return 400 when score exceeds MAX_RACE_WIN_SCORE', async () => {
-      // score1=5 is above the 4-race maximum
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: 5, score2: 0, version: 1 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'Match race score must be an integer between 0 and 4', field: 'scores' },
+        status: 400,
+      });
       expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
@@ -296,8 +303,10 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match race score must be an integer between 0 and 4' });
-      expect(result.status).toBe(400);
+      expect(result).toEqual({
+        data: { error: 'Match race score must be an integer between 0 and 4', field: 'scores' },
+        status: 400,
+      });
       expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
@@ -309,13 +318,20 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({
-        success: false,
-        error: 'Version conflict',
-        message: 'The match was modified by another user. Please refresh and try again.',
-        currentVersion: 5
+      expect(result).toEqual({
+        data: {
+          error: 'The match was modified by another user. Please refresh and try again.',
+          code: 'VERSION_CONFLICT',
+          details: { currentVersion: 5 },
+        },
+        status: 409,
       });
-      expect(result.status).toBe(409);
+      expect(createErrorResponse).toHaveBeenCalledWith(
+        'The match was modified by another user. Please refresh and try again.',
+        409,
+        'VERSION_CONFLICT',
+        { currentVersion: 5 }
+      );
     });
 
     // Error case - Returns 500 when database operation fails
@@ -326,15 +342,15 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
-      expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), matchId: 'm1' });
+      expect(result).toEqual({
+        data: { error: 'Database error: update match' },
+        status: 500,
+      });
+      expect(handleDatabaseError).toHaveBeenCalledWith(expect.any(Error), 'update match');
     });
 
     // Edge case - Handles clean sweep (0-4)
     it('should handle zero scores correctly', async () => {
-      // In 4-course format, a player can win all 4 races (4-0) or lose all 4 (0-4).
-      // 0-0 is no longer valid (sum must equal 4).
       const mockUpdatedMatch = {
         id: 'm1',
         score1: 0,
@@ -353,13 +369,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
 
       expect(result.status).toBe(200);
       expect(updateMRMatchScore).toHaveBeenCalledWith(
-        prisma,
-        'm1',
-        1,
-        0,
-        4,
-        undefined,
-        undefined
+        prisma, 'm1', 1, 0, 4, undefined, undefined
       );
     });
 

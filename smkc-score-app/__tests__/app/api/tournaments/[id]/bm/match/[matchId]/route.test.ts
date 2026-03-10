@@ -12,7 +12,7 @@
  *
  * Key behaviors tested:
  *   - Successful match retrieval with complete and incomplete match states
- *   - 404 handling when match does not exist (mapped to validation error)
+ *   - 404 handling when match does not exist (via createErrorResponse)
  *   - Database error handling with structured error responses
  *   - Optimistic locking: version validation, 409 conflict responses with currentVersion details
  *   - Input validation: missing scores, missing/invalid version, null values
@@ -139,10 +139,10 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       const result = await GET(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'Match not found', field: 'matchId' },
-        status: 400
+        data: { error: 'Match not found', code: 'NOT_FOUND', details: undefined },
+        status: 404
       });
-      expect(handleValidationError).toHaveBeenCalledWith('Match not found', 'matchId');
+      expect(createErrorResponse).toHaveBeenCalledWith('Match not found', 404, 'NOT_FOUND');
     });
 
     // Error case - Returns 500 when database query fails
