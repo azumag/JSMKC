@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
-import { generateRandomTimeString } from "@/lib/ta/time-utils";
+import { generateRandomTimeString, msToDisplayTime } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
@@ -106,18 +106,6 @@ interface PhaseRound {
   eliminatedIds: string[] | null;
   livesReset: boolean;
   createdAt: string;
-}
-
-/**
- * Convert milliseconds to display format (M:SS.mmm).
- * Returns "-" for null values.
- */
-function msToDisplayTime(ms: number | null): string {
-  if (ms === null) return "-";
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const milliseconds = ms % 1000;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
 /**

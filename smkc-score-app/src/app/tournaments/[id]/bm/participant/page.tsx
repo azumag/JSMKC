@@ -189,7 +189,7 @@ export default function BattleModeParticipantPage({
     if (pollingError) {
       logger.error('Polling error:', { error: pollingError, tournamentId });
     }
-  }, [pollingData, pollingError]);
+  }, [pollingData, pollingError, tournamentId]);
 
   /**
    * Filter matches for the current player (auto-identified from session).

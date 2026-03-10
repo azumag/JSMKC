@@ -156,7 +156,7 @@ export default function MatchRaceParticipantPage({
       setMatches(pollingData.matches as MRMatch[]);
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
-  }, [pollingData, pollingError]);
+  }, [pollingData, pollingError, tournamentId]);
 
   /* Filter matches for the current player (only pending ones) */
   useEffect(() => {

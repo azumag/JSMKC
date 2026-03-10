@@ -37,6 +37,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
+import { msToDisplayTime } from '@/lib/ta/time-utils';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 
@@ -69,18 +70,6 @@ interface Tournament {
   name: string;
   date: string;
   status: string;
-}
-
-/**
- * Convert milliseconds to display format (M:SS.mmm).
- * Returns "-" for null values.
- */
-function msToDisplayTime(ms: number | null): string {
-  if (ms === null) return "-";
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const milliseconds = ms % 1000;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
 /**
@@ -213,7 +202,7 @@ export default function TimeAttackParticipantPage({
       }
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
-  }, [pollingData, pollingError]);
+  }, [pollingData, pollingError, tournamentId]);
 
   /** Sync selected player's entry from the entries list */
   useEffect(() => {

@@ -20,6 +20,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { createLogger } from "@/lib/logger";
+import { msToDisplayTime } from "@/lib/ta/time-utils";
 
 /**
  * GET /api/tournaments/[id]/ta/standings
@@ -98,9 +99,8 @@ export async function GET(
         playerName: e.player.name,
         playerNickname: e.player.nickname,
         totalTime: e.totalTime,
-        // Format total time as M:SS for display (simplified format without ms).
-        // Use Math.floor (not toFixed/rounding) to avoid 59.999s displaying as "60" seconds.
-        formattedTime: e.totalTime != null ? `${Math.floor(e.totalTime / 60000)}:${Math.floor((e.totalTime % 60000) / 1000).toString().padStart(2, '0')}` : '-',
+        // Format total time for display using the shared time utility (M:SS.mmm format).
+        formattedTime: msToDisplayTime(e.totalTime),
         /** Total qualification points from per-course scoring system */
         qualificationPoints: e.qualificationPoints,
         lives: e.lives,

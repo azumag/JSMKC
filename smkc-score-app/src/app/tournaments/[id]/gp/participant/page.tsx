@@ -160,7 +160,7 @@ export default function GrandPrixParticipantPage({
       setMatches(pollingData.matches as GPMatch[]);
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
-  }, [pollingData, pollingError]);
+  }, [pollingData, pollingError, tournamentId]);
 
   /* Filter matches for selected player and initialize race result forms */
   useEffect(() => {

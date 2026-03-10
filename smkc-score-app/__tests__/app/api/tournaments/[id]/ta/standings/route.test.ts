@@ -316,7 +316,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
               playerName: 'Player 1',
               playerNickname: 'player1',
               totalTime: 100000,
-              formattedTime: '1:40',
+              formattedTime: '1:40.000',
               lives: 3,
               eliminated: false,
             }),
@@ -362,13 +362,13 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      // Source uses `e.totalTime != null` which correctly treats 0 as a valid time.
-      // So totalTime = 0 produces formattedTime = '0:00', not '-'.
+      // Source uses msToDisplayTime which returns "-" for null, and "M:SS.mmm" for numbers.
+      // So totalTime = 0 produces formattedTime = '0:00.000', not '-'.
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           entries: expect.arrayContaining([
             expect.objectContaining({
-              formattedTime: '0:00',
+              formattedTime: '0:00.000',
             }),
           ]),
         })
