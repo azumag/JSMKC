@@ -148,7 +148,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch bracket', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch bracket', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -195,32 +195,32 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       );
     });
 
-    // Authentication failure case - Returns 401 when user is not authenticated
-    it('should return 401 when user is not authenticated', async () => {
+    // Authorization failure case - Returns 403 when user is not authenticated
+    it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
     });
 
-    // Authentication failure case - Returns 401 when user has no user object
-    it('should return 401 when session exists but user is missing', async () => {
+    // Authorization failure case - Returns 403 when user has no user object
+    it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/bracket');
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
     });
 
-    // Authentication failure case - Returns 401 when user is not admin
-    it('should return 401 when user role is not admin', async () => {
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user role is not admin', async () => {
       const mockAuth = { user: { id: 'player1', role: 'player' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
@@ -228,8 +228,8 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
     });
 
     // Validation error case - Returns 400 when no qualification results found
@@ -243,7 +243,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'No qualification results found' });
+      expect(result.data).toEqual({ success: false, error: 'No qualification results found', code: 'VALIDATION_ERROR', details: { field: 'qualifications' } });
       expect(result.status).toBe(400);
     });
 
@@ -263,7 +263,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to generate bracket' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to generate bracket', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to generate bracket', { error: expect.any(Error), tournamentId: 't1' });
     });

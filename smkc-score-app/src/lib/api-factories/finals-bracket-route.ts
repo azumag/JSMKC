@@ -18,6 +18,7 @@ import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
 
 /**
  * Configuration for a finals bracket route handler.
@@ -92,10 +93,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       });
     } catch (error) {
       logger.error('Failed to fetch bracket', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch bracket' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to fetch bracket', 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -111,12 +109,9 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     const logger = createLogger(config.loggerName);
     const session = await auth();
 
-    /* Admin authentication required for bracket generation */
+    /* Admin authorization required for bracket generation */
     if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin access required' },
-        { status: 401 },
-      );
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
     const { id: tournamentId } = await params;
@@ -130,10 +125,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       });
 
       if (qualifications.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'No qualification results found' },
-          { status: 400 },
-        );
+        return handleValidationError('No qualification results found', 'qualifications');
       }
 
       /* Map to BracketPlayer format with qualifying rank based on standing position */
@@ -181,10 +173,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       return NextResponse.json(bracketData);
     } catch (error) {
       logger.error('Failed to generate bracket', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to generate bracket' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to generate bracket', 500, 'INTERNAL_ERROR');
     }
   }
 

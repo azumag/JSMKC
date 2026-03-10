@@ -95,28 +95,28 @@ describe('Finals Matches Route Factory', () => {
 
   // === AUTH TESTS ===
 
-  // Auth: Returns 401 when not authenticated
-  it('should return 401 when not authenticated', async () => {
+  // Auth: Returns 403 when not authenticated
+  it('should return 403 when not authenticated', async () => {
     (auth as jest.Mock).mockResolvedValue(null);
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
     const response = await POST(request, { params });
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
     const json = await response.json();
-    expect(json.error).toBe('Unauthorized: Admin access required');
+    expect(json.error).toBe('Forbidden');
   });
 
-  // Auth: Returns 401 when user is not admin
-  it('should return 401 when user is not admin', async () => {
+  // Auth: Returns 403 when user is not admin
+  it('should return 403 when user is not admin', async () => {
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'u1', role: 'member' } });
 
     const request = createPostRequest(validBody);
     const params = Promise.resolve({ id: 't1' });
     const response = await POST(request, { params });
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
   });
 
   // === ZOD VALIDATION TESTS ===

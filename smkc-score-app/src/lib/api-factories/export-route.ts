@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createCSV } from '@/lib/excel';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse } from '@/lib/error-handling';
 
 interface ExportPlayer {
   name: string;
@@ -57,7 +58,7 @@ export function createExportHandlers(config: ExportConfig) {
       });
 
       if (!tournament) {
-        return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
+        return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
       }
 
       const qualifications = await qualModel(prisma).findMany({
@@ -94,7 +95,7 @@ export function createExportHandlers(config: ExportConfig) {
       });
     } catch (error) {
       logger.error('Failed to export tournament', { error, tournamentId });
-      return NextResponse.json({ success: false, error: 'Failed to export tournament' }, { status: 500 });
+      return createErrorResponse('Failed to export tournament', 500, 'INTERNAL_ERROR');
     }
   }
 

@@ -14,6 +14,7 @@ import prisma from '@/lib/prisma';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { auth } from '@/lib/auth';
+import { createErrorResponse, handleAuthError } from '@/lib/error-handling';
 
 export interface MatchesPollingConfig {
   matchModel: string;
@@ -40,10 +41,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
       // Session-based authentication: admin or player session required.
       const session = await auth();
       if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: 'Authentication required' },
-          { status: 401 }
-        );
+        return handleAuthError();
       }
 
       // Verify the tournament exists before fetching matches
@@ -52,10 +50,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
       });
 
       if (!tournament) {
-        return NextResponse.json(
-          { success: false, error: 'Tournament not found' },
-          { status: 404 }
-        );
+        return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
       }
 
       const model = matchModel(prisma);
@@ -72,10 +67,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
       return NextResponse.json(result);
     } catch (error) {
       logger.error(config.errorMessage, { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: config.errorMessage },
-        { status: 500 }
-      );
+      return createErrorResponse(config.errorMessage, 500, 'INTERNAL_ERROR');
     }
   }
 

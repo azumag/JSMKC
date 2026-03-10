@@ -214,7 +214,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
       expect(get).not.toHaveBeenCalled();
     });
@@ -227,7 +227,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -240,7 +240,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -253,7 +253,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -269,7 +269,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch MR standings' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch MR standings', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR standings', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -285,7 +285,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch MR standings' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch MR standings', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch MR standings', { error: expect.any(Error), tournamentId: 't1' });
     });

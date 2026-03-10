@@ -185,7 +185,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -195,7 +195,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -205,7 +205,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -215,7 +215,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -229,7 +229,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch BM standings' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch BM standings', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch BM standings', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -242,7 +242,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch BM standings' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch BM standings', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
     });
 

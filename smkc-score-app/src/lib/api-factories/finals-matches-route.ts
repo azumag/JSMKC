@@ -18,6 +18,7 @@ import { createAuditLog } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
 
 /**
  * Zod schema for validating match creation requests.
@@ -74,12 +75,9 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
     const logger = createLogger(config.loggerName);
     const session = await auth();
 
-    /* Admin authentication required for match creation */
+    /* Admin authorization required for match creation */
     if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin access required' },
-        { status: 401 },
-      );
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
     const { id: tournamentId } = await params;
@@ -95,10 +93,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       /* Validate request body with Zod schema for type safety */
       const parseResult = CreateMatchSchema.safeParse(body);
       if (!parseResult.success) {
-        return NextResponse.json(
-          { success: false, error: parseResult.error.issues[0]?.message || 'Invalid request body' },
-          { status: 400 },
-        );
+        return handleValidationError(parseResult.error.issues[0]?.message || 'Invalid request body', 'request');
       }
 
       const data = parseResult.data;
@@ -110,10 +105,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       ]);
 
       if (!player1 || !player2) {
-        return NextResponse.json(
-          { success: false, error: 'One or both players not found' },
-          { status: 404 },
-        );
+        return createErrorResponse('One or both players not found', 404, 'NOT_FOUND');
       }
 
       /* Auto-increment match number based on existing finals matches */
@@ -177,10 +169,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       );
     } catch (error) {
       logger.error('Failed to create match', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to create match' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to create match', 500, 'INTERNAL_ERROR');
     }
   }
 

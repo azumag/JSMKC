@@ -93,7 +93,7 @@ describe('Standings Route Factory', () => {
 
       expect(response.status).toBe(403);
       const json = await response.json();
-      expect(json.error).toBe('Unauthorized: Admin access required');
+      expect(json.error).toBe('Forbidden');
     });
 
     // Auth: Returns 403 when user is not admin

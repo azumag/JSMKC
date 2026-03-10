@@ -117,7 +117,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to fetch grand prix data' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to fetch grand prix data', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch grand prix data', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -192,7 +192,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -205,7 +205,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -219,7 +219,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
       expect(prisma.gPQualification.deleteMany).not.toHaveBeenCalled();
     });
@@ -233,7 +233,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
       expect(result.status).toBe(400);
     });
 
@@ -246,7 +246,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
       expect(result.status).toBe(400);
     });
 
@@ -259,7 +259,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Players array is required' });
+      expect(result.data).toEqual({ success: false, error: 'Players array is required', code: 'VALIDATION_ERROR', details: { field: 'players' } });
       expect(result.status).toBe(400);
     });
 
@@ -274,7 +274,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to setup grand prix' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to setup grand prix', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to setup grand prix', { error: expect.any(Error), tournamentId: 't1' });
     });
@@ -325,7 +325,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -346,7 +346,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Forbidden' });
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
       expect(result.status).toBe(403);
     });
 
@@ -444,7 +444,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
@@ -454,7 +454,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
@@ -468,7 +468,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required' });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
@@ -529,7 +529,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to update match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to update match', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update match', { error: expect.any(Error), tournamentId: 't1' });
     });

@@ -293,7 +293,7 @@ describe('MR Export API Route - /api/tournaments/[id]/mr/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Tournament not found' });
+      expect(result.data).toEqual({ success: false, error: 'Tournament not found', code: 'NOT_FOUND' });
       expect(result.status).toBe(404);
     });
 
@@ -305,7 +305,7 @@ describe('MR Export API Route - /api/tournaments/[id]/mr/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to export tournament' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to export tournament', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });
     });

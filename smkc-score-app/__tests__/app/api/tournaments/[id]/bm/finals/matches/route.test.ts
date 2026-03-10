@@ -234,7 +234,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
     });
 
     // Authentication failure case - Returns 401 when not authenticated
-    it('should return 401 when user is not authenticated', async () => {
+    it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2 };
@@ -243,13 +243,13 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
       expect(prisma.player.findUnique).not.toHaveBeenCalled();
     });
 
-    // Authentication failure case - Returns 401 when user has no user object
-    it('should return 401 when session exists but user is missing', async () => {
+    // Authentication failure case - Returns 403 when user has no user object
+    it('should return 403 when session exists but user is missing', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: null });
 
       const requestBody = { player1Id: UUID_P1, player2Id: UUID_P2 };
@@ -258,12 +258,12 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
     });
 
-    // Authorization failure case - Returns 401 when user is not admin
-    it('should return 401 when user is not an admin', async () => {
+    // Authorization failure case - Returns 403 when user is not admin
+    it('should return 403 when user is not an admin', async () => {
       const mockAuth = { user: { id: 'user1', role: 'user' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
@@ -273,8 +273,8 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Unauthorized: Admin access required' });
-      expect(result.status).toBe(401);
+      expect(result.data).toEqual({ success: false, error: 'Forbidden', code: 'FORBIDDEN' });
+      expect(result.status).toBe(403);
     });
 
     // Validation error case - Returns 400 when player1Id is invalid UUID
@@ -377,7 +377,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'One or both players not found' });
+      expect(result.data).toEqual({ success: false, error: 'One or both players not found', code: 'NOT_FOUND' });
       expect(result.status).toBe(404);
     });
 
@@ -396,7 +396,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'One or both players not found' });
+      expect(result.data).toEqual({ success: false, error: 'One or both players not found', code: 'NOT_FOUND' });
       expect(result.status).toBe(404);
     });
 
@@ -413,7 +413,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Failed to create match' });
+      expect(result.data).toEqual({ success: false, error: 'Failed to create match', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to create match', { error: expect.any(Error), tournamentId: 't1' });
     });

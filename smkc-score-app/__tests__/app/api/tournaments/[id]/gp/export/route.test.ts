@@ -522,7 +522,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
       const _result = await GET(request, { params });
 
       expect((NextResponse as any).json).toHaveBeenCalledWith(
-        { success: false, error: 'Tournament not found' },
+        { success: false, error: 'Tournament not found', code: 'NOT_FOUND' },
         { status: 404 }
       );
     });
@@ -537,7 +537,7 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
       const _result = await GET(request, { params });
 
       expect((NextResponse as any).json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to export tournament' },
+        { success: false, error: 'Failed to export tournament', code: 'INTERNAL_ERROR' },
         { status: 500 }
       );
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to export tournament', { error: expect.any(Error), tournamentId: 't1' });

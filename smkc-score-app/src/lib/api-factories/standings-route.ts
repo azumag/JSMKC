@@ -19,6 +19,7 @@ import { auth } from '@/lib/auth';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse } from '@/lib/error-handling';
 
 /**
  * Configuration for a standings route handler.
@@ -83,10 +84,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
     const session = await auth();
 
     if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: Admin access required' },
-        { status: 403 },
-      );
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
     const { id: tournamentId } = await params;
@@ -279,10 +277,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
       }
     } catch (error) {
       logger.error(config.errorMessage, { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: config.errorMessage },
-        { status: 500 },
-      );
+      return createErrorResponse(config.errorMessage, 500, 'INTERNAL_ERROR');
     }
   }
 

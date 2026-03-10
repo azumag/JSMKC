@@ -16,6 +16,7 @@ import { createAuditLog } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import {
   generateRoundRobinSchedule,
@@ -108,10 +109,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return NextResponse.json({ qualifications, matches });
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: `Failed to fetch ${config.eventDisplayName} data` },
-        { status: 500 },
-      );
+      return createErrorResponse(`Failed to fetch ${config.eventDisplayName} data`, 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -138,10 +136,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.postRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden' },
-          { status: 403 },
-        );
+        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
       currentSession = session;
     }
@@ -153,10 +148,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const { players } = body;
 
       if (!players || !Array.isArray(players) || players.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'Players array is required' },
-          { status: 400 },
-        );
+        return handleValidationError('Players array is required', 'players');
       }
 
       /* Clear existing qualification data for fresh setup */
@@ -318,10 +310,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       );
     } catch (error) {
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: `Failed to setup ${config.eventDisplayName}` },
-        { status: 500 },
-      );
+      return createErrorResponse(`Failed to setup ${config.eventDisplayName}`, 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -338,10 +327,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden' },
-          { status: 403 },
-        );
+        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
     }
 
@@ -352,7 +338,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const parseResult = config.parsePutBody(body);
 
       if (!parseResult.valid) {
-        return NextResponse.json({ success: false, error: parseResult.error }, { status: 400 });
+        return handleValidationError(parseResult.error!, 'scores');
       }
 
       const putData = parseResult.data!;
@@ -406,10 +392,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return NextResponse.json({ match, result1, result2 });
     } catch (error) {
       logger.error('Failed to update match', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to update match' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -427,7 +410,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
     const { id: tournamentId } = await params;
@@ -437,16 +420,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const { matchId, tvNumber } = body;
 
       if (!matchId) {
-        return NextResponse.json({ success: false, error: 'matchId is required' }, { status: 400 });
+        return handleValidationError('matchId is required', 'matchId');
       }
 
       /* tvNumber must be a positive integer or null (to remove assignment) */
       if (tvNumber !== null && tvNumber !== undefined &&
           (typeof tvNumber !== 'number' || tvNumber < 1 || !Number.isInteger(tvNumber))) {
-        return NextResponse.json(
-          { success: false, error: 'tvNumber must be a positive integer or null' },
-          { status: 400 },
-        );
+        return handleValidationError('tvNumber must be a positive integer or null', 'tvNumber');
       }
 
       /*
@@ -463,10 +443,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return NextResponse.json({ match });
     } catch (error) {
       logger.error('Failed to update TV number', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to update TV number' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to update TV number', 500, 'INTERNAL_ERROR');
     }
   }
 

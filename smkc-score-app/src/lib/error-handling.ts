@@ -100,15 +100,6 @@ export function createErrorResponse(
     ...(details !== undefined && { details }),
   };
 
-  // Log all error responses for server-side diagnostics.
-  // The status code and message are safe to log since they are
-  // already sanitized by this point.
-  logger.warn('Error response created', {
-    status,
-    code,
-    message,
-  });
-
   return NextResponse.json(body, { status });
 }
 

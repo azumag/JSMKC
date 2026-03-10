@@ -22,6 +22,7 @@ import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
+import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
 
 /**
  * Configuration for a finals route handler set.
@@ -149,10 +150,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: config.getErrorMessage },
-        { status: 500 },
-      );
+      return createErrorResponse(config.getErrorMessage, 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -170,10 +168,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (config.postRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden' },
-          { status: 403 },
-        );
+        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
     }
 
@@ -185,10 +180,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const { topN = 8 } = body;
 
       if (topN !== 8) {
-        return NextResponse.json(
-          { success: false, error: 'Currently only 8-player brackets are supported' },
-          { status: 400 },
-        );
+        return handleValidationError('Currently only 8-player brackets are supported', 'topN');
       }
 
       const qualifications = await qualModel(prisma).findMany({
@@ -199,12 +191,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
 
       if (qualifications.length < topN) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Not enough players qualified. Need ${topN}, found ${qualifications.length}`,
-          },
-          { status: 400 },
+        return handleValidationError(
+          `Not enough players qualified. Need ${topN}, found ${qualifications.length}`,
+          'qualifications',
         );
       }
 
@@ -264,10 +253,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       );
     } catch (error) {
       logger.error('Failed to create finals', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: config.postErrorMessage },
-        { status: 500 },
-      );
+      return createErrorResponse(config.postErrorMessage, 500, 'INTERNAL_ERROR');
     }
   }
 
@@ -285,10 +271,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
     if (config.putRequiresAuth) {
       const session = await auth();
       if (!session?.user || session.user.role !== 'admin') {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden' },
-          { status: 403 },
-        );
+        return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
     }
 
@@ -300,10 +283,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const { matchId, score1, score2 } = body;
 
       if (!matchId || score1 === undefined || score2 === undefined) {
-        return NextResponse.json(
-          { success: false, error: 'matchId, score1, and score2 are required' },
-          { status: 400 },
-        );
+        return handleValidationError('matchId, score1, and score2 are required', 'request');
       }
 
       const match = await model(prisma).findUnique({
@@ -312,10 +292,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
 
       if (!match || match.stage !== 'finals') {
-        return NextResponse.json(
-          { success: false, error: 'Finals match not found' },
-          { status: 404 },
-        );
+        return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
       /* Determine winner/loser: best of 5, first to 3 */
@@ -323,10 +300,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const loserId = score1 >= 3 ? match.player2Id : score2 >= 3 ? match.player1Id : null;
 
       if (!winnerId) {
-        return NextResponse.json(
-          { success: false, error: 'Match must have a winner (best of 5: first to 3)' },
-          { status: 400 },
-        );
+        return handleValidationError('Match must have a winner (best of 5: first to 3)', 'score');
       }
 
       /* Build update data with configurable score field names */
@@ -459,10 +433,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
     } catch (error) {
       logger.error('Failed to update finals match', { error, tournamentId });
-      return NextResponse.json(
-        { success: false, error: 'Failed to update match' },
-        { status: 500 },
-      );
+      return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
   }
 
