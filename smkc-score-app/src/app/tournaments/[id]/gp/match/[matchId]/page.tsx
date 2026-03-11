@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -106,6 +106,12 @@ export default function GPMatchPage({
   );
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * Active cup for course filtering (§7.1 substitution rule).
+   * Star→Mushroom, Special→Flower substitutions are allowed.
+   * Initialized from match.cup, togglable when a substitute exists.
+   */
+  const [activeCup, setActiveCup] = useState<string | null>(null);
 
   /** Fetch match and tournament data in parallel */
   const fetchMatchData = useCallback(async () => {
@@ -141,8 +147,12 @@ export default function GPMatchPage({
     if (pollData) {
       setMatch(pollData.match);
       setTournament(pollData.tournament);
+      /* Initialize activeCup from match data (only once, to preserve user's toggle) */
+      if (pollData.match.cup && activeCup === null) {
+        setActiveCup(pollData.match.cup);
+      }
     }
-  }, [pollData]);
+  }, [pollData, activeCup]);
 
   useEffect(() => {
     setLoading(pollLoading);
@@ -265,10 +275,31 @@ export default function GPMatchPage({
               <span className="text-2xl font-mono">vs</span>
               <span>{match.player2.nickname}</span>
             </CardTitle>
-            {/* Show pre-assigned cup name when not yet completed (§7.4) */}
+            {/* Show active cup with §7.1 substitution toggle when not yet completed */}
             {match.cup && !match.completed && (
-              <CardDescription className="text-center">
-                <Badge variant="outline">{tGp('cupLabel', { cup: match.cup })}</Badge>
+              <CardDescription className="text-center space-y-1">
+                <Badge variant="outline">{tGp('cupLabel', { cup: activeCup || match.cup })}</Badge>
+                {/* §7.1: Star→Mushroom, Special→Flower substitution allowed */}
+                {CUP_SUBSTITUTIONS[match.cup] && (
+                  <div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-6"
+                      onClick={() => {
+                        const sub = CUP_SUBSTITUTIONS[match.cup!];
+                        const next = activeCup === match.cup ? sub : match.cup;
+                        setActiveCup(next);
+                        /* Clear course selections when switching cups since courses differ */
+                        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr | "", position1: null, position2: null })));
+                      }}
+                    >
+                      {activeCup === match.cup
+                        ? tGp('switchToSubstitute', { cup: CUP_SUBSTITUTIONS[match.cup] })
+                        : tGp('switchBackToAssigned', { cup: match.cup })}
+                    </Button>
+                  </div>
+                )}
               </CardDescription>
             )}
             {match.completed && (
@@ -346,9 +377,9 @@ export default function GPMatchPage({
                               <SelectValue placeholder={tCommon('selectCourse')} />
                             </SelectTrigger>
                             <SelectContent>
-                              {/* §7.4: When a cup is pre-assigned, only show courses from that cup */}
-                              {(match.cup
-                                ? COURSE_INFO.filter((c) => c.cup === match.cup)
+                              {/* §7.4 + §7.1: Filter courses by active cup (may be a substitute) */}
+                              {(activeCup
+                                ? COURSE_INFO.filter((c) => c.cup === activeCup)
                                 : COURSE_INFO
                               ).map((course) => (
                                 <SelectItem key={course.abbr} value={course.abbr}>

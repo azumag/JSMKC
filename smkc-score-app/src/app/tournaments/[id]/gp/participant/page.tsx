@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints } from '@/lib/constants';
+import { COURSE_INFO, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints } from '@/lib/constants';
 import { createLogger } from '@/lib/client-logger';
 
 /** Client-side logger for error tracking */
@@ -116,6 +116,12 @@ export default function GrandPrixParticipantPage({
   const [myMatches, setMyMatches] = useState<GPMatch[]>([]);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [raceResults, setRaceResults] = useState<{ [key: string]: RaceResult[] }>({});
+  /**
+   * §7.1 cup substitution: track active cup per match.
+   * Players can switch Star→Mushroom or Special→Flower.
+   * Key = matchId, value = currently active cup name.
+   */
+  const [activeCups, setActiveCups] = useState<{ [matchId: string]: string }>({});
 
   /** Fetch initial data on mount */
   useEffect(() => {
@@ -172,15 +178,24 @@ export default function GrandPrixParticipantPage({
       setMyMatches(playerMatches);
 
       const initialResults: { [key: string]: RaceResult[] } = {};
+      const initialCups: { [matchId: string]: string } = {};
       playerMatches.forEach(match => {
         if (!raceResults[match.id]) {
           initialResults[match.id] = [];
+        }
+        /* Initialize active cup from pre-assigned cup (only if not already set by user) */
+        if (match.cup && !activeCups[match.id]) {
+          initialCups[match.id] = match.cup;
         }
       });
       if (Object.keys(initialResults).length > 0) {
         setRaceResults(prev => ({ ...prev, ...initialResults }));
       }
+      if (Object.keys(initialCups).length > 0) {
+        setActiveCups(prev => ({ ...prev, ...initialCups }));
+      }
     }
+  // Exclude raceResults and activeCups from deps to avoid overwriting user input on poll updates
   }, [playerId, matches]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Add a new race result row to a match (max 5 races per GP cup, §7.2) */
@@ -369,7 +384,28 @@ export default function GrandPrixParticipantPage({
                           <CardTitle className="text-lg">{tPart('matchNumber', { number: match.matchNumber })}</CardTitle>
                           <CardDescription>
                             {tPart('tvInfo', { tv: match.tvNumber ?? 0 })} • {match.stage === 'qualification' ? tPart('qualification') : tGp('finalsTitle')}
-                            {match.cup && ` • ${tGp('cupLabel', { cup: match.cup })}`}
+                            {match.cup && ` • ${tGp('cupLabel', { cup: activeCups[match.id] || match.cup })}`}
+                            {/* §7.1: Allow switching to substitute cup (Star→Mushroom, Special→Flower) */}
+                            {match.cup && CUP_SUBSTITUTIONS[match.cup] && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-5 ml-1 px-1"
+                                onClick={() => {
+                                  const current = activeCups[match.id] || match.cup!;
+                                  const next = current === match.cup
+                                    ? CUP_SUBSTITUTIONS[match.cup!]
+                                    : match.cup!;
+                                  setActiveCups(prev => ({ ...prev, [match.id]: next }));
+                                  /* Clear course selections when switching cups */
+                                  setRaceResults(prev => ({ ...prev, [match.id]: [] }));
+                                }}
+                              >
+                                {(activeCups[match.id] || match.cup) === match.cup
+                                  ? tGp('switchToSubstitute', { cup: CUP_SUBSTITUTIONS[match.cup] })
+                                  : tGp('switchBackToAssigned', { cup: match.cup })}
+                              </Button>
+                            )}
                           </CardDescription>
                         </div>
                         {match.completed ? (
@@ -420,7 +456,11 @@ export default function GrandPrixParticipantPage({
                                       <Select value={result.course} onValueChange={(value) => updateRaceResult(match.id, index, 'course', value)}>
                                         <SelectTrigger><SelectValue placeholder={tCommon('course')} /></SelectTrigger>
                                         <SelectContent>
-                                          {COURSE_INFO.map((course) => (
+                                          {/* §7.4 + §7.1: Filter courses by active cup (may be a substitute) */}
+                                          {(activeCups[match.id]
+                                            ? COURSE_INFO.filter((c) => c.cup === activeCups[match.id])
+                                            : COURSE_INFO
+                                          ).map((course) => (
                                             <SelectItem key={course.abbr} value={course.abbr}>{course.name}</SelectItem>
                                           ))}
                                         </SelectContent>

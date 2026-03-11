@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, CUPS, POLLING_INTERVAL, TOTAL_GP_RACES, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -296,12 +296,9 @@ export default function GrandPrixPage({
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
         setSelectedCup("");
-        setRaces([
-          { course: "", position1: null, position2: null },
-          { course: "", position1: null, position2: null },
-          { course: "", position1: null, position2: null },
-          { course: "", position1: null, position2: null },
-        ]);
+        setRaces(
+          Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+        );
         refetch();
       }
     } catch (err) {
@@ -636,17 +633,28 @@ export default function GrandPrixPage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Cup selection - determines which 5 courses are available */}
+            {/* Cup selection - determines which 5 courses are available.
+                §7.1: When a cup is pre-assigned, only allow that cup or its substitute. */}
             <div>
               <Label>{t('selectCup')}</Label>
-              <Select value={selectedCup} onValueChange={setSelectedCup}>
+              <Select value={selectedCup} onValueChange={(cup) => {
+                setSelectedCup(cup);
+                /* Clear course selections when switching cups — different cups have different courses */
+                setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null })));
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('selectCupPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {CUPS.map((cup) => (
-                    <SelectItem key={cup} value={cup}>
+                  {(selectedMatch?.cup
+                    ? /* Pre-assigned: show assigned cup + substitute if available */
+                      [selectedMatch.cup, CUP_SUBSTITUTIONS[selectedMatch.cup]].filter(Boolean)
+                    : /* No pre-assignment: show all cups */
+                      [...CUPS]
+                  ).map((cup) => (
+                    <SelectItem key={cup} value={cup!}>
                       {cup}
+                      {cup === CUP_SUBSTITUTIONS[selectedMatch?.cup ?? ''] && ` (${t('substitute')})`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -753,7 +761,7 @@ export default function GrandPrixPage({
                     <span className="ml-2 font-bold">
                       {races.reduce(
                         (acc, r) =>
-                          acc + (r.position1 === 1 ? 9 : r.position1 === 2 ? 6 : 0),
+                          acc + (r.position1 ? getDriverPoints(r.position1) : 0),
                         0
                       )}
                       pts
@@ -764,7 +772,7 @@ export default function GrandPrixPage({
                     <span className="ml-2 font-bold">
                       {races.reduce(
                         (acc, r) =>
-                          acc + (r.position2 === 1 ? 9 : r.position2 === 2 ? 6 : 0),
+                          acc + (r.position2 ? getDriverPoints(r.position2) : 0),
                         0
                       )}
                       pts
