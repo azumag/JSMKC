@@ -11,7 +11,7 @@
  *   All 4 pre-assigned courses are always played; score1 + score2 must equal 4.
  *   Scores represent race wins (0–4); a 2-2 draw is a valid result.
  *
- * - GP (Grand Prix): 4-race cup match with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
+ * - GP (Grand Prix): 5-race cup match with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
  *   Race finishing positions must be in the range 1-4; other positions earn 0 points
  *   but are rejected to prevent accidental null/undefined entries.
  *
