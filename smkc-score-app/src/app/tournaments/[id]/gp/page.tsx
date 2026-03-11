@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, CUPS, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, POLLING_INTERVAL, TOTAL_GP_RACES, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -135,13 +135,10 @@ export default function GrandPrixPage({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [selectedCup, setSelectedCup] = useState<string>("");
-  /* GP matches have exactly 4 races per cup */
-  const [races, setRaces] = useState<Race[]>([
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-  ]);
+  /* GP matches have exactly 5 races per cup (§7.2) */
+  const [races, setRaces] = useState<Race[]>(
+    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+  );
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string; seeding?: number }[]
   >([]);
@@ -250,26 +247,23 @@ export default function GrandPrixPage({
 
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    if (match.cup && match.races && match.races.length === 4) {
+    if (match.cup && match.races && match.races.length === TOTAL_GP_RACES) {
       /* Pre-fill form with existing match data for editing */
       setSelectedCup(match.cup);
       setRaces(match.races as Race[]);
     } else {
       /* Pre-select cup if pre-assigned at setup time (§7.4), otherwise reset */
       setSelectedCup(match.cup || "");
-      setRaces([
-        { course: "", position1: null, position2: null },
-        { course: "", position1: null, position2: null },
-        { course: "", position1: null, position2: null },
-        { course: "", position1: null, position2: null },
-      ]);
+      setRaces(
+        Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+      );
     }
     setIsMatchDialogOpen(true);
   };
 
   /**
-   * Submit match result with cup and 4 race positions.
-   * Validates all 4 races are complete before submission.
+   * Submit match result with cup and race positions.
+   * Validates all 5 races (1 cup) are complete before submission.
    */
   const handleMatchSubmit = async () => {
     if (!selectedMatch || !selectedCup) {
@@ -277,12 +271,12 @@ export default function GrandPrixPage({
       return;
     }
 
-    /* All 4 races must have course and positions filled */
+    /* All races must have course and positions filled */
     const completedRaces = races.filter(
       (r) => r.course !== "" && r.position1 !== null && r.position2 !== null
     );
 
-    if (completedRaces.length !== 4) {
+    if (completedRaces.length !== TOTAL_GP_RACES) {
       alert(tc('pleaseCompleteAllRaces'));
       return;
     }
@@ -548,7 +542,7 @@ export default function GrandPrixPage({
                                     {/* Show pre-assigned cup name next to match number (§7.4) */}
                                     {match.cup && !match.isBye && (
                                       <span className="ml-1 text-xs text-muted-foreground">
-                                        ({match.cup})
+                                        ({t('cupLabel', { cup: match.cup })})
                                       </span>
                                     )}
                                   </TableCell>
@@ -659,7 +653,7 @@ export default function GrandPrixPage({
               </Select>
             </div>
 
-            {/* Race-by-race entry table (4 races per cup) */}
+            {/* Race-by-race entry table (5 races per cup) */}
             {selectedCup && (
               <Table>
                 <TableHeader>

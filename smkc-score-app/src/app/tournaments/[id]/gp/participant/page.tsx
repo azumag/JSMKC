@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_INFO, POLLING_INTERVAL, getDriverPoints } from '@/lib/constants';
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints } from '@/lib/constants';
 import { createLogger } from '@/lib/client-logger';
 
 /** Client-side logger for error tracking */
@@ -183,7 +183,7 @@ export default function GrandPrixParticipantPage({
     }
   }, [playerId, matches]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Add a new race result row to a match (max 4 races per GP cup) */
+  /** Add a new race result row to a match (max 5 races per GP cup, §7.2) */
   const addRaceResult = (matchId: string) => {
     setRaceResults(prev => ({
       ...prev,
@@ -402,7 +402,7 @@ export default function GrandPrixParticipantPage({
                           <div className="border-t pt-4">
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-medium">{tPart('raceResults')}</h4>
-                              <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={matchRaceResults.length >= 4}>
+                              <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={matchRaceResults.length >= TOTAL_GP_RACES}>
                                 {tPart('addRace')}
                               </Button>
                             </div>

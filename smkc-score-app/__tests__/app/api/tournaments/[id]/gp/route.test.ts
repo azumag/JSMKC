@@ -8,7 +8,7 @@
  *        and recalculating player qualification stats (wins, ties, losses, score).
  *
  * The GP mode uses a cup-based scoring system where two players compete across
- * 4 races in a cup, and driver points are awarded based on finishing position.
+ * 5 races in a cup, and driver points are awarded based on finishing position.
  * Qualification standings are derived from aggregated match results.
  */
 // @ts-nocheck
@@ -320,6 +320,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
@@ -341,6 +342,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
@@ -370,13 +372,13 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       /*
-       * Race positions and expected driver points:
-       * Race 1: P1=1st(9pts), P2=2nd(6pts)
-       * Race 2: P1=1st(9pts), P2=2nd(6pts)
-       * Race 3: P1=2nd(6pts), P2=1st(9pts)
-       * Race 4: P1=1st(9pts), P2=2nd(6pts)
-       * Totals: P1=33, P2=27
-       * Note: GP route's calculateDriverPoints only handles positions 1 and 2 (9 and 6 pts)
+       * Race positions and expected driver points (1st=9, 2nd=6, 3rd=3, 4th=1):
+       * Race 1: P1=1st(9), P2=2nd(6)
+       * Race 2: P1=1st(9), P2=2nd(6)
+       * Race 3: P1=2nd(6), P2=1st(9)
+       * Race 4: P1=1st(9), P2=2nd(6)
+       * Race 5: P1=1st(9), P2=2nd(6)
+       * Totals: P1=9+9+6+9+9=42, P2=6+6+9+6+6=33
        */
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
         matchId: 'm1',
@@ -386,6 +388,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 2, position2: 1 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
@@ -397,8 +400,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         where: { id: 'm1' },
         data: expect.objectContaining({
           cup: 'Mushroom Cup',
-          points1: 33,
-          points2: 27,
+          points1: 42,
+          points2: 33,
           races: expect.any(Array),
           completed: true,
         }),
@@ -426,14 +429,16 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         cup: 'Mushroom Cup',
         races: [
           { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 2, position2: 1 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 2, position2: 1 },
+          { course: 'Donut Plains 1', position1: 2, position2: 3 },
+          { course: 'Ghost Valley 1', position1: 3, position2: 1 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 4 },
+          { course: 'Mario Circuit 2', position1: 4, position2: 1 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
+      // P1: 9+6+3+9+1=28, P2: 6+3+9+1+9=28 → tie
       expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
       expect(result.status).toBe(200);
     });
@@ -444,7 +449,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 5 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
@@ -454,12 +459,12 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 5 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
     // Validation error case - Returns 400 when races array length is not 4
-    it('should return 400 when races array does not have exactly 4 races', async () => {
+    it('should return 400 when races array does not have exactly 5 races', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
         matchId: 'm1',
         cup: 'Mushroom Cup',
@@ -468,7 +473,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 4 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId, cup, and 5 races are required', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(result.status).toBe(400);
     });
 
@@ -482,6 +487,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1' });
@@ -502,6 +508,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1' });
@@ -524,6 +531,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
@@ -555,7 +563,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
        * Race 2: P1=2nd(6), P2=1st(9)
        * Race 3: P1=1st(9), P2=3rd(3)
        * Race 4: P1=2nd(6), P2=4th(1)
-       * Totals: P1=9+6+9+6=30, P2=6+9+3+1=19
+       * Race 5: P1=1st(9), P2=2nd(6)
+       * Totals: P1=9+6+9+6+9=39, P2=6+9+3+1+6=25
        */
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
         matchId: 'm1',
@@ -565,6 +574,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 2, position2: 1 },
           { course: 'Ghost Valley 1', position1: 1, position2: 3 },
           { course: 'Bowser Castle 1', position1: 2, position2: 4 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });
@@ -572,8 +582,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       expect(result.status).toBe(200);
       const updateCall = (prisma.gPMatch.update as jest.Mock).mock.calls[0];
-      expect(updateCall[0].data.points1).toBe(30);
-      expect(updateCall[0].data.points2).toBe(19);
+      expect(updateCall[0].data.points1).toBe(39);
+      expect(updateCall[0].data.points2).toBe(25);
     });
 
     // Edge case - Recalculates stats correctly for multiple matches
@@ -608,6 +618,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ]
       });
       const params = Promise.resolve({ id: 't1' });

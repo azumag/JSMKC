@@ -26,7 +26,8 @@ jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({
   SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
   DRIVER_POINTS: [0, 9, 6, 3, 1],
-  getDriverPoints: (pos) => [0, 9, 6, 3, 1][pos] ?? 0,
+  TOTAL_GP_RACES: 5,
+  getDriverPoints: (pos: number) => [0, 9, 6, 3, 1][pos] ?? 0,
 }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/optimistic-locking', () => ({
@@ -127,8 +128,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player1ReportedPoints1: 36,
-        player1ReportedPoints2: 24,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -146,6 +147,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -176,8 +178,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player2ReportedPoints1: 24,
-        player2ReportedPoints2: 36,
+        player2ReportedPoints1: 30,
+        player2ReportedPoints2: 45,
         player2ReportedRaces: [],
         version: 1,
       };
@@ -195,6 +197,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           { course: 'Donut Plains 1', position1: 2, position2: 1 },
           { course: 'Ghost Valley 1', position1: 2, position2: 1 },
           { course: 'Bowser Castle 1', position1: 2, position2: 1 },
+          { course: 'Mario Circuit 2', position1: 2, position2: 1 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -217,8 +220,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         player1: { userId: null },
         player2: { userId: null },
         completed: false,
-        player1ReportedPoints1: 18,
-        player1ReportedPoints2: 6,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
         player2ReportedPoints1: null,
         player2ReportedPoints2: null,
         player1ReportedRaces: [],
@@ -227,16 +230,16 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player2ReportedPoints1: 18,
-        player2ReportedPoints2: 6,
+        player2ReportedPoints1: 45,
+        player2ReportedPoints2: 30,
         player2ReportedRaces: [],
         version: 1,
       };
 
       const confirmedMatch = {
         ...updatedMatch,
-        points1: 18,
-        points2: 6,
+        points1: 45,
+        points2: 30,
         completed: true,
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
@@ -261,6 +264,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -315,6 +319,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'Donut Plains 1', position1: 2, position2: 2 },
         { course: 'Ghost Valley 1', position1: 2, position2: 1 },
         { course: 'Bowser Castle 1', position1: 2, position2: 2 },
+        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
       ];
 
       /* Explicitly mock each findUnique call in sequence */
@@ -366,8 +371,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player1ReportedPoints1: 36,
-        player1ReportedPoints2: 24,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -377,6 +382,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'Donut Plains 1', position1: 1, position2: 2 },
         { course: 'Ghost Valley 1', position1: 1, position2: 2 },
         { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
       ];
 
       (prisma.gPMatch.findUnique as jest.Mock)
@@ -516,8 +522,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player1ReportedPoints1: 36,
-        player1ReportedPoints2: 24,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -535,6 +541,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -561,8 +568,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const updatedMatch = {
         ...mockMatch,
-        player1ReportedPoints1: 36,
-        player1ReportedPoints2: 24,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -582,6 +589,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -613,12 +621,13 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
        * Race 2: P1=1st(9), P2=3rd(3)
        * Race 3: P1=2nd(6), P2=1st(9)
        * Race 4: P1=2nd(6), P2=4th(1)
-       * Totals: P1=9+9+6+6=30, P2=6+3+9+1=19
+       * Race 5: P1=1st(9), P2=2nd(6)
+       * Totals: P1=9+9+6+6+9=39, P2=6+3+9+1+6=25
        */
       const updatedMatch = {
         ...mockMatch,
-        player1ReportedPoints1: 30,
-        player1ReportedPoints2: 19,
+        player1ReportedPoints1: 39,
+        player1ReportedPoints2: 25,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -628,6 +637,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         { course: 'Donut Plains 1', position1: 1, position2: 3 },
         { course: 'Ghost Valley 1', position1: 2, position2: 1 },
         { course: 'Bowser Castle 1', position1: 2, position2: 4 },
+        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
       ];
 
       (prisma.gPMatch.findUnique as jest.Mock)
@@ -647,8 +657,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           reportedData: expect.objectContaining({
-            totalPoints1: 30,
-            totalPoints2: 19,
+            totalPoints1: 39,
+            totalPoints2: 25,
           }),
         }),
       });

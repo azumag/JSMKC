@@ -30,7 +30,7 @@ import {
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
-import { getDriverPoints } from "@/lib/constants";
+import { getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -111,8 +111,8 @@ export async function POST(
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
 
     /* Validate GP race positions are in legal range (1-4) before processing */
-    if (!Array.isArray(races) || races.length !== 4) {
-      return handleValidationError("races must be an array of 4 entries", "races");
+    if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
+      return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
     }
     for (const race of races as Array<{ position1: number; position2: number; course: string }>) {
       const pos1Result = validateGPRacePosition(race.position1);

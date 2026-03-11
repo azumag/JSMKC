@@ -131,6 +131,10 @@ export const RATE_LIMIT_POLLING = 120; // requests per minute for polling
 export const RATE_LIMIT_POLLING_DURATION = 60 * 1000; // 1 minute window
 export const RATE_LIMIT_SESSION_STATUS = 60; // requests per minute for session status checks
 
+// GP qualification matches use 1 cup = 5 races (§7.2, §7.4).
+// Each cup contains 5 courses (see COURSE_INFO).
+export const TOTAL_GP_RACES = 5;
+
 // Score validation constants for BM qualification: fixed 4-round format (score1 + score2 = 4).
 // A player wins by taking 3 or more rounds; 2-2 is a tie.
 export const MIN_BATTLE_SCORE = 0;

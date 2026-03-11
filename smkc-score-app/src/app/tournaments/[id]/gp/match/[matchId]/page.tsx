@@ -9,7 +9,7 @@
  * Features:
  * - Match info with player names and current score
  * - Player identity selection (I am Player 1 / Player 2)
- * - 4-race result entry with course selection and position buttons
+ * - 5-race result entry with course selection and position buttons
  * - Live driver points calculation preview
  * - Completed match display with race-by-race results
  * - Result submission with confirmation flow
@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, POLLING_INTERVAL, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -100,13 +100,10 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
-  /* GP cup has 4 races, each with course and position selections */
-  const [races, setRaces] = useState<Race[]>([
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-    { course: "", position1: null, position2: null },
-  ]);
+  /* GP cup has 5 races (§7.2), each with course and position selections */
+  const [races, setRaces] = useState<Race[]>(
+    Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+  );
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
@@ -153,7 +150,7 @@ export default function GPMatchPage({
 
   /**
    * Submit the race results for the selected player.
-   * Validates that 4 unique courses are selected and all positions are filled.
+   * Validates that 5 unique courses are selected and all positions are filled.
    */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
@@ -161,10 +158,10 @@ export default function GPMatchPage({
       return;
     }
 
-    /* Validate 4 unique courses are selected */
+    /* Validate 5 unique courses are selected (1 full cup = 5 courses) */
     const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
-    if (usedCourses.length !== 4 || new Set(usedCourses).size !== 4) {
-      setError(tMatch('select4UniqueCourses'));
+    if (usedCourses.length !== TOTAL_GP_RACES || new Set(usedCourses).size !== TOTAL_GP_RACES) {
+      setError(tMatch('selectUniqueCourses'));
       return;
     }
 
@@ -271,7 +268,7 @@ export default function GPMatchPage({
             {/* Show pre-assigned cup name when not yet completed (§7.4) */}
             {match.cup && !match.completed && (
               <CardDescription className="text-center">
-                <Badge variant="outline">{match.cup} Cup</Badge>
+                <Badge variant="outline">{tGp('cupLabel', { cup: match.cup })}</Badge>
               </CardDescription>
             )}
             {match.completed && (
@@ -329,7 +326,7 @@ export default function GPMatchPage({
                     </div>
                   </div>
 
-                  {/* 4 race entries with course selection and position buttons */}
+                  {/* 5 race entries with course selection and position buttons */}
                   <div className="space-y-3">
                     {races.map((race, index) => (
                       <div key={index} className="border rounded-lg p-3 space-y-2">
@@ -538,14 +535,14 @@ export default function GPMatchPage({
 }
 
 /**
- * Validate that all 4 races have unique courses and both positions filled.
+ * Validate that all 5 races have unique courses and both positions filled.
  * Used to enable/disable the submit button.
  */
 function canSubmit(races: Race[]): boolean {
   const usedCourses = races.map((r) => r.course).filter((c) => c !== "");
   return (
-    usedCourses.length === 4 &&
-    new Set(usedCourses).size === 4 &&
+    usedCourses.length === TOTAL_GP_RACES &&
+    new Set(usedCourses).size === TOTAL_GP_RACES &&
     races.every((r) => r.position1 !== null && r.position2 !== null)
   );
 }

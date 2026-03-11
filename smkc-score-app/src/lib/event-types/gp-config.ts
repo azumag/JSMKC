@@ -2,7 +2,7 @@
  * Grand Prix (GP) Event Type Configuration
  *
  * GP qualification uses cup-based races with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
- * Match outcome is determined by total driver points across 4 races.
+ * Match outcome is determined by total driver points across 5 races (1 cup = 5 courses).
  * Standings use accumulated total driver points as tiebreaker (not differential).
  * Unlike BM/MR, GP has no group-based ordering in qualifications.
  */
@@ -10,7 +10,7 @@
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
-import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS } from '@/lib/constants';
+import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS, TOTAL_GP_RACES } from '@/lib/constants';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -80,8 +80,8 @@ export const gpConfig: EventTypeConfig = {
       cup?: string;
       races?: Array<{ course: string; position1: number; position2: number }>;
     };
-    if (!matchId || !cup || !races || races.length !== 4) {
-      return { valid: false, error: 'matchId, cup, and 4 races are required' };
+    if (!matchId || !cup || !races || races.length !== TOTAL_GP_RACES) {
+      return { valid: false, error: `matchId, cup, and ${TOTAL_GP_RACES} races are required` };
     }
     // Validate all race finishing positions are in the legal range [1, 4].
     // Positions outside this range (e.g. 0, 5) are rejected to prevent silent
