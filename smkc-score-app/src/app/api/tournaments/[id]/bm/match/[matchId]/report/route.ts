@@ -77,8 +77,8 @@ export async function POST(
   const { id: tournamentId, matchId } = await params;
 
   /* Rate limit: prevent abuse on score report endpoint */
-  const rateLimitIp = getClientIdentifier(request);
-  const rateResult = await checkRateLimit('scoreInput', rateLimitIp);
+  const clientIp = getClientIdentifier(request);
+  const rateResult = await checkRateLimit('scoreInput', clientIp);
   if (!rateResult.success) {
     return handleRateLimitError(rateResult.retryAfter);
   }
@@ -125,7 +125,6 @@ export async function POST(
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
-    const clientIp = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
     /* Audit logging via shared helpers */

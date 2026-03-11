@@ -18,7 +18,9 @@ import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
+import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIdentifier } from '@/lib/request-utils';
 
 /**
  * Configuration for a finals bracket route handler.
@@ -112,6 +114,13 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     /* Admin authorization required for bracket generation */
     if (!session?.user || session.user.role !== 'admin') {
       return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    /* Rate limit: prevent abuse on bracket generation endpoint */
+    const clientIp = getClientIdentifier(request);
+    const rateResult = await checkRateLimit('general', clientIp);
+    if (!rateResult.success) {
+      return handleRateLimitError(rateResult.retryAfter);
     }
 
     const { id: tournamentId } = await params;

@@ -73,14 +73,13 @@ export async function POST(
   const { id: tournamentId, matchId } = await params;
 
   /* Rate limit: prevent abuse on score report endpoint */
-  const rateLimitIp = getClientIdentifier(request);
-  const rateResult = await checkRateLimit('scoreInput', rateLimitIp);
+  const clientIp = getClientIdentifier(request);
+  const rateResult = await checkRateLimit('scoreInput', clientIp);
   if (!rateResult.success) {
     return handleRateLimitError(rateResult.retryAfter);
   }
 
   try {
-    const clientIp = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
     const body = sanitizeInput(await request.json());

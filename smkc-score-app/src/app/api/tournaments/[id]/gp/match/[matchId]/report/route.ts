@@ -70,15 +70,16 @@ export async function POST(
 ) {
   const logger = createLogger('gp-score-report-api');
   const { id: tournamentId, matchId } = await params;
-  try {
-    const clientIp = getClientIdentifier(request);
-    const userAgent = getUserAgent(request);
 
-    /* Rate limit: prevent abuse on score report endpoint */
-    const rateResult = await checkRateLimit('scoreInput', clientIp);
-    if (!rateResult.success) {
-      return handleRateLimitError(rateResult.retryAfter);
-    }
+  /* Rate limit: prevent abuse on score report endpoint */
+  const clientIp = getClientIdentifier(request);
+  const rateResult = await checkRateLimit('scoreInput', clientIp);
+  if (!rateResult.success) {
+    return handleRateLimitError(rateResult.retryAfter);
+  }
+
+  try {
+    const userAgent = getUserAgent(request);
 
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, races, character } = body;
