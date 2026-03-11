@@ -28,7 +28,7 @@ function clampGroupCount(groupCount: number): number {
 }
 
 /**
- * Distributes players across groups by seeding using the snake pattern.
+ * Distributes players across groups by seeding using cyclic distribution.
  *
  * Per requirements.md §10.2:
  * - seed1→A, seed2→B, seed3→C, seed4→D, seed5→A, seed6→B...
