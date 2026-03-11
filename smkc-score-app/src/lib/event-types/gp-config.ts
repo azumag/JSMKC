@@ -10,7 +10,7 @@
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
-import { DRIVER_POINTS, CUPS } from '@/lib/constants';
+import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS } from '@/lib/constants';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -20,6 +20,30 @@ function calculateDriverPoints(position1: number, position2: number) {
   const points1 = DRIVER_POINTS[position1] ?? 0;
   const points2 = DRIVER_POINTS[position2] ?? 0;
   return { points1, points2 };
+}
+
+/**
+ * Error thrown when a submitted cup does not match the pre-assigned cup
+ * and is not an allowed §7.1 substitution.
+ * Caught by qualification-route.ts PUT handler to return a 400 response.
+ */
+export class CupMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CupMismatchError';
+  }
+}
+
+/**
+ * Validate that a submitted cup is acceptable given the pre-assigned cup.
+ * Returns true if the submitted cup matches the assigned cup, or is an
+ * allowed substitution per §7.1 (Star→Mushroom, Special→Flower).
+ * When no cup is pre-assigned, any cup is accepted.
+ */
+export function isValidCupChoice(assignedCup: string | null | undefined, submittedCup: string): boolean {
+  if (!assignedCup) return true;
+  if (submittedCup === assignedCup) return true;
+  return CUP_SUBSTITUTIONS[assignedCup] === submittedCup;
 }
 
 /** Determine GP match outcome by comparing total driver points */
@@ -78,6 +102,22 @@ export const gpConfig: EventTypeConfig = {
   },
 
   updateMatch: async (prisma, data) => {
+    // §7.4 + §7.1: Validate submitted cup against pre-assigned cup.
+    // Fetch existing match to check if a cup was pre-assigned at setup time.
+    const existing = await prisma.gPMatch.findUnique({
+      where: { id: data.matchId },
+      select: { cup: true },
+    });
+    if (existing?.cup && !isValidCupChoice(existing.cup, data.cup!)) {
+      const allowed = CUP_SUBSTITUTIONS[existing.cup];
+      const hint = allowed
+        ? ` (allowed: "${existing.cup}" or "${allowed}")`
+        : '';
+      throw new CupMismatchError(
+        `Cup mismatch: assigned "${existing.cup}", submitted "${data.cup}"${hint}`
+      );
+    }
+
     let totalPoints1 = 0;
     let totalPoints2 = 0;
 

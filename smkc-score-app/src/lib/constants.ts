@@ -93,6 +93,18 @@ export const CUPS = ["Mushroom", "Flower", "Star", "Special"] as const;
 
 export type CupName = typeof CUPS[number];
 
+/**
+ * Allowed cup substitutions per §7.1.
+ * Difficulty-based: harder cups may be replaced with their easier counterpart.
+ *   - Star → Mushroom (OK)
+ *   - Special → Flower (OK)
+ * The reverse (easier → harder) is not allowed.
+ */
+export const CUP_SUBSTITUTIONS: Record<string, string> = {
+  Star: 'Mushroom',
+  Special: 'Flower',
+};
+
 // SMK playable characters (8 total)
 export const SMK_CHARACTERS = [
   'Mario',

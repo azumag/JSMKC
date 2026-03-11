@@ -18,6 +18,7 @@ import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
+import { CupMismatchError } from '@/lib/event-types/gp-config';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -406,6 +407,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
       return NextResponse.json({ match, result1, result2 });
     } catch (error) {
+      // Surface cup validation errors (§7.1/§7.4) as 400 rather than 500
+      if (error instanceof CupMismatchError) {
+        return handleValidationError(error.message, 'cup');
+      }
       logger.error('Failed to update match', { error, tournamentId });
       return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
