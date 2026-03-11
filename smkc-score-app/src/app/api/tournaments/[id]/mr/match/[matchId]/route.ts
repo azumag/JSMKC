@@ -4,7 +4,7 @@
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual MR match data with optimistic locking.
  *
- * Score validation enforces MR rules: each score must be an integer in [0, 3].
+ * Score validation enforces MR rules: each score must be an integer in [0, 4].
  * BYE matches (score 4-0) are auto-completed at creation and never reach this PUT handler.
  */
 

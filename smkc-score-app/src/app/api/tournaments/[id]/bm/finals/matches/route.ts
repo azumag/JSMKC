@@ -6,6 +6,7 @@ const { POST } = createFinalsMatchesHandlers({
   loggerName: 'bm-finals-matches-api',
   auditAction: AUDIT_ACTIONS.CREATE_BM_MATCH,
   auditTargetType: 'BMMatch',
+  sanitizeBody: true,
 });
 
 export { POST };
