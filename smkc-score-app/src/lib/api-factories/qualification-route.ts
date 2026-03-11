@@ -13,10 +13,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { checkRateLimit, getServerSideIdentifier } from '@/lib/rate-limit';
+import { getClientIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
+import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import {
@@ -140,6 +141,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
       currentSession = session;
+    }
+
+    /* Rate limit: prevent abuse on qualification setup endpoint */
+    const clientIp = getClientIdentifier(request);
+    const rateResult = await checkRateLimit('general', clientIp);
+    if (!rateResult.success) {
+      return handleRateLimitError(rateResult.retryAfter);
     }
 
     const { id: tournamentId } = await params;
@@ -347,6 +355,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
     }
 
+    /* Rate limit: prevent abuse on score update endpoint */
+    const putClientIp = getClientIdentifier(request);
+    const putRateResult = await checkRateLimit('scoreInput', putClientIp);
+    if (!putRateResult.success) {
+      return handleRateLimitError(putRateResult.retryAfter);
+    }
+
     const { id: tournamentId } = await params;
 
     try {
@@ -431,6 +446,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
       return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    /* Rate limit: prevent abuse on TV assignment endpoint */
+    const patchClientIp = getClientIdentifier(request);
+    const patchRateResult = await checkRateLimit('general', patchClientIp);
+    if (!patchRateResult.success) {
+      return handleRateLimitError(patchRateResult.retryAfter);
     }
 
     const { id: tournamentId } = await params;

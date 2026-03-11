@@ -25,8 +25,10 @@ import {
   createSuccessResponse,
   handleValidationError,
   handleAuthError,
-  handleDatabaseError
+  handleDatabaseError,
+  handleRateLimitError,
 } from "@/lib/error-handling";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { validateBattleModeScores, calculateMatchResult } from "@/lib/score-validation";
@@ -73,6 +75,13 @@ export async function POST(
 ) {
   const logger = createLogger('bm-score-report-api');
   const { id: tournamentId, matchId } = await params;
+
+  /* Rate limit: prevent abuse on score report endpoint */
+  const rateLimitIp = getClientIdentifier(request);
+  const rateResult = await checkRateLimit('scoreInput', rateLimitIp);
+  if (!rateResult.success) {
+    return handleRateLimitError(rateResult.retryAfter);
+  }
 
   try {
     const body = sanitizeInput(await request.json());

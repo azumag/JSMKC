@@ -18,7 +18,9 @@ import { createAuditLog } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
+import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIdentifier } from '@/lib/request-utils';
 
 /**
  * Zod schema for validating match creation requests.
@@ -78,6 +80,13 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
     /* Admin authorization required for match creation */
     if (!session?.user || session.user.role !== 'admin') {
       return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    /* Rate limit: prevent abuse on match creation */
+    const clientIp = getClientIdentifier(request);
+    const rateResult = await checkRateLimit('general', clientIp);
+    if (!rateResult.success) {
+      return handleRateLimitError(rateResult.retryAfter);
     }
 
     const { id: tournamentId } = await params;

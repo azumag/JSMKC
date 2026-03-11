@@ -32,7 +32,7 @@
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn() }));
+jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));

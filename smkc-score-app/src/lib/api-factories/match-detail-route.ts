@@ -19,8 +19,11 @@ import {
   createSuccessResponse,
   handleValidationError,
   handleDatabaseError,
+  handleRateLimitError,
 } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIdentifier } from '@/lib/request-utils';
 
 /**
  * Configuration for the match detail route factory.
@@ -113,6 +116,13 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       if (!session?.user || session.user.role !== 'admin') {
         return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
+    }
+
+    /* Rate limit: prevent abuse on match score update */
+    const clientIp = getClientIdentifier(request);
+    const rateResult = await checkRateLimit('scoreInput', clientIp);
+    if (!rateResult.success) {
+      return handleRateLimitError(rateResult.retryAfter);
     }
 
     const { matchId } = await params;

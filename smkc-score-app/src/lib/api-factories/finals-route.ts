@@ -22,7 +22,9 @@ import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError } from '@/lib/error-handling';
+import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIdentifier } from '@/lib/request-utils';
 
 /**
  * Configuration for a finals route handler set.
@@ -172,6 +174,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
     }
 
+    /* Rate limit: prevent abuse on bracket creation */
+    const postClientIp = getClientIdentifier(request);
+    const postRateResult = await checkRateLimit('general', postClientIp);
+    if (!postRateResult.success) {
+      return handleRateLimitError(postRateResult.retryAfter);
+    }
+
     const { id: tournamentId } = await params;
 
     try {
@@ -273,6 +282,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
       if (!session?.user || session.user.role !== 'admin') {
         return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
       }
+    }
+
+    /* Rate limit: prevent abuse on finals score update */
+    const putClientIp = getClientIdentifier(request);
+    const putRateResult = await checkRateLimit('scoreInput', putClientIp);
+    if (!putRateResult.success) {
+      return handleRateLimitError(putRateResult.retryAfter);
     }
 
     const { id: tournamentId } = await params;

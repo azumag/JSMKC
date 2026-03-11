@@ -265,6 +265,30 @@ jest.mock('isomorphic-dompurify', () => ({
   },
 }))
 
+// Mock rate-limit module globally to avoid request header issues in tests.
+// checkRateLimit always allows requests; getClientIdentifier returns a dummy IP.
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+  getServerSideIdentifier: jest.fn().mockResolvedValue('127.0.0.1'),
+  rateLimitConfigs: {
+    scoreInput: { limit: 120, windowMs: 60000 },
+    polling: { limit: 120, windowMs: 60000 },
+    sessionStatus: { limit: 60, windowMs: 60000 },
+    general: { limit: 60, windowMs: 60000 },
+  },
+  rateLimitStore: new Map(),
+  rateLimitInMemory: jest.fn().mockReturnValue({ success: true, remaining: 100 }),
+  clearRateLimitStore: jest.fn(),
+}))
+
+// Mock request-utils globally for factory tests that need getClientIdentifier.
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+  getUserAgent: jest.fn().mockReturnValue('jest-test'),
+  getServerSideIdentifier: jest.fn().mockResolvedValue('127.0.0.1'),
+}))
+
 // Clear all mocks before each test
 beforeEach(() => {
   jest.clearAllMocks()

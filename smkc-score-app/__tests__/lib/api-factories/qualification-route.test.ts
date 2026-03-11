@@ -40,7 +40,7 @@ import { EventTypeConfig } from '@/lib/event-types/types';
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/auth');
 jest.mock('@/lib/audit-log');
-jest.mock('@/lib/rate-limit');
+jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
 

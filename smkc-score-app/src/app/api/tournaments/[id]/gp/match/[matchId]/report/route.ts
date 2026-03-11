@@ -37,7 +37,9 @@ import {
   handleValidationError,
   handleAuthError,
   handleDatabaseError,
+  handleRateLimitError,
 } from "@/lib/error-handling";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 
 /**
@@ -71,6 +73,12 @@ export async function POST(
   try {
     const clientIp = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
+
+    /* Rate limit: prevent abuse on score report endpoint */
+    const rateResult = await checkRateLimit('scoreInput', clientIp);
+    if (!rateResult.success) {
+      return handleRateLimitError(rateResult.retryAfter);
+    }
 
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, races, character } = body;

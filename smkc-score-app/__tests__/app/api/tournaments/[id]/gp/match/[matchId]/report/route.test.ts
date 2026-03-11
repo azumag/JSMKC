@@ -45,6 +45,7 @@ jest.mock('@/lib/error-handling', () => ({
   handleValidationError: jest.fn((message, field) => ({ data: { error: message, field }, status: 400 })),
   handleAuthError: jest.fn((message) => ({ data: { error: message }, status: 401 })),
   handleDatabaseError: jest.fn((error, operation) => ({ data: { error: `Database error: ${operation}` }, status: 500 })),
+  handleRateLimitError: jest.fn((retryAfter) => ({ data: { error: 'Rate limit exceeded' }, status: 429, retryAfter })),
 }));
 
 import prisma from '@/lib/prisma';
@@ -93,6 +94,10 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     errorHandling.handleValidationError.mockImplementation((message: string, field: string) => ({ data: { error: message, field }, status: 400 }));
     errorHandling.handleAuthError.mockImplementation((message: string) => ({ data: { error: message }, status: 401 }));
     errorHandling.handleDatabaseError.mockImplementation((error: unknown, operation: string) => ({ data: { error: `Database error: ${operation}` }, status: 500 }));
+    errorHandling.handleRateLimitError.mockImplementation((retryAfter: number) => ({ data: { error: 'Rate limit exceeded' }, status: 429, retryAfter }));
+    // Re-establish rate-limit mock after resetAllMocks (global mock from jest.setup.js gets cleared)
+    const rateLimitMocks = jest.requireMock('@/lib/rate-limit');
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 100 });
     // Default: admin session so auth passes. Tests that check auth failure override this.
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
     // Reset Prisma mocks to prevent cross-test contamination
