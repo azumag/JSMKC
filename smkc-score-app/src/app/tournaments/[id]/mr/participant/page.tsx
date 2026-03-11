@@ -439,7 +439,7 @@ export default function MatchRaceParticipantPage({
                                   <div key={index} className="grid grid-cols-12 gap-2 items-center">
                                     <div className="col-span-4">
                                       <Select value={result.course} onValueChange={(value) => updateRaceResult(match.id, index, 'course', value)}>
-                                        <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder={tCommon('selectCourse')} /></SelectTrigger>
                                         <SelectContent>
                                           {COURSE_INFO.map((course) => (
                                             <SelectItem key={course.abbr} value={course.abbr}>{course.name}</SelectItem>
@@ -448,10 +448,10 @@ export default function MatchRaceParticipantPage({
                                       </Select>
                                     </div>
                                     <div className="col-span-3">
-                                      <Input type="number" min="1" max="2" placeholder="1st" value={result.position1 || ''} onChange={(e) => updateRaceResult(match.id, index, 'position1', parseInt(e.target.value) || 0)} />
+                                      <Input type="number" min="1" max="2" placeholder={tCommon('first')} value={result.position1 || ''} onChange={(e) => updateRaceResult(match.id, index, 'position1', parseInt(e.target.value) || 0)} />
                                     </div>
                                     <div className="col-span-3">
-                                      <Input type="number" min="1" max="2" placeholder="2nd" value={result.position2 || ''} onChange={(e) => updateRaceResult(match.id, index, 'position2', parseInt(e.target.value) || 0)} />
+                                      <Input type="number" min="1" max="2" placeholder={tCommon('second')} value={result.position2 || ''} onChange={(e) => updateRaceResult(match.id, index, 'position2', parseInt(e.target.value) || 0)} />
                                     </div>
                                     <div className="col-span-2">
                                       <Button size="sm" variant="ghost" onClick={() => removeRaceResult(match.id, index)}>{tCommon('remove')}</Button>

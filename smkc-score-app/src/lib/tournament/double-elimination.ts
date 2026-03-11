@@ -10,10 +10,7 @@
  * with player assignments for tournament execution.
  */
 
-import { BM_FINALS_TARGET_WINS, MR_FINALS_TARGET_WINS } from '@/lib/constants';
-
-// Re-export MR_FINALS_TARGET_WINS so callers don't need a separate constants import
-export { MR_FINALS_TARGET_WINS };
+import { BM_FINALS_TARGET_WINS } from '@/lib/constants';
 
 /** Full bracket structure with winner, loser, and grand final sections */
 export interface DoubleEliminationBracket {

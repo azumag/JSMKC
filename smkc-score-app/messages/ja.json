@@ -287,7 +287,8 @@
     "editGroupsTitle": "バトルモード グループ編集",
     "editGroupsDesc": "プレイヤーのグループ割り当てを変更します。既存の試合結果は再生成されます。",
     "searchPlayers": "プレイヤーを検索...",
-    "selectAll": "すべて選択"
+    "selectAll": "すべて選択",
+    "battleCourseOrder": "バトルコース 1 → 2 → 3 → 4"
   },
   "mr": {
     "title": "マッチレース",

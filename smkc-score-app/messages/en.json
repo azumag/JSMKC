@@ -287,7 +287,8 @@
     "editGroupsTitle": "Edit Battle Mode Groups",
     "editGroupsDesc": "Modify player group assignments. Existing match results will be regenerated.",
     "searchPlayers": "Search players...",
-    "selectAll": "Select All"
+    "selectAll": "Select All",
+    "battleCourseOrder": "Battle Course 1 → 2 → 3 → 4"
   },
   "mr": {
     "title": "Match Race",
