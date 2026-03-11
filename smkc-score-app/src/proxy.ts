@@ -19,7 +19,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
-import { getServerSideIdentifier } from '@/lib/rate-limit'
+import { getServerSideIdentifier } from '@/lib/request-utils'
 import { createLogger } from '@/lib/logger'
 
 /**

@@ -25,7 +25,8 @@
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
+jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
+jest.mock('@/lib/request-utils', () => ({ getServerSideIdentifier: jest.fn(), getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'), getUserAgent: jest.fn().mockReturnValue('jest-test') }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' } }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
@@ -35,7 +36,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
 
-const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
+const requestUtilsMock = jest.requireMock('@/lib/request-utils') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
@@ -66,7 +67,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     NextResponseMock.NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
-    rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
+    requestUtilsMock.getServerSideIdentifier.mockResolvedValue('test-ip');
     /* Reset Prisma mock implementations to prevent cross-test contamination */
     (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.bMQualification.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });

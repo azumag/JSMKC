@@ -40,13 +40,13 @@ import { EventTypeConfig } from '@/lib/event-types/types';
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/auth');
 jest.mock('@/lib/audit-log');
-jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
+jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
 
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
-import { getServerSideIdentifier } from '@/lib/rate-limit';
+import { getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';

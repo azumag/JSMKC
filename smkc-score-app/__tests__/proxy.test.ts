@@ -27,12 +27,12 @@
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { NextResponse, NextRequest } from 'next/server'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
-import { getServerSideIdentifier } from '@/lib/rate-limit'
+import { getServerSideIdentifier } from '@/lib/request-utils'
 import { auth as authLib } from '@/lib/auth'
 
 jest.mock('@/lib/auth')
 jest.mock('@/lib/audit-log')
-jest.mock('@/lib/rate-limit')
+jest.mock('@/lib/request-utils')
 jest.mock('@/lib/logger')
 
 const mockCreateAuditLog = createAuditLog as jest.MockedFunction<typeof createAuditLog>

@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
-import { getClientIdentifier, getUserAgent } from "@/lib/rate-limit";
+import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
