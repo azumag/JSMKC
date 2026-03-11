@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -147,9 +147,6 @@ export default function GrandPrixPage({
   >([]);
   const [groupCount, setGroupCount] = useState(3);
   const [exporting, setExporting] = useState(false);
-
-  /** SMK has 4 cups, each with 5 courses */
-  const CUPS = ["Mushroom", "Flower", "Star", "Special"] as const;
 
   /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
@@ -258,8 +255,8 @@ export default function GrandPrixPage({
       setSelectedCup(match.cup);
       setRaces(match.races as Race[]);
     } else {
-      /* Reset form for new result entry */
-      setSelectedCup("");
+      /* Pre-select cup if pre-assigned at setup time (§7.4), otherwise reset */
+      setSelectedCup(match.cup || "");
       setRaces([
         { course: "", position1: null, position2: null },
         { course: "", position1: null, position2: null },
@@ -546,7 +543,15 @@ export default function GrandPrixPage({
                                   key={match.id}
                                   className={match.isBye ? "opacity-50 bg-muted/30" : ""}
                                 >
-                                  <TableCell>{match.matchNumber}</TableCell>
+                                  <TableCell>
+                                    {match.matchNumber}
+                                    {/* Show pre-assigned cup name next to match number (§7.4) */}
+                                    {match.cup && !match.isBye && (
+                                      <span className="ml-1 text-xs text-muted-foreground">
+                                        ({match.cup})
+                                      </span>
+                                    )}
+                                  </TableCell>
                                   <TableCell
                                     className={
                                       match.completed && match.points1 > match.points2

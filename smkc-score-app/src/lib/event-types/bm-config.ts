@@ -39,10 +39,11 @@ export const bmConfig: EventTypeConfig = {
   auditAction: AUDIT_ACTIONS.CREATE_BM_MATCH,
   setupCompleteMessage: 'Battle mode setup complete',
   /*
-   * §5.4, §6.3: Randomly shuffle all 20 courses and assign 4 to each match sequentially.
-   * Players use "コース1からコース4まで" (courses 1-4 in order) from the match card.
+   * §5.4: BM uses the 4 fixed battle courses in order (Battle Course 1→2→3→4).
+   * Unlike MR (§6.3, §10.5), BM does NOT need random course assignment from the
+   * 20 racing courses. The battle courses are always played in fixed order.
+   * assignCoursesRandomly is intentionally NOT set (defaults to false).
    */
-  assignCoursesRandomly: true,
 
   parsePutBody: (body) => {
     const { matchId, score1, score2, rounds } = body as {

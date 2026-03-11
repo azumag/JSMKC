@@ -136,6 +136,19 @@ export function calculateCourseScores(
 }
 
 /**
+ * Total qualification points for a player.
+ * Contains breakdown by course and the summed total points.
+ * Used by overall-ranking to aggregate TA points into the grand total.
+ */
+export interface TAQualificationPointsResult {
+  playerId: string;
+  /** Points earned on each individual course (0-50 per course) */
+  coursePoints: Record<string, number>;
+  /** Sum of all course points (0-1000 maximum) */
+  totalPoints: number;
+}
+
+/**
  * Result of scoring calculation for a single entry.
  */
 export interface EntryScoreResult {

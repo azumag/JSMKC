@@ -60,6 +60,15 @@ export interface EventTypeConfig {
    */
   assignCoursesRandomly?: boolean;
 
+  /**
+   * Whether to randomly assign a cup to each match at qualification setup time (§7.4).
+   * When true, the POST handler shuffles cupList and assigns one cup per match (cycling via modulo).
+   * GP uses this to pre-assign cups; BM/MR do not.
+   */
+  assignCupRandomly?: boolean;
+  /** List of available cups for random assignment. Required when assignCupRandomly is true. */
+  cupList?: readonly string[];
+
   /** Whether POST endpoint requires authentication */
   postRequiresAuth: boolean;
   /** Whether PUT endpoint requires admin authentication */

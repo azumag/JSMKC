@@ -10,7 +10,7 @@
 import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
-import { DRIVER_POINTS } from '@/lib/constants';
+import { DRIVER_POINTS, CUPS } from '@/lib/constants';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -40,6 +40,10 @@ export const gpConfig: EventTypeConfig = {
   eventDisplayName: 'grand prix',
   // Per requirements.md §4.1: GP uses driver points as primary ranking criterion
   qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
+  // §7.4: Pre-assign a cup to each qualification match at setup time.
+  // Cups are shuffled and distributed cyclically (4 cups for N matches).
+  assignCupRandomly: true,
+  cupList: CUPS,
   postRequiresAuth: true,
   putRequiresAuth: true,
   // Audit GP qualification setup for consistency with BM/MR (§10.6 traceability)

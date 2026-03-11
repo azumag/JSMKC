@@ -549,6 +549,138 @@ describe('Qualification Route Factory', () => {
       expect(createCall[0].data.assignedCourses).toHaveLength(4);
     });
 
+    // Cup assignment tests (§7.4)
+    it('should assign a cup to each match when assignCupRandomly is true (GP)', async () => {
+      /*
+       * When assignCupRandomly is true (GP config), each match creation call
+       * must include a `cup` field with a value from the cupList.
+       * The actual order is random (Fisher-Yates shuffle), so we only verify
+       * the value is one of the valid cups.
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+      ];
+
+      const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
+
+      (prisma.gPQualification as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (prisma.gPMatch as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const config = createMockConfig({
+        eventTypeCode: 'gp',
+        matchModel: 'gPMatch',
+        qualificationModel: 'gPQualification',
+        assignCupRandomly: true,
+        cupList,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // Each match must have a cup field with a valid cup name
+      const createCall = (prisma.gPMatch as any).create.mock.calls[0];
+      expect(createCall[0].data.cup).toBeDefined();
+      expect(cupList).toContain(createCall[0].data.cup);
+    });
+
+    it('should cycle cups via modulo when there are more matches than cups', async () => {
+      /*
+       * With 3 players in one group (odd → BREAK added → 4 participants → 6 matches),
+       * 4 cups must cycle: match0→cup[0], match1→cup[1], ..., match4→cup[0] (wraps).
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+        { playerId: 'player-3', group: 'A', seeding: 3 },
+      ];
+
+      const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
+
+      (prisma.gPQualification as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (prisma.gPMatch as any) = {
+        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 45, score2: 0, completed: true, isBye: true },
+        ]),
+      };
+
+      const config = createMockConfig({
+        eventTypeCode: 'gp',
+        matchModel: 'gPMatch',
+        qualificationModel: 'gPQualification',
+        assignCupRandomly: true,
+        cupList,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // 3 players (odd) → BREAK added → 4 participants → 3 days × 2 matches = 6 matches
+      const createCalls = (prisma.gPMatch as any).create.mock.calls;
+      expect(createCalls.length).toBe(6);
+
+      // All cups must be from cupList and all 4 cups must appear at least once
+      const assignedCups = createCalls.map((c: any) => c[0].data.cup);
+      assignedCups.forEach((cup: string) => {
+        expect(cupList).toContain(cup);
+      });
+      // With 6 matches and 4 cups, all 4 cups appear (4 unique + 2 wrapping)
+      const uniqueCups = new Set(assignedCups);
+      expect(uniqueCups.size).toBe(4);
+    });
+
+    it('should NOT assign cup when assignCupRandomly is not set (BM/MR)', async () => {
+      /*
+       * BM and MR configs do not set assignCupRandomly, so match creation
+       * must NOT include a `cup` field.
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+      ];
+
+      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
+      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+
+      // Default BM config has no assignCupRandomly
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // No cup for BM matches
+      const createCall = (prisma.bMMatch as any).create.mock.calls[0];
+      expect(createCall[0].data.cup).toBeUndefined();
+    });
+
     it('should NOT assign courses when assignCoursesRandomly is false (BM/GP)', async () => {
       /*
        * BM and GP configs do not set assignCoursesRandomly, so match creation

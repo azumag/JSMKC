@@ -31,7 +31,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { POLLING_INTERVAL, COURSE_INFO } from "@/lib/constants";
+import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -256,16 +256,12 @@ export default function MatchEntryPage({
               </CardDescription>
             )}
           </CardHeader>
-          {/* Pre-assigned courses for this match (§5.4: コース1からコース4まで順番に使用) */}
-          {match.assignedCourses && match.assignedCourses.length > 0 && (
+          {/* §5.4: BM always uses battle courses 1-4 in order */}
+          {!match.completed && (
             <CardContent className="pt-0 pb-3">
-              <p className="text-xs text-muted-foreground mb-1">Courses (play in order):</p>
-              <ol className="list-decimal list-inside text-sm space-y-0.5">
-                {match.assignedCourses.map((abbr, i) => {
-                  const info = COURSE_INFO.find(c => c.abbr === abbr);
-                  return <li key={i}>{info ? info.name : abbr}</li>;
-                })}
-              </ol>
+              <p className="text-xs text-muted-foreground">
+                Battle Course 1 → 2 → 3 → 4
+              </p>
             </CardContent>
           )}
         </Card>

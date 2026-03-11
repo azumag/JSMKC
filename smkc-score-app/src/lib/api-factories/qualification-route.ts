@@ -180,6 +180,14 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
       const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
+      /*
+       * §7.4 cup assignment: shuffle the cup list once and distribute cyclically.
+       * Each match gets one cup (modulo wrapping when matches > cups).
+       * Only applies when config.assignCupRandomly is true (GP only).
+       */
+      const shuffledCups = config.assignCupRandomly && config.cupList
+        ? fisherYatesShuffle(config.cupList)
+        : null;
       // matchSequenceIndex tracks the overall match number across all groups
       // for consistent sequential course assignment from the shared list.
       let matchSequenceIndex = 0;
@@ -228,6 +236,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ? getAssignedCourses(shuffledCourses, matchSequenceIndex)
             : undefined;
 
+          /* §7.4: Pick a cup from the shuffled list for this match (GP only) */
+          const assignedCup = shuffledCups
+            ? shuffledCups[matchSequenceIndex % shuffledCups.length]
+            : undefined;
+
           await matchModel(prisma).create({
             data: {
               tournamentId,
@@ -241,6 +254,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
               isBye: m.isBye,
               /* Pre-assigned courses for the match (undefined for BM/GP without course assignment) */
               ...(assignedCourses ? { assignedCourses } : {}),
+              /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
+              ...(assignedCup ? { cup: assignedCup } : {}),
               /* Auto-complete BYE matches with fixed scores (§10.2) */
               ...(m.isBye ? { completed: true, ...byeData } : {}),
             },

@@ -268,6 +268,12 @@ export default function GPMatchPage({
               <span className="text-2xl font-mono">vs</span>
               <span>{match.player2.nickname}</span>
             </CardTitle>
+            {/* Show pre-assigned cup name when not yet completed (§7.4) */}
+            {match.cup && !match.completed && (
+              <CardDescription className="text-center">
+                <Badge variant="outline">{match.cup} Cup</Badge>
+              </CardDescription>
+            )}
             {match.completed && (
               <CardDescription className="text-center">
                 <Badge variant="secondary" className="text-lg px-4 py-1">
@@ -343,7 +349,11 @@ export default function GPMatchPage({
                               <SelectValue placeholder={tCommon('selectCourse')} />
                             </SelectTrigger>
                             <SelectContent>
-                              {COURSE_INFO.map((course) => (
+                              {/* §7.4: When a cup is pre-assigned, only show courses from that cup */}
+                              {(match.cup
+                                ? COURSE_INFO.filter((c) => c.cup === match.cup)
+                                : COURSE_INFO
+                              ).map((course) => (
                                 <SelectItem key={course.abbr} value={course.abbr}>
                                   {course.name}
                                 </SelectItem>

@@ -84,6 +84,15 @@ export const COURSE_INFO: { abbr: CourseAbbr; name: string; cup: string }[] = [
 // Total number of courses in time attack
 export const TOTAL_COURSES = COURSES.length;
 
+/**
+ * SMK cup names in official order.
+ * Used for GP cup pre-assignment at qualification setup time (§7.4).
+ * Each cup contains 5 courses (see COURSE_INFO for course-cup mapping).
+ */
+export const CUPS = ["Mushroom", "Flower", "Star", "Special"] as const;
+
+export type CupName = typeof CUPS[number];
+
 // SMK playable characters (8 total)
 export const SMK_CHARACTERS = [
   'Mario',

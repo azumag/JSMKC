@@ -27,10 +27,8 @@ import { PrismaClient } from "@prisma/client";
 import { createLogger } from "@/lib/logger";
 import {
   calculateAllCourseScores,
+  type TAQualificationPointsResult,
 } from "@/lib/ta/qualification-scoring";
-import type {
-  TAQualificationPointsResult,
-} from "./ta-qualification-points";
 import {
   calculateQualificationPoints,
   MatchRecord,
