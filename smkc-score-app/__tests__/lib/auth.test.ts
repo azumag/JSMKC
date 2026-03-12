@@ -28,12 +28,12 @@ jest.mock('next-auth/providers/github');
 jest.mock('next-auth/providers/google');
 jest.mock('next-auth/providers/credentials');
 
-// Mock bcrypt so we can control compare() results in authorize tests
-jest.mock('bcrypt', () => ({
+// Mock bcryptjs so we can control compare() results in authorize tests
+jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
 }));
 
-import { compare as mockBcryptCompare } from 'bcrypt';
+import { compare as mockBcryptCompare } from 'bcryptjs';
 
 // Import the prisma mock provided by jest.setup.js (default + named export)
 import prisma from '@/lib/prisma';
@@ -101,8 +101,8 @@ describe('Auth Configuration', () => {
     delete process.env.DISCORD_CLIENT_SECRET;
     delete process.env.GITHUB_CLIENT_ID;
     delete process.env.GITHUB_CLIENT_SECRET;
-    delete process.env.AUTH_GOOGLE_ID;
-    delete process.env.AUTH_GOOGLE_SECRET;
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
   });
 
   describe('ADMIN_DISCORD_IDS_LIST', () => {

@@ -90,35 +90,35 @@ export function LocaleSwitcher() {
       onKeyDown={handleKeyDown}
       disabled={isLoading}
       className={`
-        relative inline-flex h-8 w-[72px] shrink-0 cursor-pointer items-center rounded-full 
-        border-2 border-transparent transition-colors duration-200 ease-in-out
+        relative inline-grid h-8 w-[74px] shrink-0 cursor-pointer grid-cols-2 items-center rounded-full p-1
+        border border-transparent transition-colors duration-200 ease-in-out
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
         disabled:cursor-not-allowed disabled:opacity-50
         ${isJapanese ? 'bg-primary' : 'bg-muted/60 hover:bg-muted'}
       `}
     >
+      {/* Sliding thumb */}
+      <span
+        className={`pointer-events-none absolute inset-y-1 left-1 w-8 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
+          isJapanese ? 'translate-x-[34px]' : 'translate-x-0'
+        }`}
+      />
+
       {/* EN Label */}
       <span
         aria-hidden="true"
-        className={`absolute left-2 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200 ${
-          isJapanese ? 'opacity-40 scale-90' : 'opacity-100 scale-100'
+        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors duration-200 ${
+          isJapanese ? 'text-primary-foreground/65' : 'text-foreground'
         }`}
       >
         EN
       </span>
 
-      {/* Sliding thumb */}
-      <span
-        className={`pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
-          isJapanese ? 'translate-x-[38px]' : 'translate-x-0.5'
-        }`}
-      />
-
       {/* JA Label */}
       <span
         aria-hidden="true"
-        className={`absolute right-2 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200 ${
-          isJapanese ? 'opacity-100 scale-100' : 'opacity-40 scale-90'
+        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors duration-200 ${
+          isJapanese ? 'text-foreground' : 'text-muted-foreground'
         }`}
       >
         JA

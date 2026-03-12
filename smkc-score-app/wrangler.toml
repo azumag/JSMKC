@@ -1,0 +1,26 @@
+# Cloudflare Workers configuration for JSMKC Score App
+# Deployed via OpenNext adapter which builds Next.js for Workers runtime.
+#
+# Required secrets (set via `npx wrangler secret put <NAME>`):
+#   DATABASE_URL, AUTH_SECRET,
+#   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET,
+#   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+#   ADMIN_DISCORD_IDS
+
+name = "smkc"
+compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+
+[[routes]]
+pattern = "smkc.bluemoon.works"
+custom_domain = true
+
+[vars]
+NODE_ENV = "production"
+NEXTAUTH_URL = "https://smkc.bluemoon.works"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"

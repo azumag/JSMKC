@@ -176,8 +176,8 @@ GITHUB_CLIENT_ID=your_github_client_id_here
 GITHUB_CLIENT_SECRET=your_github_client_secret_here
 
 # Google OAuth (Optional, for JWT Refresh Token)
-AUTH_GOOGLE_ID=your_google_client_id_here
-AUTH_GOOGLE_SECRET=your_google_client_secret_here
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 
 # NextAuth.js
 NEXTAUTH_URL=http://localhost:3000
@@ -294,9 +294,9 @@ Add these to Vercel → Settings → Environment Variables:
 - `DISCORD_CLIENT_SECRET`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
-- `AUTH_GOOGLE_ID`
-- `AUTH_GOOGLE_SECRET`
-- `NEXTAUTH_URL` (set to your production URL, e.g., `https://your-app.vercel.app`)
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `NEXTAUTH_URL` (set to your production URL, e.g., `https://smkc.bluemoon.works`)
 - `AUTH_SECRET` (generate a new one for production)
 
 ---
