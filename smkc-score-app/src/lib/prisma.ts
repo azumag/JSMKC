@@ -67,12 +67,29 @@ function createPrismaClient(): PrismaClient {
   }) as PrismaClient;
 }
 
-const prismaClient: PrismaClient =
-  globalForPrisma.prisma ?? createPrismaClient();
+export function getPrismaClient(): PrismaClient {
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma;
+  }
 
-export const prisma = prismaClient;
+  const prismaClient = createPrismaClient();
 
-// Preserve client across hot reloads in development
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+  // Preserve client across hot reloads in development
+  if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = prismaClient;
+  }
+
+  return prismaClient;
+}
+
+// Lazily create the Prisma client so build-time module evaluation does not
+// require DATABASE_URL unless a request actually hits the database.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrismaClient() as unknown as Record<PropertyKey, unknown>;
+    const value = Reflect.get(client, prop, client);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+}) as PrismaClient;
 
 export default prisma;
