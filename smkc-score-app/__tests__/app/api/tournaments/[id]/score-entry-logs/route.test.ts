@@ -66,9 +66,13 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      // The source returns 403 for unauthenticated/non-admin users
+      // handleAuthzError returns { success: false, error, code: 'FORBIDDEN' }
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Unauthorized: Admin access required' },
+        expect.objectContaining({
+          success: false,
+          error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
+        }),
         { status: 403 }
       );
     });

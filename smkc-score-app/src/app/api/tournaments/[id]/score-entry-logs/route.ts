@@ -19,10 +19,15 @@
  *     totalCount: number
  *   }
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthzError,
+} from "@/lib/error-handling";
 
 export async function GET(
   request: NextRequest,
@@ -35,10 +40,7 @@ export async function GET(
   // data that should only be visible to tournament administrators
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   const { id: tournamentId } = await params;
@@ -76,7 +78,7 @@ export async function GET(
       return acc;
     }, {} as Record<string, typeof logs>);
 
-    return NextResponse.json({
+    return createSuccessResponse({
       tournamentId,
       logsByMatch,
       totalCount: logs.length,
@@ -84,9 +86,6 @@ export async function GET(
   } catch (error) {
     // Log error with tournament ID for debugging
     logger.error("Failed to fetch score entry logs", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch score entry logs" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch score entry logs", 500);
   }
 }

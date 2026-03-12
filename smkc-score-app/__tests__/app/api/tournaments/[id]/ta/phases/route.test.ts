@@ -231,7 +231,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest(), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Tournament not found' },
+        expect.objectContaining({ success: false, error: 'Tournament not found' }),
         { status: 404 }
       );
     });
@@ -243,11 +243,13 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       await phasesRoute.GET(createRequest('?phase=invalid'), { params: mockParams });
 
+      // handleValidationError includes code: 'VALIDATION_ERROR'
       expect(NextResponse.json).toHaveBeenCalledWith(
-        {
+        expect.objectContaining({
           success: false,
           error: 'Invalid phase parameter. Must be one of: phase1, phase2, phase3',
-        },
+          code: 'VALIDATION_ERROR',
+        }),
         { status: 400 }
       );
     });
@@ -258,10 +260,11 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest('?phase=3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        {
+        expect.objectContaining({
           success: false,
           error: 'Invalid phase parameter. Must be one of: phase1, phase2, phase3',
-        },
+          code: 'VALIDATION_ERROR',
+        }),
         { status: 400 }
       );
     });
@@ -274,9 +277,12 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
 
       await phasesRoute.GET(createRequest(), { params: mockParams });
 
+      // createSuccessResponse wraps { phaseStatus } in { success: true, data: { phaseStatus } }
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
-        phaseStatus: defaultPhaseStatus,
+        data: {
+          phaseStatus: defaultPhaseStatus,
+        },
       });
       // Should NOT query entries or rounds when no phase is specified
       expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
@@ -301,14 +307,17 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
     it('should return entries, rounds, and courses for a valid phase', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
+      // createSuccessResponse wraps the response in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          phaseStatus: defaultPhaseStatus,
-          entries: mockEntries,
-          rounds: [],
-          availableCourses: expect.arrayContaining(['MC1', 'DP1']),
-          playedCourses: [],
+          data: expect.objectContaining({
+            phaseStatus: defaultPhaseStatus,
+            entries: mockEntries,
+            rounds: [],
+            availableCourses: expect.arrayContaining(['MC1', 'DP1']),
+            playedCourses: [],
+          }),
         })
       );
     });
@@ -358,8 +367,9 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
     it('should not include password field in response entries', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
+      // createSuccessResponse wraps data in { success: true, data: { entries, ... } }
       const call = NextResponse.json.mock.calls[0][0];
-      for (const entry of call.entries) {
+      for (const entry of call.data.entries) {
         expect(entry.player).not.toHaveProperty('password');
       }
     });
@@ -404,7 +414,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest(), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Internal server error' },
+        expect.objectContaining({ success: false, error: 'Internal server error' }),
         { status: 500 }
       );
       expect(loggerInstance.error).toHaveBeenCalledWith(
@@ -422,7 +432,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest(), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Internal server error' },
+        expect.objectContaining({ success: false, error: 'Internal server error' }),
         { status: 500 }
       );
     });
@@ -435,7 +445,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Internal server error' },
+        expect.objectContaining({ success: false, error: 'Internal server error' }),
         { status: 500 }
       );
     });
@@ -451,7 +461,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Internal server error' },
+        expect.objectContaining({ success: false, error: 'Internal server error' }),
         { status: 500 }
       );
     });
@@ -468,7 +478,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Internal server error' },
+        expect.objectContaining({ success: false, error: 'Internal server error' }),
         { status: 500 }
       );
     });
@@ -510,7 +520,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
-      { success: false, error: 'Forbidden' },
+      expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
       { status: 403 }
     );
   });
@@ -521,7 +531,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
-      { success: false, error: 'Forbidden' },
+      expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
       { status: 403 }
     );
   });
@@ -529,8 +539,9 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
   it('should return 400 for invalid action', async () => {
     await phasesRoute.POST(createPostRequest({ action: 'invalid_action' }), { params: mockParams });
 
+    // handleValidationError includes code: 'VALIDATION_ERROR'
     expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: 'Invalid request' }),
+      expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
       { status: 400 }
     );
   });
@@ -541,7 +552,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
     expect(NextResponse.json).toHaveBeenCalledWith(
-      { success: false, error: 'Tournament not found' },
+      expect.objectContaining({ success: false, error: 'Tournament not found' }),
       { status: 404 }
     );
   });
@@ -552,7 +563,8 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase1' }), { params: mockParams });
 
     expect(promoteToPhase1).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 8 });
+    // createSuccessResponse wraps in { success: true, data: { promoted: 8 } }
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { promoted: 8 } });
   });
 
   it('should call promoteToPhase2 and return success', async () => {
@@ -561,7 +573,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase2' }), { params: mockParams });
 
     expect(promoteToPhase2).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 8 });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { promoted: 8 } });
   });
 
   it('should call promoteToPhase3 and return success', async () => {
@@ -570,7 +582,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'promote_phase3' }), { params: mockParams });
 
     expect(promoteToPhase3).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }));
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, promoted: 16 });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { promoted: 16 } });
   });
 
   it('should call startPhaseRound and return success', async () => {
@@ -580,7 +592,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase1');
     expect(startPhaseRound).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }), 'phase1');
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, roundNumber: 1, course: 'MC1' });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 1, course: 'MC1' } });
   });
 
   it('should return freeze error when phase is frozen for start_round', async () => {
@@ -609,7 +621,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       'phase2',
       3
     );
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, cancelled: true, roundNumber: 3 });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { cancelled: true, roundNumber: 3 } });
   });
 
   it('should call undoLastPhaseRound and return success', async () => {
@@ -626,7 +638,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase3'
     );
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, undoneRoundNumber: 5 });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { undoneRoundNumber: 5 } });
   });
 
   it('should return 400 with business error when undoLastPhaseRound throws "No submitted rounds"', async () => {
@@ -638,7 +650,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     );
 
     expect(NextResponse.json).toHaveBeenCalledWith(
-      { success: false, error: 'No submitted rounds found for phase3' },
+      expect.objectContaining({ success: false, error: 'No submitted rounds found for phase3' }),
       { status: 400 }
     );
   });
@@ -649,8 +661,9 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       { params: mockParams }
     );
 
+    // handleValidationError includes code: 'VALIDATION_ERROR'
     expect(NextResponse.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: 'Invalid request' }),
+      expect.objectContaining({ success: false, error: 'Invalid request', code: 'VALIDATION_ERROR' }),
       { status: 400 }
     );
   });
@@ -677,7 +690,7 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       1,
       body.results
     );
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, eliminated: ['player-1'] });
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: ['player-1'] } });
   });
 
   it('should return 500 for unexpected errors', async () => {

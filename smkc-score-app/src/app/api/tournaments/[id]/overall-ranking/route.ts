@@ -16,7 +16,7 @@
  * Authentication: GET is public (anyone can view); POST requires admin role
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
@@ -25,6 +25,12 @@ import {
   saveOverallRankings,
   getOverallRankings,
 } from "@/lib/points/overall-ranking";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthError,
+  handleAuthzError,
+} from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -50,10 +56,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
     /* Fetch stored rankings (pre-calculated via POST) */
@@ -69,21 +72,15 @@ export async function GET(
       playerCount: rankings.length,
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        tournamentId,
-        tournamentName: tournament.name,
-        lastUpdated,
-        rankings,
-      },
+    return createSuccessResponse({
+      tournamentId,
+      tournamentName: tournament.name,
+      lastUpdated,
+      rankings,
     });
   } catch (error) {
     logger.error("Failed to fetch overall rankings", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch overall rankings" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch overall rankings", 500);
   }
 }
 
@@ -113,18 +110,12 @@ export async function POST(
 
   /* Authentication check: return 401 if no session */
   if (!session?.user) {
-    return NextResponse.json(
-      { success: false, error: "Authentication required" },
-      { status: 401 }
-    );
+    return handleAuthError("Authentication required");
   }
 
   /* Authorization check: return 403 if not admin */
   if (session.user.role !== "admin") {
-    return NextResponse.json(
-      { success: false, error: "Forbidden: Admin access required" },
-      { status: 403 }
-    );
+    return handleAuthzError("Forbidden: Admin access required");
   }
 
   const { id: tournamentId } = await params;
@@ -136,10 +127,7 @@ export async function POST(
     });
 
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
     /* Calculate rankings from current data across all 4 modes */
@@ -153,23 +141,17 @@ export async function POST(
       playerCount: rankings.length,
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        tournamentId,
-        tournamentName: tournament.name,
-        lastUpdated: new Date().toISOString(),
-        rankings,
-      },
+    return createSuccessResponse({
+      tournamentId,
+      tournamentName: tournament.name,
+      lastUpdated: new Date().toISOString(),
+      rankings,
     });
   } catch (error) {
     logger.error("Failed to recalculate overall rankings", {
       error,
       tournamentId,
     });
-    return NextResponse.json(
-      { success: false, error: "Failed to recalculate overall rankings" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to recalculate overall rankings", 500);
   }
 }

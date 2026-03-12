@@ -24,6 +24,12 @@ import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createLogger } from "@/lib/logger";
 import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthzError,
+  handleValidationError,
+} from "@/lib/error-handling";
+import {
   promoteToPhase1,
   promoteToPhase2,
   promoteToPhase3,
@@ -51,10 +57,7 @@ async function requireAdminAndGetSession(): Promise<{
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
     return {
-      error: NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 }
-      ),
+      error: handleAuthzError("Forbidden"),
     };
   }
   return { session: session as { user: { id: string; role: string } } };
@@ -132,10 +135,7 @@ export async function GET(
       where: { id: tournamentId },
     });
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
     // Parse optional phase filter from query params
@@ -147,18 +147,16 @@ export async function GET(
     // Without this check, invalid values are silently ignored, which confuses API consumers.
     // Note: phaseParam is not reflected in the error message to avoid user input reflection.
     if (phaseParam && !phase?.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid phase parameter. Must be one of: phase1, phase2, phase3" },
-        { status: 400 }
-      );
+      return handleValidationError("Invalid phase parameter. Must be one of: phase1, phase2, phase3");
     }
 
     // Fetch phase status summary (counts for all three phases)
     const phaseStatus = await getPhaseStatus(prisma, tournamentId);
 
-    // Build response with optional phase-specific data
+    // Build response with optional phase-specific data.
+    // Note: createSuccessResponse adds { success: true, data: ... } wrapping,
+    // so we don't include success here.
     const response: Record<string, unknown> = {
-      success: true,
       phaseStatus,
     };
 
@@ -197,17 +195,14 @@ export async function GET(
       response.playedCourses = playedCourses;
     }
 
-    return NextResponse.json(response);
+    return createSuccessResponse(response);
   } catch (err) {
     logger.error("Failed to fetch phase data", {
       error: err instanceof Error ? err.message : err,
       stack: err instanceof Error ? err.stack : undefined,
       tournamentId,
     });
-    return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
-    );
+    return createErrorResponse("Internal server error", 500);
   }
 }
 
@@ -242,10 +237,7 @@ export async function POST(
     const parsed = PostRequestSchema.safeParse(sanitizedBody);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { success: false, error: "Invalid request", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return handleValidationError("Invalid request");
     }
 
     // Validate tournament exists
@@ -253,10 +245,7 @@ export async function POST(
       where: { id: tournamentId },
     });
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
     // Build context for audit logging and phase operations
@@ -272,26 +261,17 @@ export async function POST(
     // === Promotion Actions ===
     if (action === "promote_phase1") {
       const result = await promoteToPhase1(prisma, context);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     if (action === "promote_phase2") {
       const result = await promoteToPhase2(prisma, context);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     if (action === "promote_phase3") {
       const result = await promoteToPhase3(prisma, context);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     // === Round Management Actions ===
@@ -301,10 +281,7 @@ export async function POST(
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
       const result = await startPhaseRound(prisma, context, phase);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     if (action === "cancel_round") {
@@ -313,10 +290,7 @@ export async function POST(
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
       const result = await cancelPhaseRound(prisma, context, phase, roundNumber);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     if (action === "undo_round") {
@@ -325,10 +299,7 @@ export async function POST(
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
       const result = await undoLastPhaseRound(prisma, context, phase);
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     if (action === "submit_results") {
@@ -345,17 +316,11 @@ export async function POST(
         roundNumber,
         roundResults
       );
-      return NextResponse.json({
-        success: true,
-        ...result,
-      });
+      return createSuccessResponse(result);
     }
 
     // Should not reach here due to discriminated union validation
-    return NextResponse.json(
-      { success: false, error: "Unknown action" },
-      { status: 400 }
-    );
+    return handleValidationError("Unknown action");
   } catch (err) {
     const internalMessage = err instanceof Error ? err.message : "Unknown error";
     logger.error("Phase operation failed", {
@@ -381,12 +346,9 @@ export async function POST(
         internalMessage.includes("Promote players first") ||
         internalMessage.startsWith("Tie detected"));
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: isBusinessError ? internalMessage : "Internal server error",
-      },
-      { status: isBusinessError ? 400 : 500 }
+    return createErrorResponse(
+      isBusinessError ? internalMessage : "Internal server error",
+      isBusinessError ? 400 : 500
     );
   }
 }

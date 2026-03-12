@@ -130,14 +130,17 @@ describe('GET /api/tournaments', () => {
         where: {},
       });
 
-      // The real paginate() returns { data, meta: { total, page, limit, totalPages } }
+      // createSuccessResponse wraps the paginate result in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith({
-        data: mockTournaments,
-        meta: {
-          total: 2,
-          page: 1,
-          limit: 10,
-          totalPages: 1,
+        success: true,
+        data: {
+          data: mockTournaments,
+          meta: {
+            total: 2,
+            page: 1,
+            limit: 10,
+            totalPages: 1,
+          },
         },
       });
     });
@@ -187,6 +190,7 @@ describe('GET /api/tournaments', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Failed to fetch tournaments',
         }),
         { status: 500 }
@@ -223,7 +227,9 @@ describe('POST /api/tournaments', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -243,7 +249,9 @@ describe('POST /api/tournaments', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -442,6 +450,7 @@ describe('POST /api/tournaments', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Failed to create tournament',
         }),
         { status: 500 }

@@ -193,12 +193,16 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
+      // createSuccessResponse wraps the data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          entries: mockEntries,
-          stage: 'qualification',
-          qualCount: 10,
-          frozenStages: [],
+          success: true,
+          data: expect.objectContaining({
+            entries: mockEntries,
+            stage: 'qualification',
+            qualCount: 10,
+            frozenStages: [],
+          }),
         })
       );
     });
@@ -472,9 +476,11 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { entry: updatedEntry }
-      );
+      // createSuccessResponse wraps the data in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: { entry: updatedEntry },
+      });
     });
 
     it('should return 400 for invalid tournament ID', async () => {
@@ -665,9 +671,11 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { entry: updatedEntry }
-      );
+      // createSuccessResponse wraps the data in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: { entry: updatedEntry },
+      });
     });
 
     it('should return 403 when player tries to update another player\'s times', async () => {
@@ -730,9 +738,12 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
+      // createSuccessResponse wraps the data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith({
         success: true,
-        message: 'Entry deleted successfully',
+        data: {
+          message: 'Entry deleted successfully',
+        },
       });
     });
 

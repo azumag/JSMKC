@@ -12,13 +12,19 @@
  * This is the primary endpoint for the tournament detail page.
  * Additional match types (MR, GP, TA) are loaded via their own endpoints.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthzError,
+  handleValidationError,
+} from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/:id
@@ -76,20 +82,14 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
-    return NextResponse.json(tournament);
+    return createSuccessResponse(tournament);
   } catch (error) {
     // Log with tournament ID for easy filtering in log aggregation
     logger.error("Failed to fetch tournament", { error, id });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch tournament" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch tournament", 500);
   }
 }
 
@@ -120,10 +120,7 @@ export async function PUT(
   // Admin authentication check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   const { id } = await params;
@@ -143,10 +140,7 @@ export async function PUT(
           (s: unknown) => typeof s === "string" && VALID_FROZEN_STAGES.includes(s)
         )
       ) {
-        return NextResponse.json(
-          { success: false, error: "frozenStages must be an array of valid stage names" },
-          { status: 400 }
-        );
+        return handleValidationError("frozenStages must be an array of valid stage names");
       }
     }
 
@@ -190,7 +184,7 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json(tournament);
+    return createSuccessResponse(tournament);
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
     logger.error("Failed to update tournament", { error, id });
@@ -202,16 +196,10 @@ export async function PUT(
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to update tournament" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to update tournament", 500);
   }
 }
 
@@ -236,10 +224,7 @@ export async function DELETE(
   // Admin authentication check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   const { id } = await params;
@@ -274,10 +259,7 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Tournament deleted successfully",
-    });
+    return createSuccessResponse({ message: "Tournament deleted successfully" });
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
     logger.error("Failed to delete tournament", { error, id });
@@ -289,15 +271,9 @@ export async function DELETE(
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to delete tournament" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to delete tournament", 500);
   }
 }

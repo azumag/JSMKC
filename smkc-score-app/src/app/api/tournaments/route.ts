@@ -19,6 +19,12 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthzError,
+  handleValidationError,
+} from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments
@@ -54,14 +60,11 @@ export async function GET(request: NextRequest) {
       { page, limit }
     );
 
-    return NextResponse.json(result);
+    return createSuccessResponse(result);
   } catch (error) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to fetch tournaments", { error });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch tournaments" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch tournaments", 500);
   }
 }
 
@@ -89,10 +92,7 @@ export async function POST(request: NextRequest) {
   // Admin authentication: only admins can create tournaments
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   try {
@@ -102,10 +102,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name || !date) {
-      return NextResponse.json(
-        { success: false, error: "Name and date are required" },
-        { status: 400 }
-      );
+      return handleValidationError("Name and date are required");
     }
 
     // Create the tournament with initial "draft" status.
@@ -149,9 +146,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to create tournament", { error });
-    return NextResponse.json(
-      { success: false, error: "Failed to create tournament" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to create tournament", 500);
   }
 }

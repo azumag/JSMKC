@@ -23,6 +23,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
+import { createErrorResponse } from "@/lib/error-handling";
 
 export async function GET(
   request: Request,
@@ -48,10 +49,7 @@ export async function GET(
     });
 
     if (!tournament) {
-      return NextResponse.json(
-        { success: false, error: "Tournament not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Tournament not found", 404);
     }
 
     // UTF-8 BOM (Byte Order Mark) ensures Excel correctly interprets
@@ -321,9 +319,6 @@ export async function GET(
   } catch (error) {
     // Log error with tournament ID for debugging
     logger.error("Failed to export tournament", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to export tournament data" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to export tournament data", 500);
   }
 }

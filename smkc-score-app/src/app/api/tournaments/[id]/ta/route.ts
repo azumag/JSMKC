@@ -33,7 +33,7 @@ import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 // Promotion functions moved to /api/tournaments/[id]/ta/phases endpoint
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
-import { createErrorResponse } from "@/lib/error-handling";
+import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 
 /**
  * Admin authentication helper that returns the session.
@@ -166,7 +166,7 @@ export async function GET(
       }),
     ]);
 
-    return NextResponse.json({
+    return createSuccessResponse({
       entries,
       courses: COURSES,
       stage: stageToQuery,
@@ -380,7 +380,7 @@ export async function PUT(
         logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_LIVES' });
       }
 
-      return NextResponse.json({ entry: updatedEntry });
+      return createSuccessResponse({ entry: updatedEntry });
     }
 
     // === Elimination Action ===
@@ -437,7 +437,7 @@ export async function PUT(
         logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_ELIMINATE' });
       }
 
-      return NextResponse.json({ entry: updatedEntry });
+      return createSuccessResponse({ entry: updatedEntry });
     }
 
     // === Time Update Action ===
@@ -528,7 +528,7 @@ export async function PUT(
       logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' });
     }
 
-    return NextResponse.json({ entry: finalEntry });
+    return createSuccessResponse({ entry: finalEntry });
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to update times", { error, tournamentId });
@@ -623,10 +623,7 @@ export async function DELETE(
       logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'DELETE_TA_ENTRY' });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Entry deleted successfully",
-    });
+    return createSuccessResponse({ message: "Entry deleted successfully" });
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to delete entry", { error, tournamentId });

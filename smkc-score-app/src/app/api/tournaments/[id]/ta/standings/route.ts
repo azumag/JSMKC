@@ -21,6 +21,7 @@ import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { createLogger } from "@/lib/logger";
 import { msToDisplayTime } from "@/lib/ta/time-utils";
+import { createErrorResponse, createSuccessResponse, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/[id]/ta/standings
@@ -47,10 +48,7 @@ export async function GET(
   // Admin-only access check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   const { id: tournamentId } = await params;
@@ -89,7 +87,7 @@ export async function GET(
     await set(tournamentId, 'qualification', entries, etag);
 
     // Build response with formatted time strings for display
-    const response = NextResponse.json({
+    return createSuccessResponse({
       tournamentId,
       stage: 'qualification',
       lastUpdated,
@@ -107,14 +105,9 @@ export async function GET(
         eliminated: e.eliminated,
       })),
     });
-
-    return response;
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch TA standings", { error, tournamentId });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch TA standings" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch TA standings", 500);
   }
 }

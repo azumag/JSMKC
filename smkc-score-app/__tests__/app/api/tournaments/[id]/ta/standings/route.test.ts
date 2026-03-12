@@ -150,8 +150,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
+      // handleAuthzError includes code: 'FORBIDDEN'
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Unauthorized: Admin access required' },
+        expect.objectContaining({ success: false, error: 'Unauthorized: Admin access required', code: 'FORBIDDEN' }),
         { status: 403 }
       );
     });
@@ -167,7 +168,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Unauthorized: Admin access required' },
+        expect.objectContaining({ success: false, error: 'Unauthorized: Admin access required', code: 'FORBIDDEN' }),
         { status: 403 }
       );
     });
@@ -306,28 +307,32 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         orderBy: { rank: 'asc' },
       });
 
+      // createSuccessResponse wraps in { success: true, data: { ... } }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          tournamentId: 't1',
-          stage: 'qualification',
-          entries: expect.arrayContaining([
-            expect.objectContaining({
-              rank: 1,
-              playerName: 'Player 1',
-              playerNickname: 'player1',
-              totalTime: 100000,
-              formattedTime: '1:40.000',
-              lives: 3,
-              eliminated: false,
-            }),
-            expect.objectContaining({
-              rank: '-',
-              playerName: 'Player 2',
-              playerNickname: 'player2',
-              totalTime: null,
-              formattedTime: '-',
-            }),
-          ]),
+          success: true,
+          data: expect.objectContaining({
+            tournamentId: 't1',
+            stage: 'qualification',
+            entries: expect.arrayContaining([
+              expect.objectContaining({
+                rank: 1,
+                playerName: 'Player 1',
+                playerNickname: 'player1',
+                totalTime: 100000,
+                formattedTime: '1:40.000',
+                lives: 3,
+                eliminated: false,
+              }),
+              expect.objectContaining({
+                rank: '-',
+                playerName: 'Player 2',
+                playerNickname: 'player2',
+                totalTime: null,
+                formattedTime: '-',
+              }),
+            ]),
+          }),
         })
       );
     });
@@ -364,13 +369,17 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
       // Source uses msToDisplayTime which returns "-" for null, and "M:SS.mmm" for numbers.
       // So totalTime = 0 produces formattedTime = '0:00.000', not '-'.
+      // createSuccessResponse wraps in { success: true, data: { ... } }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          entries: expect.arrayContaining([
-            expect.objectContaining({
-              formattedTime: '0:00.000',
-            }),
-          ]),
+          success: true,
+          data: expect.objectContaining({
+            entries: expect.arrayContaining([
+              expect.objectContaining({
+                formattedTime: '0:00.000',
+              }),
+            ]),
+          }),
         })
       );
     });
@@ -397,8 +406,9 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         expect.any(Object)
       );
 
+      // createErrorResponse includes success: false and error message
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to fetch TA standings' },
+        expect.objectContaining({ success: false, error: 'Failed to fetch TA standings' }),
         { status: 500 }
       );
     });

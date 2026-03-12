@@ -158,7 +158,11 @@ describe('GET /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament);
+      // createSuccessResponse wraps the tournament in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
     });
   });
 
@@ -173,6 +177,7 @@ describe('GET /api/tournaments/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Tournament not found',
         }),
         { status: 404 }
@@ -196,6 +201,7 @@ describe('GET /api/tournaments/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Failed to fetch tournament',
         }),
         { status: 500 }
@@ -231,6 +237,7 @@ describe('PUT /api/tournaments/[id]', () => {
         expect.objectContaining({
           success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -253,6 +260,7 @@ describe('PUT /api/tournaments/[id]', () => {
         expect.objectContaining({
           success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -304,7 +312,10 @@ describe('PUT /api/tournaments/[id]', () => {
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament);
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
     });
 
     it('should update tournament status successfully', async () => {
@@ -333,7 +344,10 @@ describe('PUT /api/tournaments/[id]', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament);
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
     });
   });
 
@@ -367,7 +381,10 @@ describe('PUT /api/tournaments/[id]', () => {
       );
 
       // Should still return tournament even if audit log fails
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament);
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
     });
 
     it('should return 404 when tournament not found (P2025)', async () => {
@@ -392,6 +409,7 @@ describe('PUT /api/tournaments/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Tournament not found',
         }),
         { status: 404 }
@@ -424,6 +442,7 @@ describe('DELETE /api/tournaments/[id]', () => {
         expect.objectContaining({
           success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -443,6 +462,7 @@ describe('DELETE /api/tournaments/[id]', () => {
         expect.objectContaining({
           success: false,
           error: 'Unauthorized: Admin access required',
+          code: 'FORBIDDEN',
         }),
         { status: 403 }
       );
@@ -484,12 +504,13 @@ describe('DELETE /api/tournaments/[id]', () => {
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
+      // createSuccessResponse wraps the message in { success: true, data: { message: ... } }
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
           message: 'Tournament deleted successfully',
-        })
-      );
+        },
+      });
     });
   });
 
@@ -514,12 +535,12 @@ describe('DELETE /api/tournaments/[id]', () => {
       );
 
       // Should still return success even if audit log fails
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
           message: 'Tournament deleted successfully',
-        })
-      );
+        },
+      });
     });
 
     it('should return 404 when tournament not found (P2025)', async () => {
@@ -540,6 +561,7 @@ describe('DELETE /api/tournaments/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          success: false,
           error: 'Tournament not found',
         }),
         { status: 404 }
