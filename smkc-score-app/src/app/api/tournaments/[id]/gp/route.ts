@@ -6,13 +6,14 @@
  *
  * GP uses driver points (1st=9, 2nd=6) instead of round win/loss scores.
  *
- * - GET:  Fetch qualification standings and matches
- * - POST: Setup groups and generate round-robin matches (admin only)
- * - PUT:  Update a match with cup and race positions, recalculate standings
+ * - GET:   Fetch qualification standings and matches
+ * - POST:  Setup groups and generate round-robin matches (admin only)
+ * - PUT:   Update a match with cup and race positions, recalculate standings
+ * - PATCH: Assign TV number to a match (admin only)
  */
 
 import { createQualificationHandlers } from '@/lib/api-factories/qualification-route';
 import { gpConfig } from '@/lib/event-types';
 
-const { GET, POST, PUT } = createQualificationHandlers(gpConfig);
-export { GET, POST, PUT };
+const { GET, POST, PUT, PATCH } = createQualificationHandlers(gpConfig);
+export { GET, POST, PUT, PATCH };

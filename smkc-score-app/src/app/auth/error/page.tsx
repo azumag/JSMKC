@@ -2,7 +2,7 @@
  * auth/error/page.tsx - Authentication Error Page
  *
  * This page handles and displays authentication errors from NextAuth.
- * It is shown when an OAuth or credential authentication flow fails,
+ * It is shown when a credential or Discord authentication flow fails,
  * providing user-friendly error messages in Japanese.
  *
  * NextAuth redirects to this page with an `error` query parameter
@@ -10,12 +10,12 @@
  * to a human-readable Japanese error message.
  *
  * Supported error codes:
- * - OAuthSignin: Error during OAuth provider redirect
- * - OAuthCallback: Error processing OAuth callback
+ * - OAuthSignin: Error during Discord provider redirect
+ * - OAuthCallback: Error processing Discord callback
  * - OAuthCreateAccount: Failed to create account from OAuth data
+ * - CredentialsSignin: Invalid nickname/password credentials
  * - EmailCreateAccount: Failed to create account from email
  * - Callback: Generic callback processing error
- * - OAuthAccountNotLinked: Email already linked to another provider
  * - SessionRequired: Attempted access without valid session
  * - Default: Catch-all for unrecognized error codes
  *
@@ -63,6 +63,8 @@ export default function ErrorPage() {
         return t('oauthCallbackError')
       case 'OAuthCreateAccount':
         return t('oauthCreateAccountError')
+      case 'CredentialsSignin':
+        return t('credentialsSigninError')
       case 'EmailCreateAccount':
         return t('emailCreateAccountError')
       case 'AccessDenied':
@@ -71,11 +73,6 @@ export default function ErrorPage() {
         return t('accessDeniedError')
       case 'Callback':
         return t('callbackError')
-      case 'OAuthAccountNotLinked':
-        /* This occurs when the user's email is already associated with
-         * a different OAuth provider (e.g., logged in with GitHub before,
-         * now trying Discord with the same email address). */
-        return t('accountNotLinkedError')
       case 'SessionRequired':
         return t('sessionRequiredError')
       case 'Default':
@@ -101,15 +98,12 @@ export default function ErrorPage() {
         <CardContent className="space-y-4">
           {/*
            * Contextual help text for specific error types.
-           * OAuthAccountNotLinked: User tries to log in with a different provider.
            * AccessDenied: May indicate a transient DB connection error.
            */}
           <div className="text-sm text-muted-foreground text-center">
-            {(error === 'OAuthAccountNotLinked' || error === 'AccessDenied') && (
+            {error === 'AccessDenied' && (
               <p>
-                {error === 'OAuthAccountNotLinked'
-                  ? t('accountNotLinkedHelp')
-                  : t('accessDeniedHelp')}
+                {t('accessDeniedHelp')}
               </p>
             )}
           </div>

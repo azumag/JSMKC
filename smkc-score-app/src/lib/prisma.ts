@@ -1,5 +1,5 @@
 /**
- * Prisma Database Client Singleton
+ * Prisma Database Client Singleton with Neon Serverless Adapter
  *
  * Exports a single PrismaClient instance that is reused across the entire
  * application lifetime. The singleton pattern is critical because Next.js
@@ -7,37 +7,52 @@
  * otherwise create a new PrismaClient, quickly exhausting the database
  * connection pool.
  *
+ * Uses @neondatabase/serverless + @prisma/adapter-neon to connect to Neon
+ * PostgreSQL without the native query engine binary. This is required for
+ * Cloudflare Workers where native Node.js addons cannot run.
+ *
  * The workaround stores the client on `globalThis`, which survives hot
  * reloads. In production only one instance is ever created, so the global
  * variable trick is a no-op.
- *
- * Query logging is enabled in development for debugging; only errors are
- * logged in production to keep output clean.
  *
  * Usage:
  *   import { prisma } from '@/lib/prisma';
  *   const players = await prisma.player.findMany();
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from '@prisma/adapter-neon';
+import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Explicit PrismaClient type annotation: the `omit` config option narrows the
-// generic type (PrismaClient<{omit:…}>) making it incompatible with bare
-// PrismaClient in 20+ function signatures across the codebase. Casting here
-// ensures all consumers receive the standard PrismaClient type. The omit
-// behaviour still works at runtime regardless of the TypeScript-level cast.
-const prismaClient: PrismaClient =
-  globalForPrisma.prisma ??
-  (new PrismaClient({
+/**
+ * Create a PrismaClient using the Neon serverless adapter.
+ *
+ * The Neon serverless driver communicates over WebSocket/HTTP,
+ * eliminating the need for Prisma's native query engine binary.
+ * This makes it compatible with edge runtimes like Cloudflare Workers.
+ */
+function createPrismaClient(): PrismaClient {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+  // PrismaNeon v7+ takes PoolConfig directly (creates its own pool internally)
+  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+
+  // Explicit PrismaClient type annotation: the `omit` config option narrows the
+  // generic type (PrismaClient<{omit:…}>) making it incompatible with bare
+  // PrismaClient in 20+ function signatures across the codebase. Casting here
+  // ensures all consumers receive the standard PrismaClient type. The omit
+  // behaviour still works at runtime regardless of the TypeScript-level cast.
+  return new PrismaClient({
+    adapter,
     // Development: log queries for debugging; Production: errors only
     log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+      process.env.NODE_ENV === 'development'
+        ? ['query', 'error', 'warn']
+        : ['error'],
     // Global omit: exclude Player.password (bcrypt hash) from all query results
     // by default. This prevents accidental credential leakage across 34+ query
     // sites that use `include: { player: true }` or direct Player queries.
@@ -49,11 +64,15 @@ const prismaClient: PrismaClient =
         password: true,
       },
     },
-  }) as PrismaClient);
+  }) as PrismaClient;
+}
+
+const prismaClient: PrismaClient =
+  globalForPrisma.prisma ?? createPrismaClient();
 
 export const prisma = prismaClient;
 
 // Preserve client across hot reloads in development
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export default prisma;

@@ -3,8 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Use native Node.js addon instead of standalone binary engine to reduce deployment size
-  engineType = "library"
+  // Driver adapters are used (see src/lib/prisma.ts) to connect via the Neon
+  // serverless driver instead of the native query engine binary.
+  // This is required for Cloudflare Workers where native binaries cannot run.
 }
 
 datasource db {

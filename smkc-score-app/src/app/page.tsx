@@ -7,11 +7,10 @@
  * 3. Overview of the 4 competition game modes
  *
  * Role-based UI:
- * - Admin users (authenticated via OAuth) see management-oriented
+ * - Admin users see management-oriented
  *   labels ("Manage Players", "Create and manage tournaments")
  * - Non-admin users see read-only labels ("View Players", "View tournaments")
- * - Admin detection is based on session.user.role === 'admin',
- *   which is set during OAuth sign-in for authorized Discord users (#132)
+ * - Admin detection is based on session.user.role === 'admin'
  *
  * This is a client component because it uses useSession() to
  * determine the user's role for conditional rendering.
@@ -38,12 +37,7 @@ export default function Home() {
   const t = useTranslations('home');
   const tc = useTranslations('common');
 
-  /**
-   * Admin role check: OAuth-authenticated users (via Discord) are
-   * assigned the 'admin' role in the auth configuration (#132).
-   * This flag controls whether UI elements show management or
-   * view-only labels and actions.
-   */
+  /** Admin role controls whether management actions are shown. */
   const isAdmin = session?.user?.role === 'admin';
 
   return (

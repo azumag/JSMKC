@@ -188,11 +188,11 @@ export default function GrandPrixFinals({
         refetch();
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to create bracket");
+        alert(error.error || tFinals('failedCreateBracket'));
       }
     } catch (err) {
       logger.error("Failed to create bracket:", { error: err, tournamentId });
-      alert("Failed to create bracket");
+      alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
     }
@@ -247,11 +247,11 @@ export default function GrandPrixFinals({
         }
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to update score");
+        alert(error.error || tFinals('failedUpdateScore'));
       }
     } catch (err) {
       logger.error("Failed to update score:", { error: err, tournamentId });
-      alert("Failed to update score");
+      alert(tFinals('failedUpdateScore'));
     }
   };
 

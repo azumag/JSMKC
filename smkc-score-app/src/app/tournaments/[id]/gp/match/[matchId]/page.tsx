@@ -288,7 +288,7 @@ export default function GPMatchPage({
                       className="text-xs h-6"
                       onClick={() => {
                         const sub = CUP_SUBSTITUTIONS[match.cup!];
-                        const next = activeCup === match.cup ? sub : match.cup;
+                        const next = activeCup === match.cup ? (sub ?? null) : (match.cup ?? null);
                         setActiveCup(next);
                         /* Clear course selections when switching cups since courses differ */
                         setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr | "", position1: null, position2: null })));

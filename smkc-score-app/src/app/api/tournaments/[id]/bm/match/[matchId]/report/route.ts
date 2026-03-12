@@ -11,7 +11,7 @@
  * 4. If reports differ -> flagged for admin review (mismatch)
  *
  * Security features:
- * - Session-based authorization (admin, player, or OAuth-linked player)
+ * - Session-based authorization (admin or player)
  * - Input sanitization and validation
  * - Optimistic locking to prevent race conditions
  * - Score entry logging for audit trail
@@ -64,10 +64,9 @@ const BM_RECALC_CONFIG: RecalculateStatsConfig = {
 /**
  * POST /api/tournaments/[id]/bm/match/[matchId]/report
  *
- * Report score from a player's perspective. Supports multiple authorization methods:
+ * Report score from a player's perspective. Supports:
  * 1. Admin session (full access)
  * 2. Player session (restricted to own matches)
- * 3. OAuth-linked player session
  */
 export async function POST(
   request: NextRequest,
@@ -253,4 +252,3 @@ export async function POST(
     return handleDatabaseError(error, "score report");
   }
 }
-

@@ -1,5 +1,5 @@
 /**
- * Winston-based Structured Logging for the JSMKC Application
+ * Console-based Structured Logging for the JSMKC Application
  *
  * Provides service-scoped logger creation via createLogger() so that every
  * log line is automatically prefixed with the originating service name,
@@ -9,9 +9,8 @@
  * warn-and-above in production. In the test environment a completely
  * silent logger is returned to avoid noisy console output during test runs.
  *
- * Only the Console transport is used. File-based transports are intentionally
- * avoided because Next.js edge/serverless runtimes cannot reliably access
- * the filesystem, and adding them would cause webpack bundling errors.
+ * Uses console.log/warn/error instead of winston to avoid Node.js-specific
+ * dependencies (streams, os, fs) that are unavailable in Cloudflare Workers.
  *
  * Usage:
  *   import { createLogger } from '@/lib/logger';
@@ -19,71 +18,48 @@
  *   log.info('Player registered', { playerId: '123' });
  */
 
-import winston from 'winston'
-
-// Define log levels with numeric priority (lower = more critical)
-const levels = {
+// Log levels with numeric priority (lower = more critical)
+const LOG_LEVELS = {
   error: 0,
   warn: 1,
   info: 2,
   debug: 3,
+} as const;
+
+type LogLevel = keyof typeof LOG_LEVELS;
+
+/**
+ * Determine the minimum log level based on environment.
+ * Development shows all logs including debug; production only shows warnings and errors.
+ */
+function getMinLevel(): number {
+  const env = process.env.NODE_ENV || 'development';
+  return env === 'development' ? LOG_LEVELS.debug : LOG_LEVELS.warn;
 }
 
-// Define colors for each log level for console output
-const colors = {
-  error: 'red',
-  warn: 'yellow',
-  info: 'green',
-  debug: 'blue',
+const minLevel = getMinLevel();
+
+/** Logger interface exposed to consumers — matches the old winston-based API */
+export interface Logger {
+  error: (message: string, meta?: Record<string, unknown>) => void;
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  info: (message: string, meta?: Record<string, unknown>) => void;
+  debug: (message: string, meta?: Record<string, unknown>) => void;
 }
 
-// Register color scheme with Winston
-winston.addColors(colors)
-
-// Determine log level based on environment
-// Development shows all logs including debug; production only shows warnings and errors
-const level = () => {
-  const env = process.env.NODE_ENV || 'development'
-  const isDevelopment = env === 'development'
-  return isDevelopment ? 'debug' : 'warn'
-}
-
-// Test logger that suppresses all output to avoid console noise in test runs
-const createTestLogger = (_service: string) => {
-  return {
-    error: (_message: string, _meta?: Record<string, unknown>) => {},
-    warn: (_message: string, _meta?: Record<string, unknown>) => {},
-    info: (_message: string, _meta?: Record<string, unknown>) => {},
-    debug: (_message: string, _meta?: Record<string, unknown>) => {},
+/**
+ * Formats a log line with ISO timestamp and service prefix.
+ * Example: "2026-03-12T10:30:00.000Z [api-players] Player registered { playerId: '123' }"
+ */
+function formatMessage(service: string, message: string, meta?: Record<string, unknown>): string {
+  const timestamp = new Date().toISOString();
+  const base = `${timestamp} [${service}] ${message}`;
+  // Append metadata as JSON if provided, for structured log parsing
+  if (meta && Object.keys(meta).length > 0) {
+    return `${base} ${JSON.stringify(meta)}`;
   }
+  return base;
 }
-
-// Log format: timestamp + colorized level + message
-const format = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
-  winston.format.colorize({ all: true }),
-  winston.format.printf(
-    (info) => `${info.timestamp} ${info.level}: ${info.message}`,
-  ),
-)
-
-// Console-only transport to avoid fs bundling issues in Next.js edge runtime
-const transports: winston.transport[] = [
-  new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple(),
-    ),
-  }),
-];
-
-// Create the singleton Winston logger instance
-const logger = winston.createLogger({
-  level: level(),
-  levels,
-  format,
-  transports,
-})
 
 /**
  * Creates a structured logger instance scoped to a specific service name.
@@ -92,30 +68,40 @@ const logger = winston.createLogger({
  * @param service - The name of the service/component (e.g., 'api-players', 'auth')
  * @returns Logger instance with error, warn, info, and debug methods
  */
-export const createLogger = (service: string) => {
+export const createLogger = (service: string): Logger => {
   // Return silent test logger in test environment
   if (process.env.NODE_ENV === 'test') {
-    return createTestLogger(service);
+    return {
+      error: (_message: string, _meta?: Record<string, unknown>) => {},
+      warn: (_message: string, _meta?: Record<string, unknown>) => {},
+      info: (_message: string, _meta?: Record<string, unknown>) => {},
+      debug: (_message: string, _meta?: Record<string, unknown>) => {},
+    };
   }
 
   return {
     error: (message: string, meta?: Record<string, unknown>) => {
-      logger.error(`${service}: ${message}`, meta)
+      if (minLevel >= LOG_LEVELS.error) {
+        console.error(formatMessage(service, message, meta));
+      }
     },
     warn: (message: string, meta?: Record<string, unknown>) => {
-      logger.warn(`${service}: ${message}`, meta)
+      if (minLevel >= LOG_LEVELS.warn) {
+        console.warn(formatMessage(service, message, meta));
+      }
     },
     info: (message: string, meta?: Record<string, unknown>) => {
-      logger.info(`${service}: ${message}`, meta)
+      if (minLevel >= LOG_LEVELS.info) {
+        console.log(formatMessage(service, message, meta));
+      }
     },
     debug: (message: string, meta?: Record<string, unknown>) => {
-      logger.debug(`${service}: ${message}`, meta)
+      if (minLevel >= LOG_LEVELS.debug) {
+        console.debug(formatMessage(service, message, meta));
+      }
     },
-  }
-}
+  };
+};
 
 // Default logger for general use
-export const log = createLogger('JSMKC')
-
-// Export winston logger for advanced use cases
-export default logger
+export const log = createLogger('JSMKC');

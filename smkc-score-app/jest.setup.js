@@ -243,9 +243,8 @@ if (!global.fetch) {
   global.fetch = require('jest-fetch-mock')
 }
 
-// Mock isomorphic-dompurify to avoid ES module transpilation issues with @exodus/bytes
-// This package uses ES modules in node_modules which Jest cannot transform
-// Implement basic sanitization to satisfy test expectations
+// Mock xss package to avoid potential ESM issues in Jest.
+// Implements basic sanitization to satisfy test expectations.
 const basicSanitize = (html) => {
   // Basic XSS sanitization for testing purposes
   if (typeof html !== 'string') return html
@@ -258,12 +257,7 @@ const basicSanitize = (html) => {
     .replace(/javascript:/gi, '') // Remove javascript: protocol
 }
 
-jest.mock('isomorphic-dompurify', () => ({
-  sanitize: jest.fn((html) => basicSanitize(html)),
-  DOMPurify: {
-    sanitize: jest.fn((html) => basicSanitize(html)),
-  },
-}))
+jest.mock('xss', () => jest.fn((html) => basicSanitize(html)))
 
 // Mock rate-limit module globally to avoid request header issues in tests.
 // checkRateLimit always allows requests; getClientIdentifier returns a dummy IP.

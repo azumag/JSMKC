@@ -43,6 +43,10 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# Cloudflare Workers build output
+/.open-next/
+.wrangler/
+
 # Backup and generated files
 __tests__.bak/
 /logs/

@@ -9,7 +9,7 @@
  * Covers four exported functions:
  * - `sanitizeString`: Strips dangerous HTML (script, iframe, embed, object tags)
  *   and event handlers (onclick, onerror) from strings while preserving safe
- *   markup (b, i, a with href/class). Uses DOMPurify under the hood.
+ *   markup (b, i, a with href/class). Uses the xss package under the hood.
  * - `sanitizeObject`: Recursively sanitizes all string values within nested objects.
  * - `sanitizeArray`: Recursively sanitizes all string values within nested arrays.
  * - `sanitizeInput`: Polymorphic entry point that delegates to the appropriate
@@ -87,7 +87,7 @@ describe('Sanitization Utilities', () => {
 
     it('should handle number input via sanitizeInput', () => {
       // sanitizeInput returns non-string primitives unchanged;
-      // sanitizeString itself would coerce a number to string via DOMPurify.
+      // sanitizeString itself would coerce a number to string via xss package.
       expect(sanitizeInput(123)).toBe(123);
     });
 
@@ -105,10 +105,10 @@ describe('Sanitization Utilities', () => {
       expect(output).not.toContain('javascript:');
     });
 
-    it('should handle data URLs (DOMPurify may not sanitize all data URL content)', () => {
+    it('should handle data URLs (xss package may not sanitize all data URL content)', () => {
       const input = '<img src="data:image/svg+xml,<script>alert(1)</script>">';
       const output = sanitizeString(input);
-      // DOMPurify doesn't sanitize script tags in data URLs by default
+      // xss package doesn't sanitize script tags in data URLs by default
       // This test documents the actual behavior
       expect(output).toContain('data:image/svg+xml');
     });
@@ -408,7 +408,7 @@ describe('Sanitization Utilities', () => {
     it('should handle data URLs (may not sanitize content inside data URLs)', () => {
       const input = '<img src="data:text/html,<script>alert(1)</script>">';
       const output = sanitizeString(input);
-      // DOMPurify doesn't sanitize script tags in data URLs by default
+      // xss package doesn't sanitize script tags in data URLs by default
       // This test documents the actual behavior
       expect(output).toContain('data:text/html');
     });

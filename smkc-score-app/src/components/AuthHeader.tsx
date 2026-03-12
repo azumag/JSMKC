@@ -36,7 +36,7 @@ export function AuthHeader() {
           href="/profile"
           className="text-sm font-medium hover:underline text-foreground"
         >
-          {/* Player accounts show nickname; admin/OAuth accounts show name or email */}
+          {/* Player accounts show nickname; Discord admin accounts show name or email */}
           {session.user?.userType === 'player'
             ? session.user?.nickname
             : session.user?.name || session.user?.email}

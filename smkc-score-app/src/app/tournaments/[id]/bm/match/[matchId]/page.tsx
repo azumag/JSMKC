@@ -260,7 +260,7 @@ export default function MatchEntryPage({
           {!match.completed && (
             <CardContent className="pt-0 pb-3">
               <p className="text-xs text-muted-foreground">
-                Battle Course 1 → 2 → 3 → 4
+                {tBm('battleCourseOrder')}
               </p>
             </CardContent>
           )}

@@ -44,7 +44,7 @@ const customJestConfig: Config = {
   // A root babel.config.js was previously used here but it interfered with
   // Next.js Turbopack builds, which also pick up project-level Babel configs.
   transformIgnorePatterns: [
-    'node_modules/(?!(html-encoding-sniffer|@exodus|isomorphic-dompurify|jsdom)/)',
+    'node_modules/(?!(html-encoding-sniffer|@exodus)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],

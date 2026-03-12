@@ -88,8 +88,8 @@ export default function TournamentsPage() {
   const tc = useTranslations('common');
 
   /**
-   * Admin role check: only OAuth-authenticated users with admin role
-   * can create or delete tournaments. All users can view and open them.
+   * Admin role check: only sessions with the admin role can create
+   * or delete tournaments. All users can view and open them.
    */
   const isAdmin = session?.user && session.user.role === 'admin';
 

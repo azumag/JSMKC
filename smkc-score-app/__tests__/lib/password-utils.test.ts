@@ -27,7 +27,7 @@
 // __tests__/lib/password-utils.test.ts
 import { describe, it, expect } from '@jest/globals';
 import { generateSecurePassword, hashPassword, verifyPassword } from '@/lib/password-utils';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 describe('Password Utilities', () => {
   describe('generateSecurePassword', () => {

@@ -6,13 +6,14 @@
  *
  * Security fix: POST now requires authentication (previously had no auth check).
  *
- * - GET:  Fetch qualification standings and matches
- * - POST: Setup groups and generate round-robin matches (admin only)
- * - PUT:  Update a match score and recalculate standings
+ * - GET:   Fetch qualification standings and matches
+ * - POST:  Setup groups and generate round-robin matches (admin only)
+ * - PUT:   Update a match score and recalculate standings
+ * - PATCH: Assign TV number to a match (admin only)
  */
 
 import { createQualificationHandlers } from '@/lib/api-factories/qualification-route';
 import { mrConfig } from '@/lib/event-types';
 
-const { GET, POST, PUT } = createQualificationHandlers(mrConfig);
-export { GET, POST, PUT };
+const { GET, POST, PUT, PATCH } = createQualificationHandlers(mrConfig);
+export { GET, POST, PUT, PATCH };

@@ -88,9 +88,9 @@ export default function PlayersPage() {
   const tc = useTranslations('common');
 
   /**
-   * Admin role check: only OAuth-authenticated users with admin role
-   * can create, edit, or delete players. Regular users and anonymous
-   * visitors can only view the player list.
+   * Admin role check: only sessions with the admin role can create,
+   * edit, or delete players. Regular users and anonymous visitors
+   * can only view the player list.
    */
   const isAdmin = session?.user && session.user.role === 'admin';
 

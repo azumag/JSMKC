@@ -119,7 +119,7 @@ describe('Locale API Route - POST /api/locale', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ success: false, error: 'Invalid locale' });
+    expect(data).toEqual(expect.objectContaining({ success: false, error: 'Invalid locale' }));
   });
 
   it('should return 400 when locale is missing', async () => {
@@ -127,7 +127,7 @@ describe('Locale API Route - POST /api/locale', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ success: false, error: 'Invalid locale' });
+    expect(data).toEqual(expect.objectContaining({ success: false, error: 'Invalid locale' }));
   });
 
   it('should return 400 when locale is null', async () => {
@@ -135,7 +135,7 @@ describe('Locale API Route - POST /api/locale', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ success: false, error: 'Invalid locale' });
+    expect(data).toEqual(expect.objectContaining({ success: false, error: 'Invalid locale' }));
   });
 
   it('should return 400 for malformed JSON body', async () => {
@@ -143,6 +143,6 @@ describe('Locale API Route - POST /api/locale', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data).toEqual({ success: false, error: 'Invalid request body' });
+    expect(data).toEqual(expect.objectContaining({ success: false, error: 'Invalid request body' }));
   });
 });

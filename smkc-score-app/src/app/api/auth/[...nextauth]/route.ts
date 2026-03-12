@@ -4,13 +4,13 @@
  * This file serves as the main entry point for all NextAuth.js authentication
  * endpoints. The [...nextauth] catch-all route handles:
  *   - GET /api/auth/signin       -> Sign-in page
- *   - POST /api/auth/signin/:provider -> OAuth provider sign-in
+ *   - POST /api/auth/signin/:provider -> Provider sign-in
  *   - GET /api/auth/signout      -> Sign-out page
  *   - POST /api/auth/signout     -> Sign-out action
  *   - GET /api/auth/session      -> Get current session
  *   - GET /api/auth/csrf         -> CSRF token
  *   - GET /api/auth/providers    -> List enabled providers
- *   - GET /api/auth/callback/:provider -> OAuth callback
+ *   - GET /api/auth/callback/:provider -> Provider callback
  *
  * The actual authentication configuration (providers, callbacks, session
  * strategy, etc.) is defined in @/lib/auth. This route simply re-exports
@@ -23,7 +23,7 @@ import { handlers } from '@/lib/auth';
 
 /**
  * Export the GET and POST handlers from NextAuth.
- * GET handles session retrieval, sign-in/sign-out pages, CSRF tokens, and OAuth callbacks.
- * POST handles sign-in/sign-out actions and OAuth provider interactions.
+ * GET handles session retrieval, sign-in/sign-out pages, CSRF tokens, and callbacks.
+ * POST handles sign-in/sign-out actions.
  */
 export const { GET, POST } = handlers;

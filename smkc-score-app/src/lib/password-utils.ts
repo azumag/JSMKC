@@ -14,9 +14,9 @@
  * - Player credential authentication (the "player-credentials" provider)
  * - Password generation for new player accounts
  *
- * IMPORTANT: Passwords in this system are used for player score entry
- * authentication, NOT for admin OAuth login. Admin authentication
- * uses OAuth providers (Discord, GitHub, Google) via NextAuth.
+ * IMPORTANT: Passwords in this system are used for both player sessions
+ * and administrator sessions. Admin access is granted by allowlisting
+ * specific player nicknames after credential login.
  *
  * Usage:
  *   import { hashPassword, verifyPassword } from '@/lib/password-utils';
@@ -24,7 +24,7 @@
  *   const isValid = await verifyPassword('plaintext', hash);
  */
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { createLogger } from '@/lib/logger';
 

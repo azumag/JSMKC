@@ -8,10 +8,9 @@
  * Authorization supports session-based methods:
  * 1. Admin session (full access)
  * 2. Player account (matched by playerId in session)
- * 3. OAuth-linked player (matched by userId)
  *
  * Security features:
- * - Session-based authorization (admin, player, or OAuth-linked player)
+ * - Session-based authorization (admin or player)
  * - Input sanitization and validation
  * - Optimistic locking to prevent race conditions
  * - Score entry logging for audit trail
@@ -293,4 +292,3 @@ export async function POST(
     return handleDatabaseError(error, "score report");
   }
 }
-

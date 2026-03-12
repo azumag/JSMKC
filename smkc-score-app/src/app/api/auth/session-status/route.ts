@@ -57,7 +57,7 @@ export async function GET() {
         image: session.user?.image,
       },
       // Token expiration fields are placeholders for future JWT callback integration.
-      // When implemented, these will reflect actual OAuth token lifetimes.
+      // When implemented, these will reflect the current session lifetimes.
       tokenInfo: {
         accessTokenExpires: null,
         refreshTokenExpires: null,

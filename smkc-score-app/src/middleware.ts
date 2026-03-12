@@ -1,7 +1,8 @@
 /**
- * proxy.ts - Next.js Middleware (Proxy/Auth Gate)
+ * middleware.ts - Next.js Edge Middleware (Auth Gate + Security Headers)
  *
- * This file serves as the application's middleware layer, handling:
+ * Uses Edge runtime for Cloudflare Workers compatibility.
+ * Handles:
  * 1. Authentication enforcement for protected API and frontend routes
  * 2. Security header injection (CSP, X-Frame-Options, etc.)
  * 3. Audit logging of unauthorized access attempts
@@ -21,6 +22,9 @@ import { auth } from '@/lib/auth'
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
 import { getServerSideIdentifier } from '@/lib/request-utils'
 import { createLogger } from '@/lib/logger'
+
+/** Edge runtime required for Cloudflare Workers deployment */
+export const runtime = 'experimental-edge';
 
 /**
  * Module-level logger for middleware operations.
@@ -144,8 +148,7 @@ export default auth(async (req) => {
    * Content-Security-Policy configuration.
    * - Production: Strict policy using nonce-based script execution
    *   and 'strict-dynamic' for trusted script chains. External
-   *   resources (Google Fonts, Analytics, OAuth providers) are
-   *   explicitly whitelisted.
+   *   resources (Google Fonts, Analytics) are explicitly whitelisted.
    * - Development: Relaxed policy allowing 'unsafe-eval' and
    *   'unsafe-inline' which are required for Next.js hot-reload
    *   and shadcn/ui component styling during development.
@@ -157,7 +160,7 @@ export default auth(async (req) => {
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src 'self' https://fonts.gstatic.com`,
       `img-src 'self' data: blob: https://www.google-analytics.com`,
-      `connect-src 'self' https://api.github.com https://oauth2.googleapis.com`,
+      `connect-src 'self'`,
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",

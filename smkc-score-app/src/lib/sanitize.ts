@@ -1,13 +1,13 @@
 /**
- * XSS Prevention via DOMPurify
+ * XSS Prevention via xss package
  *
  * Provides input sanitization utilities to prevent Cross-Site Scripting (XSS)
  * attacks by cleaning user-provided strings of potentially malicious HTML,
  * JavaScript, and other injection vectors.
  *
- * Uses isomorphic-dompurify which works in both Node.js (server-side rendering)
- * and browser environments, ensuring consistent sanitization across the
- * Next.js App Router's server and client components.
+ * Uses the `xss` package (pure JavaScript, no native dependencies) for
+ * sanitization. Compatible with both Node.js and Cloudflare Workers runtime,
+ * unlike isomorphic-dompurify which requires jsdom (native binary).
  *
  * All user input that will be rendered in the UI or stored in the database
  * should pass through these sanitization functions first.
@@ -18,13 +18,13 @@
  *   const cleanBody = sanitizeObject(requestBody);
  */
 
-import DOMPurify from 'isomorphic-dompurify';
+import xss from 'xss';
 
 /**
  * Sanitizes a single string value by removing all potentially dangerous
  * HTML tags, attributes, and JavaScript from the input.
  *
- * DOMPurify strips:
+ * The xss package strips:
  * - Script tags and event handlers (onclick, onerror, etc.)
  * - Dangerous URI schemes (javascript:, data:, vbscript:)
  * - Malformed HTML that could enable injection
@@ -42,10 +42,12 @@ import DOMPurify from 'isomorphic-dompurify';
  *   // Returns: '<img src="x">'
  */
 export function sanitizeString(str: string): string {
-  // DOMPurify.sanitize handles all XSS vector removal including
-  // script tags, event handlers, and dangerous URI schemes.
+  // xss() handles all XSS vector removal including script tags,
+  // event handlers, and dangerous URI schemes.
   // Returns a safe string that can be rendered in HTML without risk.
-  return DOMPurify.sanitize(str);
+  // Using xss instead of DOMPurify because it's pure JS (no jsdom dependency),
+  // making it compatible with Cloudflare Workers runtime.
+  return xss(str);
 }
 
 /**
@@ -158,7 +160,7 @@ export function sanitizeInput<T>(data: T): T {
     return data;
   }
 
-  // String values are sanitized with DOMPurify
+  // String values are sanitized with the xss package
   if (typeof data === 'string') {
     return sanitizeString(data) as T;
   }
