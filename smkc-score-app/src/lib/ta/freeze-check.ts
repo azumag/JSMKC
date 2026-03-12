@@ -12,7 +12,7 @@
  *   if (freezeError) return freezeError;
  */
 
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
 import { createErrorResponse, handleAuthzError } from "@/lib/error-handling";
 
