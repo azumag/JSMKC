@@ -82,6 +82,7 @@
     "autoDistribute": "シード順で振分け",
     "autoDistributeDesc": "シード順に基づきスネーク方式でグループ自動振分け",
     "enterSeedingFirst": "先にシード番号を入力してください",
+    "recommendedGroups": "推奨: {count}グループ",
     "dayLabel": "Day {day}",
     "tvNumber": "TV#",
     "bye": "BREAK"

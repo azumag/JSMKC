@@ -82,6 +82,7 @@
     "autoDistribute": "Distribute by Seed",
     "autoDistributeDesc": "Distribute players to groups by seeding (snake pattern)",
     "enterSeedingFirst": "Enter seeding numbers first",
+    "recommendedGroups": "Recommended: {count}",
     "dayLabel": "Day {day}",
     "tvNumber": "TV#",
     "bye": "BREAK"

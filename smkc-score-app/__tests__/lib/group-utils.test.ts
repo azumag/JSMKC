@@ -10,6 +10,7 @@ import {
   GROUPS,
   assignGroupsBySeeding,
   randomlyAssignGroups,
+  recommendGroupCount,
 } from '@/lib/group-utils';
 
 // Local type alias (mirrors SetupPlayer from group-utils) - avoids Babel "import type" parsing issues
@@ -258,5 +259,55 @@ describe('randomlyAssignGroups (with groupCount)', () => {
     const result = randomlyAssignGroups(players);
 
     expect(result.every(p => ['A', 'B', 'C'].includes(p.group))).toBe(true);
+  });
+});
+
+/**
+ * Tests for recommendGroupCount.
+ *
+ * Per §4.1: "参加プレイヤーは参加人数に基づいて2〜4のグループに分かれ"
+ * Aims for 5-8 players per group as a sweet spot for round-robin scheduling.
+ */
+describe('recommendGroupCount', () => {
+  it('should recommend 2 groups for 8 players', () => {
+    expect(recommendGroupCount(8)).toBe(2);
+  });
+
+  it('should recommend 2 groups for 15 players', () => {
+    expect(recommendGroupCount(15)).toBe(2);
+  });
+
+  it('should recommend 3 groups for 16 players', () => {
+    expect(recommendGroupCount(16)).toBe(3);
+  });
+
+  it('should recommend 3 groups for 23 players', () => {
+    expect(recommendGroupCount(23)).toBe(3);
+  });
+
+  it('should recommend 4 groups for 24 players', () => {
+    expect(recommendGroupCount(24)).toBe(4);
+  });
+
+  it('should recommend 4 groups for 45 players', () => {
+    expect(recommendGroupCount(45)).toBe(4);
+  });
+
+  /* Edge cases */
+  it('should return 2 for very small player counts (< 8)', () => {
+    expect(recommendGroupCount(4)).toBe(2);
+    expect(recommendGroupCount(1)).toBe(2);
+  });
+
+  it('should return 4 for very large player counts', () => {
+    expect(recommendGroupCount(100)).toBe(4);
+  });
+
+  it('should return 2 for 0 players', () => {
+    expect(recommendGroupCount(0)).toBe(2);
+  });
+
+  it('should handle negative input by returning 2', () => {
+    expect(recommendGroupCount(-5)).toBe(2);
   });
 });

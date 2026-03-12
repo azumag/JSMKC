@@ -12,6 +12,9 @@ export const GROUPS = ["A", "B", "C", "D"] as const;
 const MIN_GROUPS = 2;
 const MAX_GROUPS = GROUPS.length;
 
+/** Minimum player count to show a group-count recommendation in the UI */
+export const MIN_PLAYERS_FOR_RECOMMENDATION = 8;
+
 /** Player-group assignment entry with optional seeding */
 export interface SetupPlayer {
   playerId: string;
@@ -25,6 +28,26 @@ export interface SetupPlayer {
  */
 function clampGroupCount(groupCount: number): number {
   return Math.max(MIN_GROUPS, Math.min(MAX_GROUPS, Math.floor(groupCount)));
+}
+
+/**
+ * Recommend a group count based on the number of players.
+ *
+ * Per §4.1: players are divided into 2-4 groups based on participant count.
+ * Targets 5-8 players per group for balanced round-robin scheduling.
+ *
+ * Thresholds (based on CDM2025 experience and §10.3):
+ *   ≤15 players → 2 groups (4-8 per group)
+ *   16-23 players → 3 groups (5-8 per group)
+ *   24+ players → 4 groups (6+ per group)
+ *
+ * @param playerCount - Number of players to distribute
+ * @returns Recommended group count (2, 3, or 4)
+ */
+export function recommendGroupCount(playerCount: number): number {
+  if (playerCount >= 24) return MAX_GROUPS; // 4
+  if (playerCount >= 16) return 3;
+  return MIN_GROUPS; // 2
 }
 
 /**
