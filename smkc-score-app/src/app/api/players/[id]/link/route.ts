@@ -16,10 +16,11 @@
  * These constraints ensure a strict 1:1 mapping between users and players,
  * preventing identity conflicts in tournament scoring.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
+import { createSuccessResponse, createErrorResponse, handleAuthError } from "@/lib/error-handling";
 
 export async function POST(
   request: NextRequest,
@@ -32,10 +33,7 @@ export async function POST(
   // not just admins. This allows players to self-associate their accounts.
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return handleAuthError("Unauthorized");
   }
 
   const { id } = await params;
@@ -47,19 +45,13 @@ export async function POST(
     });
 
     if (!player) {
-      return NextResponse.json(
-        { success: false, error: "Player not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Player not found", 404);
     }
 
     // Step 2: Check if this player is already linked to a user.
     // Each player can only be associated with one OAuth account.
     if (player.userId) {
-      return NextResponse.json(
-        { success: false, error: "Player already linked to a user" },
-        { status: 409 }
-      );
+      return createErrorResponse("Player already linked to a user", 409);
     }
 
     // Step 3: Check if the requesting user is already linked to another player.
@@ -70,10 +62,7 @@ export async function POST(
     });
 
     if (existingLink) {
-      return NextResponse.json(
-        { success: false, error: "You are already linked to a player profile" },
-        { status: 409 }
-      );
+      return createErrorResponse("You are already linked to a player profile", 409);
     }
 
     // Step 4: Create the link by setting the userId on the player record
@@ -82,7 +71,7 @@ export async function POST(
       data: { userId: session.user.id },
     });
 
-    return NextResponse.json(updatedPlayer);
+    return createSuccessResponse(updatedPlayer);
   } catch (error) {
     // Log error with both player ID and user ID for debugging link issues
     logger.error("Failed to link player", {
@@ -90,9 +79,6 @@ export async function POST(
       playerId: id,
       userId: session.user.id,
     });
-    return NextResponse.json(
-      { success: false, error: "Failed to link player" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to link player", 500);
   }
 }

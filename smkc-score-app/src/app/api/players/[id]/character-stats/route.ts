@@ -24,10 +24,11 @@
  *     characterUsage: Array<MatchCharacterUsage>
  *   }
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
+import { createSuccessResponse, createErrorResponse, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * Interface representing a match record with the fields needed for
@@ -60,10 +61,7 @@ export async function GET(
   // competitive data that should only be visible to tournament organizers
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   try {
@@ -172,7 +170,7 @@ export async function GET(
     const statsArray = Array.from(characterStats.values())
       .sort((a, b) => b.matchCount - a.matchCount);
 
-    return NextResponse.json({
+    return createSuccessResponse({
       playerId,
       playerName: characterUsages[0]?.player.name,
       playerNickname: characterUsages[0]?.player.nickname,
@@ -187,9 +185,6 @@ export async function GET(
       error,
       playerId: (await params).id,
     });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch character stats" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch character stats", 500);
   }
 }

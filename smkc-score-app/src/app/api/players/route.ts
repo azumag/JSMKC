@@ -22,6 +22,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
+import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * GET /api/players
@@ -59,15 +60,12 @@ export async function GET(request: NextRequest) {
       { page, limit }
     );
 
-    return NextResponse.json(result);
+    return createSuccessResponse(result);
   } catch (error) {
     // Log with structured metadata so error details appear in monitoring dashboards.
     // The error object preserves the original stack trace for debugging.
     logger.error("Failed to fetch players", { error });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch players" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch players", 500);
   }
 }
 
@@ -98,10 +96,7 @@ export async function POST(request: NextRequest) {
   // This prevents unauthorized player registration.
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   try {
@@ -111,10 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields before database operations
     if (!name || !nickname) {
-      return NextResponse.json(
-        { success: false, error: "Name and nickname are required" },
-        { status: 400 }
-      );
+      return handleValidationError("Name and nickname are required");
     }
 
     // Generate a cryptographically secure random password (12 characters).
@@ -176,14 +168,8 @@ export async function POST(request: NextRequest) {
       "code" in error &&
       error.code === "P2002"
     ) {
-      return NextResponse.json(
-        { success: false, error: "A player with this nickname already exists" },
-        { status: 409 }
-      );
+      return createErrorResponse("A player with this nickname already exists", 409);
     }
-    return NextResponse.json(
-      { success: false, error: "Failed to create player" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to create player", 500);
   }
 }

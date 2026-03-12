@@ -19,6 +19,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { createSuccessResponse, createErrorResponse } from '@/lib/error-handling';
 
 export async function GET() {
   // Logger is created inside the function (not at module level) to ensure
@@ -34,6 +35,8 @@ export async function GET() {
     if (!session) {
       // Return a structured response indicating no active session.
       // The requiresAuth flag tells the frontend to redirect to sign-in.
+      // Uses NextResponse directly because the custom requiresAuth field
+      // is not supported by the standard error response helpers.
       return NextResponse.json({
         success: false,
         error: 'No active session',
@@ -45,22 +48,19 @@ export async function GET() {
     // Token expiration info is structured as placeholders; in a full
     // implementation these values would be populated from the JWT callback
     // where access/refresh token lifetimes are tracked.
-    return NextResponse.json({
-      success: true,
-      data: {
-        authenticated: true,
-        user: {
-          id: session.user?.id,
-          name: session.user?.name,
-          email: session.user?.email,
-          image: session.user?.image,
-        },
-        // Token expiration fields are placeholders for future JWT callback integration.
-        // When implemented, these will reflect actual OAuth token lifetimes.
-        tokenInfo: {
-          accessTokenExpires: null,
-          refreshTokenExpires: null,
-        },
+    return createSuccessResponse({
+      authenticated: true,
+      user: {
+        id: session.user?.id,
+        name: session.user?.name,
+        email: session.user?.email,
+        image: session.user?.image,
+      },
+      // Token expiration fields are placeholders for future JWT callback integration.
+      // When implemented, these will reflect actual OAuth token lifetimes.
+      tokenInfo: {
+        accessTokenExpires: null,
+        refreshTokenExpires: null,
       },
     });
   } catch (error) {
@@ -68,9 +68,6 @@ export async function GET() {
     // The error object is passed as metadata to preserve stack traces
     // in Winston's structured logging output.
     logger.error('Session status check failed', { error });
-    return NextResponse.json(
-      { success: false, error: 'Failed to check session status' },
-      { status: 500 }
-    );
+    return createErrorResponse('Failed to check session status', 500);
   }
 }

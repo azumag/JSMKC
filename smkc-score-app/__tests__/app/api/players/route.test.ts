@@ -40,19 +40,24 @@ jest.mock('@/lib/sanitize', () => ({
   sanitizeInput: jest.fn((data) => data),
 }));
 
-// Logger mock: shared mockLoggerInstance is created in the factory and
-// returned by createLogger on every call. After clearAllMocks, the factory
-// implementation is preserved (clearAllMocks only clears calls/instances).
-const mockLoggerInstance = {
-  error: jest.fn(),
-  warn: jest.fn(),
-  info: jest.fn(),
-  debug: jest.fn(),
-};
+// Logger mock: shared mockLoggerInstance is created INSIDE the factory to avoid
+// TDZ issues when error-handling.ts imports logger at module level.
+// Access the instance via jest.requireMock('@/lib/logger').createLogger().
+jest.mock('@/lib/logger', () => {
+  const instance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => instance),
+    __mockLoggerInstance: instance,
+  };
+});
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => mockLoggerInstance),
-}));
+// Get reference to the shared logger instance for assertions
+const mockLoggerInstance = (jest.requireMock('@/lib/logger') as { __mockLoggerInstance: Record<string, jest.Mock> }).__mockLoggerInstance;
 
 jest.mock('@/lib/password-utils', () => ({
   generateSecurePassword: jest.fn(() => 'generated-password'),
@@ -166,15 +171,21 @@ describe('GET /api/players', () => {
       });
 
       // Real paginate returns { data, meta: { total, page, limit, totalPages } }
-      expect(NextResponse.json).toHaveBeenCalledWith({
-        data: mockPlayers,
-        meta: {
-          total: 2,
-          page: 1,
-          limit: 50,
-          totalPages: 1,
-        },
-      });
+      // createSuccessResponse wraps the result in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: {
+            data: mockPlayers,
+            meta: {
+              total: 2,
+              page: 1,
+              limit: 50,
+              totalPages: 1,
+            },
+          },
+        })
+      );
     });
 
     it('should return paginated list with custom page and limit', async () => {
@@ -196,15 +207,21 @@ describe('GET /api/players', () => {
       });
 
       // Real paginate: totalPages = Math.ceil(25/10) = 3
-      expect(NextResponse.json).toHaveBeenCalledWith({
-        data: mockPlayers,
-        meta: {
-          total: 25,
-          page: 2,
-          limit: 10,
-          totalPages: 3,
-        },
-      });
+      // createSuccessResponse wraps the result in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: {
+            data: mockPlayers,
+            meta: {
+              total: 25,
+              page: 2,
+              limit: 10,
+              totalPages: 3,
+            },
+          },
+        })
+      );
     });
 
     it('should return all players without filtering', async () => {
@@ -228,15 +245,21 @@ describe('GET /api/players', () => {
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith({
-        data: mockPlayers,
-        meta: {
-          total: 1,
-          page: 1,
-          limit: 50,
-          totalPages: 1,
-        },
-      });
+      // createSuccessResponse wraps the result in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: {
+            data: mockPlayers,
+            meta: {
+              total: 1,
+              page: 1,
+              limit: 50,
+              totalPages: 1,
+            },
+          },
+        })
+      );
     });
   });
 
@@ -258,7 +281,10 @@ describe('GET /api/players', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to fetch players' },
+        expect.objectContaining({
+          success: false,
+          error: 'Failed to fetch players',
+        }),
         { status: 500 }
       );
     });
@@ -485,7 +511,10 @@ describe('POST /api/players', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'A player with this nickname already exists' },
+        expect.objectContaining({
+          success: false,
+          error: 'A player with this nickname already exists',
+        }),
         { status: 409 }
       );
     });

@@ -27,18 +27,23 @@ jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
-// Logger mock: stable reference to shared logger instance so tests can
-// verify logger calls even after clearAllMocks resets call history.
-const mockLoggerInstance = {
-  error: jest.fn(),
-  warn: jest.fn(),
-  info: jest.fn(),
-  debug: jest.fn(),
-};
+// Logger mock: shared mockLoggerInstance is created INSIDE the factory to avoid
+// TDZ issues when error-handling.ts imports logger at module level.
+jest.mock('@/lib/logger', () => {
+  const instance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => instance),
+    __mockLoggerInstance: instance,
+  };
+});
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => mockLoggerInstance),
-}));
+// Get reference to the shared logger instance for assertions
+const mockLoggerInstance = (jest.requireMock('@/lib/logger') as { __mockLoggerInstance: Record<string, jest.Mock> }).__mockLoggerInstance;
 
 // Custom next/server mock matching the pattern used in working tournament tests.
 jest.mock('next/server', () => {
@@ -268,18 +273,22 @@ describe('GET /api/players/[id]/character-stats', () => {
         { params: Promise.resolve({ id: 'p1' }) }
       );
 
+      // createSuccessResponse wraps data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          playerId: 'p1',
-          playerName: 'Player 1',
-          playerNickname: 'p1',
-          totalMatches: 3,
-          characterStats: expect.any(Array),
+          success: true,
+          data: expect.objectContaining({
+            playerId: 'p1',
+            playerName: 'Player 1',
+            playerNickname: 'p1',
+            totalMatches: 3,
+            characterStats: expect.any(Array),
+          }),
         })
       );
 
       const callArgs = NextResponse.json.mock.calls[0];
-      const characterStats = callArgs[0].characterStats;
+      const characterStats = callArgs[0].data.characterStats;
 
       // Mario should have 2 wins out of 2 matches (100%)
       const marioStats = characterStats.find(s => s.character === 'Mario');
@@ -336,7 +345,7 @@ describe('GET /api/players/[id]/character-stats', () => {
       );
 
       const callArgs = NextResponse.json.mock.calls[0];
-      expect(callArgs[0].mostUsedCharacter).toBe('Mario');
+      expect(callArgs[0].data.mostUsedCharacter).toBe('Mario');
     });
   });
 
@@ -375,15 +384,19 @@ describe('GET /api/players/[id]/character-stats', () => {
         { params: Promise.resolve({ id: 'p1' }) }
       );
 
+      // createSuccessResponse wraps data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          playerId: 'p1',
-          playerName: undefined,
-          playerNickname: undefined,
-          totalMatches: 0,
-          characterStats: [],
-          mostUsedCharacter: null,
-          characterUsage: [],
+          success: true,
+          data: expect.objectContaining({
+            playerId: 'p1',
+            playerName: undefined,
+            playerNickname: undefined,
+            totalMatches: 0,
+            characterStats: [],
+            mostUsedCharacter: null,
+            characterUsage: [],
+          }),
         })
       );
     });

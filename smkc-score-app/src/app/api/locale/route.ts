@@ -15,18 +15,17 @@
  */
 import { NextResponse } from 'next/server'
 import { locales, LOCALE_COOKIE, type Locale } from '@/i18n/config'
+import { sanitizeInput } from '@/lib/sanitize'
+import { handleValidationError } from '@/lib/error-handling'
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body = sanitizeInput(await request.json())
     const { locale } = body
 
     /* Validate that the requested locale is supported */
     if (!locale || !locales.includes(locale as Locale)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid locale' },
-        { status: 400 }
-      )
+      return handleValidationError('Invalid locale')
     }
 
     const response = NextResponse.json({ success: true })
@@ -44,9 +43,6 @@ export async function POST(request: Request) {
 
     return response
   } catch {
-    return NextResponse.json(
-      { success: false, error: 'Invalid request body' },
-      { status: 400 }
-    )
+    return handleValidationError('Invalid request body')
   }
 }

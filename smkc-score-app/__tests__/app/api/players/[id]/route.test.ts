@@ -145,7 +145,13 @@ describe('GET /api/players/[id]', () => {
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { id: 'player-1' }
       });
-      expect(NextResponse.json).toHaveBeenCalledWith(mockPlayer);
+      // createSuccessResponse wraps data in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: mockPlayer,
+        })
+      );
     });
   });
 
@@ -320,7 +326,13 @@ describe('PUT /api/players/[id]', () => {
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(mockPlayer);
+      // createSuccessResponse wraps data in { success: true, data: ... }
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: mockPlayer,
+        })
+      );
     });
 
     it('should create audit log on successful update', async () => {
@@ -463,10 +475,13 @@ describe('DELETE /api/players/[id]', () => {
         })
       );
 
+      // createSuccessResponse wraps data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          message: "Player deleted successfully",
+          data: expect.objectContaining({
+            message: "Player deleted successfully",
+          }),
         })
       );
     });

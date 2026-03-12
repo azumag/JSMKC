@@ -8,13 +8,14 @@
  * All mutation operations (PUT, DELETE) require admin authentication and
  * create audit log entries for accountability.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * GET /api/players/:id
@@ -45,22 +46,16 @@ export async function GET(
     });
 
     if (!player) {
-      return NextResponse.json(
-        { success: false, error: "Player not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Player not found", 404);
     }
 
-    return NextResponse.json(player);
+    return createSuccessResponse(player);
   } catch (error) {
     // Await params again in catch block since it may not have been resolved
     // before the error occurred. This ensures we can log the player ID.
     const { id } = await params;
     logger.error("Failed to fetch player", { error, playerId: id });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch player" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to fetch player", 500);
   }
 }
 
@@ -94,10 +89,7 @@ export async function PUT(
   const { id } = await params;
 
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   try {
@@ -111,10 +103,7 @@ export async function PUT(
 
     // Validate required fields
     if (!name || !nickname) {
-      return NextResponse.json(
-        { success: false, error: "Name and nickname are required" },
-        { status: 400 }
-      );
+      return handleValidationError("Name and nickname are required");
     }
 
     // Update the player record in the database
@@ -154,7 +143,7 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json(player);
+    return createSuccessResponse(player);
   } catch (error: unknown) {
     // Log error with structured metadata for debugging
     logger.error("Failed to update player", { error, playerId: id });
@@ -166,10 +155,7 @@ export async function PUT(
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json(
-        { success: false, error: "Player not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Player not found", 404);
     }
 
     // P2002: Unique constraint violation - nickname already taken by another player
@@ -179,16 +165,10 @@ export async function PUT(
       "code" in error &&
       error.code === "P2002"
     ) {
-      return NextResponse.json(
-        { success: false, error: "A player with this nickname already exists" },
-        { status: 409 }
-      );
+      return createErrorResponse("A player with this nickname already exists", 409);
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to update player" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to update player", 500);
   }
 }
 
@@ -215,10 +195,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!session?.user || session.user.role !== 'admin') {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized: Admin access required' },
-      { status: 403 }
-    );
+    return handleAuthzError('Unauthorized: Admin access required');
   }
 
   try {
@@ -255,8 +232,7 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({
-      success: true,
+    return createSuccessResponse({
       message: "Player deleted successfully",
     });
   } catch (error: unknown) {
@@ -270,15 +246,9 @@ export async function DELETE(
       "code" in error &&
       error.code === "P2025"
     ) {
-      return NextResponse.json(
-        { success: false, error: "Player not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Player not found", 404);
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to delete player" },
-      { status: 500 }
-    );
+    return createErrorResponse("Failed to delete player", 500);
   }
 }

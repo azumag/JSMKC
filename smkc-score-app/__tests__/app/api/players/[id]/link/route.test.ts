@@ -26,18 +26,23 @@ jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
 
-// Logger mock: stable reference to shared logger instance so tests can
-// verify logger calls even after clearAllMocks resets call history.
-const mockLoggerInstance = {
-  error: jest.fn(),
-  warn: jest.fn(),
-  info: jest.fn(),
-  debug: jest.fn(),
-};
+// Logger mock: shared mockLoggerInstance is created INSIDE the factory to avoid
+// TDZ issues when error-handling.ts imports logger at module level.
+jest.mock('@/lib/logger', () => {
+  const instance = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => instance),
+    __mockLoggerInstance: instance,
+  };
+});
 
-jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => mockLoggerInstance),
-}));
+// Get reference to the shared logger instance for assertions
+const mockLoggerInstance = (jest.requireMock('@/lib/logger') as { __mockLoggerInstance: Record<string, jest.Mock> }).__mockLoggerInstance;
 
 // Custom next/server mock matching the pattern used in working tournament tests.
 jest.mock('next/server', () => {
@@ -145,8 +150,13 @@ describe('POST /api/players/[id]/link', () => {
         { params: Promise.resolve({ id: 'player-1' }) }
       );
 
-      // Should return the updated player (not an error)
-      expect(NextResponse.json).toHaveBeenCalledWith(updatedPlayer);
+      // Should return the updated player wrapped in success response
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: updatedPlayer,
+        })
+      );
     });
   });
 
@@ -291,8 +301,13 @@ describe('POST /api/players/[id]/link', () => {
         data: { userId: 'user-1' },
       });
 
-      // Verify the response returns the updated player
-      expect(NextResponse.json).toHaveBeenCalledWith(updatedPlayer);
+      // Verify the response returns the updated player wrapped in success response
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: updatedPlayer,
+        })
+      );
     });
   });
 
@@ -314,7 +329,10 @@ describe('POST /api/players/[id]/link', () => {
 
       // The source returns "Failed to link player" on errors
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Failed to link player' },
+        expect.objectContaining({
+          success: false,
+          error: 'Failed to link player',
+        }),
         { status: 500 }
       );
     });

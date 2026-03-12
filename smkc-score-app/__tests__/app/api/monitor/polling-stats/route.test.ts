@@ -127,7 +127,10 @@ describe('GET /api/monitor/polling-stats', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Unauthorized' },
+        expect.objectContaining({
+          success: false,
+          error: 'Unauthorized',
+        }),
         { status: 401 }
       );
     });

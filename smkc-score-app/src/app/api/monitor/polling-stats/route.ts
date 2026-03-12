@@ -20,9 +20,9 @@
  * Response:
  *   { success: true, data: { totalRequests, averageResponseTime, ... } }
  */
-import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { createSuccessResponse, handleAuthError, createErrorResponse } from '@/lib/error-handling';
 
 export async function GET() {
   // Logger created inside function for proper test mocking support
@@ -33,10 +33,7 @@ export async function GET() {
     // This prevents public enumeration of server health information.
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return handleAuthError('Unauthorized');
     }
 
     // Calculate the time window for statistics (last 1 hour)
@@ -76,17 +73,11 @@ export async function GET() {
       await sendAlert('Polling requests approaching Vercel limits');
     }
 
-    return NextResponse.json({
-      success: true,
-      data: stats,
-    });
+    return createSuccessResponse(stats);
   } catch (error) {
     // Log error with structured metadata for monitoring
     logger.error('Failed to get polling stats', { error });
-    return NextResponse.json(
-      { success: false, error: 'Failed to retrieve polling statistics' },
-      { status: 500 }
-    );
+    return createErrorResponse('Failed to retrieve polling statistics', 500);
   }
 }
 
