@@ -15,6 +15,8 @@
  * - OAuthCreateAccount: Failed to create account from OAuth data
  * - CredentialsSignin: Invalid nickname/password credentials
  * - EmailCreateAccount: Failed to create account from email
+ * - NotWhitelisted: Discord user is not in ADMIN_DISCORD_IDS whitelist
+ * - ServerError: Database or server error during sign-in processing
  * - Callback: Generic callback processing error
  * - SessionRequired: Attempted access without valid session
  * - Default: Catch-all for unrecognized error codes
@@ -22,9 +24,14 @@
  * The page provides two navigation options:
  * 1. Retry login (back to sign-in page)
  * 2. Return to home page
+ *
+ * useSearchParams() requires a Suspense boundary (Next.js 16 requirement),
+ * so the page is split into a wrapper (ErrorPage) and an inner component
+ * (ErrorPageContent) that reads the query params.
  */
 'use client'
 
+import { Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 /* i18n: useTranslations hook for internationalized strings */
@@ -34,53 +41,57 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
 /**
- * ErrorPage - Displays authentication error with recovery options.
+ * Maps NextAuth error codes to translated user-friendly messages.
+ * Each error code corresponds to a specific failure point in the
+ * authentication flow, helping users understand what went wrong.
+ * Translation keys are defined in the 'auth' namespace of messages/*.json.
  *
- * Retrieves the error code using useSearchParams() hook from NextAuth's error
- * redirect flow. Maps the code to a translated error message and
- * shows contextual help for specific error types.
+ * @param error - The NextAuth error code string
+ * @param t - Translation function from useTranslations('auth')
+ * @returns Translated error description
  */
-export default function ErrorPage() {
+function getErrorMessage(error: string | null, t: (key: string) => string) {
+  switch (error) {
+    case 'OAuthSignin':
+      return t('oauthSigninError')
+    case 'OAuthCallback':
+      return t('oauthCallbackError')
+    case 'OAuthCreateAccount':
+      return t('oauthCreateAccountError')
+    case 'CredentialsSignin':
+      return t('credentialsSigninError')
+    case 'EmailCreateAccount':
+      return t('emailCreateAccountError')
+    case 'AccessDenied':
+      /* Generic access denied — kept for backward compatibility. */
+      return t('accessDeniedError')
+    case 'NotWhitelisted':
+      /* Discord user is not registered in ADMIN_DISCORD_IDS. */
+      return t('notWhitelistedError')
+    case 'ServerError':
+      /* Database or server error during sign-in processing. */
+      return t('serverError')
+    case 'Callback':
+      return t('callbackError')
+    case 'SessionRequired':
+      return t('sessionRequiredError')
+    case 'Default':
+      return t('genericAuthError')
+    default:
+      return t('unknownAuthError')
+  }
+}
+
+/**
+ * ErrorPageContent - Inner component that reads searchParams and renders
+ * the error UI. Separated from ErrorPage so the Suspense boundary can
+ * wrap the useSearchParams() call.
+ */
+function ErrorPageContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
   /* i18n: 'auth' namespace for all authentication-related strings */
   const t = useTranslations('auth')
-
-  /**
-   * Maps NextAuth error codes to translated user-friendly messages.
-   * Each error code corresponds to a specific failure point in the
-   * authentication flow, helping users understand what went wrong.
-   * Translation keys are defined in the 'auth' namespace of messages/*.json.
-   *
-   * @param error - The NextAuth error code string
-   * @returns Translated error description
-   */
-  const getErrorMessage = (error: string | null) => {
-    switch (error) {
-      case 'OAuthSignin':
-        return t('oauthSigninError')
-      case 'OAuthCallback':
-        return t('oauthCallbackError')
-      case 'OAuthCreateAccount':
-        return t('oauthCreateAccountError')
-      case 'CredentialsSignin':
-        return t('credentialsSigninError')
-      case 'EmailCreateAccount':
-        return t('emailCreateAccountError')
-      case 'AccessDenied':
-        /* This occurs when signIn returns false, which happens when
-         * there's a transient DB connection error after retry attempts. */
-        return t('accessDeniedError')
-      case 'Callback':
-        return t('callbackError')
-      case 'SessionRequired':
-        return t('sessionRequiredError')
-      case 'Default':
-        return t('genericAuthError')
-      default:
-        return t('unknownAuthError')
-    }
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -92,19 +103,20 @@ export default function ErrorPage() {
             {t('errorTitle')}
           </CardTitle>
           <CardDescription>
-            {getErrorMessage(error)}
+            {getErrorMessage(error, t)}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/*
-           * Contextual help text for specific error types.
-           * AccessDenied: May indicate a transient DB connection error.
-           */}
+          {/* Contextual help text for specific error types */}
           <div className="text-sm text-muted-foreground text-center">
             {error === 'AccessDenied' && (
-              <p>
-                {t('accessDeniedHelp')}
-              </p>
+              <p>{t('accessDeniedHelp')}</p>
+            )}
+            {error === 'NotWhitelisted' && (
+              <p>{t('notWhitelistedHelp')}</p>
+            )}
+            {error === 'ServerError' && (
+              <p>{t('serverErrorHelp')}</p>
             )}
           </div>
           {/* Recovery action buttons */}
@@ -123,5 +135,26 @@ export default function ErrorPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/**
+ * ErrorPage - Wraps ErrorPageContent in Suspense.
+ * Next.js 16 requires a Suspense boundary around components using
+ * useSearchParams() to avoid opting the entire page into client rendering.
+ */
+export default function ErrorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center text-muted-foreground">
+            Loading...
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <ErrorPageContent />
+    </Suspense>
   )
 }

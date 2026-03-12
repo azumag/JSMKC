@@ -130,11 +130,38 @@ describe('authConfig', () => {
       expect(result).toBe(true);
     });
 
-    it('denies Discord sign-in for non-whitelisted users', async () => {
+    it('redirects non-whitelisted Discord users to NotWhitelisted error page', async () => {
       const result = await authConfig.callbacks.signIn({
         user: { email: 'user@example.com' },
         account: { provider: 'discord', providerAccountId: 'discord-user' },
         profile: { id: '111111111111111111' },
+      });
+
+      expect(result).toBe('/auth/error?error=NotWhitelisted');
+    });
+
+    it('redirects to ServerError when DB operation fails during Discord sign-in', async () => {
+      (prisma.account.findUnique as jest.Mock).mockRejectedValue(
+        new Error('DB connection failed')
+      );
+
+      const result = await authConfig.callbacks.signIn({
+        user: { email: 'admin@example.com' },
+        account: {
+          provider: 'discord',
+          providerAccountId: 'discord-user',
+          type: 'oauth',
+        },
+        profile: { id: '123456789012345678' },
+      });
+
+      expect(result).toBe('/auth/error?error=ServerError');
+    });
+
+    it('denies sign-in for unknown providers', async () => {
+      const result = await authConfig.callbacks.signIn({
+        user: { id: 'user-1' },
+        account: { provider: 'unknown-provider' },
       });
 
       expect(result).toBe(false);

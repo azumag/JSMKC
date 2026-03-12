@@ -130,12 +130,16 @@
     "oauthCreateAccountError": "An error occurred during account creation.",
     "emailCreateAccountError": "An error occurred during email account creation.",
     "accessDeniedError": "Access denied. This may be a temporary error. Please try again later.",
+    "notWhitelistedError": "This Discord account is not registered as an administrator.",
+    "serverError": "A server error occurred. Please try again later.",
     "callbackError": "An error occurred during callback.",
     "accountNotLinkedError": "This email is already linked to another provider.",
     "sessionRequiredError": "A session is required for this operation.",
     "genericAuthError": "An authentication error occurred.",
     "unknownAuthError": "An unknown authentication error occurred.",
     "accessDeniedHelp": "A communication error with the server may have occurred. Please try logging in again after some time.",
+    "notWhitelistedHelp": "If you need admin access, please contact a tournament administrator.",
+    "serverErrorHelp": "A database or server communication error occurred. Please try again later.",
     "accountNotLinkedHelp": "Please verify you are a member of jsmdc-org."
   },
   "players": {

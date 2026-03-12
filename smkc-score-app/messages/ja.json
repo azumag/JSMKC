@@ -130,12 +130,16 @@
     "oauthCreateAccountError": "アカウント作成でエラーが発生しました。",
     "emailCreateAccountError": "メールアドレスでのアカウント作成でエラーが発生しました。",
     "accessDeniedError": "アクセスが拒否されました。一時的なエラーの可能性があります。しばらくしてから再度お試しください。",
+    "notWhitelistedError": "このDiscordアカウントは管理者として登録されていません。",
+    "serverError": "サーバーでエラーが発生しました。しばらくしてから再度お試しください。",
     "callbackError": "コールバックでエラーが発生しました。",
     "accountNotLinkedError": "このメールアドレスは既に他のプロバイダーにリンクされています。",
     "sessionRequiredError": "この操作にはセッションが必要です。",
     "genericAuthError": "認証でエラーが発生しました。",
     "unknownAuthError": "認証で不明なエラーが発生しました。",
     "accessDeniedHelp": "サーバーとの通信に問題が発生した可能性があります。時間をおいて再度ログインをお試しください。",
+    "notWhitelistedHelp": "管理者権限が必要な場合は、大会管理者にお問い合わせください。",
+    "serverErrorHelp": "データベースまたはサーバーとの通信に問題が発生しました。時間をおいて再度お試しください。",
     "accountNotLinkedHelp": "jsmdc-orgのメンバーであることを確認してください。"
   },
   "players": {

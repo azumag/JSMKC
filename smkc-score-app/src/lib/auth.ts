@@ -203,7 +203,12 @@ export const authConfig = {
           logger.warn('Discord login denied for non-admin user', {
             discordId: profile?.id,
           });
-          return false;
+          /**
+           * Return a redirect URL instead of `false` so the error page can
+           * distinguish "not in whitelist" from "server error".
+           * NextAuth v5 treats a returned string as a redirect target.
+           */
+          return '/auth/error?error=NotWhitelisted';
         }
 
         try {
@@ -214,7 +219,9 @@ export const authConfig = {
             error: error instanceof Error ? error.message : String(error),
             discordId: profile?.id,
           });
-          return false;
+          /** Redirect with a specific error code so the user sees
+           *  "server error" rather than generic "access denied". */
+          return '/auth/error?error=ServerError';
         }
       }
 

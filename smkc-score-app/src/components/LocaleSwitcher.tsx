@@ -104,20 +104,20 @@ export function LocaleSwitcher() {
         }`}
       />
 
-      {/* EN Label */}
+      {/* EN Label – translate-y-px compensates for font ascent/descent asymmetry at text-[11px] with leading-none */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
+        className={`relative z-10 flex translate-y-px items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
           isJapanese ? 'text-primary-foreground/65' : 'text-foreground'
         }`}
       >
         EN
       </span>
 
-      {/* JA Label */}
+      {/* JA Label – same vertical nudge as EN for consistent alignment */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
+        className={`relative z-10 flex translate-y-px items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
           isJapanese ? 'text-foreground' : 'text-muted-foreground'
         }`}
       >
