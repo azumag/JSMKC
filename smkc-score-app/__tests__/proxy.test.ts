@@ -143,7 +143,7 @@ describe('Proxy Middleware', () => {
       }
     })
 
-    const proxy = await import('@/proxy')
+    const proxy = await import('@/middleware')
     middleware = proxy.default
     proxyModule = proxy
   })
@@ -549,7 +549,7 @@ describe('Proxy Middleware', () => {
       expect(csp).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com")
       expect(csp).toContain("font-src 'self' https://fonts.gstatic.com")
       expect(csp).toContain("img-src 'self' data: blob: https://www.google-analytics.com")
-      expect(csp).toContain("connect-src 'self' https://api.github.com https://oauth2.googleapis.com")
+      expect(csp).toContain("connect-src 'self'")
       expect(csp).toContain("frame-src 'none'")
       expect(csp).toContain("object-src 'none'")
       expect(csp).toContain("base-uri 'self'")

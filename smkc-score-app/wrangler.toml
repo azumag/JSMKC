@@ -4,8 +4,6 @@
 # Required secrets (set via `npx wrangler secret put <NAME>`):
 #   DATABASE_URL, AUTH_SECRET,
 #   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET,
-#   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
-#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 #   ADMIN_DISCORD_IDS
 
 name = "smkc"

@@ -199,7 +199,7 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     });
 
     // Success case - Auth delegated to checkScoreReportAuth helper (defaults to true)
-    it('should report score successfully for OAuth linked player', async () => {
+    it('should report score successfully for an authenticated player', async () => {
       const mockMatch = {
         id: 'm1',
         version: 1,

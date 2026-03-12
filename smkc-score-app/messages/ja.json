@@ -124,6 +124,7 @@
     "errorTitle": "認証エラー",
     "retryLogin": "再度ログイン",
     "goHome": "トップページに戻る",
+    "credentialsSigninError": "ニックネームまたはパスワードが正しくありません。",
     "oauthSigninError": "OAuthサインインでエラーが発生しました。",
     "oauthCallbackError": "OAuthコールバックでエラーが発生しました。",
     "oauthCreateAccountError": "アカウント作成でエラーが発生しました。",
@@ -169,19 +170,16 @@
   "profile": {
     "title": "プロフィール",
     "userInfo": "ユーザー情報",
+    "sessionDescription": "現在のログインセッション情報です。",
     "name": "名前:",
     "email": "メール:",
     "role": "役割:",
-    "playerAssociation": "プレイヤー紐付け",
-    "linkDescription": "スコアを送信するために、アカウントをプレイヤープロフィールにリンクしてください。",
-    "encodedAs": "登録名: {nickname} ({name})",
+    "playerAssociation": "プレイヤー情報",
+    "playerSessionDescription": "現在のログインで使用しているプレイヤーアカウントです。",
+    "nicknameLabel": "ニックネーム:",
+    "countryLabel": "国:",
     "canSubmitScores": "このプレイヤーとしてスコアを送信できます。",
-    "selectPlayerProfile": "プレイヤープロフィールを選択",
-    "selectPlayerPlaceholder": "プレイヤーを選択...",
-    "claimProfile": "プロフィールを紐付け",
-    "linking": "紐付け中...",
-    "linkedSuccess": "紐付けに成功しました！",
-    "failedToLink": "紐付けに失敗しました"
+    "noPlayerSession": "このセッションにはプレイヤー情報がありません。"
   },
   "tournaments": {
     "title": "トーナメント",

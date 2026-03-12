@@ -139,9 +139,7 @@ SMK Championship の大会運営における点数計算・順位管理システ
 - Node.js 18.x or higher
 - npm or yarn
 - PostgreSQL database (Neon account recommended)
-- GitHub account (for OAuth)
-- Discord account (optional, for OAuth)
-- Google account (optional, for OAuth)
+- Discord application credentials for administrator login
 
 ---
 
@@ -167,17 +165,12 @@ Then configure the following variables in `.env.local`:
 # Database
 DATABASE_URL="postgresql://user:password@ep-xxx.region.neon.tech/neondb?sslmode=require"
 
-# Discord OAuth (Optional)
+# Discord OAuth (Admin only)
 DISCORD_CLIENT_ID=your_discord_client_id_here
 DISCORD_CLIENT_SECRET=your_discord_client_secret_here
 
-# GitHub OAuth (Required for admin authentication)
-GITHUB_CLIENT_ID=your_github_client_id_here
-GITHUB_CLIENT_SECRET=your_github_client_secret_here
-
-# Google OAuth (Optional, for JWT Refresh Token)
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+# Admin Discord user IDs
+ADMIN_DISCORD_IDS=your_discord_user_id_here,another_discord_user_id_here
 
 # NextAuth.js
 NEXTAUTH_URL=http://localhost:3000
@@ -194,6 +187,9 @@ openssl rand -base64 32
 ```
 
 Copy the output and paste it into your `.env.local` file as `AUTH_SECRET`.
+
+Any Discord account whose user ID appears in `ADMIN_DISCORD_IDS` will receive
+the `admin` role after logging in with Discord.
 
 ### 3. Setup Database
 
@@ -263,41 +259,48 @@ This will open a browser at `http://localhost:5555`.
 
 ## Deployment
 
-### Vercel Deployment
+### Cloudflare Workers Builds
 
-1. **Create a Vercel Project**
-   - Import your GitHub repository to Vercel
-   - Vercel will automatically detect Next.js
+Use Cloudflare's native Git integration, not GitHub Actions.
+Cloudflare's official Workers Builds flow supports connecting an existing Worker to a GitHub repository and deploying automatically on pushes to the production branch.
 
-2. **Configure Environment Variables**
-   - Go to Settings → Environment Variables
-   - Add all variables from `.env.example`
-   - Generate a new `AUTH_SECRET` for production:
-     ```bash
-     openssl rand -base64 32
-     ```
+### Connect the existing Worker
 
-3. **Set Production Database**
-   - Create a production database on Neon
-   - Set `DATABASE_URL` in Vercel environment variables
+In Cloudflare dashboard:
 
-4. **Deploy**
-   - Push to main branch for automatic deployment
-   - Or click "Deploy" in Vercel dashboard
+1. Go to Workers & Pages
+2. Open the existing Worker `smkc`
+3. Open `Settings` → `Builds`
+4. Select `Connect`
+5. Choose this GitHub repository
+6. Set the production branch to `main`
 
-### Environment Variables in Vercel
+Cloudflare's docs note that when connecting an existing Worker, the Worker name in the dashboard must match the `name` in `wrangler.toml`. This repository already uses `name = "smkc"`.
 
-Add these to Vercel → Settings → Environment Variables:
+### Build settings for this repository
 
-- `DATABASE_URL`
-- `DISCORD_CLIENT_ID`
-- `DISCORD_CLIENT_SECRET`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `NEXTAUTH_URL` (set to your production URL, e.g., `https://smkc.bluemoon.works`)
-- `AUTH_SECRET` (generate a new one for production)
+This is a monorepo, so set these values in Cloudflare:
+
+- Root directory: `smkc-score-app`
+- Build command: `npm run build:cf`
+- Deploy command: `npx wrangler deploy`
+- Build watch path: `smkc-score-app/**` (recommended)
+
+Cloudflare's docs state that Workers Builds runs the build command first and then the deploy command, and that the root directory should point at the app directory in monorepos.
+
+### Runtime variables and secrets
+
+Set runtime values in `Settings` → `Variables & Secrets` for the `smkc` Worker:
+
+- Secret: `DATABASE_URL`
+- Secret: `AUTH_SECRET`
+- Secret: `DISCORD_CLIENT_ID`
+- Secret: `DISCORD_CLIENT_SECRET`
+- Secret: `ADMIN_DISCORD_IDS`
+
+`NEXTAUTH_URL` is already managed in `wrangler.toml` as `https://smkc.bluemoon.works`.
+
+Cloudflare documents build variables separately from runtime variables. For this app, the values above should be added as runtime secrets under `Variables & Secrets`.
 
 ---
 

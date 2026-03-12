@@ -124,6 +124,7 @@
     "errorTitle": "Authentication Error",
     "retryLogin": "Login Again",
     "goHome": "Go to Home",
+    "credentialsSigninError": "Invalid nickname or password.",
     "oauthSigninError": "An error occurred during OAuth sign-in.",
     "oauthCallbackError": "An error occurred during OAuth callback.",
     "oauthCreateAccountError": "An error occurred during account creation.",
@@ -169,19 +170,16 @@
   "profile": {
     "title": "Profile",
     "userInfo": "User Information",
+    "sessionDescription": "Current authenticated session details.",
     "name": "Name:",
     "email": "Email:",
     "role": "Role:",
-    "playerAssociation": "Player Association",
-    "linkDescription": "Link your account to a player profile to submit scores.",
-    "encodedAs": "Encoded as: {nickname} ({name})",
+    "playerAssociation": "Player Account",
+    "playerSessionDescription": "This is the player account attached to the current login session.",
+    "nicknameLabel": "Nickname:",
+    "countryLabel": "Country:",
     "canSubmitScores": "You can now submit scores for this player.",
-    "selectPlayerProfile": "Select your player profile",
-    "selectPlayerPlaceholder": "Select a player...",
-    "claimProfile": "Claim Profile",
-    "linking": "Linking...",
-    "linkedSuccess": "Linked successfully!",
-    "failedToLink": "Failed to link"
+    "noPlayerSession": "No player information is attached to this session."
   },
   "tournaments": {
     "title": "Tournaments",

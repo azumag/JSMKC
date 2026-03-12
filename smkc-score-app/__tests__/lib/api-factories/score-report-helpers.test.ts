@@ -8,7 +8,7 @@
  *
  * - checkScoreReportAuth: Session-based authorization (admin + player)
  *   - Admin session authorization with full override capability
- *   - Player session authorization (direct login and OAuth-linked)
+ *   - Player session authorization via credential login
  * - validateCharacter: Character validation against SMK roster
  * - createScoreEntryLog: Audit trail logging (non-critical, graceful failure)
  * - createCharacterUsageLog: Character usage tracking (non-critical, graceful failure)
@@ -70,8 +70,6 @@ describe('Score Report Helpers', () => {
     const createMockMatch = (overrides = {}) => ({
       player1Id: 'player-1',
       player2Id: 'player-2',
-      player1: { userId: 'user-1' },
-      player2: { userId: 'user-2' },
       ...overrides,
     });
 
@@ -99,23 +97,7 @@ describe('Score Report Helpers', () => {
           id: 'player-user',
           playerId: 'player-123',
           userType: 'player',
-          role: 'member',
-        },
-      });
-
-      const result = await checkScoreReportAuth(mockRequest, mockTournamentId, 1, mockMatch);
-
-      expect(result).toBe(true);
-    });
-
-    it('should return true when session user OAuth-linked matches player1.userId', async () => {
-      const mockMatch = createMockMatch({ player1: { userId: 'oauth-user-123' } });
-
-      mockAuth.mockResolvedValue({
-        user: {
-          id: 'oauth-user-123',
-          userType: 'oauth',
-          role: 'member',
+          role: 'player',
         },
       });
 

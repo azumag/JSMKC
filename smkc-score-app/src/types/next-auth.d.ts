@@ -5,12 +5,9 @@
  * JSMKC-specific fields so that custom properties (userType, playerId,
  * nickname, role) are available with full type safety throughout the app.
  *
- * The application supports dual authentication strategies:
- * - OAuth (Google): used by administrators and members
- * - Credential-based: used by players who log in with nickname + password
- *
- * The extra fields added here let both auth paths share a single Session
- * shape while carrying the data each path needs.
+ * The application supports:
+ * - Discord OAuth for administrator logins
+ * - Credential-based player logins using nickname + password
  *
  * Usage:
  *   import { Session } from 'next-auth';
@@ -23,6 +20,8 @@ import 'next-auth/jwt';
 declare module 'next-auth' {
   interface User {
     /** 'admin' | 'player' - determines access level */
+    role?: string;
+    /** 'admin' | 'player' - session source */
     userType?: string;
     /** Player ID for player-type users (credential login) */
     playerId?: string;
@@ -36,7 +35,7 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      /** User role: 'admin' | 'member' | 'player' */
+      /** User role: 'admin' | 'player' */
       role?: string;
       /** User type: 'admin' | 'player' */
       userType?: string;
@@ -52,15 +51,11 @@ declare module 'next-auth' {
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    /** OAuth access token */
-    accessToken?: string;
-    /** OAuth refresh token */
-    refreshToken?: string;
-    /** Access token expiration timestamp in milliseconds */
+    /** Session expiration timestamp in milliseconds */
     accessTokenExpires?: number;
-    /** Refresh token expiration timestamp in milliseconds */
+    /** Extended session expiration timestamp in milliseconds */
     refreshTokenExpires?: number;
-    /** User role: 'admin' | 'member' | 'player' */
+    /** User role: 'admin' | 'player' */
     role?: string;
     /** User type: 'admin' | 'player' */
     userType?: string;

@@ -625,40 +625,6 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       expect(loggerMock.warn).toHaveBeenCalledWith('Failed to create character usage log', expect.any(Object));
     });
 
-    // Edge case - OAuth linked player reports score
-    it('should allow OAuth linked player to report score', async () => {
-      const mockMatch = {
-        id: 'm1',
-        player1Id: 'p1',
-        player2Id: 'p2',
-        completed: false,
-        player1: { id: 'p1', userId: 'oauth-user1' },
-        player2: { id: 'p2', userId: 'oauth-user2' },
-      };
-
-      const mockUpdateResult = {
-        id: 'm1',
-        player1ReportedScore1: 3,
-        player1ReportedScore2: 1,
-        player2ReportedScore1: null,
-        player2ReportedScore2: null,
-        completed: false,
-        version: 2,
-      };
-
-      const mockAuth = { user: { id: 'oauth-user1', userType: 'oauth' } };
-      (auth as jest.Mock).mockResolvedValue(mockAuth);
-      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      (updateWithRetry as jest.Mock).mockResolvedValue(mockUpdateResult);
-      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
-
-      const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
-      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
-      const result = await POST(request, { params });
-
-      expect(result.status).toBe(200);
-    });
-
     // Edge case - Handles all valid SMK characters
     it('should accept all valid SMK characters', async () => {
       const validCharacters = ['mario', 'luigi', 'peach', 'yoshi', 'toad', 'bowser', 'donkey-kong', 'koopa'];

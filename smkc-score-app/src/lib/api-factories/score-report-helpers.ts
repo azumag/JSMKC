@@ -30,13 +30,10 @@ import { createLogger } from '@/lib/logger';
 
 /**
  * Minimal match shape required by the authorization check.
- * Includes player IDs and optional userId fields for OAuth-linked players.
  */
 export interface AuthCheckMatch {
   player1Id: string;
   player2Id: string;
-  player1: { userId?: string | null };
-  player2: { userId?: string | null };
 }
 
 /**
@@ -73,14 +70,13 @@ export interface CharacterUsageLogData {
  * Supports two authorization paths:
  * 1. Admin session - full admin override capability
  * 2. Player session - players can only report their own matches
- *    (direct player login or OAuth-linked player)
  *
  * Used by BM, MR, and GP report routes.
  *
  * @param request - The incoming NextRequest (used for future extensions)
  * @param tournamentId - Tournament ID (used for future extensions)
  * @param reportingPlayer - Which player position is reporting (1 or 2)
- * @param match - Match record with player IDs and userId references
+ * @param match - Match record with player IDs
  * @returns True if the request is authorized
  */
 export async function checkScoreReportAuth(
@@ -94,26 +90,16 @@ export async function checkScoreReportAuth(
 
   /* Session-based authorization: admin or player */
   if (session?.user?.id) {
-    const userType = session.user.userType;
-
-    if (userType === 'admin' && session.user.role === 'admin') {
+    if (session.user.role === 'admin') {
       /* Admins have unrestricted access to report scores */
       isAuthorized = true;
-    } else if (userType === 'player') {
+    } else if (session.user.userType === 'player') {
       /* Direct player login - verify they are a participant in this match */
       const playerId = session.user.playerId;
       if (reportingPlayer === 1 && match.player1Id === playerId) {
         isAuthorized = true;
       }
       if (reportingPlayer === 2 && match.player2Id === playerId) {
-        isAuthorized = true;
-      }
-    } else {
-      /* OAuth-linked player - check via userId on the player record */
-      if (reportingPlayer === 1 && match.player1.userId === session.user.id) {
-        isAuthorized = true;
-      }
-      if (reportingPlayer === 2 && match.player2.userId === session.user.id) {
         isAuthorized = true;
       }
     }
