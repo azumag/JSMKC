@@ -20,12 +20,20 @@
  * to ensure proper test mocking per the project's mock architecture pattern.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
+import { sanitizeInput } from "@/lib/sanitize";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  handleValidationError,
+  handleAuthzError,
+  handleDatabaseError,
+} from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/[id]/tt/entries/[entryId]
@@ -55,20 +63,14 @@ export async function GET(
     });
 
     if (!entry) {
-      return NextResponse.json(
-        { success: false, error: "Entry not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Entry not found", 404);
     }
 
-    return NextResponse.json(entry);
+    return createSuccessResponse(entry);
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch entry", { error, entryId });
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch time trial entry" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "fetch time trial entry");
   }
 }
 
@@ -106,20 +108,14 @@ export async function PUT(
   // submit their own times, while admins retain the ability to edit any entry.
   const session = await auth();
   if (!session?.user) {
-    return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
-    );
+    return handleAuthzError("Forbidden");
   }
 
   const isAdmin = session.user.role === "admin";
   const isPlayer = session.user.userType === "player";
 
   if (!isAdmin && !isPlayer) {
-    return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
-    );
+    return handleAuthzError("Forbidden");
   }
 
   const { entryId } = await params;
@@ -133,10 +129,7 @@ export async function PUT(
       select: { playerId: true, stage: true, tournamentId: true },
     });
     if (!entryForAuth || entryForAuth.playerId !== session.user.playerId) {
-      return NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 }
-      );
+      return handleAuthzError("Forbidden");
     }
     // Reject updates if the entry's stage is frozen (applies to both players and admins)
     const freezeError = await checkStageFrozen(prisma, entryForAuth.tournamentId, entryForAuth.stage);
@@ -148,26 +141,21 @@ export async function PUT(
       select: { stage: true, tournamentId: true },
     });
     if (!entryForFreeze) {
-      return NextResponse.json(
-        { success: false, error: "Entry not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("Entry not found", 404);
     }
     // Admins are also blocked from editing frozen stages (intentional lock)
     const freezeError = await checkStageFrozen(prisma, entryForFreeze.tournamentId, entryForFreeze.stage);
     if (freezeError) return freezeError;
   }
   try {
-    const body = await request.json();
+    /* Defense-in-depth: sanitize all user input before processing */
+    const body = sanitizeInput(await request.json());
 
     const { times, totalTime, rank, eliminated, lives, version } = body;
 
     // Version field is mandatory for optimistic locking
     if (typeof version !== 'number') {
-      return NextResponse.json(
-        { success: false, error: "version is required and must be a number" },
-        { status: 400 }
-      );
+      return handleValidationError("version is required and must be a number", "version");
     }
 
     // Attempt update with optimistic lock check
@@ -194,10 +182,9 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: updatedEntry,
-      version: result.version
+    return createSuccessResponse({
+      ...updatedEntry,
+      version: result.version,
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
@@ -206,20 +193,14 @@ export async function PUT(
     // Handle optimistic lock conflicts with a specific 409 response
     // This tells the client to refresh their data and retry
     if (error instanceof OptimisticLockError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Version conflict",
-          message: "The entry was modified by another user. Please refresh and try again.",
-          currentVersion: error.currentVersion
-        },
-        { status: 409 }
+      return createErrorResponse(
+        "The entry was modified by another user. Please refresh and try again.",
+        409,
+        "OPTIMISTIC_LOCK_ERROR",
+        { currentVersion: error.currentVersion, requiresRefresh: true }
       );
     }
 
-    return NextResponse.json(
-      { success: false, error: "Failed to update time trial entry" },
-      { status: 500 }
-    );
+    return handleDatabaseError(error, "update time trial entry");
   }
 }

@@ -187,3 +187,12 @@ export function getDriverPoints(position: number): number {
   if (position < 1 || position > 4) return 0;
   return DRIVER_POINTS[position];
 }
+
+/**
+ * Bye (BREAK) match scores per §4.1 / §10.2.
+ * When a player's opponent is BREAK, the real player wins automatically.
+ * - BM/MR: 4-0 (win all rounds/races)
+ * - GP: 45-0 (max driver points = 9 pts × 5 races)
+ */
+export const BYE_SCORE_BM_MR = TOTAL_BM_ROUNDS; // 4
+export const GP_BYE_SCORE = DRIVER_POINTS[1] * TOTAL_GP_RACES; // 9 * 5 = 45

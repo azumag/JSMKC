@@ -18,6 +18,8 @@
  * Reference: requirements.md §10.4 サークル方式（ラウンドロビン方式）
  */
 
+import { BYE_SCORE_BM_MR, GP_BYE_SCORE } from '@/lib/constants';
+
 /** Sentinel player ID for BYE matches when player count is odd */
 export const BREAK_PLAYER_ID = '__BREAK__';
 
@@ -239,8 +241,8 @@ export function getByeMatchData(
   switch (mode) {
     case 'bm':
     case 'mr':
-      return { score1: 4, score2: 0 };
+      return { score1: BYE_SCORE_BM_MR, score2: 0 };
     case 'gp':
-      return { points1: 45, points2: 0 };
+      return { points1: GP_BYE_SCORE, points2: 0 };
   }
 }

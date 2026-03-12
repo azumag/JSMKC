@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
+import { createErrorResponse, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * Check if the specified stage is frozen for the given tournament.
@@ -35,21 +36,14 @@ export async function checkStageFrozen(
   });
 
   if (!tournament) {
-    return NextResponse.json(
-      { success: false, error: "Tournament not found" },
-      { status: 404 }
-    );
+    return createErrorResponse("Tournament not found", 404);
   }
 
   // frozenStages is stored as a JSON array of stage name strings
   const frozen = (tournament.frozenStages as string[]) || [];
   if (frozen.includes(stage)) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `This stage (${stage}) is frozen. Time edits are not allowed.`,
-      },
-      { status: 403 }
+    return handleAuthzError(
+      `This stage (${stage}) is frozen. Time edits are not allowed.`
     );
   }
 

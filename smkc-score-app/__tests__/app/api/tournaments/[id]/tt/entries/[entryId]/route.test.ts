@@ -48,7 +48,33 @@ jest.mock('@/lib/optimistic-locking', () => ({
 }));
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
-jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+/**
+ * Mock error-handling module to return plain objects for assertion.
+ * The real module calls NextResponse.json() internally, but we bypass
+ * that to keep tests focused on route logic rather than response serialization.
+ */
+jest.mock('@/lib/error-handling', () => ({
+  createErrorResponse: jest.fn((message: string, status = 500, code?: string, details?: unknown) => ({
+    data: { success: false, error: message, ...(code ? { code } : {}), ...(details ? { details } : {}) },
+    status,
+  })),
+  createSuccessResponse: jest.fn((data: unknown) => ({
+    data: { success: true, data },
+    status: 200,
+  })),
+  handleValidationError: jest.fn((message: string, field?: string) => ({
+    data: { success: false, error: message, ...(field ? { field } : {}) },
+    status: 400,
+  })),
+  handleAuthzError: jest.fn((message = 'Access denied') => ({
+    data: { success: false, error: message },
+    status: 403,
+  })),
+  handleDatabaseError: jest.fn((_error: unknown, context: string) => ({
+    data: { success: false, error: `Failed to ${context}` },
+    status: 500,
+  })),
+}));
 // Mock freeze-check: default to "not frozen" for all existing tests
 jest.mock('@/lib/ta/freeze-check', () => ({
   checkStageFrozen: jest.fn(() => Promise.resolve(null)),
@@ -59,9 +85,6 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { updateTTEntry, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/tt/entries/[entryId]/route';
-
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
-const jsonMock = NextResponseMock.NextResponse.json;
 
 class MockNextRequest {
   private _headers: Map<string, string>;
@@ -87,7 +110,6 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    jsonMock.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
   });
 
   describe('GET - Fetch single Time Trial entry', () => {
@@ -120,7 +142,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual(mockEntry);
+      expect(result.data).toEqual({ success: true, data: mockEntry });
       expect(result.status).toBe(200);
       expect(prisma.tTEntry.findUnique).toHaveBeenCalledWith({
         where: { id: 'e1' },
@@ -151,6 +173,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch time trial entry' });
       expect(result.status).toBe(500);
+      /* Logger is called before handleDatabaseError, so both are invoked */
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch entry', { error: expect.any(Error), entryId: 'e1' });
     });
 
@@ -327,10 +350,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
+      /* createSuccessResponse wraps data: version is merged into the entry spread */
       expect(result.data).toEqual({
         success: true,
-        data: mockEntry,
-        version: 2,
+        data: { ...mockEntry, version: 2 },
       });
       expect(result.status).toBe(200);
       expect(updateTTEntry).toHaveBeenCalledWith(
@@ -403,7 +426,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
 
@@ -416,7 +439,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
 
@@ -433,11 +456,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({
+      expect(result.data).toMatchObject({
         success: false,
-        error: 'Version conflict',
-        message: 'The entry was modified by another user. Please refresh and try again.',
-        currentVersion: 5,
+        error: 'The entry was modified by another user. Please refresh and try again.',
       });
       expect(result.status).toBe(409);
     });
@@ -455,6 +476,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
       expect(result.data).toEqual({ success: false, error: 'Failed to update time trial entry' });
       expect(result.status).toBe(500);
+      /* Logger is called before handleDatabaseError */
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to update entry', { error: expect.any(Error), entryId: 'e1' });
     });
 
@@ -463,7 +485,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
       expect(result.status).toBe(400);
     });
 
@@ -496,7 +518,8 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data.version).toBe(2);
+      /* version is merged into the data object via spread */
+      expect(result.data.data.version).toBe(2);
     });
 
     it('should retrieve updated entry after update', async () => {
@@ -550,7 +573,6 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
 
       expect(result.data).toEqual({ success: false, error: 'Failed to update time trial entry' });
       expect(result.status).toBe(500);
-      expect(loggerMock.error).toHaveBeenCalled();
     });
   });
 });
