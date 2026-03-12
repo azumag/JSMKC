@@ -107,7 +107,7 @@ export function LocaleSwitcher() {
       {/* EN Label */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors duration-200 ${
+        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
           isJapanese ? 'text-primary-foreground/65' : 'text-foreground'
         }`}
       >
@@ -117,7 +117,7 @@ export function LocaleSwitcher() {
       {/* JA Label */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors duration-200 ${
+        className={`relative z-10 flex items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
           isJapanese ? 'text-foreground' : 'text-muted-foreground'
         }`}
       >

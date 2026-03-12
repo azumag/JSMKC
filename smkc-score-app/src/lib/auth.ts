@@ -108,6 +108,12 @@ async function handleDiscordAdminSignIn(user: any, account: any): Promise<void> 
 }
 
 export const authConfig = {
+  /**
+   * trustHost: Required when deployed behind a reverse proxy (Cloudflare).
+   * Without this, NextAuth v5 cannot determine the canonical host and
+   * throws a Configuration error on every auth request.
+   */
+  trustHost: true,
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,

@@ -172,8 +172,8 @@ DISCORD_CLIENT_SECRET=your_discord_client_secret_here
 # Admin Discord user IDs
 ADMIN_DISCORD_IDS=your_discord_user_id_here,another_discord_user_id_here
 
-# NextAuth.js
-NEXTAUTH_URL=http://localhost:3000
+# NextAuth.js v5
+AUTH_URL=http://localhost:3000
 # Generate with: openssl rand -base64 32
 AUTH_SECRET=your_nextauth_secret_here
 ```
@@ -298,7 +298,7 @@ Set runtime values in `Settings` → `Variables & Secrets` for the `smkc` Worker
 - Secret: `DISCORD_CLIENT_SECRET`
 - Secret: `ADMIN_DISCORD_IDS`
 
-`NEXTAUTH_URL` is already managed in `wrangler.toml` as `https://smkc.bluemoon.works`.
+`AUTH_URL` is already managed in `wrangler.toml` as `https://smkc.bluemoon.works`.
 
 Cloudflare documents build variables separately from runtime variables. For this app, the values above should be added as runtime secrets under `Variables & Secrets`.
 

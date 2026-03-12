@@ -255,4 +255,10 @@ describe('authConfig', () => {
       });
     });
   });
+
+  describe('reverse-proxy support', () => {
+    it('enables trustHost for Cloudflare deployments', () => {
+      expect(authConfig.trustHost).toBe(true);
+    });
+  });
 });
