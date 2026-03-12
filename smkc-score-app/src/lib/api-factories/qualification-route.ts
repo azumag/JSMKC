@@ -365,7 +365,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     const { id: tournamentId } = await params;
 
     try {
-      const body = await request.json();
+      /* Defense-in-depth: always sanitize user input */
+      const body = sanitizeInput(await request.json());
       const parseResult = config.parsePutBody(body);
 
       if (!parseResult.valid) {

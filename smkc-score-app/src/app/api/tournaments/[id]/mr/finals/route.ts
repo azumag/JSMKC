@@ -12,8 +12,6 @@ const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'mRMatch',
   qualificationModel: 'mRQualification',
   loggerName: 'mr-finals-api',
-  sanitizePutBody: true,
-  sanitizePostBody: true,
   qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
   getStyle: 'simple',
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },

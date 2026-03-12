@@ -39,10 +39,6 @@ export interface FinalsConfig {
   qualificationModel: string;
   /** Logger service name for structured logging */
   loggerName: string;
-  /** Whether to sanitize PUT request body with sanitizeInput */
-  sanitizePutBody?: boolean;
-  /** Whether to sanitize POST request body with sanitizeInput */
-  sanitizePostBody?: boolean;
   /** Ordering for qualification standings to determine seeding */
   qualificationOrderBy: Array<Record<string, 'asc' | 'desc'>>;
   /** GET response style: 'grouped' (BM), 'simple' (MR), 'paginated' (GP) */
@@ -184,8 +180,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const { id: tournamentId } = await params;
 
     try {
-      const rawBody = await request.json();
-      const body = config.sanitizePostBody ? sanitizeInput(rawBody) : rawBody;
+      /* Defense-in-depth: always sanitize user input */
+      const body = sanitizeInput(await request.json());
       const { topN = 8 } = body;
 
       if (topN !== 8) {
@@ -294,8 +290,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const { id: tournamentId } = await params;
 
     try {
-      const rawBody = await request.json();
-      const body = config.sanitizePutBody ? sanitizeInput(rawBody) : rawBody;
+      /* Defense-in-depth: always sanitize user input */
+      const body = sanitizeInput(await request.json());
       const { matchId, score1, score2 } = body;
 
       if (!matchId || score1 === undefined || score2 === undefined) {
