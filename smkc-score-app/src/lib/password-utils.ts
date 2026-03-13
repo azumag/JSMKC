@@ -25,7 +25,6 @@
  */
 
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('password-utils');
@@ -75,11 +74,16 @@ export function generateSecurePassword(length: number = 12): string {
   const charset =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
 
-  // Use crypto.getRandomValues for cryptographically secure randomness.
-  // This is more secure than Math.random() which uses a PRNG that
-  // may be predictable.
+  // Use the Web Crypto API for cryptographically secure randomness.
+  // globalThis.crypto is available in browsers, Node.js, and
+  // Cloudflare Workers, unlike the Node-specific crypto module import.
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error('Secure random generation is unavailable');
+  }
+
   const randomValues = new Uint32Array(length);
-  crypto.getRandomValues(randomValues);
+  cryptoApi.getRandomValues(randomValues);
 
   // Build the password by mapping each random value to a character.
   // Using modulo to index into the charset. While modulo can introduce
