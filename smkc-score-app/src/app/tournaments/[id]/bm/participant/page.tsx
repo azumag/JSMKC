@@ -146,7 +146,9 @@ export default function BattleModeParticipantPage({
         ]);
 
         if (tournamentResponse.ok) {
-          setTournament(await tournamentResponse.json());
+          const tJson = await tournamentResponse.json();
+          // Unwrap createSuccessResponse wrapper: { success, data: tournament }
+          setTournament(tJson.data ?? tJson);
         }
         if (matchesResponse.ok) {
           const data = await matchesResponse.json();
@@ -271,7 +273,9 @@ export default function BattleModeParticipantPage({
         throw new Error(errorData.error || 'Failed to submit scores');
       }
 
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper: { success, data: { match } }
+      const data = json.data ?? json;
 
       /* Clear the form for this match after successful submission */
       setReportingScores(prev => ({

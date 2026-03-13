@@ -239,8 +239,11 @@ export default function TimeAttackPage({
       throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const taData = await taResponse.json();
+    const taJson = await taResponse.json();
     const playersJson = await playersResponse.json();
+
+    // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+    const taData = taJson.data ?? taJson;
 
     return {
       entries: taData.entries || [],
@@ -289,7 +292,9 @@ export default function TimeAttackPage({
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`);
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        // Unwrap createSuccessResponse wrapper: { success, data: { phaseStatus } }
+        const data = json.data ?? json;
         setPhaseStatus(data.phaseStatus);
       }
     } catch {
@@ -313,10 +318,12 @@ export default function TimeAttackPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      const data = await response.json();
+      const json = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Failed to promote players");
+        throw new Error(json.error || "Failed to promote players");
       }
+      // Unwrap createSuccessResponse wrapper: { success, data: { entries, skipped } }
+      const data = json.data ?? json;
       // Refresh phase status after promotion
       await fetchPhaseStatus();
       if (data.skipped && data.skipped.length > 0) {

@@ -188,7 +188,9 @@ export default function TAEliminationPhase({
           errorData.error || `Failed to fetch ${phase} data: ${response.status}`
         );
       }
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
+      const data = json.data ?? json;
       const fetchedEntries: TTEntry[] = data.entries || [];
       const fetchedRounds: PhaseRound[] = data.rounds || [];
       setEntries(fetchedEntries);
@@ -272,7 +274,9 @@ export default function TAEliminationPhase({
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to start round");
       }
-      const data = await response.json();
+      const json2 = await response.json();
+      // Unwrap createSuccessResponse wrapper
+      const data = json2.data ?? json2;
 
       // Initialize time entry form for all active players
       const activeEntries = entries.filter((e) => !e.eliminated);

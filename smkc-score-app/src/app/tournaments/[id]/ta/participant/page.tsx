@@ -165,9 +165,15 @@ export default function TimeAttackParticipantPage({
           fetch(`/api/tournaments/${tournamentId}`),
           fetch(`/api/tournaments/${tournamentId}/ta`),
         ]);
-        if (tournamentRes.ok) setTournament(await tournamentRes.json());
+        if (tournamentRes.ok) {
+          const tJson = await tournamentRes.json();
+          // Unwrap createSuccessResponse wrapper: { success, data: tournament }
+          setTournament(tJson.data ?? tJson);
+        }
         if (entriesRes.ok) {
-          const data = await entriesRes.json();
+          const json = await entriesRes.json();
+          // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+          const data = json.data ?? json;
           setEntries(data.entries || []);
           setFrozenStages(data.frozenStages || []);
         }
@@ -194,11 +200,16 @@ export default function TimeAttackParticipantPage({
   );
 
   useEffect(() => {
-    if (pollingData && typeof pollingData === 'object' && 'entries' in pollingData) {
-      setEntries(pollingData.entries as TTEntry[]);
-      // Update frozen stages from polling to reflect admin changes in real-time
-      if ('frozenStages' in pollingData) {
-        setFrozenStages(pollingData.frozenStages as string[]);
+    if (pollingData && typeof pollingData === 'object') {
+      // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+      const unwrapped = ('data' in pollingData && pollingData.data && typeof pollingData.data === 'object')
+        ? (pollingData.data as Record<string, unknown>)
+        : pollingData;
+      if ('entries' in unwrapped) {
+        setEntries(unwrapped.entries as TTEntry[]);
+      }
+      if ('frozenStages' in unwrapped) {
+        setFrozenStages(unwrapped.frozenStages as string[]);
       }
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
@@ -266,7 +277,9 @@ export default function TimeAttackParticipantPage({
         throw new Error(errorData.error || 'Failed to submit times');
       }
 
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper: { success, data: { entry } }
+      const data = json.data ?? json;
       setEntries(prev => prev.map(e => e.id === myEntry.id ? { ...e, ...data.entry } : e));
       setMyEntry({ ...myEntry, ...data.entry });
       /** i18n: Success alert after times are submitted */

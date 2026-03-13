@@ -134,7 +134,11 @@ export default function GrandPrixParticipantPage({
           fetch(`/api/tournaments/${tournamentId}`),
           fetch(`/api/tournaments/${tournamentId}/gp`),
         ]);
-        if (tournamentRes.ok) setTournament(await tournamentRes.json());
+        if (tournamentRes.ok) {
+          const tJson = await tournamentRes.json();
+          // Unwrap createSuccessResponse wrapper: { success, data: tournament }
+          setTournament(tJson.data ?? tJson);
+        }
         if (matchesRes.ok) {
           const data = await matchesRes.json();
           setMatches(data.matches || []);
@@ -271,7 +275,9 @@ export default function GrandPrixParticipantPage({
         throw new Error(errorData.error || 'Failed to submit match result');
       }
 
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper: { success, data: { match } }
+      const data = json.data ?? json;
       setRaceResults(prev => ({ ...prev, [match.id]: [] }));
       setMatches(prev => prev.map(m => m.id === match.id ? { ...m, ...data.match } : m));
       alert(tPart('matchReportedSuccess'));

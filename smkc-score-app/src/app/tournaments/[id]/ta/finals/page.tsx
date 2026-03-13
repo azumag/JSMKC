@@ -216,7 +216,9 @@ export default function TimeAttackFinals({
           errorData.error || `Failed to fetch finals data: ${response.status}`
         );
       }
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
+      const data = json.data ?? json;
       const fetchedEntries: TTEntry[] = data.entries || [];
       const fetchedRounds: PhaseRound[] = data.rounds || [];
       setEntries(fetchedEntries);
@@ -300,7 +302,9 @@ export default function TimeAttackFinals({
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to start round");
       }
-      const data = await response.json();
+      const json = await response.json();
+      // Unwrap createSuccessResponse wrapper
+      const data = json.data ?? json;
 
       // Initialize time entry form for all active players
       const activeEntries = entries.filter((e) => !e.eliminated);

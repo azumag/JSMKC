@@ -128,12 +128,13 @@ export default function GPMatchPage({
       throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
     }
 
-    const matchData = await matchRes.json();
-    const tournamentData = await tournamentRes.json();
+    const matchJson = await matchRes.json();
+    const tournamentJson = await tournamentRes.json();
 
     return {
-      match: matchData,
-      tournament: tournamentData,
+      // Unwrap createSuccessResponse wrapper: { success, data: match }
+      match: matchJson.data ?? matchJson,
+      tournament: tournamentJson.data ?? tournamentJson,
     };
   }, [tournamentId, matchId]);
 
