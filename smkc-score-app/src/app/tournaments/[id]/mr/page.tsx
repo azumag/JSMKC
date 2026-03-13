@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -164,7 +165,7 @@ export default function MatchRacePage({
     return {
       qualifications: mrData.qualifications || [],
       matches: mrData.matches || [],
-      allPlayers: playersJson.data ?? playersJson,
+      allPlayers: extractArrayData<Player>(playersJson),
     };
   }, [tournamentId]);
 

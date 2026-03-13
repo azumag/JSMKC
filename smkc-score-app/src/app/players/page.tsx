@@ -19,8 +19,8 @@
  * - PUT /api/players/:id: Update player details
  * - DELETE /api/players/:id: Delete a player
  *
- * The API returns paginated responses with shape { data: Player[], meta: {...} },
- * so the fetch handler extracts the data array from the response.
+ * The API may return either legacy list payloads or the standardized
+ * success wrapper, so the fetch handler normalizes both formats.
  */
 "use client";
 
@@ -55,6 +55,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
+import { extractArrayData } from "@/lib/api-response";
 import { createLogger } from "@/lib/client-logger";
 
 /**
@@ -135,8 +136,7 @@ export default function PlayersPage() {
       const response = await fetch("/api/players");
       if (response.ok) {
         const result = await response.json();
-        /* Handle both direct array and paginated response formats */
-        setPlayers(Array.isArray(result) ? result : result.data || []);
+        setPlayers(extractArrayData<Player>(result));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };

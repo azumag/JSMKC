@@ -22,8 +22,8 @@
  * - POST /api/tournaments: Create a new tournament
  * - DELETE /api/tournaments/:id: Delete a tournament
  *
- * The API returns paginated responses with shape { data: Tournament[], meta: {...} },
- * so the fetch handler extracts the data array from the response.
+ * The API may return either legacy list payloads or the standardized
+ * success wrapper, so the fetch handler normalizes both formats.
  */
 "use client";
 
@@ -59,6 +59,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { extractArrayData } from "@/lib/api-response";
 import { createLogger } from "@/lib/client-logger";
 
 /** Client-side logger for error tracking */
@@ -116,8 +117,7 @@ export default function TournamentsPage() {
       const response = await fetch("/api/tournaments");
       if (response.ok) {
         const result = await response.json();
-        /* Handle both direct array and paginated response formats */
-        setTournaments(Array.isArray(result) ? result : result.data || []);
+        setTournaments(extractArrayData<Tournament>(result));
       }
     } catch (err) {
       logger.error("Failed to fetch tournaments:", { error: err });

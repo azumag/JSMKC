@@ -56,6 +56,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { POLLING_INTERVAL } from "@/lib/constants";
+import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -160,7 +161,7 @@ export default function BattleModePage({
     return {
       qualifications: bmData.qualifications || [],
       matches: bmData.matches || [],
-      allPlayers: playersJson.data ?? playersJson,
+      allPlayers: extractArrayData<Player>(playersJson),
     };
   }, [tournamentId]);
 

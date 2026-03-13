@@ -60,6 +60,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
+import { extractArrayData } from "@/lib/api-response";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -243,7 +244,7 @@ export default function TimeAttackPage({
 
     return {
       entries: taData.entries || [],
-      allPlayers: playersJson.data ?? playersJson,
+      allPlayers: extractArrayData<Player>(playersJson),
       frozenStages: taData.frozenStages || [],
     };
   }, [tournamentId]);

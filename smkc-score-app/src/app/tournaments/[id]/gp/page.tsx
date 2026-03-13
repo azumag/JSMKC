@@ -57,6 +57,7 @@ import {
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -174,7 +175,7 @@ export default function GrandPrixPage({
     return {
       qualifications: gpData.qualifications || [],
       matches: gpData.matches || [],
-      allPlayers: playersJson.data ?? playersJson,
+      allPlayers: extractArrayData<Player>(playersJson),
     };
   }, [tournamentId]);
 
