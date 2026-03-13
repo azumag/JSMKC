@@ -2,13 +2,11 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider        = "prisma-client-js"
-  // Driver adapters are used (see src/lib/prisma.ts) to connect via the Neon
-  // serverless driver instead of the native query engine binary.
-  // This is required for Cloudflare Workers where native binaries cannot run.
-  // The previewFeatures flag ensures the generated client skips native engine
-  // lookup when an adapter is provided at runtime.
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  // Driver adapters (see src/lib/prisma.ts) are GA in Prisma 6 — no
+  // previewFeatures flag needed. Removing the deprecated "driverAdapters"
+  // flag ensures copyEngine=true in the generated client, which is
+  // required for the adapter option to work on Cloudflare Workers.
 }
 
 datasource db {
