@@ -95,9 +95,10 @@ export default function PlayersPage() {
    */
   const isAdmin = session?.user && session.user.role === 'admin';
 
-  /* Player list and loading state */
+  /* Player list, loading state, and fetch error tracking */
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   /* Dialog visibility states for add, edit, and password display modals */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -133,12 +134,25 @@ export default function PlayersPage() {
    */
   const fetchPlayers = useCallback(async () => {
     try {
-      const response = await fetch("/api/players");
+      setFetchError(false);
+      let response = await fetch("/api/players");
+      // Cloudflare Workers cold-start can cause the first request to fail.
+      // Retry once automatically before showing an error to the user.
+      if (!response.ok) {
+        await new Promise(r => setTimeout(r, 1000));
+        response = await fetch("/api/players");
+      }
       if (response.ok) {
         const result = await response.json();
         setPlayers(extractArrayData<Player>(result));
+      } else {
+        // API returned an error status after retry — surface it to the user
+        // instead of silently showing an empty list.
+        setFetchError(true);
+        logger.error("API returned error status", { status: response.status });
       }
     } catch (err) {
+      setFetchError(true);
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to fetch players:", metadata);
     } finally {
@@ -185,8 +199,14 @@ export default function PlayersPage() {
 
         fetchPlayers();
       } else {
-        const data = await response.json();
-        setError(data.error || t('failedToCreate'));
+        // Parse error response safely — Workers may return HTML on crash
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          setError(data.error || t('failedToCreate'));
+        } catch {
+          setError(t('failedToCreate'));
+        }
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -389,7 +409,15 @@ export default function PlayersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {players.length === 0 ? (
+          {fetchError ? (
+            /* Error state: API failed — show message with retry button */
+            <div className="text-center py-8 space-y-3">
+              <p className="text-destructive">{t('fetchError')}</p>
+              <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPlayers(); }}>
+                {tc('retry')}
+              </Button>
+            </div>
+          ) : players.length === 0 ? (
             /* Empty state message - differs by role */
             <div className="text-center py-8 text-muted-foreground">
               {isAdmin

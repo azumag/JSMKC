@@ -12,9 +12,19 @@ import NextAuth from 'next-auth';
 import Discord from 'next-auth/providers/discord';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 import { REFRESH_TOKEN_EXPIRY } from '@/lib/constants';
+
+/**
+ * Lazily import Prisma to avoid pulling the database client into the
+ * edge middleware bundle. The middleware only uses the `auth()` wrapper
+ * for session checking; Prisma is only needed during sign-in callbacks
+ * which run in the server (non-edge) context.
+ */
+async function getPrisma() {
+  const { default: prisma } = await import('@/lib/prisma');
+  return prisma;
+}
 
 const logger = createLogger('auth');
 
@@ -26,8 +36,6 @@ export function getAdminDiscordIds(): string[] {
     .filter((id) => id.length > 0);
 }
 
-export const ADMIN_DISCORD_IDS_LIST = getAdminDiscordIds();
-
 function isAllowedDiscordAdmin(profile: { id?: string } | undefined): boolean {
   if (!profile?.id) {
     return false;
@@ -38,6 +46,7 @@ function isAllowedDiscordAdmin(profile: { id?: string } | undefined): boolean {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleDiscordAdminSignIn(user: any, account: any): Promise<void> {
+  const prisma = await getPrisma();
   const providerAccountId = String(account.providerAccountId);
   const fallbackEmail = `discord-${providerAccountId}@discord.local`;
 
@@ -140,6 +149,7 @@ export const authConfig = {
           return null;
         }
 
+        const prisma = await getPrisma();
         const nickname = credentials.nickname as string;
         const password = credentials.password as string;
 

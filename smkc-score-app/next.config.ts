@@ -19,6 +19,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: resolve(__dirname),
   },
+  /**
+   * Prevent Turbopack from bundling Prisma with Node.js module conditions.
+   * Prisma's generated client uses private package imports (#wasm-engine-loader)
+   * that must be resolved with the "workerd" condition for Cloudflare Workers.
+   * Turbopack resolves them with "node" condition, producing code that calls
+   * WebAssembly.instantiateStreaming — which doesn't exist in workerd.
+   * By marking these as external, OpenNext's esbuild handles resolution
+   * with conditions: ["workerd"], picking the correct WASM loader.
+   * See: https://opennext.js.org/cloudflare/howtos/workerd
+   */
+  serverExternalPackages: ['@prisma/client', '.prisma/client'],
 };
 
 export default withNextIntl(nextConfig);

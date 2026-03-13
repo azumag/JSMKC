@@ -5,38 +5,28 @@
  * Handles:
  * 1. Authentication enforcement for protected API and frontend routes
  * 2. Security header injection (CSP, X-Frame-Options, etc.)
- * 3. Audit logging of unauthorized access attempts
  *
  * Route protection strategy:
  * - API routes: Only mutating methods (POST, PUT, DELETE) require authentication.
  *   GET requests are public so anyone can view players and tournaments.
  * - Frontend routes: Only /profile requires authentication.
- *   /players and /tournaments are publicly viewable for read access.
  *
- * Security headers:
- * - Production uses strict CSP with nonce-based script execution
- * - Development uses relaxed CSP to allow hot-reload and shadcn/ui inline styles
+ * Important: auth() is only called for routes that actually need it, avoiding
+ * unnecessary JWT processing on GET requests. This reduces CPU usage on
+ * Cloudflare Workers where Prisma WASM + JWT verification are expensive.
+ *
+ * The entire middleware is wrapped in try/catch to prevent Worker crashes
+ * (error code 1101) from propagating — a graceful fallback is better than
+ * returning nothing and leaving the user with a broken page.
  */
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
-import { getServerSideIdentifier } from '@/lib/request-utils'
-import { createLogger } from '@/lib/logger'
 
 /** Edge runtime required for Cloudflare Workers deployment */
 export const runtime = 'experimental-edge';
 
 /**
- * Module-level logger for middleware operations.
- * Uses 'proxy-middleware' as the service name for log filtering.
- */
-const logger = createLogger('proxy-middleware')
-
-/**
  * Generates a cryptographically secure nonce string for CSP headers.
- * The nonce is used in Content-Security-Policy to whitelist inline scripts
- * without resorting to 'unsafe-inline', providing XSS protection.
- *
  * @returns Base64-encoded random nonce string (128-bit entropy)
  */
 function generateNonce(): string {
@@ -46,113 +36,10 @@ function generateNonce(): string {
 }
 
 /**
- * Main middleware handler, wrapped with NextAuth's `auth()` helper.
- * The `auth()` wrapper automatically populates `req.auth` with the
- * current session if one exists, enabling session-based access control.
+ * Adds security headers (CSP, X-Frame-Options, etc.) to the response.
+ * Extracted as a helper to keep the main middleware function focused.
  */
-export default auth(async (req) => {
-  const { pathname } = req.nextUrl
-  const method = req.method || 'GET'
-
-  /**
-   * API routes that require authentication for mutating operations.
-   * GET requests to these routes remain public so that tournament
-   * and player data can be viewed without logging in.
-   */
-  const protectedApiRoutes = [
-    '/api/tournaments',
-    '/api/players',
-  ]
-
-  /**
-   * Frontend routes that require authentication for all access.
-   * /players and /tournaments are intentionally excluded because
-   * they should be viewable (GET) by anyone without authentication.
-   * Only /profile requires a logged-in user session.
-   */
-  const protectedFrontendRoutes = [
-    '/profile',
-  ]
-
-  /**
-   * Only mutating HTTP methods require authentication on API routes.
-   * This allows unauthenticated users to browse player lists and
-   * tournament data via GET requests.
-   */
-  const protectedMethods = ['POST', 'PUT', 'DELETE']
-  const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route))
-  const requiresAuthApi = isProtectedApi && protectedMethods.includes(method)
-
-  const isProtectedFrontend = protectedFrontendRoutes.some(route => pathname.startsWith(route))
-  const requiresAuth = requiresAuthApi || isProtectedFrontend
-
-  /**
-   * Authentication check: If the route requires auth and no session exists,
-   * log the unauthorized attempt and return an appropriate response.
-   * - Frontend routes: redirect to sign-in page with callbackUrl
-   * - API routes: return 401 JSON response
-   */
-  if (requiresAuth && !req.auth) {
-    const ip = await getServerSideIdentifier()
-    const userAgent = req.headers.get('user-agent') || 'unknown'
-
-    /* Record the unauthorized access attempt for security auditing */
-    try {
-      await createAuditLog({
-        ipAddress: ip,
-        userAgent,
-        action: AUDIT_ACTIONS.UNAUTHORIZED_ACCESS,
-        details: {
-          path: pathname,
-          method,
-          timestamp: new Date().toISOString(),
-        },
-      })
-    } catch (error) {
-      logger.error('Failed to log unauthorized access', error instanceof Error ? { message: error.message, stack: error.stack } : { error })
-    }
-
-    /* Redirect browser-based frontend requests to the sign-in page */
-    if (isProtectedFrontend) {
-      const signInUrl = new URL('/auth/signin', req.url)
-      signInUrl.searchParams.set('callbackUrl', pathname)
-      return NextResponse.redirect(signInUrl)
-    }
-
-    /* Return structured JSON error for API route requests */
-    return new NextResponse(
-      JSON.stringify({ success: false, error: 'Unauthorized' }),
-      {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
-  }
-
-  /**
-   * Generate a unique nonce for this request and attach it as a header.
-   * The nonce is used in the CSP script-src directive to allow
-   * specific inline scripts without opening up to XSS attacks.
-   */
-  const nonce = generateNonce()
-  const requestHeaders = new Headers(req.headers)
-  requestHeaders.set('x-nonce', nonce)
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
-
-  /**
-   * Content-Security-Policy configuration.
-   * - Production: Strict policy using nonce-based script execution
-   *   and 'strict-dynamic' for trusted script chains. External
-   *   resources (Google Fonts, Analytics) are explicitly whitelisted.
-   * - Development: Relaxed policy allowing 'unsafe-eval' and
-   *   'unsafe-inline' which are required for Next.js hot-reload
-   *   and shadcn/ui component styling during development.
-   */
+function addSecurityHeaders(response: NextResponse, nonce: string): void {
   if (process.env.NODE_ENV === 'production') {
     response.headers.set('Content-Security-Policy', [
       "default-src 'self'",
@@ -179,32 +66,86 @@ export default auth(async (req) => {
     ].join('; '))
   }
 
-  /**
-   * Additional security headers to harden the application:
-   * - X-Frame-Options: Prevents clickjacking by disallowing iframes
-   * - X-Content-Type-Options: Prevents MIME-type sniffing attacks
-   * - Referrer-Policy: Controls how much referrer info is sent
-   * - Permissions-Policy: Disables unnecessary browser APIs
-   */
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+}
 
-  return response
-})
+/**
+ * Main middleware handler. Uses a regular function (not auth() wrapper)
+ * so that JWT processing only happens for routes that actually need it.
+ * This avoids burning CPU on Workers for every GET request.
+ */
+export default async function middleware(req: NextRequest) {
+  try {
+    const { pathname } = req.nextUrl
+    const method = req.method || 'GET'
+
+    const protectedApiRoutes = ['/api/tournaments', '/api/players']
+    const protectedFrontendRoutes = ['/profile']
+    const protectedMethods = ['POST', 'PUT', 'DELETE']
+
+    const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route))
+    const requiresAuthApi = isProtectedApi && protectedMethods.includes(method)
+    const isProtectedFrontend = protectedFrontendRoutes.some(route => pathname.startsWith(route))
+    const requiresAuth = requiresAuthApi || isProtectedFrontend
+
+    // Only call auth() when the route actually requires authentication.
+    // This avoids JWT verification overhead on every GET request.
+    if (requiresAuth) {
+      const session = await auth()
+      if (!session) {
+        if (isProtectedFrontend) {
+          const signInUrl = new URL('/auth/signin', req.url)
+          signInUrl.searchParams.set('callbackUrl', pathname)
+          return NextResponse.redirect(signInUrl)
+        }
+        return new NextResponse(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Generate nonce and add security headers
+    const nonce = generateNonce()
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-nonce', nonce)
+
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    })
+
+    addSecurityHeaders(response, nonce)
+    return response
+  } catch {
+    // Graceful degradation: if the middleware crashes (e.g., auth() throws
+    // due to WASM engine failure on Workers), let the request through rather
+    // than returning error code 1101. The route handler has its own auth
+    // check and will enforce access control independently.
+    return NextResponse.next()
+  }
+}
 
 /**
  * Middleware route matcher configuration.
- * Only these path patterns will trigger the middleware.
- * Static assets and Next.js internal routes are excluded
- * by not being listed here, improving performance.
+ *
+ * IMPORTANT: /api/auth/* routes are intentionally excluded.
+ * NextAuth v5 manages its own routes and running middleware on them
+ * can interfere with signout cookie clearing.
+ */
+/**
+ * Middleware route matcher.
+ *
+ * /api/auth/* is excluded — NextAuth manages its own routes.
+ * /api/locale/* and /api/monitor/* are excluded — no auth needed, reduce overhead.
  */
 export const config = {
   matcher: [
-    '/api/:path*',
+    '/api/players/:path*',
+    '/api/tournaments/:path*',
     '/auth/:path*',
-    '/api/auth/:path*',
     '/players/:path*',
     '/profile/:path*',
     '/tournaments/:path*',

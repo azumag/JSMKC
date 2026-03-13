@@ -50,9 +50,11 @@ export async function GET(request: NextRequest) {
 
     // Use the paginate utility to handle offset calculation and total count.
     // Sort: alphabetical by nickname for consistent ordering.
+    // Wrap findMany to omit the password hash — it must never be sent to clients.
     const result = await paginate(
       {
-        findMany: prisma.player.findMany,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        findMany: (args: any) => prisma.player.findMany({ ...args, omit: { password: true } }),
         count: prisma.player.count,
       },
       {},
@@ -92,14 +94,15 @@ export async function POST(request: NextRequest) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-api');
 
-  // Authentication check: only admins can create players.
-  // This prevents unauthorized player registration.
-  const session = await auth();
-  if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
-  }
-
   try {
+    // Authentication check: only admins can create players.
+    // auth() is inside try/catch to prevent unhandled errors on Workers
+    // (e.g., JWT verification failures) from returning HTML error pages.
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+      return handleAuthzError('Unauthorized: Admin access required');
+    }
+
     // Sanitize all input fields to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
     const { name, nickname, country } = body;
@@ -115,7 +118,9 @@ export async function POST(request: NextRequest) {
     const plainPassword = generateSecurePassword(12);
     const hashedPassword = await hashPassword(plainPassword);
 
-    // Create the player record in the database
+    // Create the player record in the database.
+    // Omit password hash from the returned object — the plaintext is
+    // returned separately and the hash must never leave the server.
     const player = await prisma.player.create({
       data: {
         name,
@@ -123,6 +128,7 @@ export async function POST(request: NextRequest) {
         country: country || null,
         password: hashedPassword,
       },
+      omit: { password: true },
     });
 
     // Create audit log entry for the player creation.

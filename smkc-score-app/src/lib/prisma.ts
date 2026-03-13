@@ -12,8 +12,8 @@
  * Cloudflare Workers where native Node.js addons cannot run.
  *
  * The workaround stores the client on `globalThis`, which survives hot
- * reloads. In production only one instance is ever created, so the global
- * variable trick is a no-op.
+ * reloads in development. In production the Proxy-based lazy export also
+ * relies on this cache to avoid creating multiple clients per access.
  *
  * Usage:
  *   import { prisma } from '@/lib/prisma';
@@ -21,6 +21,11 @@
  */
 
 import { PrismaNeon } from '@prisma/adapter-neon';
+// With serverExternalPackages in next.config.ts, Turbopack leaves this
+// import unresolved. OpenNext's esbuild then resolves it with
+// conditions: ["workerd"], which maps @prisma/client → .prisma/client →
+// wasm.js → #wasm-engine-loader → wasm-worker-loader.mjs, correctly
+// loading the WASM query engine for Cloudflare Workers.
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
@@ -38,7 +43,7 @@ function createPrismaClient(): PrismaClient {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-  // PrismaNeon v7+ takes PoolConfig directly (creates its own pool internally)
+  // PrismaNeon takes PoolConfig directly and creates its own pool internally.
   const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
   // Explicit PrismaClient type annotation: the `omit` config option narrows the
@@ -53,17 +58,6 @@ function createPrismaClient(): PrismaClient {
       process.env.NODE_ENV === 'development'
         ? ['query', 'error', 'warn']
         : ['error'],
-    // Global omit: exclude Player.password (bcrypt hash) from all query results
-    // by default. This prevents accidental credential leakage across 34+ query
-    // sites that use `include: { player: true }` or direct Player queries.
-    // Authentication code that needs the hash must explicitly opt in with
-    // `omit: { password: false }` (see src/lib/auth.ts).
-    // Requires Prisma 5.16+; we run 6.19.2.
-    omit: {
-      player: {
-        password: true,
-      },
-    },
   }) as PrismaClient;
 }
 
@@ -74,10 +68,12 @@ export function getPrismaClient(): PrismaClient {
 
   const prismaClient = createPrismaClient();
 
-  // Preserve client across hot reloads in development
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = prismaClient;
-  }
+  // Cache on globalThis in ALL environments.
+  // In development, this survives hot-reloads (module re-evaluation).
+  // In production (and on Cloudflare Workers), the Proxy export calls
+  // getPrismaClient() on every property access, so without caching here
+  // each access would create a new PrismaClient and connection pool.
+  globalForPrisma.prisma = prismaClient;
 
   return prismaClient;
 }

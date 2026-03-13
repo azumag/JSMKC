@@ -9,34 +9,30 @@
  * security headers, and Content Security Policy (CSP) for the JSMKC application.
  *
  * Covers:
- * - Protected API routes: authenticated access (GET/POST/PUT/DELETE),
- *   401 responses for unauthenticated write operations, allowing
- *   unauthenticated GET requests to public API endpoints.
+ * - Protected API routes: 401 for unauthenticated POST/PUT/DELETE,
+ *   allowing unauthenticated GET requests to public API endpoints.
  * - Protected frontend routes: redirect to /auth/signin with callbackUrl
- *   for unauthenticated users accessing /profile, allowing authenticated access.
+ *   for unauthenticated users accessing /profile.
  * - Public frontend routes: /players and /tournaments are publicly viewable.
- * - Unauthorized access logging: audit log creation with IP address and
- *   user agent, graceful handling of audit log failures.
  * - Security headers: X-Frame-Options (DENY), X-Content-Type-Options (nosniff),
  *   Referrer-Policy, Permissions-Policy.
  * - CSP headers: development CSP (unsafe-eval allowed), production CSP
  *   (nonce-based, strict-dynamic, external service allowlists).
- * - Edge cases: unprotected routes, nested paths, missing user-agent header.
+ * - Graceful degradation: middleware try/catch returns NextResponse.next() on error.
  * - Config export: matcher patterns for route matching.
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { NextResponse, NextRequest } from 'next/server'
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log'
-import { getServerSideIdentifier } from '@/lib/request-utils'
-import { auth as authLib } from '@/lib/auth'
 
-jest.mock('@/lib/auth')
-jest.mock('@/lib/audit-log')
-jest.mock('@/lib/request-utils')
-jest.mock('@/lib/logger')
-
-const mockCreateAuditLog = createAuditLog as jest.MockedFunction<typeof createAuditLog>
-const mockGetServerSideIdentifier = getServerSideIdentifier as jest.MockedFunction<typeof getServerSideIdentifier>
+/**
+ * Mock auth() as a standalone async function that returns a session or null.
+ * The new middleware calls `const session = await auth()` instead of using
+ * the auth() wrapper pattern.
+ */
+const mockAuth = jest.fn()
+jest.mock('@/lib/auth', () => ({
+  auth: (...args: unknown[]) => mockAuth(...args),
+}))
 
 interface MockRequest extends Partial<NextRequest> {
   auth?: { user: { id: string } } | null
@@ -45,33 +41,9 @@ interface MockRequest extends Partial<NextRequest> {
 describe('Proxy Middleware', () => {
   let middleware: (req: NextRequest) => Promise<NextResponse>
   let proxyModule: { default: typeof middleware; config: { matcher: string[] } }
-  /**
-   * Reference to the mock logger instance, so tests can verify
-   * that logger.error is called instead of console.error.
-   */
-  let mockLoggerInstance: { error: jest.Mock; warn: jest.Mock; info: jest.Mock; debug: jest.Mock }
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test'
-
-    /**
-     * Set up the logger mock BEFORE importing the proxy module.
-     * The proxy source creates a module-level logger with
-     * `const logger = createLogger('proxy-middleware')`, so the mock
-     * must return a proper logger object at import time.
-     *
-     * We create a dedicated mock logger object and configure createLogger
-     * to always return it. This must happen before jest.clearAllMocks()
-     * or the import, so we configure the mock implementation explicitly.
-     */
-    const loggerModule = jest.requireMock('@/lib/logger') as { createLogger: jest.Mock }
-    mockLoggerInstance = {
-      error: jest.fn(),
-      warn: jest.fn(),
-      info: jest.fn(),
-      debug: jest.fn(),
-    }
-    loggerModule.createLogger.mockReturnValue(mockLoggerInstance)
 
     /**
      * The proxy source calls `new NextResponse(body, init)`,
@@ -132,17 +104,6 @@ describe('Proxy Middleware', () => {
 
     nextServerModule.NextResponse = MockNextResponseConstructor
 
-    /**
-     * Mock auth() wrapper: it takes a callback and returns a function
-     * that simply invokes that callback with the request, simulating
-     * NextAuth's session injection via req.auth.
-     */
-    authLib.mockImplementation((callback: (req: NextRequest) => Promise<NextResponse>) => {
-      return async (req: NextRequest) => {
-        return await callback(req)
-      }
-    })
-
     const proxy = await import('@/middleware')
     middleware = proxy.default
     proxyModule = proxy
@@ -158,34 +119,30 @@ describe('Proxy Middleware', () => {
 
   describe('Auth middleware - Protected API routes', () => {
     it('should allow authenticated access to protected API routes', async () => {
+      // auth() returns a session for authenticated users
+      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
-        method: 'GET',
-        auth: { user: { id: 'user-1' } },
+        method: 'POST',
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
 
       const response = await middleware(mockReq)
 
-      /**
-       * Authenticated GET request to a protected API route should pass through.
-       * No 401 response expected since the user is authenticated.
-       */
       expect(response.status).not.toBe(401)
     })
 
     it('should return 401 for unauthenticated access to protected API routes with POST', async () => {
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'POST',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -196,16 +153,14 @@ describe('Proxy Middleware', () => {
     })
 
     it('should return 401 for unauthenticated access to protected API routes with PUT', async () => {
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: { pathname: '/api/players', searchParams: new URLSearchParams() },
         method: 'PUT',
-        auth: null,
         url: 'http://localhost/api/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -213,16 +168,14 @@ describe('Proxy Middleware', () => {
     })
 
     it('should return 401 for unauthenticated access to protected API routes with DELETE', async () => {
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'DELETE',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -233,11 +186,11 @@ describe('Proxy Middleware', () => {
       /**
        * GET requests to API routes are intentionally public so anyone
        * can view tournament and player data without logging in.
+       * auth() should NOT be called for GET requests.
        */
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -245,28 +198,24 @@ describe('Proxy Middleware', () => {
       const response = await middleware(mockReq)
 
       expect(response.status).not.toBe(401)
+      // auth() should not be called for GET requests (performance optimization)
+      expect(mockAuth).not.toHaveBeenCalled()
     })
   })
 
   describe('Auth middleware - Protected frontend routes', () => {
     it('should redirect unauthenticated users from /profile', async () => {
-      /**
-       * /profile is the only protected frontend route. Unauthenticated
-       * users should be redirected to /auth/signin with a callbackUrl.
-       */
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: {
           pathname: '/profile',
           searchParams: new URLSearchParams()
         },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/profile',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -275,19 +224,17 @@ describe('Proxy Middleware', () => {
     })
 
     it('should include callbackUrl in redirect for /profile', async () => {
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: {
           pathname: '/profile',
           searchParams: new URLSearchParams()
         },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/profile',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -297,10 +244,11 @@ describe('Proxy Middleware', () => {
     })
 
     it('should allow authenticated access to protected frontend routes', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1' } })
+
       const mockReq = {
         nextUrl: { pathname: '/profile', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: { user: { id: 'user-1' } },
         url: 'http://localhost/profile',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -321,7 +269,6 @@ describe('Proxy Middleware', () => {
           searchParams: new URLSearchParams()
         },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -333,17 +280,12 @@ describe('Proxy Middleware', () => {
     })
 
     it('should allow unauthenticated access to /tournaments (public route)', async () => {
-      /**
-       * /tournaments is NOT a protected frontend route. It is publicly viewable
-       * so anyone can browse tournament data without authentication.
-       */
       const mockReq = {
         nextUrl: {
           pathname: '/tournaments',
           searchParams: new URLSearchParams()
         },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -355,94 +297,26 @@ describe('Proxy Middleware', () => {
     })
   })
 
-  describe('Auth middleware - Unauthorized access logging', () => {
-    it('should log unauthorized access attempts for API routes', async () => {
+  describe('Auth middleware - Graceful degradation', () => {
+    it('should return NextResponse.next() when auth() throws', async () => {
+      /**
+       * The middleware wraps everything in try/catch. If auth() throws
+       * (e.g., WASM engine failure on Workers), the middleware should
+       * gracefully degrade rather than crashing the Worker.
+       */
+      mockAuth.mockRejectedValue(new Error('WASM engine failure'))
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'POST',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
-
-      await middleware(mockReq)
-
-      expect(mockGetServerSideIdentifier).toHaveBeenCalled()
-      expect(mockCreateAuditLog).toHaveBeenCalledWith({
-        ipAddress: '192.168.1.1',
-        userAgent: 'test-agent',
-        action: AUDIT_ACTIONS.UNAUTHORIZED_ACCESS,
-        details: {
-          path: '/api/tournaments',
-          method: 'POST',
-          timestamp: expect.any(String)
-        }
-      })
-    })
-
-    it('should log unauthorized access attempts for frontend routes', async () => {
-      /**
-       * Only /profile is a protected frontend route, so we use /profile
-       * to trigger the unauthorized access audit log.
-       */
-      const mockReq = {
-        nextUrl: { pathname: '/profile', searchParams: new URLSearchParams() },
-        method: 'GET',
-        auth: null,
-        url: 'http://localhost/profile',
-        headers: new Headers({ 'user-agent': 'test-agent' })
-      } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
-
-      await middleware(mockReq)
-
-      expect(mockCreateAuditLog).toHaveBeenCalledWith({
-        ipAddress: '192.168.1.1',
-        userAgent: 'test-agent',
-        action: AUDIT_ACTIONS.UNAUTHORIZED_ACCESS,
-        details: {
-          path: '/profile',
-          method: 'GET',
-          timestamp: expect.any(String)
-        }
-      })
-    })
-
-    it('should handle audit log errors gracefully', async () => {
-      /**
-       * When createAuditLog throws, the middleware should catch the error,
-       * log it via logger.error (not console.error), and still return a
-       * 401 response for the unauthorized API request.
-       */
-      const mockReq = {
-        nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
-        method: 'POST',
-        auth: null,
-        url: 'http://localhost/api/tournaments',
-        headers: new Headers({ 'user-agent': 'test-agent' })
-      } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockRejectedValue(new Error('Database error'))
 
       const response = await middleware(mockReq)
 
-      expect(response.status).toBe(401)
-      /**
-       * The source uses logger.error('Failed to log unauthorized access', ...)
-       * which is the module-level logger from createLogger('proxy-middleware').
-       */
-      expect(mockLoggerInstance.error).toHaveBeenCalledWith(
-        'Failed to log unauthorized access',
-        expect.objectContaining({
-          message: 'Database error',
-        })
-      )
+      // Should return 200 (NextResponse.next()) instead of crashing
+      expect(response.status).toBe(200)
     })
   })
 
@@ -451,7 +325,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -465,7 +338,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -479,7 +351,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -493,7 +364,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -511,7 +381,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -534,7 +403,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/tournaments',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -563,7 +431,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/auth/signin', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/auth/signin',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -578,7 +445,6 @@ describe('Proxy Middleware', () => {
       const mockReq = {
         nextUrl: { pathname: '/api/players', searchParams: new URLSearchParams() },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/api/players',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -588,47 +454,19 @@ describe('Proxy Middleware', () => {
       expect(response.status).not.toBe(401)
     })
 
-    it('should handle missing user-agent header', async () => {
-      /**
-       * When no user-agent header is present, the source falls back to
-       * 'unknown' in the audit log entry: `req.headers.get('user-agent') || 'unknown'`
-       */
-      const mockReq = {
-        nextUrl: { pathname: '/api/tournaments', searchParams: new URLSearchParams() },
-        method: 'POST',
-        auth: null,
-        url: 'http://localhost/api/tournaments',
-        headers: new Headers({})
-      } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
-
-      const response = await middleware(mockReq)
-
-      expect(response.status).toBe(401)
-      expect(mockCreateAuditLog).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userAgent: 'unknown'
-        })
-      )
-    })
-
     it('should handle protected routes with nested paths', async () => {
       /**
        * /api/tournaments/123 starts with /api/tournaments, so POST
        * to this nested path should require authentication and return 401.
        */
+      mockAuth.mockResolvedValue(null)
+
       const mockReq = {
         nextUrl: { pathname: '/api/tournaments/123', searchParams: new URLSearchParams() },
         method: 'POST',
-        auth: null,
         url: 'http://localhost/api/tournaments/123',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
-
-      mockGetServerSideIdentifier.mockResolvedValue('127.0.0.1')
-      mockCreateAuditLog.mockResolvedValue({} as Awaited<ReturnType<typeof createAuditLog>>)
 
       const response = await middleware(mockReq)
 
@@ -638,8 +476,7 @@ describe('Proxy Middleware', () => {
     it('should allow unauthenticated access to /tournaments/some-tournament (public frontend route)', async () => {
       /**
        * /tournaments/some-tournament is NOT a protected frontend route.
-       * Only /profile is protected. Tournament pages are publicly viewable,
-       * so this should pass through without redirect or 401.
+       * Only /profile is protected. Tournament pages are publicly viewable.
        */
       const mockReq = {
         nextUrl: {
@@ -647,7 +484,6 @@ describe('Proxy Middleware', () => {
           searchParams: new URLSearchParams()
         },
         method: 'GET',
-        auth: null,
         url: 'http://localhost/tournaments/some-tournament',
         headers: new Headers({ 'user-agent': 'test-agent' })
       } as MockRequest
@@ -660,15 +496,22 @@ describe('Proxy Middleware', () => {
   })
 
   describe('Config export', () => {
-    it('should export config with matcher', () => {
+    it('should export config with matcher excluding /api/auth/*', () => {
+      /**
+       * The matcher intentionally excludes /api/auth/* so NextAuth v5
+       * can manage its own routes without interference.
+       */
       expect(proxyModule.config).toBeDefined()
       expect(proxyModule.config.matcher).toBeInstanceOf(Array)
-      expect(proxyModule.config.matcher).toContain('/api/:path*')
+      expect(proxyModule.config.matcher).toContain('/api/players/:path*')
+      expect(proxyModule.config.matcher).toContain('/api/tournaments/:path*')
       expect(proxyModule.config.matcher).toContain('/auth/:path*')
-      expect(proxyModule.config.matcher).toContain('/api/auth/:path*')
       expect(proxyModule.config.matcher).toContain('/players/:path*')
       expect(proxyModule.config.matcher).toContain('/profile/:path*')
       expect(proxyModule.config.matcher).toContain('/tournaments/:path*')
+      // /api/auth/* must NOT be in the matcher — NextAuth manages its own routes
+      expect(proxyModule.config.matcher).not.toContain('/api/auth/:path*')
+      expect(proxyModule.config.matcher).not.toContain('/api/:path*')
     })
   })
 })

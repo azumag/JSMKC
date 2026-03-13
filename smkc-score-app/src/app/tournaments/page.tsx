@@ -94,9 +94,10 @@ export default function TournamentsPage() {
    */
   const isAdmin = session?.user && session.user.role === 'admin';
 
-  /* Tournament list and loading state */
+  /* Tournament list, loading state, and fetch error tracking */
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   /* Create tournament dialog state */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -114,13 +115,27 @@ export default function TournamentsPage() {
    */
   const fetchTournaments = useCallback(async () => {
     try {
-      const response = await fetch("/api/tournaments");
+      setFetchError(false);
+      let response = await fetch("/api/tournaments");
+      // Cloudflare Workers cold-start can cause the first request to fail.
+      // Retry once automatically before showing an error to the user.
+      if (!response.ok) {
+        await new Promise(r => setTimeout(r, 1000));
+        response = await fetch("/api/tournaments");
+      }
       if (response.ok) {
         const result = await response.json();
         setTournaments(extractArrayData<Tournament>(result));
+      } else {
+        // API returned an error status after retry — surface it to the user
+        // instead of silently showing an empty list.
+        setFetchError(true);
+        logger.error("API returned error status", { status: response.status });
       }
     } catch (err) {
-      logger.error("Failed to fetch tournaments:", { error: err });
+      setFetchError(true);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to fetch tournaments:", metadata);
     } finally {
       setLoading(false);
     }
@@ -279,7 +294,15 @@ export default function TournamentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {tournaments.length === 0 ? (
+          {fetchError ? (
+            /* Error state: API failed — show message with retry button */
+            <div className="text-center py-8 space-y-3">
+              <p className="text-destructive">{t('fetchError')}</p>
+              <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchTournaments(); }}>
+                {tc('retry')}
+              </Button>
+            </div>
+          ) : tournaments.length === 0 ? (
             /* Empty state message - differs by role */
             <div className="text-center py-8 text-muted-foreground">
               {isAdmin

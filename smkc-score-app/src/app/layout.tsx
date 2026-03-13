@@ -81,11 +81,14 @@ export default async function RootLayout({
               <header className="border-b">
                 <div className="container mx-auto px-4 py-4">
                   <nav className="flex items-center justify-between">
-                    {/* Application logo/title linking to home page */}
-                    <Link href="/" className="text-xl font-bold">
-                      SMKC Score System
+                    {/* Application logo/title linking to home page.
+                       * On mobile (<640px), show abbreviated "SMKC" to prevent
+                       * text wrapping that pushes nav items off-screen. */}
+                    <Link href="/" className="text-xl font-bold whitespace-nowrap">
+                      <span className="sm:hidden">SMKC</span>
+                      <span className="hidden sm:inline">SMKC Score System</span>
                     </Link>
-                    <div className="flex gap-6 items-center">
+                    <div className="flex gap-3 sm:gap-6 items-center">
                       {/* Primary navigation links - publicly accessible pages */}
                       <Link
                         href="/players"

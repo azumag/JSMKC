@@ -169,7 +169,8 @@
     "savedIt": "保存しました",
     "failedToCreate": "プレイヤーの作成に失敗しました",
     "failedToUpdate": "プレイヤーの更新に失敗しました",
-    "failedToDelete": "プレイヤーの削除に失敗しました"
+    "failedToDelete": "プレイヤーの削除に失敗しました",
+    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。"
   },
   "profile": {
     "title": "プロフィール",
@@ -206,6 +207,7 @@
     "activeStatus": "進行中",
     "completed": "完了",
     "failedToCreate": "トーナメントの作成に失敗しました",
+    "fetchError": "トーナメントの読み込みに失敗しました。再試行してください。",
     "startTournament": "トーナメント開始",
     "completeTournament": "トーナメント完了",
     "backToList": "一覧に戻る",

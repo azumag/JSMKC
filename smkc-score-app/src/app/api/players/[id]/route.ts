@@ -40,9 +40,11 @@ export async function GET(
     // Await params as required by Next.js App Router dynamic route convention
     const { id } = await params;
 
-    // Look up the player by primary key
+    // Look up the player by primary key.
+    // Omit password hash — it must never be sent to clients.
     const player = await prisma.player.findUnique({
-      where: { id }
+      where: { id },
+      omit: { password: true },
     });
 
     if (!player) {
@@ -84,18 +86,15 @@ export async function PUT(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
 
-  // Admin authentication check before any data access
-  const session = await auth();
+  // Resolve route params early so the id is available in the catch block
   const { id } = await params;
 
-  if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
-  }
-
   try {
-    // Re-await params for the id inside try block (mirrors original behavior).
-    // This is safe because Promise.resolve on an already-resolved promise is instant.
-    const { id } = await params;
+    // auth() inside try/catch to prevent unhandled errors on Workers
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+      return handleAuthzError('Unauthorized: Admin access required');
+    }
 
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
@@ -106,7 +105,8 @@ export async function PUT(
       return handleValidationError("Name and nickname are required");
     }
 
-    // Update the player record in the database
+    // Update the player record in the database.
+    // Omit password hash from the returned object.
     const player = await prisma.player.update({
       where: { id },
       data: {
@@ -114,6 +114,7 @@ export async function PUT(
         nickname,
         country: country || null,
       },
+      omit: { password: true },
     });
 
     // Create audit log for the update operation.
@@ -190,17 +191,15 @@ export async function DELETE(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('players-id-api');
 
-  // Admin authentication check before any data modification
-  const session = await auth();
+  // Resolve route params early so the id is available in the catch block
   const { id } = await params;
 
-  if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
-  }
-
   try {
-    // Re-await params inside try block (mirrors original behavior)
-    const { id } = await params;
+    // auth() inside try/catch to prevent unhandled errors on Workers
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+      return handleAuthzError('Unauthorized: Admin access required');
+    }
 
     // Delete the player record from the database
     await prisma.player.delete({

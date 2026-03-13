@@ -169,7 +169,8 @@
     "savedIt": "I've Saved It",
     "failedToCreate": "Failed to create player",
     "failedToUpdate": "Failed to update player",
-    "failedToDelete": "Failed to delete player"
+    "failedToDelete": "Failed to delete player",
+    "fetchError": "Failed to load players. Please try again."
   },
   "profile": {
     "title": "Profile",
@@ -206,6 +207,7 @@
     "activeStatus": "Active",
     "completed": "Completed",
     "failedToCreate": "Failed to create tournament",
+    "fetchError": "Failed to load tournaments. Please try again.",
     "startTournament": "Start Tournament",
     "completeTournament": "Complete Tournament",
     "backToList": "Back to List",

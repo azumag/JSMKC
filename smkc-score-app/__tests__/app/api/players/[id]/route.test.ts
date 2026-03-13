@@ -143,7 +143,8 @@ describe('GET /api/players/[id]', () => {
       await route(request, { params: Promise.resolve({ id: 'player-1' }) });
 
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
-        where: { id: 'player-1' }
+        where: { id: 'player-1' },
+        omit: { password: true },
       });
       // createSuccessResponse wraps data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(

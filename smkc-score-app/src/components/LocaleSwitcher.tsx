@@ -104,20 +104,22 @@ export function LocaleSwitcher() {
         }`}
       />
 
-      {/* EN Label – translate-y-px compensates for font ascent/descent asymmetry at text-[11px] with leading-none */}
+      {/* EN Label – h-full fills the grid cell so flex items-center
+         centres text within the full 24px inner height, avoiding the
+         sub-pixel misalignment caused by leading-none in a small line box. */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex translate-y-px items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
+        className={`relative z-10 flex h-full items-center justify-center text-[11px] font-semibold uppercase transition-colors duration-200 ${
           isJapanese ? 'text-primary-foreground/65' : 'text-foreground'
         }`}
       >
         EN
       </span>
 
-      {/* JA Label – same vertical nudge as EN for consistent alignment */}
+      {/* JA Label – same h-full centering approach as EN */}
       <span
         aria-hidden="true"
-        className={`relative z-10 flex translate-y-px items-center justify-center text-[11px] font-semibold uppercase leading-none transition-colors duration-200 ${
+        className={`relative z-10 flex h-full items-center justify-center text-[11px] font-semibold uppercase transition-colors duration-200 ${
           isJapanese ? 'text-foreground' : 'text-muted-foreground'
         }`}
       >

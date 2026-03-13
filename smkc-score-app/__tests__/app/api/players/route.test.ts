@@ -168,6 +168,7 @@ describe('GET /api/players', () => {
         orderBy: { nickname: 'asc' },
         skip: 0,
         take: 50,
+        omit: { password: true },
       });
 
       // Real paginate returns { data, meta: { total, page, limit, totalPages } }
@@ -204,6 +205,7 @@ describe('GET /api/players', () => {
         orderBy: { nickname: 'asc' },
         skip: 10,
         take: 10,
+        omit: { password: true },
       });
 
       // Real paginate: totalPages = Math.ceil(25/10) = 3
