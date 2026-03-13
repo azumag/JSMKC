@@ -41,25 +41,41 @@ const isWorkersRuntime =
   typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 
 /**
- * Create a PrismaClient using the Neon serverless adapter.
+ * Check whether DATABASE_URL is a direct postgres:// connection string.
+ * `prisma dev` provides a `prisma+postgres://` Accelerate URL which is
+ * incompatible with driver adapters. In that case we create a plain
+ * PrismaClient and let Prisma's built-in engine handle the connection.
+ */
+function isDirectPostgresUrl(url: string): boolean {
+  return url.startsWith('postgres://') || url.startsWith('postgresql://');
+}
+
+/**
+ * Create a PrismaClient.
  *
- * The Neon serverless driver communicates over WebSocket/HTTP,
- * eliminating the need for Prisma's native query engine binary.
- * This makes it compatible with edge runtimes like Cloudflare Workers.
+ * - Direct postgres:// URL (Neon / production): uses PrismaNeon adapter
+ *   for Cloudflare Workers compatibility (no native binary needed).
+ * - Accelerate / prisma+postgres:// URL (local `prisma dev`): uses plain
+ *   PrismaClient with Prisma's built-in query engine.
  */
 function createPrismaClient(): PrismaClient {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
-  return new PrismaClient({
-    adapter,
-    log:
-      process.env.NODE_ENV === 'development'
-        ? ['query', 'error', 'warn']
-        : ['error'],
-  }) as PrismaClient;
+  const logLevel =
+    process.env.NODE_ENV === 'development'
+      ? ['query', 'error', 'warn'] as const
+      : ['error'] as const;
+
+  // Direct Neon URL → use PrismaNeon adapter (required on Workers)
+  if (isDirectPostgresUrl(process.env.DATABASE_URL)) {
+    const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+    return new PrismaClient({ adapter, log: [...logLevel] }) as PrismaClient;
+  }
+
+  // Accelerate / prisma dev URL → plain PrismaClient (local development)
+  return new PrismaClient({ log: [...logLevel] }) as PrismaClient;
 }
 
 /**
