@@ -1,36 +1,44 @@
 /**
- * Prisma Database Client Singleton with Neon Serverless Adapter
- *
- * Exports a single PrismaClient instance that is reused across the entire
- * application lifetime. The singleton pattern is critical because Next.js
- * hot-reloads server modules during development, and each reload would
- * otherwise create a new PrismaClient, quickly exhausting the database
- * connection pool.
+ * Prisma Database Client with Neon Serverless Adapter
  *
  * Uses @neondatabase/serverless + @prisma/adapter-neon to connect to Neon
  * PostgreSQL without the native query engine binary. This is required for
  * Cloudflare Workers where native Node.js addons cannot run.
  *
- * The workaround stores the client on `globalThis`, which survives hot
- * reloads in development. In production the Proxy-based lazy export also
- * relies on this cache to avoid creating multiple clients per access.
+ * IMPORTANT — Cloudflare Workers I/O isolation:
+ * Workers prohibit sharing I/O objects (WebSockets, streams) across request
+ * contexts. PrismaNeon creates an internal connection pool backed by
+ * WebSockets; if we cache a PrismaClient on globalThis, a second request
+ * that reuses the cached client will hit:
+ *   "Cannot perform I/O on behalf of a different request"
+ * and the Worker crashes with a 500.
+ *
+ * Strategy:
+ * - Development (Node.js): cache on globalThis to survive hot-reloads and
+ *   avoid exhausting the connection pool.
+ * - Production (Workers): create a fresh PrismaClient per request. This is
+ *   lightweight because the WASM query engine is already loaded in memory
+ *   and Neon's serverless driver is designed for short-lived connections.
  *
  * Usage:
- *   import { prisma } from '@/lib/prisma';
+ *   import prisma from '@/lib/prisma';
  *   const players = await prisma.player.findMany();
  */
 
 import { PrismaNeon } from '@prisma/adapter-neon';
-// With serverExternalPackages in next.config.ts, Turbopack leaves this
-// import unresolved. OpenNext's esbuild then resolves it with
-// conditions: ["workerd"], which maps @prisma/client → .prisma/client →
-// wasm.js → #wasm-engine-loader → wasm-worker-loader.mjs, correctly
-// loading the WASM query engine for Cloudflare Workers.
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
+
+/**
+ * Detect Cloudflare Workers runtime.
+ * `navigator.userAgent` is "Cloudflare-Workers" in workerd, and the global
+ * `caches` object with `default` property is Workers-specific.
+ */
+const isWorkersRuntime =
+  typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 
 /**
  * Create a PrismaClient using the Neon serverless adapter.
@@ -43,17 +51,10 @@ function createPrismaClient(): PrismaClient {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-  // PrismaNeon takes PoolConfig directly and creates its own pool internally.
   const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
-  // Explicit PrismaClient type annotation: the `omit` config option narrows the
-  // generic type (PrismaClient<{omit:…}>) making it incompatible with bare
-  // PrismaClient in 20+ function signatures across the codebase. Casting here
-  // ensures all consumers receive the standard PrismaClient type. The omit
-  // behaviour still works at runtime regardless of the TypeScript-level cast.
   return new PrismaClient({
     adapter,
-    // Development: log queries for debugging; Production: errors only
     log:
       process.env.NODE_ENV === 'development'
         ? ['query', 'error', 'warn']
@@ -61,25 +62,35 @@ function createPrismaClient(): PrismaClient {
   }) as PrismaClient;
 }
 
+/**
+ * Get a PrismaClient instance.
+ *
+ * On Workers: always creates a new client to avoid cross-request I/O errors.
+ * On Node.js (dev): caches on globalThis to survive hot-reloads.
+ */
 export function getPrismaClient(): PrismaClient {
+  // Workers: never cache — each request needs its own I/O context
+  if (isWorkersRuntime) {
+    return createPrismaClient();
+  }
+
+  // Node.js (development): reuse cached client across hot-reloads
   if (globalForPrisma.prisma) {
     return globalForPrisma.prisma;
   }
 
-  const prismaClient = createPrismaClient();
-
-  // Cache on globalThis in ALL environments.
-  // In development, this survives hot-reloads (module re-evaluation).
-  // In production (and on Cloudflare Workers), the Proxy export calls
-  // getPrismaClient() on every property access, so without caching here
-  // each access would create a new PrismaClient and connection pool.
-  globalForPrisma.prisma = prismaClient;
-
-  return prismaClient;
+  const client = createPrismaClient();
+  globalForPrisma.prisma = client;
+  return client;
 }
 
-// Lazily create the Prisma client so build-time module evaluation does not
-// require DATABASE_URL unless a request actually hits the database.
+/**
+ * Lazy Proxy export — defers PrismaClient creation until first property access.
+ * This ensures build-time module evaluation does not require DATABASE_URL.
+ *
+ * On Workers, each property access creates a fresh client per request.
+ * On Node.js, the cached globalThis client is reused.
+ */
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     const client = getPrismaClient() as unknown as Record<PropertyKey, unknown>;
