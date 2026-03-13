@@ -5,20 +5,13 @@
  * PostgreSQL without the native query engine binary. This is required for
  * Cloudflare Workers where native Node.js addons cannot run.
  *
- * IMPORTANT — Cloudflare Workers I/O isolation:
- * Workers prohibit sharing I/O objects (WebSockets, streams) across request
- * contexts. PrismaNeon creates an internal connection pool backed by
- * WebSockets; if we cache a PrismaClient on globalThis, a second request
- * that reuses the cached client will hit:
- *   "Cannot perform I/O on behalf of a different request"
- * and the Worker crashes with a 500.
- *
- * Strategy:
- * - Development (Node.js): cache on globalThis to survive hot-reloads and
- *   avoid exhausting the connection pool.
- * - Production (Workers): create a fresh PrismaClient per request. This is
- *   lightweight because the WASM query engine is already loaded in memory
- *   and Neon's serverless driver is designed for short-lived connections.
+ * Cloudflare Workers I/O isolation:
+ * Workers prohibit sharing I/O objects (WebSockets) across request contexts.
+ * PrismaNeon implements SqlDriverAdapterFactory: its connect() method creates
+ * a fresh neon.Pool (and WebSocket) per query batch. This means the
+ * PrismaClient itself is safe to cache on globalThis — only the adapter
+ * factory is stored, not the connections. Each request gets its own Pool
+ * through the factory's connect() call.
  *
  * Usage:
  *   import prisma from '@/lib/prisma';
@@ -31,14 +24,6 @@ import { PrismaClient } from '@prisma/client';
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
-
-/**
- * Detect Cloudflare Workers runtime.
- * `navigator.userAgent` is "Cloudflare-Workers" in workerd, and the global
- * `caches` object with `default` property is Workers-specific.
- */
-const isWorkersRuntime =
-  typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
 
 /**
  * Check whether DATABASE_URL is a direct postgres:// connection string.
@@ -54,7 +39,9 @@ function isDirectPostgresUrl(url: string): boolean {
  * Create a PrismaClient.
  *
  * - Direct postgres:// URL (Neon / production): uses PrismaNeon adapter
- *   for Cloudflare Workers compatibility (no native binary needed).
+ *   factory for Cloudflare Workers compatibility (no native binary needed).
+ *   PrismaNeon.connect() creates a new neon.Pool per query batch, so the
+ *   factory itself is safe to cache across requests.
  * - Accelerate / prisma+postgres:// URL (local `prisma dev`): uses plain
  *   PrismaClient with Prisma's built-in query engine.
  */
@@ -68,7 +55,7 @@ function createPrismaClient(): PrismaClient {
       ? ['query', 'error', 'warn'] as const
       : ['error'] as const;
 
-  // Direct Neon URL → use PrismaNeon adapter (required on Workers)
+  // Direct Neon URL → use PrismaNeon adapter factory (required on Workers)
   if (isDirectPostgresUrl(process.env.DATABASE_URL)) {
     const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
     return new PrismaClient({ adapter, log: [...logLevel] }) as PrismaClient;
@@ -79,18 +66,13 @@ function createPrismaClient(): PrismaClient {
 }
 
 /**
- * Get a PrismaClient instance.
+ * Get a PrismaClient instance, cached on globalThis.
  *
- * On Workers: always creates a new client to avoid cross-request I/O errors.
- * On Node.js (dev): caches on globalThis to survive hot-reloads.
+ * Safe on both Node.js and Workers because PrismaNeon is a
+ * SqlDriverAdapterFactory — it creates fresh connections per query batch
+ * via connect(), so no I/O objects are shared across requests.
  */
 export function getPrismaClient(): PrismaClient {
-  // Workers: never cache — each request needs its own I/O context
-  if (isWorkersRuntime) {
-    return createPrismaClient();
-  }
-
-  // Node.js (development): reuse cached client across hot-reloads
   if (globalForPrisma.prisma) {
     return globalForPrisma.prisma;
   }
@@ -103,9 +85,7 @@ export function getPrismaClient(): PrismaClient {
 /**
  * Lazy Proxy export — defers PrismaClient creation until first property access.
  * This ensures build-time module evaluation does not require DATABASE_URL.
- *
- * On Workers, each property access creates a fresh client per request.
- * On Node.js, the cached globalThis client is reused.
+ * The underlying PrismaClient is cached on globalThis and reused.
  */
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {

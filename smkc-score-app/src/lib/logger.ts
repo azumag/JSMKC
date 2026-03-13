@@ -51,12 +51,26 @@ export interface Logger {
  * Formats a log line with ISO timestamp and service prefix.
  * Example: "2026-03-12T10:30:00.000Z [api-players] Player registered { playerId: '123' }"
  */
+/**
+ * Serialize a value for structured logging. Error objects need special
+ * handling because JSON.stringify ignores non-enumerable properties
+ * like `message` and `stack`.
+ */
+function serializeMeta(meta: Record<string, unknown>): string {
+  return JSON.stringify(meta, (_key, value) => {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message, stack: value.stack };
+    }
+    return value;
+  });
+}
+
 function formatMessage(service: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   const base = `${timestamp} [${service}] ${message}`;
   // Append metadata as JSON if provided, for structured log parsing
   if (meta && Object.keys(meta).length > 0) {
-    return `${base} ${JSON.stringify(meta)}`;
+    return `${base} ${serializeMeta(meta)}`;
   }
   return base;
 }
