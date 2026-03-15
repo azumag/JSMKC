@@ -190,29 +190,48 @@ export default function PlayersPage() {
        * the retry returns 409 which we treat as success (minus password).
        */
       let response: Response | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         response = await fetch("/api/players", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         });
-        if (response.ok || response.status < 500) break;
-        // 500+ = transient Workers crash → retry after delay
-        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+        if (response.ok) break;
+        // 409 on retry = player was created on a previous attempt that crashed
+        // before sending the response. Treat as success (but password is lost).
+        if (response.status === 409 && attempt > 0) break;
+        if (response.status < 500) break;
+        if (attempt < 2) await new Promise(r => setTimeout(r, 800));
       }
 
-      if (response!.ok) {
-        const data = await response!.json();
+      if (response!.ok || (response!.status === 409)) {
+        // 409 means the player was created but we lost the response.
+        // Skip the password dialog since the plaintext is unrecoverable.
+        const isLostResponse = response!.status === 409;
+        const data = isLostResponse ? {} : await response!.json().catch(() => ({}));
+
+        // Optimistic update: immediately add the new player to the list
+        const newPlayer: Player = data.player ?? {
+          id: crypto.randomUUID(),
+          name: formData.name,
+          nickname: formData.nickname,
+          country: formData.country || null,
+          createdAt: new Date().toISOString(),
+        };
+        setPlayers(prev => [...prev, newPlayer]);
+
         setFormData({ name: "", nickname: "", country: "" });
         setIsAddDialogOpen(false);
 
-        if (data.temporaryPassword) {
+        if (!isLostResponse && data.temporaryPassword) {
           setIsPasswordReset(false);
           setTemporaryPassword(data.temporaryPassword);
           setIsPasswordDialogOpen(true);
         }
 
-        fetchPlayers();
+        // Delayed background sync — wait before reconciling so the optimistic
+        // state stays visible while the password dialog is open.
+        setTimeout(() => fetchPlayers(), 3000);
       } else {
         const text = await response!.text();
         try {
@@ -255,10 +274,16 @@ export default function PlayersPage() {
       }
 
       if (response!.ok) {
+        // Optimistic update: immediately reflect changes in the list
+        setPlayers(prev => prev.map(p =>
+          p.id === editingPlayerId
+            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null }
+            : p
+        ));
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
         setFormData({ name: "", nickname: "", country: "" });
-        fetchPlayers();
+        setTimeout(() => fetchPlayers(), 2000);
       } else {
         const text = await response!.text();
         try {
@@ -295,7 +320,9 @@ export default function PlayersPage() {
       }
 
       if (response!.ok) {
-        fetchPlayers();
+        // Optimistic update: immediately remove from list
+        setPlayers(prev => prev.filter(p => p.id !== id));
+        setTimeout(() => fetchPlayers(), 2000);
       } else {
         const text = await response!.text();
         try {

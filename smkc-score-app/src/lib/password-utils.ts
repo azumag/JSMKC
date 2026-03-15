@@ -32,16 +32,14 @@ const logger = createLogger('password-utils');
 /**
  * Number of bcrypt salt rounds (cost factor).
  *
- * 12 rounds provides a good balance between security and performance:
+ * 10 rounds provides strong security within Cloudflare Workers constraints:
  * - Each additional round doubles the computation time
- * - 12 rounds takes approximately 250ms on modern hardware
- * - This is fast enough for login but slow enough to deter brute-force
- * - NIST recommends at least 10 rounds; 12 provides extra margin
- *
- * If performance becomes an issue on the deployment hardware, this can
- * be reduced to 10, but should never go below 10.
+ * - 10 rounds takes ~65ms on modern hardware, ~200ms on Workers WASM
+ * - 12 rounds caused frequent Workers 1101 crashes (CPU/memory pressure)
+ * - NIST recommends at least 10 rounds; this is the recommended minimum
+ * - bcryptjs on WASM is significantly slower than native, so 10 is optimal
  */
-export const BCRYPT_ROUNDS = 12;
+export const BCRYPT_ROUNDS = 10;
 
 /**
  * Generates a cryptographically secure random password.

@@ -190,15 +190,15 @@ describe('Password Utilities', () => {
       expect(hashed).toMatch(/^\$2[aby]\$/);
     });
 
-    it('should use 12 rounds for hashing (as defined in BCRYPT_ROUNDS)', async () => {
+    it('should use 10 rounds for hashing (as defined in BCRYPT_ROUNDS)', async () => {
       const password = 'testPassword123!';
       const hashed = await hashPassword(password);
 
-      // Extract rounds from hash (format: $2a$12$...)
+      // Extract rounds from hash (format: $2a$10$...)
       const hashParts = hashed.split('$');
       const rounds = parseInt(hashParts[2], 10);
 
-      expect(rounds).toBe(12);
+      expect(rounds).toBe(10);
     });
 
     it('should verify hashed password with bcrypt directly', async () => {
