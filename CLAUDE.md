@@ -26,3 +26,49 @@ JSMKC (Japan SMK Championship) is a tournament management and scoring system for
 
 ## SRC
 under `./smkc-score-app`
+
+## E2E Test Loop (定期E2Eテスト)
+
+本番環境 https://smkc.bluemoon.works/ に対して定期的にE2Eテストを実施し、問題を発見・修正・デプロイ・検証する。
+
+### 起動方法
+
+```
+/loop 6h 本番のhttps://smkc.bluemoon.works/でE2Eテストを行って、問題を発見し修正せよ。パフォーマンスが異常に遅い部分にも気を配って修正すること。修正後はデプロイして、本番で治っていることを確認すること。
+```
+
+### ブラウザ認証（Playwright）
+
+- Chrome for Testing ではなく **Playwright永続プロファイル** を使用
+- 初回のみDiscord OAuthで手動認証が必要。以降はセッションcookieが保持される
+
+```js
+// smkc-score-app/ ディレクトリから実行（playwright が devDependencies にある）
+const { chromium } = require('playwright');
+const browser = await chromium.launchPersistentContext(
+  '/tmp/playwright-smkc-profile',
+  { headless: false, viewport: { width: 1280, height: 720 } }
+);
+```
+
+セッション切れ時は自動でサインインページを開き、Discordログインボタンをクリック→ユーザーに認証を促す。
+
+### テスト内容
+
+1. **公開ページ可用性**: /, /players, /tournaments, 各モード(TA/BM/MR/GP), /auth/signin
+2. **認証済みAPI**: standings, score-entry-logs 等の admin エンドポイント
+3. **パスワード漏洩チェック**: APIレスポンスに `password` フィールドが含まれないこと
+4. **セキュリティヘッダー**: CSP, X-Frame-Options, X-Content-Type-Options 等がホームページにも付与されていること
+5. **パフォーマンス**: TTFB 計測、異常に遅い箇所の調査
+6. **修正→デプロイ→本番検証** のサイクルを1ループ内で完結させる
+
+### デプロイ
+
+```bash
+cd smkc-score-app && npm run deploy
+```
+
+### 既知の問題
+
+- **Workers 間欠 1101 エラー**: PrismaNeon コールドスタートで ~10-20% の確率で Worker がクラッシュする。layout.tsx にリトライロジック（最大3回、500ms間隔）を追加済み
+- **API レスポンス形式**: `createSuccessResponse()` は `{ success: true, data: {...} }` でラップする。フロントエンドで `.data ?? json` でアンラップが必要
