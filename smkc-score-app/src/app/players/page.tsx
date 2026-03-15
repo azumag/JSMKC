@@ -126,6 +126,9 @@ export default function PlayersPage() {
   /* Form validation error message */
   const [error, setError] = useState("");
 
+  /* Prevents double-submit on add/edit/delete operations */
+  const [submitting, setSubmitting] = useState(false);
+
   /**
    * Fetches the player list from the API.
    * Handles both array responses and paginated responses
@@ -173,25 +176,34 @@ export default function PlayersPage() {
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError("");
+    setSubmitting(true);
 
     try {
-      const response = await fetch("/api/players", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      /**
+       * Retry on Workers 1101 crash (non-JSON 500 response).
+       * POST is idempotent here because nickname has a unique constraint:
+       * if the first attempt created the player but the response was lost,
+       * the retry returns 409 which we treat as success (minus password).
+       */
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch("/api/players", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok || response.status < 500) break;
+        // 500+ = transient Workers crash → retry after delay
+        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response!.ok) {
+        const data = await response!.json();
         setFormData({ name: "", nickname: "", country: "" });
         setIsAddDialogOpen(false);
 
-        /*
-         * If the API returned a temporary password, show it in a
-         * dedicated dialog. The admin must save this password because
-         * it is only displayed once (hashed in DB, not retrievable).
-         */
         if (data.temporaryPassword) {
           setTemporaryPassword(data.temporaryPassword);
           setIsPasswordDialogOpen(true);
@@ -199,8 +211,7 @@ export default function PlayersPage() {
 
         fetchPlayers();
       } else {
-        // Parse error response safely — Workers may return HTML on crash
-        const text = await response.text();
+        const text = await response!.text();
         try {
           const data = JSON.parse(text);
           setError(data.error || t('failedToCreate'));
@@ -212,6 +223,8 @@ export default function PlayersPage() {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to create player:", metadata);
       setError(t('failedToCreate'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -222,32 +235,42 @@ export default function PlayersPage() {
    */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const response = await fetch(`/api/players/${editingPlayerId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch(`/api/players/${editingPlayerId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok || response.status < 500) break;
+        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
 
-      if (response.ok) {
-        // Success: close dialog, reset form, refresh list
+      if (response!.ok) {
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
         setFormData({ name: "", nickname: "", country: "" });
         fetchPlayers();
       } else {
-        const data = await response.json();
-        setError(data.error || t('failedToUpdate'));
+        const text = await response!.text();
+        try {
+          const data = JSON.parse(text);
+          setError(data.error || t('failedToUpdate'));
+        } catch {
+          setError(t('failedToUpdate'));
+        }
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to update player:", metadata);
       setError(t('failedToUpdate'));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -256,19 +279,35 @@ export default function PlayersPage() {
    * Uses browser confirm() as a simple guard against accidental deletion.
    */
   const handleDelete = async (id: string) => {
+    if (submitting) return;
     if (!confirm(tc('confirmDeletePlayer'))) return;
+    setSubmitting(true);
 
     try {
-      const response = await fetch(`/api/players/${id}`, {
-        method: "DELETE",
-      });
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch(`/api/players/${id}`, { method: "DELETE" });
+        if (response.ok || response.status < 500) break;
+        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
 
-      if (response.ok) {
+      if (response!.ok) {
         fetchPlayers();
+      } else {
+        const text = await response!.text();
+        try {
+          const data = JSON.parse(text);
+          alert(data.error || t('failedToDelete'));
+        } catch {
+          alert(t('failedToDelete'));
+        }
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to delete player:", metadata);
+      alert(t('failedToDelete'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -392,7 +431,9 @@ export default function PlayersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">{tc('addPlayer')}</Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? tc('saving') : tc('addPlayer')}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -456,6 +497,7 @@ export default function PlayersPage() {
                         <Button
                           variant="destructive"
                           size="sm"
+                          disabled={submitting}
                           onClick={() => handleDelete(player.id)}
                         >
                           {tc('delete')}
@@ -516,7 +558,9 @@ export default function PlayersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">{t('saveChanges')}</Button>
+              <Button type="submit" disabled={submitting}>
+                  {submitting ? tc('saving') : t('saveChanges')}
+                </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -529,7 +573,10 @@ export default function PlayersPage() {
        * Admin must copy and share it with the player, as it cannot
        * be retrieved again (stored as a hash in the database).
        */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+      <Dialog open={isPasswordDialogOpen} onOpenChange={(open) => {
+        setIsPasswordDialogOpen(open);
+        if (!open) setTemporaryPassword("");
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('createdSuccess')}</DialogTitle>
