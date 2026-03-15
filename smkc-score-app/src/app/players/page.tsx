@@ -229,9 +229,8 @@ export default function PlayersPage() {
           setIsPasswordDialogOpen(true);
         }
 
-        // Delayed background sync — wait before reconciling so the optimistic
-        // state stays visible while the password dialog is open.
-        setTimeout(() => fetchPlayers(), 3000);
+        // No fetchPlayers() here — the optimistic update is sufficient.
+        // Background sync would overwrite it with stale/failed data.
       } else {
         const text = await response!.text();
         try {
@@ -283,7 +282,6 @@ export default function PlayersPage() {
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
         setFormData({ name: "", nickname: "", country: "" });
-        setTimeout(() => fetchPlayers(), 2000);
       } else {
         const text = await response!.text();
         try {
@@ -322,7 +320,6 @@ export default function PlayersPage() {
       if (response!.ok) {
         // Optimistic update: immediately remove from list
         setPlayers(prev => prev.filter(p => p.id !== id));
-        setTimeout(() => fetchPlayers(), 2000);
       } else {
         const text = await response!.text();
         try {
