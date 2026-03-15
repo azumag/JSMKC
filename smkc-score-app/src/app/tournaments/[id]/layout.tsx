@@ -125,21 +125,42 @@ export default function TournamentLayout({
    * Called on mount and after status updates to refresh the header display.
    */
   const fetchTournament = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/tournaments/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setTournament(data);
+    /**
+     * Retry on transient Cloudflare Workers 1101 errors.
+     * PrismaNeon cold starts occasionally crash the Worker before our
+     * try/catch can fire, returning an HTML "error code: 1101" page.
+     * A single retry resolves this in virtually all cases.
+     */
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`/api/tournaments/${id}`);
+        if (response.ok) {
+          const json = await response.json();
+          // API uses createSuccessResponse: { success, data: {...} }
+          const tournament = json.data ?? json;
+          setTournament(tournament);
+          setLoading(false);
+          return;
+        }
+        // Retry on 500/502/503 (transient server errors)
+        if (response.status >= 500 && attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+      } catch (err) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        const metadata =
+          err instanceof Error
+            ? { message: err.message, stack: err.stack }
+            : { error: err };
+        logger.error("Failed to fetch tournament:", metadata);
       }
-    } catch (err) {
-      const metadata =
-        err instanceof Error
-          ? { message: err.message, stack: err.stack }
-          : { error: err };
-      logger.error("Failed to fetch tournament:", metadata);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, [id]);
 
   useEffect(() => {
