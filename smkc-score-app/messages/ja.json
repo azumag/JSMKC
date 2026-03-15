@@ -170,6 +170,10 @@
     "failedToCreate": "プレイヤーの作成に失敗しました",
     "failedToUpdate": "プレイヤーの更新に失敗しました",
     "failedToDelete": "プレイヤーの削除に失敗しました",
+    "resetPassword": "パスワード再発行",
+    "confirmResetPassword": "このプレイヤーのパスワードをリセットしますか？",
+    "passwordResetSuccess": "パスワードのリセットに成功しました",
+    "failedToResetPassword": "パスワードのリセットに失敗しました",
     "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。"
   },
   "profile": {

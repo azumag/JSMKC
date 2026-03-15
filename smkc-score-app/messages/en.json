@@ -170,6 +170,10 @@
     "failedToCreate": "Failed to create player",
     "failedToUpdate": "Failed to update player",
     "failedToDelete": "Failed to delete player",
+    "resetPassword": "Reset Password",
+    "confirmResetPassword": "Are you sure you want to reset the password for this player?",
+    "passwordResetSuccess": "Password Reset Successfully",
+    "failedToResetPassword": "Failed to reset password",
     "fetchError": "Failed to load players. Please try again."
   },
   "profile": {

@@ -104,6 +104,8 @@ export default function PlayersPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  /* Whether the password dialog is for a reset (true) or new creation (false) */
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
 
   /**
    * Temporary password storage: When a new player is created, the API
@@ -205,6 +207,7 @@ export default function PlayersPage() {
         setIsAddDialogOpen(false);
 
         if (data.temporaryPassword) {
+          setIsPasswordReset(false);
           setTemporaryPassword(data.temporaryPassword);
           setIsPasswordDialogOpen(true);
         }
@@ -306,6 +309,48 @@ export default function PlayersPage() {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to delete player:", metadata);
       alert(t('failedToDelete'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * Resets a player's password and shows the new temporary password.
+   * Uses the same password dialog as player creation for consistent UX.
+   */
+  const handleResetPassword = async (playerId: string) => {
+    if (submitting) return;
+    if (!confirm(t('confirmResetPassword'))) return;
+    setSubmitting(true);
+
+    try {
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch(`/api/players/${playerId}/reset-password`, {
+          method: 'POST',
+        });
+        if (response.ok || response.status < 500) break;
+        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
+
+      if (response!.ok) {
+        const data = await response!.json();
+        setIsPasswordReset(true);
+        setTemporaryPassword(data.temporaryPassword);
+        setIsPasswordDialogOpen(true);
+      } else {
+        const text = await response!.text();
+        try {
+          const data = JSON.parse(text);
+          alert(data.error || t('failedToResetPassword'));
+        } catch {
+          alert(t('failedToResetPassword'));
+        }
+      }
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to reset password:', metadata);
+      alert(t('failedToResetPassword'));
     } finally {
       setSubmitting(false);
     }
@@ -495,6 +540,14 @@ export default function PlayersPage() {
                           {tc('edit')}
                         </Button>
                         <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={submitting}
+                          onClick={() => handleResetPassword(player.id)}
+                        >
+                          {t('resetPassword')}
+                        </Button>
+                        <Button
                           variant="destructive"
                           size="sm"
                           disabled={submitting}
@@ -579,7 +632,7 @@ export default function PlayersPage() {
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('createdSuccess')}</DialogTitle>
+            <DialogTitle>{isPasswordReset ? t('passwordResetSuccess') : t('createdSuccess')}</DialogTitle>
             <DialogDescription>
               {t('savePasswordWarning')}
             </DialogDescription>
