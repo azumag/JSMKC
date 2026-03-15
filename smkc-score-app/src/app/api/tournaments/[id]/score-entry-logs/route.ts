@@ -40,7 +40,7 @@ export async function GET(
   // data that should only be visible to tournament administrators
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return handleAuthzError();
   }
 
   const { id: tournamentId } = await params;

@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   // Admin authentication: only admins can create tournaments
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return handleAuthzError();
   }
 
   try {

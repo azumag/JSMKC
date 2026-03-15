@@ -115,7 +115,7 @@ export async function POST(
 
   /* Authorization check: return 403 if not admin */
   if (session.user.role !== "admin") {
-    return handleAuthzError("Forbidden: Admin access required");
+    return handleAuthzError();
   }
 
   const { id: tournamentId } = await params;

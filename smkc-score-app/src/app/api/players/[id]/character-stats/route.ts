@@ -61,7 +61,7 @@ export async function GET(
   // competitive data that should only be visible to tournament organizers
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return handleAuthzError();
   }
 
   try {

@@ -70,7 +70,7 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
         { status: 403 }

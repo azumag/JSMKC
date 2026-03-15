@@ -120,7 +120,7 @@ export async function PUT(
   // Admin authentication check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return handleAuthzError();
   }
 
   const { id } = await params;
@@ -224,7 +224,7 @@ export async function DELETE(
   // Admin authentication check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return handleAuthzError();
   }
 
   const { id } = await params;

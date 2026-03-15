@@ -115,7 +115,7 @@ describe('GET /api/players/[id]/character-stats', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );
@@ -133,7 +133,7 @@ describe('GET /api/players/[id]/character-stats', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );

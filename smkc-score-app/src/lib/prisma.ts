@@ -55,14 +55,18 @@ function createPrismaClient(): PrismaClient {
       ? ['query', 'error', 'warn'] as const
       : ['error'] as const;
 
+  // Globally omit password from Player queries to prevent accidental leakage.
+  // Auth code explicitly uses `omit: { password: false }` when it needs the hash.
+  const omit = { player: { password: true } };
+
   // Direct Neon URL → use PrismaNeon adapter factory (required on Workers)
   if (isDirectPostgresUrl(process.env.DATABASE_URL)) {
     const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
-    return new PrismaClient({ adapter, log: [...logLevel] }) as PrismaClient;
+    return new PrismaClient({ adapter, log: [...logLevel], omit }) as PrismaClient;
   }
 
   // Accelerate / prisma dev URL → plain PrismaClient (local development)
-  return new PrismaClient({ log: [...logLevel] }) as PrismaClient;
+  return new PrismaClient({ log: [...logLevel], omit }) as PrismaClient;
 }
 
 /**

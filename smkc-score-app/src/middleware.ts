@@ -143,6 +143,7 @@ export default async function middleware(req: NextRequest) {
  */
 export const config = {
   matcher: [
+    '/',
     '/api/players/:path*',
     '/api/tournaments/:path*',
     '/auth/:path*',

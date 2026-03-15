@@ -21,7 +21,7 @@ import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { createLogger } from "@/lib/logger";
 import { msToDisplayTime } from "@/lib/ta/time-utils";
-import { createErrorResponse, createSuccessResponse, handleAuthzError } from "@/lib/error-handling";
+import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 
 /**
  * GET /api/tournaments/[id]/ta/standings
@@ -48,7 +48,7 @@ export async function GET(
   // Admin-only access check
   const session = await auth();
   if (!session?.user || session.user.role !== 'admin') {
-    return handleAuthzError('Unauthorized: Admin access required');
+    return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
   }
 
   const { id: tournamentId } = await params;

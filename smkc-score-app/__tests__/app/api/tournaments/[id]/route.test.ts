@@ -236,7 +236,7 @@ describe('PUT /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
         { status: 403 }
@@ -259,7 +259,7 @@ describe('PUT /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
         { status: 403 }
@@ -441,7 +441,7 @@ describe('DELETE /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
         { status: 403 }
@@ -461,7 +461,7 @@ describe('DELETE /api/tournaments/[id]', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         }),
         { status: 403 }

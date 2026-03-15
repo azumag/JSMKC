@@ -50,11 +50,10 @@ export async function GET(request: NextRequest) {
 
     // Use the paginate utility to handle offset calculation and total count.
     // Sort: alphabetical by nickname for consistent ordering.
-    // Wrap findMany to omit the password hash — it must never be sent to clients.
+    // Password is globally omitted via PrismaClient config in lib/prisma.ts.
     const result = await paginate(
       {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        findMany: (args: any) => prisma.player.findMany({ ...args, omit: { password: true } }),
+        findMany: prisma.player.findMany.bind(prisma.player),
         count: prisma.player.count,
       },
       {},
@@ -100,7 +99,7 @@ export async function POST(request: NextRequest) {
     // (e.g., JWT verification failures) from returning HTML error pages.
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError('Unauthorized: Admin access required');
+      return handleAuthzError();
     }
 
     // Sanitize all input fields to prevent XSS and injection attacks
@@ -128,7 +127,6 @@ export async function POST(request: NextRequest) {
         country: country || null,
         password: hashedPassword,
       },
-      omit: { password: true },
     });
 
     // Create audit log entry for the player creation.

@@ -66,7 +66,7 @@ jest.mock('@/lib/error-handling', () => ({
     data: { success: false, error: message, ...(field ? { field } : {}) },
     status: 400,
   })),
-  handleAuthzError: jest.fn((message = 'Access denied') => ({
+  handleAuthzError: jest.fn((message = 'Forbidden') => ({
     data: { success: false, error: message },
     status: 403,
   })),

@@ -10,6 +10,8 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
+  /** Hide framework identification header to reduce information leakage. */
+  poweredByHeader: false,
   /**
    * Set the Turbopack root to this project directory explicitly.
    * Without this, Turbopack detects the parent directory's lockfile

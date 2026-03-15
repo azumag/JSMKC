@@ -144,7 +144,6 @@ describe('GET /api/players/[id]', () => {
 
       expect(prisma.player.findUnique).toHaveBeenCalledWith({
         where: { id: 'player-1' },
-        omit: { password: true },
       });
       // createSuccessResponse wraps data in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -228,7 +227,7 @@ describe('PUT /api/players/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );
@@ -441,7 +440,7 @@ describe('DELETE /api/players/[id]', () => {
 
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );

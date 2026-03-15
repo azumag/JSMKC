@@ -41,10 +41,9 @@ export async function GET(
     const { id } = await params;
 
     // Look up the player by primary key.
-    // Omit password hash — it must never be sent to clients.
+    // Password is globally omitted via PrismaClient config in lib/prisma.ts.
     const player = await prisma.player.findUnique({
       where: { id },
-      omit: { password: true },
     });
 
     if (!player) {
@@ -93,7 +92,7 @@ export async function PUT(
     // auth() inside try/catch to prevent unhandled errors on Workers
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError('Unauthorized: Admin access required');
+      return handleAuthzError();
     }
 
     // Sanitize input to prevent XSS and injection attacks
@@ -114,7 +113,6 @@ export async function PUT(
         nickname,
         country: country || null,
       },
-      omit: { password: true },
     });
 
     // Create audit log for the update operation.
@@ -198,7 +196,7 @@ export async function DELETE(
     // auth() inside try/catch to prevent unhandled errors on Workers
     const session = await auth();
     if (!session?.user || session.user.role !== 'admin') {
-      return handleAuthzError('Unauthorized: Admin access required');
+      return handleAuthzError();
     }
 
     // Delete the player record from the database

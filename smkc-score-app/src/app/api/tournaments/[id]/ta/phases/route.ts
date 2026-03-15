@@ -57,7 +57,7 @@ async function requireAdminAndGetSession(): Promise<{
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
     return {
-      error: handleAuthzError("Forbidden"),
+      error: handleAuthzError(),
     };
   }
   return { session: session as { user: { id: string; role: string } } };

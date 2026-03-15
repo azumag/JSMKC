@@ -152,7 +152,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
       // handleAuthzError includes code: 'FORBIDDEN'
       expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: 'Unauthorized: Admin access required', code: 'FORBIDDEN' }),
+        expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
         { status: 403 }
       );
     });
@@ -168,7 +168,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: 'Unauthorized: Admin access required', code: 'FORBIDDEN' }),
+        expect.objectContaining({ success: false, error: 'Forbidden', code: 'FORBIDDEN' }),
         { status: 403 }
       );
     });

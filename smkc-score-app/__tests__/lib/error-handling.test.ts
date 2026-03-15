@@ -508,7 +508,7 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         {
           success: false,
-          error: 'Access denied',
+          error: 'Forbidden',
           code: 'FORBIDDEN',
         },
         { status: 403 }

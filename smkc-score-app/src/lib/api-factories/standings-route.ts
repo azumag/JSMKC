@@ -204,28 +204,27 @@ export function createStandingsHandlers(config: StandingsConfig) {
             rankGroups.set(entry._rank, g);
           }
 
-          const resolved: typeof ranked = [];
-          for (const [rank, group] of [...rankGroups.entries()].sort(([a], [b]) => a - b)) {
-            if (group.length < 2) {
-              resolved.push(...group);
-              continue;
-            }
+          /*
+           * Batch H2H query: fetch ALL completed qualification matches between
+           * ALL tied players in a single query, then filter in-memory per group.
+           * This eliminates the N+1 problem where each tied group issued its own
+           * database query (10 groups = 10 round-trips × ~40ms = ~400ms overhead).
+           */
+          const tiedPlayerIds = Array.from(rankGroups.values())
+            .filter((g) => g.length >= 2)
+            .flat()
+            .map((e: { playerId: string }) => e.playerId);
 
-            /*
-             * Fetch completed qualification matches between players in this tied group.
-             * player1Id IN group AND player2Id IN group captures all pairwise matches.
-             * Cross-group players won't have matches against each other, so their H2H wins = 0
-             * and they remain tied (requiring admin sudden-death to resolve per §4.1 step 4).
-             */
-            const playerIds = group.map((e: { playerId: string }) => e.playerId);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const h2hMatches: any[] = await mModel(prisma).findMany({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let allH2hMatches: any[] = [];
+          if (tiedPlayerIds.length >= 2) {
+            allH2hMatches = await mModel(prisma).findMany({
               where: {
                 tournamentId,
                 stage: 'qualification',
                 completed: true,
-                player1Id: { in: playerIds },
-                player2Id: { in: playerIds },
+                player1Id: { in: tiedPlayerIds },
+                player2Id: { in: tiedPlayerIds },
               },
               select: {
                 player1Id: true,
@@ -234,6 +233,26 @@ export function createStandingsHandlers(config: StandingsConfig) {
                 [scoreFields.p2]: true,
               },
             });
+          }
+
+          const resolved: typeof ranked = [];
+          for (const [rank, group] of [...rankGroups.entries()].sort(([a], [b]) => a - b)) {
+            if (group.length < 2) {
+              resolved.push(...group);
+              continue;
+            }
+
+            /*
+             * Filter pre-fetched matches to only those between players in this tied group.
+             * Cross-group players won't have matches against each other, so their H2H wins = 0
+             * and they remain tied (requiring admin sudden-death to resolve per §4.1 step 4).
+             */
+            const playerIds = group.map((e: { playerId: string }) => e.playerId);
+            const playerIdSet = new Set(playerIds);
+            const h2hMatches = allH2hMatches.filter(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (m: any) => playerIdSet.has(m.player1Id) && playerIdSet.has(m.player2Id),
+            );
 
             /* Tally H2H wins; draws (s1 === s2) award no win to either player */
             const h2hWins = new Map<string, number>(playerIds.map((id) => [id, 0]));

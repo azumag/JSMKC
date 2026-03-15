@@ -168,7 +168,6 @@ describe('GET /api/players', () => {
         orderBy: { nickname: 'asc' },
         skip: 0,
         take: 50,
-        omit: { password: true },
       });
 
       // Real paginate returns { data, meta: { total, page, limit, totalPages } }
@@ -205,7 +204,6 @@ describe('GET /api/players', () => {
         orderBy: { nickname: 'asc' },
         skip: 10,
         take: 10,
-        omit: { password: true },
       });
 
       // Real paginate: totalPages = Math.ceil(25/10) = 3
@@ -322,7 +320,7 @@ describe('POST /api/players', () => {
       await playerRoute.POST(request);
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );
@@ -345,7 +343,7 @@ describe('POST /api/players', () => {
       await playerRoute.POST(request);
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Unauthorized: Admin access required',
+          error: 'Forbidden',
         }),
         { status: 403 }
       );

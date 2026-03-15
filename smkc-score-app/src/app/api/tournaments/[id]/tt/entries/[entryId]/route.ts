@@ -108,14 +108,14 @@ export async function PUT(
   // submit their own times, while admins retain the ability to edit any entry.
   const session = await auth();
   if (!session?.user) {
-    return handleAuthzError("Forbidden");
+    return handleAuthzError();
   }
 
   const isAdmin = session.user.role === "admin";
   const isPlayer = session.user.userType === "player";
 
   if (!isAdmin && !isPlayer) {
-    return handleAuthzError("Forbidden");
+    return handleAuthzError();
   }
 
   const { entryId } = await params;
@@ -129,7 +129,7 @@ export async function PUT(
       select: { playerId: true, stage: true, tournamentId: true },
     });
     if (!entryForAuth || entryForAuth.playerId !== session.user.playerId) {
-      return handleAuthzError("Forbidden");
+      return handleAuthzError();
     }
     // Reject updates if the entry's stage is frozen (applies to both players and admins)
     const freezeError = await checkStageFrozen(prisma, entryForAuth.tournamentId, entryForAuth.stage);

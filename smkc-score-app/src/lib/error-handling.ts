@@ -326,7 +326,7 @@ export function handleAuthError(
  *   }
  */
 export function handleAuthzError(
-  message: string = 'Access denied'
+  message: string = 'Forbidden'
 ): NextResponse {
   return createErrorResponse(
     message,
