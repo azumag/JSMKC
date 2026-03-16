@@ -3,6 +3,14 @@ import { resolve } from "path";
 import createNextIntlPlugin from 'next-intl/plugin';
 
 /**
+ * Initialize OpenNext Cloudflare dev bindings (D1, etc.) for local development.
+ * This must be called before Next.js config is evaluated so that
+ * getCloudflareContext() works in `next dev`.
+ */
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
+initOpenNextCloudflareForDev();
+
+/**
  * next-intl plugin wraps the Next.js config to enable i18n support.
  * Points to the request config at src/i18n/request.ts which handles
  * locale detection (cookie → browser Accept-Language → default).

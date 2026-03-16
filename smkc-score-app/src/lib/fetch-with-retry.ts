@@ -1,9 +1,8 @@
 /**
- * Fetch wrapper with automatic retry for Cloudflare Workers 1101 errors.
+ * Fetch wrapper with automatic retry for transient Cloudflare Workers errors.
  *
- * Workers occasionally crash during cold starts (PrismaNeon WASM init),
- * returning HTTP 500 with an HTML "error code: 1101" page. A single
- * retry resolves this in virtually all cases (~97% success with 2 attempts).
+ * D1 eliminates the old PrismaNeon cold-start 1101 crashes, but retries
+ * are kept as a general resilience measure for occasional 500s.
  *
  * Usage: drop-in replacement for fetch() in client components.
  *
@@ -11,7 +10,7 @@
  *   const response = await fetchWithRetry('/api/players');
  */
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
 
 /**

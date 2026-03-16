@@ -51,3 +51,7 @@ next-env.d.ts
 __tests__.bak/
 /logs/
 .env.example.backup
+
+# SQLite database files (D1 local dev)
+*.db
+*.db-journal

@@ -1,102 +1,59 @@
 /**
- * Prisma Database Client with Neon Serverless Adapter
+ * Prisma Database Client with Cloudflare D1 Adapter
  *
- * Uses @neondatabase/serverless + @prisma/adapter-neon to connect to Neon
- * PostgreSQL without the native query engine binary. This is required for
- * Cloudflare Workers where native Node.js addons cannot run.
+ * Uses @prisma/adapter-d1 to connect to Cloudflare D1 (SQLite).
+ * D1 is co-located with the Worker — no network hop, no WebSocket overhead.
  *
- * Cloudflare Workers I/O isolation:
- * Workers prohibit sharing I/O objects (WebSockets) across request contexts.
- * PrismaNeon implements SqlDriverAdapterFactory: its connect() method creates
- * a fresh neon.Pool (and WebSocket) per query batch. This means the
- * PrismaClient itself is safe to cache on globalThis — only the adapter
- * factory is stored, not the connections. Each request gets its own Pool
- * through the factory's connect() call.
+ * WeakMap caching: the D1Database binding object is unique per request context.
+ * WeakMap<D1Database, PrismaClient> ensures we reuse the same client within a
+ * single request, and let it be GC'd when the binding goes out of scope.
+ *
+ * Lazy Proxy: defers client creation until first property access so that
+ * build-time module evaluation does not require a D1 binding.
  *
  * Usage:
  *   import prisma from '@/lib/prisma';
  *   const players = await prisma.player.findMany();
  */
 
-import { PrismaNeon } from '@prisma/adapter-neon';
+import type { D1Database } from '@cloudflare/workers-types';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { PrismaD1 } from '@prisma/adapter-d1';
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+// WeakMap: same D1 binding → same client (within request)
+// different binding (new request) → new client
+const clientCache = new WeakMap<D1Database, PrismaClient>();
 
-/**
- * Check whether DATABASE_URL is a direct postgres:// connection string.
- * `prisma dev` provides a `prisma+postgres://` Accelerate URL which is
- * incompatible with driver adapters. In that case we create a plain
- * PrismaClient and let Prisma's built-in engine handle the connection.
- */
-function isDirectPostgresUrl(url: string): boolean {
-  return url.startsWith('postgres://') || url.startsWith('postgresql://');
-}
-
-/**
- * Create a PrismaClient.
- *
- * - Direct postgres:// URL (Neon / production): uses PrismaNeon adapter
- *   factory for Cloudflare Workers compatibility (no native binary needed).
- *   PrismaNeon.connect() creates a new neon.Pool per query batch, so the
- *   factory itself is safe to cache across requests.
- * - Accelerate / prisma+postgres:// URL (local `prisma dev`): uses plain
- *   PrismaClient with Prisma's built-in query engine.
- */
-function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is required');
+function getOrCreateClient(): PrismaClient {
+  const { env } = getCloudflareContext();
+  const db = env.DB as unknown as D1Database;
+  let client = clientCache.get(db);
+  if (!client) {
+    const adapter = new PrismaD1(db);
+    client = new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+      // Globally omit password from Player queries to prevent accidental leakage.
+      // Auth code explicitly uses `omit: { password: false }` when it needs the hash.
+      omit: { player: { password: true } },
+    }) as PrismaClient;
+    clientCache.set(db, client);
   }
-
-  const logLevel =
-    process.env.NODE_ENV === 'development'
-      ? ['query', 'error', 'warn'] as const
-      : ['error'] as const;
-
-  // Globally omit password from Player queries to prevent accidental leakage.
-  // Auth code explicitly uses `omit: { password: false }` when it needs the hash.
-  const omit = { player: { password: true } };
-
-  // Direct Neon URL → use PrismaNeon adapter factory (required on Workers)
-  if (isDirectPostgresUrl(process.env.DATABASE_URL)) {
-    const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
-    return new PrismaClient({ adapter, log: [...logLevel], omit }) as PrismaClient;
-  }
-
-  // Accelerate / prisma dev URL → plain PrismaClient (local development)
-  return new PrismaClient({ log: [...logLevel], omit }) as PrismaClient;
-}
-
-/**
- * Get a PrismaClient instance, cached on globalThis.
- *
- * Safe on both Node.js and Workers because PrismaNeon is a
- * SqlDriverAdapterFactory — it creates fresh connections per query batch
- * via connect(), so no I/O objects are shared across requests.
- */
-export function getPrismaClient(): PrismaClient {
-  if (globalForPrisma.prisma) {
-    return globalForPrisma.prisma;
-  }
-
-  const client = createPrismaClient();
-  globalForPrisma.prisma = client;
   return client;
 }
 
 /**
  * Lazy Proxy export — defers PrismaClient creation until first property access.
- * This ensures build-time module evaluation does not require DATABASE_URL.
- * The underlying PrismaClient is cached on globalThis and reused.
+ * This ensures build-time module evaluation does not require a D1 binding.
+ * The underlying PrismaClient is cached per D1 binding via WeakMap.
  */
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
-    const client = getPrismaClient() as unknown as Record<PropertyKey, unknown>;
+    const client = getOrCreateClient() as unknown as Record<PropertyKey, unknown>;
     const value = Reflect.get(client, prop, client);
     return typeof value === 'function' ? value.bind(client) : value;
   },
-}) as PrismaClient;
+});
 
 export default prisma;

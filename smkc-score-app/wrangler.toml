@@ -2,9 +2,8 @@
 # Deployed via OpenNext adapter which builds Next.js for Workers runtime.
 #
 # Required secrets (set via `npx wrangler secret put <NAME>`):
-#   DATABASE_URL, AUTH_SECRET,
-#   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET,
-#   ADMIN_DISCORD_IDS
+#   AUTH_SECRET, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, ADMIN_DISCORD_IDS
+# Note: DATABASE_URL is no longer needed — D1 uses the binding below
 
 name = "smkc"
 compatibility_date = "2026-03-01"
@@ -23,3 +22,9 @@ AUTH_URL = "https://smkc.bluemoon.works"
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "smkc-db"
+database_id = "3132bf8c-d0f5-46a6-bc33-713480687d76"
+migrations_dir = "migrations"
