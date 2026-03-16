@@ -76,7 +76,21 @@ const browser = await chromium.launchPersistentContext(
 cd smkc-score-app && npm run deploy
 ```
 
+### コードレビュー
+
+修正を行った場合、コミット前に必ず Codex (model: codex) にレビューを依頼すること。
+
+```
+Agent(subagent_type="tdd-test-reviewer", model="codex", prompt="...")
+```
+
+レビュー観点:
+- 変更の妥当性と副作用
+- テストカバレッジ
+- CLAUDE.md の review aspects に準拠しているか
+- レビュー指摘が出たら修正→再レビューを繰り返し、全てクリアしてからコミット
+
 ### 既知の問題
 
-- **Workers 間欠 1101 エラー**: PrismaNeon コールドスタートで ~10-20% の確率で Worker がクラッシュする。layout.tsx にリトライロジック（最大3回、500ms間隔）を追加済み
+- **Workers 間欠 1101 エラー**: PrismaNeon コールドスタートで ~10-20% の確率で Worker がクラッシュする。fetchWithRetry（最大5回、500ms間隔）で対処済み
 - **API レスポンス形式**: `createSuccessResponse()` は `{ success: true, data: {...} }` でラップする。フロントエンドで `.data ?? json` でアンラップが必要
