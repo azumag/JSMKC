@@ -1,4 +1,6 @@
 "use client";
+// eslint-disable-next-line -- auto-retry for Workers 1101
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /**
  * Time Attack Qualification Page
@@ -225,8 +227,8 @@ export default function TimeAttackPage({
   // Fetch tournament data and player list in parallel
   const fetchTournamentData = useCallback(async () => {
     const [taResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-      fetch("/api/players"),
+      fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+      fetchWithRetry("/api/players"),
     ]);
 
     if (!taResponse.ok) {
@@ -290,7 +292,7 @@ export default function TimeAttackPage({
    */
   const fetchPhaseStatus = useCallback(async () => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`);
+      const response = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta/phases`);
       if (response.ok) {
         const json = await response.json();
         // Unwrap createSuccessResponse wrapper: { success, data: { phaseStatus } }

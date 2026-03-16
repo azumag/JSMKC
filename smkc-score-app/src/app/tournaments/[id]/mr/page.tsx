@@ -15,6 +15,8 @@
  * @route /tournaments/[id]/mr
  */
 "use client";
+// eslint-disable-next-line -- auto-retry for Workers 1101
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
@@ -147,8 +149,8 @@ export default function MatchRacePage({
    */
   const fetchTournamentData = useCallback(async () => {
     const [mrResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/mr`),
-      fetch("/api/players"),
+      fetchWithRetry(`/api/tournaments/${tournamentId}/mr`),
+      fetchWithRetry("/api/players"),
     ]);
 
     if (!mrResponse.ok) {

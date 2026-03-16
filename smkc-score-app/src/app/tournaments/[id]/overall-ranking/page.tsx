@@ -48,6 +48,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { createLogger } from "@/lib/client-logger";
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-overall-ranking' });
@@ -96,7 +97,7 @@ export default function OverallRankingPage({
 
   /** Fetch ranking data from the overall ranking API */
   const fetchRankings = useCallback(async () => {
-    const response = await fetch(`/api/tournaments/${tournamentId}/overall-ranking`);
+    const response = await fetchWithRetry(`/api/tournaments/${tournamentId}/overall-ranking`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

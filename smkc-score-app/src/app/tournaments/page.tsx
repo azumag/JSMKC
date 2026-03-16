@@ -61,6 +61,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { extractArrayData } from "@/lib/api-response";
 import { createLogger } from "@/lib/client-logger";
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-list' });
@@ -116,12 +117,12 @@ export default function TournamentsPage() {
   const fetchTournaments = useCallback(async () => {
     try {
       setFetchError(false);
-      let response = await fetch("/api/tournaments");
+      let response = await fetchWithRetry("/api/tournaments");
       // Cloudflare Workers cold-start can cause the first request to fail.
       // Retry once automatically before showing an error to the user.
       if (!response.ok) {
         await new Promise(r => setTimeout(r, 1000));
-        response = await fetch("/api/tournaments");
+        response = await fetchWithRetry("/api/tournaments");
       }
       if (response.ok) {
         const result = await response.json();

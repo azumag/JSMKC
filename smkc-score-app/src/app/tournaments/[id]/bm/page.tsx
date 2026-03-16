@@ -22,6 +22,8 @@
  */
 
 "use client";
+// eslint-disable-next-line -- auto-retry for Workers 1101
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
@@ -143,8 +145,8 @@ export default function BattleModePage({
    */
   const fetchTournamentData = useCallback(async () => {
     const [bmResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/bm`),
-      fetch("/api/players"),
+      fetchWithRetry(`/api/tournaments/${tournamentId}/bm`),
+      fetchWithRetry("/api/players"),
     ]);
 
     if (!bmResponse.ok) {

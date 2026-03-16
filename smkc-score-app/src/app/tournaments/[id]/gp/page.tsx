@@ -1,4 +1,6 @@
 "use client";
+// eslint-disable-next-line -- auto-retry for Workers 1101
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /**
  * Grand Prix (GP) Qualification Page
@@ -157,8 +159,8 @@ export default function GrandPrixPage({
    */
   const fetchTournamentData = useCallback(async () => {
     const [gpResponse, playersResponse] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/gp`),
-      fetch("/api/players"),
+      fetchWithRetry(`/api/tournaments/${tournamentId}/gp`),
+      fetchWithRetry("/api/players"),
     ]);
 
     if (!gpResponse.ok) {
