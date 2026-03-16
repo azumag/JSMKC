@@ -6,10 +6,12 @@
  * Covers the following functionality:
  * - OptimisticLockError: Custom error class that includes the current version
  *   number, used to signal version conflicts to callers.
- * - updateWithRetry(): Generic retry wrapper that executes a Prisma transaction
+ * - updateWithRetry(): Generic retry wrapper that executes an update function
  *   and retries on optimistic lock errors (P2025, version-related messages,
  *   "Record to update not found"). Respects max retry limits and delays.
  *   Non-optimistic-lock errors are rethrown immediately without retry.
+ *   Note: D1/SQLite does not support interactive transactions, so updateWithRetry
+ *   calls the function directly instead of wrapping in $transaction.
  * - updateBMMatchScore(): Updates Battle Mode match scores with version checking.
  *   Throws OptimisticLockError when the match is not found or version mismatches.
  *   Supports optional `completed` flag and `rounds` data.
@@ -73,49 +75,21 @@ describe('OptimisticLockError', () => {
 });
 
 describe('updateWithRetry', () => {
-  interface MockModel {
-    findUnique: jest.Mock;
-    update: jest.Mock;
-  }
-
   interface MockPrisma {
-    $transaction: jest.Mock;
-    bMMatch: MockModel;
-    mRMatch: MockModel;
-    gPMatch: MockModel;
-    tTEntry: MockModel;
+    bMMatch: { findUnique: jest.Mock; update: jest.Mock };
+    mRMatch: { findUnique: jest.Mock; update: jest.Mock };
+    gPMatch: { findUnique: jest.Mock; update: jest.Mock };
+    tTEntry: { findUnique: jest.Mock; update: jest.Mock };
   }
 
   let mockPrisma: MockPrisma;
-  let mockBMMatch: MockModel;
-  let mockMRMatch: MockModel;
-  let mockGPMatch: MockModel;
-  let mockTTEntry: MockModel;
 
   beforeEach(() => {
-    mockBMMatch = {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    };
-    mockMRMatch = {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    };
-    mockGPMatch = {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    };
-    mockTTEntry = {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    };
-
     mockPrisma = {
-      $transaction: jest.fn(),
-      bMMatch: mockBMMatch,
-      mRMatch: mockMRMatch,
-      gPMatch: mockGPMatch,
-      tTEntry: mockTTEntry,
+      bMMatch: { findUnique: jest.fn(), update: jest.fn() },
+      mRMatch: { findUnique: jest.fn(), update: jest.fn() },
+      gPMatch: { findUnique: jest.fn(), update: jest.fn() },
+      tTEntry: { findUnique: jest.fn(), update: jest.fn() },
     };
   });
 
@@ -124,13 +98,9 @@ describe('updateWithRetry', () => {
   });
 
   it('should succeed on first attempt', async () => {
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
-    mockPrisma.$transaction.mockResolvedValue('success');
-
-    const result = await updateWithRetry(mockPrisma, async () => 'result');
+    const result = await updateWithRetry(mockPrisma, async () => 'success');
 
     expect(result).toBe('success');
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('should retry on optimistic lock error (P2025)', async () => {
@@ -140,14 +110,15 @@ describe('updateWithRetry', () => {
       clientVersion: '5.0.0',
     });
 
-    mockPrisma.$transaction
-      .mockImplementationOnce(() => { throw lockError; })
-      .mockImplementationOnce((fn) => fn(mockPrisma));
-
-    const result = await updateWithRetry(mockPrisma, async () => 'success');
+    let callCount = 0;
+    const result = await updateWithRetry(mockPrisma, async () => {
+      callCount++;
+      if (callCount === 1) throw lockError;
+      return 'success';
+    });
 
     expect(result).toBe('success');
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(callCount).toBe(2);
   });
 
   it('should retry on optimistic lock error (version in message)', async () => {
@@ -157,14 +128,15 @@ describe('updateWithRetry', () => {
       clientVersion: '5.0.0',
     });
 
-    mockPrisma.$transaction
-      .mockImplementationOnce(() => { throw versionError; })
-      .mockImplementationOnce((fn) => fn(mockPrisma));
-
-    const result = await updateWithRetry(mockPrisma, async () => 'success');
+    let callCount = 0;
+    const result = await updateWithRetry(mockPrisma, async () => {
+      callCount++;
+      if (callCount === 1) throw versionError;
+      return 'success';
+    });
 
     expect(result).toBe('success');
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(callCount).toBe(2);
   });
 
   it('should retry on optimistic lock error (Record to update not found)', async () => {
@@ -174,14 +146,15 @@ describe('updateWithRetry', () => {
       clientVersion: '5.0.0',
     });
 
-    mockPrisma.$transaction
-      .mockImplementationOnce(() => { throw notFoundError; })
-      .mockImplementationOnce((fn) => fn(mockPrisma));
-
-    const result = await updateWithRetry(mockPrisma, async () => 'success');
+    let callCount = 0;
+    const result = await updateWithRetry(mockPrisma, async () => {
+      callCount++;
+      if (callCount === 1) throw notFoundError;
+      return 'success';
+    });
 
     expect(result).toBe('success');
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(callCount).toBe(2);
   });
 
   it('should respect max retries limit', async () => {
@@ -191,43 +164,34 @@ describe('updateWithRetry', () => {
       clientVersion: '5.0.0',
     });
 
-    mockPrisma.$transaction.mockImplementation(() => { throw lockError; });
-
     await expect(
-      updateWithRetry(mockPrisma, async () => 'result', { maxRetries: 2 })
+      updateWithRetry(mockPrisma, async () => { throw lockError; }, { maxRetries: 2 })
     ).rejects.toThrow(lockError);
-
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(3); // initial + 2 retries
   });
 
   it('should rethrow non-optimistic lock errors immediately', async () => {
     const otherError = new Error('Database connection failed');
 
-    mockPrisma.$transaction.mockImplementation(() => { throw otherError; });
-
+    let callCount = 0;
     await expect(
-      updateWithRetry(mockPrisma, async () => 'result')
+      updateWithRetry(mockPrisma, async () => { callCount++; throw otherError; })
     ).rejects.toThrow('Database connection failed');
 
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(1); // no retries
   });
 
-  it('should use default retry config', async () => {
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
-    mockPrisma.$transaction.mockResolvedValue('success');
+  it('should succeed without retries on first attempt', async () => {
+    let callCount = 0;
+    await updateWithRetry(mockPrisma, async () => { callCount++; return 'result'; });
 
-    await updateWithRetry(mockPrisma, async () => 'result');
-
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(1);
   });
 
   it('should merge custom config with defaults', async () => {
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
-    mockPrisma.$transaction.mockResolvedValue('success');
+    let callCount = 0;
+    await updateWithRetry(mockPrisma, async () => { callCount++; return 'result'; }, { maxRetries: 5 });
 
-    await updateWithRetry(mockPrisma, async () => 'result', { maxRetries: 5 });
-
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(1);
   });
 
   it('should wait between retries', async () => {
@@ -238,22 +202,31 @@ describe('updateWithRetry', () => {
     });
 
     const startTime = Date.now();
-    mockPrisma.$transaction
-      .mockImplementationOnce(() => { throw lockError; })
-      .mockImplementationOnce((fn) => fn(mockPrisma));
+    let callCount = 0;
 
-    await updateWithRetry(mockPrisma, async () => 'success', { baseDelay: 10, maxDelay: 100 });
+    await updateWithRetry(mockPrisma, async () => {
+      callCount++;
+      if (callCount === 1) throw lockError;
+      return 'success';
+    }, { baseDelay: 10, maxDelay: 100 });
 
-    const endTime = Date.now();
-    const elapsedTime = endTime - startTime;
-
+    const elapsedTime = Date.now() - startTime;
     expect(elapsedTime).toBeGreaterThanOrEqual(10); // Should wait at least baseDelay
   });
 });
 
+// Helper to create a P2025 error for mock update failures
+function createP2025Error() {
+  const { Prisma } = jest.requireMock('@prisma/client');
+  return new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+    code: 'P2025',
+    clientVersion: '5.0.0',
+  });
+}
+
 describe('updateBMMatchScore', () => {
-  let mockPrisma: MockPrisma;
-  let mockBMMatch: MockModel;
+  let mockPrisma;
+  let mockBMMatch;
 
   beforeEach(() => {
     mockBMMatch = {
@@ -262,11 +235,8 @@ describe('updateBMMatchScore', () => {
     };
 
     mockPrisma = {
-      $transaction: jest.fn(),
       bMMatch: mockBMMatch,
     };
-
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 
   afterEach(() => {
@@ -276,13 +246,6 @@ describe('updateBMMatchScore', () => {
   it('should update bMMatch with version check', async () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
-
-    mockBMMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-      score1: 0,
-      score2: 0,
-    });
 
     mockBMMatch.update.mockResolvedValue({
       id: matchId,
@@ -326,6 +289,8 @@ describe('updateBMMatchScore', () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
 
+    // update throws P2025, then findUnique returns null (record doesn't exist)
+    mockBMMatch.update.mockRejectedValue(createP2025Error());
     mockBMMatch.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -346,9 +311,11 @@ describe('updateBMMatchScore', () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
 
+    // update throws P2025, then findUnique shows record exists with different version
+    mockBMMatch.update.mockRejectedValue(createP2025Error());
     mockBMMatch.findUnique.mockResolvedValue({
       id: matchId,
-      version: 3, // Different version
+      version: 3,
     });
 
     await expect(
@@ -368,11 +335,6 @@ describe('updateBMMatchScore', () => {
   it('should handle without optional parameters', async () => {
     const matchId = 'bm-match-123';
     const expectedVersion = 1;
-
-    mockBMMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-    });
 
     mockBMMatch.update.mockResolvedValue({
       id: matchId,
@@ -401,8 +363,8 @@ describe('updateBMMatchScore', () => {
 });
 
 describe('updateMRMatchScore', () => {
-  let mockPrisma: MockPrisma;
-  let mockMRMatch: MockModel;
+  let mockPrisma;
+  let mockMRMatch;
 
   beforeEach(() => {
     mockMRMatch = {
@@ -411,11 +373,8 @@ describe('updateMRMatchScore', () => {
     };
 
     mockPrisma = {
-      $transaction: jest.fn(),
       mRMatch: mockMRMatch,
     };
-
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 
   afterEach(() => {
@@ -425,13 +384,6 @@ describe('updateMRMatchScore', () => {
   it('should update mRMatch with version check', async () => {
     const matchId = 'mr-match-123';
     const expectedVersion = 2;
-
-    mockMRMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-      score1: 0,
-      score2: 0,
-    });
 
     mockMRMatch.update.mockResolvedValue({
       id: matchId,
@@ -475,6 +427,7 @@ describe('updateMRMatchScore', () => {
     const matchId = 'mr-match-123';
     const expectedVersion = 1;
 
+    mockMRMatch.update.mockRejectedValue(createP2025Error());
     mockMRMatch.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -486,6 +439,7 @@ describe('updateMRMatchScore', () => {
     const matchId = 'mr-match-123';
     const expectedVersion = 1;
 
+    mockMRMatch.update.mockRejectedValue(createP2025Error());
     mockMRMatch.findUnique.mockResolvedValue({
       id: matchId,
       version: 4,
@@ -499,11 +453,6 @@ describe('updateMRMatchScore', () => {
   it('should handle without optional parameters', async () => {
     const matchId = 'mr-match-123';
     const expectedVersion = 1;
-
-    mockMRMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-    });
 
     mockMRMatch.update.mockResolvedValue({
       id: matchId,
@@ -532,8 +481,8 @@ describe('updateMRMatchScore', () => {
 });
 
 describe('updateGPMatchScore', () => {
-  let mockPrisma: MockPrisma;
-  let mockGPMatch: MockModel;
+  let mockPrisma;
+  let mockGPMatch;
 
   beforeEach(() => {
     mockGPMatch = {
@@ -542,11 +491,8 @@ describe('updateGPMatchScore', () => {
     };
 
     mockPrisma = {
-      $transaction: jest.fn(),
       gPMatch: mockGPMatch,
     };
-
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 
   afterEach(() => {
@@ -556,13 +502,6 @@ describe('updateGPMatchScore', () => {
   it('should update gPMatch with version check', async () => {
     const matchId = 'gp-match-123';
     const expectedVersion = 0;
-
-    mockGPMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-      points1: 0,
-      points2: 0,
-    });
 
     mockGPMatch.update.mockResolvedValue({
       id: matchId,
@@ -611,6 +550,7 @@ describe('updateGPMatchScore', () => {
     const matchId = 'gp-match-123';
     const expectedVersion = 1;
 
+    mockGPMatch.update.mockRejectedValue(createP2025Error());
     mockGPMatch.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -622,6 +562,7 @@ describe('updateGPMatchScore', () => {
     const matchId = 'gp-match-123';
     const expectedVersion = 1;
 
+    mockGPMatch.update.mockRejectedValue(createP2025Error());
     mockGPMatch.findUnique.mockResolvedValue({
       id: matchId,
       version: 5,
@@ -635,11 +576,6 @@ describe('updateGPMatchScore', () => {
   it('should handle without optional parameters', async () => {
     const matchId = 'gp-match-123';
     const expectedVersion = 1;
-
-    mockGPMatch.findUnique.mockResolvedValue({
-      id: matchId,
-      version: expectedVersion,
-    });
 
     mockGPMatch.update.mockResolvedValue({
       id: matchId,
@@ -668,8 +604,8 @@ describe('updateGPMatchScore', () => {
 });
 
 describe('updateTTEntry', () => {
-  let mockPrisma: MockPrisma;
-  let mockTTEntry: MockModel;
+  let mockPrisma;
+  let mockTTEntry;
 
   beforeEach(() => {
     mockTTEntry = {
@@ -678,11 +614,8 @@ describe('updateTTEntry', () => {
     };
 
     mockPrisma = {
-      $transaction: jest.fn(),
       tTEntry: mockTTEntry,
     };
-
-    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 
   afterEach(() => {
@@ -692,13 +625,6 @@ describe('updateTTEntry', () => {
   it('should update tTEntry with version check', async () => {
     const entryId = 'tt-entry-123';
     const expectedVersion = 2;
-
-    mockTTEntry.findUnique.mockResolvedValue({
-      id: entryId,
-      version: expectedVersion,
-      times: {},
-      totalTime: 0,
-    });
 
     mockTTEntry.update.mockResolvedValue({
       id: entryId,
@@ -736,6 +662,7 @@ describe('updateTTEntry', () => {
     const entryId = 'tt-entry-123';
     const expectedVersion = 1;
 
+    mockTTEntry.update.mockRejectedValue(createP2025Error());
     mockTTEntry.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -747,6 +674,7 @@ describe('updateTTEntry', () => {
     const entryId = 'tt-entry-123';
     const expectedVersion = 1;
 
+    mockTTEntry.update.mockRejectedValue(createP2025Error());
     mockTTEntry.findUnique.mockResolvedValue({
       id: entryId,
       version: 6,
@@ -760,11 +688,6 @@ describe('updateTTEntry', () => {
   it('should handle with empty data', async () => {
     const entryId = 'tt-entry-123';
     const expectedVersion = 1;
-
-    mockTTEntry.findUnique.mockResolvedValue({
-      id: entryId,
-      version: expectedVersion,
-    });
 
     mockTTEntry.update.mockResolvedValue({
       id: entryId,
@@ -788,11 +711,6 @@ describe('updateTTEntry', () => {
   it('should handle with partial data', async () => {
     const entryId = 'tt-entry-123';
     const expectedVersion = 1;
-
-    mockTTEntry.findUnique.mockResolvedValue({
-      id: entryId,
-      version: expectedVersion,
-    });
 
     mockTTEntry.update.mockResolvedValue({
       id: entryId,

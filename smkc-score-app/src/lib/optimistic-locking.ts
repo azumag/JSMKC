@@ -135,22 +135,26 @@ function calculateDelay(attempt: number, config: RetryConfig): number {
 }
 
 /**
- * Execute a database update within a transaction, retrying on optimistic lock failures.
+ * Execute a database update with retry on optimistic lock failures.
  *
- * Wraps the provided `updateFn` in a Prisma transaction. If the transaction
- * fails due to an optimistic lock error (detected by `isOptimisticLockError`),
- * the operation is retried after an exponential backoff delay. Non-lock errors
- * are immediately re-thrown without retry.
+ * Calls the provided `updateFn` directly (without an interactive transaction).
+ * D1/SQLite does not support interactive transactions, and its single-writer
+ * model makes them unnecessary — the atomic `UPDATE ... WHERE version = N`
+ * in the Prisma query is sufficient for optimistic locking.
+ *
+ * If the update fails due to an optimistic lock error (detected by
+ * `isOptimisticLockError`), the operation is retried after an exponential
+ * backoff delay. Non-lock errors are immediately re-thrown without retry.
  *
  * @param prisma   - Prisma client instance
- * @param updateFn - Async function to execute within the transaction
+ * @param updateFn - Async function to execute (receives prisma as argument)
  * @param config   - Optional partial retry configuration overrides
- * @returns The result of the successful transaction
+ * @returns The result of the successful update
  * @throws The last error if all retries are exhausted, or any non-lock error
  */
 export async function updateWithRetry<T>(
   prisma: PrismaClient,
-  updateFn: (tx: Prisma.TransactionClient) => Promise<T>,
+  updateFn: (client: PrismaClient) => Promise<T>,
   config: Partial<RetryConfig> = {}
 ): Promise<T> {
   const finalConfig = { ...DEFAULT_RETRY_CONFIG, ...config };
@@ -158,9 +162,9 @@ export async function updateWithRetry<T>(
 
   for (let attempt = 0; attempt <= finalConfig.maxRetries; attempt++) {
     try {
-      // Execute the update function within a Prisma interactive transaction
-      // to ensure atomicity of the read-check-write cycle
-      return await prisma.$transaction(updateFn);
+      // Execute the update function directly — D1/SQLite's single-writer model
+      // provides sufficient isolation without interactive transactions.
+      return await updateFn(prisma);
     } catch (error) {
       lastError = error as Error;
 
@@ -220,16 +224,18 @@ type PrismaModelKeys =
  * Factory function that creates a model-specific optimistic lock update function.
  *
  * The generated function:
- * 1. Looks up the record by ID within a transaction
- * 2. Checks that the current version matches expectedVersion
- * 3. If matched, applies the update data and increments the version
- * 4. If mismatched, throws OptimisticLockError with the actual current version
+ * 1. Attempts to update the record with version guard in the WHERE clause
+ * 2. If successful, returns the new version
+ * 3. If P2025 (not found), checks whether the record exists at all
+ *    to distinguish "not found" from "version mismatch"
  *
- * Note: Dynamic model access via `(tx as any)[modelName]` is necessary here
- * because Prisma's TransactionClient type does not support generic/dynamic
- * model access. This is a known Prisma limitation. The usage is safe because
- * `modelName` is constrained to PrismaModelKeys at compile time, ensuring
- * only valid model names are used.
+ * D1/SQLite does not support interactive transactions. Instead, we rely on
+ * the atomic `UPDATE ... WHERE id = ? AND version = ?` query, which is
+ * sufficient because D1's single-writer model prevents concurrent writes.
+ *
+ * Note: Dynamic model access via `(client as any)[modelName]` is necessary
+ * because Prisma does not support generic/dynamic model access. The usage
+ * is safe because `modelName` is constrained to PrismaModelKeys at compile time.
  *
  * @param modelName           - Prisma model key (e.g., 'bMMatch')
  * @param defaultNotFoundError - Error message when the record doesn't exist
@@ -245,45 +251,41 @@ function createUpdateFunction<TModel extends PrismaModelKeys, TData>(
     expectedVersion: number,
     data: TData
   ): Promise<{ version: number }> {
-    return updateWithRetry(prisma, async (tx) => {
+    return updateWithRetry(prisma, async (client) => {
       // Dynamic model access - required for the generic pattern
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const model = (tx as any)[modelName];
+      const model = (client as any)[modelName];
 
-      // Step 1: Read the current record to check existence and version
-      const current = await model.findUnique({
-        where: { id }
-      });
+      try {
+        // Atomic update with version guard — if the version doesn't match,
+        // Prisma throws P2025 ("Record to update not found").
+        const updated = await model.update({
+          where: {
+            id,
+            version: expectedVersion
+          },
+          data: {
+            ...data,
+            version: { increment: 1 }
+          }
+        });
 
-      if (!current) {
-        // Record not found - surface a clear error with version -1
-        // to indicate the record never existed (vs version mismatch)
-        throw new OptimisticLockError(defaultNotFoundError, -1);
-      }
-
-      // Step 2: Compare versions to detect concurrent modifications
-      if (current.version !== expectedVersion) {
-        throw new OptimisticLockError(
-          `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
-          current.version
-        );
-      }
-
-      // Step 3: Perform the update with version guard in the WHERE clause.
-      // The version field in the WHERE acts as a secondary check at the DB level,
-      // protecting against race conditions between the findUnique and update calls.
-      const updated = await model.update({
-        where: {
-          id,
-          version: expectedVersion
-        },
-        data: {
-          ...data,
-          version: { increment: 1 }
+        return { version: updated.version };
+      } catch (error) {
+        // If the update failed because no row matched (P2025),
+        // distinguish between "record doesn't exist" and "version mismatch"
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+          const current = await model.findUnique({ where: { id } });
+          if (!current) {
+            throw new OptimisticLockError(defaultNotFoundError, -1);
+          }
+          throw new OptimisticLockError(
+            `Version mismatch: expected ${expectedVersion}, got ${current.version}`,
+            current.version
+          );
         }
-      });
-
-      return { version: updated.version };
+        throw error;
+      }
     });
   };
 }

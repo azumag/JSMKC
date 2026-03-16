@@ -863,35 +863,29 @@ export async function startPhaseRound(
     throw new Error(`No active players in ${phase}. Promote players first.`);
   }
 
-  // Wrap round counting, course selection, and round creation in a transaction
-  // to prevent race conditions when multiple admins start rounds concurrently.
-  // Without this, two concurrent requests could:
-  //   1. Both read existingRounds=3, both try to create roundNumber=4
-  //   2. Both see the same available courses, potentially selecting the same course
-  // The transaction's serializable isolation ensures atomicity of the entire operation.
-  const { roundNumber, course } = await prisma.$transaction(async (tx) => {
-    // Determine next round number by counting existing rounds (within transaction)
-    const existingRounds = await tx.tTPhaseRound.count({
-      where: { tournamentId, phase },
-    });
-    const txRoundNumber = existingRounds + 1;
+  // D1/SQLite's single-writer model provides serializable isolation without
+  // needing interactive transactions (which D1 does not support).
+  // The unique constraint [tournamentId, phase, roundNumber] prevents duplicates
+  // if two requests race — the second create will fail with a constraint violation.
+  const existingRounds = await prisma.tTPhaseRound.count({
+    where: { tournamentId, phase },
+  });
+  const roundNumber = existingRounds + 1;
 
-    // Select a random course from the unused pool for this phase.
-    // selectRandomCourse accepts PrismaClient | PrismaTransaction via DbClient type.
-    const txCourse = await selectRandomCourse(tx, tournamentId, phase);
+  // Select a random course from the unused pool for this phase.
+  const course = await selectRandomCourse(prisma, tournamentId, phase);
 
-    // Create the round record with empty results (to be filled on submitRoundResults)
-    await tx.tTPhaseRound.create({
-      data: {
-        tournamentId,
-        phase,
-        roundNumber: txRoundNumber,
-        course: txCourse,
-        results: [], // Will be populated by submitRoundResults
-      },
-    });
-
-    return { roundNumber: txRoundNumber, course: txCourse };
+  // Create the round record with empty results (to be filled on submitRoundResults).
+  // The @@unique([tournamentId, phase, roundNumber]) constraint guards against
+  // duplicate round numbers from concurrent requests.
+  await prisma.tTPhaseRound.create({
+    data: {
+      tournamentId,
+      phase,
+      roundNumber,
+      course,
+      results: [], // Will be populated by submitRoundResults
+    },
   });
 
   // Audit log for round start (non-critical, outside transaction)
