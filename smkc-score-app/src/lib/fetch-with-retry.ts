@@ -11,8 +11,8 @@
  *   const response = await fetchWithRetry('/api/players');
  */
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 600;
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 500;
 
 /**
  * Fetch with automatic retry on 500+ status codes.

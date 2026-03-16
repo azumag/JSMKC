@@ -127,13 +127,11 @@ export default function TournamentLayout({
    */
   const fetchTournament = useCallback(async () => {
     try {
-      // fetchWithRetry handles Workers 1101 retries (max 3 attempts)
       const response = await fetchWithRetry(`/api/tournaments/${id}`);
       if (response.ok) {
         const json = await response.json();
         // API uses createSuccessResponse: { success, data: {...} }
-        const tournament = json.data ?? json;
-        setTournament(tournament);
+        setTournament(json.data ?? json);
       }
     } catch (err) {
       const metadata =
@@ -145,6 +143,18 @@ export default function TournamentLayout({
       setLoading(false);
     }
   }, [id]);
+
+  /**
+   * Auto-retry: if tournament data fails to load after all retries,
+   * schedule another attempt after 2 seconds. Workers cold starts are
+   * transient — a delayed retry almost always succeeds.
+   */
+  useEffect(() => {
+    if (!loading && !tournament) {
+      const timer = setTimeout(() => fetchTournament(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, tournament, fetchTournament]);
 
   useEffect(() => {
     fetchTournament();

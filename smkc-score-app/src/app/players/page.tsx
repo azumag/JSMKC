@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/dialog";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
 import { extractArrayData } from "@/lib/api-response";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { createLogger } from "@/lib/client-logger";
 
 /**
@@ -140,19 +141,11 @@ export default function PlayersPage() {
   const fetchPlayers = useCallback(async () => {
     try {
       setFetchError(false);
-      let response = await fetch("/api/players");
-      // Cloudflare Workers cold-start can cause the first request to fail.
-      // Retry once automatically before showing an error to the user.
-      if (!response.ok) {
-        await new Promise(r => setTimeout(r, 1000));
-        response = await fetch("/api/players");
-      }
+      const response = await fetchWithRetry("/api/players");
       if (response.ok) {
         const result = await response.json();
         setPlayers(extractArrayData<Player>(result));
       } else {
-        // API returned an error status after retry — surface it to the user
-        // instead of silently showing an empty list.
         setFetchError(true);
         logger.error("API returned error status", { status: response.status });
       }

@@ -117,19 +117,12 @@ export default function TournamentsPage() {
   const fetchTournaments = useCallback(async () => {
     try {
       setFetchError(false);
-      let response = await fetchWithRetry("/api/tournaments");
-      // Cloudflare Workers cold-start can cause the first request to fail.
-      // Retry once automatically before showing an error to the user.
-      if (!response.ok) {
-        await new Promise(r => setTimeout(r, 1000));
-        response = await fetchWithRetry("/api/tournaments");
-      }
+      // fetchWithRetry handles up to 5 retries for Workers 1101
+      const response = await fetchWithRetry("/api/tournaments");
       if (response.ok) {
         const result = await response.json();
         setTournaments(extractArrayData<Tournament>(result));
       } else {
-        // API returned an error status after retry — surface it to the user
-        // instead of silently showing an empty list.
         setFetchError(true);
         logger.error("API returned error status", { status: response.status });
       }
