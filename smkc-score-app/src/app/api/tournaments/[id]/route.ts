@@ -52,33 +52,48 @@ export async function GET(
   const { id } = await params;
 
   try {
-    // Fetch tournament with BM-related data eagerly loaded.
-    // Using select instead of include to control exactly which fields
-    // are returned, avoiding accidental exposure of sensitive data.
+    const { searchParams } = new URL(request.url);
+
+    /*
+     * ?fields=summary returns only core tournament metadata (no relations).
+     * Used by the tournament layout which only needs name/date/status.
+     * This is much lighter than the full query with BM qualifications/matches,
+     * reducing Workers CPU/memory pressure and eliminating most 1101 crashes.
+     */
+    const isSummary = searchParams.get('fields') === 'summary';
+
     const tournament = await prisma.tournament.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        date: true,
-        status: true,
-        frozenStages: true,
-        createdAt: true,
-        updatedAt: true,
-        // BM qualification standings: sorted by group (A, B, ...) then by score descending
-        bmQualifications: {
-          include: { player: true },
-          orderBy: [{ group: "asc" }, { score: "desc" }],
-        },
-        // BM matches: include both players for display, sorted chronologically
-        bmMatches: {
-          include: {
-            player1: true,
-            player2: true,
+      select: isSummary
+        ? {
+            id: true,
+            name: true,
+            date: true,
+            status: true,
+            frozenStages: true,
+            createdAt: true,
+            updatedAt: true,
+          }
+        : {
+            id: true,
+            name: true,
+            date: true,
+            status: true,
+            frozenStages: true,
+            createdAt: true,
+            updatedAt: true,
+            bmQualifications: {
+              include: { player: true },
+              orderBy: [{ group: "asc" }, { score: "desc" }],
+            },
+            bmMatches: {
+              include: {
+                player1: true,
+                player2: true,
+              },
+              orderBy: { matchNumber: "asc" },
+            },
           },
-          orderBy: { matchNumber: "asc" },
-        },
-      },
     });
 
     if (!tournament) {

@@ -40,6 +40,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, CheckCircle, Clock, Users, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { createLogger } from '@/lib/client-logger';
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-bm-participant' });
@@ -141,7 +142,7 @@ export default function BattleModeParticipantPage({
     const fetchData = async () => {
       try {
         const [tournamentResponse, matchesResponse] = await Promise.all([
-          fetch(`/api/tournaments/${tournamentId}`),
+          fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
           fetch(`/api/tournaments/${tournamentId}/bm`),
         ]);
 

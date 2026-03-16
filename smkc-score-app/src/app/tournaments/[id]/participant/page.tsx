@@ -35,6 +35,7 @@ import { Shield, AlertTriangle, Trophy, LogIn } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import Link from 'next/link';
 import { createLogger } from '@/lib/client-logger';
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-participant' });
@@ -84,10 +85,10 @@ export default function ParticipantEntryPage({
 
     const fetchTournament = async () => {
       try {
-        const response = await fetch(`/api/tournaments/${tournamentId}`);
+        const response = await fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`);
         if (response.ok) {
           const data = await response.json();
-          setTournament(data);
+          setTournament(data.data ?? data);
         } else {
           setError('Failed to load tournament information');
         }

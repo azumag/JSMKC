@@ -14,6 +14,7 @@
  * @route /tournaments/[id]/mr/match/[matchId]
  */
 "use client";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
@@ -131,7 +132,7 @@ export default function MatchDetailPage({
   const fetchMatchData = useCallback(async () => {
     const [matchRes, tournamentRes] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}`),
-      fetch(`/api/tournaments/${tournamentId}`),
+      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
     ]);
 
     if (!matchRes.ok) {

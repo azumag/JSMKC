@@ -119,11 +119,13 @@ export default async function middleware(req: NextRequest) {
 
     addSecurityHeaders(response, nonce)
     return response
-  } catch {
+  } catch (err) {
     // Graceful degradation: if the middleware crashes (e.g., auth() throws
     // due to WASM engine failure on Workers), let the request through rather
     // than returning error code 1101. The route handler has its own auth
     // check and will enforce access control independently.
+    // Log the actual error for diagnosing 1101 root causes.
+    console.error('[middleware] Unhandled error:', err instanceof Error ? err.stack || err.message : err)
     return NextResponse.next()
   }
 }

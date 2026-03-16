@@ -127,7 +127,8 @@ export default function TournamentLayout({
    */
   const fetchTournament = useCallback(async () => {
     try {
-      const response = await fetchWithRetry(`/api/tournaments/${id}`);
+      // ?fields=summary skips BM relations — layout only needs name/date/status
+      const response = await fetchWithRetry(`/api/tournaments/${id}?fields=summary`);
       if (response.ok) {
         const json = await response.json();
         // API uses createSuccessResponse: { success, data: {...} }
@@ -144,17 +145,22 @@ export default function TournamentLayout({
     }
   }, [id]);
 
+  const [retryCount, setRetryCount] = useState(0);
+
   /**
-   * Auto-retry: if tournament data fails to load after all retries,
-   * schedule another attempt after 2 seconds. Workers cold starts are
-   * transient — a delayed retry almost always succeeds.
+   * Auto-retry: if tournament data fails to load after all fetchWithRetry
+   * attempts, schedule one more attempt after 2 seconds. Capped at 2 extra
+   * retries to prevent infinite loops on genuinely missing tournaments (404).
    */
   useEffect(() => {
-    if (!loading && !tournament) {
-      const timer = setTimeout(() => fetchTournament(), 2000);
+    if (!loading && !tournament && retryCount < 2) {
+      const timer = setTimeout(() => {
+        setRetryCount(c => c + 1);
+        fetchTournament();
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [loading, tournament, fetchTournament]);
+  }, [loading, tournament, retryCount, fetchTournament]);
 
   useEffect(() => {
     fetchTournament();

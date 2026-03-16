@@ -31,6 +31,7 @@ import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Star, LogIn } from 'l
 import Link from 'next/link';
 import { COURSE_INFO, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints } from '@/lib/constants';
 import { createLogger } from '@/lib/client-logger';
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-participant' });
@@ -131,7 +132,7 @@ export default function GrandPrixParticipantPage({
     const fetchData = async () => {
       try {
         const [tournamentRes, matchesRes] = await Promise.all([
-          fetch(`/api/tournaments/${tournamentId}`),
+          fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
           fetch(`/api/tournaments/${tournamentId}/gp`),
         ]);
         if (tournamentRes.ok) {

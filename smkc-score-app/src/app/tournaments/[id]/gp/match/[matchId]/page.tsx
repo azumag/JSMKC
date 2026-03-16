@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /**
  * Grand Prix Match Detail / Share Page
@@ -117,7 +118,7 @@ export default function GPMatchPage({
   const fetchMatchData = useCallback(async () => {
     const [matchRes, tournamentRes] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/gp/match/${matchId}`),
-      fetch(`/api/tournaments/${tournamentId}`),
+      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
     ]);
 
     if (!matchRes.ok) {

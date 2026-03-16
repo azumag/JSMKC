@@ -164,6 +164,52 @@ describe('GET /api/tournaments/[id]', () => {
         data: mockTournament,
       });
     });
+
+    it('should return summary fields only when ?fields=summary is passed', async () => {
+      const mockSummary = {
+        id: 't1',
+        name: 'Test Tournament',
+        date: new Date('2024-01-01'),
+        status: 'active',
+        frozenStages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockSummary);
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1?fields=summary'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      // Verify the select does NOT include bmQualifications or bmMatches
+      const callArgs = (prisma.tournament.findUnique as jest.Mock).mock.calls[0][0];
+      expect(callArgs.select).not.toHaveProperty('bmQualifications');
+      expect(callArgs.select).not.toHaveProperty('bmMatches');
+      expect(callArgs.select).toHaveProperty('name', true);
+      expect(callArgs.select).toHaveProperty('status', true);
+    });
+
+    it('should include BM relations when ?fields is not summary', async () => {
+      const mockTournament = {
+        id: 't1',
+        name: 'Test',
+        bmQualifications: [],
+        bmMatches: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      const callArgs = (prisma.tournament.findUnique as jest.Mock).mock.calls[0][0];
+      expect(callArgs.select).toHaveProperty('bmQualifications');
+      expect(callArgs.select).toHaveProperty('bmMatches');
+    });
   });
 
   describe('Error Cases', () => {

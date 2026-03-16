@@ -32,6 +32,7 @@ import { AlertTriangle, Trophy, CheckCircle, Clock, Users, Flag, LogIn } from 'l
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL } from '@/lib/constants';
 import { createLogger } from '@/lib/client-logger';
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-participant' });
@@ -121,7 +122,7 @@ export default function MatchRaceParticipantPage({
     const fetchData = async () => {
       try {
         const [tournamentRes, matchesRes] = await Promise.all([
-          fetch(`/api/tournaments/${tournamentId}`),
+          fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
           fetch(`/api/tournaments/${tournamentId}/mr`),
         ]);
         if (tournamentRes.ok) {

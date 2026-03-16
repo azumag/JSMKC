@@ -18,6 +18,7 @@
  */
 
 "use client";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
@@ -116,7 +117,7 @@ export default function MatchEntryPage({
   const fetchMatchData = useCallback(async () => {
     const [matchRes, tournamentRes] = await Promise.all([
       fetch(`/api/tournaments/${tournamentId}/bm/match/${matchId}`),
-      fetch(`/api/tournaments/${tournamentId}`),
+      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
     ]);
 
     if (!matchRes.ok) {

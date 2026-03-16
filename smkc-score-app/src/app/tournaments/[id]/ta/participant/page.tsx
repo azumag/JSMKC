@@ -40,6 +40,7 @@ import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { msToDisplayTime } from '@/lib/ta/time-utils';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-ta-participant' });
@@ -162,7 +163,7 @@ export default function TimeAttackParticipantPage({
     const fetchData = async () => {
       try {
         const [tournamentRes, entriesRes] = await Promise.all([
-          fetch(`/api/tournaments/${tournamentId}`),
+          fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
           fetch(`/api/tournaments/${tournamentId}/ta`),
         ]);
         if (tournamentRes.ok) {
