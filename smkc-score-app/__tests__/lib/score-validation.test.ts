@@ -25,12 +25,13 @@ import {
   isPlayer1Win,
   calculateMatchResult,
   validateMatchRaceScores,
+  validateBattleModeFinalScores,
   validateGPRacePosition,
   MAX_RACE_WIN_SCORE,
   MIN_GP_POSITION,
   MAX_GP_POSITION,
 } from '@/lib/score-validation';
-import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS } from '@/lib/constants';
+import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, BM_FINALS_TARGET_WINS } from '@/lib/constants';
 
 describe('Score Validation Utilities', () => {
   describe('validateBattleModeScores', () => {
@@ -306,6 +307,55 @@ describe('Score Validation Utilities', () => {
       expect(result.result2).toBe('loss');
       expect(typeof result.result1).toBe('string');
       expect(typeof result.result2).toBe('string');
+    });
+  });
+
+  describe('validateBattleModeFinalScores', () => {
+    // BM finals: best-of-9, first to BM_FINALS_TARGET_WINS (5) wins
+
+    it('should accept valid finals score 5-2', () => {
+      expect(validateBattleModeFinalScores(5, 2).isValid).toBe(true);
+    });
+
+    it('should accept valid finals score 5-0', () => {
+      expect(validateBattleModeFinalScores(5, 0).isValid).toBe(true);
+    });
+
+    it('should accept valid finals score 0-5 (player 2 wins)', () => {
+      expect(validateBattleModeFinalScores(0, 5).isValid).toBe(true);
+    });
+
+    it('should accept valid finals score 5-4', () => {
+      expect(validateBattleModeFinalScores(5, 4).isValid).toBe(true);
+    });
+
+    it('should accept valid finals score 4-5 (player 2 wins)', () => {
+      expect(validateBattleModeFinalScores(4, 5).isValid).toBe(true);
+    });
+
+    it('should reject score where neither player reached target', () => {
+      const result = validateBattleModeFinalScores(4, 3);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain(String(BM_FINALS_TARGET_WINS));
+    });
+
+    it('should reject both players at target wins', () => {
+      const result = validateBattleModeFinalScores(5, 5);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe("Both players cannot have the same winning score");
+    });
+
+    it('should reject score exceeding target', () => {
+      const result = validateBattleModeFinalScores(6, 2);
+      expect(result.isValid).toBe(false);
+    });
+
+    it('should reject negative scores', () => {
+      expect(validateBattleModeFinalScores(-1, 5).isValid).toBe(false);
+    });
+
+    it('should reject non-integer scores', () => {
+      expect(validateBattleModeFinalScores(5.5, 2).isValid).toBe(false);
     });
   });
 

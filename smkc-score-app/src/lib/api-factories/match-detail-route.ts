@@ -61,8 +61,15 @@ export interface MatchDetailConfig {
    * Receives the two score values from the request body.
    * Return { isValid: false, error: string } to reject the request with 400.
    * If omitted, no score validation is performed on the admin PUT path.
+   * Applied only to qualification matches; see validateFinalsScores for finals.
    */
   validateScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
+  /**
+   * Optional score validation function for finals matches (stage !== 'qualification').
+   * If omitted, no validation is performed on finals scores.
+   * BM finals use best-of-9 (max score = 5) which differs from qualification (max 4, sum = 4).
+   */
+  validateFinalsScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
 }
 
 /**
@@ -150,8 +157,26 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         return handleValidationError('version is required and must be a number', 'version');
       }
 
-      /* Optional score validation (e.g. BM: sum must be 4, no ties) */
-      if (config.validateScores) {
+      /* Stage-aware score validation: qualification and finals have different rules.
+       * BM qualification: 4 rounds, sum=4, max=4; BM finals: best-of-9, max=5.
+       * Only fetch stage when a separate finals validator exists; otherwise use
+       * the single validateScores for all stages (avoids an extra DB read). */
+      if (config.validateFinalsScores) {
+        const matchForStage = await model(prisma).findUnique({
+          where: { id: matchId },
+          select: { stage: true },
+        });
+        // All bracket matches (including grand final / reset) use stage='finals';
+        // the `round` field distinguishes bracket position. Default to qualification.
+        const isFinalsMatch = matchForStage?.stage === 'finals';
+        const validator = isFinalsMatch ? config.validateFinalsScores : config.validateScores;
+        if (validator) {
+          const scoreValidation = validator(val1, val2);
+          if (!scoreValidation.isValid) {
+            return handleValidationError(scoreValidation.error ?? 'Invalid scores', 'scores');
+          }
+        }
+      } else if (config.validateScores) {
         const scoreValidation = config.validateScores(val1, val2);
         if (!scoreValidation.isValid) {
           return handleValidationError(scoreValidation.error ?? 'Invalid scores', 'scores');

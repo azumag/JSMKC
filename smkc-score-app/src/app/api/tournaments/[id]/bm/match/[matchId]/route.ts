@@ -11,7 +11,7 @@
 
 import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-route';
 import { updateBMMatchScore } from '@/lib/optimistic-locking';
-import { validateBattleModeScores } from '@/lib/score-validation';
+import { validateBattleModeScores, validateBattleModeFinalScores } from '@/lib/score-validation';
 
 const { GET, PUT } = createMatchDetailHandlers({
   matchModel: 'bMMatch',
@@ -21,6 +21,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   validateScores: validateBattleModeScores,
+  validateFinalsScores: validateBattleModeFinalScores,
   sanitizeBody: true,
   putRequiresAuth: true,
 });

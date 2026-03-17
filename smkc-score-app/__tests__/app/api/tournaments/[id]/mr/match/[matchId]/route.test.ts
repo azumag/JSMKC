@@ -69,6 +69,8 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
   beforeEach(() => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    // Stage-aware validation: factory calls findUnique({select:{stage:true}}) before validating.
+    (prisma.mRMatch as any).findUnique = jest.fn().mockResolvedValue({ stage: 'qualification' });
   });
 
   describe('GET - Fetch single match', () => {

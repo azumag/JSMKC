@@ -19,7 +19,7 @@
  * MR and GP bounds are defined as module constants here.
  */
 
-import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, TOTAL_MR_RACES } from './constants';
+import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, TOTAL_MR_RACES, BM_FINALS_TARGET_WINS } from './constants';
 
 /**
  * MR: 4-course qualification match format (§6.3, §10.5).
@@ -96,6 +96,44 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
       isValid: false,
       error: "Scores must be different",
     };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validate BM Finals scores (best-of-9 format).
+ *
+ * BM finals differ from qualification: players play up to 9 rounds, and the
+ * first to reach BM_FINALS_TARGET_WINS (5) wins. Unlike qualification, there
+ * is no fixed total-rounds constraint — the match ends as soon as one player
+ * reaches 5 wins, so the sum varies (5-0 to 5-4).
+ *
+ * Validation checks:
+ * 1. Both scores must be integers
+ * 2. Range: [0, BM_FINALS_TARGET_WINS]
+ * 3. Exactly one player must have BM_FINALS_TARGET_WINS (match is decisive)
+ * 4. No ties
+ */
+export function validateBattleModeFinalScores(score1: number, score2: number): ScoreValidationResult {
+  if (!Number.isInteger(score1) || !Number.isInteger(score2)) {
+    return { isValid: false, error: "Battle Mode finals scores must be integers" };
+  }
+
+  if (score1 < 0 || score1 > BM_FINALS_TARGET_WINS ||
+      score2 < 0 || score2 > BM_FINALS_TARGET_WINS) {
+    return { isValid: false, error: `Finals score must be between 0 and ${BM_FINALS_TARGET_WINS}` };
+  }
+
+  // Exactly one player must reach the target to win the match
+  const hasWinner = score1 === BM_FINALS_TARGET_WINS || score2 === BM_FINALS_TARGET_WINS;
+  if (!hasWinner) {
+    return { isValid: false, error: `One player must reach ${BM_FINALS_TARGET_WINS} wins` };
+  }
+
+  // Both can't have target wins simultaneously
+  if (score1 === BM_FINALS_TARGET_WINS && score2 === BM_FINALS_TARGET_WINS) {
+    return { isValid: false, error: "Both players cannot have the same winning score" };
   }
 
   return { isValid: true };

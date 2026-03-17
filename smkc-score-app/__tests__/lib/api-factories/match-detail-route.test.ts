@@ -289,8 +289,11 @@ describe('Match Detail Route Factory', () => {
       );
     });
 
-    it('should return 400 when validateScores rejects', async () => {
+    it('should return 400 when validateScores rejects (qualification match)', async () => {
       const mockRequestBody = { score1: 5, score2: 0, completed: true, version: 1, rounds: [] };
+
+      // findUnique must return stage so the factory knows which validator to use
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'qualification' });
 
       const config = {
         ...baseConfig,
@@ -309,6 +312,61 @@ describe('Match Detail Route Factory', () => {
 
       expect(config.validateScores).toHaveBeenCalledWith(5, 0);
       expect(mockHandleValidationError).toHaveBeenCalledWith('Sum must be 4', 'scores');
+    });
+
+    it('should use validateFinalsScores for finals matches', async () => {
+      const mockRequestBody = { score1: 5, score2: 2, completed: true, version: 1, rounds: [] };
+
+      // Stage = finals → validateFinalsScores is used instead of validateScores
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals' });
+
+      const config = {
+        ...baseConfig,
+        validateScores: jest.fn(),
+        validateFinalsScores: jest.fn().mockReturnValue({ isValid: true }),
+        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
+      };
+
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(config.validateScores).not.toHaveBeenCalled();
+      expect(config.validateFinalsScores).toHaveBeenCalledWith(5, 2);
+    });
+
+    it('should return 400 when validateFinalsScores rejects (finals match)', async () => {
+      const mockRequestBody = { score1: 4, score2: 3, completed: true, version: 1, rounds: [] };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals' });
+
+      const config = {
+        ...baseConfig,
+        validateScores: jest.fn(),
+        validateFinalsScores: jest.fn().mockReturnValue({ isValid: false, error: 'One player must reach 5 wins' }),
+        updateMatchScore: jest.fn(),
+      };
+
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(config.validateFinalsScores).toHaveBeenCalledWith(4, 3);
+      expect(config.validateScores).not.toHaveBeenCalled();
+      expect(mockHandleValidationError).toHaveBeenCalledWith('One player must reach 5 wins', 'scores');
+      expect(config.updateMatchScore).not.toHaveBeenCalled();
     });
 
     it('should return 409 with currentVersion on OptimisticLockError', async () => {
