@@ -211,8 +211,24 @@ describe('TA Time Utils', () => {
       expect(autoFormatTime('065000')).toBeNull();
     });
 
+    it('should handle extreme short inputs (0, 00, 000)', () => {
+      expect(autoFormatTime('0')).toBe('0:00.000');
+      expect(autoFormatTime('00')).toBe('0:00.000');
+      expect(autoFormatTime('000000')).toBe('0:00.000');
+    });
+
+    it('should handle 7+ digit inputs', () => {
+      /* "1234567" → 12 minutes, 34 seconds, 567ms */
+      expect(autoFormatTime('1234567')).toBe('12:34.567');
+    });
+
+    it('should preserve 2-digit milliseconds in valid format (racing convention)', () => {
+      /* In racing, ".49" = 49/100s = 490ms — this is correct behavior */
+      expect(autoFormatTime('0:58.49')).toBe('0:58.49');
+      expect(timeToMs('0:58.49')).toBe(58490); /* Right-padded: 49 → 490ms */
+    });
+
     it('should round-trip with timeToMs for valid outputs', () => {
-      /* Formatted output should be parseable by timeToMs */
       const formatted = autoFormatTime('123456');
       expect(formatted).toBe('1:23.456');
       expect(timeToMs(formatted!)).toBe(83456);

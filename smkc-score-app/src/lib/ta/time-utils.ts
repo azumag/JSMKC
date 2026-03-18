@@ -136,10 +136,10 @@ export function autoFormatTime(input: string): string | null {
   }
 
   /* Has dot but no colon (e.g., "123.456") — try to split at dot */
-  const dotNoColen = /^(\d{1,3})\.(\d{1,3})$/.exec(trimmed);
-  if (dotNoColen) {
-    const beforeDot = dotNoColen[1];
-    const afterDot = dotNoColen[2].padEnd(3, "0").slice(0, 3);
+  const dotNoColon = /^(\d{1,3})\.(\d{1,3})$/.exec(trimmed);
+  if (dotNoColon) {
+    const beforeDot = dotNoColon[1];
+    const afterDot = dotNoColon[2].padEnd(3, "0").slice(0, 3);
     if (beforeDot.length <= 1) {
       /* e.g., "1.234" → "0:01.234" */
       return `0:${beforeDot.padStart(2, "0")}.${afterDot}`;
