@@ -223,6 +223,101 @@
 
 ---
 
+## 回帰テスト（過去のissueから）
+
+## TC-301: 文言「ドライバーズポイント」(#247)
+- **URL**: /
+- **authRequired**: false
+- **手順**:
+  1. トップページを日本語モードで表示
+  2. Grand Prixカードの説明文を確認
+  3. 英語モードに切り替えて同様に確認
+- **期待結果**: JA「カップ別ドライバーズポイント制」、EN「Cup-based driver's points」
+- **NGパターン**: 「ドライバーポイント」（ズなし）、「driver points」（'sなし）
+
+## TC-302: 文言「View tournaments」統一 (#248)
+- **URL**: /tournaments
+- **authRequired**: true (admin)
+- **手順**:
+  1. 英語モードでトーナメント一覧を表示
+  2. サブタイトルが「Create and manage tournaments」であること（管理者）
+  3. ログアウトして「View tournaments」であること（観覧者）
+- **期待結果**: 「competitions」が表示されないこと
+
+## TC-303: TA文言修正 (#249)
+- **URL**: /tournaments/[id]/ta
+- **authRequired**: false
+- **手順**:
+  1. TAページを英語モードで表示
+  2. タイトルが「Time Trial」であること（「Time Attack」ではない）
+  3. 「Group Stage」が使われていること（「Qualification」ではない）
+  4. 「Top 13-16」であること（「Players 13-16」ではない）
+  5. 「Export CSV」であること（「Export Excel」ではない）
+  6. コース別タブで「View rankings by course」であること（「per course」ではない）
+- **期待結果**: 全5箇所の文言が修正済み
+
+## TC-304: 観覧者向け空グループメッセージ (#251)
+- **URL**: /tournaments/[id]/mr (グループ未設定時)
+- **authRequired**: false
+- **手順**:
+  1. グループ未設定のモードページを非ログイン状態で表示
+  2. メッセージが「Please wait until the setup is complete.」であること
+- **期待結果**: 「Click Setup Groups to begin.」が非管理者に表示されないこと
+
+## TC-305: BMグループ設定ダイアログの動作 (#252)
+- **URL**: /tournaments/[id]/bm
+- **authRequired**: true (admin)
+- **手順**:
+  1. BMページで「グループ編集」ボタンをクリック
+  2. ダイアログが開くことを確認
+  3. 「グループ更新」ボタンをクリック
+  4. ボタンが保存中にdisabledになること
+  5. 保存後にダイアログが閉じること
+  6. エラー時はエラーメッセージがalertで表示されること
+- **期待結果**: ダイアログが正常に閉じ、保存中はボタンが無効化される
+
+## TC-306: TAタイム自動フォーマット (#246)
+- **URL**: /tournaments/[id]/ta
+- **authRequired**: true (admin)
+- **手順**:
+  1. タイム入力タブ → 任意プレイヤーの「タイム編集」をクリック
+  2. 入力欄に「58490」と入力してフォーカスを外す
+  3. 自動的に「0:58.490」に変換されることを確認
+  4. 「1:23」と入力してフォーカスを外す → 「1:23.000」に変換
+  5. 「1:23.456」（正しい形式）は変換されないこと
+  6. 変換後にタイム保存が成功すること
+- **期待結果**: 不正フォーマットがblur時に自動変換され、保存が成功する
+
+## TC-307: BM/MR/GP スコア入力リンク (#253)
+- **URL**: /tournaments/[id]/bm, /mr, /gp
+- **authRequired**: false
+- **手順**:
+  1. BM予選ページに「Enter Score」ボタンが表示されること
+  2. クリックすると /bm/participant に遷移すること
+  3. MR、GPページでも同様にリンクが存在すること
+- **期待結果**: 全3モードでスコア入力ページへのリンクが表示される
+
+## TC-308: Players APIレスポンス形式 (#254, #257)
+- **URL**: /api/players
+- **authRequired**: false
+- **手順**:
+  1. `/api/players` をGETで呼び出す
+  2. レスポンスが `{ success: true, data: [...], meta: {...} }` 形式であること
+  3. `data.data` のような二重ラッピングがないこと
+- **期待結果**: フラットな `{ success, data, meta }` 構造
+
+## TC-309: パスワードリセットAPIレスポンス形式 (#254)
+- **URL**: /api/players/[id]/reset-password
+- **authRequired**: true (admin)
+- **手順**:
+  1. テストプレイヤーを作成
+  2. パスワードリセットAPIを呼び出す
+  3. レスポンスが `{ success: true, data: { temporaryPassword: "..." } }` 形式であること
+  4. テストプレイヤーを削除
+- **期待結果**: `createSuccessResponse` でラップされたレスポンス
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### ページ中身の確認ルール（重要）
