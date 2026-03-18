@@ -70,6 +70,7 @@
     "position": "順位...",
     "first": "1位",
     "second": "2位",
+    "gameOver": "ゲームオーバー",
     "totalRoundsShouldEqual4": "ラウンド合計は4になる必要があります",
     "select5UniqueCourses": "5つの異なるコースを選択してください",
     "matchMustHaveWinner": "試合には勝者が必要です（3勝先取）",

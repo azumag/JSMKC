@@ -739,6 +739,7 @@ export default function GrandPrixPage({
                             <SelectContent>
                               <SelectItem value="1">{tc('first')}</SelectItem>
                               <SelectItem value="2">{tc('second')}</SelectItem>
+                              <SelectItem value="0">{tc('gameOver')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -758,6 +759,7 @@ export default function GrandPrixPage({
                             <SelectContent>
                               <SelectItem value="1">{tc('first')}</SelectItem>
                               <SelectItem value="2">{tc('second')}</SelectItem>
+                              <SelectItem value="0">{tc('gameOver')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>

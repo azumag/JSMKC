@@ -28,8 +28,8 @@ import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, TOTAL_MR_RACES, BM
  */
 export const MAX_RACE_WIN_SCORE = TOTAL_MR_RACES;
 
-/** GP: SMK finishes positions are 1-4 (two human players among CPU racers). */
-export const MIN_GP_POSITION = 1;
+/** GP: SMK finishes positions are 0-4. 0 = game over (§7.2: player eliminated before this race). */
+export const MIN_GP_POSITION = 0;
 export const MAX_GP_POSITION = 4;
 
 /**
@@ -194,11 +194,10 @@ export function validateMatchRaceScores(score1: number, score2: number): ScoreVa
  * Validate a GP race finishing position.
  *
  * In SMK 2-player Grand Prix mode, each race is contested against CPU opponents.
- * Human players can finish 1st through 4th; positions beyond 4th earn 0 driver
- * points and indicate a position input error (e.g., a player submitted position 5
- * or 0 by mistake). Rejecting out-of-range positions prevents silent data corruption.
+ * Human players can finish 1st through 4th; position 0 means game over (§7.2:
+ * player was eliminated before this race and earns 0 driver points).
  *
- * @param position - Race finishing position (1-based; 1=first, 4=fourth)
+ * @param position - Race finishing position (0=game over, 1=first, 4=fourth)
  * @returns Validation result; `isValid` is true for positions 1-4
  */
 export function validateGPRacePosition(position: number): ScoreValidationResult {

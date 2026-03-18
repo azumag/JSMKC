@@ -118,10 +118,12 @@ export default function GrandPrixParticipantPage({
     if (races.length === 0) { ctx.setError(tPart("addAtLeastOneRace")); return; }
 
     for (const r of races) {
-      if (!r.course || r.position1 === 0 || r.position2 === 0) {
+      /* Course is required; positions can be 0 (game over per §7.2) but not undefined */
+      if (!r.course || r.position1 == null || r.position2 == null) {
         ctx.setError(tPart("completeAllRaceFields")); return;
       }
-      if (r.position1 === r.position2) {
+      /* Both 0 (both game over) is invalid; same non-zero position is also invalid */
+      if (r.position1 === r.position2 && r.position1 !== 0) {
         ctx.setError(tPart("racePositionsCannotBeEqual")); return;
       }
     }
@@ -211,13 +213,13 @@ export default function GrandPrixParticipantPage({
                       </Select>
                     </div>
                     <div className="col-span-2">
-                      <Input type="number" min="1" max="4" placeholder="1st" value={result.position1 || ""} onChange={(e) => updateRaceResult(match.id, index, "position1", parseInt(e.target.value) || 0)} />
+                      <Input type="number" min="0" max="4" placeholder="1st" value={result.position1 || ""} onChange={(e) => updateRaceResult(match.id, index, "position1", parseInt(e.target.value) || 0)} />
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points1 })}</div>
                     </div>
                     <div className="col-span-2">
-                      <Input type="number" min="1" max="4" placeholder="2nd" value={result.position2 || ""} onChange={(e) => updateRaceResult(match.id, index, "position2", parseInt(e.target.value) || 0)} />
+                      <Input type="number" min="0" max="4" placeholder="2nd" value={result.position2 || ""} onChange={(e) => updateRaceResult(match.id, index, "position2", parseInt(e.target.value) || 0)} />
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points2 })}</div>

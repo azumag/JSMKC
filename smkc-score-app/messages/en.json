@@ -70,6 +70,7 @@
     "position": "Position...",
     "first": "1st",
     "second": "2nd",
+    "gameOver": "Game Over",
     "totalRoundsShouldEqual4": "Total rounds should equal 4",
     "select5UniqueCourses": "Please select 5 unique courses",
     "matchMustHaveWinner": "Match must have a winner (3 out of 5)",

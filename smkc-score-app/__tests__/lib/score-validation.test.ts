@@ -407,10 +407,9 @@ describe('Score Validation Utilities', () => {
       expect(validateGPRacePosition(MAX_GP_POSITION).isValid).toBe(true);
     });
 
-    it('should reject position 0', () => {
+    it('should accept position 0 as game over (§7.2)', () => {
       const result = validateGPRacePosition(0);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toContain(`${MIN_GP_POSITION}`);
+      expect(result.isValid).toBe(true);
     });
 
     it('should reject position 5 and above', () => {

@@ -83,10 +83,8 @@ export const gpConfig: EventTypeConfig = {
     if (!matchId || !cup || !races || races.length !== TOTAL_GP_RACES) {
       return { valid: false, error: `matchId, cup, and ${TOTAL_GP_RACES} races are required` };
     }
-    // Validate all race finishing positions are in the legal range [1, 4].
-    // Positions outside this range (e.g. 0, 5) are rejected to prevent silent
-    // data corruption — the driver points lookup returns 0 for unknown positions,
-    // making invalid input indistinguishable from a last-place finish.
+    // Validate all race finishing positions are in the legal range [0, 4].
+    // Position 0 = game over (§7.2: player eliminated before this race, earns 0 points).
     for (let i = 0; i < races.length; i++) {
       const race = races[i];
       const p1Result = validateGPRacePosition(race.position1);
