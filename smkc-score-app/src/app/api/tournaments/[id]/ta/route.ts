@@ -101,6 +101,7 @@ const PostRequestSchema = z.object({
  * - "update_lives": Change life count (requires livesDelta)
  * - "eliminate": Set elimination status (requires eliminated boolean)
  * - "reset_lives": Reset all active players' lives to initial value
+ * - "set_partner": Set partner player ID for pair running (§3.1, admin only)
  */
 const PutRequestSchema = z.object({
   entryId: z.string().cuid(),
@@ -109,11 +110,13 @@ const PutRequestSchema = z.object({
   times: TimesObjectSchema.optional(),
   livesDelta: z.number().optional(),
   eliminated: z.boolean().optional(),
-  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives"]).optional(),
+  partnerId: z.string().cuid().nullable().optional(),
+  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives", "set_partner"]).optional(),
 }).refine(
   (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
             data.action === "eliminate" ? data.eliminated !== undefined :
             data.action === "reset_lives" ? true :
+            data.action === "set_partner" ? true :
             data.times !== undefined || (data.course !== undefined && data.time !== undefined),
   { message: "Invalid request for action" }
 );
@@ -333,7 +336,41 @@ export async function PUT(
       return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
-    const { entryId, action, eliminated, livesDelta } = parseResult.data;
+    const { entryId, action, eliminated, livesDelta, partnerId } = parseResult.data;
+
+    // === Partner Assignment (§3.1) ===
+    // Set or clear the partner player ID for pair running (admin only)
+    if (action === "set_partner") {
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
+
+      const entry = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        include: { player: true },
+      });
+      if (!entry) return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
+
+      const updatedEntry = await prisma.tTEntry.update({
+        where: { id: entryId },
+        data: { partnerId: partnerId ?? null },
+        include: { player: true },
+      });
+
+      /* If setting a partner (not clearing), also set the reverse partnership */
+      if (partnerId) {
+        const partnerEntry = await prisma.tTEntry.findFirst({
+          where: { tournamentId, playerId: partnerId, stage: entry.stage },
+        });
+        if (partnerEntry) {
+          await prisma.tTEntry.update({
+            where: { id: partnerEntry.id },
+            data: { partnerId: entry.playerId },
+          });
+        }
+      }
+
+      return createSuccessResponse({ entry: updatedEntry });
+    }
 
     // === Lives Actions ===
     // Manually update or reset player lives (admin only)
@@ -461,12 +498,15 @@ export async function PUT(
     const timeFreeze = await checkStageFrozen(prisma, tournamentId, entry.stage);
     if (timeFreeze) return timeFreeze;
 
-    // Ownership check: players can only update their own entry's times.
-    // Admins can update any entry. This prevents a player from modifying
-    // another player's recorded times.
+    // Ownership check: players can update their own entry OR their partner's entry.
+    // §3.1: Partners can enter each other's times during pair running.
+    // Admins can update any entry.
     if (authResult.session!.user.role !== 'admin') {
-      if (authResult.session!.user.playerId !== entry.playerId) {
-        return createErrorResponse('Forbidden: You can only update your own times', 403, 'FORBIDDEN');
+      const currentPlayerId = authResult.session!.user.playerId;
+      const isOwner = currentPlayerId === entry.playerId;
+      const isPartner = entry.partnerId === currentPlayerId;
+      if (!isOwner && !isPartner) {
+        return createErrorResponse('Forbidden: You can only update your own or your partner\'s times', 403, 'FORBIDDEN');
       }
     }
 
