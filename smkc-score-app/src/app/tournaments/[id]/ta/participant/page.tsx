@@ -309,7 +309,9 @@ export default function TimeAttackParticipantPage({
         throw new Error(errorData.error || 'Failed to add to time attack');
       }
 
-      const data = await response.json();
+      const json = await response.json();
+      /* Unwrap createSuccessResponse wrapper: { success, data: { entries } } */
+      const data = json.data ?? json;
       setEntries(prev => [...prev, ...data.entries]);
       /** i18n: Success alert after adding self to time attack */
       alert(tPart('addedToTASuccess'));

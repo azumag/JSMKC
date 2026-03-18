@@ -283,8 +283,10 @@ export async function POST(
       }
     }
 
+    /* Use standard { success, data } wrapper for consistency with other endpoints.
+     * 201 status is set explicitly since createSuccessResponse() defaults to 200. */
     return NextResponse.json(
-      { message: "Player(s) added to time attack", entries: createdEntries },
+      { success: true, data: { entries: createdEntries }, message: "Player(s) added to time attack" },
       { status: 201 }
     );
   } catch (error) {

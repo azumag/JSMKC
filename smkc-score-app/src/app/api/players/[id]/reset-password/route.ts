@@ -21,7 +21,7 @@ import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleAuthzError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
 
 export async function POST(
   request: NextRequest,
@@ -71,7 +71,7 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ temporaryPassword: plainPassword });
+    return createSuccessResponse({ temporaryPassword: plainPassword });
   } catch (error: unknown) {
     logger.error('Failed to reset player password', { error, playerId: id });
 

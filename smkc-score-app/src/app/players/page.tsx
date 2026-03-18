@@ -201,7 +201,9 @@ export default function PlayersPage() {
         // 409 means the player was created but we lost the response.
         // Skip the password dialog since the plaintext is unrecoverable.
         const isLostResponse = response!.status === 409;
-        const data = isLostResponse ? {} : await response!.json().catch(() => ({}));
+        const rawJson = isLostResponse ? {} : await response!.json().catch(() => ({}));
+        /* Unwrap createSuccessResponse wrapper: { success, data: { player, temporaryPassword } } */
+        const data = rawJson.data ?? rawJson;
 
         // Optimistic update: immediately add the new player to the list
         const newPlayer: Player = data.player ?? {
@@ -351,7 +353,9 @@ export default function PlayersPage() {
       }
 
       if (response!.ok) {
-        const data = await response!.json();
+        const json = await response!.json();
+        /* Unwrap createSuccessResponse wrapper: { success, data: { temporaryPassword } } */
+        const data = json.data ?? json;
         setIsPasswordReset(true);
         setTemporaryPassword(data.temporaryPassword);
         setIsPasswordDialogOpen(true);

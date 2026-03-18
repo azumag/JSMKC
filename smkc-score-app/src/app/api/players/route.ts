@@ -156,10 +156,11 @@ export async function POST(request: NextRequest) {
 
     // Return the created player along with the one-time plaintext password.
     // The admin must communicate this password to the player immediately.
-    return NextResponse.json({
-      player,
-      temporaryPassword: plainPassword,
-    }, { status: 201 });
+    /* Use standard { success, data } wrapper. 201 set explicitly. */
+    return NextResponse.json(
+      { success: true, data: { player, temporaryPassword: plainPassword } },
+      { status: 201 }
+    );
   } catch (error: unknown) {
     // Log error with structured metadata for monitoring and debugging
     logger.error("Failed to create player", { error });
