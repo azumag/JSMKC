@@ -192,7 +192,7 @@
   },
   "tournaments": {
     "title": "Tournaments",
-    "subtitleAdmin": "Create and manage competitions",
+    "subtitleAdmin": "Create and manage tournaments",
     "subtitleView": "View tournaments",
     "createTournament": "Create Tournament",
     "loadingTournaments": "Loading tournaments...",
