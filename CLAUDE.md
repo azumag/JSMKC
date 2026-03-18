@@ -39,12 +39,23 @@ under `./smkc-score-app`
 
 ### E2Eテストの実行方法
 
-**スクリプト化しない。** Claudeが `E2E_TEST_CASES.md` のシナリオを読み、Playwright永続プロファイルを使って手動で実行する。
+`E2E_TEST_CASES.md` のシナリオに基づいて実行する。TCには2種類ある：
 
+#### 1. スクリプト化済みTC（`smkc-score-app/e2e/` にファイルがあるもの）
+- `node e2e/<tc-id>.js` で自動実行
+- FAILした場合のみClaudeが手動で再確認・修正
+
+#### 2. 未スクリプト化TC（新規追加されたもの）
+- Claudeが `E2E_TEST_CASES.md` のシナリオを読み、Playwright永続プロファイルで手動実行
+- **PASSしたTCは `e2e/<tc-id>.js` としてスクリプト化し、次回以降は自動実行に移行**
+
+#### フロー
 1. `E2E_TEST_CASES.md` を読んでテストケース一覧を確認
-2. Playwright永続プロファイル（下記）でブラウザを起動
-3. 各テストケースを順に実行し、TC-IDを付けて結果を報告
-4. 修正を行った場合は関連するTC（特にTC-301〜の回帰テスト）を重点的に確認
+2. `e2e/` ディレクトリを確認し、スクリプト化済みTCを特定
+3. スクリプト化済みTC → `node e2e/<tc-id>.js` で一括実行
+4. 未スクリプト化TC → Claudeが手動実行（Playwright永続プロファイル使用）
+5. 手動実行でPASSしたTC → スクリプト化して `e2e/` に保存、commit
+6. 修正を行った場合は関連するTCを重点的に確認
 
 ### ブラウザ認証（Playwright）
 
