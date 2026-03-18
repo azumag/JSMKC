@@ -246,6 +246,22 @@ async function nav(p, u) {
   }
   log('TC-307', tc307 ? 'PASS' : 'FAIL');
 
+  // TC-401: MR group setup + standings verification
+  await nav(page, `/tournaments/${TID}/mr`);
+  t = await vis(page);
+  const mrHasGroups = t.includes('Group A') || t.includes('グループ A');
+  const mrHasStandings = mrHasGroups && (t.includes('MP') || t.includes('試合数'));
+  log('TC-401', mrHasGroups && mrHasStandings ? 'PASS' : 'FAIL',
+    !mrHasGroups ? 'No groups' : !mrHasStandings ? 'No standings' : '');
+
+  // TC-402: GP group setup + standings verification
+  await nav(page, `/tournaments/${TID}/gp`);
+  t = await vis(page);
+  const gpHasGroups = t.includes('Group A') || t.includes('グループ A');
+  const gpHasStandings = gpHasGroups && (t.includes('MP') || t.includes('試合数'));
+  log('TC-402', gpHasGroups && gpHasStandings ? 'PASS' : 'FAIL',
+    !gpHasGroups ? 'No groups' : !gpHasStandings ? 'No standings' : '');
+
   // ===== Summary =====
   console.log('\n========== SUMMARY ==========');
   const p = results.filter(r => r.s === 'PASS').length;
