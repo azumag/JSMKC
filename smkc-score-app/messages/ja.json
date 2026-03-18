@@ -105,7 +105,7 @@
     "matchRace": "マッチレース",
     "matchRaceDesc": "1対1 レース対戦",
     "grandPrix": "グランプリ",
-    "grandPrixDesc": "カップ別ドライバーポイント制"
+    "grandPrixDesc": "カップ別ドライバーズポイント制"
   },
   "auth": {
     "loginTitle": "JSMKC ログイン",
@@ -323,14 +323,14 @@
   },
   "gp": {
     "title": "グランプリ",
-    "qualificationDesc": "カップ別レースとドライバーポイント",
+    "qualificationDesc": "カップ別レースとドライバーズポイント",
     "setupDialogTitle": "グランプリ グループ設定",
     "setupDialogDesc": "予選ラウンドのグループにプレイヤーを割り当ててください。",
     "selectCup": "カップ選択",
     "selectCupPlaceholder": "カップを選択...",
     "p1Position": "P1 順位",
     "p2Position": "P2 順位",
-    "driverPoints": "ドライバーポイント: 1位 = 9pts, 2位 = 6pts",
+    "driverPoints": "ドライバーズポイント: 1位 = 9pts, 2位 = 6pts",
     "enterMatchResult": "試合結果入力",
     "createGroupsAndMatches": "グループ＆試合作成",
     "noGroupsYet": "グループがまだ設定されていません。「グループ設定」をクリックして開始してください。",
@@ -475,7 +475,7 @@
     "matchRaceDesc": "1対1 5レース対戦の結果を報告",
     "enterRaceScores": "レーススコア入力",
     "grandPrix": "グランプリ",
-    "grandPrixDesc": "カップ別ドライバーポイントの結果を報告",
+    "grandPrixDesc": "カップ別ドライバーズポイントの結果を報告",
     "enterGPScores": "GPスコア入力",
     "timeTrial": "タイムトライアル",
     "timeTrialDesc": "コースタイムの入力と結果確認",
