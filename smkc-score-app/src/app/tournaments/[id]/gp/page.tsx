@@ -228,8 +228,7 @@ export default function GrandPrixPage({
         alert(msg);
       }
     } catch (err) {
-      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to setup:", metadata);
+      logger.error("Failed to setup:", { error: err, tournamentId });
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
