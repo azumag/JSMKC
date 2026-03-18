@@ -92,6 +92,70 @@ export function msToDisplayTime(ms: number | null): string {
 }
 
 /**
+ * Auto-format a raw time input string into M:SS.mmm format.
+ *
+ * Handles various user input patterns:
+ * - Already formatted ("1:23.456") → returned as-is
+ * - Digits only ("12345") → interpreted as MSSMMM → "1:23.450"
+ * - Partial digits ("58490") → "0:58.490" (leading zero for <1min)
+ * - Short digits ("1122") → "0:11.220"
+ * - With colon but no dot ("1:23") → "1:23.000"
+ * - With dot but no colon ("123.456") → attempts M:SS.mmm parse
+ *
+ * Returns the original string unchanged if already valid or empty.
+ * Returns null if input cannot be interpreted as a valid time.
+ */
+export function autoFormatTime(input: string): string | null {
+  if (!input || input.trim() === "") return "";
+
+  const trimmed = input.trim();
+
+  /* Already valid M:SS.mmm or MM:SS.mmm — return as-is */
+  if (timeFormatRegex.test(trimmed)) return trimmed;
+
+  /* Has colon but no dot (e.g., "1:23") — append .000 */
+  const colonNoDot = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (colonNoDot) return `${colonNoDot[1]}:${colonNoDot[2]}.000`;
+
+  /* Digits only — interpret positionally as MSSMMM (right-aligned milliseconds).
+   * Pad to 6 digits minimum: e.g., "1122" → "001122" → 0:11.220
+   * "58490" → "058490" → 0:58.490, "123456" → 1:23.456 */
+  const digitsOnly = /^\d+$/.exec(trimmed);
+  if (digitsOnly) {
+    const padded = trimmed.padStart(6, "0");
+    /* Split: first N-5 chars = minutes, next 2 = seconds, last 3 = ms */
+    const msStr = padded.slice(-3);
+    const ssStr = padded.slice(-5, -3);
+    const mmStr = padded.slice(0, -5) || "0";
+
+    const minutes = parseInt(mmStr, 10);
+    const seconds = parseInt(ssStr, 10);
+    if (seconds >= 60) return null; /* Invalid seconds */
+
+    return `${minutes}:${seconds.toString().padStart(2, "0")}.${msStr}`;
+  }
+
+  /* Has dot but no colon (e.g., "123.456") — try to split at dot */
+  const dotNoColen = /^(\d{1,3})\.(\d{1,3})$/.exec(trimmed);
+  if (dotNoColen) {
+    const beforeDot = dotNoColen[1];
+    const afterDot = dotNoColen[2].padEnd(3, "0").slice(0, 3);
+    if (beforeDot.length <= 1) {
+      /* e.g., "1.234" → "0:01.234" */
+      return `0:${beforeDot.padStart(2, "0")}.${afterDot}`;
+    }
+    /* e.g., "58.490" → "0:58.490", "123.456" → "1:23.456" */
+    const ss = beforeDot.slice(-2);
+    const mm = beforeDot.slice(0, -2) || "0";
+    const seconds = parseInt(ss, 10);
+    if (seconds >= 60) return null;
+    return `${parseInt(mm, 10)}:${ss}.${afterDot}`;
+  }
+
+  return null;
+}
+
+/**
  * Calculate the total time across multiple course times.
  *
  * Sums up all time values from the provided record. If any single course

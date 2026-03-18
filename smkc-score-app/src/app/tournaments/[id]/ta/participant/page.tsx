@@ -37,7 +37,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
-import { msToDisplayTime } from '@/lib/ta/time-utils';
+import { autoFormatTime, msToDisplayTime } from '@/lib/ta/time-utils';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -231,6 +231,16 @@ export default function TimeAttackParticipantPage({
   /** Handle individual course time input change */
   const handleTimeChange = (course: string, value: string) => {
     setTimeInputs(prev => ({ ...prev, [course]: value }));
+  };
+
+  /** Auto-format time on blur — converts raw digits (e.g. "58490") to M:SS.mmm */
+  const handleTimeBlur = (course: string) => {
+    const raw = timeInputs[course];
+    if (!raw || raw.trim() === "") return;
+    const formatted = autoFormatTime(raw);
+    if (formatted !== null && formatted !== raw) {
+      setTimeInputs(prev => ({ ...prev, [course]: formatted }));
+    }
   };
 
   /** Submit all entered times to the server */
@@ -477,6 +487,7 @@ export default function TimeAttackParticipantPage({
                                 placeholder="M:SS.mmm"
                                 value={timeInputs[course.abbr] || ''}
                                 onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
+                                onBlur={() => handleTimeBlur(course.abbr)}
                                 disabled={frozenStages.includes("qualification")}
                                 className="font-mono text-sm"
                               />

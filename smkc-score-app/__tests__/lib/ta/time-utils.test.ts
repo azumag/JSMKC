@@ -18,6 +18,7 @@ import {
   msToDisplayTime,
   calculateTotalTime,
   validateRequiredCourses,
+  autoFormatTime,
 } from '@/lib/ta/time-utils';
 
 describe('TA Time Utils', () => {
@@ -161,6 +162,60 @@ describe('TA Time Utils', () => {
       };
       const requiredCourses = ['MC1', 'DP1', 'GV1', 'BC1'];
       expect(validateRequiredCourses(times, requiredCourses)).toBe(false);
+    });
+  });
+
+  describe('autoFormatTime', () => {
+    it('should return empty string for empty/null input', () => {
+      expect(autoFormatTime('')).toBe('');
+      expect(autoFormatTime('  ')).toBe('');
+    });
+
+    it('should return already-valid M:SS.mmm as-is', () => {
+      expect(autoFormatTime('1:23.456')).toBe('1:23.456');
+      expect(autoFormatTime('0:58.490')).toBe('0:58.490');
+      expect(autoFormatTime('12:34.567')).toBe('12:34.567');
+    });
+
+    it('should append .000 for colon-only input (M:SS)', () => {
+      expect(autoFormatTime('1:23')).toBe('1:23.000');
+      expect(autoFormatTime('0:58')).toBe('0:58.000');
+    });
+
+    it('should format digits-only input as MSSMMM', () => {
+      /* User types "01122" meaning 0:11.220 */
+      expect(autoFormatTime('01122')).toBe('0:01.122');
+      /* User types "58490" meaning 0:58.490 */
+      expect(autoFormatTime('058490')).toBe('0:58.490');
+      /* User types "123456" meaning 1:23.456 */
+      expect(autoFormatTime('123456')).toBe('1:23.456');
+      /* User types "001122" meaning 0:01.122 */
+      expect(autoFormatTime('001122')).toBe('0:01.122');
+      /* Short input — padded left */
+      expect(autoFormatTime('1122')).toBe('0:01.122');
+    });
+
+    it('should handle dot-only input (SS.mmm)', () => {
+      expect(autoFormatTime('58.490')).toBe('0:58.490');
+      expect(autoFormatTime('123.456')).toBe('1:23.456');
+      expect(autoFormatTime('1.234')).toBe('0:01.234');
+    });
+
+    it('should return null for uninterpretable input', () => {
+      expect(autoFormatTime('abc')).toBeNull();
+      expect(autoFormatTime('1:2:3')).toBeNull();
+    });
+
+    it('should return null for invalid seconds (>=60)', () => {
+      /* "065000" → 0:65.000 — invalid seconds */
+      expect(autoFormatTime('065000')).toBeNull();
+    });
+
+    it('should round-trip with timeToMs for valid outputs', () => {
+      /* Formatted output should be parseable by timeToMs */
+      const formatted = autoFormatTime('123456');
+      expect(formatted).toBe('1:23.456');
+      expect(timeToMs(formatted!)).toBe(83456);
     });
   });
 });

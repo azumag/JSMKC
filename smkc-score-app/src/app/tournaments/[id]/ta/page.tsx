@@ -63,7 +63,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
-import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
@@ -444,6 +444,16 @@ export default function TimeAttackPage({
   /** Handle individual course time input change */
   const handleTimeChange = (course: string, value: string) => {
     setTimeInputs((prev) => ({ ...prev, [course]: value }));
+  };
+
+  /** Auto-format time on blur — converts raw digits (e.g. "58490") to M:SS.mmm */
+  const handleTimeBlur = (course: string) => {
+    const raw = timeInputs[course];
+    if (!raw || raw.trim() === "") return;
+    const formatted = autoFormatTime(raw);
+    if (formatted !== null && formatted !== raw) {
+      setTimeInputs((prev) => ({ ...prev, [course]: formatted }));
+    }
   };
 
   /** Save all entered times for the selected player */
@@ -1191,6 +1201,7 @@ export default function TimeAttackPage({
                           onChange={(e) =>
                             handleTimeChange(course.abbr, e.target.value)
                           }
+                          onBlur={() => handleTimeBlur(course.abbr)}
                           className="font-mono text-sm"
                         />
                       </div>
