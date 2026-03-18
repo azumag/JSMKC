@@ -34,7 +34,7 @@ under `./smkc-score-app`
 ### 起動方法
 
 ```
-/loop 1h issueから問題を発見し、対象のissueにたいして方針をコメントせよ。大型の機能追加やリファクタリングであっても避けずに着手すること。解決修正し、commit push し、本番環境へのデプロイを確認し、本番環境（https://smkc.bluemoon.works/）にて E2E_TEST_CASES.md のシナリオに従ったE2Eテストを実行せよ。スクリプト化済みTC（e2e/ディレクトリ）は自動実行し、未スクリプト化TCはClaude自身が手動実行する。手動でPASSしたTCはe2e/<tc-id>.jsとしてスクリプト化しcommitする。解決したらissueにコメントしcloseせよ。解決してなければcloseせず修正を続けよ。別の問題が発見されたらあたらしく issue を発行せよ。issueに対応すべきものがなければ、コードベースを調査して改善点やバグを発見し、新しいissueを作成せよ。
+/loop 1h issueから問題を発見し（resolvedラベル付きは対象外）、対象のissueにたいして方針をコメントせよ。大型の機能追加やリファクタリングであっても避けずに着手すること。解決修正し、commit push し、本番環境へのデプロイを確認し、本番環境（https://smkc.bluemoon.works/）にて node e2e/tc-all.js で全E2Eテストを実行せよ（セッションは永続プロファイルを維持、ログイン/ログアウトは行わない）。未スクリプト化TCがあればClaude自身が手動実行し、PASSしたらe2e/tc-all.jsに追加してcommitする。解決したらissueにresolvedラベルを付与せよ（closeはしない）。解決してなければ修正を続けよ。別の問題が発見されたらあたらしく issue を発行せよ。issueに対応すべきものがなければ、コードベースを調査して改善点やバグを発見し、新しいissueを作成せよ。
 ```
 
 ### E2Eテストの実行方法
@@ -107,14 +107,16 @@ const browser = await chromium.launchPersistentContext(
 
 E2Eテストが全パスし、修正すべき問題がない場合:
 
-1. `gh issue list` で未解決issueを確認
-2. 優先度の高いissueを1つ選んで修正
+1. `gh issue list --state open --limit 10` で未解決issueを確認（**resolvedラベル付きは対象外**）
+2. 優先度の高いissueを1つ選んで修正（大型でも避けない）
 3. テスト追加 → 修正 → レビュー → コミット → デプロイ → E2E再検証
-4. issue を close
+4. 解決したissueに **`resolved` ラベルを付与**（closeはしない）
 
 ```bash
 gh issue list --state open --limit 10
 gh issue view <number>
+# 解決時:
+gh issue edit <number> --add-label resolved
 ```
 
 ### デプロイ
