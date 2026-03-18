@@ -61,10 +61,11 @@ export async function GET(request: NextRequest) {
       { page, limit }
     );
 
-    return createSuccessResponse(result);
+    /* Spread paginate() result to avoid double-wrapping:
+     * paginate returns { data, meta }, createSuccessResponse wraps in { success, data }.
+     * Direct JSON response preserves flat structure: { success, data: [...], meta: {...} } */
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    // Log with structured metadata so error details appear in monitoring dashboards.
-    // The error object preserves the original stack trace for debugging.
     logger.error("Failed to fetch players", { error });
     return createErrorResponse("Failed to fetch players", 500);
   }
