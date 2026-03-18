@@ -78,6 +78,8 @@ interface GroupSetupDialogProps {
   setIsOpen: (open: boolean) => void;
   /** Save handler - called when user clicks save */
   onSave: () => void;
+  /** Whether a save operation is in progress (disables button, shows spinner) */
+  saving?: boolean;
   /**
    * Existing player-group assignments from qualification data.
    * When the dialog opens in edit mode, these are loaded into the form.
@@ -98,6 +100,7 @@ export function GroupSetupDialog({
   isOpen,
   setIsOpen,
   onSave,
+  saving = false,
   existingAssignments,
   groupCount,
   setGroupCount,
@@ -467,10 +470,12 @@ export function GroupSetupDialog({
 
         {/* Sticky footer - always visible at dialog bottom */}
         <DialogFooter className="pt-4 border-t">
-          <Button onClick={onSave}>
-            {hasExistingQualifications
-              ? tc("updateGroups")
-              : t("createGroupsAndMatches")}
+          <Button onClick={onSave} disabled={saving}>
+            {saving
+              ? (tc("saving") ?? "Saving...")
+              : hasExistingQualifications
+                ? tc("updateGroups")
+                : t("createGroupsAndMatches")}
           </Button>
         </DialogFooter>
       </DialogContent>

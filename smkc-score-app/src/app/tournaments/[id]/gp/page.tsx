@@ -146,6 +146,7 @@ export default function GrandPrixPage({
     { playerId: string; group: string; seeding?: number }[]
   >([]);
   const [groupCount, setGroupCount] = useState(3);
+  const [setupSaving, setSetupSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   /** Get courses belonging to a specific cup for the course selection dropdown */
@@ -209,6 +210,7 @@ export default function GrandPrixPage({
       return;
     }
 
+    setSetupSaving(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
         method: "POST",
@@ -220,10 +222,17 @@ export default function GrandPrixPage({
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
         refetch();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const msg = errorData.error || `Setup failed (${response.status})`;
+        alert(msg);
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to setup:", metadata);
+      alert(tc('networkError') ?? 'Network error — please try again');
+    } finally {
+      setSetupSaving(false);
     }
   };
 
@@ -409,6 +418,7 @@ export default function GrandPrixPage({
             isOpen={isSetupDialogOpen}
             setIsOpen={setIsSetupDialogOpen}
             onSave={handleSetup}
+            saving={setupSaving}
             existingAssignments={qualifications.map((q) => ({
               playerId: q.playerId,
               group: q.group,

@@ -131,6 +131,7 @@ export default function BattleModePage({
     { playerId: string; group: string; seeding?: number }[]
   >([]);
   const [groupCount, setGroupCount] = useState(3);
+  const [setupSaving, setSetupSaving] = useState(false);
   /* State for score entry dialog */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
@@ -199,6 +200,7 @@ export default function BattleModePage({
       return;
     }
 
+    setSetupSaving(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
         method: "POST",
@@ -210,9 +212,17 @@ export default function BattleModePage({
         setIsSetupDialogOpen(false);
         setSetupPlayers([]);
         refetch();
+      } else {
+        /* Show server error to admin so they know why setup failed */
+        const errorData = await response.json().catch(() => ({}));
+        const msg = errorData.error || `Setup failed (${response.status})`;
+        alert(msg);
       }
     } catch (err) {
       logger.error("Failed to setup:", { error: err, tournamentId });
+      alert(tc('networkError') ?? 'Network error — please try again');
+    } finally {
+      setSetupSaving(false);
     }
   };
 
@@ -377,6 +387,7 @@ export default function BattleModePage({
               isOpen={isSetupDialogOpen}
               setIsOpen={setIsSetupDialogOpen}
               onSave={handleSetup}
+              saving={setupSaving}
               existingAssignments={qualifications.map((q) => ({
                 playerId: q.playerId,
                 group: q.group,
