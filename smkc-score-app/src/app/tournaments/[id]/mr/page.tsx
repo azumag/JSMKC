@@ -428,7 +428,7 @@ export default function MatchRacePage({
       {qualifications.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            {t('noGroupsYet')}
+            {isAdmin ? t('noGroupsYet') : t('noGroupsYetViewer')}
           </CardContent>
         </Card>
       ) : (
