@@ -184,8 +184,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const body = sanitizeInput(await request.json());
       const { topN = 8 } = body;
 
-      if (topN !== 8) {
-        return handleValidationError('Currently only 8-player brackets are supported', 'topN');
+      /* Support 8-player and 16-player brackets (§4.2) */
+      if (topN !== 8 && topN !== 16) {
+        return handleValidationError('Only 8-player and 16-player brackets are supported', 'topN');
       }
 
       const qualifications = await qualModel(prisma).findMany({

@@ -11,14 +11,16 @@
  * - A Grand Final Reset occurs only if the Losers Bracket champion wins the first Grand Final,
  *   because the Winners Bracket champion would then have only one loss.
  *
- * Currently supports 8-player brackets only (the standard for JSMKC finals).
- * The seeding follows the standard 1v8, 4v5, 2v7, 3v6 pattern to ensure
- * that the top two seeds can only meet in the Winners Final, and adjacent
- * seeds are maximally separated in the bracket.
+ * Supports 8-player brackets (17 matches) and 16-player brackets (31 matches).
  *
  * Bracket structure for 8 players (17 total matches):
  *   Winners: QF(4) -> SF(2) -> Final(1)
  *   Losers:  R1(2) -> R2(2) -> R3(2) -> SF(1) -> Final(1)
+ *   Grand Final(1) + Reset(1)
+ *
+ * Bracket structure for 16 players (31 total matches):
+ *   Winners: R1(8) -> QF(4) -> SF(2) -> Final(1)
+ *   Losers:  L_R1(4) -> L_R2(4) -> L_R3(2) -> L_R4(2) -> SF(1) -> Final(1)
  *   Grand Final(1) + Reset(1)
  *
  * Match numbering is sequential (1-17) for consistent reference across
@@ -35,16 +37,16 @@ import { BracketMatch } from '@/types/bracket';
  * The `position` field indicates whether a player enters as player 1 or player 2
  * in the next match, which is important for consistent bracket display.
  *
- * @param playerCount - Number of players (must be 8)
+ * @param playerCount - Number of players (must be 8 or 16)
  * @returns Array of BracketMatch objects defining the full bracket
- * @throws Error if playerCount is not 8
+ * @throws Error if playerCount is not 8 or 16
  */
 export function generateBracketStructure(playerCount: number): BracketMatch[] {
+  if (playerCount === 16) {
+    return generate16PlayerBracket();
+  }
   if (playerCount !== 8) {
-    // Currently only 8-player brackets are implemented because JSMKC finals
-    // always have exactly 8 qualifiers. This can be extended to 4, 16, etc.
-    // by adding additional seed patterns and bracket configurations.
-    throw new Error("Currently only 8-player brackets are supported");
+    throw new Error("Only 8-player and 16-player brackets are supported");
   }
 
   const matches: BracketMatch[] = [];
@@ -216,6 +218,162 @@ export function generateBracketStructure(playerCount: number): BracketMatch[] {
 }
 
 /**
+ * Generate a 16-player double elimination bracket (31 matches).
+ *
+ * Seeding: 1v16, 8v9, 5v12, 4v13, 3v14, 6v11, 7v10, 2v15
+ * Ensures seeds 1&2 on opposite halves, top 4 maximally separated.
+ */
+function generate16PlayerBracket(): BracketMatch[] {
+  const matches: BracketMatch[] = [];
+  let mn = 1;
+
+  // --- WINNERS R1 (Matches 1-8): 16 players → 8 winners ---
+  const seedPairs16 = [
+    [1, 16], [8, 9], [5, 12], [4, 13],
+    [3, 14], [6, 11], [7, 10], [2, 15],
+  ];
+  for (let i = 0; i < 8; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "winners_r1",
+      bracket: "winners",
+      player1Seed: seedPairs16[i][0],
+      player2Seed: seedPairs16[i][1],
+      /* R1 winners → QF: pairs of 2 map to one QF match (9-12) */
+      winnerGoesTo: 9 + Math.floor(i / 2),
+      /* R1 losers → Losers R1: pairs of 2 map to one L_R1 match (16-19) */
+      loserGoesTo: 16 + Math.floor(i / 2),
+      position: ((i % 2) + 1) as 1 | 2,
+    });
+    mn++;
+  }
+
+  // --- WINNERS QF (Matches 9-12) ---
+  for (let i = 0; i < 4; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "winners_qf",
+      bracket: "winners",
+      winnerGoesTo: 13 + Math.floor(i / 2),
+      /* QF losers → Losers R2 (20-23) */
+      loserGoesTo: 20 + i,
+      position: ((i % 2) + 1) as 1 | 2,
+    });
+    mn++;
+  }
+
+  // --- WINNERS SF (Matches 13-14) ---
+  for (let i = 0; i < 2; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "winners_sf",
+      bracket: "winners",
+      winnerGoesTo: 15,
+      /* SF losers → Losers R4 (26-27) */
+      loserGoesTo: 26 + i,
+      position: (i + 1) as 1 | 2,
+    });
+    mn++;
+  }
+
+  // --- WINNERS FINAL (Match 15) ---
+  matches.push({
+    matchNumber: mn,
+    round: "winners_final",
+    bracket: "winners",
+    winnerGoesTo: 30,
+    loserGoesTo: 29,
+    position: 1,
+  });
+  mn++;
+
+  // --- LOSERS R1 (Matches 16-19): R1 losers pair up ---
+  for (let i = 0; i < 4; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "losers_r1",
+      bracket: "losers",
+      winnerGoesTo: 20 + i,
+      position: 1,
+    });
+    mn++;
+  }
+
+  // --- LOSERS R2 (Matches 20-23): L_R1 winners vs QF losers ---
+  for (let i = 0; i < 4; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "losers_r2",
+      bracket: "losers",
+      winnerGoesTo: 24 + Math.floor(i / 2),
+      position: ((i % 2) + 1) as 1 | 2,
+    });
+    mn++;
+  }
+
+  // --- LOSERS R3 (Matches 24-25): L_R2 winners pair up ---
+  for (let i = 0; i < 2; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "losers_r3",
+      bracket: "losers",
+      winnerGoesTo: 26 + i,
+      position: 2,
+    });
+    mn++;
+  }
+
+  // --- LOSERS R4 (Matches 26-27): L_R3 winners vs SF losers ---
+  for (let i = 0; i < 2; i++) {
+    matches.push({
+      matchNumber: mn,
+      round: "losers_r4",
+      bracket: "losers",
+      winnerGoesTo: 28,
+      position: (i + 1) as 1 | 2,
+    });
+    mn++;
+  }
+
+  // --- LOSERS SF (Match 28) ---
+  matches.push({
+    matchNumber: mn,
+    round: "losers_sf",
+    bracket: "losers",
+    winnerGoesTo: 29,
+    position: 1,
+  });
+  mn++;
+
+  // --- LOSERS FINAL (Match 29): LSF winner vs WF loser ---
+  matches.push({
+    matchNumber: mn,
+    round: "losers_final",
+    bracket: "losers",
+    winnerGoesTo: 30,
+    position: 2,
+  });
+  mn++;
+
+  // --- GRAND FINAL (Match 30) ---
+  matches.push({
+    matchNumber: mn,
+    round: "grand_final",
+    bracket: "grand_final",
+  });
+  mn++;
+
+  // --- GRAND FINAL RESET (Match 31) ---
+  matches.push({
+    matchNumber: mn,
+    round: "grand_final_reset",
+    bracket: "grand_final",
+  });
+
+  return matches;
+}
+
+/**
  * Determine where a player goes after a match result.
  *
  * Given a completed match and whether the player won or lost, returns
@@ -250,23 +408,26 @@ export function getNextMatchInfo(
   } else if (!isWinner && match.loserGoesTo) {
     // Loser drops down -- position depends on the round to maintain
     // proper bracket placement and visual consistency
-    if (match.round === "winners_qf") {
-      // QF losers: position based on original match number parity.
-      // Match 1 loser -> P1, Match 2 loser -> P2 in the same L_R1 match.
+    if (match.round === "winners_r1") {
+      /* 16-player R1 losers: position based on match number parity */
+      return {
+        nextMatchNumber: match.loserGoesTo,
+        position: ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
+      };
+    } else if (match.round === "winners_qf") {
+      /* QF losers: position based on original match number parity */
       return {
         nextMatchNumber: match.loserGoesTo,
         position: ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
       };
     } else if (match.round === "winners_sf") {
-      // SF losers enter Losers R3 as player 1 (the "higher seed" position),
-      // because they had a better initial tournament run than L_R2 winners.
+      /* SF losers enter as player 1 (the "higher seed" position) */
       return {
         nextMatchNumber: match.loserGoesTo,
         position: 1,
       };
     } else if (match.round === "winners_final") {
-      // Winners Final loser enters Losers Final as player 2,
-      // facing the Losers SF winner who enters as player 1.
+      /* Winners Final loser enters Losers Final as player 2 */
       return {
         nextMatchNumber: match.loserGoesTo,
         position: 2,
@@ -283,12 +444,14 @@ export function getNextMatchInfo(
  * Used in the tournament UI to label match phases clearly.
  */
 export const roundNames: Record<string, string> = {
+  winners_r1: "Winners Round 1",
   winners_qf: "Winners Quarter Final",
   winners_sf: "Winners Semi Final",
   winners_final: "Winners Final",
   losers_r1: "Losers Round 1",
   losers_r2: "Losers Round 2",
   losers_r3: "Losers Round 3",
+  losers_r4: "Losers Round 4",
   losers_sf: "Losers Semi Final",
   losers_final: "Losers Final",
   grand_final: "Grand Final",

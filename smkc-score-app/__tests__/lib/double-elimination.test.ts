@@ -36,10 +36,52 @@ describe('Double Elimination Bracket Structure', () => {
       expect(matches).toHaveLength(17);
     });
 
-    it('should throw error for player count not equal to 8', () => {
-      expect(() => generateBracketStructure(4)).toThrow('Currently only 8-player brackets are supported');
-      expect(() => generateBracketStructure(16)).toThrow('Currently only 8-player brackets are supported');
-      expect(() => generateBracketStructure(0)).toThrow('Currently only 8-player brackets are supported');
+    it('should throw error for unsupported player counts', () => {
+      expect(() => generateBracketStructure(4)).toThrow('Only 8-player and 16-player brackets are supported');
+      expect(() => generateBracketStructure(0)).toThrow('Only 8-player and 16-player brackets are supported');
+      expect(() => generateBracketStructure(12)).toThrow('Only 8-player and 16-player brackets are supported');
+    });
+
+    it('should generate 31 matches for 16 players', () => {
+      const matches = generateBracketStructure(16);
+      expect(matches).toHaveLength(31);
+    });
+
+    it('should have correct 16-player seeding in Winners R1', () => {
+      const matches = generateBracketStructure(16);
+      const r1 = matches.filter(m => m.round === 'winners_r1');
+      expect(r1).toHaveLength(8);
+      /* Seed 1 vs Seed 16 */
+      expect(r1[0].player1Seed).toBe(1);
+      expect(r1[0].player2Seed).toBe(16);
+      /* Seed 2 vs Seed 15 (last R1 match) */
+      expect(r1[7].player1Seed).toBe(2);
+      expect(r1[7].player2Seed).toBe(15);
+    });
+
+    it('should have all bracket stages for 16 players', () => {
+      const matches = generateBracketStructure(16);
+      const rounds = new Set(matches.map(m => m.round));
+      expect(rounds.has('winners_r1')).toBe(true);
+      expect(rounds.has('winners_qf')).toBe(true);
+      expect(rounds.has('winners_sf')).toBe(true);
+      expect(rounds.has('winners_final')).toBe(true);
+      expect(rounds.has('losers_r1')).toBe(true);
+      expect(rounds.has('losers_r2')).toBe(true);
+      expect(rounds.has('losers_r3')).toBe(true);
+      expect(rounds.has('losers_r4')).toBe(true);
+      expect(rounds.has('losers_sf')).toBe(true);
+      expect(rounds.has('losers_final')).toBe(true);
+      expect(rounds.has('grand_final')).toBe(true);
+      expect(rounds.has('grand_final_reset')).toBe(true);
+    });
+
+    it('should have Grand Final as match 30 and Reset as 31 for 16 players', () => {
+      const matches = generateBracketStructure(16);
+      const gf = matches.find(m => m.round === 'grand_final');
+      const gfr = matches.find(m => m.round === 'grand_final_reset');
+      expect(gf?.matchNumber).toBe(30);
+      expect(gfr?.matchNumber).toBe(31);
     });
 
     it('should create correct Winners Bracket Round 1 (Quarter Finals) structure', () => {
