@@ -386,6 +386,13 @@ export default function MatchRacePage({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Player score entry link — visible to all users */}
+          <Button variant="outline" asChild>
+            <Link href={`/tournaments/${tournamentId}/mr/participant`}>
+              {tc('enterScore')}
+            </Link>
+          </Button>
+
           <Button
             variant="outline"
             onClick={handleExport}

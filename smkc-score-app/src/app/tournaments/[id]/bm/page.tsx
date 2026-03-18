@@ -355,6 +355,13 @@ export default function BattleModePage({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* Player score entry link — visible to all users */}
+          <Button variant="outline" asChild>
+            <Link href={`/tournaments/${tournamentId}/bm/participant`}>
+              {tc('enterScore')}
+            </Link>
+          </Button>
+
           {/* Admin-only export button */}
           {isAdmin && (
             <Button
