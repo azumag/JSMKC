@@ -641,6 +641,22 @@ export default function MatchRacePage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* §5.3 Character selection priority guidance */}
+            {selectedMatch && (() => {
+              const p1 = selectedMatch.player1Id;
+              const p2 = selectedMatch.player2Id;
+              const prevMatch = matches
+                .filter(m => m.completed && m.id !== selectedMatch.id &&
+                  ((m.player1Id === p1 && m.player2Id === p2) || (m.player1Id === p2 && m.player2Id === p1)))
+                .sort((a, b) => b.matchNumber - a.matchNumber)[0];
+              if (!prevMatch) {
+                return <p className="text-sm text-muted-foreground text-center mb-2">{tc('characterPriorityFirst')}</p>;
+              }
+              const p1Score = prevMatch.player1Id === p1 ? prevMatch.score1 : prevMatch.score2;
+              const p2Score = prevMatch.player1Id === p1 ? prevMatch.score2 : prevMatch.score1;
+              const loserNickname = p1Score < p2Score ? selectedMatch.player1.nickname : selectedMatch.player2.nickname;
+              return <p className="text-sm text-blue-600 text-center mb-2">{tc('characterPriority', { player: loserNickname })}</p>;
+            })()}
             <Table>
               <TableHeader>
                 <TableRow>

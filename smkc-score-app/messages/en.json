@@ -45,6 +45,8 @@
     "addPlayer": "Add Player",
     "enterScore": "Enter Score",
     "enterResult": "Enter Result",
+    "characterPriority": "🎮 Character selection: {player} chooses first (lost previous round)",
+    "characterPriorityFirst": "🎮 First match between these players — no character priority",
     "saveScore": "Save Score",
     "saveResult": "Save Result",
     "saveTimes": "Save Times",

@@ -45,6 +45,8 @@
     "addPlayer": "プレイヤー追加",
     "enterScore": "スコア入力",
     "enterResult": "結果入力",
+    "characterPriority": "🎮 キャラ選択権: {player} が先に選択（前ラウンドで敗北）",
+    "characterPriorityFirst": "🎮 初対戦 — キャラ選択の優先権なし",
     "saveScore": "スコア保存",
     "saveResult": "結果保存",
     "saveTimes": "タイム保存",
