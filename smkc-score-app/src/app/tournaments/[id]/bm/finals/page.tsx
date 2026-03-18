@@ -60,7 +60,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { POLLING_INTERVAL, BM_FINALS_TARGET_WINS } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -483,7 +483,7 @@ export default function BattleModeFinals({
                    id={`score1-${selectedMatch?.id}`}
                    type="number"
                    min={0}
-                   max={4}
+                   max={BM_FINALS_TARGET_WINS}
                    value={scoreForm.score1}
                    onChange={(e) =>
                      setScoreForm({
@@ -505,7 +505,7 @@ export default function BattleModeFinals({
                    id={`score2-${selectedMatch?.id}`}
                    type="number"
                    min={0}
-                   max={4}
+                   max={BM_FINALS_TARGET_WINS}
                    value={scoreForm.score2}
                    onChange={(e) =>
                      setScoreForm({
@@ -518,20 +518,32 @@ export default function BattleModeFinals({
                  />
               </div>
             </div>
-            {/* Validation warning: finals matches need a winner (first to 3) */}
+            {/* §5.4: Start course selection (guidance for which BC to start from) */}
+            <div className="text-center">
+              <Label className="text-sm text-muted-foreground">{tFinals('startCourse')}</Label>
+              <p className="text-xs text-muted-foreground mb-1">{tFinals('startCourseDesc')}</p>
+              <div className="flex justify-center gap-2">
+                {[1, 2, 3, 4].map((n) => (
+                  <Badge key={n} variant="outline" className="text-sm px-3 py-1">
+                    {tFinals('battleCourse', { number: n })}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            {/* Validation warning: finals matches need a winner (best-of-9, first to 5) */}
             {scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < 3 &&
-              scoreForm.score2 < 3 && (
+              scoreForm.score1 < BM_FINALS_TARGET_WINS &&
+              scoreForm.score2 < BM_FINALS_TARGET_WINS && (
                 <p className="text-sm text-yellow-600 text-center">
                   {tFinals('matchNeedWinner')}
                 </p>
               )}
           </div>
           <DialogFooter>
-            {/* Submit button disabled until a valid winner score is entered */}
+            {/* Submit button disabled until a valid winner score is entered (first to 5) */}
             <Button
               onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
+              disabled={scoreForm.score1 < BM_FINALS_TARGET_WINS && scoreForm.score2 < BM_FINALS_TARGET_WINS}
             >
               {tCommon('saveScore')}
             </Button>
