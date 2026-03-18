@@ -169,6 +169,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
       const playerMatches = matches.filter(
         (match) =>
           !match.completed &&
+          !match.isBye && /* BYE matches are auto-completed; don't show in pending */
           (match.player1.id === playerId || match.player2.id === playerId)
       );
       setMyMatches(playerMatches);

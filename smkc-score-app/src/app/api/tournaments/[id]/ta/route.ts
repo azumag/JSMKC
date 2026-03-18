@@ -356,8 +356,8 @@ export async function PUT(
         include: { player: true },
       });
 
-      /* If setting a partner (not clearing), also set the reverse partnership */
       if (partnerId) {
+        /* Setting partner: also set the reverse partnership */
         const partnerEntry = await prisma.tTEntry.findFirst({
           where: { tournamentId, playerId: partnerId, stage: entry.stage },
         });
@@ -365,6 +365,17 @@ export async function PUT(
           await prisma.tTEntry.update({
             where: { id: partnerEntry.id },
             data: { partnerId: entry.playerId },
+          });
+        }
+      } else if (entry.partnerId) {
+        /* Clearing partner: also clear the reverse link to prevent orphans */
+        const oldPartnerEntry = await prisma.tTEntry.findFirst({
+          where: { tournamentId, partnerId: entry.playerId, stage: entry.stage },
+        });
+        if (oldPartnerEntry) {
+          await prisma.tTEntry.update({
+            where: { id: oldPartnerEntry.id },
+            data: { partnerId: null },
           });
         }
       }
