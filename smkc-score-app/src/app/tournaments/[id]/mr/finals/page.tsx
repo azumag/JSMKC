@@ -147,6 +147,7 @@ export default function MatchRaceFinals({
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [bracketSize, setBracketSize] = useState<8 | 16>(8);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
   /* Initialize 5 empty rounds for match result dialog */
@@ -208,7 +209,7 @@ export default function MatchRaceFinals({
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topN: 8 }),
+        body: JSON.stringify({ topN: bracketSize }),
       });
 
       if (response.ok) {
@@ -369,16 +370,19 @@ export default function MatchRaceFinals({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  {/* i18n: Generate bracket confirmation dialog */}
                   <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="flex gap-2 justify-center py-2">
+                  <Button size="sm" variant={bracketSize === 8 ? "default" : "outline"} onClick={() => setBracketSize(8)}>Top 8</Button>
+                  <Button size="sm" variant={bracketSize === 16 ? "default" : "outline"} onClick={() => setBracketSize(16)}>Top 16</Button>
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('generate')}
+                    {tFinals('generate')} ({bracketSize} players)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

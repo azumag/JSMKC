@@ -147,6 +147,8 @@ export default function BattleModeFinals({
   /* UI state */
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  /** Bracket size: 8 (top 8) or 16 (top 12 + 4 from preliminary, §4.2) */
+  const [bracketSize, setBracketSize] = useState<8 | 16>(8);
 
   /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
@@ -206,7 +208,7 @@ export default function BattleModeFinals({
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topN: 8 }),
+        body: JSON.stringify({ topN: bracketSize }),
       });
 
       if (response.ok) {
@@ -339,10 +341,27 @@ export default function BattleModeFinals({
                     {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                {/* §4.2: Bracket size selection — 8 (standard) or 16 (with preliminary) */}
+                <div className="flex gap-2 justify-center py-2">
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 8 ? "default" : "outline"}
+                    onClick={() => setBracketSize(8)}
+                  >
+                    Top 8
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 16 ? "default" : "outline"}
+                    onClick={() => setBracketSize(16)}
+                  >
+                    Top 16
+                  </Button>
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('generate')}
+                    {tFinals('generate')} ({bracketSize} players)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -126,6 +126,7 @@ export default function GrandPrixFinals({
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [bracketSize, setBracketSize] = useState<8 | 16>(8);
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
@@ -177,7 +178,7 @@ export default function GrandPrixFinals({
       const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topN: 8 }),
+        body: JSON.stringify({ topN: bracketSize }),
       });
 
       if (response.ok) {
@@ -299,16 +300,19 @@ export default function GrandPrixFinals({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  {/* i18n: Generate bracket confirmation dialog */}
                   <AlertDialogTitle>{tFinals('generateConfirmTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="flex gap-2 justify-center py-2">
+                  <Button size="sm" variant={bracketSize === 8 ? "default" : "outline"} onClick={() => setBracketSize(8)}>Top 8</Button>
+                  <Button size="sm" variant={bracketSize === 16 ? "default" : "outline"} onClick={() => setBracketSize(16)}>Top 16</Button>
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleCreateBracket}>
-                    {tFinals('generate')}
+                    {tFinals('generate')} ({bracketSize} players)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
