@@ -1,10 +1,11 @@
 /**
  * Double Elimination Bracket Component
  *
- * Renders a complete double-elimination tournament bracket for Battle Mode finals.
+ * Renders a complete double-elimination tournament bracket for BM/MR/GP finals.
+ * Supports both 8-player (17 matches) and 16-player (31 matches) brackets.
  * The bracket displays three sections:
- * 1. Winners Bracket (QF -> SF -> Final)
- * 2. Losers Bracket (R1 -> R2 -> R3 -> SF -> Final)
+ * 1. Winners Bracket (R1* -> QF -> SF -> Final) *R1 only in 16-player
+ * 2. Losers Bracket (R1 -> R2 -> R3 -> R4* -> SF -> Final) *R4 only in 16-player
  * 3. Grand Final (Grand Final + optional Reset match)
  *
  * Each match is displayed as a clickable card showing:
@@ -116,7 +117,7 @@ function MatchCard({
    * Later rounds show TBD until players are determined from previous results.
    */
   const isFirstRound =
-    bracketMatch.round === "winners_qf" || bracketMatch.round === "losers_r1";
+    bracketMatch.round === "winners_r1" || bracketMatch.round === "winners_qf" || bracketMatch.round === "losers_r1";
   const showTBD = !isFirstRound && isTBD;
 
   return (
@@ -273,12 +274,13 @@ export function DoubleEliminationBracket({
     if (!match) return true;
     const bracket = getBracketMatch(matchNumber);
     /* First round matches always have real players from seeding */
-    if (bracket?.round === "winners_qf") return false;
+    if (bracket?.round === "winners_qf" || bracket?.round === "winners_r1") return false;
     /* Later rounds: check if both player IDs are the same (placeholder state) */
     return !match.completed && match.player1Id === match.player2Id;
   };
 
   /* Group bracket positions by round for organized display */
+  const winnersR1 = bracketStructure.filter((b) => b.round === "winners_r1");
   const winnersQF = bracketStructure.filter((b) => b.round === "winners_qf");
   const winnersSF = bracketStructure.filter((b) => b.round === "winners_sf");
   const winnersFinal = bracketStructure.filter(
@@ -288,6 +290,7 @@ export function DoubleEliminationBracket({
   const losersR1 = bracketStructure.filter((b) => b.round === "losers_r1");
   const losersR2 = bracketStructure.filter((b) => b.round === "losers_r2");
   const losersR3 = bracketStructure.filter((b) => b.round === "losers_r3");
+  const losersR4 = bracketStructure.filter((b) => b.round === "losers_r4");
   const losersSF = bracketStructure.filter((b) => b.round === "losers_sf");
   const losersFinal = bracketStructure.filter((b) => b.round === "losers_final");
 
@@ -296,12 +299,39 @@ export function DoubleEliminationBracket({
     (b) => b.round === "grand_final_reset"
   );
 
+  /* Detect bracket size: 16-player has winners_r1, 8-player doesn't */
+  const is16Player = winnersR1.length > 0;
+
   return (
     <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
       {/* Winners Bracket - Players with no losses */}
       <BracketSection title="Winners Bracket">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
-          {/* Quarter Finals - First round of 8-player bracket */}
+          {/* Round 1 - Only in 16-player brackets */}
+          {is16Player && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Round 1
+              </h4>
+              <div className="flex flex-col gap-2">
+                {winnersR1.map((b) => (
+                  <MatchCard
+                    key={b.matchNumber}
+                    match={getMatch(b.matchNumber)}
+                    bracketMatch={b}
+                    seededPlayers={seededPlayers}
+                    onClick={() => {
+                      const match = getMatch(b.matchNumber);
+                      if (match && onMatchClick) onMatchClick(match);
+                    }}
+                    isTBD={isTBD(b.matchNumber)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quarter Finals */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
               Quarter Finals
@@ -435,6 +465,30 @@ export function DoubleEliminationBracket({
               ))}
             </div>
           </div>
+
+          {/* Losers Round 4 - Only in 16-player brackets */}
+          {losersR4.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Round 4
+              </h4>
+              <div className="flex flex-col gap-2">
+                {losersR4.map((b) => (
+                  <MatchCard
+                    key={b.matchNumber}
+                    match={getMatch(b.matchNumber)}
+                    bracketMatch={b}
+                    seededPlayers={seededPlayers}
+                    onClick={() => {
+                      const match = getMatch(b.matchNumber);
+                      if (match && onMatchClick) onMatchClick(match);
+                    }}
+                    isTBD={isTBD(b.matchNumber)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Losers Semi Final */}
           <div className="space-y-2">
