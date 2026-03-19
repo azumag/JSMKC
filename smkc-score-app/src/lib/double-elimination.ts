@@ -415,10 +415,13 @@ export function getNextMatchInfo(
         position: ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
       };
     } else if (match.round === "winners_qf") {
-      /* QF losers: position based on original match number parity */
+      /* QF losers enter Losers R2 as position 2 (L_R1 winners enter as position 1).
+       * In 16-player bracket, QF is matches 9-12 → each goes to L_R2 match 20-23.
+       * In 8-player bracket, QF is matches 1-4 → position based on parity. */
+      const is16Player = matches.length > 17;
       return {
         nextMatchNumber: match.loserGoesTo,
-        position: ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
+        position: is16Player ? 2 : ((completedMatchNumber - 1) % 2 + 1) as 1 | 2,
       };
     } else if (match.round === "winners_sf") {
       /* SF losers enter as player 1 (the "higher seed" position) */

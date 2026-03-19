@@ -164,8 +164,9 @@ export default function GrandPrixParticipantPage({
               size="sm"
               className="text-xs h-5 ml-1 px-1"
               onClick={() => {
-                const current = activeCups[match.id] || match.cup!;
-                const next = current === match.cup ? CUP_SUBSTITUTIONS[match.cup!] : match.cup!;
+                if (!match.cup) return;
+                const current = activeCups[match.id] || match.cup;
+                const next = current === match.cup ? CUP_SUBSTITUTIONS[match.cup] : match.cup;
                 setActiveCups((prev) => ({ ...prev, [match.id]: next }));
                 setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
               }}

@@ -151,7 +151,12 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
 
   const { data: pollingData, error: pollingError } = usePolling(
     fetchMatchesPoll,
-    { interval: POLLING_INTERVAL, enabled: hasAccess && !loading }
+    {
+      interval: POLLING_INTERVAL,
+      enabled: hasAccess && !loading,
+      /* Cache key enables instant content display when returning to this tab */
+      cacheKey: `participant/${tournamentId}/${mode}`,
+    }
   );
 
   useEffect(() => {
