@@ -667,7 +667,7 @@ export default function MatchRacePage({
               </TableHeader>
               <TableBody>
                 {rounds.map((round, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={`round-${selectedMatch?.id}-${index}`}>
                     <TableCell className="font-medium">{tc('race')} {index + 1}</TableCell>
                     <TableCell>
                       <Select
@@ -698,6 +698,7 @@ export default function MatchRacePage({
                         <Button
                           variant={round.winner === 1 ? "default" : "outline"}
                           size="sm"
+                          aria-label={`${selectedMatch?.player1.nickname} wins race ${index + 1}`}
                           onClick={() => {
                             const newRounds = [...rounds];
                             newRounds[index].winner = round.winner === 1 ? null : 1;
@@ -709,6 +710,7 @@ export default function MatchRacePage({
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
                           size="sm"
+                          aria-label={`${selectedMatch?.player2.nickname} wins race ${index + 1}`}
                           onClick={() => {
                             const newRounds = [...rounds];
                             newRounds[index].winner = round.winner === 2 ? null : 2;

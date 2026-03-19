@@ -695,7 +695,7 @@ export default function GrandPrixPage({
                   {races.map((race, index) => {
                     const cupCourses = getCupCourses(selectedCup);
                     return (
-                      <TableRow key={index}>
+                      <TableRow key={`race-${selectedMatch?.id}-${index}`}>
                         <TableCell className="font-medium">
                           {tc('race')} {index + 1}
                         </TableCell>

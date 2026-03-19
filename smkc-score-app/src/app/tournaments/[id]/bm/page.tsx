@@ -663,8 +663,9 @@ export default function BattleModePage({
             <div className="flex items-center justify-center gap-4">
               {/* Player 1 score input */}
               <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
+                <Label htmlFor={`bm-score1-${selectedMatch?.id}`}>{selectedMatch?.player1.nickname}</Label>
                 <Input
+                  id={`bm-score1-${selectedMatch?.id}`}
                   type="number"
                   min={0}
                   max={4}
@@ -676,13 +677,15 @@ export default function BattleModePage({
                     })
                   }
                   className="w-20 text-center text-2xl"
+                  aria-label={`${selectedMatch?.player1.nickname} score`}
                 />
               </div>
-              <span className="text-2xl">-</span>
+              <span className="text-2xl" aria-hidden="true">-</span>
               {/* Player 2 score input */}
               <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
+                <Label htmlFor={`bm-score2-${selectedMatch?.id}`}>{selectedMatch?.player2.nickname}</Label>
                 <Input
+                  id={`bm-score2-${selectedMatch?.id}`}
                   type="number"
                   min={0}
                   max={4}
