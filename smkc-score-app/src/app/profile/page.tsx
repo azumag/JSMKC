@@ -25,17 +25,22 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(true)
   const [player, setPlayer] = useState<Player | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchPlayer(playerId: string) {
       try {
         const res = await fetch(`/api/players/${playerId}`)
         if (!res.ok) {
+          /* Show specific error instead of silently failing to "No player session" */
+          setFetchError(`Failed to load profile (HTTP ${res.status})`)
           return
         }
 
         const json = await res.json()
         setPlayer(json.data ?? json)
+      } catch {
+        setFetchError('Network error — please check your connection')
       } finally {
         setLoading(false)
       }
@@ -105,6 +110,8 @@ export default function ProfilePage() {
               </div>
               <p className="text-sm text-muted-foreground">{t('canSubmitScores')}</p>
             </div>
+          ) : fetchError ? (
+            <p className="text-sm text-destructive">{fetchError}</p>
           ) : (
             <p className="text-sm text-muted-foreground">{t('noPlayerSession')}</p>
           )}

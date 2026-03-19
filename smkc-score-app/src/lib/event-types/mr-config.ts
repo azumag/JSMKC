@@ -70,6 +70,18 @@ export const mrConfig: EventTypeConfig = {
     if (!scoreValidation.isValid) {
       return { valid: false, error: scoreValidation.error };
     }
+    /* Validate rounds array if provided: each round must have course and winner */
+    if (rounds !== undefined && rounds !== null) {
+      if (!Array.isArray(rounds)) {
+        return { valid: false, error: 'rounds must be an array' };
+      }
+      for (let i = 0; i < rounds.length; i++) {
+        const r = rounds[i] as Record<string, unknown>;
+        if (!r || typeof r !== 'object' || !r.course || r.winner === undefined) {
+          return { valid: false, error: `Round ${i + 1}: course and winner are required` };
+        }
+      }
+    }
     return { valid: true, data: { matchId, score1, score2, rounds } };
   },
 
