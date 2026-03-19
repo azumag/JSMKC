@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date } = body;
+    const { name, date, dualReportEnabled } = body;
 
     // Validate required fields
     if (!name || !date) {
@@ -106,12 +106,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the tournament with initial "draft" status.
-    // Tournaments must be manually activated before score entry is allowed.
+    // dualReportEnabled defaults to false — when true, both players must
+    // report matching scores for auto-confirmation.
     const tournament = await prisma.tournament.create({
       data: {
         name,
         date: new Date(date),
         status: "draft",
+        dualReportEnabled: dualReportEnabled === true,
       },
     });
 

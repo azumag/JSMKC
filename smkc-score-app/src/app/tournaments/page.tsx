@@ -105,6 +105,7 @@ export default function TournamentsPage() {
   const [formData, setFormData] = useState({
     name: "",
     date: "",
+    dualReportEnabled: false,
   });
   const [error, setError] = useState("");
 
@@ -156,7 +157,7 @@ export default function TournamentsPage() {
       });
 
       if (response.ok) {
-        setFormData({ name: "", date: "" });
+        setFormData({ name: "", date: "", dualReportEnabled: false });
         setIsAddDialogOpen(false);
         fetchTournaments();
       } else {
@@ -229,7 +230,7 @@ export default function TournamentsPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", date: "" })}>
+              <Button onClick={() => setFormData({ name: "", date: "", dualReportEnabled: false })}>
                 {t('createTournament')}
               </Button>
             </DialogTrigger>
@@ -268,6 +269,20 @@ export default function TournamentsPage() {
                     }
                     required
                   />
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    id="dualReport"
+                    type="checkbox"
+                    checked={formData.dualReportEnabled}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dualReportEnabled: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="dualReport" className="text-sm font-normal cursor-pointer">
+                    {t('dualReportEnabled')}
+                  </Label>
                 </div>
               </div>
               <DialogFooter>

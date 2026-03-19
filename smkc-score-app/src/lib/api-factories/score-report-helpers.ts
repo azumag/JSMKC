@@ -194,6 +194,19 @@ export async function createCharacterUsageLog(
  * @param character - The character string to validate (may be undefined)
  * @returns True if valid or absent, false if invalid
  */
+/**
+ * Check if dual report mode is enabled for a tournament.
+ * When disabled (default), player score reports are immediately confirmed.
+ * When enabled, both players must report matching scores for auto-confirmation.
+ */
+export async function isDualReportEnabled(tournamentId: string): Promise<boolean> {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { dualReportEnabled: true },
+  });
+  return tournament?.dualReportEnabled === true;
+}
+
 export function validateCharacter(character: string | undefined): boolean {
   if (!character) return true;
   return SMK_CHARACTERS.includes(character as typeof SMK_CHARACTERS[number]);

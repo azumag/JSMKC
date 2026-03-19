@@ -123,6 +123,7 @@ model Tournament {
   name          String
   date          DateTime
   status        String   @default("draft") // draft, active, completed
+  dualReportEnabled Boolean @default(false) // When true, both players must report matching scores for auto-confirmation
   frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用

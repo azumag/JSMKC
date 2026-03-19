@@ -198,6 +198,7 @@
     "subtitleAdmin": "Create and manage tournaments",
     "subtitleView": "View tournaments",
     "createTournament": "Create Tournament",
+    "dualReportEnabled": "Enable Dual Report (both players must confirm scores)",
     "loadingTournaments": "Loading tournaments...",
     "createNewTournament": "Create New Tournament",
     "enterTournamentDetails": "Enter the tournament details below.",

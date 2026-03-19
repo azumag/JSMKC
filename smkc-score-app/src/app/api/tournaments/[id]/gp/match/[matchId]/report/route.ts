@@ -26,6 +26,7 @@ import {
   createCharacterUsageLog,
   validateCharacter,
   checkScoreReportAuth,
+  isDualReportEnabled,
   recalculatePlayerStats,
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
@@ -207,6 +208,23 @@ export async function POST(
         );
       }
       return handleDatabaseError(error, "score report update");
+    }
+
+    /* If dual report is disabled (default), immediately confirm the match */
+    if (!(await isDualReportEnabled(tournamentId))) {
+      try {
+        const finalMatch = await prisma.gPMatch.update({
+          where: { id: matchId },
+          data: { points1: totalPoints1, points2: totalPoints2, completed: true },
+          include: { player1: true, player2: true },
+        });
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
+        return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
+          "Score confirmed (dual report disabled)");
+      } catch (error) {
+        return handleDatabaseError(error, "match completion");
+      }
     }
 
     /* Check dual-report: auto-confirm or flag mismatch */

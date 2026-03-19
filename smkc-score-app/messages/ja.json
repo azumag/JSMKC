@@ -198,6 +198,7 @@
     "subtitleAdmin": "大会の作成・管理",
     "subtitleView": "大会一覧",
     "createTournament": "トーナメント作成",
+    "dualReportEnabled": "二重報告を有効にする（両プレイヤーがスコアを確認）",
     "loadingTournaments": "トーナメントを読み込み中...",
     "createNewTournament": "新規トーナメント作成",
     "enterTournamentDetails": "トーナメントの詳細を入力してください。",

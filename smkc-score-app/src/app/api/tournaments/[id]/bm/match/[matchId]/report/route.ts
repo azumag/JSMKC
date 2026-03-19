@@ -37,6 +37,7 @@ import {
   checkScoreReportAuth,
   createScoreEntryLog,
   createCharacterUsageLog,
+  isDualReportEnabled,
   validateCharacter,
   recalculatePlayerStats,
   type RecalculateStatsConfig,
@@ -185,6 +186,30 @@ export async function POST(
         );
       }
       return handleDatabaseError(error, "score report update");
+    }
+
+    /* If dual report is disabled (default), immediately confirm the match */
+    if (!(await isDualReportEnabled(tournamentId))) {
+      try {
+        const finalMatch = await updateWithRetry(prisma, async (tx) => {
+          const currentMatch = await tx.bMMatch.findUnique({
+            where: { id: matchId },
+            select: { version: true },
+          });
+          if (!currentMatch) throw new Error("Match not found");
+          return tx.bMMatch.update({
+            where: { id: matchId, version: currentMatch.version },
+            data: { score1, score2, completed: true, version: { increment: 1 } },
+            include: { player1: true, player2: true },
+          });
+        });
+        await recalculatePlayerStats(BM_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
+        await recalculatePlayerStats(BM_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
+        return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
+          "Score confirmed (dual report disabled)");
+      } catch (error) {
+        return handleDatabaseError(error, "match completion");
+      }
     }
 
     /* Check dual-report: auto-confirm or flag mismatch */
