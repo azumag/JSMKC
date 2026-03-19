@@ -322,7 +322,7 @@ export default function BattleModeFinals({
             {tFinals('doubleElimination')}
           </p>
           <div className="mt-2">
-            <UpdateIndicator lastUpdated={new Date(lastETag || 0)} isPolling={!error && pollLoading} />
+            {lastETag && <UpdateIndicator lastUpdated={new Date(lastETag)} isPolling={!error && pollLoading} />}
           </div>
         </div>
         <div className="flex gap-2">
