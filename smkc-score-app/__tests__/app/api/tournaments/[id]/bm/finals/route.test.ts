@@ -253,13 +253,13 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 8 }));
     });
 
-    // Validation error case - Returns 400 when topN is not 8
-    it('should return 400 when topN is not 8', async () => {
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 16 });
+    // Validation error case - Returns 400 when topN is not 8 or 16
+    it('should return 400 when topN is not 8 or 16', async () => {
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 12 });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Currently only 8-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
+      expect(result.data).toEqual({ success: false, error: 'Only 8-player and 16-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
       expect(result.status).toBe(400);
       expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
     });

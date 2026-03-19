@@ -370,13 +370,18 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1, rounds: [1, 2, 3, 4] });
+      /* Rounds must have course and winner fields per MR validation */
+      const validRounds = [
+        { course: 'MC1', winner: 1 }, { course: 'DP1', winner: 1 },
+        { course: 'GV1', winner: 1 }, { course: 'BC1', winner: 2 },
+      ];
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { matchId: 'm1', score1: 3, score2: 1, rounds: validRounds });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
+        data: { score1: 3, score2: 1, rounds: validRounds, completed: true },
         include: { player1: true, player2: true },
       });
     });

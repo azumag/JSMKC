@@ -281,7 +281,7 @@ describe('/api/tournaments/[id]/ta', () => {
       });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { message: 'Player(s) added to time attack', entries: [mockEntry] },
+        { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
         { status: 201 }
       );
     });
@@ -387,7 +387,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { message: 'Player(s) added to time attack', entries: [mockEntry] },
+        { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
         { status: 201 }
       );
     });
@@ -706,7 +706,7 @@ describe('/api/tournaments/[id]/ta', () => {
       );
 
       expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Forbidden: You can only update your own times', code: 'FORBIDDEN' },
+        { success: false, error: "Forbidden: You can only update your own or your partner's times", code: 'FORBIDDEN' },
         { status: 403 }
       );
     });

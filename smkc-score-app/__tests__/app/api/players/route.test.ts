@@ -170,19 +170,17 @@ describe('GET /api/players', () => {
         take: 50,
       });
 
-      // Real paginate returns { data, meta: { total, page, limit, totalPages } }
-      // createSuccessResponse wraps the result in { success: true, data: ... }
+      /* paginate() returns { data, meta } which is spread directly into
+       * { success: true, ...result } — no nested data wrapper. */
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: {
-            data: mockPlayers,
-            meta: {
-              total: 2,
-              page: 1,
-              limit: 50,
-              totalPages: 1,
-            },
+          data: mockPlayers,
+          meta: {
+            total: 2,
+            page: 1,
+            limit: 50,
+            totalPages: 1,
           },
         })
       );
@@ -207,18 +205,15 @@ describe('GET /api/players', () => {
       });
 
       // Real paginate: totalPages = Math.ceil(25/10) = 3
-      // createSuccessResponse wraps the result in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: {
-            data: mockPlayers,
-            meta: {
-              total: 25,
-              page: 2,
-              limit: 10,
-              totalPages: 3,
-            },
+          data: mockPlayers,
+          meta: {
+            total: 25,
+            page: 2,
+            limit: 10,
+            totalPages: 3,
           },
         })
       );
@@ -245,18 +240,15 @@ describe('GET /api/players', () => {
         })
       );
 
-      // createSuccessResponse wraps the result in { success: true, data: ... }
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: {
-            data: mockPlayers,
-            meta: {
-              total: 1,
-              page: 1,
-              limit: 50,
-              totalPages: 1,
-            },
+          data: mockPlayers,
+          meta: {
+            total: 1,
+            page: 1,
+            limit: 50,
+            totalPages: 1,
           },
         })
       );
@@ -450,11 +442,9 @@ describe('POST /api/players', () => {
         })
       );
 
+      /* Player POST now uses standard { success, data } wrapper with 201 status */
       expect(NextResponse.json).toHaveBeenCalledWith(
-        {
-          player: mockPlayer,
-          temporaryPassword: 'generated-password',
-        },
+        { success: true, data: { player: mockPlayer, temporaryPassword: 'generated-password' } },
         { status: 201 }
       );
     });

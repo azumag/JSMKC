@@ -414,7 +414,7 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toBe('Currently only 8-player brackets are supported');
+      expect(json.error).toBe('Only 8-player and 16-player brackets are supported');
     });
 
     it('should return 400 when not enough players qualified', async () => {

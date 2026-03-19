@@ -264,7 +264,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Currently only 8-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
+      expect(result.data).toEqual({ success: false, error: 'Only 8-player and 16-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
       expect(result.status).toBe(400);
     });
 

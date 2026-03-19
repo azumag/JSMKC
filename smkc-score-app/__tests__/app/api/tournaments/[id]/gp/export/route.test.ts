@@ -508,8 +508,8 @@ describe('GP Export API Route - /api/tournaments/[id]/gp/export', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      /* Source uses tournament.name directly without sanitization, so spaces remain */
-      expect(result.headers.get('Content-Disposition')).toMatch(/attachment; filename="Test Tournament_GP_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}.csv"/);
+      /* RFC 2231 encoding: filename* for UTF-8 + fallback filename */
+      expect(result.headers.get('Content-Disposition')).toMatch(/attachment; filename\*=UTF-8''.*\.csv; filename=".*\.csv"/);
     });
 
     // Not found case - Returns 404 when tournament is not found

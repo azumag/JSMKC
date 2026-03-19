@@ -498,8 +498,15 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
-    // Validation error case - Rejects position 0 (invalid, must be 1-4)
-    it('should return 400 when race position is 0', async () => {
+    // Position 0 is now valid (game over per §7.2) — should NOT return 400
+    it('should accept race position 0 as game over (§7.2)', async () => {
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({
+        id: 'm1', completed: true, score1: 0, score2: 0,
+        player1: { id: 'p1', nickname: 'P1' }, player2: { id: 'p2', nickname: 'P2' },
+      });
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
         matchId: 'm1',
         cup: 'Mushroom Cup',
@@ -514,9 +521,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data.error).toContain('Race 1 position2');
-      expect(result.status).toBe(400);
-      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+      /* Position 0 = game over, earns 0 driver points — should succeed */
+      expect(result.status).not.toBe(400);
     });
 
     // Error case - Returns 500 when database operation fails
