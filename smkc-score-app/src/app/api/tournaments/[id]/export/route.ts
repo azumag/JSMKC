@@ -313,7 +313,7 @@ export async function GET(
     return new NextResponse(csvContent, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}; filename="${filename}"`,
       },
     });
   } catch (error) {

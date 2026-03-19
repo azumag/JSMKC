@@ -233,6 +233,12 @@ export default function BattleModePage({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
+    /* Client-side validation: BM qualification requires exactly 4 rounds */
+    if (scoreForm.score1 + scoreForm.score2 !== 4) {
+      alert(tc('totalRoundsShouldEqual4'));
+      return;
+    }
+
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
         method: "PUT",
@@ -296,7 +302,7 @@ export default function BattleModePage({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

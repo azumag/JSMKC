@@ -90,7 +90,8 @@ export function createExportHandlers(config: ExportConfig) {
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${csvFilename}"`,
+          /* RFC 2231: filename* for UTF-8 names (Japanese tournament names) + fallback */
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(csvFilename)}; filename="${csvFilename}"`,
         },
       });
     } catch (error) {
