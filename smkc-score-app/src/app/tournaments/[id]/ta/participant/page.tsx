@@ -118,16 +118,8 @@ export default function TimeAttackParticipantPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  /**
-   * Detect if running in local development environment.
-   * Used to enable admin-only development tools.
-   * Checks both hostname and port for common dev server setups.
-   */
-  const isDevelopment = typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || 
-     window.location.hostname === '127.0.0.1' ||
-     window.location.port === '3000' ||
-     window.location.port === '3001');
+  /* Dev-only features: use NODE_ENV per CLAUDE.md (not hostname checks) */
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
   /**
    * Admin-only: Fill all course times with random values for testing.

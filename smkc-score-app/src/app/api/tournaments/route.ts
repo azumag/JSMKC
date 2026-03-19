@@ -142,7 +142,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(tournament, { status: 201 });
+    /* Use standard { success, data } wrapper. 201 status set explicitly. */
+    return NextResponse.json(
+      { success: true, data: tournament },
+      { status: 201 }
+    );
   } catch (error) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to create tournament", { error });
