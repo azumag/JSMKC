@@ -341,6 +341,7 @@ describe('POST /api/tournaments', () => {
             name: 'Test Tournament',
             date: expect.any(Date),
             status: 'draft',
+            dualReportEnabled: false,
           },
         })
       );
@@ -356,7 +357,10 @@ describe('POST /api/tournaments', () => {
         })
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament, { status: 201 });
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: true, data: mockTournament },
+        { status: 201 }
+      );
     });
 
     it('should create audit log on successful tournament creation', async () => {
@@ -416,7 +420,10 @@ describe('POST /api/tournaments', () => {
       );
 
       // Tournament should still be returned successfully despite audit log failure
-      expect(NextResponse.json).toHaveBeenCalledWith(mockTournament, { status: 201 });
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: true, data: mockTournament },
+        { status: 201 }
+      );
     });
   });
 

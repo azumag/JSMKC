@@ -110,6 +110,8 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
     (auth as jest.Mock).mockResolvedValue(null);
     /* Reset Prisma mocks to prevent cross-test contamination from mockRejectedValue */
     (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(null);
+    /* isDualReportEnabled() calls tournament.findUnique — default to enabled for dual-report tests */
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ dualReportEnabled: true });
     (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
     (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
     (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);

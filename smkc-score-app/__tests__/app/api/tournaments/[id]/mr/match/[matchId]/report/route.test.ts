@@ -54,6 +54,7 @@ jest.mock('@/lib/api-factories/score-report-helpers', () => ({
   checkScoreReportAuth: jest.fn(),
   createScoreEntryLog: jest.fn(),
   createCharacterUsageLog: jest.fn(),
+  isDualReportEnabled: jest.fn(),
   validateCharacter: jest.fn(),
   recalculatePlayerStats: jest.fn(),
 }));
@@ -75,7 +76,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
-import { checkScoreReportAuth, createScoreEntryLog, createCharacterUsageLog, validateCharacter } from '@/lib/api-factories/score-report-helpers';
+import { checkScoreReportAuth, createScoreEntryLog, createCharacterUsageLog, isDualReportEnabled, validateCharacter } from '@/lib/api-factories/score-report-helpers';
 import { POST } from '@/app/api/tournaments/[id]/mr/match/[matchId]/report/route';
 
 const {
@@ -116,6 +117,8 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     (validateCharacter as jest.Mock).mockReturnValue(true);
     /* Reset Prisma mocks to prevent cross-test contamination */
     (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(null);
+    /* isDualReportEnabled is now mocked at the helper level */
+    (isDualReportEnabled as jest.Mock).mockResolvedValue(true);
     (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
     (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
     (prisma.mRMatch.update as jest.Mock).mockResolvedValue({});

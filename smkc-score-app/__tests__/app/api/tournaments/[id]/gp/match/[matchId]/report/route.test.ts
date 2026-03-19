@@ -102,6 +102,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin', userType: 'admin' } });
     // Reset Prisma mocks to prevent cross-test contamination
     (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ dualReportEnabled: true });
     (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
     (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
     (prisma.gPMatch.update as jest.Mock).mockResolvedValue({});
