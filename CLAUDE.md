@@ -34,7 +34,7 @@ under `./smkc-score-app`
 ### 起動方法
 
 ```
-/loop 6h issueから問題を発見し（resolvedラベル付きは対象外）、対象のissueにたいして方針をコメントせよ。大型の機能追加やリファクタリングであっても避けずに着手すること。解決修正し、commit push し、本番環境へのデプロイを確認し、本番環境（https://smkc.bluemoon.works/）にて node e2e/tc-all.js で全E2Eテストを実行せよ（セッションは永続プロファイルを維持、ログイン/ログアウトは行わない）。未スクリプト化TCがあればClaude自身が手動実行し、PASSしたらe2e/tc-all.jsに追加してcommitする。解決したらissueにresolvedラベルを付与せよ（closeはしない）。解決してなければ修正を続けよ。別の問題が発見されたらあたらしく issue を発行せよ。issueに対応すべきものがなければ、コードベースを調査して改善点やバグを発見し、新しいissueを作成せよ。
+/loop 2h issueから問題を発見し（resolvedラベル付きは対象外）、対象のissueにたいして方針をコメントせよ。大型の機能追加やリファクタリングであっても避けずに着手すること。解決修正し、commit push し、本番環境へのデプロイを確認し、本番環境（https://smkc.bluemoon.works/）にて node e2e/tc-all.js で全E2Eテストを実行せよ（セッションは永続プロファイルを維持、ログイン/ログアウトは行わない）。未スクリプト化TCがあればClaude自身が手動実行し、PASSしたらe2e/tc-all.jsに追加してcommitする。解決したらissueにresolvedラベルを付与せよ（closeはしない）。解決してなければ修正を続けよ。別の問題が発見されたらあたらしく issue を発行せよ。issueに対応すべきものがなければ、コードベースを調査して改善点やバグを発見し、新しいissueを作成せよ。
 ```
 
 ### E2Eテストの実行方法
