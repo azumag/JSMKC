@@ -158,7 +158,8 @@ export default function BattleModePage({
       throw new Error(`Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const bmData = await bmResponse.json();
+    const bmJson = await bmResponse.json();
+    const bmData = bmJson.data ?? bmJson;
     const playersJson = await playersResponse.json();
 
     return {

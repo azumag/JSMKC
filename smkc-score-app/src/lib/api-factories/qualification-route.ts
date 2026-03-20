@@ -17,7 +17,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import {
@@ -108,7 +108,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      return NextResponse.json({ qualifications, matches });
+      /* Wrap in standard success response format for API consistency (#274) */
+      return createSuccessResponse({ qualifications, matches });
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
       return createErrorResponse(`Failed to fetch ${config.eventDisplayName} data`, 500, 'INTERNAL_ERROR');

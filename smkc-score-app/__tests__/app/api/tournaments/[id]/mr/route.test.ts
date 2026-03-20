@@ -78,7 +78,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches });
+      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches } });
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -101,7 +101,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ qualifications: [], matches: [] });
+      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [] } });
       expect(result.status).toBe(200);
     });
 

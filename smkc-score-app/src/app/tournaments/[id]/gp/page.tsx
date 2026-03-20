@@ -172,7 +172,8 @@ export default function GrandPrixPage({
       throw new Error(`Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const gpData = await gpResponse.json();
+    const gpJson = await gpResponse.json();
+    const gpData = gpJson.data ?? gpJson;
     const playersJson = await playersResponse.json();
 
     return {

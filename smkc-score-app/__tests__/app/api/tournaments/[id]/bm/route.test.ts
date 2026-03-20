@@ -96,7 +96,8 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches });
+      /* createSuccessResponse wraps data in { success: true, data: ... } (#274) */
+      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches } });
       expect(result.status).toBe(200);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -119,7 +120,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ qualifications: [], matches: [] });
+      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [] } });
       expect(result.status).toBe(200);
     });
 

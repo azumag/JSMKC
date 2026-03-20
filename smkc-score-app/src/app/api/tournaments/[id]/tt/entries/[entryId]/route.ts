@@ -182,6 +182,11 @@ export async function PUT(
       },
     });
 
+    /* Guard against null if entry was deleted between update and re-fetch (#273) */
+    if (!updatedEntry) {
+      return createErrorResponse('Entry not found after update', 404, 'NOT_FOUND');
+    }
+
     return createSuccessResponse({
       ...updatedEntry,
       version: result.version,

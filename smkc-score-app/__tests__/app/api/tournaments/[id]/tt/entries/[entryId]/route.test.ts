@@ -560,7 +560,33 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       });
     });
 
+    // #273: Returns 404 when entry is deleted between update and re-fetch
+    it('should return 404 when updatedEntry is null after update', async () => {
+      const updateResult = { id: 'e1', version: 2 };
+      (updateTTEntry as jest.Mock).mockResolvedValue(updateResult);
+      /* First findUnique: admin freeze check returns valid entry
+       * Second findUnique: re-fetch after update returns null (entry deleted mid-flight) */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })
+        .mockResolvedValueOnce(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        totalTime: 1000,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(404);
+      expect(result.data).toEqual({ success: false, error: 'Entry not found after update', code: 'NOT_FOUND' });
+    });
+
     it('should handle invalid JSON body', async () => {
+      /* Admin freeze check must pass before JSON parsing is reached */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
       class MockRequestInvalid {
         async json() { throw new Error('Invalid JSON'); }
         get header() { return { get: () => undefined }; }

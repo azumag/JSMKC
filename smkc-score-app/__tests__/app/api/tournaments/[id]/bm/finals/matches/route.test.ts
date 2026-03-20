@@ -58,7 +58,7 @@ class MockNextRequest {
   async json() { return this.body; }
 }
 
-/* Valid UUIDv4 constants for Zod schema validation (z.string().uuid()) */
+/* Valid non-empty player ID strings for Zod schema validation (z.string().min(1)) */
 const UUID_P1 = 'a0000000-0000-4000-8000-000000000001';
 const UUID_P2 = 'b0000000-0000-4000-8000-000000000002';
 
@@ -277,12 +277,12 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       expect(result.status).toBe(403);
     });
 
-    // Validation error case - Returns 400 when player1Id is invalid UUID
-    it('should return 400 when player1Id is not a valid UUID', async () => {
+    // Validation error case - Returns 400 when player1Id is empty (#272: min(1) replaces uuid())
+    it('should return 400 when player1Id is empty string', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const requestBody = { player1Id: 'invalid-uuid', player2Id: UUID_P2 };
+      const requestBody = { player1Id: '', player2Id: UUID_P2 };
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/matches', requestBody);
       const params = Promise.resolve({ id: 't1' });
@@ -292,12 +292,12 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       expect(result.data.error).toBeDefined();
     });
 
-    // Validation error case - Returns 400 when player2Id is invalid UUID
-    it('should return 400 when player2Id is not a valid UUID', async () => {
+    // Validation error case - Returns 400 when player2Id is empty (#272: min(1) replaces uuid())
+    it('should return 400 when player2Id is empty string', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
-      const requestBody = { player1Id: UUID_P1, player2Id: 'not-a-uuid' };
+      const requestBody = { player1Id: UUID_P1, player2Id: '' };
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/matches', requestBody);
       const params = Promise.resolve({ id: 't1' });

@@ -127,7 +127,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           setTournament(tJson.data ?? tJson);
         }
         if (matchesResponse.ok) {
-          const data = await matchesResponse.json();
+          const json = await matchesResponse.json();
+          /* Unwrap createSuccessResponse wrapper (#274) */
+          const data = json.data ?? json;
           setMatches(data.matches || []);
         }
       } catch (err) {
@@ -146,7 +148,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     if (!hasAccess) return { matches: [] };
     const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    /* Unwrap createSuccessResponse wrapper (#274) */
+    const json = await response.json();
+    return json.data ?? json;
   }, [tournamentId, hasAccess, mode]);
 
   const { data: pollingData, error: pollingError } = usePolling(

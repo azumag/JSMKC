@@ -37,9 +37,9 @@ import { createAuditLog } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createFinalsMatchesHandlers } from '@/lib/api-factories/finals-matches-route';
 
-/** Valid UUID for test player IDs */
-const PLAYER1_ID = '11111111-1111-4111-a111-111111111111';
-const PLAYER2_ID = '22222222-2222-4222-a222-222222222222';
+/** Valid cuid for test player IDs (Prisma uses cuid, not UUID) */
+const PLAYER1_ID = 'clp1111111111111111111111';
+const PLAYER2_ID = 'clp2222222222222222222222';
 
 /** Factory for creating test config with optional overrides */
 const createMockConfig = (overrides = {}) => ({
@@ -121,18 +121,18 @@ describe('Finals Matches Route Factory', () => {
 
   // === ZOD VALIDATION TESTS ===
 
-  // Validation: Returns 400 for invalid player1Id (not a UUID)
-  it('should return 400 for invalid player1Id (not a UUID)', async () => {
+  // Validation: Returns 400 for empty player1Id
+  it('should return 400 for empty player1Id', async () => {
     (auth as jest.Mock).mockResolvedValue(adminSession);
 
-    const request = createPostRequest({ ...validBody, player1Id: 'not-a-uuid' });
+    const request = createPostRequest({ ...validBody, player1Id: '' });
     const params = Promise.resolve({ id: 't1' });
     const response = await POST(request, { params });
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    /* Zod UUID validation returns "Invalid uuid" error message */
-    expect(json.error).toMatch(/uuid/i);
+    /* Zod min(1) validation rejects empty strings */
+    expect(json.error).toBeTruthy();
   });
 
   // Validation: Returns 400 when player2Id is missing

@@ -307,13 +307,13 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       expect(result.status).toBe(404);
     });
 
-    // Validation error case - Returns 400 for invalid request body (non-UUID player IDs)
-    it('should return 400 for invalid request body', async () => {
+    // Validation error case - Returns 400 for empty player IDs (#272: min(1) replaces uuid())
+    it('should return 400 for empty player1Id', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       (auth as jest.Mock).mockResolvedValue(mockAuth);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals/matches', {
-        player1Id: 'invalid-uuid',
+        player1Id: '',
         player2Id: 'p2',
       });
       const params = Promise.resolve({ id: 't1' });

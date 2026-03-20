@@ -162,7 +162,8 @@ export default function MatchRacePage({
       throw new Error(`Failed to fetch players: ${playersResponse.status}`);
     }
 
-    const mrData = await mrResponse.json();
+    const mrJson = await mrResponse.json();
+    const mrData = mrJson.data ?? mrJson;
     const playersJson = await playersResponse.json();
 
     return {

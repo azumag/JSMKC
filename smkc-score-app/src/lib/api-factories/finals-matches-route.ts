@@ -27,8 +27,9 @@ import { getClientIdentifier } from '@/lib/request-utils';
  * Ensures all required fields are present and valid before processing.
  */
 const CreateMatchSchema = z.object({
-  player1Id: z.string().uuid(),
-  player2Id: z.string().uuid(),
+  /* Use min(1) instead of uuid() because all Prisma IDs are cuid format (#272) */
+  player1Id: z.string().min(1),
+  player2Id: z.string().min(1),
   player1Side: z.number().int().min(1).max(2).optional().default(1),
   player2Side: z.number().int().min(1).max(2).optional().default(2),
   tvNumber: z.number().int().optional(),
