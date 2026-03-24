@@ -14,7 +14,7 @@
  *   404 - Player not found
  *   500 - Server error
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';

@@ -15,7 +15,6 @@
  * @route /tournaments/[id]/mr
  */
 "use client";
-// eslint-disable-next-line -- auto-retry for Workers 1101
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useCallback, use } from "react";

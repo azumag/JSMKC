@@ -1,5 +1,4 @@
 "use client";
-// eslint-disable-next-line -- auto-retry for Workers 1101
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 /**

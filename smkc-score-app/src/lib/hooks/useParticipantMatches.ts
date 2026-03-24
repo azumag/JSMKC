@@ -229,7 +229,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         setSubmitting(null);
       }
     },
-    [tournamentId, mode] // eslint-disable-line react-hooks/exhaustive-deps
+    [tournamentId, mode]
   );
 
   return {

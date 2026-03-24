@@ -26,8 +26,6 @@ const LOG_LEVELS = {
   debug: 3,
 } as const;
 
-type LogLevel = keyof typeof LOG_LEVELS;
-
 /**
  * Determine the minimum log level based on environment.
  * Development shows all logs including debug; production only shows warnings and errors.

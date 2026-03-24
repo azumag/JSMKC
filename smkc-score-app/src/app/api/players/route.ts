@@ -22,7 +22,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
-import { createSuccessResponse, createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
+import { createErrorResponse, handleValidationError, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * GET /api/players

@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useMemo, use } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,23 +57,17 @@ export default function GrandPrixParticipantPage({
 
   /* GP-specific state */
   const [raceResults, setRaceResults] = useState<Record<string, RaceResult[]>>({});
-  /** §7.1 cup substitution: track active cup per match */
-  const [activeCups, setActiveCups] = useState<Record<string, string>>({});
-
-  /* Initialize active cups from pre-assigned cup when myMatches changes */
-  useEffect(() => {
-    if (ctx.myMatches.length > 0) {
-      const newCups: Record<string, string> = {};
-      ctx.myMatches.forEach((match) => {
-        if (match.cup && !activeCups[match.id]) {
-          newCups[match.id] = match.cup;
-        }
-      });
-      if (Object.keys(newCups).length > 0) {
-        setActiveCups((prev) => ({ ...prev, ...newCups }));
-      }
-    }
-  }, [ctx.myMatches]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** §7.1 cup substitution: derive default cups from match data, allow user overrides */
+  const matchCups = useMemo(() => {
+    const cups: Record<string, string> = {};
+    ctx.myMatches.forEach((match) => {
+      if (match.cup) cups[match.id] = match.cup;
+    });
+    return cups;
+  }, [ctx.myMatches]);
+  const [cupOverrides, setCupOverrides] = useState<Record<string, string>>({});
+  /* Merge: user overrides take precedence over match-derived defaults */
+  const activeCups = useMemo(() => ({ ...matchCups, ...cupOverrides }), [matchCups, cupOverrides]);
 
   const addRaceResult = (matchId: string) => {
     setRaceResults((prev) => ({
@@ -167,7 +161,7 @@ export default function GrandPrixParticipantPage({
                 if (!match.cup) return;
                 const current = activeCups[match.id] || match.cup;
                 const next = current === match.cup ? CUP_SUBSTITUTIONS[match.cup] : match.cup;
-                setActiveCups((prev) => ({ ...prev, [match.id]: next }));
+                setCupOverrides((prev) => ({ ...prev, [match.id]: next }));
                 setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
               }}
             >
