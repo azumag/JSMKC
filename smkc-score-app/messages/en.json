@@ -510,6 +510,7 @@
     "invalidTimeFormat": "Invalid time format for {course}. Please use M:SS.mm format (e.g., 1:23.45)",
     "invalidTime": "Invalid time for {course}. Time must be positive.",
     "enterAtLeastOne": "Please enter at least one course time.",
+    "qualificationEditingLockedAfterKnockout": "After the knockout stage starts, only admins can edit qualification times.",
     "timesSubmittedSuccess": "Time trial times submitted successfully!",
     "addedToTASuccess": "Successfully added to time attack!",
     "points": "points"

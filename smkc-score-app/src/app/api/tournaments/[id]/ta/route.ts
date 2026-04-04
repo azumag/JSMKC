@@ -35,6 +35,8 @@ import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 
+const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
+
 /**
  * Admin authentication helper that returns the session.
  * Returns { error } if user is not authenticated or not admin.
@@ -62,6 +64,18 @@ async function requireAdminOrPlayerSession(): Promise<{ error?: NextResponse; se
   if (session?.user?.role === 'admin') return { session };
   if (session?.user?.userType === 'player') return { session };
   return { error: createErrorResponse('Forbidden', 403, 'FORBIDDEN') };
+}
+
+async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
+  const knockoutEntry = await prisma.tTEntry.findFirst({
+    where: {
+      tournamentId,
+      stage: { in: [...KNOCKOUT_STAGES] },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(knockoutEntry);
 }
 
 /**
@@ -154,7 +168,7 @@ export async function GET(
     const stageToQuery = stage.success ? stage.data : "qualification";
 
     // Fetch entries and tournament frozenStages in parallel for efficiency
-    const [entries, tournament, qualCount] = await Promise.all([
+    const [entries, tournament, qualCount, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: stageToQuery },
         include: { player: true },
@@ -167,6 +181,7 @@ export async function GET(
       prisma.tTEntry.count({
         where: { tournamentId, stage: "qualification" },
       }),
+      hasKnockoutStageStarted(tournamentId),
     ]);
 
     return createSuccessResponse({
@@ -174,6 +189,7 @@ export async function GET(
       courses: COURSES,
       stage: stageToQuery,
       qualCount,
+      qualificationEditingLockedForPlayers: knockoutStarted,
       // Return frozen stages so the UI can disable editing for frozen phases
       frozenStages: (tournament?.frozenStages as string[]) || [],
     });
@@ -518,6 +534,14 @@ export async function PUT(
       const isPartner = entry.partnerId === currentPlayerId;
       if (!isOwner && !isPartner) {
         return createErrorResponse('Forbidden: You can only update your own or your partner\'s times', 403, 'FORBIDDEN');
+      }
+
+      if (entry.stage === "qualification" && await hasKnockoutStageStarted(tournamentId)) {
+        return createErrorResponse(
+          'Forbidden: Qualification times can only be edited by admins after knockout starts',
+          403,
+          'FORBIDDEN'
+        );
       }
     }
 

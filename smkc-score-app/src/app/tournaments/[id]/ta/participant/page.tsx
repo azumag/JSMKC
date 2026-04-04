@@ -73,6 +73,12 @@ interface Tournament {
   status: string;
 }
 
+interface TAApiData {
+  entries?: TTEntry[];
+  frozenStages?: string[];
+  qualificationEditingLockedForPlayers?: boolean;
+}
+
 /**
  * Convert display time string to milliseconds for preview calculation.
  * Handles the M:SS.mm display format used in input fields.
@@ -113,6 +119,7 @@ export default function TimeAttackParticipantPage({
   const [entries, setEntries] = useState<TTEntry[]>([]);
   /** Frozen stages from the tournament - when "qualification" is frozen, editing is blocked */
   const [frozenStages, setFrozenStages] = useState<string[]>([]);
+  const [qualificationEditingLockedForPlayers, setQualificationEditingLockedForPlayers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myEntry, setMyEntry] = useState<TTEntry | null>(null);
@@ -162,9 +169,10 @@ export default function TimeAttackParticipantPage({
         if (entriesRes.ok) {
           const json = await entriesRes.json();
           // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
-          const data = json.data ?? json;
+          const data = (json.data ?? json) as TAApiData;
           setEntries(data.entries || []);
           setFrozenStages(data.frozenStages || []);
+          setQualificationEditingLockedForPlayers(Boolean(data.qualificationEditingLockedForPlayers));
         }
       } catch (err) {
         logger.error('Data fetch error:', { error: err, tournamentId });
@@ -191,14 +199,17 @@ export default function TimeAttackParticipantPage({
   useEffect(() => {
     if (pollingData && typeof pollingData === 'object') {
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
-      const unwrapped = ('data' in pollingData && pollingData.data && typeof pollingData.data === 'object')
-        ? (pollingData.data as Record<string, unknown>)
-        : pollingData;
+      const unwrapped = (('data' in pollingData && pollingData.data && typeof pollingData.data === 'object')
+        ? pollingData.data
+        : pollingData) as TAApiData;
       if ('entries' in unwrapped) {
         setEntries(unwrapped.entries as TTEntry[]);
       }
       if ('frozenStages' in unwrapped) {
         setFrozenStages(unwrapped.frozenStages as string[]);
+      }
+      if ('qualificationEditingLockedForPlayers' in unwrapped) {
+        setQualificationEditingLockedForPlayers(Boolean(unwrapped.qualificationEditingLockedForPlayers));
       }
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
@@ -379,6 +390,8 @@ export default function TimeAttackParticipantPage({
     );
   }
 
+  const qualificationEditingLocked = !isAdmin && qualificationEditingLockedForPlayers;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -417,6 +430,15 @@ export default function TimeAttackParticipantPage({
               <Lock className="h-4 w-4 text-destructive" />
               <AlertDescription className="text-destructive">
                 {tTa('stageFrozen')}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {qualificationEditingLocked && (
+            <Alert className="mb-6 border-destructive/50 bg-destructive/5">
+              <Lock className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-destructive">
+                {tPart('qualificationEditingLockedAfterKnockout')}
               </AlertDescription>
             </Alert>
           )}
@@ -476,7 +498,7 @@ export default function TimeAttackParticipantPage({
                                 value={timeInputs[course.abbr] || ''}
                                 onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
                                 onBlur={() => handleTimeBlur(course.abbr)}
-                                disabled={frozenStages.includes("qualification")}
+                                disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
                                 className="font-mono text-sm"
                               />
                             </div>
@@ -510,7 +532,7 @@ export default function TimeAttackParticipantPage({
                    *  Disabled when qualification stage is frozen to prevent edits. */}
                   <Button
                     onClick={handleSubmitTimes}
-                    disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification")}
+                    disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification") || qualificationEditingLocked}
                     className="w-full"
                   >
                     {submitting ? tCommon('saving') : tPart('submitTimes')}

@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
-import { generateRandomTimeString, msToDisplayTime } from "@/lib/ta/time-utils";
+import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
@@ -106,23 +106,6 @@ interface PhaseRound {
   eliminatedIds: string[] | null;
   livesReset: boolean;
   createdAt: string;
-}
-
-/**
- * Convert time string (M:SS.mm) to milliseconds.
- * Legacy 3-digit fractional input is still accepted for compatibility.
- * Returns null for empty or invalid strings.
- */
-function timeToMs(time: string): number | null {
-  if (!time || time === "") return null;
-  const match = time.match(/^(\d{1,2}):(\d{2})\.(\d{1,3})$/);
-  if (!match) return null;
-  const minutes = parseInt(match[1], 10);
-  const seconds = parseInt(match[2], 10);
-  let ms = match[3];
-  while (ms.length < 3) ms += "0";
-  const milliseconds = parseInt(ms, 10);
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
 
 /**

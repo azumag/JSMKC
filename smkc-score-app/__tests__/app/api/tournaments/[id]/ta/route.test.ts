@@ -159,6 +159,7 @@ describe('/api/tournaments/[id]/ta', () => {
     rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: true }));
     rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');
     rateLimitMock.getUserAgent.mockReturnValue('test-agent');
+    (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -201,7 +202,29 @@ describe('/api/tournaments/[id]/ta', () => {
             entries: mockEntries,
             stage: 'qualification',
             qualCount: 10,
+            qualificationEditingLockedForPlayers: false,
             frozenStages: [],
+          }),
+        })
+      );
+    });
+
+    it('should report qualification editing as locked for players after knockout starts', async () => {
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
+      (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(24);
+      (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
+
+      await taRoute.GET(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            qualificationEditingLockedForPlayers: true,
           }),
         })
       );
@@ -676,6 +699,44 @@ describe('/api/tournaments/[id]/ta', () => {
         success: true,
         data: { entry: updatedEntry },
       });
+    });
+
+    it('should return 403 when player tries to edit qualification times after knockout starts', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: 'p1', role: 'member' },
+      });
+
+      const existingEntry = {
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        playerId: 'p1',
+        stage: 'qualification',
+        times: { MC1: '1:20.000' },
+      };
+
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValueOnce(existingEntry);
+      (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
+
+      await taRoute.PUT(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            entryId: VALID_ENTRY_ID,
+            times: { MC2: '1:25.000' },
+          }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        {
+          success: false,
+          error: 'Forbidden: Qualification times can only be edited by admins after knockout starts',
+          code: 'FORBIDDEN',
+        },
+        { status: 403 }
+      );
+      expect(prisma.tTEntry.update).not.toHaveBeenCalled();
     });
 
     it('should return 403 when player tries to update another player\'s times', async () => {

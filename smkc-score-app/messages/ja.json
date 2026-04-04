@@ -510,6 +510,7 @@
     "invalidTimeFormat": "{course}のタイム形式が無効です。M:SS.mm形式を使用してください（例: 1:23.45）",
     "invalidTime": "{course}のタイムが無効です。タイムは正の数である必要があります。",
     "enterAtLeastOne": "少なくとも1つのコースタイムを入力してください。",
+    "qualificationEditingLockedAfterKnockout": "ノックアウトステージ開始後は、予選タイムの修正は管理者のみ可能です。",
     "timesSubmittedSuccess": "タイムトライアルのタイムを送信しました！",
     "addedToTASuccess": "タイムアタックに追加しました！",
     "points": "ポイント"
