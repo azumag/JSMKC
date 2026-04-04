@@ -443,6 +443,40 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.status).toBe(400);
     });
 
+    it('should return 400 when times contain seconds greater than 59', async () => {
+      /* Admin freeze check must pass before validation is reached */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: { MC1: '0:84:00' },
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toMatchObject({ success: false, error: 'Invalid time format for MC1: 0:84:00', field: 'times' });
+      expect(result.status).toBe(400);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when times contain malformed strings', async () => {
+      /* Admin freeze check must pass before validation is reached */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: { MC1: '1:23' },
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toMatchObject({ success: false, error: 'Invalid time format for MC1: 1:23', field: 'times' });
+      expect(result.status).toBe(400);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
     it('should return 409 on optimistic lock conflict', async () => {
       const error = new OptimisticLockError('Version conflict', 5);
 

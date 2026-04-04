@@ -26,6 +26,7 @@ import { auth } from "@/lib/auth";
 import { updateTTEntry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
+import { timeToMs } from "@/lib/ta/time-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import {
   createErrorResponse,
@@ -34,6 +35,13 @@ import {
   handleAuthzError,
   handleDatabaseError,
 } from "@/lib/error-handling";
+
+function isTimeRecord(value: unknown): value is Record<string, string> {
+  return typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === "string");
+}
 
 /**
  * GET /api/tournaments/[id]/tt/entries/[entryId]
@@ -156,6 +164,16 @@ export async function PUT(
     // Version field is mandatory for optimistic locking
     if (typeof version !== 'number') {
       return handleValidationError("version is required and must be a number", "version");
+    }
+
+    // Validate time strings before update so malformed values such as "0:84:00"
+    // are rejected instead of being persisted through this legacy endpoint.
+    if (times !== undefined && isTimeRecord(times)) {
+      for (const [course, time] of Object.entries(times)) {
+        if (time !== "" && timeToMs(time) === null) {
+          return handleValidationError(`Invalid time format for ${course}: ${time}`, "times");
+        }
+      }
     }
 
     // Attempt update with optimistic lock check
