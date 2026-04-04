@@ -662,6 +662,171 @@ async function nav(p, u) {
     }
   } else { log('TC-313', 'SKIP'); }
 
+  // TC-314: TA Phase 3 can undo the last submitted round
+  if (pid) {
+    let taTournamentId = null;
+    let secondPlayerId = null;
+    try {
+      const secondPlayer = await page.evaluate(async (nickname) => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'E2E TA Finals Undo', nickname, country: 'JP' }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, `e2e_ta_undo_${Date.now()}`);
+      secondPlayerId = secondPlayer.b?.data?.player?.id ?? null;
+      if (secondPlayer.s !== 201 || !secondPlayerId) {
+        throw new Error(`Failed to create second TA player (${secondPlayer.s})`);
+      }
+
+      const taTournament = await page.evaluate(async d => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, {
+        name: `E2E TA Finals Undo ${Date.now()}`,
+        date: new Date().toISOString(),
+        dualReportEnabled: false,
+      });
+      taTournamentId = taTournament.b?.data?.id ?? null;
+      if (taTournament.s !== 201 || !taTournamentId) {
+        throw new Error('Failed to create TA tournament');
+      }
+
+      const activateTournament = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { ok: r.ok, s: r.status };
+      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
+      if (!activateTournament.ok) {
+        throw new Error(`Failed to activate TA tournament (${activateTournament.s})`);
+      }
+
+      const entryIds = [];
+      for (const playerId of [pid, secondPlayerId]) {
+        const addTaEntry = await page.evaluate(async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        }, [`/api/tournaments/${taTournamentId}/ta`, { playerId }]);
+        const entryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
+        if (addTaEntry.s !== 201 || !entryId) {
+          throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
+        }
+        entryIds.push(entryId);
+      }
+
+      for (const [index, entryId] of entryIds.entries()) {
+        const getEntry = await page.evaluate(async (u) => {
+          const r = await fetch(u);
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        }, `/api/tournaments/${taTournamentId}/tt/entries/${entryId}`);
+        const version = getEntry.b?.data?.version;
+        if (getEntry.s !== 200 || typeof version !== 'number') {
+          throw new Error(`Failed to fetch TT entry version (${getEntry.s})`);
+        }
+
+        const updateEntry = await page.evaluate(async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        }, [
+          `/api/tournaments/${taTournamentId}/tt/entries/${entryId}`,
+          {
+            version,
+            times: { MC1: index === 0 ? '1:00.00' : '1:01.00' },
+            totalTime: index === 0 ? 60000 : 61000,
+            rank: index + 1,
+          },
+        ]);
+        if (updateEntry.s !== 200) {
+          throw new Error(`Failed to seed qualification entry (${updateEntry.s})`);
+        }
+      }
+
+      const promotePhase3 = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [`/api/tournaments/${taTournamentId}/ta/phases`, { action: 'promote_phase3' }]);
+      if (promotePhase3.s !== 200) {
+        throw new Error(`Failed to promote Phase 3 (${promotePhase3.s})`);
+      }
+
+      await nav(page, `/tournaments/${taTournamentId}/ta/finals`);
+      const startRoundButton = page.getByRole('button', { name: /ラウンド 1 開始|Start Round 1/ });
+      await startRoundButton.click();
+      await page.waitForTimeout(2000);
+
+      const timeInputs = page.locator('input[placeholder="M:SS.mm"]');
+      const inputCount = await timeInputs.count();
+      if (inputCount < 2) {
+        throw new Error('Phase 3 time inputs did not appear');
+      }
+      await timeInputs.nth(0).fill('1:00.00');
+      await timeInputs.nth(1).fill('1:01.00');
+
+      await page.getByRole('button', { name: /送信＆ライフ減算|Submit & Deduct Lives/ }).click();
+      await page.waitForTimeout(3000);
+
+      const undoButton = page.getByRole('button', { name: /直前ラウンドを取り消す|Undo Last Round/ });
+      const undoVisible = await undoButton.count().then((count) => count > 0);
+      if (!undoVisible) {
+        throw new Error('Undo Last Round button did not appear after submission');
+      }
+
+      await undoButton.click();
+      await page.waitForTimeout(500);
+      await page.getByRole('button', { name: /はい、取り消す|Yes, Undo Round/ }).click();
+      await page.waitForTimeout(3000);
+
+      const cancelButtonVisible = await page.getByRole('button', { name: /ラウンドキャンセル|Cancel Round/ }).count().then((count) => count > 0);
+      const restoredInputCount = await page.locator('input[placeholder="M:SS.mm"]').count();
+      const undoGone = await undoButton.count().then((count) => count === 0);
+
+      log(
+        'TC-314',
+        undoVisible && cancelButtonVisible && restoredInputCount >= 2 && undoGone ? 'PASS' : 'FAIL',
+        !cancelButtonVisible
+          ? 'Round input UI was not restored after undo'
+          : restoredInputCount < 2
+            ? 'Restored round inputs are missing'
+            : !undoGone
+              ? 'Undo button still visible after restoring the round'
+              : ''
+      );
+    } catch (err) {
+      log('TC-314', 'FAIL', err instanceof Error ? err.message : 'TA finals undo flow failed');
+    } finally {
+      if (taTournamentId) {
+        await page.evaluate(async (u) => {
+          await fetch(u, { method: 'DELETE' });
+        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+      }
+      if (secondPlayerId) {
+        await page.evaluate(async (u) => {
+          await fetch(u, { method: 'DELETE' });
+        }, `/api/players/${secondPlayerId}`).catch(() => {});
+      }
+    }
+  } else { log('TC-314', 'SKIP'); }
+
   // TC-104: Player delete
   if (pid) {
     const dr = await page.evaluate(async u => {

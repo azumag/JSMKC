@@ -167,6 +167,8 @@ export default function TimeAttackFinals({
   const [startingRound, setStartingRound] = useState(false);
   const [cancellingRound, setCancellingRound] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [undoingRound, setUndoingRound] = useState(false);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
   // Development-only flag: uses NODE_ENV which is inlined at build time by Next.js,
   // ensuring the dev button JSX is tree-shaken from production builds entirely.
@@ -353,6 +355,42 @@ export default function TimeAttackFinals({
       setShowCancelConfirm(false);
     } finally {
       setCancellingRound(false);
+    }
+  };
+
+  /**
+   * Undo the last submitted round: clears results and restores player state.
+   * This mirrors the Phase 1/2 behavior so incorrect submissions can be fixed.
+   */
+  const handleUndoRound = async () => {
+    setUndoingRound(true);
+    setSaveError(null);
+    try {
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/ta/phases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "undo_round", phase: "phase3" }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to undo round");
+      }
+      setShowUndoConfirm(false);
+      setCurrentRound(null);
+      setCourseTimes({});
+      setRetryFlags({});
+      setIsEditing(false);
+      fetchData();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to undo round";
+      setSaveError(errorMessage);
+      setShowUndoConfirm(false);
+    } finally {
+      setUndoingRound(false);
     }
   };
 
@@ -815,7 +853,44 @@ export default function TimeAttackFinals({
                       ? tTaFinals('completeOpenRound')
                       : tTaFinals('startRound', { number: rounds.length + 1 })}
                 </Button>
+                {completedRoundsCount > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-amber-700 border-amber-400 hover:bg-amber-50"
+                    onClick={() => setShowUndoConfirm(true)}
+                    disabled={undoingRound || startingRound || hasOpenRound}
+                  >
+                    {tTaFinals('undoLastRound')}
+                  </Button>
+                )}
               </div>
+
+              <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{tTaFinals('undoRoundTitle')}</DialogTitle>
+                    <DialogDescription>
+                      {tTaFinals('undoRoundDesc')}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUndoConfirm(false)}
+                      disabled={undoingRound}
+                    >
+                      {tTaFinals('keepRound')}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleUndoRound}
+                      disabled={undoingRound}
+                    >
+                      {undoingRound ? tTaFinals('undoing') : tTaFinals('yesUndoRound')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         )
