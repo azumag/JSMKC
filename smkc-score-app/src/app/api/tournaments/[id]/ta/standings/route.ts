@@ -97,7 +97,7 @@ export async function GET(
         playerName: e.player.name,
         playerNickname: e.player.nickname,
         totalTime: e.totalTime,
-        // Format total time for display using the shared time utility (M:SS.mmm format).
+        // Format total time for display using the shared time utility (M:SS.mm format).
         formattedTime: msToDisplayTime(e.totalTime),
         /** Total qualification points from per-course scoring system */
         qualificationPoints: e.qualificationPoints,

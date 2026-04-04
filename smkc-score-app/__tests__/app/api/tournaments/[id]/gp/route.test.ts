@@ -483,7 +483,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         matchId: 'm1',
         cup: 'Mushroom Cup',
         races: [
-          { course: 'Mario Circuit 1', position1: 5, position2: 2 },
+          { course: 'Mario Circuit 1', position1: 9, position2: 2 },
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
           { course: 'Ghost Valley 1', position1: 1, position2: 2 },
           { course: 'Bowser Castle 1', position1: 1, position2: 2 },
@@ -523,6 +523,39 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       /* Position 0 = game over, earns 0 driver points — should succeed */
       expect(result.status).not.toBe(400);
+    });
+
+    it('should accept 8th-place input and award 0 points', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', {
+        matchId: 'm1',
+        cup: 'Mushroom Cup',
+        races: [
+          { course: 'Mario Circuit 1', position1: 8, position2: 4 },
+          { course: 'Donut Plains 1', position1: 5, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 7 },
+          { course: 'Bowser Castle 1', position1: 6, position2: 1 },
+          { course: 'Mario Circuit 2', position1: 2, position2: 8 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      const updateCall = (prisma.gPMatch.update as jest.Mock).mock.calls[0];
+      expect(updateCall[0].data.points1).toBe(15);
+      expect(updateCall[0].data.points2).toBe(19);
     });
 
     // Error case - Returns 500 when database operation fails

@@ -199,6 +199,20 @@ export async function DELETE(
       return handleAuthzError();
     }
 
+    /*
+     * Delete non-cascading child records first.
+     * Score entry logs and character usage rows reference Player without
+     * onDelete: Cascade in the Prisma schema, so a reported player would
+     * otherwise become undeletable.
+     */
+    await prisma.scoreEntryLog.deleteMany({
+      where: { playerId: id },
+    });
+
+    await prisma.matchCharacterUsage.deleteMany({
+      where: { playerId: id },
+    });
+
     // Delete the player record from the database
     await prisma.player.delete({
       where: { id }

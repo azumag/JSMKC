@@ -4,6 +4,7 @@
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
  * No login/logout is performed during tests — session is preserved.
+ * Player login coverage uses a separate ephemeral browser so the admin profile stays untouched.
  *
  * Run: node e2e/tc-all.js  (from smkc-score-app/)
  */
@@ -24,8 +25,19 @@ async function vis(p) {
   return (await m.count() > 0) ? m.innerText() : p.locator('body').innerText();
 }
 async function nav(p, u) {
-  await p.goto(BASE + u, { waitUntil: 'domcontentloaded', timeout: 15000 });
-  await p.waitForTimeout(WAIT);
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await p.goto(BASE + u, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await p.waitForTimeout(WAIT);
+      return;
+    } catch (err) {
+      lastError = err;
+      if (attempt === 2) throw err;
+      await p.waitForTimeout(3000);
+    }
+  }
+  throw lastError;
 }
 
 (async () => {
@@ -173,6 +185,7 @@ async function nav(p, u) {
     return { s: r.status, b: await r.json() };
   }, { name: 'E2E Test', nickname: nick, country: 'JP' });
   const pid = cr.b?.data?.player?.id;
+  let playerTempPassword = cr.b?.data?.temporaryPassword ?? null;
   log('TC-101', cr.s === 201 && cr.b?.data?.temporaryPassword ? 'PASS' : 'FAIL');
 
   // TC-102: Player edit
@@ -193,6 +206,7 @@ async function nav(p, u) {
       const r = await fetch(u, { method: 'POST' });
       return r.json();
     }, `/api/players/${pid}/reset-password`);
+    if (pr.data?.temporaryPassword) playerTempPassword = pr.data.temporaryPassword;
     log('TC-103', pr.data?.temporaryPassword ? 'PASS' : 'FAIL');
   } else { log('TC-103', 'SKIP'); }
 
@@ -202,8 +216,210 @@ async function nav(p, u) {
       const r = await fetch(u, { method: 'POST' });
       return r.json();
     }, `/api/players/${pid}/reset-password`);
+    if (pr2.data?.temporaryPassword) playerTempPassword = pr2.data.temporaryPassword;
     log('TC-309', pr2.success === true && pr2.data?.temporaryPassword ? 'PASS' : 'FAIL');
   } else { log('TC-309', 'SKIP'); }
+
+  // TC-310: Player credentials login + GP participant entry flow
+  if (pid && playerTempPassword) {
+    let playerBrowser = null;
+    try {
+      playerBrowser = await chromium.launch({ headless: false });
+      const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+      const playerPage = await playerContext.newPage();
+
+      await nav(playerPage, '/auth/signin');
+      await playerPage.locator('#nickname').fill(nick);
+      await playerPage.locator('#password').fill(playerTempPassword);
+      await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+      await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+      await playerPage.waitForTimeout(2000);
+
+      await nav(playerPage, `/tournaments/${TID}/gp`);
+      const participantLink = playerPage.locator(`a[href="/tournaments/${TID}/gp/participant"]`).first();
+      const hasParticipantLink = await participantLink.count() > 0;
+      if (hasParticipantLink) {
+        await participantLink.click();
+        await playerPage.waitForURL((url) => url.pathname === `/tournaments/${TID}/gp/participant`, { timeout: 15000 });
+        await playerPage.waitForTimeout(WAIT);
+      }
+
+      const playerText = await vis(playerPage);
+      const hasLoggedInState =
+        playerText.includes('プレイヤーとしてログイン中') ||
+        playerText.includes('Logged in as player');
+      const hasParticipantEmptyState =
+        playerText.includes('保留中の試合はありません') ||
+        playerText.includes('No Pending Matches');
+      const showsLoginPrompt =
+        playerText.includes('プレイヤーログインが必要です') ||
+        playerText.includes('Player Login Required');
+
+      log(
+        'TC-310',
+        hasParticipantLink && hasLoggedInState && hasParticipantEmptyState && !showsLoginPrompt ? 'PASS' : 'FAIL',
+        !hasParticipantLink ? 'No GP participant link' : showsLoginPrompt ? 'Still showed login prompt' : ''
+      );
+      await playerBrowser.close();
+    } catch (err) {
+      log('TC-310', 'FAIL', err instanceof Error ? err.message : 'Player flow failed');
+      if (playerBrowser) await playerBrowser.close().catch(() => {});
+    }
+  } else { log('TC-310', 'SKIP'); }
+
+  // TC-311: Player can submit a real GP participant report end-to-end
+  if (pid && playerTempPassword) {
+    let playerBrowser = null;
+    let gpTournamentId = null;
+    let gpPlayer2Id = null;
+    try {
+      const gpPlayer2Nick = `e2e_gp2_${Date.now()}`;
+      const gpPlayer2 = await page.evaluate(async d => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json() };
+      }, { name: 'E2E GP Opponent', nickname: gpPlayer2Nick, country: 'JP' });
+      gpPlayer2Id = gpPlayer2.b?.data?.player?.id ?? null;
+      if (gpPlayer2.s !== 201 || !gpPlayer2Id) {
+        throw new Error('Failed to create GP opponent player');
+      }
+
+      const gpTournament = await page.evaluate(async d => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json() };
+      }, {
+        name: `E2E GP Score Entry ${Date.now()}`,
+        date: new Date().toISOString(),
+        dualReportEnabled: false,
+      });
+      gpTournamentId = gpTournament.b?.data?.id ?? null;
+      if (gpTournament.s !== 201 || !gpTournamentId) {
+        throw new Error('Failed to create GP tournament');
+      }
+
+      const activateTournament = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { ok: r.ok, s: r.status };
+      }, [`/api/tournaments/${gpTournamentId}`, { status: 'active' }]);
+      if (!activateTournament.ok) {
+        throw new Error(`Failed to activate GP tournament (${activateTournament.s})`);
+      }
+
+      const gpSetup = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [
+        `/api/tournaments/${gpTournamentId}/gp`,
+        {
+          players: [
+            { playerId: pid, group: 'A', seeding: 1 },
+            { playerId: gpPlayer2Id, group: 'A', seeding: 2 },
+          ],
+        },
+      ]);
+      if (gpSetup.s !== 201) {
+        throw new Error(`Failed to setup GP qualification (${gpSetup.s})`);
+      }
+
+      playerBrowser = await chromium.launch({ headless: false });
+      const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+      const playerPage = await playerContext.newPage();
+
+      await nav(playerPage, '/auth/signin');
+      await playerPage.locator('#nickname').fill(nick);
+      await playerPage.locator('#password').fill(playerTempPassword);
+      await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+      await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+      await playerPage.waitForTimeout(2000);
+
+      await nav(playerPage, `/tournaments/${gpTournamentId}/gp/participant`);
+      for (let i = 0; i < 5; i++) {
+        await playerPage.getByRole('button', { name: /レース追加|Add Race/ }).click();
+        await playerPage.waitForTimeout(250);
+      }
+
+      const courseComboboxes = playerPage.locator('[role="combobox"]');
+      if (await courseComboboxes.count() < 5) {
+        throw new Error(`Expected 5 course selectors, got ${await courseComboboxes.count()}`);
+      }
+      for (let i = 0; i < 5; i++) {
+        await courseComboboxes.nth(i).click();
+        await playerPage.waitForTimeout(300);
+        const option = playerPage.locator('[role="option"]').nth(i);
+        if (await option.count() === 0) {
+          throw new Error(`Missing course option ${i + 1}`);
+        }
+        await option.click();
+        await playerPage.waitForTimeout(300);
+      }
+
+      const numberInputs = playerPage.locator('input[type="number"]');
+      if (await numberInputs.count() < 10) {
+        throw new Error(`Expected 10 numeric inputs, got ${await numberInputs.count()}`);
+      }
+      for (let i = 0; i < 5; i++) {
+        await numberInputs.nth(i * 2).fill('1');
+        await numberInputs.nth(i * 2 + 1).fill('8');
+      }
+
+      playerPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await playerPage.getByRole('button', { name: /試合結果を送信|Submit Match Result/ }).click();
+      await playerPage.waitForFunction(() => {
+        const text = document.body.innerText;
+        return text.includes('保留中の試合はありません') || text.includes('No Pending Matches');
+      }, null, { timeout: 15000 });
+
+      const gpState = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, `/api/tournaments/${gpTournamentId}/gp`);
+      const gpMatches = gpState.b?.data?.matches ?? gpState.b?.matches ?? [];
+      const reportedMatch = gpMatches.find((m) =>
+        !m.isBye &&
+        ((m.player1?.id === pid && m.player2?.id === gpPlayer2Id) ||
+          (m.player1?.id === gpPlayer2Id && m.player2?.id === pid))
+      );
+      const playerWonAsP1 = reportedMatch?.player1?.id === pid;
+      const scorePersisted = reportedMatch?.completed === true &&
+        ((playerWonAsP1 && reportedMatch.points1 === 45 && reportedMatch.points2 === 0) ||
+          (!playerWonAsP1 && reportedMatch.points1 === 0 && reportedMatch.points2 === 45));
+
+      log('TC-311', scorePersisted ? 'PASS' : 'FAIL', scorePersisted ? '' : 'GP participant report was not persisted');
+      await playerBrowser.close();
+      playerBrowser = null;
+    } catch (err) {
+      log('TC-311', 'FAIL', err instanceof Error ? err.message : 'GP participant score flow failed');
+      if (playerBrowser) await playerBrowser.close().catch(() => {});
+    } finally {
+      if (gpTournamentId) {
+        await page.evaluate(async (u) => {
+          await fetch(u, { method: 'DELETE' });
+        }, `/api/tournaments/${gpTournamentId}`).catch(() => {});
+      }
+      if (gpPlayer2Id) {
+        await page.evaluate(async (u) => {
+          await fetch(u, { method: 'DELETE' });
+        }, `/api/players/${gpPlayer2Id}`).catch(() => {});
+      }
+    }
+  } else { log('TC-311', 'SKIP'); }
 
   // TC-104: Player delete
   if (pid) {
@@ -261,6 +477,72 @@ async function nav(p, u) {
   const gpHasStandings = gpHasGroups && (t.includes('MP') || t.includes('試合数'));
   log('TC-402', gpHasGroups && gpHasStandings ? 'PASS' : 'FAIL',
     !gpHasGroups ? 'No groups' : !gpHasStandings ? 'No standings' : '');
+
+  // TC-403: GP admin dialog exposes manual total-score correction
+  await nav(page, `/tournaments/${TID}/gp`);
+  const gpMatchesTab = page.getByRole('tab', { name: /試合|Matches/ });
+  if (await gpMatchesTab.count() > 0) {
+    await gpMatchesTab.click();
+    await page.waitForTimeout(1000);
+  }
+  const gpEditButtons = page.locator('tbody button').filter({ hasText: /編集|Edit/ });
+  const gpEnterButtons = page.locator('tbody button').filter({ hasText: /結果入力|Enter Result/ });
+  const gpActionBtn = await gpEditButtons.count() > 0 ? gpEditButtons.first() : gpEnterButtons.first();
+  if (await gpActionBtn.count() > 0) {
+    await gpActionBtn.click();
+    await page.waitForTimeout(2000);
+    const dialogText = await page.locator('[role="dialog"]').last().innerText();
+    const hasManualScoreUi =
+      dialogText.includes('合計ポイントを手動修正') ||
+      dialogText.includes('Manual Total Score');
+    log('TC-403', hasManualScoreUi ? 'PASS' : 'FAIL');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1000);
+  } else {
+    log('TC-403', 'SKIP', 'No GP edit button');
+  }
+
+  // TC-404: GP admin dialog allows 8th-place input
+  await nav(page, `/tournaments/${TID}/gp`);
+  if (await gpMatchesTab.count() > 0) {
+    await gpMatchesTab.click();
+    await page.waitForTimeout(1000);
+  }
+  const gpActionBtnForPosition = await gpEditButtons.count() > 0 ? gpEditButtons.first() : gpEnterButtons.first();
+  if (await gpActionBtnForPosition.count() > 0) {
+    await gpActionBtnForPosition.click();
+    await page.waitForTimeout(2000);
+    const dialog = page.locator('[role="dialog"]').last();
+    if (await dialog.locator('[role="combobox"]').count() < 3) {
+      const cupSelect = dialog.locator('[role="combobox"]').first();
+      if (await cupSelect.count() > 0) {
+        await cupSelect.click();
+        await page.waitForTimeout(1000);
+        const firstCupOption = page.locator('[role="option"]').first();
+        if (await firstCupOption.count() > 0) {
+          await firstCupOption.click();
+          await page.waitForTimeout(1000);
+        }
+      }
+    }
+    const positionSelect = dialog.locator('[role="combobox"]').nth(2);
+    if (await positionSelect.count() > 0) {
+      await positionSelect.click();
+      await page.waitForTimeout(1000);
+      const hasEighthOption = await page.locator('[role="option"]').filter({ hasText: /8位|8th/ }).count();
+      log('TC-404', hasEighthOption > 0 ? 'PASS' : 'FAIL');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1000);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1000);
+    } else {
+      log('TC-404', 'SKIP', 'No GP position select');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1000);
+    }
+  } else {
+    log('TC-404', 'SKIP', 'No GP result button');
+  }
 
   // ===== Summary =====
   console.log('\n========== SUMMARY ==========');

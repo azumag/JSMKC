@@ -13,7 +13,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  *
  * 2. Time Entry:
  *    - Enter/edit individual course times for each player (20 courses)
- *    - Times are entered in M:SS.mmm format (e.g., 1:23.456)
+ *    - Times are entered in M:SS.mm format (e.g., 1:23.45)
  *    - Total times and rankings are automatically calculated on save
  *
  * 3. Standings View:
@@ -445,7 +445,7 @@ export default function TimeAttackPage({
     setTimeInputs((prev) => ({ ...prev, [course]: value }));
   };
 
-  /** Auto-format time on blur — converts raw digits (e.g. "58490") to M:SS.mmm */
+  /** Auto-format time on blur — normalizes input to M:SS.mm */
   const handleTimeBlur = (course: string) => {
     const raw = timeInputs[course];
     if (!raw || raw.trim() === "") return;
@@ -1195,7 +1195,7 @@ export default function TimeAttackPage({
                         </Label>
                         <Input
                           type="text"
-                          placeholder="M:SS.mmm"
+                          placeholder="M:SS.mm"
                           value={timeInputs[course.abbr] || ""}
                           onChange={(e) =>
                             handleTimeChange(course.abbr, e.target.value)

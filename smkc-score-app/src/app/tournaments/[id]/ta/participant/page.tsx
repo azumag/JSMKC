@@ -37,7 +37,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
-import { autoFormatTime, msToDisplayTime } from '@/lib/ta/time-utils';
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -75,7 +75,8 @@ interface Tournament {
 
 /**
  * Convert display time string to milliseconds for preview calculation.
- * Handles the M:SS.mmm format used in input fields.
+ * Handles the M:SS.mm display format used in input fields.
+ * Legacy 3-digit fractional input is still accepted for compatibility.
  */
 function displayTimeToMs(timeStr: string): number {
   if (!timeStr) return 0;
@@ -84,7 +85,7 @@ function displayTimeToMs(timeStr: string): number {
   const minutes = parseInt(parts[0]) || 0;
   const secondsParts = parts[1].split('.');
   const seconds = parseInt(secondsParts[0]) || 0;
-  /* Pad milliseconds to 3 digits (e.g., "12" -> "120") for consistent conversion */
+  /* Pad/truncate fractional seconds to 3 digits for consistent ms conversion */
   const milliseconds = parseInt(secondsParts[1]?.padEnd(3, '0').slice(0, 3)) || 0;
   return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
 }
@@ -135,12 +136,7 @@ export default function TimeAttackParticipantPage({
       const maxMs = 210000; // 3:30
       const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
       
-      // Convert to M:SS.mmm format
-      const minutes = Math.floor(randomMs / 60000);
-      const seconds = Math.floor((randomMs % 60000) / 1000);
-      const milliseconds = randomMs % 1000;
-      
-      randomTimes[course.abbr] = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+      randomTimes[course.abbr] = generateRandomTimeString(randomMs, randomMs);
     });
     
     setTimeInputs(randomTimes);
@@ -225,7 +221,7 @@ export default function TimeAttackParticipantPage({
     setTimeInputs(prev => ({ ...prev, [course]: value }));
   };
 
-  /** Auto-format time on blur — converts raw digits (e.g. "58490") to M:SS.mmm */
+  /** Auto-format time on blur — normalizes input to M:SS.mm */
   const handleTimeBlur = (course: string) => {
     const raw = timeInputs[course];
     if (!raw || raw.trim() === "") return;
@@ -244,8 +240,8 @@ export default function TimeAttackParticipantPage({
       const timeStr = timeInputs[course.abbr];
       if (!timeStr) continue;
 
-      /* Validate format M:SS.mmm (strict format for data integrity) */
-      const timeRegex = /^\d+:[0-5]\d\.\d{3}$/;
+      /* Official display format is M:SS.mm; accept legacy 3-digit fractions too */
+      const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
       if (!timeRegex.test(timeStr)) {
         /** i18n: Show localized validation error with course abbreviation */
         setError(tPart('invalidTimeFormat', { course: course.abbr }));
@@ -476,7 +472,7 @@ export default function TimeAttackParticipantPage({
                               <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
                               <Input
                                 type="text"
-                                placeholder="M:SS.mmm"
+                                placeholder="M:SS.mm"
                                 value={timeInputs[course.abbr] || ''}
                                 onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
                                 onBlur={() => handleTimeBlur(course.abbr)}

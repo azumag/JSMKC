@@ -400,10 +400,10 @@ describe('Score Validation Utilities', () => {
   });
 
   describe('validateGPRacePosition', () => {
-    it('should accept valid positions 1-4', () => {
+    it('should accept valid positions 0-8', () => {
       expect(validateGPRacePosition(MIN_GP_POSITION).isValid).toBe(true);
       expect(validateGPRacePosition(2).isValid).toBe(true);
-      expect(validateGPRacePosition(3).isValid).toBe(true);
+      expect(validateGPRacePosition(5).isValid).toBe(true);
       expect(validateGPRacePosition(MAX_GP_POSITION).isValid).toBe(true);
     });
 
@@ -412,8 +412,8 @@ describe('Score Validation Utilities', () => {
       expect(result.isValid).toBe(true);
     });
 
-    it('should reject position 5 and above', () => {
-      expect(validateGPRacePosition(5).isValid).toBe(false);
+    it('should reject position 9 and above', () => {
+      expect(validateGPRacePosition(9).isValid).toBe(false);
       expect(validateGPRacePosition(MAX_GP_POSITION + 1).isValid).toBe(false);
     });
 

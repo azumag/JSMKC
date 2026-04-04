@@ -102,7 +102,8 @@ interface PhaseRound {
 }
 
 /**
- * Convert time string (M:SS.mmm) to milliseconds for submission.
+ * Convert time string (M:SS.mm) to milliseconds for submission.
+ * Legacy 3-digit fractional input is still accepted for compatibility.
  * Returns null for empty or invalid strings.
  */
 function timeToMs(time: string): number | null {
@@ -463,7 +464,7 @@ export default function TAEliminationPhase({
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
             setSaveError(
-              `Invalid time for ${entry.player.nickname}. Enter M:SS.mmm format.`
+              `Invalid time for ${entry.player.nickname}. Enter M:SS.mm format.`
             );
             setSubmitting(false);
             return;
@@ -664,7 +665,7 @@ export default function TAEliminationPhase({
                     </div>
                     <Input
                       type="text"
-                      placeholder="M:SS.mmm"
+                      placeholder="M:SS.mm"
                       value={courseTimes[entry.playerId] || ""}
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)

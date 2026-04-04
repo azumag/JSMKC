@@ -70,6 +70,7 @@ export default function BattleModeParticipantPage({
   const handleSubmitScore = async (match: BMMatch) => {
     const scores = reportingScores[match.id];
     if (!scores?.score1 || !scores?.score2) return;
+    const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
     const s1 = parseInt(scores.score1, 10);
     const s2 = parseInt(scores.score2, 10);
@@ -84,7 +85,7 @@ export default function BattleModeParticipantPage({
     }
 
     const data = await ctx.submitReport(match.id, {
-      playerId: ctx.playerId,
+      reportingPlayer,
       score1: s1,
       score2: s2,
     });

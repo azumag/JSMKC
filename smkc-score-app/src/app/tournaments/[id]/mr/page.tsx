@@ -9,8 +9,8 @@
  * - CSV export functionality
  * - Real-time polling for live tournament updates
  *
- * MR uses a 5-race course-selection format where each race
- * winner is tracked individually. First to 3 wins takes the match.
+ * MR qualification uses a fixed 4-race format with pre-assigned courses.
+ * All 4 races are recorded individually, and a 2-2 result is a valid draw.
  *
  * @route /tournaments/[id]/mr
  */
@@ -54,7 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -102,6 +102,7 @@ interface MRMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
@@ -128,14 +129,10 @@ export default function MatchRacePage({
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
-  /* Initialize 5 empty rounds for the match result dialog */
-  const [rounds, setRounds] = useState<Round[]>([
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-  ]);
+  /* Initialize 4 empty rounds for the match result dialog */
+  const [rounds, setRounds] = useState<Round[]>(
+    Array.from({ length: TOTAL_MR_RACES }, () => ({ course: "", winner: null }))
+  );
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string; seeding?: number }[]
   >([]);
@@ -247,43 +244,45 @@ export default function MatchRacePage({
 
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === 5) {
+    if (match.rounds && match.rounds.length === TOTAL_MR_RACES) {
       setRounds(match.rounds as Round[]);
     } else {
-      setRounds([
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-      ]);
+      const assignedCourses = Array.isArray(match.assignedCourses)
+        ? match.assignedCourses
+        : [];
+      setRounds(
+        Array.from({ length: TOTAL_MR_RACES }, (_, index) => ({
+          course: (assignedCourses[index] as CourseAbbr | undefined) ?? "",
+          winner: null,
+        }))
+      );
     }
     setIsMatchDialogOpen(true);
   };
 
   /**
-   * Submit match result after validating 5 unique courses and a winner.
-   * Score is calculated from the number of race wins per player.
+   * Submit match result after validating 4 configured races.
+   * Score is calculated from the number of race wins per player, and 2-2 draws are valid.
    */
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Validate that exactly 5 unique courses are selected */
+    /* Validate that exactly 4 unique courses are configured */
     const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
-    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
-      alert(tc('select5UniqueCourses'));
+    if (usedCourses.length !== TOTAL_MR_RACES || new Set(usedCourses).size !== TOTAL_MR_RACES) {
+      alert(tc('select4UniqueCourses'));
+      return;
+    }
+
+    /* Validate that each race has a recorded winner; a 2-2 draw is still a complete match */
+    if (rounds.some(r => r.winner === null)) {
+      alert(tc('selectWinnerForAllRaces', { count: TOTAL_MR_RACES }));
       return;
     }
 
     /* Count wins per player from individual race results */
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
-
-    /* Match must have a definitive winner (first to 3) */
-    if (winnerCount < 3 && loserCount < 3) {
-      alert(tc('matchMustHaveWinner'));
-      return;
-    }
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
@@ -300,13 +299,7 @@ export default function MatchRacePage({
       if (response.ok) {
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setRounds([
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-        ]);
+        setRounds(Array.from({ length: TOTAL_MR_RACES }, () => ({ course: "", winner: null })));
         refetch();
       }
     } catch (err) {
@@ -641,6 +634,21 @@ export default function MatchRacePage({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {selectedMatch && (
+              <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{tc('scorePreview')}</span>
+                  <span className="font-mono text-base">
+                    {selectedMatch.player1.nickname} [{rounds.filter((round) => round.winner === 1).length}]
+                    {" - "}
+                    [{rounds.filter((round) => round.winner === 2).length}] {selectedMatch.player2.nickname}
+                  </span>
+                </div>
+                <p className="mt-1 text-muted-foreground">
+                  {tc('mrFourRaceDrawNote')}
+                </p>
+              </div>
+            )}
             {/* §5.3 Character selection priority guidance */}
             {selectedMatch && (() => {
               const p1 = selectedMatch.player1Id;

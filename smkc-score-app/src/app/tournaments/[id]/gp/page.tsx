@@ -5,7 +5,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * Grand Prix (GP) Qualification Page
  *
  * Admin page for managing GP qualification rounds.
- * GP uses cup-based races with driver points (1st=9, 2nd=6).
+ * GP uses cup-based races with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
  * Players compete in round-robin groups, and standings are
  * calculated by driver points (primary) with match score (wins×2 + ties×1) as tiebreaker.
  *
@@ -21,9 +21,11 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -57,7 +59,7 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -91,6 +93,7 @@ interface GPQualification {
 /** GP match with race details and player information */
 interface GPMatch {
   id: string;
+  version: number;
   matchNumber: number;
   roundNumber?: number;  // サークル方式のDay番号
   isBye?: boolean;       // BREAK不戦勝マッチ
@@ -130,6 +133,7 @@ export default function GrandPrixPage({
   const { data: session } = useSession();
   const t = useTranslations('gp');
   const tc = useTranslations('common');
+  const locale = useLocale();
 
   /** Admin role check: only admins can setup groups, enter results, and reset */
   const isAdmin = session?.user && session.user.role === 'admin';
@@ -147,10 +151,25 @@ export default function GrandPrixPage({
   const [groupCount, setGroupCount] = useState(3);
   const [setupSaving, setSetupSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
+  const [manualPoints1, setManualPoints1] = useState("");
+  const [manualPoints2, setManualPoints2] = useState("");
 
   /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
+  };
+
+  const formatGpPosition = (position: number) => {
+    if (position === 0) return tc('gameOver');
+    if (locale === 'ja') return `${position}位`;
+
+    const mod10 = position % 10;
+    const mod100 = position % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${position}st`;
+    if (mod10 === 2 && mod100 !== 12) return `${position}nd`;
+    if (mod10 === 3 && mod100 !== 13) return `${position}rd`;
+    return `${position}th`;
   };
 
   /**
@@ -258,6 +277,9 @@ export default function GrandPrixPage({
 
   const openMatchDialog = (match: GPMatch) => {
     setSelectedMatch(match);
+    setManualScoreEnabled(false);
+    setManualPoints1(match.points1.toString());
+    setManualPoints2(match.points2.toString());
     if (match.cup && match.races && match.races.length === TOTAL_GP_RACES) {
       /* Pre-fill form with existing match data for editing */
       setSelectedCup(match.cup);
@@ -277,7 +299,52 @@ export default function GrandPrixPage({
    * Validates all 5 races (1 cup) are complete before submission.
    */
   const handleMatchSubmit = async () => {
-    if (!selectedMatch || !selectedCup) {
+    if (!selectedMatch) {
+      return;
+    }
+
+    if (manualScoreEnabled) {
+      const points1 = Number.parseInt(manualPoints1, 10);
+      const points2 = Number.parseInt(manualPoints2, 10);
+
+      if (!Number.isInteger(points1) || !Number.isInteger(points2) || points1 < 0 || points2 < 0) {
+        alert(t('manualScoreValidation'));
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/gp/match/${selectedMatch.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            points1,
+            points2,
+            completed: true,
+            version: selectedMatch.version,
+          }),
+        });
+
+        if (response.ok) {
+          setIsMatchDialogOpen(false);
+          setSelectedMatch(null);
+          setSelectedCup("");
+          setRaces(
+            Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
+          );
+          setManualScoreEnabled(false);
+          refetch();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          alert(errorData.error || t('manualScoreSaveFailed'));
+        }
+      } catch (err) {
+        const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+        logger.error("Failed to manually update GP score:", metadata);
+      }
+      return;
+    }
+
+    if (!selectedCup) {
       alert(tc('pleaseSelectCup'));
       return;
     }
@@ -680,8 +747,53 @@ export default function GrandPrixPage({
               </Select>
             </div>
 
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="gp-manual-score"
+                  checked={manualScoreEnabled}
+                  onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="gp-manual-score">{t('manualTotalScore')}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t('manualTotalScoreDesc')}
+                  </p>
+                </div>
+              </div>
+
+              {manualScoreEnabled && selectedMatch && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-points1">{selectedMatch.player1.nickname}</Label>
+                    <Input
+                      id="manual-points1"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualPoints1}
+                      onChange={(e) => setManualPoints1(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-points2">{selectedMatch.player2.nickname}</Label>
+                    <Input
+                      id="manual-points2"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualPoints2}
+                      onChange={(e) => setManualPoints2(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Race-by-race entry table (5 races per cup) */}
-            {selectedCup && (
+            {selectedCup && !manualScoreEnabled && (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -729,7 +841,7 @@ export default function GrandPrixPage({
                             onValueChange={(value) => {
                               const newRaces = [...races];
                               newRaces[index].position1 =
-                                value === "" ? null : parseInt(value);
+                                value === "" ? null : parseInt(value, 10);
                               setRaces(newRaces);
                             }}
                           >
@@ -737,9 +849,11 @@ export default function GrandPrixPage({
                               <SelectValue placeholder={tc('position')} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">{tc('first')}</SelectItem>
-                              <SelectItem value="2">{tc('second')}</SelectItem>
-                              <SelectItem value="0">{tc('gameOver')}</SelectItem>
+                              {GP_POSITION_OPTIONS.map((position) => (
+                                <SelectItem key={`admin-p1-${index}-${position}`} value={position.toString()}>
+                                  {formatGpPosition(position)}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -749,7 +863,7 @@ export default function GrandPrixPage({
                             onValueChange={(value) => {
                               const newRaces = [...races];
                               newRaces[index].position2 =
-                                value === "" ? null : parseInt(value);
+                                value === "" ? null : parseInt(value, 10);
                               setRaces(newRaces);
                             }}
                           >
@@ -757,9 +871,11 @@ export default function GrandPrixPage({
                               <SelectValue placeholder={tc('position')} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">{tc('first')}</SelectItem>
-                              <SelectItem value="2">{tc('second')}</SelectItem>
-                              <SelectItem value="0">{tc('gameOver')}</SelectItem>
+                              {GP_POSITION_OPTIONS.map((position) => (
+                                <SelectItem key={`admin-p2-${index}-${position}`} value={position.toString()}>
+                                  {formatGpPosition(position)}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -771,40 +887,44 @@ export default function GrandPrixPage({
             )}
 
             {/* Live driver points calculation preview */}
-            <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm font-medium mb-2">
-                {t('driverPoints')}
-              </p>
-              {selectedMatch && (
-                <div className="flex gap-4 justify-center">
-                  <div>
-                    <span className="text-sm">{selectedMatch.player1.nickname}:</span>
-                    <span className="ml-2 font-bold">
-                      {races.reduce(
-                        (acc, r) =>
-                          acc + (r.position1 ? getDriverPoints(r.position1) : 0),
-                        0
-                      )}
-                      pts
-                    </span>
+            {!manualScoreEnabled && (
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-sm font-medium mb-2">
+                  {t('driverPoints')}
+                </p>
+                {selectedMatch && (
+                  <div className="flex gap-4 justify-center">
+                    <div>
+                      <span className="text-sm">{selectedMatch.player1.nickname}:</span>
+                      <span className="ml-2 font-bold">
+                        {races.reduce(
+                          (acc, r) =>
+                            acc + (r.position1 ? getDriverPoints(r.position1) : 0),
+                          0
+                        )}
+                        pts
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-sm">{selectedMatch.player2.nickname}:</span>
+                      <span className="ml-2 font-bold">
+                        {races.reduce(
+                          (acc, r) =>
+                            acc + (r.position2 ? getDriverPoints(r.position2) : 0),
+                          0
+                        )}
+                        pts
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-sm">{selectedMatch.player2.nickname}:</span>
-                    <span className="ml-2 font-bold">
-                      {races.reduce(
-                        (acc, r) =>
-                          acc + (r.position2 ? getDriverPoints(r.position2) : 0),
-                        0
-                      )}
-                      pts
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
+            <Button onClick={handleMatchSubmit}>
+              {manualScoreEnabled ? tc('saveScore') : tc('saveResult')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

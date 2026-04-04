@@ -7,7 +7,7 @@
  * GP-specific: race results with cup-filtered courses, auto-calculated driver points,
  * and cup substitution (§7.1: Star→Mushroom, Special→Flower).
  *
- * Driver points: 1st=9, 2nd=6, 3rd=3, 4th=1
+ * Driver points: 1st=9, 2nd=6, 3rd=3, 4th=1, 5th-8th=0
  */
 "use client";
 
@@ -36,8 +36,8 @@ interface GPMatch extends BaseMatch {
 /** Individual race result with auto-calculated driver points */
 interface RaceResult {
   course: string;
-  position1: number;
-  position2: number;
+  position1: number | null;
+  position2: number | null;
   points1: number;
   points2: number;
 }
@@ -72,22 +72,22 @@ export default function GrandPrixParticipantPage({
   const addRaceResult = (matchId: string) => {
     setRaceResults((prev) => ({
       ...prev,
-      [matchId]: [...(prev[matchId] || []), { course: "", position1: 0, position2: 0, points1: 0, points2: 0 }],
+      [matchId]: [...(prev[matchId] || []), { course: "", position1: null, position2: null, points1: 0, points2: 0 }],
     }));
   };
 
   /** Update race result field — auto-calculates driver points on position change */
-  const updateRaceResult = (matchId: string, index: number, field: keyof RaceResult, value: string | number) => {
+  const updateRaceResult = (matchId: string, index: number, field: keyof RaceResult, value: string | number | null) => {
     setRaceResults((prev) => ({
       ...prev,
-      [matchId]: prev[matchId].map((r, i) => {
+      [matchId]: (prev[matchId] || []).map((r, i) => {
         if (i !== index) return r;
         const updated = { ...r, [field]: value };
         if (field === "position1" || field === "position2") {
-          const pos1 = field === "position1" ? (value as number) : r.position1;
-          const pos2 = field === "position2" ? (value as number) : r.position2;
-          updated.points1 = getDriverPoints(pos1);
-          updated.points2 = getDriverPoints(pos2);
+          const pos1 = field === "position1" ? (value as number | null) : r.position1;
+          const pos2 = field === "position2" ? (value as number | null) : r.position2;
+          updated.points1 = pos1 ? getDriverPoints(pos1) : 0;
+          updated.points2 = pos2 ? getDriverPoints(pos2) : 0;
         }
         return updated;
       }),
@@ -110,21 +110,20 @@ export default function GrandPrixParticipantPage({
   const handleSubmitMatch = async (match: GPMatch) => {
     const races = raceResults[match.id] || [];
     if (races.length === 0) { ctx.setError(tPart("addAtLeastOneRace")); return; }
+    const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
     for (const r of races) {
-      /* Course is required; positions can be 0 (game over per §7.2) but not undefined */
-      if (!r.course || r.position1 == null || r.position2 == null) {
+      if (!r.course || r.position1 === null || r.position2 === null) {
         ctx.setError(tPart("completeAllRaceFields")); return;
       }
-      /* Both 0 (both game over) is invalid; same non-zero position is also invalid */
-      if (r.position1 === r.position2 && r.position1 !== 0) {
+      if (r.position1 === r.position2) {
         ctx.setError(tPart("racePositionsCannotBeEqual")); return;
       }
     }
 
     const { points1, points2 } = calculateTotalPoints(races);
     const data = await ctx.submitReport(match.id, {
-      playerId: ctx.playerId, points1, points2, races,
+      reportingPlayer, points1, points2, races,
     });
 
     if (data) {
@@ -208,13 +207,39 @@ export default function GrandPrixParticipantPage({
                       </Select>
                     </div>
                     <div className="col-span-2">
-                      <Input type="number" min="0" max="4" placeholder="1st" value={result.position1 || ""} onChange={(e) => updateRaceResult(match.id, index, "position1", parseInt(e.target.value) || 0)} />
+                      <Input
+                        type="number"
+                        min="1"
+                        max="8"
+                        step="1"
+                        inputMode="numeric"
+                        value={result.position1 ?? ""}
+                        onChange={(e) => updateRaceResult(
+                          match.id,
+                          index,
+                          "position1",
+                          e.target.value === "" ? null : parseInt(e.target.value, 10),
+                        )}
+                      />
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points1 })}</div>
                     </div>
                     <div className="col-span-2">
-                      <Input type="number" min="0" max="4" placeholder="2nd" value={result.position2 || ""} onChange={(e) => updateRaceResult(match.id, index, "position2", parseInt(e.target.value) || 0)} />
+                      <Input
+                        type="number"
+                        min="1"
+                        max="8"
+                        step="1"
+                        inputMode="numeric"
+                        value={result.position2 ?? ""}
+                        onChange={(e) => updateRaceResult(
+                          match.id,
+                          index,
+                          "position2",
+                          e.target.value === "" ? null : parseInt(e.target.value, 10),
+                        )}
+                      />
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points2 })}</div>

@@ -86,6 +86,7 @@ export default function MatchRaceParticipantPage({
   const handleSubmitMatch = async (match: MRMatch) => {
     const races = raceResults[match.id] || [];
     if (races.length === 0) { ctx.setError("Please add at least one race result."); return; }
+    const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
     for (const r of races) {
       if (!r.course || r.position1 === 0 || r.position2 === 0) {
@@ -98,7 +99,7 @@ export default function MatchRaceParticipantPage({
 
     const { score1, score2 } = calculateScores(races);
     const data = await ctx.submitReport(match.id, {
-      playerId: ctx.playerId, score1, score2, races,
+      reportingPlayer, score1, score2, races,
     });
 
     if (data) {

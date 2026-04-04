@@ -25,9 +25,9 @@ jest.mock('@/lib/request-utils', () => ({
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({
   SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
-  DRIVER_POINTS: [0, 9, 6, 3, 1],
+  DRIVER_POINTS: [0, 9, 6, 3, 1, 0, 0, 0, 0],
   TOTAL_GP_RACES: 5,
-  getDriverPoints: (pos: number) => [0, 9, 6, 3, 1][pos] ?? 0,
+  getDriverPoints: (pos: number) => [0, 9, 6, 3, 1, 0, 0, 0, 0][pos] ?? 0,
 }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/optimistic-locking', () => ({
@@ -51,7 +51,7 @@ jest.mock('@/lib/error-handling', () => ({
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { updateWithRetry } from '@/lib/optimistic-locking';
 import { POST } from '@/app/api/tournaments/[id]/gp/match/[matchId]/report/route';
 
 const {
@@ -665,6 +665,60 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
           reportedData: expect.objectContaining({
             totalPoints1: 39,
             totalPoints2: 25,
+          }),
+        }),
+      });
+    });
+
+    it('should treat 5th through 8th place as zero-point finishes', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+        player1ReportedPoints1: null,
+        player1ReportedPoints2: null,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+      };
+
+      const updatedMatch = {
+        ...mockMatch,
+        player1ReportedPoints1: 15,
+        player1ReportedPoints2: 19,
+        player1ReportedRaces: [],
+        version: 1,
+      };
+
+      const races = [
+        { course: 'Mario Circuit 1', position1: 8, position2: 4 },
+        { course: 'Donut Plains 1', position1: 5, position2: 2 },
+        { course: 'Ghost Valley 1', position1: 1, position2: 7 },
+        { course: 'Bowser Castle 1', position1: 6, position2: 1 },
+        { course: 'Mario Circuit 2', position1: 2, position2: 8 },
+      ];
+
+      (prisma.gPMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce({ version: 0 });
+      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          reportedData: expect.objectContaining({
+            totalPoints1: 15,
+            totalPoints2: 19,
           }),
         }),
       });

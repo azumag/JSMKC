@@ -4,10 +4,10 @@
  * Test suite for TA (Time Attack) time utility functions (`@/lib/ta/time-utils`).
  *
  * Covers:
- * - timeToMs: converting time strings (M:SS.mmm / MM:SS.mmm) to milliseconds,
- *   handling 1/2/3-digit millisecond padding, null/empty/invalid input rejection
- * - msToDisplayTime: converting milliseconds back to display format (M:SS.mmm),
- *   null input returning dash, zero-padding for seconds and milliseconds
+ * - timeToMs: converting time strings (M:SS.mm / MM:SS.mm) to milliseconds,
+ *   handling legacy 1/2/3-digit fractional padding, null/empty/invalid input rejection
+ * - msToDisplayTime: converting milliseconds back to display format (M:SS.mm),
+ *   null input returning dash, zero-padding for seconds and centiseconds
  * - calculateTotalTime: summing all course times, returning null for null input
  *   or any invalid/empty course time
  * - validateRequiredCourses: checking that all required courses have valid times,
@@ -23,10 +23,10 @@ import {
 
 describe('TA Time Utils', () => {
   describe('timeToMs', () => {
-    it('should convert valid time string M:SS.mmm to milliseconds', () => {
-      expect(timeToMs('1:23.456')).toBe(83456);
-      expect(timeToMs('12:34.567')).toBe(754567);
-      expect(timeToMs('59:59.999')).toBe(3599999);
+    it('should convert valid time string M:SS.mm to milliseconds', () => {
+      expect(timeToMs('1:23.45')).toBe(83450);
+      expect(timeToMs('12:34.56')).toBe(754560);
+      expect(timeToMs('59:59.99')).toBe(3599990);
     });
 
     it('should right-pad milliseconds with 1 digit to 3 digits', () => {
@@ -39,7 +39,7 @@ describe('TA Time Utils', () => {
       expect(timeToMs('1:23.45')).toBe(83450);
     });
 
-    it('should keep 3-digit milliseconds as-is', () => {
+    it('should keep legacy 3-digit fractional precision as-is', () => {
       expect(timeToMs('1:23.456')).toBe(83456);
     });
 
@@ -60,8 +60,8 @@ describe('TA Time Utils', () => {
 
   describe('msToDisplayTime', () => {
     it('should convert milliseconds to display format', () => {
-      expect(msToDisplayTime(83456)).toBe('1:23.456');
-      expect(msToDisplayTime(3599999)).toBe('59:59.999');
+      expect(msToDisplayTime(83456)).toBe('1:23.46');
+      expect(msToDisplayTime(3599999)).toBe('60:00.00');
     });
 
     it('should return dash for null input', () => {
@@ -69,25 +69,25 @@ describe('TA Time Utils', () => {
     });
 
     it('should format with zero padding', () => {
-      expect(msToDisplayTime(60000)).toBe('1:00.000');
-      expect(msToDisplayTime(1000)).toBe('0:01.000');
+      expect(msToDisplayTime(60000)).toBe('1:00.00');
+      expect(msToDisplayTime(1000)).toBe('0:01.00');
     });
 
-    it('should format milliseconds with leading zeros', () => {
-      expect(msToDisplayTime(60005)).toBe('1:00.005');
-      expect(msToDisplayTime(60123)).toBe('1:00.123');
+    it('should round to centiseconds for display', () => {
+      expect(msToDisplayTime(60005)).toBe('1:00.01');
+      expect(msToDisplayTime(60123)).toBe('1:00.12');
     });
   });
 
   describe('calculateTotalTime', () => {
     it('should calculate total time for all courses', () => {
       const times = {
-        MC1: '1:23.456',
-        DP1: '1:12.345',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        MC1: '1:23.45',
+        DP1: '1:12.34',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
-      expect(calculateTotalTime(times)).toBe(370157);
+      expect(calculateTotalTime(times)).toBe(370130);
     });
 
     it('should return null if times is null', () => {
@@ -96,20 +96,20 @@ describe('TA Time Utils', () => {
 
     it('should return null if any course time is invalid', () => {
       const times = {
-        MC1: '1:23.456',
+        MC1: '1:23.45',
         DP1: 'invalid-time',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       expect(calculateTotalTime(times)).toBe(null);
     });
 
     it('should handle empty time strings', () => {
       const times = {
-        MC1: '1:23.456',
+        MC1: '1:23.45',
         DP1: '',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       expect(calculateTotalTime(times)).toBe(null);
     });
@@ -118,10 +118,10 @@ describe('TA Time Utils', () => {
   describe('validateRequiredCourses', () => {
     it('should return true when all required courses have valid times', () => {
       const times = {
-        MC1: '1:23.456',
-        DP1: '1:12.345',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        MC1: '1:23.45',
+        DP1: '1:12.34',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       const requiredCourses = ['MC1', 'DP1', 'GV1', 'BC1'];
       expect(validateRequiredCourses(times, requiredCourses)).toBe(true);
@@ -129,10 +129,10 @@ describe('TA Time Utils', () => {
 
     it('should return false when required course is missing', () => {
       const times = {
-        MC1: '1:23.456',
-        DP1: '1:12.345',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        MC1: '1:23.45',
+        DP1: '1:12.34',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       const requiredCourses = ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'];
       expect(validateRequiredCourses(times, requiredCourses)).toBe(false);
@@ -140,10 +140,10 @@ describe('TA Time Utils', () => {
 
     it('should return false when any required course has invalid time', () => {
       const times = {
-        MC1: '1:23.456',
+        MC1: '1:23.45',
         DP1: 'invalid-time',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       const requiredCourses = ['MC1', 'DP1', 'GV1', 'BC1'];
       expect(validateRequiredCourses(times, requiredCourses)).toBe(false);
@@ -155,10 +155,10 @@ describe('TA Time Utils', () => {
 
     it('should handle empty time strings for required courses', () => {
       const times = {
-        MC1: '1:23.456',
+        MC1: '1:23.45',
         DP1: '',
-        GV1: '0:59.789',
-        BC1: '2:34.567',
+        GV1: '0:59.78',
+        BC1: '2:34.56',
       };
       const requiredCourses = ['MC1', 'DP1', 'GV1', 'BC1'];
       expect(validateRequiredCourses(times, requiredCourses)).toBe(false);
@@ -171,34 +171,31 @@ describe('TA Time Utils', () => {
       expect(autoFormatTime('  ')).toBe('');
     });
 
-    it('should return already-valid M:SS.mmm as-is', () => {
-      expect(autoFormatTime('1:23.456')).toBe('1:23.456');
-      expect(autoFormatTime('0:58.490')).toBe('0:58.490');
-      expect(autoFormatTime('12:34.567')).toBe('12:34.567');
+    it('should normalize already-valid time strings to M:SS.mm', () => {
+      expect(autoFormatTime('1:23.456')).toBe('1:23.46');
+      expect(autoFormatTime('0:58.490')).toBe('0:58.49');
+      expect(autoFormatTime('12:34.56')).toBe('12:34.56');
     });
 
-    it('should append .000 for colon-only input (M:SS)', () => {
-      expect(autoFormatTime('1:23')).toBe('1:23.000');
-      expect(autoFormatTime('0:58')).toBe('0:58.000');
+    it('should append .00 for colon-only input (M:SS)', () => {
+      expect(autoFormatTime('1:23')).toBe('1:23.00');
+      expect(autoFormatTime('0:58')).toBe('0:58.00');
     });
 
     it('should format digits-only input as MSSMMM', () => {
-      /* User types "01122" meaning 0:11.220 */
-      expect(autoFormatTime('01122')).toBe('0:01.122');
-      /* User types "58490" meaning 0:58.490 */
-      expect(autoFormatTime('058490')).toBe('0:58.490');
-      /* User types "123456" meaning 1:23.456 */
-      expect(autoFormatTime('123456')).toBe('1:23.456');
-      /* User types "001122" meaning 0:01.122 */
-      expect(autoFormatTime('001122')).toBe('0:01.122');
+      /* Digits-only input is still interpreted positionally, then normalized */
+      expect(autoFormatTime('01122')).toBe('0:01.12');
+      expect(autoFormatTime('058490')).toBe('0:58.49');
+      expect(autoFormatTime('123456')).toBe('1:23.46');
+      expect(autoFormatTime('001122')).toBe('0:01.12');
       /* Short input — padded left */
-      expect(autoFormatTime('1122')).toBe('0:01.122');
+      expect(autoFormatTime('1122')).toBe('0:01.12');
     });
 
-    it('should handle dot-only input (SS.mmm)', () => {
-      expect(autoFormatTime('58.490')).toBe('0:58.490');
-      expect(autoFormatTime('123.456')).toBe('1:23.456');
-      expect(autoFormatTime('1.234')).toBe('0:01.234');
+    it('should handle dot-only input and normalize to centiseconds', () => {
+      expect(autoFormatTime('58.490')).toBe('0:58.49');
+      expect(autoFormatTime('123.456')).toBe('1:23.46');
+      expect(autoFormatTime('1.234')).toBe('0:01.23');
     });
 
     it('should return null for uninterpretable input', () => {
@@ -212,26 +209,25 @@ describe('TA Time Utils', () => {
     });
 
     it('should handle extreme short inputs (0, 00, 000)', () => {
-      expect(autoFormatTime('0')).toBe('0:00.000');
-      expect(autoFormatTime('00')).toBe('0:00.000');
-      expect(autoFormatTime('000000')).toBe('0:00.000');
+      expect(autoFormatTime('0')).toBe('0:00.00');
+      expect(autoFormatTime('00')).toBe('0:00.00');
+      expect(autoFormatTime('000000')).toBe('0:00.00');
     });
 
     it('should handle 7+ digit inputs', () => {
       /* "1234567" → 12 minutes, 34 seconds, 567ms */
-      expect(autoFormatTime('1234567')).toBe('12:34.567');
+      expect(autoFormatTime('1234567')).toBe('12:34.57');
     });
 
-    it('should preserve 2-digit milliseconds in valid format (racing convention)', () => {
-      /* In racing, ".49" = 49/100s = 490ms — this is correct behavior */
+    it('should preserve 2-digit centiseconds in valid format', () => {
       expect(autoFormatTime('0:58.49')).toBe('0:58.49');
       expect(timeToMs('0:58.49')).toBe(58490); /* Right-padded: 49 → 490ms */
     });
 
     it('should round-trip with timeToMs for valid outputs', () => {
       const formatted = autoFormatTime('123456');
-      expect(formatted).toBe('1:23.456');
-      expect(timeToMs(formatted!)).toBe(83456);
+      expect(formatted).toBe('1:23.46');
+      expect(timeToMs(formatted!)).toBe(83460);
     });
   });
 });

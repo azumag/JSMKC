@@ -171,20 +171,24 @@ export const RATE_LIMIT_STATUS_CODE = 429;
 export const OPTIMISTIC_LOCK_STATUS_CODE = 409;
 
 /**
- * GP driver points awarded per finishing position in a 4-player race.
- * Index 0 is unused (positions are 1-indexed): 1st=9, 2nd=6, 3rd=3, 4th=1.
- * Position 5+ awards 0 points (out of bounds returns undefined → fallback to 0).
+ * GP driver points awarded per finishing position in an 8-player race.
+ * Index 0 is reserved for legacy/manual "game over" entries and awards 0.
+ * Standard SMK scoring only awards points through 4th place:
+ * 1st=9, 2nd=6, 3rd=3, 4th=1, 5th-8th=0.
  *
- * Source: §7 of requirements.md
+ * Source: §7 of requirements.md + issue #288 feedback
  */
-export const DRIVER_POINTS = [0, 9, 6, 3, 1] as const;
+export const DRIVER_POINTS = [0, 9, 6, 3, 1, 0, 0, 0, 0] as const;
+
+/** GP UI/API position options for normal race finishes. */
+export const GP_POSITION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 /**
- * Convert a finishing position (1-4) to driver points.
- * Returns 0 for invalid positions (outside 1-4 range).
+ * Convert a finishing position (1-8) to driver points.
+ * Returns 0 for legacy position 0 and any invalid/out-of-range values.
  */
 export function getDriverPoints(position: number): number {
-  if (position < 1 || position > 4) return 0;
+  if (position < 1 || position > 8) return 0;
   return DRIVER_POINTS[position];
 }
 

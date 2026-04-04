@@ -11,9 +11,10 @@
  *   All 4 pre-assigned courses are always played; score1 + score2 must equal 4.
  *   Scores represent race wins (0–4); a 2-2 draw is a valid result.
  *
- * - GP (Grand Prix): 5-race cup match with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
- *   Race finishing positions must be in the range 1-4; other positions earn 0 points
- *   but are rejected to prevent accidental null/undefined entries.
+ * - GP (Grand Prix): 5-race cup match with driver points
+ *   (1st=9, 2nd=6, 3rd=3, 4th=1, 5th-8th=0).
+ *   Race finishing positions normally use 1-8. Position 0 is still accepted as a
+ *   legacy/manual "game over" entry and also awards 0 points.
  *
  * Score constants for BM are defined in constants.ts.
  * MR and GP bounds are defined as module constants here.
@@ -28,9 +29,9 @@ import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, TOTAL_MR_RACES, BM
  */
 export const MAX_RACE_WIN_SCORE = TOTAL_MR_RACES;
 
-/** GP: SMK finishes positions are 0-4. 0 = game over (§7.2: player eliminated before this race). */
+/** GP: SMK finishes positions are 1-8. Position 0 is retained for legacy/manual game-over entry. */
 export const MIN_GP_POSITION = 0;
-export const MAX_GP_POSITION = 4;
+export const MAX_GP_POSITION = 8;
 
 /**
  * Result of a score validation check.
@@ -193,12 +194,12 @@ export function validateMatchRaceScores(score1: number, score2: number): ScoreVa
 /**
  * Validate a GP race finishing position.
  *
- * In SMK 2-player Grand Prix mode, each race is contested against CPU opponents.
- * Human players can finish 1st through 4th; position 0 means game over (§7.2:
- * player was eliminated before this race and earns 0 driver points).
+ * In SMK 2-player Grand Prix mode, each race is contested in an 8-player field.
+ * Human players can finish 1st through 8th. Position 0 is retained for legacy/admin
+ * game-over entry and earns 0 driver points.
  *
- * @param position - Race finishing position (0=game over, 1=first, 4=fourth)
- * @returns Validation result; `isValid` is true for positions 1-4
+ * @param position - Race finishing position (0=legacy game over, 1=first, 8=eighth)
+ * @returns Validation result; `isValid` is true for positions 0-8
  */
 export function validateGPRacePosition(position: number): ScoreValidationResult {
   if (

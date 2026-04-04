@@ -7,7 +7,7 @@
  * If reports differ, the match is flagged for admin review.
  *
  * GP-specific: Reports include race-by-race positions and driver points
- * (9 for 1st, 6 for 2nd, 3 for 3rd, 1 for 4th).
+ * (9 for 1st, 6 for 2nd, 3 for 3rd, 1 for 4th, 0 for 5th-8th).
  *
  * Features:
  * - Score entry logging for audit trail
@@ -120,7 +120,7 @@ export async function POST(
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
 
-    /* Validate GP race positions are in legal range (1-4) before processing */
+    /* Validate GP race positions are in legal range (0-8) before processing */
     if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
       return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
     }

@@ -10,7 +10,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * Features:
  * - Match info with player names and current score
  * - Player identity selection (I am Player 1 / Player 2)
- * - 5-race result entry with course selection and position buttons
+ * - 5-race result entry with course selection and 1st-8th position selectors
  * - Live driver points calculation preview
  * - Completed match display with race-by-race results
  * - Result submission with confirmation flow
@@ -18,7 +18,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  */
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -82,8 +82,8 @@ interface Tournament {
 /** Race entry in the result form: course + positions for both players */
 interface Race {
   course: CourseAbbr | "";
-  position1: 1 | 2 | null;
-  position2: 1 | 2 | null;
+  position1: number | null;
+  position2: number | null;
 }
 
 export default function GPMatchPage({
@@ -96,6 +96,7 @@ export default function GPMatchPage({
   const tMatch = useTranslations('match');
   const tGp = useTranslations('gp');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
   const [match, setMatch] = useState<GPMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
@@ -221,6 +222,18 @@ export default function GPMatchPage({
   const getCourseName = (abbr: string) => {
     const course = COURSE_INFO.find((c) => c.abbr === abbr);
     return course ? course.name : abbr;
+  };
+
+  const formatGpPosition = (position: number) => {
+    if (position === 0) return tCommon('gameOver');
+    if (locale === 'ja') return `${position}位`;
+
+    const mod10 = position % 10;
+    const mod100 = position % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${position}st`;
+    if (mod10 === 2 && mod100 !== 12) return `${position}nd`;
+    if (mod10 === 3 && mod100 !== 13) return `${position}rd`;
+    return `${position}th`;
   };
 
   /* Calculate running totals for the points preview using centralized driver points */
@@ -359,7 +372,7 @@ export default function GPMatchPage({
                     </div>
                   </div>
 
-                  {/* 5 race entries with course selection and position buttons */}
+                  {/* 5 race entries with course selection and 1st-8th position selectors */}
                   <div className="space-y-3">
                     {races.map((race, index) => (
                       <div key={index} className="border rounded-lg p-3 space-y-2">
@@ -391,42 +404,57 @@ export default function GPMatchPage({
                             </SelectContent>
                           </Select>
                         </div>
-                        {/* Position toggle buttons (1st/2nd for each player) */}
-                        <div className="flex gap-2">
-                          <Button
-                            variant={
-                              race.position1 === 1 ? "default" : "outline"
-                            }
-                            size="sm"
-                            onClick={() => {
-                              const newRaces = [...races];
-                              newRaces[index].position1 =
-                                newRaces[index].position1 === 1 ? null : 1;
-                              setRaces(newRaces);
-                            }}
-                            className="flex-1"
-                          >
-                            {selectedPlayer === 1
-                              ? tMatch('iWon1st')
-                              : tMatch('playerWon1st', { player: match.player1.nickname })}
-                          </Button>
-                          <Button
-                            variant={
-                              race.position2 === 1 ? "default" : "outline"
-                            }
-                            size="sm"
-                            onClick={() => {
-                              const newRaces = [...races];
-                              newRaces[index].position2 =
-                                newRaces[index].position2 === 1 ? null : 1;
-                              setRaces(newRaces);
-                            }}
-                            className="flex-1"
-                          >
-                            {selectedPlayer === 2
-                              ? tMatch('iWon1st')
-                              : tMatch('playerWon1st', { player: match.player2.nickname })}
-                          </Button>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              {match.player1.nickname}
+                            </p>
+                            <Select
+                              value={race.position1?.toString() || ""}
+                              onValueChange={(value) => {
+                                const newRaces = [...races];
+                                newRaces[index].position1 =
+                                  value === "" ? null : parseInt(value, 10);
+                                setRaces(newRaces);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={tCommon('position')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {GP_POSITION_OPTIONS.map((position) => (
+                                  <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
+                                    {formatGpPosition(position)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              {match.player2.nickname}
+                            </p>
+                            <Select
+                              value={race.position2?.toString() || ""}
+                              onValueChange={(value) => {
+                                const newRaces = [...races];
+                                newRaces[index].position2 =
+                                  value === "" ? null : parseInt(value, 10);
+                                setRaces(newRaces);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={tCommon('position')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {GP_POSITION_OPTIONS.map((position) => (
+                                  <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
+                                    {formatGpPosition(position)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -487,9 +515,15 @@ export default function GPMatchPage({
                       {getCourseName(race.course as CourseAbbr)}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
+                      {(() => {
+                        const player1Ahead = race.position1 < race.position2;
+                        const player2Ahead = race.position2 < race.position1;
+
+                        return (
+                          <>
                       <div
                         className={`p-3 rounded-lg ${
-                          race.position1 === 1
+                          player1Ahead
                             ? "bg-green-500/20 border border-green-500"
                             : "bg-muted"
                         }`}
@@ -498,7 +532,7 @@ export default function GPMatchPage({
                           {match.player1.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {race.position1 === 1 ? tCommon('first') : tCommon('second')}
+                          {formatGpPosition(race.position1)}
                         </p>
                         <p className="text-sm font-bold text-green-600">
                           {tMatch('pts', { points: race.points1 })}
@@ -506,7 +540,7 @@ export default function GPMatchPage({
                       </div>
                       <div
                         className={`p-3 rounded-lg ${
-                          race.position2 === 1
+                          player2Ahead
                             ? "bg-green-500/20 border border-green-500"
                             : "bg-muted"
                         }`}
@@ -515,12 +549,15 @@ export default function GPMatchPage({
                           {match.player2.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {race.position2 === 1 ? tCommon('first') : tCommon('second')}
+                          {formatGpPosition(race.position2)}
                         </p>
                         <p className="text-sm font-bold text-green-600">
                           {tMatch('pts', { points: race.points2 })}
                         </p>
                       </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
