@@ -255,6 +255,7 @@
     "champion": "チャンピオン: {name}",
     "noPlayersYet": "プレイヤーが追加されていません。「プレイヤー追加」をクリックして開始してください。",
     "qualificationStandings": "予選順位表",
+    "qualificationRegistrationLocked": "本線開始後は、予選へのプレイヤー追加はできません。",
     "playersCompleted": "{completed} / {total} 名完了",
     "rank": "順位",
     "progress": "進捗",

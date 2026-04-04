@@ -255,6 +255,7 @@
     "champion": "Champion: {name}",
     "noPlayersYet": "No players added yet. Click \"Add Player\" to begin.",
     "qualificationStandings": "Group Stage Standings",
+    "qualificationRegistrationLocked": "Players cannot be added to qualification after the knockout stage starts.",
     "playersCompleted": "{completed} / {total} players completed",
     "rank": "Rank",
     "progress": "Progress",

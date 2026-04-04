@@ -546,6 +546,114 @@ async function nav(p, u) {
     }
   } else { log('TC-312', 'SKIP'); }
 
+  // TC-313: TA admin cannot add qualification players after knockout starts
+  if (pid) {
+    let taTournamentId = null;
+    try {
+      const taTournament = await page.evaluate(async d => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json() };
+      }, {
+        name: `E2E TA Add Lock ${Date.now()}`,
+        date: new Date().toISOString(),
+        dualReportEnabled: false,
+      });
+      taTournamentId = taTournament.b?.data?.id ?? null;
+      if (taTournament.s !== 201 || !taTournamentId) {
+        throw new Error('Failed to create TA tournament');
+      }
+
+      const activateTournament = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { ok: r.ok, s: r.status };
+      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
+      if (!activateTournament.ok) {
+        throw new Error(`Failed to activate TA tournament (${activateTournament.s})`);
+      }
+
+      const addTaEntry = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [`/api/tournaments/${taTournamentId}/ta`, { playerId: pid }]);
+      const taEntryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
+      if (addTaEntry.s !== 201 || !taEntryId) {
+        throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
+      }
+
+      const getEntry = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`);
+      const version = getEntry.b?.data?.version;
+      if (getEntry.s !== 200 || typeof version !== 'number') {
+        throw new Error(`Failed to fetch TT entry version (${getEntry.s})`);
+      }
+
+      const seedQualification = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [
+        `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`,
+        {
+          version,
+          times: { MC1: '1:00.00' },
+          totalTime: 60000,
+          rank: 17,
+        },
+      ]);
+      if (seedQualification.s !== 200) {
+        throw new Error(`Failed to seed qualification entry (${seedQualification.s})`);
+      }
+
+      const promotePhase1 = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [`/api/tournaments/${taTournamentId}/ta/phases`, { action: 'promote_phase1' }]);
+      if (promotePhase1.s !== 200) {
+        throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
+      }
+
+      await nav(page, `/tournaments/${taTournamentId}/ta`);
+      const adminText = await vis(page);
+      const addPlayerButton = page.getByRole('button', { name: /プレイヤー追加|Add Player/ }).first();
+      const addDisabled = await addPlayerButton.isDisabled().catch(() => false);
+      const warningVisible =
+        adminText.includes('本線開始後は、予選へのプレイヤー追加はできません。') ||
+        adminText.includes('Players cannot be added to qualification after the knockout stage starts.');
+
+      log('TC-313', addDisabled && warningVisible ? 'PASS' : 'FAIL',
+        !addDisabled ? 'Add Player button still enabled' : !warningVisible ? 'No add-lock warning' : '');
+    } catch (err) {
+      log('TC-313', 'FAIL', err instanceof Error ? err.message : 'TA add lock flow failed');
+    } finally {
+      if (taTournamentId) {
+        await page.evaluate(async (u) => {
+          await fetch(u, { method: 'DELETE' });
+        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+      }
+    }
+  } else { log('TC-313', 'SKIP'); }
+
   // TC-104: Player delete
   if (pid) {
     const dr = await page.evaluate(async u => {

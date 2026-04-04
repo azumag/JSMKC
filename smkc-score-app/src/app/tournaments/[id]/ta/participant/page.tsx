@@ -76,6 +76,7 @@ interface Tournament {
 interface TAApiData {
   entries?: TTEntry[];
   frozenStages?: string[];
+  qualificationRegistrationLocked?: boolean;
   qualificationEditingLockedForPlayers?: boolean;
 }
 
@@ -119,6 +120,7 @@ export default function TimeAttackParticipantPage({
   const [entries, setEntries] = useState<TTEntry[]>([]);
   /** Frozen stages from the tournament - when "qualification" is frozen, editing is blocked */
   const [frozenStages, setFrozenStages] = useState<string[]>([]);
+  const [qualificationRegistrationLocked, setQualificationRegistrationLocked] = useState(false);
   const [qualificationEditingLockedForPlayers, setQualificationEditingLockedForPlayers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +174,7 @@ export default function TimeAttackParticipantPage({
           const data = (json.data ?? json) as TAApiData;
           setEntries(data.entries || []);
           setFrozenStages(data.frozenStages || []);
+          setQualificationRegistrationLocked(Boolean(data.qualificationRegistrationLocked));
           setQualificationEditingLockedForPlayers(Boolean(data.qualificationEditingLockedForPlayers));
         }
       } catch (err) {
@@ -207,6 +210,9 @@ export default function TimeAttackParticipantPage({
       }
       if ('frozenStages' in unwrapped) {
         setFrozenStages(unwrapped.frozenStages as string[]);
+      }
+      if ('qualificationRegistrationLocked' in unwrapped) {
+        setQualificationRegistrationLocked(Boolean(unwrapped.qualificationRegistrationLocked));
       }
       if ('qualificationEditingLockedForPlayers' in unwrapped) {
         setQualificationEditingLockedForPlayers(Boolean(unwrapped.qualificationEditingLockedForPlayers));
@@ -550,8 +556,11 @@ export default function TimeAttackParticipantPage({
                 <p className="text-muted-foreground mb-4">
                   {tPart('notRegisteredTADesc')}
                 </p>
+                {qualificationRegistrationLocked && (
+                  <p className="text-sm text-destructive mb-4">{tTa('qualificationRegistrationLocked')}</p>
+                )}
                 {/** i18n: Add to TA button toggles between "Adding..." and "Add to Time Attack" */}
-                <Button onClick={handleAddToTimeAttack} disabled={submitting} className="w-full max-w-xs mx-auto">
+                <Button onClick={handleAddToTimeAttack} disabled={submitting || qualificationRegistrationLocked} className="w-full max-w-xs mx-auto">
                   {submitting ? tPart('adding') : tPart('addToTA')}
                 </Button>
               </CardContent>

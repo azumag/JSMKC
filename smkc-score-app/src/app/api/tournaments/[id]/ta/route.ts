@@ -189,6 +189,7 @@ export async function GET(
       courses: COURSES,
       stage: stageToQuery,
       qualCount,
+      qualificationRegistrationLocked: knockoutStarted,
       qualificationEditingLockedForPlayers: knockoutStarted,
       // Return frozen stages so the UI can disable editing for frozen phases
       frozenStages: (tournament?.frozenStages as string[]) || [],
@@ -236,6 +237,14 @@ export async function POST(
     // === Add Player to Qualification ===
     const authResult = await requireAdminOrPlayerSession();
     if (authResult.error) return authResult.error;
+
+    if (await hasKnockoutStageStarted(tournamentId)) {
+      return createErrorResponse(
+        "Cannot add players after knockout stage has started",
+        409,
+        "CONFLICT"
+      );
+    }
 
     // Support both single playerId and batch players array
     const playerIds = players || (playerId ? [playerId] : []);

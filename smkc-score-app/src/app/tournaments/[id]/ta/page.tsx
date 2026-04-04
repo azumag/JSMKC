@@ -249,6 +249,7 @@ export default function TimeAttackPage({
     return {
       entries: taData.entries || [],
       allPlayers: extractArrayData<Player>(playersJson),
+      qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
       frozenStages: taData.frozenStages || [],
     };
   }, [tournamentId]);
@@ -269,6 +270,7 @@ export default function TimeAttackPage({
    */
   const entries: TTEntry[] = pollData?.entries ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
 
@@ -656,6 +658,7 @@ export default function TimeAttackPage({
           <Dialog
             open={isAddPlayerDialogOpen}
             onOpenChange={(open) => {
+              if (qualificationRegistrationLocked && open) return;
               setIsAddPlayerDialogOpen(open);
               if (!open) {
                 // Reset selection state when dialog closes
@@ -666,7 +669,7 @@ export default function TimeAttackPage({
             }}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto">{tc('addPlayer')}</Button>
+              <Button variant="outline" className="w-full sm:w-auto" disabled={qualificationRegistrationLocked}>{tc('addPlayer')}</Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -755,6 +758,14 @@ export default function TimeAttackPage({
           )}
         </div>
       </div>
+
+      {qualificationRegistrationLocked && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="py-4 text-sm text-destructive">
+            {t('qualificationRegistrationLocked')}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages.
        * Only shown after qualification is frozen (completed) or if any phase has already started,

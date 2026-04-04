@@ -202,6 +202,7 @@ describe('/api/tournaments/[id]/ta', () => {
             entries: mockEntries,
             stage: 'qualification',
             qualCount: 10,
+            qualificationRegistrationLocked: false,
             qualificationEditingLockedForPlayers: false,
             frozenStages: [],
           }),
@@ -224,6 +225,7 @@ describe('/api/tournaments/[id]/ta', () => {
         expect.objectContaining({
           success: true,
           data: expect.objectContaining({
+            qualificationRegistrationLocked: true,
             qualificationEditingLockedForPlayers: true,
           }),
         })
@@ -307,6 +309,48 @@ describe('/api/tournaments/[id]/ta', () => {
         { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
         { status: 201 }
       );
+    });
+
+    it('should return 409 when knockout has already started', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
+      (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ playerId: VALID_UUID2 }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
+        { status: 409 }
+      );
+      expect(prisma.tTEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 409 when player tries to self-register after knockout has started', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'player-user', userType: 'player', playerId: VALID_UUID2, role: 'member' },
+      });
+      (prisma.tTEntry.findFirst as jest.Mock).mockResolvedValueOnce({ id: 'phase-entry-1' });
+
+      await taRoute.POST(
+        new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
+          method: 'POST',
+          body: JSON.stringify({ playerId: VALID_UUID2 }),
+        }),
+        { params: Promise.resolve({ id: VALID_UUID }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
+        { status: 409 }
+      );
+      expect(prisma.tTEntry.create).not.toHaveBeenCalled();
     });
 
     it('should return 400 for invalid tournament ID', async () => {
