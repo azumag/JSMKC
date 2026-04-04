@@ -373,6 +373,38 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
         expect(entry.player).not.toHaveProperty('password');
       }
     });
+
+    it('should normalize null round payloads to empty arrays', async () => {
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: null,
+          eliminatedIds: null,
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            rounds: [
+              expect.objectContaining({
+                id: 'round-1',
+                results: [],
+                eliminatedIds: [],
+              }),
+            ],
+          }),
+        })
+      );
+    });
   });
 
   describe('Phase 1 and Phase 2 parameters', () => {

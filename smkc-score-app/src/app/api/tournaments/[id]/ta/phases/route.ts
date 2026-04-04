@@ -46,6 +46,14 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 
+function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
+  return {
+    ...round,
+    results: Array.isArray(round.results) ? round.results : [],
+    eliminatedIds: Array.isArray(round.eliminatedIds) ? round.eliminatedIds : [],
+  };
+}
+
 /**
  * Admin authentication helper that returns the session.
  * Returns { error } if user is not authenticated or not admin.
@@ -192,7 +200,7 @@ export async function GET(
       const availableCourses = getAvailableCourses(playedCourses);
 
       response.entries = entries;
-      response.rounds = rounds;
+      response.rounds = rounds.map(normalizePhaseRound);
       response.availableCourses = availableCourses;
       response.playedCourses = playedCourses;
     }

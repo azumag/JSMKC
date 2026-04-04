@@ -347,7 +347,10 @@ describe("TA Finals Phase Manager", () => {
       expect(result.undoneRoundNumber).toBe(1);
       // Should clear round results
       expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: "round1" } })
+        expect.objectContaining({
+          where: { id: "round1" },
+          data: expect.objectContaining({ results: [] }),
+        })
       );
       // Should restore eliminated player
       expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
@@ -421,6 +424,12 @@ describe("TA Finals Phase Manager", () => {
       const result = await undoLastPhaseRound(mockPrismaClient as any, context, "phase3");
 
       expect(result.undoneRoundNumber).toBe(2);
+      expect(mockPrismaClient.tTPhaseRound.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "round2" },
+          data: expect.objectContaining({ results: [] }),
+        })
+      );
       // Should reset all phase3 entries first
       expect(mockPrismaClient.tTEntry.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({

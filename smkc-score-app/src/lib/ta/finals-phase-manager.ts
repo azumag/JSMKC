@@ -1230,7 +1230,9 @@ export async function undoLastPhaseRound(
   await prisma.tTPhaseRound.update({
     where: { id: lastRound.id },
     data: {
-      results: Prisma.JsonNull,
+      // Keep an empty array rather than JsonNull so client code can safely
+      // treat the round as "open again" without null checks.
+      results: [],
       eliminatedIds: Prisma.JsonNull,
       livesReset: false,
     },
