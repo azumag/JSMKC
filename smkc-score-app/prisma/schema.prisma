@@ -121,6 +121,7 @@ model Player {
 model Tournament {
   id            String   @id @default(cuid())
   name          String
+  slug          String?  @unique
   date          DateTime
   status        String   @default("draft") // draft, active, completed
   dualReportEnabled Boolean @default(false) // When true, both players must report matching scores for auto-confirmation

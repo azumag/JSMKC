@@ -20,6 +20,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -91,9 +92,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
   async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) {
-    const logger = createLogger(config.loggerName);
-    const { id: tournamentId } = await params;
+    ) {
+      const logger = createLogger(config.loggerName);
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const qualifications = await qualModel(prisma).findMany({
@@ -151,7 +153,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return handleRateLimitError(rateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const body = sanitizeInput(await request.json());
@@ -363,7 +366,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return handleRateLimitError(putRateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       /* Defense-in-depth: always sanitize user input */
@@ -457,7 +461,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return handleRateLimitError(patchRateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const body = sanitizeInput(await request.json());

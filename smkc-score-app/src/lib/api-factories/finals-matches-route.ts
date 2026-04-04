@@ -21,6 +21,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
  * Zod schema for validating match creation requests.
@@ -90,7 +91,8 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       return handleRateLimitError(rateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       let body = await request.json();

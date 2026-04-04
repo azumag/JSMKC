@@ -23,6 +23,7 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -43,7 +44,8 @@ export async function GET(
     return handleAuthzError();
   }
 
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   try {
     // Fetch all score entry logs for this tournament.

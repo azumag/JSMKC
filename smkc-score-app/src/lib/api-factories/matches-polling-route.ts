@@ -15,6 +15,7 @@ import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { auth } from '@/lib/auth';
 import { createErrorResponse, handleAuthError } from '@/lib/error-handling';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 export interface MatchesPollingConfig {
   matchModel: string;
@@ -31,7 +32,8 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
     { params }: { params: Promise<{ id: string }> }
   ) {
     const logger = createLogger(config.loggerName);
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const { searchParams } = new URL(request.url);

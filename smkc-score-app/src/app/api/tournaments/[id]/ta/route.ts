@@ -34,6 +34,7 @@ import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
 
@@ -151,17 +152,9 @@ export async function GET(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
-
-    // Validate tournament ID format to prevent injection
-    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
-    const cuidSchema = z.string().cuid();
-    const parseResult = cuidSchema.safeParse(tournamentId);
-    if (!parseResult.success) {
-      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
-    }
-
     // Parse optional stage query parameter (defaults to "qualification")
     const { searchParams } = new URL(request.url);
     const stage = StageSchema.safeParse(searchParams.get("stage"));
@@ -213,17 +206,9 @@ export async function POST(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
-
-    // Validate tournament ID format
-    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
-    const cuidSchema = z.string().cuid();
-    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
-    if (!tournamentIdResult.success) {
-      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
-    }
-
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
 
@@ -342,17 +327,9 @@ export async function PUT(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
-
-    // Validate tournament ID format
-    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
-    const cuidSchema = z.string().cuid();
-    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
-    if (!tournamentIdResult.success) {
-      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
-    }
-
     // Sanitize and validate request body
     const body = sanitizeInput(await request.json());
 
@@ -637,19 +614,12 @@ export async function DELETE(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
 
     const authResult = await requireAdminAndGetSession();
     if (authResult.error) return authResult.error;
-
-    // Validate tournament ID format
-    /* Prisma generates CUID, not UUID — use .cuid() for ID validation */
-    const cuidSchema = z.string().cuid();
-    const tournamentIdResult = cuidSchema.safeParse(tournamentId);
-    if (!tournamentIdResult.success) {
-      return createErrorResponse("Invalid tournament ID format", 400, "VALIDATION_ERROR");
-    }
 
     // Get entry ID from query parameters
     const { searchParams } = new URL(request.url);
@@ -660,6 +630,7 @@ export async function DELETE(
     }
 
     // Validate entry ID format
+    const cuidSchema = z.string().cuid();
     const entryIdResult = cuidSchema.safeParse(entryId);
     if (!entryIdResult.success) {
       return createErrorResponse("Invalid entry ID format", 400, "VALIDATION_ERROR");

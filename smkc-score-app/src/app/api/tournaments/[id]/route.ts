@@ -19,6 +19,7 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import { isValidTournamentSlug, normalizeTournamentSlug, resolveTournamentId } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -49,7 +50,8 @@ export async function GET(
 ) {
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-api');
-  const { id } = await params;
+  const { id: identifier } = await params;
+  const resolvedId = await resolveTournamentId(identifier);
 
   try {
     const { searchParams } = new URL(request.url);
@@ -63,10 +65,11 @@ export async function GET(
     const isSummary = searchParams.get('fields') === 'summary';
 
     const tournament = await prisma.tournament.findUnique({
-      where: { id },
+      where: { id: resolvedId },
       select: isSummary
         ? {
             id: true,
+            slug: true,
             name: true,
             date: true,
             status: true,
@@ -76,6 +79,7 @@ export async function GET(
           }
         : {
             id: true,
+            slug: true,
             name: true,
             date: true,
             status: true,
@@ -103,7 +107,7 @@ export async function GET(
     return createSuccessResponse(tournament);
   } catch (error) {
     // Log with tournament ID for easy filtering in log aggregation
-    logger.error("Failed to fetch tournament", { error, id });
+    logger.error("Failed to fetch tournament", { error, id: resolvedId });
     return createErrorResponse("Failed to fetch tournament", 500);
   }
 }
@@ -139,11 +143,17 @@ export async function PUT(
   }
 
   const { id } = await params;
+  const resolvedId = await resolveTournamentId(id);
 
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
     const { name, date, status, frozenStages } = body;
+    const slug = normalizeTournamentSlug(body.slug);
+
+    if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
+      return handleValidationError("Slug must contain only lowercase letters, numbers, and hyphens", "slug");
+    }
 
     // Validate frozenStages if provided: only "qualification" is supported.
     // Phase freeze was removed because phase operations are admin-only.
@@ -163,9 +173,10 @@ export async function PUT(
     // This prevents accidentally nullifying fields that weren't included
     // in the request body.
     const tournament = await prisma.tournament.update({
-      where: { id },
+      where: { id: resolvedId },
       data: {
         ...(name && { name }),
+        ...(slug !== undefined && { slug }),
         ...(date && { date: new Date(date) }),
         ...(status && { status }),
         ...(frozenStages !== undefined && { frozenStages }),
@@ -181,10 +192,11 @@ export async function PUT(
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TOURNAMENT,
-        targetId: id,
+        targetId: resolvedId,
         targetType: 'Tournament',
         details: {
           name,
+          slug,
           date,
           status,
           frozenStages,
@@ -194,7 +206,7 @@ export async function PUT(
       // Audit log failure is non-critical but logged for security tracking
       logger.warn('Failed to create audit log', {
         error: logError,
-        id,
+        id: resolvedId,
         action: 'UPDATE_TOURNAMENT',
       });
     }
@@ -202,7 +214,7 @@ export async function PUT(
     return createSuccessResponse(tournament);
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
-    logger.error("Failed to update tournament", { error, id });
+    logger.error("Failed to update tournament", { error, id: resolvedId });
 
     // P2025: Record not found - tournament ID doesn't exist
     if (
@@ -212,6 +224,15 @@ export async function PUT(
       error.code === "P2025"
     ) {
       return createErrorResponse("Tournament not found", 404);
+    }
+
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return createErrorResponse("Tournament slug already exists", 409, "CONFLICT");
     }
 
     return createErrorResponse("Failed to update tournament", 500);
@@ -243,11 +264,12 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const resolvedId = await resolveTournamentId(id);
 
   try {
     // Delete the tournament record from the database
     await prisma.tournament.delete({
-      where: { id }
+      where: { id: resolvedId }
     });
 
     // Audit log for the deletion - important for security tracking
@@ -259,17 +281,17 @@ export async function DELETE(
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_TOURNAMENT,
-        targetId: id,
+        targetId: resolvedId,
         targetType: 'Tournament',
         details: {
-          tournamentId: id,
+          tournamentId: resolvedId,
         },
       });
     } catch (logError) {
       // Audit log failure is non-critical but logged for security tracking
       logger.warn('Failed to create audit log', {
         error: logError,
-        id,
+        id: resolvedId,
         action: 'DELETE_TOURNAMENT',
       });
     }
@@ -277,7 +299,7 @@ export async function DELETE(
     return createSuccessResponse({ message: "Tournament deleted successfully" });
   } catch (error: unknown) {
     // Log error with tournament ID for debugging
-    logger.error("Failed to delete tournament", { error, id });
+    logger.error("Failed to delete tournament", { error, id: resolvedId });
 
     // P2025: Record not found - cannot delete a non-existent tournament
     if (

@@ -43,6 +43,7 @@ import {
 } from "@/lib/error-handling";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * MR-specific stats recalculation config.
@@ -70,7 +71,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
   const logger = createLogger('mr-score-report-api');
-  const { id: tournamentId, matchId } = await params;
+  const { id, matchId } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   /* Rate limit: prevent abuse on score report endpoint */
   const clientIp = getClientIdentifier(request);

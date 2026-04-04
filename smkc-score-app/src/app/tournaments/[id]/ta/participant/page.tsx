@@ -397,6 +397,9 @@ export default function TimeAttackParticipantPage({
   }
 
   const qualificationEditingLocked = !isAdmin && qualificationEditingLockedForPlayers;
+  const showQualificationRegistrationLockedToast = () => {
+    toast.info(tTa('qualificationRegistrationLocked'));
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -556,11 +559,20 @@ export default function TimeAttackParticipantPage({
                 <p className="text-muted-foreground mb-4">
                   {tPart('notRegisteredTADesc')}
                 </p>
-                {qualificationRegistrationLocked && (
-                  <p className="text-sm text-destructive mb-4">{tTa('qualificationRegistrationLocked')}</p>
-                )}
                 {/** i18n: Add to TA button toggles between "Adding..." and "Add to Time Attack" */}
-                <Button onClick={handleAddToTimeAttack} disabled={submitting || qualificationRegistrationLocked} className="w-full max-w-xs mx-auto">
+                <Button
+                  onClick={() => {
+                    if (qualificationRegistrationLocked) {
+                      showQualificationRegistrationLockedToast();
+                      return;
+                    }
+                    void handleAddToTimeAttack();
+                  }}
+                  disabled={submitting}
+                  aria-disabled={qualificationRegistrationLocked}
+                  title={qualificationRegistrationLocked ? tTa('qualificationRegistrationLocked') : undefined}
+                  className={`w-full max-w-xs mx-auto ${qualificationRegistrationLocked ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
                   {submitting ? tPart('adding') : tPart('addToTA')}
                 </Button>
               </CardContent>

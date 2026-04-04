@@ -273,6 +273,9 @@ export default function TimeAttackPage({
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
+  const showQualificationRegistrationLockedToast = () => {
+    toast.info(t('qualificationRegistrationLocked'));
+  };
 
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
@@ -669,7 +672,19 @@ export default function TimeAttackPage({
             }}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto" disabled={qualificationRegistrationLocked}>{tc('addPlayer')}</Button>
+              <Button
+                variant="outline"
+                className={`w-full sm:w-auto ${qualificationRegistrationLocked ? "cursor-not-allowed opacity-50" : ""}`}
+                aria-disabled={qualificationRegistrationLocked}
+                title={qualificationRegistrationLocked ? t('qualificationRegistrationLocked') : undefined}
+                onClick={(event) => {
+                  if (!qualificationRegistrationLocked) return;
+                  event.preventDefault();
+                  showQualificationRegistrationLockedToast();
+                }}
+              >
+                {tc('addPlayer')}
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -758,14 +773,6 @@ export default function TimeAttackPage({
           )}
         </div>
       </div>
-
-      {qualificationRegistrationLocked && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="py-4 text-sm text-destructive">
-            {t('qualificationRegistrationLocked')}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages.
        * Only shown after qualification is frozen (completed) or if any phase has already started,

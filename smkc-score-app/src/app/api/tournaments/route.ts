@@ -19,6 +19,7 @@ import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
+import { isValidTournamentSlug, normalizeTournamentSlug } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -99,10 +100,15 @@ export async function POST(request: NextRequest) {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
     const { name, date, dualReportEnabled } = body;
+    const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
     if (!name || !date) {
       return handleValidationError("Name and date are required");
+    }
+
+    if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
+      return handleValidationError("Slug must contain only lowercase letters, numbers, and hyphens", "slug");
     }
 
     // Create the tournament with initial "draft" status.
@@ -111,6 +117,7 @@ export async function POST(request: NextRequest) {
     const tournament = await prisma.tournament.create({
       data: {
         name,
+        ...(slug !== undefined && { slug }),
         date: new Date(date),
         status: "draft",
         dualReportEnabled: dualReportEnabled === true,
@@ -131,6 +138,7 @@ export async function POST(request: NextRequest) {
         targetType: 'Tournament',
         details: {
           name,
+          slug,
           date,
         },
       });
@@ -150,6 +158,15 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return createErrorResponse("Tournament slug already exists", 409, "CONFLICT");
+    }
+
     // Log error with structured metadata for monitoring
     logger.error("Failed to create tournament", { error });
     return createErrorResponse("Failed to create tournament", 500);

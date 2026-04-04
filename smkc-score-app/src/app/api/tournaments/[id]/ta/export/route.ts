@@ -17,6 +17,7 @@ import prisma from "@/lib/prisma";
 import { createCSV, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
 import { createErrorResponse } from "@/lib/error-handling";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * GET /api/tournaments/[id]/ta/export
@@ -36,7 +37,8 @@ export async function GET(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-export-api');
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
 
     // Fetch tournament name and date for the filename

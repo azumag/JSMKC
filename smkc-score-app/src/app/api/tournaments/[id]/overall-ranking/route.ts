@@ -31,6 +31,7 @@ import {
   handleAuthError,
   handleAuthzError,
 } from "@/lib/error-handling";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -47,7 +48,8 @@ export async function GET(
 ) {
   const logger = createLogger("overall-ranking-api");
 
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   try {
     /* Verify the tournament exists before querying rankings */
@@ -118,7 +120,8 @@ export async function POST(
     return handleAuthzError();
   }
 
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   try {
     /* Verify the tournament exists */

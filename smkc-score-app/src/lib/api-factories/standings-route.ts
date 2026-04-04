@@ -20,6 +20,7 @@ import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse } from '@/lib/error-handling';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
  * Configuration for a standings route handler.
@@ -87,7 +88,8 @@ export function createStandingsHandlers(config: StandingsConfig) {
       return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const ifNoneMatch = request.headers.get('if-none-match');

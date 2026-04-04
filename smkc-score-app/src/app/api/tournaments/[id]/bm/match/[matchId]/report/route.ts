@@ -45,6 +45,7 @@ import {
 
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * BM-specific stats recalculation config.
@@ -74,7 +75,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string; matchId: string }> }
 ) {
   const logger = createLogger('bm-score-report-api');
-  const { id: tournamentId, matchId } = await params;
+  const { id, matchId } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   /* Rate limit: prevent abuse on score report endpoint */
   const clientIp = getClientIdentifier(request);

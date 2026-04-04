@@ -232,15 +232,26 @@ describe('/api/tournaments/[id]/ta', () => {
       );
     });
 
-    it('should return 400 for invalid tournament ID', async () => {
+    it('should resolve tournament slug for GET', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ frozenStages: [] });
+      (prisma.tTEntry.count as jest.Mock).mockResolvedValueOnce(0);
+
       await taRoute.GET(
-        new NextRequest('http://localhost:3000/api/tournaments/invalid-id/ta'),
-        { params: Promise.resolve({ id: 'invalid-id' }) }
+        new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta'),
+        { params: Promise.resolve({ id: 'jsmkc2026' }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
-        { status: 400 }
+      expect(prisma.tournament.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
+        })
+      );
+      expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tournamentId: VALID_UUID, stage: 'qualification' },
+        })
       );
     });
 
@@ -353,18 +364,34 @@ describe('/api/tournaments/[id]/ta', () => {
       expect(prisma.tTEntry.create).not.toHaveBeenCalled();
     });
 
-    it('should return 400 for invalid tournament ID', async () => {
+    it('should resolve tournament slug for POST', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
+      });
+      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.tTEntry.create as jest.Mock).mockResolvedValue({
+        id: VALID_ENTRY_ID,
+        tournamentId: VALID_UUID,
+        playerId: VALID_UUID2,
+        stage: 'qualification',
+        player: { nickname: 'Player' },
+      });
+
       await taRoute.POST(
-        new NextRequest('http://localhost:3000/api/tournaments/bad-id/ta', {
+        new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta', {
           method: 'POST',
           body: JSON.stringify({ playerId: VALID_UUID2 }),
         }),
-        { params: Promise.resolve({ id: 'bad-id' }) }
+        { params: Promise.resolve({ id: 'jsmkc2026' }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
-        { status: 400 }
+      expect(prisma.tTEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tournamentId: VALID_UUID,
+          }),
+        })
       );
     });
 
@@ -550,9 +577,34 @@ describe('/api/tournaments/[id]/ta', () => {
       });
     });
 
-    it('should return 400 for invalid tournament ID', async () => {
+    it('should resolve tournament slug for PUT', async () => {
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValueOnce({ id: VALID_UUID });
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({
+          id: VALID_ENTRY_ID,
+          tournamentId: VALID_UUID,
+          playerId: 'p1',
+          stage: 'qualification',
+          times: {},
+        })
+        .mockResolvedValueOnce({
+          id: VALID_ENTRY_ID,
+          tournamentId: VALID_UUID,
+          playerId: 'p1',
+          stage: 'qualification',
+          times: { MC1: '1:20.000' },
+          player: { id: 'p1', nickname: 'TestPlayer' },
+        });
+      (prisma.tTEntry.update as jest.Mock).mockResolvedValue({
+        id: VALID_ENTRY_ID,
+        times: { MC1: '1:20.000' },
+      });
+
       await taRoute.PUT(
-        new NextRequest('http://localhost:3000/api/tournaments/bad-id/ta', {
+        new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta', {
           method: 'PUT',
           body: JSON.stringify({
             entryId: VALID_ENTRY_ID,
@@ -560,12 +612,13 @@ describe('/api/tournaments/[id]/ta', () => {
             time: '1:20.000',
           }),
         }),
-        { params: Promise.resolve({ id: 'bad-id' }) }
+        { params: Promise.resolve({ id: 'jsmkc2026' }) }
       );
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        { success: false, error: 'Invalid tournament ID format', code: 'VALIDATION_ERROR' },
-        { status: 400 }
+      expect(prisma.tournament.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
+        })
       );
     });
 

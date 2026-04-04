@@ -62,6 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { extractArrayData } from "@/lib/api-response";
 import { createLogger } from "@/lib/client-logger";
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { getTournamentUrlIdentifier } from "@/lib/tournament-identifier";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-list' });
@@ -72,6 +73,7 @@ const logger = createLogger({ serviceName: 'tournaments-list' });
  */
 interface Tournament {
   id: string;
+  slug?: string | null;
   name: string;
   date: string;
   status: string;
@@ -104,6 +106,7 @@ export default function TournamentsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    slug: "",
     date: "",
     dualReportEnabled: false,
   });
@@ -157,7 +160,7 @@ export default function TournamentsPage() {
       });
 
       if (response.ok) {
-        setFormData({ name: "", date: "", dualReportEnabled: false });
+        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false });
         setIsAddDialogOpen(false);
         fetchTournaments();
       } else {
@@ -230,7 +233,7 @@ export default function TournamentsPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", date: "", dualReportEnabled: false })}>
+              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false })}>
                 {t('createTournament')}
               </Button>
             </DialogTrigger>
@@ -269,6 +272,20 @@ export default function TournamentsPage() {
                     }
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slug">{t('customUrl')}</Label>
+                  <Input
+                    id="slug"
+                    value={formData.slug}
+                    onChange={(e) =>
+                      setFormData({ ...formData, slug: e.target.value.toLowerCase() })
+                    }
+                    placeholder={t('customUrlPlaceholder')}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t('customUrlHelp')}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 pt-2">
                   <input
@@ -334,7 +351,7 @@ export default function TournamentsPage() {
                     {/* Tournament name links to the detail page */}
                     <TableCell className="font-medium">
                       <Link
-                        href={`/tournaments/${tournament.id}`}
+                        href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}
                         className="hover:underline"
                       >
                         {tournament.name}
@@ -347,7 +364,7 @@ export default function TournamentsPage() {
                     <TableCell className="text-right space-x-2">
                       {/* Open button navigates to tournament detail page */}
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/tournaments/${tournament.id}`}>
+                        <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>
                           {tc('open')}
                         </Link>
                       </Button>

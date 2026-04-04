@@ -634,15 +634,23 @@ async function nav(p, u) {
       }
 
       await nav(page, `/tournaments/${taTournamentId}/ta`);
-      const adminText = await vis(page);
       const addPlayerButton = page.getByRole('button', { name: /プレイヤー追加|Add Player/ }).first();
-      const addDisabled = await addPlayerButton.isDisabled().catch(() => false);
-      const warningVisible =
-        adminText.includes('本線開始後は、予選へのプレイヤー追加はできません。') ||
-        adminText.includes('Players cannot be added to qualification after the knockout stage starts.');
+      const ariaDisabled = await addPlayerButton.getAttribute('aria-disabled');
+      await addPlayerButton.click();
+      await page.waitForTimeout(1000);
+      const toastVisible = await page.locator('[data-sonner-toast]').filter({
+        hasText: /本線開始後は、予選へのプレイヤー追加はできません。|Players cannot be added to qualification after the knockout stage starts./,
+      }).count().then((count) => count > 0);
+      const dialogOpened = await page.getByText(/TA にプレイヤーを追加|Add Player to TA/).count().then((count) => count > 0);
 
-      log('TC-313', addDisabled && warningVisible ? 'PASS' : 'FAIL',
-        !addDisabled ? 'Add Player button still enabled' : !warningVisible ? 'No add-lock warning' : '');
+      log('TC-313', ariaDisabled === 'true' && toastVisible && !dialogOpened ? 'PASS' : 'FAIL',
+        ariaDisabled !== 'true'
+          ? 'Add Player button is not marked locked'
+          : !toastVisible
+            ? 'No add-lock toast'
+            : dialogOpened
+              ? 'Add Player dialog still opened'
+              : '');
     } catch (err) {
       log('TC-313', 'FAIL', err instanceof Error ? err.message : 'TA add lock flow failed');
     } finally {

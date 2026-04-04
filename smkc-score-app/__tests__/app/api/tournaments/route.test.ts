@@ -300,6 +300,31 @@ describe('POST /api/tournaments', () => {
         { status: 400 }
       );
     });
+
+    it('should return 400 when slug format is invalid', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Tournament',
+        date: '2024-01-01',
+        slug: 'Invalid Slug',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test Tournament', date: '2024-01-01', slug: 'Invalid Slug' }),
+      });
+
+      await tournamentsRoute.POST(request);
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Slug must contain only lowercase letters, numbers, and hyphens',
+        }),
+        { status: 400 }
+      );
+    });
   });
 
   describe('Success Cases', () => {
@@ -423,6 +448,42 @@ describe('POST /api/tournaments', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         { success: true, data: mockTournament },
         { status: 201 }
+      );
+    });
+
+    it('should normalize and persist slug when provided', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({
+        name: 'Test Tournament',
+        date: '2024-01-01',
+        slug: 'JSMKC2026',
+      });
+      (prisma.tournament.create as jest.Mock).mockResolvedValue({
+        ...mockTournament,
+        slug: 'jsmkc2026',
+      });
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      rateLimitMock.getServerSideIdentifier.mockResolvedValue('127.0.0.1');
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Test Tournament',
+          date: '2024-01-01',
+          slug: 'JSMKC2026',
+        }),
+      });
+
+      await tournamentsRoute.POST(request);
+
+      expect(prisma.tournament.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: 'jsmkc2026',
+          }),
+        })
       );
     });
   });

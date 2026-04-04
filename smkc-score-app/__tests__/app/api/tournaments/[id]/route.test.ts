@@ -187,6 +187,7 @@ describe('GET /api/tournaments/[id]', () => {
       const callArgs = (prisma.tournament.findUnique as jest.Mock).mock.calls[0][0];
       expect(callArgs.select).not.toHaveProperty('bmQualifications');
       expect(callArgs.select).not.toHaveProperty('bmMatches');
+      expect(callArgs.select).toHaveProperty('slug', true);
       expect(callArgs.select).toHaveProperty('name', true);
       expect(callArgs.select).toHaveProperty('status', true);
     });
@@ -209,6 +210,37 @@ describe('GET /api/tournaments/[id]', () => {
       const callArgs = (prisma.tournament.findUnique as jest.Mock).mock.calls[0][0];
       expect(callArgs.select).toHaveProperty('bmQualifications');
       expect(callArgs.select).toHaveProperty('bmMatches');
+    });
+
+    it('should resolve tournament slug before fetching details', async () => {
+      const mockTournament = {
+        id: 't1',
+        slug: 'jsmkc2026',
+        name: 'Test Tournament',
+        bmQualifications: [],
+        bmMatches: [],
+      };
+
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({ id: 't1' });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026'),
+        { params: Promise.resolve({ id: 'jsmkc2026' }) }
+      );
+
+      expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }],
+        },
+        select: { id: true },
+      });
+
+      expect(prisma.tournament.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 't1' },
+        })
+      );
     });
   });
 

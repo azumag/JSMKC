@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { createCSV } from '@/lib/excel';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse } from '@/lib/error-handling';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 interface ExportPlayer {
   name: string;
@@ -49,7 +50,8 @@ export function createExportHandlers(config: ExportConfig) {
     { params }: { params: Promise<{ id: string }> }
   ) {
     const logger = createLogger(config.loggerName);
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       const tournament = await prisma.tournament.findUnique({

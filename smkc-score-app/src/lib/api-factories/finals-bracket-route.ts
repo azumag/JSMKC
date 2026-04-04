@@ -21,6 +21,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
  * Configuration for a finals bracket route handler.
@@ -60,7 +61,8 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       /* Fetch all finals matches ordered by match number for bracket display */
@@ -123,7 +125,8 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       return handleRateLimitError(rateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       /* Fetch qualification standings for seeding */

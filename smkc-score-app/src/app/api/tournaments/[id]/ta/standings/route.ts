@@ -22,6 +22,7 @@ import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
 import { createLogger } from "@/lib/logger";
 import { msToDisplayTime } from "@/lib/ta/time-utils";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * GET /api/tournaments/[id]/ta/standings
@@ -51,7 +52,8 @@ export async function GET(
     return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
   }
 
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
     // Check for conditional request header (ETag-based)
     const ifNoneMatch = request.headers.get('if-none-match');

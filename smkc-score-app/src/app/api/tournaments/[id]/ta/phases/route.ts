@@ -44,6 +44,7 @@ import {
 import { getAvailableCourses, getPlayedCourses } from "@/lib/ta/course-selection";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 /**
  * Admin authentication helper that returns the session.
@@ -127,7 +128,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger("ta-phases-api");
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   try {
     // Validate tournament exists
@@ -224,7 +226,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const logger = createLogger("ta-phases-api");
-  const { id: tournamentId } = await params;
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
 
   // Require admin authentication
   const { error: authError, session } = await requireAdminAndGetSession();

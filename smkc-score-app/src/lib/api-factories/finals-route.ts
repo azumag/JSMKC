@@ -25,6 +25,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
  * Configuration for a finals route handler set.
@@ -78,7 +79,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       if (config.getStyle === 'paginated') {
@@ -177,7 +179,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return handleRateLimitError(postRateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       /* Defense-in-depth: always sanitize user input */
@@ -288,7 +291,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return handleRateLimitError(putRateResult.retryAfter);
     }
 
-    const { id: tournamentId } = await params;
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
 
     try {
       /* Defense-in-depth: always sanitize user input */
