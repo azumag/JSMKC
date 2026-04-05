@@ -133,8 +133,11 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
           tournamentId: 't1',
           rank: 1,
           totalTime: 83456,
+          qualificationPoints: 850,
           lives: 1,
           eliminated: false,
+          times: { MC1: '0:58.123', DP1: '1:02.456' },
+          courseScores: { MC1: 50, DP1: 45 },
           player: {
             id: 'p1',
             name: 'Player 1',
@@ -146,8 +149,11 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
           tournamentId: 't1',
           rank: 2,
           totalTime: 91234,
+          qualificationPoints: 720,
           lives: 2,
           eliminated: false,
+          times: { MC1: '1:01.000', DP1: '1:05.789' },
+          courseScores: { MC1: 40, DP1: 38 },
           player: {
             id: 'p2',
             name: 'Player 2',
@@ -180,11 +186,20 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         orderBy: { rank: 'asc' },
       });
 
-      // Verify createCSV was called with correct headers and data
+      // Verify createCSV was called with correct headers and data including per-course columns
+      const expectedCourseHeaders = [
+        'MC1 Time', 'MC1 Points', 'DP1 Time', 'DP1 Points', 'GV1 Time', 'GV1 Points',
+        'BC1 Time', 'BC1 Points', 'MC2 Time', 'MC2 Points', 'CI1 Time', 'CI1 Points',
+        'GV2 Time', 'GV2 Points', 'DP2 Time', 'DP2 Points', 'BC2 Time', 'BC2 Points',
+        'MC3 Time', 'MC3 Points', 'KB1 Time', 'KB1 Points', 'CI2 Time', 'CI2 Points',
+        'VL1 Time', 'VL1 Points', 'BC3 Time', 'BC3 Points', 'MC4 Time', 'MC4 Points',
+        'DP3 Time', 'DP3 Points', 'KB2 Time', 'KB2 Points', 'GV3 Time', 'GV3 Points',
+        'VL2 Time', 'VL2 Points', 'RR Time', 'RR Points',
+      ];
       expect(excelMock.createCSV).toHaveBeenCalledWith(
-        ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated'],
+        ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Qualification Points', 'Lives', 'Eliminated', ...expectedCourseHeaders],
         expect.arrayContaining([
-          expect.arrayContaining([1, 'Player 1', 'player1', '83456', '1:23.456', '1', 'No']),
+          expect.arrayContaining([1, 'Player 1', 'player1', '83456', '1:23.456', '850', '1', 'No', '0:58.123', '50', '1:02.456', '45']),
         ])
       );
 
@@ -236,9 +251,9 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         params: Promise.resolve({ id: 't1' })
       });
 
-      // Empty entries should produce an empty data array
+      // Empty entries should produce an empty data array but still include all headers
       expect(excelMock.createCSV).toHaveBeenCalledWith(
-        ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated'],
+        expect.arrayContaining(['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Qualification Points', 'Lives', 'Eliminated', 'MC1 Time', 'MC1 Points', 'RR Time', 'RR Points']),
         []
       );
 
@@ -247,6 +262,78 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
       const [body, init] = NextResponse._constructorCalls[0];
       expect(body).toContain('mock,csv,empty');
       expect(init.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+    });
+
+    it('should handle entries with null times and courseScores', async () => {
+      const mockTournament = { id: 't1', name: 'Test Tournament', date: new Date('2024-01-01') };
+      const mockEntries = [
+        {
+          id: 'entry1',
+          tournamentId: 't1',
+          rank: 1,
+          totalTime: 83456,
+          qualificationPoints: null,
+          lives: 3,
+          eliminated: false,
+          times: null,
+          courseScores: null,
+          player: { id: 'p1', name: 'Player 1', nickname: 'player1' },
+        },
+      ];
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
+      await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      // All 20 course columns should be '-' when times/courseScores are null
+      const callArgs = excelMock.createCSV.mock.calls[0];
+      const rows = callArgs[1] as unknown[][];
+      expect(rows).toHaveLength(1);
+      // qualificationPoints null → '-'
+      expect(rows[0][5]).toBe('-');
+      // Per-course columns (starting at index 8): all 40 columns should be '-'
+      for (let i = 8; i < rows[0].length; i++) {
+        expect(rows[0][i]).toBe('-');
+      }
+      // 8 summary columns + 20 courses * 2 = 48 total columns
+      expect(rows[0]).toHaveLength(48);
+    });
+
+    it('should correctly render eliminated entries and zero-value scores', async () => {
+      const mockTournament = { id: 't1', name: 'Test Tournament', date: new Date('2024-01-01') };
+      const mockEntries = [
+        {
+          id: 'entry1',
+          tournamentId: 't1',
+          rank: 1,
+          totalTime: 83456,
+          qualificationPoints: 0,
+          lives: 0,
+          eliminated: true,
+          // courseScores[c] === 0 is a valid score (last place on a course)
+          times: { MC1: '1:59.999' },
+          courseScores: { MC1: 0 },
+          player: { id: 'p1', name: 'Player 1', nickname: 'player1' },
+        },
+      ];
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
+      await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
+
+      const callArgs = excelMock.createCSV.mock.calls[0];
+      const rows = callArgs[1] as unknown[][];
+      expect(rows).toHaveLength(1);
+      // eliminated: true → 'Yes'
+      expect(rows[0][7]).toBe('Yes');
+      // qualificationPoints === 0 → '0' (not '-')
+      expect(rows[0][5]).toBe('0');
+      // courseScores[MC1] === 0 → '0' (not '-')
+      expect(rows[0][9]).toBe('0');
     });
   });
 

@@ -18,6 +18,7 @@ import { createCSV, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
 import { createErrorResponse } from "@/lib/error-handling";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { COURSES } from "@/lib/constants";
 
 /**
  * GET /api/tournaments/[id]/ta/export
@@ -29,7 +30,9 @@ import { resolveTournamentId } from "@/lib/tournament-identifier";
  * - Content-Disposition: attachment with tournament-specific filename
  * - Body: CSV data with BOM marker, headers, and entry rows
  *
- * CSV columns: Rank, Player Name, Nickname, Total Time (ms), Total Time, Lives, Eliminated
+ * CSV columns: Rank, Player Name, Nickname, Total Time (ms), Total Time, Qualification Points,
+ *              Lives, Eliminated, then per-course columns ({CourseAbbr} Time, {CourseAbbr} Points)
+ *              for all 20 courses in COURSES order.
  */
 export async function GET(
   request: Request,
@@ -58,19 +61,39 @@ export async function GET(
       orderBy: { rank: 'asc' },
     });
 
-    // Define CSV column headers
-    const entryHeaders = ['Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Lives', 'Eliminated'];
+    // Define CSV column headers: summary columns + per-course time and points
+    // Per-course columns follow the canonical COURSES order (20 courses, 2 columns each)
+    const entryHeaders = [
+      'Rank', 'Player Name', 'Nickname', 'Total Time (ms)', 'Total Time', 'Qualification Points', 'Lives', 'Eliminated',
+      ...COURSES.flatMap(c => [`${c} Time`, `${c} Points`]),
+    ];
 
     // Map entries to CSV row data
-    const entryData = entries.map((e) => [
-      e.rank || '-',
-      e.player.name,
-      e.player.nickname,
-      String(e.totalTime || 0),
-      e.totalTime ? formatTime(e.totalTime) : '-',
-      String(e.lives),
-      e.eliminated ? 'Yes' : 'No',
-    ]);
+    const entryData = entries.map((e) => {
+      // Cast JSON fields to typed records; fall back to empty objects when null
+      const times = (e.times as Record<string, string> | null) ?? {};
+      const courseScores = (e.courseScores as Record<string, number> | null) ?? {};
+
+      return [
+        // Use != null (not ||) to correctly handle rank===0 edge case
+        e.rank != null ? e.rank : '-',
+        e.player.name,
+        e.player.nickname,
+        // Use ?? to handle totalTime===0 correctly (valid zero-duration value)
+        String(e.totalTime ?? 0),
+        e.totalTime != null ? formatTime(e.totalTime) : '-',
+        // qualificationPoints may be null before any times are entered
+        e.qualificationPoints != null ? String(e.qualificationPoints) : '-',
+        String(e.lives),
+        e.eliminated ? 'Yes' : 'No',
+        // Per-course columns: time string as-is (already formatted), points as string
+        // Missing courses (player hasn't run that course yet) use '-'
+        ...COURSES.flatMap(c => [
+          times[c] ?? '-',
+          courseScores[c] != null ? String(courseScores[c]) : '-',
+        ]),
+      ];
+    });
 
     // Add UTF-8 BOM marker for proper encoding in Excel/spreadsheet apps
     const bom = '\uFEFF';
@@ -84,7 +107,9 @@ export async function GET(
     return new NextResponse(csvContent, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(csvFilename)}; filename="${csvFilename}"`,
+        // filename* uses RFC 5987 percent-encoding (safe for all characters).
+        // filename= fallback strips embedded quotes to avoid header syntax breakage.
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(csvFilename)}; filename="${csvFilename.replace(/"/g, "'")}"`,
       },
     });
   } catch (error) {
