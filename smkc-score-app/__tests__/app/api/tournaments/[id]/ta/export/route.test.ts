@@ -179,9 +179,9 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
         select: { name: true, date: true },
       });
 
-      // Verify entry lookup
+      // Verify entry lookup: qualification stage only to exclude finals phase entries
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1' },
+        where: { tournamentId: 't1', stage: 'qualification' },
         include: { player: true },
         orderBy: { rank: 'asc' },
       });

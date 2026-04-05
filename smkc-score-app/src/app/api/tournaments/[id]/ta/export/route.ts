@@ -54,9 +54,11 @@ export async function GET(
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
 
-    // Fetch all entries ordered by rank for export
+    // Fetch qualification-stage entries only, ordered by rank for export.
+    // Finals entries (phase1/phase2/phase3) share the same TTEntry table but
+    // have no courseScores/qualificationPoints, so they must be excluded.
     const entries = await prisma.tTEntry.findMany({
-      where: { tournamentId },
+      where: { tournamentId, stage: 'qualification' },
       include: { player: true },
       orderBy: { rank: 'asc' },
     });
