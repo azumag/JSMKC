@@ -95,9 +95,8 @@ export async function GET(
       ];
     });
 
-    // Add UTF-8 BOM marker for proper encoding in Excel/spreadsheet apps
-    const bom = '\uFEFF';
-    const csvContent = bom + createCSV(entryHeaders, entryData);
+    // createCSV already prepends the UTF-8 BOM internally; do not add it again
+    const csvContent = createCSV(entryHeaders, entryData);
 
     // Generate timestamp-based filename for uniqueness
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
