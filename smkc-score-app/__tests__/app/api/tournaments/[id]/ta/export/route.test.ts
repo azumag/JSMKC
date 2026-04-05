@@ -26,8 +26,7 @@
 
 // Mock excel utilities
 jest.mock('@/lib/excel', () => ({
-  createCSV: jest.fn(() => 'mock,csv,content\r\n'),
-  csvRow: jest.fn((values) => values.join(',') + '\r\n'),
+  createCSV: jest.fn(() => 'mock,csv,content'),
   formatTime: jest.fn(() => '1:23.456'),
 }));
 
@@ -97,7 +96,6 @@ import * as taExportRoute from '@/app/api/tournaments/[id]/ta/export/route';
 // Access mocks via requireMock for reliable references
 const excelMock = jest.requireMock('@/lib/excel') as {
   createCSV: jest.Mock;
-  csvRow: jest.Mock;
   formatTime: jest.Mock;
 };
 
@@ -167,7 +165,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       // No phase rounds: section 2 should be omitted
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
+
 
       const request = new NextRequest(
         'http://localhost:3000/api/tournaments/t1/ta/export'
@@ -245,7 +243,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
+
       excelMock.createCSV.mockReturnValue('mock,csv,empty');
 
       const request = new NextRequest(
@@ -288,7 +286,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
+
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
       await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -327,7 +325,7 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
+
 
       const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
       await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
@@ -341,68 +339,6 @@ describe('GET /api/tournaments/[id]/ta/export', () => {
       expect(rows[0][5]).toBe('0');
       // courseScores[MC1] === 0 → '0' (not '-')
       expect(rows[0][9]).toBe('0');
-    });
-
-    it('should append knockout phase rounds as a second section when present', async () => {
-      const mockTournament = { id: 't1', name: 'Test Tournament', date: new Date('2024-01-01') };
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-
-      const mockPhaseRounds = [
-        {
-          id: 'round1',
-          tournamentId: 't1',
-          phase: 'phase1',
-          roundNumber: 1,
-          course: 'MC1',
-          results: [
-            { playerId: 'p1', timeMs: 61010, isRetry: false },
-            { playerId: 'p2', timeMs: 65000, isRetry: true },
-          ],
-          eliminatedIds: ['p2'],
-          livesReset: false,
-        },
-      ];
-      const mockPhaseEntries = [
-        { playerId: 'p1', player: { name: 'Player 1', nickname: 'p1nick' } },
-        { playerId: 'p2', player: { name: 'Player 2', nickname: 'p2nick' } },
-      ];
-
-      // tTEntry.findMany is called twice: once for qualification, once for phase entries
-      (prisma.tTEntry.findMany as jest.Mock)
-        .mockResolvedValueOnce([])          // qualification call
-        .mockResolvedValueOnce(mockPhaseEntries); // phase player map call
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue(mockPhaseRounds);
-
-      const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
-      await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
-
-      // csvRow should have been called for section label, headers, and 2 player rows
-      expect(excelMock.csvRow).toHaveBeenCalledWith(['=== KNOCKOUT PHASES ===']);
-      expect(excelMock.csvRow).toHaveBeenCalledWith(
-        ['Phase', 'Round', 'Course', 'Player Name', 'Nickname', 'Time (ms)', 'Time', 'Retry', 'Eliminated This Round', 'Lives Reset After Round']
-      );
-      // p1: not eliminated, no retry
-      expect(excelMock.csvRow).toHaveBeenCalledWith(
-        ['phase1', 1, 'MC1', 'Player 1', 'p1nick', 61010, '1:23.456', 'No', 'No', 'No']
-      );
-      // p2: eliminated this round, retry
-      expect(excelMock.csvRow).toHaveBeenCalledWith(
-        ['phase1', 1, 'MC1', 'Player 2', 'p2nick', 65000, '1:23.456', 'Yes', 'Yes', 'No']
-      );
-    });
-
-    it('should omit phase section when no phase rounds exist', async () => {
-      const mockTournament = { id: 't1', name: 'Test Tournament', date: new Date('2024-01-01') };
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
-
-      const request = new NextRequest('http://localhost:3000/api/tournaments/t1/ta/export');
-      await taExportRoute.GET(request, { params: Promise.resolve({ id: 't1' }) });
-
-      // csvRow should NOT have been called (no phase section)
-      expect(excelMock.csvRow).not.toHaveBeenCalled();
     });
   });
 

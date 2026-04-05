@@ -160,8 +160,9 @@ export default function TimeAttackPage({
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
-  // Export state
+  // Export state (qualification and knockout tracked separately)
   const [exporting, setExporting] = useState(false);
+  const [exportingPhases, setExportingPhases] = useState(false);
 
   // Development-only flag: inlined at build time, tree-shaken in production
   const isDevelopment = process.env.NODE_ENV === 'development';
@@ -517,31 +518,53 @@ export default function TimeAttackPage({
     }
   };
 
-  /** Export qualification data as downloadable Excel/CSV file */
+  /** Shared download helper: fetch a CSV endpoint and trigger a browser download */
+  const downloadCsv = async (endpoint: string, fallbackFilename: string) => {
+    const response = await fetch(endpoint);
+    if (!response.ok) throw new Error("Failed to export data");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // Prefer the server-provided filename from Content-Disposition if available
+    const cd = response.headers.get("content-disposition");
+    const match = cd?.match(/filename="?([^"]+)"?/);
+    a.download = match ? match[1] : fallbackFilename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  /** Export qualification data as a CSV file */
   const handleExport = async () => {
     setExporting(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta/export`);
-      if (!response.ok) {
-        throw new Error("Failed to export data");
-      }
-
-      // Create download link and trigger browser download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `time-attack-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await downloadCsv(
+        `/api/tournaments/${tournamentId}/ta/export`,
+        `ta-qualification-${new Date().toISOString().split("T")[0]}.csv`
+      );
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to export";
-      logger.error("Failed to export:", { error: err, tournamentId });
-      setError(errorMessage);
+      logger.error("Failed to export qualification:", { error: err, tournamentId });
+      setError(err instanceof Error ? err.message : "Failed to export");
     } finally {
       setExporting(false);
+    }
+  };
+
+  /** Export knockout phase rounds as a CSV file */
+  const handleExportPhases = async () => {
+    setExportingPhases(true);
+    try {
+      await downloadCsv(
+        `/api/tournaments/${tournamentId}/ta/export/phases`,
+        `ta-knockout-${new Date().toISOString().split("T")[0]}.csv`
+      );
+    } catch (err) {
+      logger.error("Failed to export knockout phases:", { error: err, tournamentId });
+      setError(err instanceof Error ? err.message : "Failed to export");
+    } finally {
+      setExportingPhases(false);
     }
   };
 
@@ -652,6 +675,9 @@ export default function TimeAttackPage({
           )}
           <Button variant="outline" onClick={handleExport} disabled={exporting}>
             {exporting ? tc('exporting') : tc('exportExcel')}
+          </Button>
+          <Button variant="outline" onClick={handleExportPhases} disabled={exportingPhases}>
+            {exportingPhases ? tc('exporting') : tc('exportKnockout')}
           </Button>
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
