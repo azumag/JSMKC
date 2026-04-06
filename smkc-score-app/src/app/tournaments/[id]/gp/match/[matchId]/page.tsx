@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -224,17 +225,8 @@ export default function GPMatchPage({
     return course ? course.name : abbr;
   };
 
-  const formatGpPosition = (position: number) => {
-    if (position === 0) return tCommon('gameOver');
-    if (locale === 'ja') return `${position}位`;
-
-    const mod10 = position % 10;
-    const mod100 = position % 100;
-    if (mod10 === 1 && mod100 !== 11) return `${position}st`;
-    if (mod10 === 2 && mod100 !== 12) return `${position}nd`;
-    if (mod10 === 3 && mod100 !== 13) return `${position}rd`;
-    return `${position}th`;
-  };
+  // formatGpPosition imported from @/lib/gp-utils; bind locale and gameOver label locally
+  const fmtPos = (position: number) => formatGpPosition(position, locale, tCommon('gameOver'));
 
   /* Calculate running totals for the points preview using centralized driver points */
   const totalPoints1 = races.reduce(
@@ -424,7 +416,7 @@ export default function GPMatchPage({
                               <SelectContent>
                                 {GP_POSITION_OPTIONS.map((position) => (
                                   <SelectItem key={`p1-${index}-${position}`} value={position.toString()}>
-                                    {formatGpPosition(position)}
+                                    {fmtPos(position)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -449,7 +441,7 @@ export default function GPMatchPage({
                               <SelectContent>
                                 {GP_POSITION_OPTIONS.map((position) => (
                                   <SelectItem key={`p2-${index}-${position}`} value={position.toString()}>
-                                    {formatGpPosition(position)}
+                                    {fmtPos(position)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -532,7 +524,7 @@ export default function GPMatchPage({
                           {match.player1.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {formatGpPosition(race.position1)}
+                          {fmtPos(race.position1)}
                         </p>
                         <p className="text-sm font-bold text-green-600">
                           {tMatch('pts', { points: race.points1 })}
@@ -549,7 +541,7 @@ export default function GPMatchPage({
                           {match.player2.nickname}
                         </p>
                         <p className="text-2xl font-bold">
-                          {formatGpPosition(race.position2)}
+                          {fmtPos(race.position2)}
                         </p>
                         <p className="text-sm font-bold text-green-600">
                           {tMatch('pts', { points: race.points2 })}

@@ -12,12 +12,12 @@
 "use client";
 
 import { useState, useMemo, use } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Star } from "lucide-react";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, TOTAL_GP_RACES, getDriverPoints } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, TOTAL_GP_RACES, getDriverPoints } from "@/lib/constants";
+import { formatGpPosition } from "@/lib/gp-utils";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 
@@ -52,6 +52,9 @@ export default function GrandPrixParticipantPage({
   const tMatch = useTranslations("match");
   const tGp = useTranslations("gp");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
+  // Bind locale and gameOver label into the shared formatGpPosition utility
+  const fmtPos = (position: number) => formatGpPosition(position, locale, tCommon("gameOver"));
 
   const ctx = useParticipantMatches<GPMatch>({ tournamentId, mode: "gp" });
 
@@ -207,39 +210,37 @@ export default function GrandPrixParticipantPage({
                       </Select>
                     </div>
                     <div className="col-span-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        max="8"
-                        step="1"
-                        inputMode="numeric"
-                        value={result.position1 ?? ""}
-                        onChange={(e) => updateRaceResult(
-                          match.id,
-                          index,
-                          "position1",
-                          e.target.value === "" ? null : parseInt(e.target.value, 10),
-                        )}
-                      />
+                      <Select
+                        value={result.position1?.toString() ?? ""}
+                        onValueChange={(v) => updateRaceResult(match.id, index, "position1", v === "" ? null : parseInt(v, 10))}
+                      >
+                        <SelectTrigger><SelectValue placeholder={tCommon("position")} /></SelectTrigger>
+                        <SelectContent>
+                          {GP_POSITION_OPTIONS.map((pos) => (
+                            <SelectItem key={`p1-${index}-${pos}`} value={pos.toString()}>
+                              {fmtPos(pos)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points1 })}</div>
                     </div>
                     <div className="col-span-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        max="8"
-                        step="1"
-                        inputMode="numeric"
-                        value={result.position2 ?? ""}
-                        onChange={(e) => updateRaceResult(
-                          match.id,
-                          index,
-                          "position2",
-                          e.target.value === "" ? null : parseInt(e.target.value, 10),
-                        )}
-                      />
+                      <Select
+                        value={result.position2?.toString() ?? ""}
+                        onValueChange={(v) => updateRaceResult(match.id, index, "position2", v === "" ? null : parseInt(v, 10))}
+                      >
+                        <SelectTrigger><SelectValue placeholder={tCommon("position")} /></SelectTrigger>
+                        <SelectContent>
+                          {GP_POSITION_OPTIONS.map((pos) => (
+                            <SelectItem key={`p2-${index}-${pos}`} value={pos.toString()}>
+                              {fmtPos(pos)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="col-span-2">
                       <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points2 })}</div>

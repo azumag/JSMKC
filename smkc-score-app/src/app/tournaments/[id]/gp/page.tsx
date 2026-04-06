@@ -63,6 +63,7 @@ import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { formatGpPosition } from "@/lib/gp-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -164,17 +165,8 @@ export default function GrandPrixPage({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
-  const formatGpPosition = (position: number) => {
-    if (position === 0) return tc('gameOver');
-    if (locale === 'ja') return `${position}位`;
-
-    const mod10 = position % 10;
-    const mod100 = position % 100;
-    if (mod10 === 1 && mod100 !== 11) return `${position}st`;
-    if (mod10 === 2 && mod100 !== 12) return `${position}nd`;
-    if (mod10 === 3 && mod100 !== 13) return `${position}rd`;
-    return `${position}th`;
-  };
+  // formatGpPosition imported from @/lib/gp-utils; bind locale and gameOver label locally
+  const fmtPos = (position: number) => formatGpPosition(position, locale, tc('gameOver'));
 
   /**
    * Fetch tournament GP data and player list in parallel.
@@ -907,7 +899,7 @@ export default function GrandPrixPage({
                             <SelectContent>
                               {GP_POSITION_OPTIONS.map((position) => (
                                 <SelectItem key={`admin-p1-${index}-${position}`} value={position.toString()}>
-                                  {formatGpPosition(position)}
+                                  {fmtPos(position)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -929,7 +921,7 @@ export default function GrandPrixPage({
                             <SelectContent>
                               {GP_POSITION_OPTIONS.map((position) => (
                                 <SelectItem key={`admin-p2-${index}-${position}`} value={position.toString()}>
-                                  {formatGpPosition(position)}
+                                  {fmtPos(position)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
