@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
-import { computeTieAwareRanks, findUnresolvedTies } from "@/lib/ranking-utils";
+import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
 import {
   Card,
   CardContent,
@@ -489,9 +489,11 @@ export default function MatchRacePage({
                         (a, b) => b.score - a.score || b.points - a.points
                       );
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
+                      // Suppress trivial 0-0 ties: only flag players who have actually played.
+                      const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
                       return (
                         <>
-                          <TieWarningBanner hasTies={tiedIds.size > 0} isAdmin={!!isAdmin} />
+                          <TieWarningBanner hasTies={activeTiedIds.size > 0} isAdmin={!!isAdmin} />
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -509,7 +511,7 @@ export default function MatchRacePage({
                               {byEffectiveRank.map((q) => (
                                 <TableRow
                                   key={q.id}
-                                  className={tiedIds.has(q.id) ? "bg-yellow-50" : undefined}
+                                  className={activeTiedIds.has(q.id) ? "bg-yellow-50" : undefined}
                                 >
                                   <TableCell>
                                     <RankCell

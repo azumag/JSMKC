@@ -111,3 +111,25 @@ export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number
   }
   return tiedIds;
 }
+
+/**
+ * Filter a set of tied IDs to only those whose players have actually played
+ * at least one match. This suppresses spurious tie warnings at group-setup time
+ * when all players share identical zero scores — those "ties" are trivial and
+ * do not require admin resolution.
+ *
+ * The filter operates per-entry rather than per-group: a 0-0 pair at the
+ * bottom of a partially-played group is still ignored, while a genuine score
+ * collision among players who have played is correctly flagged.
+ *
+ * @param tiedIds  Set of IDs returned by findUnresolvedTies
+ * @param entries  Raw qualification records for the group (must include `mp`)
+ * @returns        Subset of tiedIds where the player has mp > 0
+ */
+export function filterActiveTiedIds(
+  tiedIds: Set<string>,
+  entries: Array<{ id: string; mp: number }>
+): Set<string> {
+  const mpById = new Map(entries.map((e) => [e.id, e.mp]));
+  return new Set([...tiedIds].filter((id) => (mpById.get(id) ?? 0) > 0));
+}

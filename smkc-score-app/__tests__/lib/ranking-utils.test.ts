@@ -8,7 +8,7 @@
  * e.g., three players at rank 2 → all get _autoRank=2, next player gets _autoRank=5.
  */
 
-import { computeTieAwareRanks, findUnresolvedTies } from "../../src/lib/ranking-utils";
+import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "../../src/lib/ranking-utils";
 
 // Minimal entry type matching what the pages use
 interface Entry {
@@ -176,5 +176,67 @@ describe("findUnresolvedTies", () => {
     ];
     const ties = findUnresolvedTies(entries);
     expect(ties.size).toBe(4);
+  });
+});
+
+// ── filterActiveTiedIds ───────────────────────────────────────────────────────
+
+describe("filterActiveTiedIds", () => {
+  it("returns empty set when all players have mp=0 (group just set up)", () => {
+    // This is the primary motivating case: suppress the tiebreaker warning
+    // immediately after group setup when all scores are trivially 0-0.
+    const tiedIds = new Set(["a", "b", "c"]);
+    const entries = [
+      { id: "a", mp: 0 },
+      { id: "b", mp: 0 },
+      { id: "c", mp: 0 },
+    ];
+    expect(filterActiveTiedIds(tiedIds, entries).size).toBe(0);
+  });
+
+  it("passes through the full set when all tied players have played", () => {
+    const tiedIds = new Set(["a", "b"]);
+    const entries = [
+      { id: "a", mp: 2 },
+      { id: "b", mp: 2 },
+    ];
+    const result = filterActiveTiedIds(tiedIds, entries);
+    expect(result.has("a")).toBe(true);
+    expect(result.has("b")).toBe(true);
+  });
+
+  it("excludes zero-mp players from a partially-played group", () => {
+    // a and b have played and are genuinely tied at the same score.
+    // c has not played yet (bye round or group not started) — its 0-0 tie is trivial.
+    const tiedIds = new Set(["a", "b", "c"]);
+    const entries = [
+      { id: "a", mp: 1 },
+      { id: "b", mp: 1 },
+      { id: "c", mp: 0 },
+    ];
+    const result = filterActiveTiedIds(tiedIds, entries);
+    expect(result.has("a")).toBe(true);
+    expect(result.has("b")).toBe(true);
+    expect(result.has("c")).toBe(false);
+  });
+
+  it("returns empty set when tiedIds is empty", () => {
+    const entries = [{ id: "a", mp: 3 }];
+    expect(filterActiveTiedIds(new Set(), entries).size).toBe(0);
+  });
+
+  it("full round-trip: all-zero group is silenced after computeTieAwareRanks", () => {
+    // Mirrors the exact flow in bm/mr/gp pages for a freshly set-up group
+    const groupEntries = [
+      { id: "a", score: 0, points: 0, rankOverride: null, mp: 0 },
+      { id: "b", score: 0, points: 0, rankOverride: null, mp: 0 },
+      { id: "c", score: 0, points: 0, rankOverride: null, mp: 0 },
+    ];
+    const byEffectiveRank = computeTieAwareRanks(groupEntries, bmCompareFn);
+    const tiedIds = findUnresolvedTies(byEffectiveRank);
+    const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
+    // findUnresolvedTies sees a tie, but filterActiveTiedIds suppresses it
+    expect(tiedIds.size).toBe(3);
+    expect(activeTiedIds.size).toBe(0);
   });
 });

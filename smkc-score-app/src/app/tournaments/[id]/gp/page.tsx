@@ -60,7 +60,7 @@ import {
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
-import { computeTieAwareRanks, findUnresolvedTies } from "@/lib/ranking-utils";
+import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
@@ -570,9 +570,11 @@ export default function GrandPrixPage({
                         (a, b) => b.points - a.points || b.score - a.score
                       );
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
+                      // Suppress trivial 0-0 ties: only flag players who have actually played.
+                      const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
                       return (
                         <>
-                          <TieWarningBanner hasTies={tiedIds.size > 0} isAdmin={!!isAdmin} />
+                          <TieWarningBanner hasTies={activeTiedIds.size > 0} isAdmin={!!isAdmin} />
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -589,7 +591,7 @@ export default function GrandPrixPage({
                               {byEffectiveRank.map((q) => (
                                 <TableRow
                                   key={q.id}
-                                  className={tiedIds.has(q.id) ? "bg-yellow-50" : undefined}
+                                  className={activeTiedIds.has(q.id) ? "bg-yellow-50" : undefined}
                                 >
                                   <TableCell>
                                     <RankCell
