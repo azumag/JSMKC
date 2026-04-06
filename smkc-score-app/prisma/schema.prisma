@@ -163,23 +163,26 @@ model Arena {
 // ==========================================
 
 model BMQualification {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId     String
-  group        String // A, B, C
-  seeding      Int?
-  mp           Int        @default(0) // Matches Played
-  wins         Int        @default(0)
-  ties         Int        @default(0)
-  losses       Int        @default(0)
-  winRounds    Int        @default(0)
-  lossRounds   Int        @default(0)
-  points       Int        @default(0) // Calculated: winRounds - lossRounds
-  score        Int        @default(0) // Ranking score
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
+  id               String     @id @default(cuid())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId     String
+  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId         String
+  group            String // A, B, C
+  seeding          Int?
+  mp               Int        @default(0) // Matches Played
+  wins             Int        @default(0)
+  ties             Int        @default(0)
+  losses           Int        @default(0)
+  winRounds        Int        @default(0)
+  lossRounds       Int        @default(0)
+  points           Int        @default(0) // Calculated: winRounds - lossRounds
+  score            Int        @default(0) // Ranking score
+  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
+  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
+  version          Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -231,23 +234,26 @@ model BMMatch {
 // ==========================================
 
 model MRQualification {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId     String
-  group        String
-  seeding      Int?
-  mp           Int        @default(0)
-  wins         Int        @default(0)
-  ties         Int        @default(0)
-  losses       Int        @default(0)
-  winRounds    Int        @default(0)
-  lossRounds   Int        @default(0)
-  points       Int        @default(0)
-  score        Int        @default(0)
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
+  id               String     @id @default(cuid())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId     String
+  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId         String
+  group            String
+  seeding          Int?
+  mp               Int        @default(0)
+  wins             Int        @default(0)
+  ties             Int        @default(0)
+  losses           Int        @default(0)
+  winRounds        Int        @default(0)
+  lossRounds       Int        @default(0)
+  points           Int        @default(0)
+  score            Int        @default(0)
+  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
+  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
+  version          Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }
@@ -301,21 +307,24 @@ model MRMatch {
 // ==========================================
 
 model GPQualification {
-  id           String     @id @default(cuid())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId     String
-  group        String
-  seeding      Int?
-  mp           Int        @default(0)
-  wins         Int        @default(0)
-  ties         Int        @default(0)
-  losses       Int        @default(0)
-  points       Int        @default(0) // Driver points total
-  score        Int        @default(0)
-  deletedAt    DateTime?  // ソフトデリート用タイムスタンプ
-  version      Int        @default(0) // 楽観的ロック用
+  id               String     @id @default(cuid())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId     String
+  player           Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId         String
+  group            String
+  seeding          Int?
+  mp               Int        @default(0)
+  wins             Int        @default(0)
+  ties             Int        @default(0)
+  losses           Int        @default(0)
+  points           Int        @default(0) // Driver points total
+  score            Int        @default(0)
+  rankOverride     Int?       // 管理者による手動順位上書き (null = 自動計算)
+  rankOverrideBy   String?    // 上書きした管理者ユーザーID (監査用)
+  rankOverrideAt   DateTime?  // 上書き日時 (監査用)
+  deletedAt        DateTime?  // ソフトデリート用タイムスタンプ
+  version          Int        @default(0) // 楽観的ロック用
 
   @@unique([tournamentId, playerId])
 }

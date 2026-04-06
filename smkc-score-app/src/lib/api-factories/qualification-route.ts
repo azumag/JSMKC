@@ -438,10 +438,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
   }
 
   /**
-   * PATCH handler: Assign TV number to a qualification match.
+   * PATCH handler: Handles two operations distinguished by request body fields:
    *
-   * Used by commentators/admin to designate which matches appear on
-   * broadcast TV streams. Only qualification matches support this.
+   * 1. TV number assignment (matchId + tvNumber):
+   *    Assigns a broadcast TV stream number to a qualification match.
+   *    Used by commentators/admin to designate which matches appear on air.
+   *
+   * 2. Rank override (qualificationId + rankOverride):
+   *    Manually overrides the automatic rank for a qualification entry.
+   *    Used for emergency adjustments (player withdrawal, equipment failure).
+   *    Stores audit trail (rankOverrideBy, rankOverrideAt) for accountability.
+   *    Passing rankOverride=null clears a previously set override.
    */
   async function PATCH(
     request: NextRequest,
@@ -454,7 +461,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
     }
 
-    /* Rate limit: prevent abuse on TV assignment endpoint */
+    /* Rate limit: prevent abuse on admin update endpoints */
     const patchClientIp = getClientIdentifier(request);
     const patchRateResult = await checkRateLimit('general', patchClientIp);
     if (!patchRateResult.success) {
@@ -466,8 +473,56 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber } = body;
+      const { matchId, tvNumber, qualificationId, rankOverride } = body;
 
+      /*
+       * Reject ambiguous requests that supply both qualificationId and matchId.
+       * The two operations are mutually exclusive; accepting both silently would
+       * mask caller bugs and make the API contract unclear.
+       */
+      if (qualificationId !== undefined && matchId !== undefined) {
+        return handleValidationError('Provide either qualificationId or matchId, not both', 'body');
+      }
+
+      /* Route to rank override path when qualificationId is present */
+      if (qualificationId !== undefined) {
+        if (typeof qualificationId !== 'string' || !qualificationId) {
+          return handleValidationError('qualificationId is required', 'qualificationId');
+        }
+
+        /*
+         * rankOverride must be a positive integer or null (null clears the override).
+         * Fractional ranks are rejected because standings use integer positions (1, 2, 3...).
+         */
+        if (rankOverride !== null && rankOverride !== undefined &&
+            (typeof rankOverride !== 'number' || rankOverride < 1 || !Number.isInteger(rankOverride))) {
+          return handleValidationError('rankOverride must be a positive integer or null', 'rankOverride');
+        }
+
+        /*
+         * Verify the qualification entry belongs to this tournament before updating.
+         * Prevents IDOR: without this check an admin could modify records in other tournaments.
+         */
+        const qualification = await qualModel(prisma).update({
+          where: { id: qualificationId, tournamentId },
+          data: {
+            rankOverride: rankOverride ?? null,
+            rankOverrideBy: rankOverride != null ? session.user.id : null,
+            rankOverrideAt: rankOverride != null ? new Date() : null,
+          },
+        });
+
+        logger.info('Rank override updated', {
+          tournamentId,
+          qualificationId,
+          rankOverride,
+          adminId: session.user.id,
+        });
+
+        return NextResponse.json({ qualification });
+      }
+
+      /* TV number assignment path (original behavior) */
       if (!matchId) {
         return handleValidationError('matchId is required', 'matchId');
       }
@@ -491,8 +546,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
       return NextResponse.json({ match });
     } catch (error) {
-      logger.error('Failed to update TV number', { error, tournamentId });
-      return createErrorResponse('Failed to update TV number', 500, 'INTERNAL_ERROR');
+      logger.error('Failed to update', { error, tournamentId });
+      return createErrorResponse('Failed to update', 500, 'INTERNAL_ERROR');
     }
   }
 

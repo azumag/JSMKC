@@ -458,6 +458,99 @@ describe('Standings Route Factory', () => {
     });
   });
 
+  // === RANK OVERRIDE ===
+
+  describe('rankOverride (admin manual rank)', () => {
+    /*
+     * Tests for rankOverride feature: admin-set ranks take precedence over
+     * H2H tiebreaker and automatic computation (requirements issue #295).
+     */
+
+    it('should use rankOverride instead of auto-computed rank when set', async () => {
+      /*
+       * p1 is auto-rank 1 but has rankOverride=2;
+       * p2 is auto-rank 2 but has rankOverride=1.
+       * After override: p2 comes first in the response.
+       */
+      const quals = [
+        { id: 'q1', playerId: 'p1', score: 8, points: 8, rankOverride: 2, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', score: 6, points: 6, rankOverride: 1, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({ transformQualification: undefined });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // p2's rankOverride=1 wins over p1's rankOverride=2
+      expect(json.qualifications[0].playerId).toBe('p2');
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[0]._rankOverridden).toBe(true);
+      expect(json.qualifications[1].playerId).toBe('p1');
+      expect(json.qualifications[1]._rank).toBe(2);
+      expect(json.qualifications[1]._rankOverridden).toBe(true);
+    });
+
+    it('should not set _rankOverridden when rankOverride is null', async () => {
+      const quals = [
+        { id: 'q1', playerId: 'p1', score: 8, points: 8, rankOverride: null, player: { name: 'P1' } },
+      ];
+      const config = createDirectConfig({ transformQualification: undefined });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(quals);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      expect(json.qualifications[0]._rankOverridden).toBeUndefined();
+      // Auto-computed rank is used
+      expect(json.qualifications[0]._rank).toBe(1);
+    });
+
+    it('should prioritize rankOverride over H2H result', async () => {
+      /*
+       * p1 and p2 are tied; H2H says p1 wins, but p2 has rankOverride=1.
+       * Override must win → p2 comes first.
+       */
+      const tiedQuals = [
+        { id: 'q1', playerId: 'p1', score: 6, points: 6, rankOverride: null, player: { name: 'P1' } },
+        { id: 'q2', playerId: 'p2', score: 6, points: 6, rankOverride: 1, player: { name: 'P2' } },
+      ];
+      const config = createDirectConfig({
+        qualificationModel: 'mRQualification',
+        matchModel: 'mRMatch',
+        transformQualification: undefined,
+      });
+      const { GET } = createStandingsHandlers(config);
+      (auth as jest.Mock).mockResolvedValue(adminSession);
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(tiedQuals);
+      // H2H: p1 beat p2 — but p2's override should still win
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([
+        { player1Id: 'p1', player2Id: 'p2', score1: 4, score2: 0 },
+      ]);
+
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1/mr/standings'),
+        { params: Promise.resolve({ id: 't1' }) },
+      );
+
+      const json = await response.json();
+      // p2's rankOverride=1 beats H2H result for p1
+      expect(json.qualifications[0].playerId).toBe('p2');
+      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.qualifications[0]._rankOverridden).toBe(true);
+    });
+  });
+
   // === ERROR HANDLING ===
 
   describe('Error handling', () => {

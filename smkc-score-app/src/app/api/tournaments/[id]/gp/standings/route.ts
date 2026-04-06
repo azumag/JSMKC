@@ -27,8 +27,10 @@ const { GET } = createStandingsHandlers({
   matchScoreFields: { p1: 'points1', p2: 'points2' },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformQualification: (q: any) => ({
-    // q._rank is pre-computed by the factory using tie-aware (1224) ranking
+    // q._rank is pre-computed by the factory using tie-aware (1224) ranking,
+    // then overridden by rankOverride if set by an admin.
     rank: q._rank,
+    rankOverridden: q._rankOverridden ?? false,
     playerId: q.playerId,
     playerName: q.player.name,
     playerNickname: q.player.nickname,

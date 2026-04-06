@@ -163,6 +163,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
         qualifications: [
           {
             rank: 1,
+            rankOverridden: false,
             playerId: 'p1',
             playerName: 'Player 1',
             playerNickname: 'nick1',
@@ -175,6 +176,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           },
           {
             rank: 2,
+            rankOverridden: false,
             playerId: 'p2',
             playerName: 'Player 2',
             playerNickname: 'nick2',

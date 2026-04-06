@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { RankCell } from "@/components/tournament/rank-cell";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -87,6 +88,7 @@ interface BMQualification {
   lossRounds: number; // Total rounds lost
   points: number;    // Round differential (winRounds - lossRounds)
   score: number;     // Match points (wins*2 + ties)
+  rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
   player: Player;
 }
 
@@ -258,6 +260,29 @@ export default function BattleModePage({
       }
     } catch (err) {
       logger.error("Failed to update score:", { error: err, tournamentId });
+    }
+  };
+
+  /**
+   * Save rank override for a qualification entry.
+   * Passes null to clear a previously set override and restore automatic ranking.
+   */
+  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qualificationId, rankOverride }),
+      });
+      if (response.ok) {
+        setEditingRankId(null);
+        refetch();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Failed to update rank');
+      }
+    } catch (err) {
+      logger.error("Failed to update rank:", { error: err, tournamentId });
     }
   };
 
@@ -443,7 +468,7 @@ export default function BattleModePage({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12">#</TableHead>
+                          <TableHead className="w-16">#</TableHead>
                           <TableHead>{tc('player')}</TableHead>
                           <TableHead className="text-center">{t('mp')}</TableHead>
                           <TableHead className="text-center">{t('w')}</TableHead>
@@ -454,12 +479,33 @@ export default function BattleModePage({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {qualifications
-                          .filter((q) => q.group === group)
-                          .sort((a, b) => b.score - a.score || b.points - a.points)
-                          .map((q, index) => (
+                        {(() => {
+                          /*
+                           * Compute effective ranks respecting overrides.
+                           * Step 1: Sort by auto-rank (score desc, points desc) to get the
+                           * natural index for each entry (used as fallback when no override).
+                           * Step 2: Re-sort by effective rank (override ?? natural index),
+                           * so the row order on screen matches the displayed rank numbers.
+                           */
+                          const sorted = qualifications
+                            .filter((q) => q.group === group)
+                            .sort((a, b) => b.score - a.score || b.points - a.points);
+                          const withAutoRank = sorted.map((q, i) => ({ ...q, _autoRank: i + 1 }));
+                          const byEffectiveRank = [...withAutoRank].sort(
+                            (a, b) => (a.rankOverride ?? a._autoRank) - (b.rankOverride ?? b._autoRank)
+                          );
+                          return byEffectiveRank.map((q) => (
                             <TableRow key={q.id}>
-                              <TableCell>{index + 1}</TableCell>
+                              {/* RankCell handles amber badge display and inline admin editing */}
+                              <TableCell>
+                                <RankCell
+                                  qualificationId={q.id}
+                                  rankOverride={q.rankOverride}
+                                  autoRank={q._autoRank}
+                                  isAdmin={!!isAdmin}
+                                  onSave={handleRankOverrideSave}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium">
                                 {q.player.nickname}
                               </TableCell>
@@ -474,7 +520,8 @@ export default function BattleModePage({
                                 {q.score}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ));
+                        })()}
                       </TableBody>
                     </Table>
                   </CardContent>

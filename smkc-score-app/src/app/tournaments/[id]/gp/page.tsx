@@ -58,6 +58,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { RankCell } from "@/components/tournament/rank-cell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
@@ -87,6 +88,7 @@ interface GPQualification {
   losses: number;
   points: number;
   score: number;
+  rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
   player: Player;
 }
 
@@ -251,6 +253,29 @@ export default function GrandPrixPage({
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
+    }
+  };
+
+  /**
+   * Save rank override for a qualification entry.
+   * Passing null clears any existing override and restores automatic ranking.
+   */
+  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qualificationId, rankOverride }),
+      });
+      if (response.ok) {
+        setEditingRankId(null);
+        refetch();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Failed to update rank');
+      }
+    } catch (err) {
+      logger.error("Failed to update rank:", { error: err, tournamentId });
     }
   };
 
@@ -533,7 +558,7 @@ export default function GrandPrixPage({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12">#</TableHead>
+                          <TableHead className="w-16">#</TableHead>
                           <TableHead>{tc('player')}</TableHead>
                           <TableHead className="text-center">{t('mp')}</TableHead>
                           <TableHead className="text-center">{t('w')}</TableHead>
@@ -543,12 +568,26 @@ export default function GrandPrixPage({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {qualifications
-                          .filter((q) => q.group === group)
-                          .sort((a, b) => b.score - a.score || b.points - a.points)
-                          .map((q, index) => (
+                        {(() => {
+                          /* GP uses points (driver points) as primary sort key, score as secondary */
+                          const sorted = qualifications
+                            .filter((q) => q.group === group)
+                            .sort((a, b) => b.points - a.points || b.score - a.score);
+                          const withAutoRank = sorted.map((q, i) => ({ ...q, _autoRank: i + 1 }));
+                          const byEffectiveRank = [...withAutoRank].sort(
+                            (a, b) => (a.rankOverride ?? a._autoRank) - (b.rankOverride ?? b._autoRank)
+                          );
+                          return byEffectiveRank.map((q) => (
                             <TableRow key={q.id}>
-                              <TableCell>{index + 1}</TableCell>
+                              <TableCell>
+                                <RankCell
+                                  qualificationId={q.id}
+                                  rankOverride={q.rankOverride}
+                                  autoRank={q._autoRank}
+                                  isAdmin={!!isAdmin}
+                                  onSave={handleRankOverrideSave}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium">
                                 {q.player.nickname}
                               </TableCell>
@@ -560,7 +599,8 @@ export default function GrandPrixPage({
                                 {q.points}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ));
+                        })()}
                       </TableBody>
                     </Table>
                   </CardContent>

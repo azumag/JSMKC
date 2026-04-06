@@ -114,6 +114,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       expect(result.data.qualifications).toHaveLength(2);
       expect(result.data.qualifications[0]).toEqual({
         rank: 1,
+        rankOverridden: false,
         playerId: 'p1',
         playerName: 'Player 1',
         playerNickname: 'P1',

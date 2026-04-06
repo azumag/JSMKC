@@ -124,8 +124,8 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
         stage: 'qualification',
         lastUpdated: expect.any(String),
         qualifications: [
-          { rank: 1, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
-          { rank: 2, playerId: 'p2', playerName: 'Player 2', playerNickname: 'P2', group: 'A', matchesPlayed: 3, wins: 1, ties: 2, losses: 0, points: 8, score: 4 },
+          { rank: 1, rankOverridden: false, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
+          { rank: 2, rankOverridden: false, playerId: 'p2', playerName: 'Player 2', playerNickname: 'P2', group: 'A', matchesPlayed: 3, wins: 1, ties: 2, losses: 0, points: 8, score: 4 },
         ],
       });
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
@@ -165,7 +165,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
         stage: 'qualification',
         lastUpdated: expect.any(String),
         qualifications: [
-          { rank: 1, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
+          { rank: 1, rankOverridden: false, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
         ],
       });
       expect(prisma.mRQualification.findMany).toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
         stage: 'qualification',
         lastUpdated: expect.any(String),
         qualifications: [
-          { rank: 1, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
+          { rank: 1, rankOverridden: false, playerId: 'p1', playerName: 'Player 1', playerNickname: 'P1', group: 'A', matchesPlayed: 3, wins: 2, ties: 1, losses: 0, points: 10, score: 6 },
         ],
       });
       expect(prisma.mRQualification.findMany).toHaveBeenCalled();

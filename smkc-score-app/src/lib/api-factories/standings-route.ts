@@ -285,9 +285,35 @@ export function createStandingsHandlers(config: StandingsConfig) {
           ranked.splice(0, ranked.length, ...resolved);
         }
 
+        /*
+         * Apply rankOverride: if a qualification entry has a manual rank set by an admin,
+         * replace the computed _rank with the override value and mark _rankOverridden=true.
+         * Override takes precedence over H2H tiebreaker (admins have final authority).
+         * Re-sort by effective rank so the response is in display order.
+         *
+         * This is applied last (after H2H) so that manual overrides always win,
+         * regardless of what the automatic tiebreaker would compute.
+         */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const withOverrides = ranked.map((entry: any) =>
+          entry.rankOverride != null
+            ? { ...entry, _rank: entry.rankOverride, _rankOverridden: true }
+            : entry,
+        );
+        /*
+         * Sort by effective rank ascending. When two entries have the same rank
+         * (e.g. an overridden entry lands at the same rank as an auto-computed entry),
+         * place overridden entries first to express admin authority.
+         */
+        withOverrides.sort((a: { _rank: number; _rankOverridden?: boolean }, b: { _rank: number; _rankOverridden?: boolean }) => {
+          if (a._rank !== b._rank) return a._rank - b._rank;
+          // Overridden entries win ties (true > false → bOverridden - aOverridden puts b first if b is overridden)
+          return (b._rankOverridden ? 1 : 0) - (a._rankOverridden ? 1 : 0);
+        });
+
         const transformed = config.transformQualification
-          ? ranked.map(config.transformQualification)
-          : ranked;
+          ? withOverrides.map(config.transformQualification)
+          : withOverrides;
 
         return NextResponse.json({
           tournamentId,

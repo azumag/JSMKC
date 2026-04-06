@@ -23,6 +23,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { RankCell } from "@/components/tournament/rank-cell";
 import {
   Card,
   CardContent,
@@ -85,6 +86,7 @@ interface MRQualification {
   lossRounds: number;
   points: number;
   score: number;
+  rankOverride: number | null; // 管理者手動順位 (null = 自動計算)
   player: Player;
 }
 
@@ -219,6 +221,29 @@ export default function MatchRacePage({
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
+    }
+  };
+
+  /**
+   * Save rank override for a qualification entry.
+   * Passing null clears any existing override and restores automatic ranking.
+   */
+  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qualificationId, rankOverride }),
+      });
+      if (response.ok) {
+        setEditingRankId(null);
+        refetch();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Failed to update rank');
+      }
+    } catch (err) {
+      logger.error("Failed to update rank:", { error: err, tournamentId });
     }
   };
 
@@ -454,7 +479,7 @@ export default function MatchRacePage({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12">#</TableHead>
+                          <TableHead className="w-16">#</TableHead>
                           <TableHead>{tc('player')}</TableHead>
                           <TableHead className="text-center">{t('mp')}</TableHead>
                           <TableHead className="text-center">{t('w')}</TableHead>
@@ -465,12 +490,26 @@ export default function MatchRacePage({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {qualifications
-                          .filter((q) => q.group === group)
-                          .sort((a, b) => b.score - a.score || b.points - a.points)
-                          .map((q, index) => (
+                        {(() => {
+                          /* Compute effective ranks respecting overrides (same logic as BM/GP) */
+                          const sorted = qualifications
+                            .filter((q) => q.group === group)
+                            .sort((a, b) => b.score - a.score || b.points - a.points);
+                          const withAutoRank = sorted.map((q, i) => ({ ...q, _autoRank: i + 1 }));
+                          const byEffectiveRank = [...withAutoRank].sort(
+                            (a, b) => (a.rankOverride ?? a._autoRank) - (b.rankOverride ?? b._autoRank)
+                          );
+                          return byEffectiveRank.map((q) => (
                             <TableRow key={q.id}>
-                              <TableCell>{index + 1}</TableCell>
+                              <TableCell>
+                                <RankCell
+                                  qualificationId={q.id}
+                                  rankOverride={q.rankOverride}
+                                  autoRank={q._autoRank}
+                                  isAdmin={!!isAdmin}
+                                  onSave={handleRankOverrideSave}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium">
                                 {q.player.nickname}
                               </TableCell>
@@ -485,7 +524,8 @@ export default function MatchRacePage({
                                 {q.score}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ));
+                        })()}
                       </TableBody>
                     </Table>
                   </CardContent>

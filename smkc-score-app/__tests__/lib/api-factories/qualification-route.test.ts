@@ -1175,6 +1175,124 @@ describe('Qualification Route Factory', () => {
       expect(mockSanitizeInput).toHaveBeenCalled();
     });
 
+    it('should return 400 when both qualificationId and matchId are provided', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ qualificationId: 'qual-1', matchId: 'match-1', rankOverride: 2, tvNumber: 1 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Provide either qualificationId or matchId, not both');
+    });
+
+    // === Rank override path (qualificationId present) ===
+
+    it('should update rankOverride when qualificationId is provided', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      const mockQual = { id: 'qual-1', rankOverride: 2, rankOverrideBy: 'admin-1' };
+      (prisma.bMQualification as any).update = jest.fn().mockResolvedValue(mockQual);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ qualificationId: 'qual-1', rankOverride: 2 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.qualification).toEqual(mockQual);
+
+      /* Verify IDOR-safe where clause and audit fields are written */
+      expect((prisma.bMQualification as any).update).toHaveBeenCalledWith({
+        where: { id: 'qual-1', tournamentId: 'tournament-123' },
+        data: {
+          rankOverride: 2,
+          rankOverrideBy: 'admin-1',
+          rankOverrideAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('should clear rankOverride when rankOverride=null is provided', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      const mockQual = { id: 'qual-1', rankOverride: null, rankOverrideBy: null };
+      (prisma.bMQualification as any).update = jest.fn().mockResolvedValue(mockQual);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ qualificationId: 'qual-1', rankOverride: null }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      /* Clearing override: rankOverrideBy and rankOverrideAt must also be cleared */
+      expect((prisma.bMQualification as any).update).toHaveBeenCalledWith({
+        where: { id: 'qual-1', tournamentId: 'tournament-123' },
+        data: {
+          rankOverride: null,
+          rankOverrideBy: null,
+          rankOverrideAt: null,
+        },
+      });
+    });
+
+    it('should return 400 when rankOverride is fractional', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ qualificationId: 'qual-1', rankOverride: 1.5 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('rankOverride must be a positive integer or null');
+    });
+
+    it('should return 400 when rankOverride is zero or negative', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ qualificationId: 'qual-1', rankOverride: 0 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
     it('should return 500 on database error', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
       (prisma.bMMatch as any).update.mockRejectedValue(new Error('DB error'));
@@ -1192,8 +1310,8 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(500);
       const json = await response.json();
-      expect(json.error).toBe('Failed to update TV number');
-      expect(mockLogger.error).toHaveBeenCalledWith('Failed to update TV number', {
+      expect(json.error).toBe('Failed to update');
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to update', {
         error: expect.any(Error),
         tournamentId: 'tournament-123',
       });
