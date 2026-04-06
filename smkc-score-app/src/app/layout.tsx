@@ -34,6 +34,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { AuthHeader } from "@/components/AuthHeader";
+import { Toaster } from "sonner";
 
 /**
  * Page metadata for SEO and browser tab display.
@@ -125,6 +126,12 @@ export default async function RootLayout({
               {/* Main content area - all page components render here */}
               <main className="container mx-auto px-4 py-8">{children}</main>
             </div>
+            {/*
+             * Toaster must be outside the main container so toast notifications
+             * appear as a fixed overlay regardless of scroll position.
+             * Sonner toasts are no-ops without this component present in the tree.
+             */}
+            <Toaster richColors position="bottom-right" />
           </SessionProvider>
         </NextIntlClientProvider>
       </body>

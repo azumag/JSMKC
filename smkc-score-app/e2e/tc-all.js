@@ -636,8 +636,14 @@ async function nav(p, u) {
       await nav(page, `/tournaments/${taTournamentId}/ta`);
       const addPlayerButton = page.getByRole('button', { name: /プレイヤー追加|Add Player/ }).first();
       const ariaDisabled = await addPlayerButton.getAttribute('aria-disabled');
-      await addPlayerButton.click();
-      await page.waitForTimeout(1000);
+      // Use native .click() to bypass Playwright's aria-disabled enabled-check.
+      // Native .click() triggers React's synthetic event system (via event delegation)
+      // more reliably than dispatchEvent for React 19 production builds.
+      await page.evaluate(() => {
+        const btn = document.querySelector('button[aria-disabled="true"][aria-haspopup="dialog"]');
+        if (btn) btn.click();
+      });
+      await page.waitForTimeout(2000);
       const toastVisible = await page.locator('[data-sonner-toast]').filter({
         hasText: /本線開始後は、予選へのプレイヤー追加はできません。|Players cannot be added to qualification after the knockout stage starts./,
       }).count().then((count) => count > 0);
