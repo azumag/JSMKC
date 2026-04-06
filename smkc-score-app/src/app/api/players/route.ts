@@ -51,12 +51,17 @@ export async function GET(request: NextRequest) {
     // Use the paginate utility to handle offset calculation and total count.
     // Sort: alphabetical by nickname for consistent ordering.
     // Password is globally omitted via PrismaClient config in lib/prisma.ts.
+    //
+    // Exclude the system __BREAK__ player used as a sentinel for BYE matches
+    // in round-robin scheduling. This player has no real-world identity and
+    // should never appear in player listings or UI.
+    const where = { id: { not: '__BREAK__' } };
     const result = await paginate(
       {
         findMany: prisma.player.findMany.bind(prisma.player),
         count: prisma.player.count,
       },
-      {},
+      where,
       { nickname: "asc" },
       { page, limit }
     );
