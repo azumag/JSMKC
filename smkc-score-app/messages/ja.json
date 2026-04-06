@@ -590,7 +590,10 @@
     "undoRoundTitle": "直前ラウンドを取り消しますか？",
     "undoRoundDesc": "直前に提出したラウンドの結果を消去し、プレイヤーの状態をそのラウンド前に戻します。コースは変わらないので、タイムを再入力できます。",
     "yesUndoRound": "はい、取り消す",
-    "undoing": "取り消し中..."
+    "undoing": "取り消し中...",
+    "courseOverrideLabel": "コース選択（任意）",
+    "randomCourse": "ランダム（デフォルト）",
+    "manualCourseOverride": "手動選択"
   },
   "revival": {
     "round1Title": "敗者復活戦 ラウンド1",
@@ -681,7 +684,10 @@
     "undoRoundDesc": "直前に提出したラウンドの結果を消去し、プレイヤーの状態をそのラウンド前に戻します。コースは変わらないので、タイムを再入力できます。",
     "keepRound": "キャンセルしない",
     "yesUndoRound": "はい、取り消す",
-    "undoing": "取り消し中..."
+    "undoing": "取り消し中...",
+    "courseOverrideLabel": "コース選択（任意）",
+    "randomCourse": "ランダム（デフォルト）",
+    "manualCourseOverride": "手動選択"
   },
   "errors": {
     "errorOccurred": "エラーが発生しました",

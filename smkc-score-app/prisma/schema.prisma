@@ -443,6 +443,7 @@ model TTPhaseRound {
   results         Json       // Array: [{playerId, timeMs, isRetry}]
   eliminatedIds   Json?      // Array of player IDs eliminated this round
   livesReset      Boolean    @default(false) // Whether lives were reset after this round
+  manualOverride  Boolean    @default(false) // True when admin manually specified the course
   createdAt       DateTime   @default(now())
 
   @@unique([tournamentId, phase, roundNumber])

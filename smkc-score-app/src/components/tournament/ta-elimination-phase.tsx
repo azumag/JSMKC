@@ -51,6 +51,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -98,6 +105,7 @@ interface PhaseRound {
   results: Array<{ playerId: string; timeMs: number; isRetry: boolean }>;
   eliminatedIds: string[] | null;
   livesReset: boolean;
+  manualOverride: boolean;
   createdAt: string;
 }
 
@@ -123,6 +131,11 @@ export default function TAEliminationPhase({
   // === State Management ===
   const [entries, setEntries] = useState<TTEntry[]>([]);
   const [rounds, setRounds] = useState<PhaseRound[]>([]);
+  // Available courses for the next round (received from GET response).
+  // Used to populate the manual course selector dropdown.
+  const [availableCourses, setAvailableCourses] = useState<string[]>([]);
+  // Admin-selected course override. Empty string = use random selection (default).
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,6 +191,7 @@ export default function TAEliminationPhase({
       const fetchedRounds: PhaseRound[] = data.rounds || [];
       setEntries(fetchedEntries);
       setRounds(fetchedRounds);
+      setAvailableCourses(data.availableCourses || []);
 
       // Build player name map from entries for round history display
       const nameMap: Record<string, string> = {};
@@ -250,7 +264,13 @@ export default function TAEliminationPhase({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start_round", phase }),
+          body: JSON.stringify({
+            action: "start_round",
+            phase,
+            // Only include course when admin has manually selected one;
+            // omitting it lets the server choose randomly (default behaviour).
+            ...(selectedCourse ? { course: selectedCourse } : {}),
+          }),
         }
       );
       if (!response.ok) {
@@ -276,6 +296,7 @@ export default function TAEliminationPhase({
       });
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
+      setSelectedCourse(""); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
       const errorMessage =
@@ -760,6 +781,28 @@ export default function TAEliminationPhase({
                     <span className="font-bold">{completedRoundsCount}</span>
                   </div>
                 </div>
+                {/* Admin manual course override: selects a specific course instead of random.
+                    Available courses come from the server-calculated 20-course cycle pool.
+                    Leaving this on "ランダム" (default) preserves the existing random behaviour. */}
+                <div className="space-y-1">
+                  <Label className="text-sm text-muted-foreground">{tElim('courseOverrideLabel')}</Label>
+                  <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={startingRound || hasOpenRound}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={tElim('randomCourse')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{tElim('randomCourse')}</SelectItem>
+                      {availableCourses.map((abbr) => {
+                        const info = COURSE_INFO.find((c) => c.abbr === abbr);
+                        return (
+                          <SelectItem key={abbr} value={abbr}>
+                            {info?.name || abbr}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
                   className="w-full"
                   size="lg"
@@ -911,9 +954,17 @@ export default function TAEliminationPhase({
                           <h4 className="font-semibold">
                             {tElim('roundTitle', { number: round.roundNumber, course: courseInfo?.name || round.course })}
                           </h4>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {round.course}
-                          </Badge>
+                          <div className="flex items-center gap-1">
+                            {/* Show "手動選択" badge when admin manually specified the course */}
+                            {round.manualOverride && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-400 text-xs">
+                                {tElim('manualCourseOverride')}
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {round.course}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="space-y-1">
                           {sortedResults.map((result, idx) => {

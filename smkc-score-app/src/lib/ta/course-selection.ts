@@ -76,6 +76,17 @@ export function getAvailableCourses(playedCourses: string[]): CourseAbbr[] {
 }
 
 /**
+ * Type guard: returns true if the given string is a known CourseAbbr.
+ * Used to validate admin-specified manual course overrides before accepting them.
+ *
+ * @param value - The string to check
+ * @returns true if value is a valid CourseAbbr, false otherwise
+ */
+export function isValidCourseAbbr(value: string): value is CourseAbbr {
+  return (COURSES as readonly string[]).includes(value);
+}
+
+/**
  * Select a random course for the next round in a phase.
  *
  * Combines getPlayedCourses + getAvailableCourses to select a random

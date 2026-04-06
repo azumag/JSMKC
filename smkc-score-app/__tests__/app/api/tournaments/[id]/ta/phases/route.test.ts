@@ -617,14 +617,34 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { promoted: 16 } });
   });
 
-  it('should call startPhaseRound and return success', async () => {
-    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 1, course: 'MC1' });
+  it('should call startPhaseRound and return success (random course, no override)', async () => {
+    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 1, course: 'MC1', manualOverride: false });
 
     await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1' }), { params: mockParams });
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase1');
-    expect(startPhaseRound).toHaveBeenCalledWith(prisma, expect.objectContaining({ tournamentId: 'tournament-1' }), 'phase1');
-    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 1, course: 'MC1' } });
+    // course is undefined (not provided in request), so the 4th arg is undefined = random selection
+    expect(startPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase1',
+      undefined
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 1, course: 'MC1', manualOverride: false } });
+  });
+
+  it('should call startPhaseRound with manual course when course is provided', async () => {
+    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 2, course: 'DP1', manualOverride: true });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', course: 'DP1' }), { params: mockParams });
+
+    expect(startPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase1',
+      'DP1'
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 2, course: 'DP1', manualOverride: true } });
   });
 
   it('should return freeze error when phase is frozen for start_round', async () => {

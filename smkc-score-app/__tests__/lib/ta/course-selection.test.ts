@@ -8,7 +8,7 @@
  * - getAvailableCourses is a pure function for easy testing
  */
 
-import { getAvailableCourses } from "@/lib/ta/course-selection";
+import { getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
 import { COURSES } from "@/lib/constants";
 
 describe("getAvailableCourses", () => {
@@ -82,5 +82,31 @@ describe("getAvailableCourses", () => {
     const available = getAvailableCourses(played);
     expect(available).toHaveLength(19);
     expect(available).not.toContain("MC1");
+  });
+});
+
+describe("isValidCourseAbbr", () => {
+  it("returns true for a valid course abbreviation", () => {
+    // COURSES[0] is MC1; it should be recognized as a valid CourseAbbr
+    expect(isValidCourseAbbr("MC1")).toBe(true);
+  });
+
+  it("returns true for the last course in the list", () => {
+    // Validate boundary: KB1 is the last of the 20 courses
+    expect(isValidCourseAbbr(COURSES[COURSES.length - 1])).toBe(true);
+  });
+
+  it("returns false for an invalid abbreviation", () => {
+    // Completely unknown string should be rejected
+    expect(isValidCourseAbbr("INVALID")).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isValidCourseAbbr("")).toBe(false);
+  });
+
+  it("returns false for a lowercase version of a valid abbreviation", () => {
+    // Course abbreviations are case-sensitive; "mc1" is not in the list
+    expect(isValidCourseAbbr("mc1")).toBe(false);
   });
 });

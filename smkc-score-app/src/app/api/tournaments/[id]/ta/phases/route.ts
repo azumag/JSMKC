@@ -85,10 +85,13 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("promote_phase2") }),
   z.object({ action: z.literal("promote_phase3") }),
 
-  // Start a new round: selects a random course and creates a TTPhaseRound record
+  // Start a new round: selects a random course and creates a TTPhaseRound record.
+  // Optional `course` allows admin to manually specify a course abbreviation (e.g. "MC1")
+  // instead of using random selection. Must be a valid abbreviation in the current cycle.
   z.object({
     action: z.literal("start_round"),
     phase: PhaseSchema,
+    course: z.string().optional(), // Admin manual course override; undefined = random
   }),
 
   // Cancel an unsubmitted round: deletes the TTPhaseRound record to free the course
@@ -287,11 +290,12 @@ export async function POST(
 
     // === Round Management Actions ===
     if (action === "start_round") {
-      const { phase } = parsed.data;
+      const { phase, course } = parsed.data;
       // Prevent starting rounds in a frozen phase (admin locked after completion)
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
-      const result = await startPhaseRound(prisma, context, phase);
+      // Pass optional manual course; undefined = random selection (default behaviour)
+      const result = await startPhaseRound(prisma, context, phase, course);
       return createSuccessResponse(result);
     }
 
@@ -355,7 +359,11 @@ export async function POST(
         internalMessage.includes("No submitted rounds") ||
         internalMessage.includes("already promoted") ||
         internalMessage.includes("Promote players first") ||
-        internalMessage.startsWith("Tie detected"));
+        internalMessage.startsWith("Tie detected") ||
+        // Manual course override validation errors (start_round with course param)
+        internalMessage.startsWith("Invalid course abbreviation") ||
+        internalMessage.startsWith('Course "') ||
+        internalMessage.startsWith("Course "));
 
     return createErrorResponse(
       isBusinessError ? internalMessage : "Internal server error",

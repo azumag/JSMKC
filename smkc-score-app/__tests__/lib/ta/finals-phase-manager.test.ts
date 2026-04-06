@@ -13,6 +13,7 @@ import {
   processPhase3Result,
   getPhaseStatus,
   undoLastPhaseRound,
+  startPhaseRound,
 } from "@/lib/ta/finals-phase-manager";
 
 // Mock Prisma client
@@ -26,7 +27,11 @@ const mockPrismaClient = {
   },
   tTPhaseRound: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
+    delete: jest.fn(),
   },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
@@ -503,6 +508,94 @@ describe("TA Finals Phase Manager", () => {
           data: { lives: 3, eliminated: false },
         })
       );
+    });
+  });
+
+  describe("startPhaseRound", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "admin-1",
+      ipAddress: "127.0.0.1",
+      userAgent: "jest",
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      // Default: 2 active players so phase is valid
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { id: "e1", playerId: "p1", eliminated: false },
+        { id: "e2", playerId: "p2", eliminated: false },
+      ]);
+      // Default: 0 existing rounds so first round number = 1
+      mockPrismaClient.tTPhaseRound.count.mockResolvedValue(0);
+      // Default: no rounds played yet → all 20 courses available
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseRound.create.mockResolvedValue({});
+    });
+
+    it("uses random course when manualCourse is not provided", async () => {
+      // When no manualCourse is given, selectRandomCourse picks from all 20 courses.
+      // We verify that manualOverride is false and a course string is returned.
+      const result = await startPhaseRound(
+        mockPrismaClient as any,
+        context,
+        "phase1"
+      );
+
+      expect(result.roundNumber).toBe(1);
+      expect(typeof result.course).toBe("string");
+      expect(result.manualOverride).toBe(false);
+      // tTPhaseRound.create should be called with manualOverride: false
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ manualOverride: false }),
+        })
+      );
+    });
+
+    it("uses the specified course and sets manualOverride: true when a valid course is provided", async () => {
+      // MC1 is the first course in the COURSES array and is available (no played rounds)
+      const result = await startPhaseRound(
+        mockPrismaClient as any,
+        context,
+        "phase1",
+        "MC1"
+      );
+
+      expect(result.course).toBe("MC1");
+      expect(result.manualOverride).toBe(true);
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ course: "MC1", manualOverride: true }),
+        })
+      );
+    });
+
+    it("throws when an invalid course abbreviation is provided", async () => {
+      // "INVALID" is not in the COURSES array → should throw before DB access
+      await expect(
+        startPhaseRound(mockPrismaClient as any, context, "phase1", "INVALID")
+      ).rejects.toThrow('Invalid course abbreviation: "INVALID"');
+    });
+
+    it("throws when the specified course has already been played in the current cycle", async () => {
+      // Simulate MC1 already played in this phase
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([
+        { course: "MC1" },
+      ]);
+
+      await expect(
+        startPhaseRound(mockPrismaClient as any, context, "phase1", "MC1")
+      ).rejects.toThrow('Course "MC1" has already been played in the current cycle');
+    });
+
+    it("throws when there are no active players in the phase", async () => {
+      // Phase not yet promoted → no TTEntry records for this phase
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([]);
+
+      await expect(
+        startPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow("No active players in phase1. Promote players first.");
     });
   });
 });

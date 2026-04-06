@@ -590,7 +590,10 @@
     "undoRoundTitle": "Undo Last Round?",
     "undoRoundDesc": "This will clear the results of the last submitted round and restore player status to before that round. The course will remain assigned so you can re-enter times.",
     "yesUndoRound": "Yes, Undo Round",
-    "undoing": "Undoing..."
+    "undoing": "Undoing...",
+    "courseOverrideLabel": "Course Selection (optional)",
+    "randomCourse": "Random (default)",
+    "manualCourseOverride": "Manual"
   },
   "revival": {
     "round1Title": "Loser's Revival Round 1",
@@ -681,7 +684,10 @@
     "undoRoundDesc": "This will clear the results of the last submitted round and restore player status to before that round. The course will remain assigned so you can re-enter times.",
     "keepRound": "Keep Round",
     "yesUndoRound": "Yes, Undo Round",
-    "undoing": "Undoing..."
+    "undoing": "Undoing...",
+    "courseOverrideLabel": "Course Selection (optional)",
+    "randomCourse": "Random (default)",
+    "manualCourseOverride": "Manual"
   },
   "errors": {
     "errorOccurred": "Error Occurred",

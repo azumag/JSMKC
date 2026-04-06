@@ -29,7 +29,7 @@
 import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
-import { selectRandomCourse } from "@/lib/ta/course-selection";
+import { selectRandomCourse, getPlayedCourses, getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 
 /**
@@ -842,14 +842,20 @@ export interface RoundResultInput {
  * @param prisma - Prisma client
  * @param context - Phase context with user/request info for audit logging
  * @param phase - "phase1", "phase2", or "phase3"
- * @returns Object with roundNumber and the randomly selected course abbreviation
+ * @param manualCourse - Optional admin-specified course abbreviation. When provided,
+ *   bypasses random selection. Must be a valid CourseAbbr in the current cycle's
+ *   available pool. When omitted, a random course is chosen automatically.
+ * @returns Object with roundNumber, course abbreviation, and manualOverride flag
  * @throws Error if phase has no active players (phase not yet started)
+ * @throws Error if manualCourse is not a valid CourseAbbr
+ * @throws Error if manualCourse has already been played in the current 20-course cycle
  */
 export async function startPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
-  phase: "phase1" | "phase2" | "phase3"
-): Promise<{ roundNumber: number; course: string }> {
+  phase: "phase1" | "phase2" | "phase3",
+  manualCourse?: string
+): Promise<{ roundNumber: number; course: string; manualOverride: boolean }> {
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
@@ -872,8 +878,37 @@ export async function startPhaseRound(
   });
   const roundNumber = existingRounds + 1;
 
-  // Select a random course from the unused pool for this phase.
-  const course = await selectRandomCourse(prisma, tournamentId, phase);
+  // Determine the course to use: admin-specified manual override or random selection.
+  // Manual course must be validated against the 20-course cycle to ensure fairness.
+  let course: string;
+  let manualOverride = false;
+
+  // The `!== ""` guard is a defence-in-depth: Zod's z.string().optional() never
+  // produces an empty string from a missing field, but direct callers (e.g. tests)
+  // may pass "" to mean "use random". Treating "" as "no override" keeps both paths safe.
+  if (manualCourse !== undefined && manualCourse !== "") {
+    // Validate the abbreviation is a known course
+    if (!isValidCourseAbbr(manualCourse)) {
+      throw new Error(
+        `Invalid course abbreviation: "${manualCourse}". Must be one of the 20 standard courses.`
+      );
+    }
+    // Validate the course is still available in the current cycle
+    // (not already played in the current 20-course block)
+    const playedCourses = await getPlayedCourses(prisma, tournamentId, phase);
+    const available = getAvailableCourses(playedCourses);
+    if (!available.includes(manualCourse)) {
+      throw new Error(
+        `Course "${manualCourse}" has already been played in the current cycle. ` +
+          `Available courses: ${available.join(", ")}`
+      );
+    }
+    course = manualCourse;
+    manualOverride = true;
+  } else {
+    // Default: select a random course from the unused pool for this phase.
+    course = await selectRandomCourse(prisma, tournamentId, phase);
+  }
 
   // Create the round record with empty results (to be filled on submitRoundResults).
   // The @@unique([tournamentId, phase, roundNumber]) constraint guards against
@@ -884,6 +919,7 @@ export async function startPhaseRound(
       phase,
       roundNumber,
       course,
+      manualOverride,
       results: [], // Will be populated by submitRoundResults
     },
   });
@@ -903,6 +939,7 @@ export async function startPhaseRound(
         action: "start_round",
         roundNumber,
         course,
+        manualOverride,
         activePlayers: activePlayers.length,
       },
     });
@@ -912,7 +949,7 @@ export async function startPhaseRound(
     });
   }
 
-  return { roundNumber, course };
+  return { roundNumber, course, manualOverride };
 }
 
 /**
