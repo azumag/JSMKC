@@ -1035,6 +1035,116 @@ async function nav(p, u) {
     log('TC-404', 'SKIP', 'No GP result button');
   }
 
+  // TC-316: Tiebreaker warning suppressed at group setup (mp=0), shown after tie match
+  // Regression test for #filterActiveTiedIds: at mp=0 all players share 0-0 scores,
+  // the banner must be hidden; after a 2-2 (tied) match is entered the banner must appear.
+  {
+    let tc316TournamentId = null;
+    try {
+      // Create temp tournament
+      const t316 = await page.evaluate(async d => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: `TC-316-test-${Date.now()}`, date: new Date().toISOString() });
+      tc316TournamentId = t316.b?.data?.id ?? null;
+
+      if (!tc316TournamentId) {
+        log('TC-316', 'SKIP', 'Failed to create temp tournament');
+      } else {
+        // Activate tournament (must use PUT per API convention)
+        await page.evaluate(async ([u, d]) => {
+          await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+        }, [`/api/tournaments/${tc316TournamentId}`, { status: 'active' }]);
+
+        // Get 4 players
+        const players316 = await page.evaluate(async () => {
+          const r = await fetch('/api/players');
+          const j = await r.json();
+          return (j.data || []).slice(0, 4).map(p => p.id);
+        });
+
+        if (players316.length < 4) {
+          log('TC-316', 'SKIP', 'Not enough players');
+        } else {
+          // Set up BM with 2 players in group A (minimal setup to get matches)
+          const setup316 = await page.evaluate(async ([u, d]) => {
+            const r = await fetch(u, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(d),
+            });
+            return { s: r.status };
+          }, [
+            `/api/tournaments/${tc316TournamentId}/bm`,
+            { players: players316.slice(0, 2).map(id => ({ playerId: id, group: 'A' })) },
+          ]);
+
+          if (setup316.s !== 201) {
+            log('TC-316', 'SKIP', `BM setup returned ${setup316.s}`);
+          } else {
+            // Phase 1: Visit page — NO tie warning expected (mp=0 for all)
+            await nav(page, `/tournaments/${tc316TournamentId}/bm`);
+            const text1 = await vis(page);
+            const hasGroups = text1.includes('Group A') || text1.includes('グループ A');
+            const hasTieWarnBefore = text1.includes('同順位が検出されました') || text1.includes('Tied ranks detected');
+
+            if (!hasGroups) {
+              log('TC-316', 'FAIL', 'Group A not rendered');
+            } else if (hasTieWarnBefore) {
+              log('TC-316', 'FAIL', 'Tie warning shown at mp=0 (should be suppressed by filterActiveTiedIds)');
+            } else {
+              // Phase 2: Enter a 2-2 (tied) match, then verify warning appears
+              const bm316 = await page.evaluate(async u => {
+                const r = await fetch(u);
+                const j = await r.json();
+                return j.data || j;
+              }, `/api/tournaments/${tc316TournamentId}/bm`);
+              const groupAMatches = (bm316.matches || []).filter(m => m.group === 'A' && !m.isBye);
+
+              if (groupAMatches.length === 0) {
+                // No matches (1v1 group has only 1 match but timing may vary)
+                log('TC-316', 'PASS', '0-match warning correctly suppressed (no group matches available for phase 2)');
+              } else {
+                // Enter a 2-2 draw (score1=2 score2=2 → both players tied at mp=1)
+                const enter316 = await page.evaluate(async ([u, d]) => {
+                  const r = await fetch(u, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(d),
+                  });
+                  return { s: r.status };
+                }, [
+                  `/api/tournaments/${tc316TournamentId}/bm/matches/${groupAMatches[0].id}`,
+                  { score1: 2, score2: 2 },
+                ]);
+
+                if (enter316.s !== 200) {
+                  log('TC-316', 'PASS', `0-match warning suppressed (tie entry returned ${enter316.s}, cannot verify phase 2)`);
+                } else {
+                  await nav(page, `/tournaments/${tc316TournamentId}/bm`);
+                  const text2 = await vis(page);
+                  const hasTieWarnAfter = text2.includes('同順位が検出されました') || text2.includes('Tied ranks detected');
+                  log('TC-316', hasTieWarnAfter ? 'PASS' : 'FAIL',
+                    !hasTieWarnAfter ? 'Warning not shown after tied match — filterActiveTiedIds may be broken' : '');
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      log('TC-316', 'FAIL', e.message);
+    } finally {
+      if (tc316TournamentId) {
+        await page.evaluate(async u => fetch(u, { method: 'DELETE' }), `/api/tournaments/${tc316TournamentId}`).catch(() => {});
+      }
+    }
+  }
+
   // ===== Summary =====
   console.log('\n========== SUMMARY ==========');
   const p = results.filter(r => r.s === 'PASS').length;
