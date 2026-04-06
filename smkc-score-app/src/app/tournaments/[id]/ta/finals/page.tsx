@@ -163,8 +163,9 @@ export default function TimeAttackFinals({
   // Available courses for the next round (received from GET response).
   // Used to populate the manual course selector dropdown.
   const [availableCourses, setAvailableCourses] = useState<string[]>([]);
-  // Admin-selected course override. Empty string = use random selection (default).
-  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  // Admin-selected course override. "__random__" = use random selection (default).
+  // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
+  const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -300,7 +301,7 @@ export default function TimeAttackFinals({
             phase: "phase3",
             // Only include course when admin has manually selected one;
             // omitting it lets the server choose randomly (default behaviour).
-            ...(selectedCourse ? { course: selectedCourse } : {}),
+            ...(selectedCourse && selectedCourse !== "__random__" ? { course: selectedCourse } : {}),
           }),
         }
       );
@@ -327,7 +328,7 @@ export default function TimeAttackFinals({
       });
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
-      setSelectedCourse(""); // Reset manual selection after round is started
+      setSelectedCourse("__random__"); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
       const errorMessage =
@@ -872,7 +873,8 @@ export default function TimeAttackFinals({
                       <SelectValue placeholder={tTaFinals('randomCourse')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">{tTaFinals('randomCourse')}</SelectItem>
+                      {/* "__random__" sentinel: Radix UI Select forbids value="" (reserved for placeholder) */}
+                      <SelectItem value="__random__">{tTaFinals('randomCourse')}</SelectItem>
                       {availableCourses.map((abbr) => {
                         const info = COURSE_INFO.find((c) => c.abbr === abbr);
                         return (
