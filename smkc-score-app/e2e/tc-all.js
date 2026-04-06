@@ -866,6 +866,85 @@ async function nav(p, u) {
     } else { log('TC-305', 'SKIP', 'No update button'); }
   } else { log('TC-305', 'SKIP', 'No edit button'); }
 
+  // TC-315: BM group setup with odd player count (3 players) must not return 500
+  // Regression test for FK violation when player2Id='__BREAK__' (BYE match sentinel)
+  {
+    let tc315TournamentId = null;
+    try {
+      // Create a temp tournament for this test
+      const t315 = await page.evaluate(async d => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: `TC-315-test-${Date.now()}`, date: new Date().toISOString() });
+      tc315TournamentId = t315.b?.data?.id ?? null;
+
+      if (!tc315TournamentId) {
+        log('TC-315', 'SKIP', 'Failed to create temp tournament');
+      } else {
+        // Activate the tournament
+        await page.evaluate(async ([u, d]) => {
+          await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+        }, [`/api/tournaments/${tc315TournamentId}`, { status: 'active' }]);
+
+        // Get 3 player IDs (odd count to force BYE match creation)
+        const players315 = await page.evaluate(async () => {
+          const r = await fetch('/api/players');
+          const j = await r.json();
+          return (j.data || []).slice(0, 3).map(p => p.id);
+        });
+
+        if (players315.length < 3) {
+          log('TC-315', 'SKIP', 'Not enough players');
+        } else {
+          // POST BM setup with 3 players — previously caused 500 due to FK violation
+          const setup315 = await page.evaluate(async ([u, d]) => {
+            const r = await fetch(u, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(d),
+            });
+            return { s: r.status, b: await r.json().catch(() => ({})) };
+          }, [
+            `/api/tournaments/${tc315TournamentId}/bm`,
+            { players: players315.map(id => ({ playerId: id, group: 'A' })) },
+          ]);
+
+          const postOk = setup315.s === 201;
+
+          // Verify BYE match was created (3 players → 1 BYE per round)
+          const bm315 = await page.evaluate(async u => {
+            const r = await fetch(u);
+            const j = await r.json();
+            return j.data || j;
+          }, `/api/tournaments/${tc315TournamentId}/bm`);
+          const hasByeMatch = (bm315.matches || []).some(m => m.isBye);
+
+          // Verify __BREAK__ not in players list
+          const noBreakInPlayers = await page.evaluate(async () => {
+            const r = await fetch('/api/players');
+            const j = await r.json();
+            return !(j.data || []).some(p => p.id === '__BREAK__' || p.nickname === '__BREAK__');
+          });
+
+          log('TC-315', postOk && hasByeMatch && noBreakInPlayers ? 'PASS' : 'FAIL',
+            !postOk ? `POST returned ${setup315.s}` :
+            !hasByeMatch ? 'No BYE match found' :
+            !noBreakInPlayers ? '__BREAK__ appeared in player list' : '');
+        }
+      }
+    } catch (e) {
+      log('TC-315', 'FAIL', e.message);
+    } finally {
+      if (tc315TournamentId) {
+        await page.evaluate(async u => fetch(u, { method: 'DELETE' }), `/api/tournaments/${tc315TournamentId}`);
+      }
+    }
+  }
+
   // TC-307: Score entry links
   let tc307 = true;
   for (const m of ['bm', 'mr', 'gp']) {
