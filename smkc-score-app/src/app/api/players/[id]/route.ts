@@ -200,6 +200,35 @@ export async function DELETE(
     }
 
     /*
+     * Guard: prevent deletion of players who are registered in any tournament.
+     * Checks all 8 tournament-participation tables in parallel.
+     *
+     * Why each table is checked:
+     * - BM/MR/GP Match tables: onDelete: Restrict — deletion would fail with a FK constraint
+     *   error (confusing 500). Guard gives a clear 409 instead.
+     * - Qualification tables (BM/MR/GP) and TTEntry/TournamentPlayerScore: onDelete: Cascade
+     *   in the Prisma schema, so deletion would silently wipe historical tournament data.
+     *   These are guarded by deliberate policy, not by FK enforcement.
+     */
+    const tournamentCounts = await Promise.all([
+      prisma.bMQualification.count({ where: { playerId: id } }),
+      prisma.bMMatch.count({ where: { OR: [{ player1Id: id }, { player2Id: id }] } }),
+      prisma.mRQualification.count({ where: { playerId: id } }),
+      prisma.mRMatch.count({ where: { OR: [{ player1Id: id }, { player2Id: id }] } }),
+      prisma.gPQualification.count({ where: { playerId: id } }),
+      prisma.gPMatch.count({ where: { OR: [{ player1Id: id }, { player2Id: id }] } }),
+      prisma.tTEntry.count({ where: { playerId: id } }),
+      prisma.tournamentPlayerScore.count({ where: { playerId: id } }),
+    ]);
+
+    if (tournamentCounts.some(count => count > 0)) {
+      return createErrorResponse(
+        "Cannot delete a player who is registered in a tournament",
+        409
+      );
+    }
+
+    /*
      * Delete non-cascading child records first.
      * Score entry logs and character usage rows reference Player without
      * onDelete: Cascade in the Prisma schema, so a reported player would

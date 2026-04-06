@@ -503,6 +503,77 @@ describe('DELETE /api/players/[id]', () => {
     });
   });
 
+  describe('Tournament Guard', () => {
+    // Helper: reset all 8 tournament-table count mocks to 0
+    const allCountsZero = () => {
+      prisma.bMQualification.count.mockResolvedValue(0);
+      prisma.bMMatch.count.mockResolvedValue(0);
+      prisma.mRQualification.count.mockResolvedValue(0);
+      prisma.mRMatch.count.mockResolvedValue(0);
+      prisma.gPQualification.count.mockResolvedValue(0);
+      prisma.gPMatch.count.mockResolvedValue(0);
+      prisma.tTEntry.count.mockResolvedValue(0);
+      prisma.tournamentPlayerScore.count.mockResolvedValue(0);
+    };
+
+    /*
+     * Each entry exercises one guard condition independently.
+     * If any of the 8 checks were removed from the implementation, its test fails.
+     * [modelKey, description] — modelKey must match the prisma mock property name.
+     */
+    it.each([
+      ['bMQualification', 'BM qualification (cascade-delete policy)'],
+      ['bMMatch',         'BM match (FK Restrict — would error without guard)'],
+      ['mRQualification', 'MR qualification (cascade-delete policy)'],
+      ['mRMatch',         'MR match (FK Restrict)'],
+      ['gPQualification', 'GP qualification (cascade-delete policy)'],
+      ['gPMatch',         'GP match (FK Restrict)'],
+      ['tTEntry',         'TA entry (cascade-delete policy)'],
+      ['tournamentPlayerScore', 'tournament score (cascade-delete policy)'],
+    ])('should return 409 when player has %s records', async (modelKey) => {
+      allCountsZero();
+      (prisma[modelKey].count as jest.Mock).mockResolvedValue(1);
+
+      const request = new NextRequest('http://localhost:3000/api/players/player-1', {
+        method: 'DELETE',
+      });
+
+      const route = (await import('@/app/api/players/[id]/route')).DELETE;
+      await route(request, { params: Promise.resolve({ id: 'player-1' }) });
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining('registered in a tournament'),
+        }),
+        { status: 409 }
+      );
+      expect(prisma.player.delete).not.toHaveBeenCalled();
+    });
+
+    it('should proceed with deletion and clean up log records when player has no tournament data', async () => {
+      // Player with no tournament associations can be safely deleted.
+      // Pre-deletion cleanup of non-cascade records (scoreEntryLog, matchCharacterUsage) is verified.
+      allCountsZero();
+      prisma.player.delete.mockResolvedValue({});
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/players/player-1', {
+        method: 'DELETE',
+      });
+
+      const route = (await import('@/app/api/players/[id]/route')).DELETE;
+      await route(request, { params: Promise.resolve({ id: 'player-1' }) });
+
+      // Verify non-cascade child records are cleaned up before player deletion
+      expect(prisma.scoreEntryLog.deleteMany).toHaveBeenCalledWith({ where: { playerId: 'player-1' } });
+      expect(prisma.matchCharacterUsage.deleteMany).toHaveBeenCalledWith({ where: { playerId: 'player-1' } });
+      expect(prisma.player.delete).toHaveBeenCalledWith({ where: { id: 'player-1' } });
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true }),
+      );
+    });
+  });
+
   describe('Error Cases', () => {
     it('should return 404 when player not found (P2025)', async () => {
       prisma.player.delete.mockRejectedValue({ code: 'P2025' });

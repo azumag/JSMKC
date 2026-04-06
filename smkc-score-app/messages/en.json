@@ -176,6 +176,7 @@
     "failedToCreate": "Failed to create player",
     "failedToUpdate": "Failed to update player",
     "failedToDelete": "Failed to delete player",
+    "cannotDeleteTournamentPlayer": "Cannot delete: this player is registered in a tournament",
     "resetPassword": "Reset Password",
     "confirmResetPassword": "Are you sure you want to reset the password for this player?",
     "passwordResetSuccess": "Password Reset Successfully",

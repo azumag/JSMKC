@@ -137,13 +137,16 @@ jest.mock('@/lib/prisma', () => {
     gPQualification: createMockModelWithMethods(),
     tTEntry: createMockModelWithMethods(),
     tTPhaseRound: createMockModelWithMethods(),
+    tournamentPlayerScore: createMockModelWithMethods(),
     scoreEntryLog: {
       findMany: jest.fn(),
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     matchCharacterUsage: {
       findMany: jest.fn(),
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
   }
 

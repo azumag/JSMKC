@@ -75,6 +75,8 @@ interface Player {
   nickname: string;
   country: string | null;
   createdAt: string;
+  /** Set by the API for admin users: true if the player is registered in any tournament. */
+  hasTournamentData?: boolean;
 }
 
 /**
@@ -571,7 +573,8 @@ export default function PlayersPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          disabled={submitting}
+                          disabled={submitting || !!player.hasTournamentData}
+                          title={player.hasTournamentData ? t('cannotDeleteTournamentPlayer') : undefined}
                           onClick={() => handleDelete(player.id)}
                         >
                           {tc('delete')}

@@ -61,6 +61,48 @@ export async function GET(request: NextRequest) {
       { page, limit }
     );
 
+    /*
+     * For admin users, annotate each player with hasTournamentData so the UI can
+     * disable the delete button without a separate per-player API call.
+     * Uses a batch query strategy: fetch all registered player IDs from each
+     * tournament table, then build a Set for O(1) lookup per player.
+     * This avoids N+1 queries while keeping the data fresh on every page load.
+     */
+    const session = await auth();
+    if (session?.user?.role === 'admin') {
+      // Scope all queries to just the player IDs on the current page to avoid full-table scans.
+      // result.data is untyped (paginate returns unknown[]); cast to the minimal shape we need.
+      const players = result.data as Array<{ id: string }>;
+      const pagePlayerIds = players.map(p => p.id);
+
+      const [bmqIds, bmmRows, mrqIds, mrmRows, gpqIds, gpmRows, tteIds, tpsIds] = await Promise.all([
+        prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }),
+        prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }),
+        prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }),
+        prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }),
+        prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }),
+        prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }),
+        prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }),
+        prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }),
+      ]);
+
+      const registeredIds = new Set<string>([
+        ...bmqIds.map(r => r.playerId),
+        ...bmmRows.flatMap(r => [r.player1Id, r.player2Id]),
+        ...mrqIds.map(r => r.playerId),
+        ...mrmRows.flatMap(r => [r.player1Id, r.player2Id]),
+        ...gpqIds.map(r => r.playerId),
+        ...gpmRows.flatMap(r => [r.player1Id, r.player2Id]),
+        ...tteIds.map(r => r.playerId),
+        ...tpsIds.map(r => r.playerId),
+      ]);
+
+      result.data = players.map(player => ({
+        ...player,
+        hasTournamentData: registeredIds.has(player.id),
+      }));
+    }
+
     /* Spread paginate() result to avoid double-wrapping:
      * paginate returns { data, meta }, createSuccessResponse wraps in { success, data }.
      * Direct JSON response preserves flat structure: { success, data: [...], meta: {...} } */

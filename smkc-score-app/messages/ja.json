@@ -176,6 +176,7 @@
     "failedToCreate": "プレイヤーの作成に失敗しました",
     "failedToUpdate": "プレイヤーの更新に失敗しました",
     "failedToDelete": "プレイヤーの削除に失敗しました",
+    "cannotDeleteTournamentPlayer": "削除不可：このプレイヤーはトーナメントに登録されています",
     "resetPassword": "パスワード再発行",
     "confirmResetPassword": "このプレイヤーのパスワードをリセットしますか？",
     "passwordResetSuccess": "パスワードのリセットに成功しました",
