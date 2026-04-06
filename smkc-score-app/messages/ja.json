@@ -91,7 +91,9 @@
     "recommendedGroups": "推奨: {count}グループ",
     "dayLabel": "Day {day}",
     "tvNumber": "TV#",
-    "bye": "BREAK"
+    "bye": "BREAK",
+    "tiedRanksWarningAdmin": "同順位が検出されました — 順位の鉛筆アイコンで手動解決してください",
+    "tiedRanksWarningViewer": "同順位が検出されました — 管理者による解決待ちです"
   },
   "home": {
     "tagline": "SMKC スコア管理",

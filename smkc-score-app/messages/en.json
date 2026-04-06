@@ -91,7 +91,9 @@
     "recommendedGroups": "Recommended: {count}",
     "dayLabel": "Day {day}",
     "tvNumber": "TV#",
-    "bye": "BREAK"
+    "bye": "BREAK",
+    "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",
+    "tiedRanksWarningViewer": "Tied ranks detected — awaiting admin resolution"
   },
   "home": {
     "tagline": "SMKC Score Management",

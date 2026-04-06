@@ -59,6 +59,8 @@ import {
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
+import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
+import { computeTieAwareRanks, findUnresolvedTies } from "@/lib/ranking-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
@@ -268,7 +270,7 @@ export default function GrandPrixPage({
         body: JSON.stringify({ qualificationId, rankOverride }),
       });
       if (response.ok) {
-        setEditingRankId(null);
+        // RankCell manages its own editing state; no need to reset it here
         refetch();
       } else {
         const err = await response.json().catch(() => ({}));
@@ -555,54 +557,66 @@ export default function GrandPrixPage({
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16">#</TableHead>
-                          <TableHead>{tc('player')}</TableHead>
-                          <TableHead className="text-center">{t('mp')}</TableHead>
-                          <TableHead className="text-center">{t('w')}</TableHead>
-                          <TableHead className="text-center">{t('t')}</TableHead>
-                          <TableHead className="text-center">{t('l')}</TableHead>
-                          <TableHead className="text-center">{t('pts')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(() => {
-                          /* GP uses points (driver points) as primary sort key, score as secondary */
-                          const sorted = qualifications
-                            .filter((q) => q.group === group)
-                            .sort((a, b) => b.points - a.points || b.score - a.score);
-                          const withAutoRank = sorted.map((q, i) => ({ ...q, _autoRank: i + 1 }));
-                          const byEffectiveRank = [...withAutoRank].sort(
-                            (a, b) => (a.rankOverride ?? a._autoRank) - (b.rankOverride ?? b._autoRank)
-                          );
-                          return byEffectiveRank.map((q) => (
-                            <TableRow key={q.id}>
-                              <TableCell>
-                                <RankCell
-                                  qualificationId={q.id}
-                                  rankOverride={q.rankOverride}
-                                  autoRank={q._autoRank}
-                                  isAdmin={!!isAdmin}
-                                  onSave={handleRankOverrideSave}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                {q.player.nickname}
-                              </TableCell>
-                              <TableCell className="text-center">{q.mp}</TableCell>
-                              <TableCell className="text-center">{q.wins}</TableCell>
-                              <TableCell className="text-center">{q.ties}</TableCell>
-                              <TableCell className="text-center">{q.losses}</TableCell>
-                              <TableCell className="text-center font-bold">
-                                {q.points}
-                              </TableCell>
-                            </TableRow>
-                          ));
-                        })()}
-                      </TableBody>
-                    </Table>
+                    {(() => {
+                      /*
+                       * Compute tie-aware 1224 competition ranks for this group.
+                       * GP uses points (driver points) as primary sort key, score as secondary.
+                       * findUnresolvedTies returns IDs of entries in ties where not all
+                       * members have a rankOverride — used for yellow row highlighting and banner.
+                       */
+                      const groupEntries = qualifications.filter((q) => q.group === group);
+                      const byEffectiveRank = computeTieAwareRanks(
+                        groupEntries,
+                        (a, b) => b.points - a.points || b.score - a.score
+                      );
+                      const tiedIds = findUnresolvedTies(byEffectiveRank);
+                      return (
+                        <>
+                          <TieWarningBanner hasTies={tiedIds.size > 0} isAdmin={!!isAdmin} />
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>{tc('player')}</TableHead>
+                                <TableHead className="text-center">{t('mp')}</TableHead>
+                                <TableHead className="text-center">{t('w')}</TableHead>
+                                <TableHead className="text-center">{t('t')}</TableHead>
+                                <TableHead className="text-center">{t('l')}</TableHead>
+                                <TableHead className="text-center">{t('pts')}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {byEffectiveRank.map((q) => (
+                                <TableRow
+                                  key={q.id}
+                                  className={tiedIds.has(q.id) ? "bg-yellow-50" : undefined}
+                                >
+                                  <TableCell>
+                                    <RankCell
+                                      qualificationId={q.id}
+                                      rankOverride={q.rankOverride}
+                                      autoRank={q._autoRank}
+                                      isAdmin={!!isAdmin}
+                                      onSave={handleRankOverrideSave}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {q.player.nickname}
+                                  </TableCell>
+                                  <TableCell className="text-center">{q.mp}</TableCell>
+                                  <TableCell className="text-center">{q.wins}</TableCell>
+                                  <TableCell className="text-center">{q.ties}</TableCell>
+                                  <TableCell className="text-center">{q.losses}</TableCell>
+                                  <TableCell className="text-center font-bold">
+                                    {q.points}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}

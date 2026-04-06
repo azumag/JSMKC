@@ -24,6 +24,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
+import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
+import { computeTieAwareRanks, findUnresolvedTies } from "@/lib/ranking-utils";
 import {
   Card,
   CardContent,
@@ -236,7 +238,7 @@ export default function MatchRacePage({
         body: JSON.stringify({ qualificationId, rankOverride }),
       });
       if (response.ok) {
-        setEditingRankId(null);
+        // RankCell manages its own editing state; no need to reset it here
         refetch();
       } else {
         const err = await response.json().catch(() => ({}));
@@ -247,9 +249,6 @@ export default function MatchRacePage({
     }
   };
 
-  /**
-   * Open the match result entry dialog with existing data or empty rounds.
-   */
   /**
    * Handle TV number assignment for a match.
    * Calls the PATCH endpoint to update the match's broadcast TV assignment.
@@ -476,58 +475,71 @@ export default function MatchRacePage({
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16">#</TableHead>
-                          <TableHead>{tc('player')}</TableHead>
-                          <TableHead className="text-center">{t('mp')}</TableHead>
-                          <TableHead className="text-center">{t('w')}</TableHead>
-                          <TableHead className="text-center">{t('t')}</TableHead>
-                          <TableHead className="text-center">{t('l')}</TableHead>
-                          <TableHead className="text-center">{t('plusMinus')}</TableHead>
-                          <TableHead className="text-center">{t('pts')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(() => {
-                          /* Compute effective ranks respecting overrides (same logic as BM/GP) */
-                          const sorted = qualifications
-                            .filter((q) => q.group === group)
-                            .sort((a, b) => b.score - a.score || b.points - a.points);
-                          const withAutoRank = sorted.map((q, i) => ({ ...q, _autoRank: i + 1 }));
-                          const byEffectiveRank = [...withAutoRank].sort(
-                            (a, b) => (a.rankOverride ?? a._autoRank) - (b.rankOverride ?? b._autoRank)
-                          );
-                          return byEffectiveRank.map((q) => (
-                            <TableRow key={q.id}>
-                              <TableCell>
-                                <RankCell
-                                  qualificationId={q.id}
-                                  rankOverride={q.rankOverride}
-                                  autoRank={q._autoRank}
-                                  isAdmin={!!isAdmin}
-                                  onSave={handleRankOverrideSave}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                {q.player.nickname}
-                              </TableCell>
-                              <TableCell className="text-center">{q.mp}</TableCell>
-                              <TableCell className="text-center">{q.wins}</TableCell>
-                              <TableCell className="text-center">{q.ties}</TableCell>
-                              <TableCell className="text-center">{q.losses}</TableCell>
-                              <TableCell className="text-center">
-                                {q.points > 0 ? `+${q.points}` : q.points}
-                              </TableCell>
-                              <TableCell className="text-center font-bold">
-                                {q.score}
-                              </TableCell>
-                            </TableRow>
-                          ));
-                        })()}
-                      </TableBody>
-                    </Table>
+                    {(() => {
+                      /*
+                       * Compute tie-aware 1224 competition ranks for this group.
+                       * computeTieAwareRanks assigns the same _autoRank to tied entries
+                       * (equal score + points) and sorts by effective rank (override ?? autoRank).
+                       * findUnresolvedTies returns IDs of entries in ties where not all
+                       * members have a rankOverride — used for yellow row highlighting and banner.
+                       */
+                      const groupEntries = qualifications.filter((q) => q.group === group);
+                      const byEffectiveRank = computeTieAwareRanks(
+                        groupEntries,
+                        (a, b) => b.score - a.score || b.points - a.points
+                      );
+                      const tiedIds = findUnresolvedTies(byEffectiveRank);
+                      return (
+                        <>
+                          <TieWarningBanner hasTies={tiedIds.size > 0} isAdmin={!!isAdmin} />
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>{tc('player')}</TableHead>
+                                <TableHead className="text-center">{t('mp')}</TableHead>
+                                <TableHead className="text-center">{t('w')}</TableHead>
+                                <TableHead className="text-center">{t('t')}</TableHead>
+                                <TableHead className="text-center">{t('l')}</TableHead>
+                                <TableHead className="text-center">{t('plusMinus')}</TableHead>
+                                <TableHead className="text-center">{t('pts')}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {byEffectiveRank.map((q) => (
+                                <TableRow
+                                  key={q.id}
+                                  className={tiedIds.has(q.id) ? "bg-yellow-50" : undefined}
+                                >
+                                  <TableCell>
+                                    <RankCell
+                                      qualificationId={q.id}
+                                      rankOverride={q.rankOverride}
+                                      autoRank={q._autoRank}
+                                      isAdmin={!!isAdmin}
+                                      onSave={handleRankOverrideSave}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {q.player.nickname}
+                                  </TableCell>
+                                  <TableCell className="text-center">{q.mp}</TableCell>
+                                  <TableCell className="text-center">{q.wins}</TableCell>
+                                  <TableCell className="text-center">{q.ties}</TableCell>
+                                  <TableCell className="text-center">{q.losses}</TableCell>
+                                  <TableCell className="text-center">
+                                    {q.points > 0 ? `+${q.points}` : q.points}
+                                  </TableCell>
+                                  <TableCell className="text-center font-bold">
+                                    {q.score}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}
