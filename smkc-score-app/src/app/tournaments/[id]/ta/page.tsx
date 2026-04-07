@@ -61,6 +61,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
+import { computeAutoPairs } from "@/lib/ta/pair-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -79,6 +80,7 @@ interface Player {
   id: string;
   name: string;
   nickname: string;
+  ttSeeding: number | null;
 }
 
 /** Time Trial entry data structure from the API */
@@ -88,6 +90,8 @@ interface TTEntry {
   stage: string;
   lives: number;
   eliminated: boolean;
+  /** §3.1: Partner player ID for pair running */
+  partnerId: string | null;
   times: Record<string, string> | null;
   totalTime: number | null;
   rank: number | null;
@@ -149,6 +153,12 @@ export default function TimeAttackPage({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Pair management dialog state (admin only, §3.1)
+  const [isPairDialogOpen, setIsPairDialogOpen] = useState(false);
+  const [pairAssigning, setPairAssigning] = useState(false);
+  // Pending pair overrides: entryId -> partnerId (null = clear partner)
+  const [pairOverrides, setPairOverrides] = useState<Record<string, string | null>>({});
+
   // View-only dialog state: opened when non-admin/non-owner clicks "View Times"
   const [isViewTimesDialogOpen, setIsViewTimesDialogOpen] = useState(false);
   const [viewEntry, setViewEntry] = useState<TTEntry | null>(null);
@@ -166,6 +176,68 @@ export default function TimeAttackPage({
 
   // Development-only flag: inlined at build time, tree-shaken in production
   const isDevelopment = process.env.NODE_ENV === 'development';
+
+  // === Pair Management (§3.1) ===
+
+  /** Call the existing set_partner API for a single entry */
+  const setPartner = async (entryId: string, partnerId: string | null) => {
+    const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entryId, action: "set_partner", partnerId }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || t('pairSaveError'));
+    }
+  };
+
+  /** Apply all pending pair overrides and persist to API */
+  const handleSavePairs = async () => {
+    if (pairAssigning) return;
+    setPairAssigning(true);
+    try {
+      await Promise.all(
+        Object.entries(pairOverrides).map(([entryId, partnerId]) =>
+          setPartner(entryId, partnerId)
+        )
+      );
+      setPairOverrides({});
+      setIsPairDialogOpen(false);
+      refetch();
+      toast.success(t('pairsSaved'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('pairSaveError'));
+    } finally {
+      setPairAssigning(false);
+    }
+  };
+
+  /** Compute snake pairs from qualification entries and populate overrides state */
+  const handleAutoPair = () => {
+    const qualEntries = entries.filter(e => e.stage === "qualification");
+    // Adapt TTEntry to PairPlayer shape: ttSeeding lives on entry.player
+    const pairPlayers = qualEntries.map(e => ({
+      id: e.id,
+      playerId: e.playerId,
+      ttSeeding: e.player.ttSeeding,
+    }));
+    const rawPairs = computeAutoPairs(pairPlayers);
+    // Re-map pair player ids back to full TTEntry objects
+    const pairs = rawPairs.map(([a, b]) => [
+      qualEntries.find(e => e.id === a.id)!,
+      qualEntries.find(e => e.id === b.id)!,
+    ] as [TTEntry, TTEntry]);
+    const overrides: Record<string, string | null> = {};
+    // Clear all existing partners first
+    qualEntries.forEach(e => { overrides[e.id] = null; });
+    // Set new snake pairs bidirectionally
+    pairs.forEach(([a, b]) => {
+      overrides[a.id] = b.playerId;
+      overrides[b.id] = a.playerId;
+    });
+    setPairOverrides(overrides);
+  };
 
   // Fill random times for all courses in the single-player time entry dialog
   const handleFillRandomTimes = () => {
@@ -682,6 +754,98 @@ export default function TimeAttackPage({
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
+          {/* Pair Management Dialog: admin-only, §3.1 pair running assignment */}
+          {isAdmin && entries.filter(e => e.stage === "qualification").length >= 2 && (
+            <Dialog open={isPairDialogOpen} onOpenChange={(open) => {
+              setIsPairDialogOpen(open);
+              if (!open) setPairOverrides({});
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  {t('managePairs')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>{t('managePairsTitle')}</DialogTitle>
+                  <DialogDescription>{t('managePairsDesc')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <Button variant="outline" size="sm" onClick={handleAutoPair}>
+                    {t('autoPair')}
+                  </Button>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{tc('player')}</TableHead>
+                        <TableHead>{t('ttSeedingLabel')}</TableHead>
+                        <TableHead>{t('partner')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        // Compute once outside map to avoid O(N²) repeated filter calls
+                        const qualEntries = entries.filter(e => e.stage === "qualification");
+                        return qualEntries
+                        .sort((a, b) => (a.player.ttSeeding ?? Infinity) - (b.player.ttSeeding ?? Infinity))
+                        .map(entry => {
+                          const effectivePartnerId = entry.id in pairOverrides
+                            ? pairOverrides[entry.id]
+                            : entry.partnerId;
+                          return (
+                            <TableRow key={entry.id}>
+                              <TableCell className="font-medium">{entry.player.nickname}</TableCell>
+                              <TableCell>{entry.player.ttSeeding ?? "-"}</TableCell>
+                              <TableCell>
+                                <select
+                                  className="border rounded px-2 py-1 text-sm bg-background"
+                                  value={effectivePartnerId ?? ""}
+                                  onChange={ev => {
+                                    const val = ev.target.value || null;
+                                    const newOverrides = { ...pairOverrides };
+                                    // Clear old partner's back-link
+                                    const oldPartnerId = effectivePartnerId;
+                                    if (oldPartnerId) {
+                                      const oldPartnerEntry = qualEntries.find(e => e.playerId === oldPartnerId);
+                                      if (oldPartnerEntry) newOverrides[oldPartnerEntry.id] = null;
+                                    }
+                                    newOverrides[entry.id] = val;
+                                    // Set reverse link for new partner
+                                    if (val) {
+                                      const partnerEntry = qualEntries.find(e => e.playerId === val);
+                                      if (partnerEntry) newOverrides[partnerEntry.id] = entry.playerId;
+                                    }
+                                    setPairOverrides(newOverrides);
+                                  }}
+                                >
+                                  <option value="">{t('noPair')}</option>
+                                  {qualEntries
+                                    .filter(e => e.id !== entry.id)
+                                    .map(e => (
+                                      <option key={e.id} value={e.playerId}>
+                                        {e.player.nickname}{e.player.ttSeeding != null ? ` (#${e.player.ttSeeding})` : ""}
+                                      </option>
+                                    ))}
+                                </select>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      })()}
+                    </TableBody>
+                  </Table>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsPairDialogOpen(false)}>
+                    {tc('cancel')}
+                  </Button>
+                  <Button onClick={handleSavePairs} disabled={pairAssigning}>
+                    {pairAssigning ? tc('saving') : tc('save')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           {/* Add Players Dialog: admin-only, checkbox-based bulk selection */}
           {isAdmin && (
           <Dialog
@@ -965,6 +1129,7 @@ export default function TimeAttackPage({
                     <TableRow>
                       <TableHead className="w-16">{t('rank')}</TableHead>
                       <TableHead>{tc('player')}</TableHead>
+                      <TableHead>{t('pairPartner')}</TableHead>
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{tc('points')}</TableHead>
                       <TableHead className="text-right">{t('totalTime')}</TableHead>
@@ -985,6 +1150,11 @@ export default function TimeAttackPage({
                           </TableCell>
                           <TableCell className="font-medium">
                             {entry.player.nickname}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {entry.partnerId
+                              ? (entries.find(e => e.playerId === entry.partnerId)?.player.nickname ?? "-")
+                              : "-"}
                           </TableCell>
                           <TableCell className="text-center">
                             {getEnteredTimesCount(entry)} / {TOTAL_COURSES}

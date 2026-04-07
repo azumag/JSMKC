@@ -97,11 +97,17 @@ export async function PUT(
 
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country } = body;
+    const { name, nickname, country, ttSeeding } = body;
 
     // Validate required fields
     if (!name || !nickname) {
       return handleValidationError("Name and nickname are required");
+    }
+
+    // Validate ttSeeding: must be a positive integer if provided
+    const ttSeedingNum = ttSeeding != null ? Number(ttSeeding) : null;
+    if (ttSeedingNum !== null && (!Number.isInteger(ttSeedingNum) || ttSeedingNum < 1)) {
+      return handleValidationError("ttSeeding must be a positive integer");
     }
 
     // Update the player record in the database.
@@ -112,6 +118,7 @@ export async function PUT(
         name,
         nickname,
         country: country || null,
+        ttSeeding: ttSeedingNum,
       },
     });
 
@@ -131,6 +138,7 @@ export async function PUT(
           name,
           nickname,
           country,
+          ttSeeding,
         },
       });
     } catch (logError) {

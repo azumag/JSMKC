@@ -157,14 +157,14 @@ describe('GET /api/players', () => {
       await playerRoute.GET(req);
 
       // Verify the Prisma calls were made with correct parameters
-      // paginate calls count({ where: {} })
+      // paginate calls count({ where: { id: { not: '__BREAK__' } } })
       expect(prisma.player.count).toHaveBeenCalledWith({
-        where: {},
+        where: { id: { not: '__BREAK__' } },
       });
 
       // paginate calls findMany with where, orderBy, skip, take
       expect(prisma.player.findMany).toHaveBeenCalledWith({
-        where: {},
+        where: { id: { not: '__BREAK__' } },
         orderBy: { nickname: 'asc' },
         skip: 0,
         take: 50,
@@ -198,7 +198,7 @@ describe('GET /api/players', () => {
 
       // With page=2, limit=10, skip should be (2-1)*10 = 10
       expect(prisma.player.findMany).toHaveBeenCalledWith({
-        where: {},
+        where: { id: { not: '__BREAK__' } },
         orderBy: { nickname: 'asc' },
         skip: 10,
         take: 10,
@@ -231,12 +231,12 @@ describe('GET /api/players', () => {
 
       // Verify that an empty where clause is passed (no filters)
       expect(prisma.player.count).toHaveBeenCalledWith({
-        where: {},
+        where: { id: { not: '__BREAK__' } },
       });
 
       expect(prisma.player.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {},
+          where: { id: { not: '__BREAK__' } },
         })
       );
 

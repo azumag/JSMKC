@@ -79,6 +79,7 @@ model Player {
   name      String
   nickname  String   @unique
   country   String?
+  ttSeeding Int?      // §3.1: TA pair assignment seed ranking (lower = stronger)
   password  String?  // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int      @default(0) // 楽観的ロック用

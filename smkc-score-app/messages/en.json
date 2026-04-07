@@ -183,7 +183,9 @@
     "confirmResetPassword": "Are you sure you want to reset the password for this player?",
     "passwordResetSuccess": "Password Reset Successfully",
     "failedToResetPassword": "Failed to reset password",
-    "fetchError": "Failed to load players. Please try again."
+    "fetchError": "Failed to load players. Please try again.",
+    "ttSeeding": "TT Seeding",
+    "ttSeedingPlaceholder": "e.g. 1"
   },
   "profile": {
     "title": "Profile",
@@ -287,7 +289,17 @@
     "freezeQualification": "End Group Stage (Confirm Times)",
     "unfreezeQualification": "Reopen Group Stage (Unfreeze)",
     "stageFrozen": "This stage is frozen. Time edits are not allowed.",
-    "frozenBadge": "Frozen"
+    "frozenBadge": "Frozen",
+    "managePairs": "Manage Pairs",
+    "managePairsTitle": "TA Qualification - Pair Management",
+    "managePairsDesc": "§3.1: Assign pairs for pair running. Auto-pair uses snake seeding (balanced skill matching).",
+    "autoPair": "Auto-Pair by Seeding",
+    "partner": "Partner",
+    "ttSeedingLabel": "TT Seed",
+    "noPair": "(none)",
+    "pairsSaved": "Pairs saved",
+    "pairSaveError": "Failed to save pairs",
+    "pairPartner": "Pair"
   },
   "bm": {
     "title": "Battle Mode",

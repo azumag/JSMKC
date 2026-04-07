@@ -152,11 +152,17 @@ export async function POST(request: NextRequest) {
 
     // Sanitize all input fields to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country } = body;
+    const { name, nickname, country, ttSeeding } = body;
 
     // Validate required fields before database operations
     if (!name || !nickname) {
       return handleValidationError("Name and nickname are required");
+    }
+
+    // Validate ttSeeding: must be a positive integer if provided
+    const ttSeedingNum = ttSeeding != null ? Number(ttSeeding) : null;
+    if (ttSeedingNum !== null && (!Number.isInteger(ttSeedingNum) || ttSeedingNum < 1)) {
+      return handleValidationError("ttSeeding must be a positive integer");
     }
 
     // Generate a cryptographically secure random password (12 characters).
@@ -173,6 +179,7 @@ export async function POST(request: NextRequest) {
         name,
         nickname,
         country: country || null,
+        ttSeeding: ttSeedingNum,
         password: hashedPassword,
       },
     });
@@ -190,7 +197,7 @@ export async function POST(request: NextRequest) {
         action: AUDIT_ACTIONS.CREATE_PLAYER,
         targetId: player.id,
         targetType: 'Player',
-        details: { name, nickname, country, passwordGenerated: true },
+        details: { name, nickname, country, ttSeeding, passwordGenerated: true },
       });
     } catch (logError) {
       // Audit log failures are non-critical: the player was already created

@@ -183,7 +183,9 @@
     "confirmResetPassword": "このプレイヤーのパスワードをリセットしますか？",
     "passwordResetSuccess": "パスワードのリセットに成功しました",
     "failedToResetPassword": "パスワードのリセットに失敗しました",
-    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。"
+    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。",
+    "ttSeeding": "TTシード",
+    "ttSeedingPlaceholder": "例: 1"
   },
   "profile": {
     "title": "プロフィール",
@@ -287,7 +289,17 @@
     "freezeQualification": "予選を終了（タイム確定）",
     "unfreezeQualification": "予選を再開（凍結解除）",
     "stageFrozen": "このステージは凍結されています。タイムの編集はできません。",
-    "frozenBadge": "凍結中"
+    "frozenBadge": "凍結中",
+    "managePairs": "ペア管理",
+    "managePairsTitle": "TA予選 ペア管理",
+    "managePairsDesc": "§3.1: 各プレイヤーのペアを設定します。自動ペアはTTシードの蛇行割り当て（実力差均等化）を使用します。",
+    "autoPair": "自動ペア設定（シード順）",
+    "partner": "ペア相手",
+    "ttSeedingLabel": "TTシード",
+    "noPair": "（なし）",
+    "pairsSaved": "ペアを保存しました",
+    "pairSaveError": "ペアの保存に失敗しました",
+    "pairPartner": "ペア"
   },
   "bm": {
     "title": "バトルモード",
