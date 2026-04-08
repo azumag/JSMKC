@@ -62,6 +62,7 @@ import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/cons
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
+import type { Player } from "@/lib/types";
 import { createLogger } from "@/lib/client-logger";
 
 /** Client-side logger for error tracking */
@@ -74,13 +75,6 @@ export interface TAEliminationPhaseProps {
   title: string;
   description: string;
   targetSurvivors: number;
-}
-
-/** Player data structure from API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
 }
 
 /** TTEntry from the phases API */

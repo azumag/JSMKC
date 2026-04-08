@@ -60,19 +60,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr' });
-
-/** Player data from the API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** MR qualification standing record */
 interface MRQualification {
@@ -142,7 +137,6 @@ export default function MatchRacePage({
   >([]);
   const [groupCount, setGroupCount] = useState(3);
   const [setupSaving, setSetupSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
   /**
    * Fetch MR data and player list concurrently.
@@ -191,6 +185,10 @@ export default function MatchRacePage({
   const matches: MRMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
 
+  /* Shared handlers for rank override, TV assignment, and CSV export */
+  const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
+    useQualificationActions({ tournamentId, mode: "mr", refetch });
+
   /**
    * Submit group setup with player assignments.
    * Creates qualification records and round-robin matches.
@@ -223,46 +221,6 @@ export default function MatchRacePage({
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
-    }
-  };
-
-  /**
-   * Save rank override for a qualification entry.
-   * Passing null clears any existing override and restores automatic ranking.
-   */
-  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/mr`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qualificationId, rankOverride }),
-      });
-      if (response.ok) {
-        // RankCell manages its own editing state; no need to reset it here
-        refetch();
-      } else {
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || 'Failed to update rank');
-      }
-    } catch (err) {
-      logger.error("Failed to update rank:", { error: err, tournamentId });
-    }
-  };
-
-  /**
-   * Handle TV number assignment for a match.
-   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
-   */
-  const handleTvAssign = async (matchId: string, tvNumber: number | null) => {
-    try {
-      await fetch(`/api/tournaments/${tournamentId}/mr`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, tvNumber }),
-      });
-      refetch();
-    } catch (err) {
-      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
     }
   };
 
@@ -328,32 +286,6 @@ export default function MatchRacePage({
       }
     } catch (err) {
       logger.error("Failed to update match:", { error: err, tournamentId });
-    }
-  };
-
-  /** Export MR data as CSV download */
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/mr/export`);
-      if (!response.ok) {
-        throw new Error("Failed to export data");
-      }
-
-      /* Trigger file download via blob URL */
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `match-race-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      logger.error("Failed to export:", { error: err, tournamentId });
-    } finally {
-      setExporting(false);
     }
   };
 

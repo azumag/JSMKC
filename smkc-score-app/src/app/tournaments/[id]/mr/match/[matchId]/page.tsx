@@ -42,14 +42,9 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
-const logger = createLogger({ serviceName: 'tournaments-mr-match' });
+import type { Player } from "@/lib/types";
 
-/** Player data from the API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
+const logger = createLogger({ serviceName: 'tournaments-mr-match' });
 
 /** MR match with full details */
 interface MRMatch {

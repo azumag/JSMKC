@@ -197,11 +197,11 @@ export default function TimeAttackPage({
     if (pairAssigning) return;
     setPairAssigning(true);
     try {
-      await Promise.all(
-        Object.entries(pairOverrides).map(([entryId, partnerId]) =>
-          setPartner(entryId, partnerId)
-        )
-      );
+      // Sequential execution: partner assignments are reciprocal (A↔B),
+      // so concurrent writes could race on the same records.
+      for (const [entryId, partnerId] of Object.entries(pairOverrides)) {
+        await setPartner(entryId, partnerId);
+      }
       setPairOverrides({});
       setIsPairDialogOpen(false);
       refetch();

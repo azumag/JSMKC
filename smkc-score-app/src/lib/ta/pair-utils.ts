@@ -32,7 +32,8 @@ export function computeAutoPairs<T extends PairPlayer>(players: T[]): Array<[T, 
   const sorted = [...players].sort((a, b) => {
     const sa = a.ttSeeding ?? Infinity;
     const sb = b.ttSeeding ?? Infinity;
-    return sa - sb;
+    // Secondary sort by playerId ensures deterministic output when ttSeeding is equal
+    return sa - sb || a.playerId.localeCompare(b.playerId);
   });
   const pairs: Array<[T, T]> = [];
   const n = sorted.length;

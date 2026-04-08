@@ -80,15 +80,9 @@ import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/ti
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
+import type { Player } from "@/lib/types";
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
-
-/** Player data structure from API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** TTEntry from the phases API */
 interface TTEntry {

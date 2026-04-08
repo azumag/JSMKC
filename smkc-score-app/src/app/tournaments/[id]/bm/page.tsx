@@ -62,19 +62,14 @@ import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-bm' });
-
-/** Player data structure */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** BM Qualification record with player stats and group assignment */
 interface BMQualification {
@@ -140,9 +135,6 @@ export default function BattleModePage({
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
 
-  /* State for CSV export */
-  const [exporting, setExporting] = useState(false);
-
   /**
    * Fetch both BM qualification data and all players in parallel.
    * This is the polling function called at the standard interval for live updates.
@@ -192,6 +184,10 @@ export default function BattleModePage({
   const qualifications: BMQualification[] = pollData?.qualifications ?? [];
   const matches: BMMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+
+  /* Shared handlers for rank override, TV assignment, and CSV export */
+  const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
+    useQualificationActions({ tournamentId, mode: "bm", refetch });
 
   /**
    * Handle group setup submission.
@@ -265,80 +261,11 @@ export default function BattleModePage({
     }
   };
 
-  /**
-   * Save rank override for a qualification entry.
-   * Passes null to clear a previously set override and restore automatic ranking.
-   */
-  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qualificationId, rankOverride }),
-      });
-      if (response.ok) {
-        // RankCell manages its own editing state; no need to reset it here
-        refetch();
-      } else {
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || 'Failed to update rank');
-      }
-    } catch (err) {
-      logger.error("Failed to update rank:", { error: err, tournamentId });
-    }
-  };
-
-  /**
-   * Handle TV number assignment for a match.
-   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
-   */
-  const handleTvAssign = async (matchId: string, tvNumber: number | null) => {
-    try {
-      await fetch(`/api/tournaments/${tournamentId}/bm`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, tvNumber }),
-      });
-      refetch();
-    } catch (err) {
-      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
-    }
-  };
-
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
     setScoreForm({ score1: match.score1, score2: match.score2 });
     setIsScoreDialogOpen(true);
-  };
-
-  /**
-   * Handle CSV/Excel export.
-   * Downloads the export file via the BM export API endpoint.
-   * Creates a temporary link element to trigger the browser download.
-   */
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/bm/export`);
-      if (!response.ok) {
-        throw new Error("Failed to export data");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `battle-mode-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      logger.error("Failed to export:", { error: err, tournamentId });
-    } finally {
-      setExporting(false);
-    }
   };
 
   /* Extract unique group names for tabbed display */

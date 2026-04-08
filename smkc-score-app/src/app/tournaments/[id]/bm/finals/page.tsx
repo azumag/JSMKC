@@ -72,14 +72,9 @@ import { createLogger } from "@/lib/client-logger";
  * Used for tracking bracket generation and score update errors.
  * Note: Client logger is created at module level (unlike server API loggers).
  */
-const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
+import type { Player } from "@/lib/types";
 
-/** Player data structure */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
+const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
 /** BM Match data with player relations */
 interface BMMatch {

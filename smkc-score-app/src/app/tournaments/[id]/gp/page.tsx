@@ -66,18 +66,14 @@ import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTE
 import { formatGpPosition } from "@/lib/gp-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
-const logger = createLogger({ serviceName: 'tournaments-gp' })
+import type { Player } from "@/lib/types";
 
-/** Player data from the API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
+const logger = createLogger({ serviceName: 'tournaments-gp' });
 
 /** GP qualification standing entry with group assignment and stats */
 interface GPQualification {
@@ -155,7 +151,6 @@ export default function GrandPrixPage({
   >([]);
   const [groupCount, setGroupCount] = useState(3);
   const [setupSaving, setSetupSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualPoints1, setManualPoints1] = useState("");
   const [manualPoints2, setManualPoints2] = useState("");
@@ -215,6 +210,10 @@ export default function GrandPrixPage({
   const matches: GPMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
 
+  /* Shared handlers for rank override, TV assignment, and CSV export */
+  const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
+    useQualificationActions({ tournamentId, mode: "gp", refetch });
+
   /**
    * Submit group setup to create qualification round-robin matches.
    * Sends player list with group assignments to the POST endpoint.
@@ -247,50 +246,6 @@ export default function GrandPrixPage({
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
-    }
-  };
-
-  /**
-   * Save rank override for a qualification entry.
-   * Passing null clears any existing override and restores automatic ranking.
-   */
-  const handleRankOverrideSave = async (qualificationId: string, rankOverride: number | null) => {
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qualificationId, rankOverride }),
-      });
-      if (response.ok) {
-        // RankCell manages its own editing state; no need to reset it here
-        refetch();
-      } else {
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || 'Failed to update rank');
-      }
-    } catch (err) {
-      logger.error("Failed to update rank:", { error: err, tournamentId });
-    }
-  };
-
-  /**
-   * Open the match result dialog pre-populated with existing data.
-   * If the match already has results, load them into the form.
-   */
-  /**
-   * Handle TV number assignment for a match.
-   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
-   */
-  const handleTvAssign = async (matchId: string, tvNumber: number | null) => {
-    try {
-      await fetch(`/api/tournaments/${tournamentId}/gp`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, tvNumber }),
-      });
-      refetch();
-    } catch (err) {
-      logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
     }
   };
 
@@ -401,33 +356,6 @@ export default function GrandPrixPage({
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to update match:", metadata);
-    }
-  };
-
-  /** Export GP data as CSV/Excel file */
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/gp/export`);
-      if (!response.ok) {
-        throw new Error("Failed to export data");
-      }
-
-      /* Create download link from response blob */
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `grand-prix-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-      logger.error("Failed to export:", metadata);
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -557,6 +485,7 @@ export default function GrandPrixPage({
                        * members have a rankOverride — used for yellow row highlighting and banner.
                        */
                       const groupEntries = qualifications.filter((q) => q.group === group);
+                      // GP: driver points primary, match score secondary (opposite of BM/MR)
                       const byEffectiveRank = computeTieAwareRanks(
                         groupEntries,
                         (a, b) => b.points - a.points || b.score - a.score

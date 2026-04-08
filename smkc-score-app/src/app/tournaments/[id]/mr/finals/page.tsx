@@ -71,16 +71,10 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
-
-/** Player data from the API */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** MR finals match record */
 interface MRMatch {

@@ -58,15 +58,10 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
-
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** GP finals match with score (score1/score2 = game wins in best-of-5) */
 interface GPMatch {

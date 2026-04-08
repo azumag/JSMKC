@@ -27,12 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-/** Player data structure used throughout the bracket */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
+import type { Player } from "@/lib/types";
 
 /** BM match data from the database including player relations */
 interface BMMatch {

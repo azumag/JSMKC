@@ -43,13 +43,9 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 
-const logger = createLogger({ serviceName: 'tournaments-gp-match' });
+import type { Player } from "@/lib/types";
 
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
+const logger = createLogger({ serviceName: 'tournaments-gp-match' });
 
 interface GPMatch {
   id: string;

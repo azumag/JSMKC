@@ -41,16 +41,10 @@ import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-ta-participant' });
-
-/** Player data structure */
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 /** Time Trial entry data structure */
 interface TTEntry {
