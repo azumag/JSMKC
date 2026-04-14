@@ -2,11 +2,14 @@
  * Match Race Match Detail/Share Page
  *
  * Public-facing page for individual MR match viewing and score reporting.
- * Can be shared via link for players to enter their results.
+ * Viewing is public (no auth), but score entry requires authentication
+ * as a match participant or admin (enforced by useMatchReportAuth hook
+ * on the UI side, and checkScoreReportAuth on the API side).
  *
  * Features:
+ * - Authorization-gated score entry (participants and admins only)
+ * - Auto-selection of player identity for logged-in participants
  * - Real-time match status display with polling
- * - Player identity selection (I am Player 1/2)
  * - 4-race winner entry (courses are pre-assigned at qualification setup per §10.5)
  * - Completed match display with race details
  * - Post-submission confirmation view
@@ -41,6 +44,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 
 import type { Player } from "@/lib/types";
 
@@ -101,8 +105,12 @@ export default function MatchDetailPage({
   const [match, setMatch] = useState<MRMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /* Authorization: determines if current user can report scores */
+  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+    useMatchReportAuth(match);
+
   const [submitting, setSubmitting] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
   /*
    * Initialize TOTAL_MR_RACES (4) empty rounds for match entry.
    * Courses are pre-assigned at qualification setup (§10.5) and populated
@@ -311,8 +319,18 @@ export default function MatchDetailPage({
           </CardHeader>
         </Card>
 
-        {/* Score entry form (shown when match is not completed and not submitted) */}
-        {!match.completed && !submitted && (
+        {/* Not authorized message - shown to users who are not match participants.
+            Guarded by !isSessionLoading to avoid flash during session fetch. */}
+        {!match.completed && !canReport && !isSessionLoading && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Score entry form (shown when match is not completed and user is authorized) */}
+        {!match.completed && !submitted && canReport && (
           <Card>
             <CardHeader>
               {/* i18n: Score entry form header */}

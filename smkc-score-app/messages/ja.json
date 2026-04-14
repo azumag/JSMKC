@@ -15,6 +15,7 @@
     "copy": "コピー",
     "open": "開く",
     "share": "共有",
+    "scoreEntryLink": "スコア入力",
     "back": "戻る",
     "retry": "再試行",
     "loading": "読み込み中...",
@@ -183,9 +184,7 @@
     "confirmResetPassword": "このプレイヤーのパスワードをリセットしますか？",
     "passwordResetSuccess": "パスワードのリセットに成功しました",
     "failedToResetPassword": "パスワードのリセットに失敗しました",
-    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。",
-    "ttSeeding": "TTシード",
-    "ttSeedingPlaceholder": "例: 1"
+    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。"
   },
   "profile": {
     "title": "プロフィール",
@@ -207,6 +206,7 @@
     "subtitleView": "大会一覧",
     "createTournament": "トーナメント作成",
     "dualReportEnabled": "二重報告を有効にする（両プレイヤーがスコアを確認）",
+    "taPlayerSelfEdit": "プレイヤーが自分のTAタイムを編集可能にする（無効時はパートナーのみ入力）",
     "loadingTournaments": "トーナメントを読み込み中...",
     "createNewTournament": "新規トーナメント作成",
     "enterTournamentDetails": "トーナメントの詳細を入力してください。",
@@ -458,7 +458,8 @@
     "playerWon1st": "{player} が1位",
     "cupRaceResults": "{cup}カップ - レース結果",
     "totalPoints": "合計ポイント: {points1} - {points2}",
-    "pts": "{points} pts"
+    "pts": "{points} pts",
+    "notAuthorized": "この試合のスコアを入力する権限がありません。試合の当事者としてログインしてください。"
   },
   "participant": {
     "scoreEntry": "参加者スコア入力",
@@ -533,7 +534,13 @@
     "qualificationEditingLockedAfterKnockout": "ノックアウトステージ開始後は、予選タイムの修正は管理者のみ可能です。",
     "timesSubmittedSuccess": "タイムトライアルのタイムを送信しました！",
     "addedToTASuccess": "タイムアタックに追加しました！",
-    "points": "ポイント"
+    "points": "ポイント",
+    "partnerTimesTitle": "パートナータイム — {name}",
+    "partnerTimesDesc": "パートナーのタイムを入力してください",
+    "myTimesTitle": "自分のタイム",
+    "selfEditDisabled": "このトーナメントでは自分のタイムの編集が無効になっています。パートナーがあなたのタイムを入力します。",
+    "myTimesReadOnly": "自分のタイム（閲覧のみ）",
+    "partnerTimesSubmittedSuccess": "パートナーのタイムを送信しました！"
   },
   "overall": {
     "title": "総合ランキング",

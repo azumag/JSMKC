@@ -15,6 +15,7 @@
     "copy": "Copy",
     "open": "Open",
     "share": "Share",
+    "scoreEntryLink": "Score Entry",
     "back": "Back",
     "retry": "Retry",
     "loading": "Loading...",
@@ -183,9 +184,7 @@
     "confirmResetPassword": "Are you sure you want to reset the password for this player?",
     "passwordResetSuccess": "Password Reset Successfully",
     "failedToResetPassword": "Failed to reset password",
-    "fetchError": "Failed to load players. Please try again.",
-    "ttSeeding": "TT Seeding",
-    "ttSeedingPlaceholder": "e.g. 1"
+    "fetchError": "Failed to load players. Please try again."
   },
   "profile": {
     "title": "Profile",
@@ -207,6 +206,7 @@
     "subtitleView": "View tournaments",
     "createTournament": "Create Tournament",
     "dualReportEnabled": "Enable Dual Report (both players must confirm scores)",
+    "taPlayerSelfEdit": "Allow players to edit their own TA times (disable for partner-only entry)",
     "loadingTournaments": "Loading tournaments...",
     "createNewTournament": "Create New Tournament",
     "enterTournamentDetails": "Enter the tournament details below.",
@@ -458,7 +458,8 @@
     "playerWon1st": "{player} Won (1st)",
     "cupRaceResults": "{cup} Cup - Race Results",
     "totalPoints": "Total Points: {points1} - {points2}",
-    "pts": "{points} pts"
+    "pts": "{points} pts",
+    "notAuthorized": "You are not authorized to enter scores for this match. Please log in as one of the players."
   },
   "participant": {
     "scoreEntry": "Participant Score Entry",
@@ -533,7 +534,13 @@
     "qualificationEditingLockedAfterKnockout": "After the knockout stage starts, only admins can edit qualification times.",
     "timesSubmittedSuccess": "Time trial times submitted successfully!",
     "addedToTASuccess": "Successfully added to time attack!",
-    "points": "points"
+    "points": "points",
+    "partnerTimesTitle": "Partner Times — {name}",
+    "partnerTimesDesc": "Enter your partner's times",
+    "myTimesTitle": "My Times",
+    "selfEditDisabled": "Self-editing is disabled for this tournament. Your partner will enter your times.",
+    "myTimesReadOnly": "My Times (Read Only)",
+    "partnerTimesSubmittedSuccess": "Partner's times submitted successfully!"
   },
   "overall": {
     "title": "Overall Ranking",

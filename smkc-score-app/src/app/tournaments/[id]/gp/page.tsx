@@ -651,7 +651,7 @@ export default function GrandPrixPage({
                                     {!match.isBye && (
                                       <Button variant="ghost" size="sm" asChild>
                                         <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
-                                          {tc('share')}
+                                          {tc('scoreEntryLink')}
                                         </Link>
                                       </Button>
                                     )}

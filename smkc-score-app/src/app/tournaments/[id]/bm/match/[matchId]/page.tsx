@@ -1,20 +1,19 @@
 /**
  * Battle Mode Match Entry Page
  *
- * Public-facing page for individual BM match score entry.
- * This page is accessed via a shareable link (no authentication required)
- * and provides a mobile-friendly interface for players to report scores.
+ * Public-facing page for individual BM match viewing and score entry.
+ * Viewing is public (no auth), but score entry requires authentication
+ * as a match participant or admin (enforced by useMatchReportAuth hook
+ * on the UI side, and checkScoreReportAuth on the API side).
  *
  * Features:
- * - Player self-identification (select "I am Player 1" or "I am Player 2")
+ * - Authorization-gated score entry (participants and admins only)
+ * - Auto-selection of player identity for logged-in participants
  * - Increment/decrement score buttons for easy mobile input
  * - Validation: total rounds must equal 4 (BM qualification format)
  * - Score submission via the /report API endpoint
  * - Real-time polling (3s) to detect when the other player submits or match completes
  * - Three UI states: score entry, submitted (waiting), and completed
- *
- * The page acts as a shared link - either player can use the same URL
- * but must identify which player they are before entering scores.
  */
 
 "use client";
@@ -37,6 +36,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 
 import type { Player } from "@/lib/types";
 
@@ -97,9 +97,12 @@ export default function MatchEntryPage({
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /* Authorization: determines if current user can report scores */
+  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+    useMatchReportAuth(match);
+
   /* Score entry state */
   const [submitting, setSubmitting] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
   const [score1, setScore1] = useState(0);
   const [score2, setScore2] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -263,8 +266,18 @@ export default function MatchEntryPage({
           )}
         </Card>
 
-        {/* Score Entry UI - shown when match is not completed and score not yet submitted */}
-        {!match.completed && !submitted && (
+        {/* Not authorized message - shown to users who are not match participants.
+            Guarded by !isSessionLoading to avoid flash during session fetch. */}
+        {!match.completed && !canReport && !isSessionLoading && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Score Entry UI - shown when match is not completed and user is authorized */}
+        {!match.completed && !submitted && canReport && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterScore')}</CardTitle>

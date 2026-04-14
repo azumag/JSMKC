@@ -5,11 +5,14 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * Grand Prix Match Detail / Share Page
  *
  * Public page for viewing and reporting GP match results.
- * Accessible via shareable link without authentication.
+ * Viewing is public (no auth), but score entry requires authentication
+ * as a match participant or admin (enforced by useMatchReportAuth hook
+ * on the UI side, and checkScoreReportAuth on the API side).
  *
  * Features:
+ * - Authorization-gated score entry (participants and admins only)
+ * - Auto-selection of player identity for logged-in participants
  * - Match info with player names and current score
- * - Player identity selection (I am Player 1 / Player 2)
  * - 5-race result entry with course selection and 1st-8th position selectors
  * - Live driver points calculation preview
  * - Completed match display with race-by-race results
@@ -42,6 +45,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 
 import type { Player } from "@/lib/types";
 
@@ -97,8 +101,12 @@ export default function GPMatchPage({
   const [match, setMatch] = useState<GPMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /* Authorization: determines if current user can report scores */
+  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+    useMatchReportAuth(match);
+
   const [submitting, setSubmitting] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
   /* GP cup has 5 races (§7.2), each with course and position selections */
   const [races, setRaces] = useState<Race[]>(
     Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
@@ -315,8 +323,18 @@ export default function GPMatchPage({
           </CardHeader>
         </Card>
 
-        {/* Result entry form (shown when match is not complete and not yet submitted) */}
-        {!match.completed && !submitted && (
+        {/* Not authorized message - shown to users who are not match participants.
+            Guarded by !isSessionLoading to avoid flash during session fetch. */}
+        {!match.completed && !canReport && !isSessionLoading && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Result entry form (shown when match is not complete and user is authorized) */}
+        {!match.completed && !submitted && canReport && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>

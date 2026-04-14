@@ -575,7 +575,7 @@ export default function MatchRacePage({
                                     {!match.isBye && (
                                       <Button variant="ghost" size="sm" asChild>
                                         <Link href={`/tournaments/${tournamentId}/mr/match/${match.id}`}>
-                                          {tc('share')}
+                                          {tc('scoreEntryLink')}
                                         </Link>
                                       </Button>
                                     )}

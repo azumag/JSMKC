@@ -581,7 +581,7 @@ export default function BattleModePage({
                                         asChild
                                       >
                                         <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
-                                          {tc('share')}
+                                          {tc('scoreEntryLink')}
                                         </Link>
                                       </Button>
                                     )}
