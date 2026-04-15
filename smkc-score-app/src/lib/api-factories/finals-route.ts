@@ -348,8 +348,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Bracket progression: advance winner and loser to next matches */
       const bracketStructure = generateBracketStructure(8);
+      const matchNumber = Number(match.matchNumber);
       const currentBracketMatch = bracketStructure.find(
-        (b) => b.matchNumber === match.matchNumber,
+        (b) => b.matchNumber === matchNumber,
       );
 
       if (!currentBracketMatch) {
@@ -389,7 +390,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (nextLoserMatch) {
           let loserPosition: 1 | 2 = 1;
           if (currentBracketMatch.round === 'winners_qf') {
-            loserPosition = (((match.matchNumber - 1) % 2) + 1) as 1 | 2;
+            loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
           } else if (currentBracketMatch.round === 'winners_sf') {
             loserPosition = 1;
           } else if (currentBracketMatch.round === 'winners_final') {

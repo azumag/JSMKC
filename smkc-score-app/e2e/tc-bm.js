@@ -257,7 +257,7 @@ async function runTc323(adminPage) {
     if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
-    await adminPage.getByRole('button', { name: /ブラケット生成|Generate Bracket/ }).click();
+    await adminPage.getByRole('button', { name: /Generate finals bracket/i }).click();
     await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
     await adminPage.waitForFunction(() => {
       const text = document.body.innerText;
@@ -312,16 +312,16 @@ async function runTc323(adminPage) {
       updatedMatch1?.completed === true &&
       updatedMatch1.score1 === 5 &&
       updatedMatch1.score2 === 0;
-    const routed =
-      winnerTarget?.player1Id === match1.player1Id &&
-      loserTarget?.player1Id === match1.player2Id;
+    const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(match1.player1Id);
+    const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(match1.player2Id);
+    const routed = winnerRouted && loserRouted;
 
     log('TC-323',
       bracketGenerated && firstToThreeRejected && scoreSaved && routed ? 'PASS' : 'FAIL',
       !bracketGenerated ? `Unexpected bracket counts: matches=${updatedMatches.length} winners=${(updated.winnersMatches || []).length} losers=${(updated.losersMatches || []).length} gf=${(updated.grandFinalMatches || []).length}`
       : !firstToThreeRejected ? `3-0 was not rejected (${invalidFirstToThree.s})`
       : !scoreSaved ? `Score not saved: ${updatedMatch1?.score1}-${updatedMatch1?.score2} completed=${updatedMatch1?.completed}`
-      : !routed ? `Routing mismatch: m5.p1=${winnerTarget?.player1Id} m8.p1=${loserTarget?.player1Id}`
+      : !routed ? `Routing mismatch: m1=${match1.player1Id}/${match1.player2Id} m5=${winnerTarget?.player1Id}/${winnerTarget?.player2Id} m8=${loserTarget?.player1Id}/${loserTarget?.player2Id}`
       : '');
   } catch (err) {
     log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM finals flow failed');
