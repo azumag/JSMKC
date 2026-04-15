@@ -94,6 +94,7 @@
     "dayLabel": "Round {day}",
     "allGroups": "All",
     "allPlayers": "All Players",
+    "mismatchTooltip": "Both players reported different scores — admin review needed",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",

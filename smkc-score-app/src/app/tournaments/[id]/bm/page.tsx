@@ -103,6 +103,10 @@ interface BMMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  player1ReportedScore1?: number | null;
+  player1ReportedScore2?: number | null;
+  player2ReportedScore1?: number | null;
+  player2ReportedScore2?: number | null;
   player1: Player;
   player2: Player;
 }
@@ -618,7 +622,22 @@ export default function BattleModePage({
                                       ? `${match.score1} - ${match.score2}`
                                       : match.completed
                                         ? `${match.score1} - ${match.score2}`
-                                        : "- - -"}
+                                        : (() => {
+                                            /* Report status indicators for pending matches:
+                                               - Both reported (mismatch): yellow badge with both scores
+                                               - One reported: blue text with reporter's score
+                                               - None reported: dash */
+                                            const p1r = match.player1ReportedScore1 != null;
+                                            const p2r = match.player2ReportedScore1 != null;
+                                            if (p1r && p2r) return (
+                                              <span className="text-xs text-yellow-600" title={tc('mismatchTooltip')}>
+                                                {match.player1ReportedScore1}-{match.player1ReportedScore2} / {match.player2ReportedScore1}-{match.player2ReportedScore2}
+                                              </span>
+                                            );
+                                            if (p1r) return <span className="text-xs text-blue-500">({match.player1ReportedScore1}-{match.player1ReportedScore2})</span>;
+                                            if (p2r) return <span className="text-xs text-blue-500">({match.player2ReportedScore1}-{match.player2ReportedScore2})</span>;
+                                            return "- - -";
+                                          })()}
                                   </TableCell>
                                   <TableCell
                                     className={

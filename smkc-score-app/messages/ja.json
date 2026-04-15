@@ -94,6 +94,7 @@
     "dayLabel": "ラウンド {day}",
     "allGroups": "全体",
     "allPlayers": "全プレイヤー",
+    "mismatchTooltip": "両プレイヤーが異なるスコアを報告 — 管理者確認が必要",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "同順位が検出されました — 順位の鉛筆アイコンで手動解決してください",
