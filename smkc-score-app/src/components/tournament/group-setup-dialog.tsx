@@ -111,13 +111,6 @@ export function GroupSetupDialog({
 
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
-  /*
-   * Use process.env.NODE_ENV for dev mode detection.
-   * More reliable than hostname check - standard Next.js approach,
-   * stripped at build time in production builds.
-   */
-  const isDev = process.env.NODE_ENV === "development";
-
   const hasExistingQualifications = existingAssignments.length > 0;
 
   /* Available groups based on current group count selection */
@@ -368,17 +361,15 @@ export function GroupSetupDialog({
                   >
                     {tc("autoDistribute")}
                   </Button>
-                  {/* Random assignment button - development mode only */}
-                  {isDev && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRandomAssign}
-                      title={tc("randomAssignDesc")}
-                    >
-                      {tc("randomAssign")}
-                    </Button>
-                  )}
+                  {/* Random assignment button - shuffle players across groups */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRandomAssign}
+                    title={tc("randomAssignDesc")}
+                  >
+                    {tc("randomAssign")}
+                  </Button>
                 </div>
               )}
               {/* Scrollable selected players list */}
