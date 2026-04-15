@@ -1,10 +1,10 @@
 import { computeAutoPairs } from '@/lib/ta/pair-utils';
 
 /** Helper to make a minimal PairPlayer entry */
-const makeEntry = (id: string, playerId: string, ttSeeding: number | null) => ({
+const makeEntry = (id: string, playerId: string, seeding: number | null) => ({
   id,
   playerId,
-  ttSeeding,
+  seeding,
 });
 
 describe('computeAutoPairs', () => {
@@ -18,11 +18,11 @@ describe('computeAutoPairs', () => {
     const pairs = computeAutoPairs(players);
     expect(pairs).toHaveLength(2);
     // seed 1 + seed 4
-    expect(pairs[0][0].ttSeeding).toBe(1);
-    expect(pairs[0][1].ttSeeding).toBe(4);
+    expect(pairs[0][0].seeding).toBe(1);
+    expect(pairs[0][1].seeding).toBe(4);
     // seed 2 + seed 3
-    expect(pairs[1][0].ttSeeding).toBe(2);
-    expect(pairs[1][1].ttSeeding).toBe(3);
+    expect(pairs[1][0].seeding).toBe(2);
+    expect(pairs[1][1].seeding).toBe(3);
   });
 
   it('handles 8 players correctly (CDM2025 typical size)', () => {
@@ -33,7 +33,7 @@ describe('computeAutoPairs', () => {
     expect(pairs).toHaveLength(4);
     // Verify each pair: seed k paired with seed (9-k)
     pairs.forEach(([a, b]) => {
-      expect((a.ttSeeding ?? 0) + (b.ttSeeding ?? 0)).toBe(9);
+      expect((a.seeding ?? 0) + (b.seeding ?? 0)).toBe(9);
     });
   });
 
@@ -46,8 +46,8 @@ describe('computeAutoPairs', () => {
     const pairs = computeAutoPairs(players);
     // Math.floor(3/2) = 1 pair; seed 3 is unpaired
     expect(pairs).toHaveLength(1);
-    expect(pairs[0][0].ttSeeding).toBe(1);
-    expect(pairs[0][1].ttSeeding).toBe(3);
+    expect(pairs[0][0].seeding).toBe(1);
+    expect(pairs[0][1].seeding).toBe(3);
   });
 
   it('places null-seeded players last', () => {
@@ -61,10 +61,10 @@ describe('computeAutoPairs', () => {
     expect(pairs).toHaveLength(2);
     // Sorted: seed1=1, seed2=2, seed3=null, seed4=null
     // Pairs: [seed1, null], [seed2, null]
-    expect(pairs[0][0].ttSeeding).toBe(1);
-    expect(pairs[0][1].ttSeeding).toBeNull();
-    expect(pairs[1][0].ttSeeding).toBe(2);
-    expect(pairs[1][1].ttSeeding).toBeNull();
+    expect(pairs[0][0].seeding).toBe(1);
+    expect(pairs[0][1].seeding).toBeNull();
+    expect(pairs[1][0].seeding).toBe(2);
+    expect(pairs[1][1].seeding).toBeNull();
   });
 
   it('returns empty array for 0 players', () => {

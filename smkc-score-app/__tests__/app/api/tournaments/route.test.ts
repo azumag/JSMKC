@@ -367,6 +367,7 @@ describe('POST /api/tournaments', () => {
             date: expect.any(Date),
             status: 'draft',
             dualReportEnabled: false,
+            taPlayerSelfEdit: true,
           },
         })
       );

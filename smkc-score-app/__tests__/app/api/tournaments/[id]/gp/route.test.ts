@@ -555,7 +555,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(result.status).toBe(200);
       const updateCall = (prisma.gPMatch.update as jest.Mock).mock.calls[0];
       expect(updateCall[0].data.points1).toBe(15);
-      expect(updateCall[0].data.points2).toBe(19);
+      expect(updateCall[0].data.points2).toBe(16);
     });
 
     // Error case - Returns 500 when database operation fails

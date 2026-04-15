@@ -353,28 +353,37 @@ async function nav(p, u) {
         await playerPage.waitForTimeout(250);
       }
 
-      const courseComboboxes = playerPage.locator('[role="combobox"]');
-      if (await courseComboboxes.count() < 5) {
-        throw new Error(`Expected 5 course selectors, got ${await courseComboboxes.count()}`);
-      }
-      for (let i = 0; i < 5; i++) {
-        await courseComboboxes.nth(i).click();
-        await playerPage.waitForTimeout(300);
-        const option = playerPage.locator('[role="option"]').nth(i);
-        if (await option.count() === 0) {
-          throw new Error(`Missing course option ${i + 1}`);
-        }
-        await option.click();
-        await playerPage.waitForTimeout(300);
+      // Each race row has 3 Select comboboxes: course, position1, position2.
+      // For 5 races → 15 comboboxes total. Layout per race i:
+      //   index i*3   = course
+      //   index i*3+1 = position1 (player1)
+      //   index i*3+2 = position2 (player2)
+      const allCb = playerPage.locator('button[role="combobox"]');
+      const cbCount = await allCb.count();
+      if (cbCount < 15) {
+        throw new Error(`Expected 15 comboboxes (5×3), got ${cbCount}`);
       }
 
-      const numberInputs = playerPage.locator('input[type="number"]');
-      if (await numberInputs.count() < 10) {
-        throw new Error(`Expected 10 numeric inputs, got ${await numberInputs.count()}`);
-      }
+      // GP driver points: 1st=9, 5th=0
+      // Expected totals: player1 = 9×5 = 45, player2 = 0×5 = 0
       for (let i = 0; i < 5; i++) {
-        await numberInputs.nth(i * 2).fill('1');
-        await numberInputs.nth(i * 2 + 1).fill('8');
+        // Select course (first available option, different each time)
+        await allCb.nth(i * 3).click();
+        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
+        await playerPage.locator('[role="listbox"] [role="option"]').nth(i).click();
+        await playerPage.waitForTimeout(300);
+
+        // Select position1 = 1st (index 0 in options list [1,2,3,4,5,6,7,8])
+        await allCb.nth(i * 3 + 1).click();
+        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
+        await playerPage.locator('[role="listbox"] [role="option"]').nth(0).click();
+        await playerPage.waitForTimeout(300);
+
+        // Select position2 = 5th (index 4 in options list, 0 driver points)
+        await allCb.nth(i * 3 + 2).click();
+        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
+        await playerPage.locator('[role="listbox"] [role="option"]').nth(4).click();
+        await playerPage.waitForTimeout(300);
       }
 
       playerPage.once('dialog', async (dialog) => {
@@ -401,7 +410,10 @@ async function nav(p, u) {
         ((playerWonAsP1 && reportedMatch.points1 === 45 && reportedMatch.points2 === 0) ||
           (!playerWonAsP1 && reportedMatch.points1 === 0 && reportedMatch.points2 === 45));
 
-      log('TC-311', scorePersisted ? 'PASS' : 'FAIL', scorePersisted ? '' : 'GP participant report was not persisted');
+      log('TC-311', scorePersisted ? 'PASS' : 'FAIL',
+        scorePersisted ? ''
+        : !reportedMatch ? 'No matching match found in API response'
+        : `completed=${reportedMatch.completed} p1=${reportedMatch.points1} p2=${reportedMatch.points2} asP1=${playerWonAsP1}`);
       await playerBrowser.close();
       playerBrowser = null;
     } catch (err) {
@@ -789,10 +801,19 @@ async function nav(p, u) {
       await timeInputs.nth(1).fill('1:01.00');
 
       await page.getByRole('button', { name: /送信＆ライフ減算|Submit & Deduct Lives/ }).click();
-      await page.waitForTimeout(3000);
+      // Wait for round submission to complete and UI to re-render.
+      // The undo button appears when completedRoundsCount > 0 && !hasOpenRound,
+      // so we must wait until the round is fully processed.
+      await page.waitForTimeout(5000);
 
       const undoButton = page.getByRole('button', { name: /直前ラウンドを取り消す|Undo Last Round/ });
-      const undoVisible = await undoButton.count().then((count) => count > 0);
+      // Retry a few times in case the UI hasn't re-rendered yet
+      let undoVisible = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        undoVisible = await undoButton.count().then((count) => count > 0);
+        if (undoVisible) break;
+        await page.waitForTimeout(2000);
+      }
       if (!undoVisible) {
         throw new Error('Undo Last Round button did not appear after submission');
       }
@@ -1520,36 +1541,46 @@ async function nav(p, u) {
     }
   }
 
-  // TC-320: BM/MR/GP match list pages show "Score Entry"/"スコア入力" button (not "Share"/"共有")
+  // TC-320: Match list link labels — BM shows "Details"/"詳細", MR/GP show "Score Entry"/"スコア入力"
+  // BM match page is view-only (score entry consolidated to participant page), so BM link says "Details".
+  // MR/GP still link to per-match score entry pages.
   {
     let tc320 = true;
     let tc320Detail = '';
     for (const m of ['bm', 'mr', 'gp']) {
       await nav(page, `/tournaments/${TID}/${m}`);
-      // Switch to Matches tab if available
       const matchesTab = page.getByRole('tab', { name: /試合|Matches/ });
       if (await matchesTab.count() > 0) {
         await matchesTab.click();
         await page.waitForTimeout(1000);
       }
       const bodyText = await vis(page);
-      // The button should say "Score Entry" or "スコア入力", NOT "Share" or "共有" as the match link label
-      const hasScoreEntryLabel = bodyText.includes('Score Entry') || bodyText.includes('スコア入力');
-      // "Share"/"共有" should NOT appear as a standalone button label for match links
-      // (Note: "共有" could appear in other contexts, so we check for the button specifically)
-      const shareButtons = await page.locator('a:has-text("Share"), a:has-text("共有")').count();
-      if (!hasScoreEntryLabel && shareButtons > 0) {
-        tc320 = false;
-        tc320Detail = `${m.toUpperCase()} still shows "Share"/"共有" button`;
+      if (m === 'bm') {
+        // BM: should show "Details"/"詳細" (not "Score Entry"/"スコア入力")
+        const hasDetailsLabel = bodyText.includes('Details') || bodyText.includes('詳細');
+        if (!hasDetailsLabel) {
+          tc320 = false;
+          tc320Detail = 'BM missing "Details"/"詳細" link';
+        }
+      } else {
+        // MR/GP: should show "Score Entry"/"スコア入力" (not "Share"/"共有")
+        const hasScoreEntryLabel = bodyText.includes('Score Entry') || bodyText.includes('スコア入力');
+        const shareButtons = await page.locator('a:has-text("Share"), a:has-text("共有")').count();
+        if (!hasScoreEntryLabel && shareButtons > 0) {
+          tc320 = false;
+          tc320Detail = `${m.toUpperCase()} still shows "Share"/"共有" button`;
+        }
       }
     }
     log('TC-320', tc320 ? 'PASS' : 'FAIL', tc320Detail);
   }
 
-  // TC-321: Match page hides score entry form for non-participants, shows "not authorized"
-  // Creates a temp BM tournament with 2 players, gets a match, and verifies:
-  //   1. Admin sees score entry form on match page
-  //   2. Unauthenticated user sees "not authorized" message instead of score entry form
+  // TC-321: BM match page is view-only (no score entry form)
+  // Score entry was consolidated to the participant page (/bm/participant).
+  // Creates temp tournament + 2 players, sets up BM, then verifies:
+  //   1. Match page shows player names and match info (view-only)
+  //   2. No score entry form elements (no "I am"/"私は" identity selection, no +/- buttons)
+  //   3. Shows "in progress" message for incomplete matches
   {
     let tc321TournamentId = null;
     let tc321Player1Id = null;
@@ -1589,7 +1620,7 @@ async function nav(p, u) {
         });
         return { s: r.status, b: await r.json().catch(() => ({})) };
       }, {
-        name: `E2E MatchAuth ${Date.now()}`,
+        name: `E2E MatchView ${Date.now()}`,
         date: new Date().toISOString(),
         dualReportEnabled: false,
       });
@@ -1630,42 +1661,26 @@ async function nav(p, u) {
       if (!match) throw new Error('No non-BYE match found');
       const matchUrl = `/tournaments/${tc321TournamentId}/bm/match/${match.id}`;
 
-      // Step 1: Admin visits match page — should see score entry form
+      // Visit match page — should be view-only
       await nav(page, matchUrl);
-      const adminText = await vis(page);
-      const adminSeesForm = adminText.includes('Enter Score') || adminText.includes('スコア入力');
-      const adminSeesIdentity = adminText.includes('I am') || adminText.includes('私は');
+      const matchText = await vis(page);
 
-      // Step 2: Unauthenticated user visits match page — should see "not authorized"
-      let unauthBrowser = null;
-      let unauthSeesNotAuth = false;
-      let unauthDoesNotSeeForm = true;
-      try {
-        unauthBrowser = await chromium.launch({ headless: false });
-        const unauthCtx = await unauthBrowser.newContext({ viewport: { width: 1280, height: 720 } });
-        const unauthPage = await unauthCtx.newPage();
-
-        await nav(unauthPage, matchUrl);
-        const unauthText = await vis(unauthPage);
-        unauthSeesNotAuth =
-          unauthText.includes('not authorized to enter scores') ||
-          unauthText.includes('権限がありません');
-        // The form identity selection should NOT be visible
-        unauthDoesNotSeeForm =
-          !unauthText.includes('I am') && !unauthText.includes('私は');
-      } finally {
-        if (unauthBrowser) await unauthBrowser.close().catch(() => {});
-      }
+      // Should show player names (match info is present)
+      const showsPlayers = matchText.includes('vs');
+      // Should NOT have score entry form elements
+      const noScoreEntryForm = !matchText.includes('I am') && !matchText.includes('私は');
+      // Should show "in progress" message for incomplete match
+      const showsInProgress =
+        matchText.includes('in progress') || matchText.includes('進行中');
 
       log('TC-321',
-        adminSeesForm && adminSeesIdentity && unauthSeesNotAuth && unauthDoesNotSeeForm ? 'PASS' : 'FAIL',
-        !adminSeesForm ? 'Admin does not see score entry form'
-        : !adminSeesIdentity ? 'Admin does not see identity selection'
-        : !unauthSeesNotAuth ? 'Unauthenticated user does not see "not authorized" message'
-        : !unauthDoesNotSeeForm ? 'Unauthenticated user still sees score entry form'
+        showsPlayers && noScoreEntryForm && showsInProgress ? 'PASS' : 'FAIL',
+        !showsPlayers ? 'Match page does not show player info'
+        : !noScoreEntryForm ? 'Match page still has score entry form elements'
+        : !showsInProgress ? 'Match page does not show "in progress" message'
         : '');
     } catch (err) {
-      log('TC-321', 'FAIL', err instanceof Error ? err.message : 'Match auth UI test failed');
+      log('TC-321', 'FAIL', err instanceof Error ? err.message : 'BM match view-only test failed');
     } finally {
       if (tc321TournamentId) {
         await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },

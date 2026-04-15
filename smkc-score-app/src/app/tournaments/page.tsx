@@ -109,6 +109,7 @@ export default function TournamentsPage() {
     slug: "",
     date: "",
     dualReportEnabled: false,
+    taPlayerSelfEdit: true,
   });
   const [error, setError] = useState("");
 
@@ -160,7 +161,7 @@ export default function TournamentsPage() {
       });
 
       if (response.ok) {
-        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false });
+        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true });
         setIsAddDialogOpen(false);
         fetchTournaments();
       } else {
@@ -177,7 +178,12 @@ export default function TournamentsPage() {
    * Handles tournament deletion with confirmation dialog.
    * Uses browser confirm() as a guard against accidental deletion.
    */
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, status: string) => {
+    if (status !== "draft") {
+      alert(t('cannotDeleteStartedTournament'));
+      return;
+    }
+
     if (!confirm(tc('confirmDeleteTournament'))) return;
 
     try {
@@ -187,9 +193,17 @@ export default function TournamentsPage() {
 
       if (response.ok) {
         fetchTournaments();
+      } else {
+        const data = await response.json().catch(() => null);
+        alert(
+          response.status === 409
+            ? t('cannotDeleteStartedTournament')
+            : data?.error || t('failedToDelete')
+        );
       }
     } catch (err) {
       logger.error("Failed to delete tournament:", { error: err, tournamentId: id });
+      alert(t('failedToDelete'));
     }
   };
 
@@ -233,7 +247,7 @@ export default function TournamentsPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false })}>
+              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true })}>
                 {t('createTournament')}
               </Button>
             </DialogTrigger>
@@ -299,6 +313,20 @@ export default function TournamentsPage() {
                   />
                   <Label htmlFor="dualReport" className="text-sm font-normal cursor-pointer">
                     {t('dualReportEnabled')}
+                  </Label>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    id="taPlayerSelfEdit"
+                    type="checkbox"
+                    checked={formData.taPlayerSelfEdit}
+                    onChange={(e) =>
+                      setFormData({ ...formData, taPlayerSelfEdit: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="taPlayerSelfEdit" className="text-sm font-normal cursor-pointer">
+                    {t('taPlayerSelfEdit')}
                   </Label>
                 </div>
               </div>
@@ -373,7 +401,13 @@ export default function TournamentsPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDelete(tournament.id)}
+                          onClick={() => handleDelete(tournament.id, tournament.status)}
+                          disabled={tournament.status !== "draft"}
+                          title={
+                            tournament.status !== "draft"
+                              ? t('cannotDeleteStartedTournament')
+                              : undefined
+                          }
                         >
                           {tc('delete')}
                         </Button>

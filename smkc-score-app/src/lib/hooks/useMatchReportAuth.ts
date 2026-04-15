@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 interface MatchForAuth {
@@ -45,20 +45,12 @@ export function useMatchReportAuth(
   const isPlayer1 = !!(currentPlayerId && match && currentPlayerId === match.player1Id);
   const isPlayer2 = !!(currentPlayerId && match && currentPlayerId === match.player2Id);
   const canReport = isAdmin || isPlayer1 || isPlayer2;
-
-  /* Auto-select player identity when logged in as a match participant.
-   * Only fires once (guarded by selectedPlayer === null). */
-  useEffect(() => {
-    if (match && currentPlayerId && selectedPlayer === null) {
-      if (currentPlayerId === match.player1Id) setSelectedPlayer(1);
-      else if (currentPlayerId === match.player2Id) setSelectedPlayer(2);
-    }
-  }, [match, currentPlayerId, selectedPlayer]);
+  const autoSelectedPlayer = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
 
   return {
     canReport,
     isSessionLoading: status === "loading",
-    selectedPlayer,
+    selectedPlayer: selectedPlayer ?? autoSelectedPlayer,
     setSelectedPlayer,
   };
 }

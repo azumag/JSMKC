@@ -80,7 +80,6 @@ interface Player {
   id: string;
   name: string;
   nickname: string;
-  ttSeeding: number | null;
 }
 
 /** Time Trial entry data structure from the API */
@@ -90,6 +89,8 @@ interface TTEntry {
   stage: string;
   lives: number;
   eliminated: boolean;
+  /** §3.1: Seeding for pair assignment (per-tournament, lower = stronger) */
+  seeding: number | null;
   /** §3.1: Partner player ID for pair running */
   partnerId: string | null;
   times: Record<string, string> | null;
@@ -216,11 +217,11 @@ export default function TimeAttackPage({
   /** Compute snake pairs from qualification entries and populate overrides state */
   const handleAutoPair = () => {
     const qualEntries = entries.filter(e => e.stage === "qualification");
-    // Adapt TTEntry to PairPlayer shape: ttSeeding lives on entry.player
+    // Adapt TTEntry to PairPlayer shape: seeding is on the entry itself (per-tournament)
     const pairPlayers = qualEntries.map(e => ({
       id: e.id,
       playerId: e.playerId,
-      ttSeeding: e.player.ttSeeding,
+      seeding: e.seeding,
     }));
     const rawPairs = computeAutoPairs(pairPlayers);
     // Re-map pair player ids back to full TTEntry objects
@@ -787,7 +788,7 @@ export default function TimeAttackPage({
                         // Compute once outside map to avoid O(N²) repeated filter calls
                         const qualEntries = entries.filter(e => e.stage === "qualification");
                         return qualEntries
-                        .sort((a, b) => (a.player.ttSeeding ?? Infinity) - (b.player.ttSeeding ?? Infinity))
+                        .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
                         .map(entry => {
                           const effectivePartnerId = entry.id in pairOverrides
                             ? pairOverrides[entry.id]
@@ -795,7 +796,27 @@ export default function TimeAttackPage({
                           return (
                             <TableRow key={entry.id}>
                               <TableCell className="font-medium">{entry.player.nickname}</TableCell>
-                              <TableCell>{entry.player.ttSeeding ?? "-"}</TableCell>
+                              <TableCell>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-14 h-8 text-center text-sm border rounded bg-background"
+                                  defaultValue={entry.seeding ?? ""}
+                                  onBlur={async (ev) => {
+                                    const val = ev.target.value;
+                                    const parsed = parseInt(val, 10);
+                                    const newSeeding = val && !Number.isNaN(parsed) && parsed >= 1 ? parsed : null;
+                                    if (newSeeding === entry.seeding) return; // no change
+                                    // Persist to server, then refetch to update UI
+                                    await fetchWithRetry(`/api/tournaments/${tournamentId}/ta`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ entryId: entry.id, action: "update_seeding", seeding: newSeeding }),
+                                    });
+                                    refetch();
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell>
                                 <select
                                   className="border rounded px-2 py-1 text-sm bg-background"
@@ -823,7 +844,7 @@ export default function TimeAttackPage({
                                     .filter(e => e.id !== entry.id)
                                     .map(e => (
                                       <option key={e.id} value={e.playerId}>
-                                        {e.player.nickname}{e.player.ttSeeding != null ? ` (#${e.player.ttSeeding})` : ""}
+                                        {e.player.nickname}{e.seeding != null ? ` (#${e.seeding})` : ""}
                                       </option>
                                     ))}
                                 </select>

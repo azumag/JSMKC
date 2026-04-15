@@ -50,6 +50,8 @@ const logger = createLogger({ serviceName: 'tournaments-ta-participant' });
 interface TTEntry {
   id: string;
   playerId: string;
+  /** §3.1: Partner player ID for pair running */
+  partnerId: string | null;
   stage: string;
   lives: number;
   eliminated: boolean;
@@ -72,6 +74,7 @@ interface TAApiData {
   frozenStages?: string[];
   qualificationRegistrationLocked?: boolean;
   qualificationEditingLockedForPlayers?: boolean;
+  taPlayerSelfEdit?: boolean;
 }
 
 /**
@@ -119,7 +122,10 @@ export default function TimeAttackParticipantPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myEntry, setMyEntry] = useState<TTEntry | null>(null);
+  const [partnerEntry, setPartnerEntry] = useState<TTEntry | null>(null);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
+  const [partnerTimeInputs, setPartnerTimeInputs] = useState<Record<string, string>>({});
+  const [taPlayerSelfEdit, setTaPlayerSelfEdit] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   /* Dev-only features: use NODE_ENV per CLAUDE.md (not hostname checks) */
@@ -170,6 +176,7 @@ export default function TimeAttackParticipantPage({
           setFrozenStages(data.frozenStages || []);
           setQualificationRegistrationLocked(Boolean(data.qualificationRegistrationLocked));
           setQualificationEditingLockedForPlayers(Boolean(data.qualificationEditingLockedForPlayers));
+          setTaPlayerSelfEdit(data.taPlayerSelfEdit !== false);
         }
       } catch (err) {
         logger.error('Data fetch error:', { error: err, tournamentId });
@@ -211,11 +218,14 @@ export default function TimeAttackParticipantPage({
       if ('qualificationEditingLockedForPlayers' in unwrapped) {
         setQualificationEditingLockedForPlayers(Boolean(unwrapped.qualificationEditingLockedForPlayers));
       }
+      if ('taPlayerSelfEdit' in unwrapped) {
+        setTaPlayerSelfEdit(unwrapped.taPlayerSelfEdit !== false);
+      }
     }
     if (pollingError) logger.error('Polling error:', { error: pollingError, tournamentId });
   }, [pollingData, pollingError, tournamentId]);
 
-  /** Sync selected player's entry from the entries list */
+  /** Sync own entry and partner entry from the entries list */
   useEffect(() => {
     if (playerId && entries.length > 0) {
       const entry = entries.find(e => e.playerId === playerId && e.stage === 'qualification');
@@ -223,6 +233,16 @@ export default function TimeAttackParticipantPage({
       /* Pre-fill time inputs from existing entry data */
       if (entry && entry.times) {
         setTimeInputs(entry.times);
+      }
+      /* Find partner's entry: if my entry has a partnerId, find that player's entry */
+      if (entry?.partnerId) {
+        const pEntry = entries.find(e => e.playerId === entry.partnerId && e.stage === 'qualification');
+        setPartnerEntry(pEntry || null);
+        if (pEntry?.times) {
+          setPartnerTimeInputs(pEntry.times);
+        }
+      } else {
+        setPartnerEntry(null);
       }
     }
   }, [playerId, entries]);
@@ -239,6 +259,21 @@ export default function TimeAttackParticipantPage({
     const formatted = autoFormatTime(raw);
     if (formatted !== null && formatted !== raw) {
       setTimeInputs(prev => ({ ...prev, [course]: formatted }));
+    }
+  };
+
+  /** Handle partner course time input change */
+  const handlePartnerTimeChange = (course: string, value: string) => {
+    setPartnerTimeInputs(prev => ({ ...prev, [course]: value }));
+  };
+
+  /** Auto-format partner time on blur */
+  const handlePartnerTimeBlur = (course: string) => {
+    const raw = partnerTimeInputs[course];
+    if (!raw || raw.trim() === "") return;
+    const formatted = autoFormatTime(raw);
+    if (formatted !== null && formatted !== raw) {
+      setPartnerTimeInputs(prev => ({ ...prev, [course]: formatted }));
     }
   };
 
@@ -296,6 +331,55 @@ export default function TimeAttackParticipantPage({
       alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit times');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /** Submit partner's times to the server */
+  const handleSubmitPartnerTimes = async () => {
+    if (!partnerEntry || !playerId) return;
+
+    const validTimes: Record<string, string> = {};
+    for (const course of COURSE_INFO) {
+      const timeStr = partnerTimeInputs[course.abbr];
+      if (!timeStr) continue;
+      const timeRegex = /^\d+:[0-5]\d\.\d{1,3}$/;
+      if (!timeRegex.test(timeStr)) {
+        setError(tPart('invalidTimeFormat', { course: course.abbr }));
+        return;
+      }
+      const ms = displayTimeToMs(timeStr);
+      if (ms <= 0) {
+        setError(tPart('invalidTime', { course: course.abbr }));
+        return;
+      }
+      validTimes[course.abbr] = timeStr;
+    }
+
+    if (Object.keys(validTimes).length === 0) {
+      setError(tPart('enterAtLeastOne'));
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryId: partnerEntry.id, times: validTimes }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit partner times');
+      }
+      const json = await response.json();
+      const data = json.data ?? json;
+      setEntries(prev => prev.map(e => e.id === partnerEntry.id ? { ...e, ...data.entry } : e));
+      setPartnerEntry({ ...partnerEntry, ...data.entry });
+      alert(tPart('partnerTimesSubmittedSuccess'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit partner times');
     } finally {
       setSubmitting(false);
     }
@@ -446,103 +530,226 @@ export default function TimeAttackParticipantPage({
             </Alert>
           )}
 
-          {/* Time Entry Form (shown if player has a qualification entry) */}
+          {/* Time Entry Forms (shown if player has a qualification entry) */}
           {myEntry ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    {/** i18n: Card title and description use ta namespace for "Time Attack Times" */}
+            <div className="space-y-6">
+              {/* Partner Entry Form: shown when paired with another player */}
+              {partnerEntry && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users className="h-5 w-5" />
+                          {tPart('partnerTimesTitle', { name: partnerEntry.player.nickname })}
+                        </CardTitle>
+                        <CardDescription>{tPart('partnerTimesDesc')}</CardDescription>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono">{tPart('taProgress', {
+                          count: Object.values(partnerTimeInputs).filter(t => t && t !== "").length,
+                          total: TOTAL_COURSES,
+                        })}</div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Partner Stats */}
+                      <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold font-mono">{partnerEntry.rank ? `#${partnerEntry.rank}` : '-'}</div>
+                          <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold font-mono">{msToDisplayTime(partnerEntry.totalTime)}</div>
+                          <div className="text-sm text-muted-foreground">{tTa('totalTime')}</div>
+                        </div>
+                      </div>
+
+                      {/* Partner Time Input Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
+                          <Card key={cup}>
+                            <CardHeader className="py-3">
+                              <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                              {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
+                                <div key={course.abbr} className="flex items-center gap-2">
+                                  <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
+                                  <Input
+                                    type="text"
+                                    placeholder="M:SS.mm"
+                                    value={partnerTimeInputs[course.abbr] || ''}
+                                    onChange={(e) => handlePartnerTimeChange(course.abbr, e.target.value)}
+                                    onBlur={() => handlePartnerTimeBlur(course.abbr)}
+                                    disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                    className="font-mono text-sm"
+                                  />
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Partner Preview Total Time */}
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
+                        <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(
+                          Object.entries(partnerTimeInputs)
+                            .filter(([, t]) => t && t !== "")
+                            .reduce((sum, [, t]) => sum + displayTimeToMs(t), 0)
+                        )}</div>
+                      </div>
+
+                      <Button
+                        onClick={handleSubmitPartnerTimes}
+                        disabled={submitting || Object.values(partnerTimeInputs).filter(t => t && t !== "").length === 0
+                          || frozenStages.includes("qualification") || qualificationEditingLocked}
+                        className="w-full"
+                      >
+                        {submitting ? tCommon('saving') : tPart('submitTimes')}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Self-edit disabled notice */}
+              {!taPlayerSelfEdit && partnerEntry && (
+                <Alert className="border-amber-500/50 bg-amber-50">
+                  <Lock className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700">
+                    {tPart('selfEditDisabled')}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Own Entry Form: editable when taPlayerSelfEdit is true or no partner */}
+              {(taPlayerSelfEdit || !partnerEntry) && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Timer className="h-5 w-5" />
+                          {partnerEntry ? tPart('myTimesTitle') : tTa('title')}
+                        </CardTitle>
+                        <CardDescription>
+                          {tTa('enterTimeCourseDesc')}
+                        </CardDescription>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono">{tPart('taProgress', { count: getEnteredTimesCount(), total: TOTAL_COURSES })}</div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Current Stats */}
+                      <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold font-mono">{myEntry.rank ? `#${myEntry.rank}` : '-'}</div>
+                          <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold font-mono">{msToDisplayTime(myEntry.totalTime)}</div>
+                          <div className="text-sm text-muted-foreground">{tTa('totalTime')}</div>
+                        </div>
+                      </div>
+
+                      {/* Time Input Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
+                          <Card key={cup}>
+                            <CardHeader className="py-3">
+                              <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                              {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
+                                <div key={course.abbr} className="flex items-center gap-2">
+                                  <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
+                                  <Input
+                                    type="text"
+                                    placeholder="M:SS.mm"
+                                    value={timeInputs[course.abbr] || ''}
+                                    onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
+                                    onBlur={() => handleTimeBlur(course.abbr)}
+                                    disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
+                                    className="font-mono text-sm"
+                                  />
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Preview Total Time */}
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
+                        <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(getTotalTime())}</div>
+                      </div>
+
+                      {/* Admin-only: Fill random times button (development only) */}
+                      {isAdmin && isDevelopment && myEntry && (
+                        <Button
+                          onClick={handleFillRandomTimes}
+                          variant="outline"
+                          disabled={submitting}
+                          className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
+                        >
+                          <Dice5 className="h-4 w-4 mr-2" />
+                          Fill Random Times (Dev Only)
+                        </Button>
+                      )}
+
+                      <Button
+                        onClick={handleSubmitTimes}
+                        disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification") || qualificationEditingLocked}
+                        className="w-full"
+                      >
+                        {submitting ? tCommon('saving') : tPart('submitTimes')}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Read-only view of own times when self-edit is disabled */}
+              {!taPlayerSelfEdit && partnerEntry && (
+                <Card className="opacity-75">
+                  <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Timer className="h-5 w-5" />
-                      {tTa('title')}
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      {tPart('myTimesReadOnly')}
                     </CardTitle>
-                    <CardDescription>
-                      {tTa('enterTimeCourseDesc')}
-                    </CardDescription>
-                  </div>
-                  <div className="text-right">
-                    {/** i18n: Progress counter with interpolated count/total */}
-                    <div className="font-mono">{tPart('taProgress', { count: getEnteredTimesCount(), total: TOTAL_COURSES })}</div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Current Stats: Rank and Total Time */}
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono">{myEntry.rank ? `#${myEntry.rank}` : '-'}</div>
-                      {/** i18n: "Current Rank" label */}
-                      <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold font-mono">{myEntry.rank ? `#${myEntry.rank}` : '-'}</div>
+                        <div className="text-sm text-muted-foreground">{tPart('currentRank')}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold font-mono">{msToDisplayTime(myEntry.totalTime)}</div>
+                        <div className="text-sm text-muted-foreground">{tTa('totalTime')}</div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono">{msToDisplayTime(myEntry.totalTime)}</div>
-                      {/** i18n: "Total Time" label from ta namespace */}
-                      <div className="text-sm text-muted-foreground">{tTa('totalTime')}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {COURSE_INFO.map((course) => (
+                        <div key={course.abbr} className="flex items-center gap-2 text-sm">
+                          <span className="font-mono text-xs w-8">{course.abbr}</span>
+                          <span className="font-mono">{myEntry.times?.[course.abbr] || '-'}</span>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-
-                  {/* Time Input Grid: Organized by cup */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
-                      <Card key={cup}>
-                        <CardHeader className="py-3">
-                          {/** i18n: Cup name with interpolated cup parameter */}
-                          <CardTitle className="text-sm">{tTa('cup', { cup })}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          {COURSE_INFO.filter((c) => c.cup === cup).map((course) => (
-                            <div key={course.abbr} className="flex items-center gap-2">
-                              <Label className="w-12 text-xs font-mono">{course.abbr}</Label>
-                              <Input
-                                type="text"
-                                placeholder="M:SS.mm"
-                                value={timeInputs[course.abbr] || ''}
-                                onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
-                                onBlur={() => handleTimeBlur(course.abbr)}
-                                disabled={frozenStages.includes("qualification") || qualificationEditingLocked}
-                                className="font-mono text-sm"
-                              />
-                            </div>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* Preview Total Time */}
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    {/** i18n: "Preview Total Time" heading */}
-                    <div className="font-medium text-center mb-2">{tPart('previewTotalTime')}</div>
-                    <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(getTotalTime())}</div>
-                  </div>
-
-                  {/* Admin-only: Fill random times button (development only) */}
-                  {isAdmin && isDevelopment && myEntry && (
-                    <Button
-                      onClick={handleFillRandomTimes}
-                      variant="outline"
-                      disabled={submitting}
-                      className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
-                    >
-                      <Dice5 className="h-4 w-4 mr-2" />
-                      Fill Random Times (Dev Only)
-                    </Button>
-                  )}
-
-                  {/** i18n: Submit button toggles between "Submitting..." (common.saving) and "Submit Times".
-                   *  Disabled when qualification stage is frozen to prevent edits. */}
-                  <Button
-                    onClick={handleSubmitTimes}
-                    disabled={submitting || getEnteredTimesCount() === 0 || frozenStages.includes("qualification") || qualificationEditingLocked}
-                    className="w-full"
-                  >
-                    {submitting ? tCommon('saving') : tPart('submitTimes')}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           ) : (
             /* Not Registered message (no qualification entry found) */
             <Card>

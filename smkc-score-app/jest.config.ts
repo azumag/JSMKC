@@ -47,6 +47,7 @@ const customJestConfig: Config = {
     'node_modules/(?!(html-encoding-sniffer|@exodus)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
+  modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
   testPathIgnorePatterns: ['/node_modules/', '__tests__/debug-', '__tests__/mock-debug'],
 };

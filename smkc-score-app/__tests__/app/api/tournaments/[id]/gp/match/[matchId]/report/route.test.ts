@@ -687,7 +687,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const updatedMatch = {
         ...mockMatch,
         player1ReportedPoints1: 15,
-        player1ReportedPoints2: 19,
+        player1ReportedPoints2: 16,
         player1ReportedRaces: [],
         version: 1,
       };
@@ -718,7 +718,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         data: expect.objectContaining({
           reportedData: expect.objectContaining({
             totalPoints1: 15,
-            totalPoints2: 19,
+            totalPoints2: 16,
           }),
         }),
       });

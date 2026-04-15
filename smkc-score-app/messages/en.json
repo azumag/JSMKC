@@ -227,6 +227,8 @@
     "activeStatus": "Active",
     "completed": "Completed",
     "failedToCreate": "Failed to create tournament",
+    "failedToDelete": "Failed to delete tournament",
+    "cannotDeleteStartedTournament": "Started tournaments cannot be deleted",
     "fetchError": "Failed to load tournaments. Please try again.",
     "customUrl": "Custom URL (optional)",
     "customUrlPlaceholder": "e.g. jsmkc2026",

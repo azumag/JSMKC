@@ -93,20 +93,30 @@ const StageSchema = z.enum(["qualification", "revival_1", "revival_2"]);
  * POST request body schema.
  * Only supports "add" action to add players to qualification.
  * Promotion actions have been moved to /api/tournaments/[id]/ta/phases endpoint.
+ *
+ * Players can be specified as:
+ * - playerId: single player ID (legacy, no seeding)
+ * - players: array of player IDs (legacy, no seeding)
+ * - playerEntries: array of { playerId, seeding? } objects (preferred, supports seeding)
  */
 const PostRequestSchema = z.object({
-  /* Prisma uses cuid() for all IDs, not uuid */
   playerId: z.string().cuid().optional(),
   players: z.array(z.string().cuid()).optional(),
+  playerEntries: z.array(z.object({
+    playerId: z.string().cuid(),
+    seeding: z.number().int().positive().optional(),
+  })).optional(),
   action: z.enum(["add"]).optional(),
 }).refine(
   (data) => {
     if (!data.action || data.action === "add") {
-      return data.playerId !== undefined || (data.players !== undefined && data.players.length > 0);
+      return data.playerId !== undefined
+        || (data.players !== undefined && data.players.length > 0)
+        || (data.playerEntries !== undefined && data.playerEntries.length > 0);
     }
     return true;
   },
-  { message: "playerId or players array is required" }
+  { message: "playerId, players, or playerEntries is required" }
 );
 
 /**
@@ -126,12 +136,14 @@ const PutRequestSchema = z.object({
   livesDelta: z.number().optional(),
   eliminated: z.boolean().optional(),
   partnerId: z.string().cuid().nullable().optional(),
-  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives", "set_partner"]).optional(),
+  seeding: z.number().int().positive().nullable().optional(),
+  action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives", "set_partner", "update_seeding"]).optional(),
 }).refine(
   (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
             data.action === "eliminate" ? data.eliminated !== undefined :
             data.action === "reset_lives" ? true :
             data.action === "set_partner" ? true :
+            data.action === "update_seeding" ? true :
             data.times !== undefined || (data.course !== undefined && data.time !== undefined),
   { message: "Invalid request for action" }
 );
@@ -169,7 +181,7 @@ export async function GET(
       }),
       prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { frozenStages: true },
+        select: { frozenStages: true, taPlayerSelfEdit: true },
       }),
       prisma.tTEntry.count({
         where: { tournamentId, stage: "qualification" },
@@ -186,6 +198,7 @@ export async function GET(
       qualificationEditingLockedForPlayers: knockoutStarted,
       // Return frozen stages so the UI can disable editing for frozen phases
       frozenStages: (tournament?.frozenStages as string[]) || [],
+      taPlayerSelfEdit: tournament?.taPlayerSelfEdit ?? true,
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
@@ -217,7 +230,7 @@ export async function POST(
       return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
-    const { playerId, players } = parseResult.data;
+    const { playerId, players, playerEntries } = parseResult.data;
 
     // === Add Player to Qualification ===
     const authResult = await requireAdminOrPlayerSession();
@@ -231,8 +244,17 @@ export async function POST(
       );
     }
 
-    // Support both single playerId and batch players array
-    const playerIds = players || (playerId ? [playerId] : []);
+    // Normalize all input formats into { playerId, seeding? } entries.
+    // playerEntries is the preferred format (supports seeding);
+    // playerId / players are legacy formats (no seeding).
+    const normalizedEntries: { playerId: string; seeding?: number }[] =
+      playerEntries
+        ?? (players ? players.map(pid => ({ playerId: pid })) : null)
+        ?? (playerId ? [{ playerId }] : []);
+
+    const playerIds = normalizedEntries.map(e => e.playerId);
+    // Build seeding lookup for O(1) access
+    const seedingMap = new Map(normalizedEntries.map(e => [e.playerId, e.seeding]));
 
     // Ownership check: players can only add themselves to qualification.
     // Admins can add any player. This prevents a player from registering
@@ -262,13 +284,14 @@ export async function POST(
       });
 
       if (!existing) {
-        // Create qualification entry with empty times (to be filled in later)
+        // Create qualification entry with empty times and optional seeding
         const entry = await prisma.tTEntry.create({
           data: {
             tournamentId,
             playerId: pid,
             stage: "qualification",
             times: {},
+            seeding: seedingMap.get(pid) ?? null,
           },
           include: { player: true },
         });
@@ -338,7 +361,7 @@ export async function PUT(
       return createErrorResponse(parseResult.error.issues[0]?.message || "Invalid request body", 400, "VALIDATION_ERROR");
     }
 
-    const { entryId, action, eliminated, livesDelta, partnerId } = parseResult.data;
+    const { entryId, action, eliminated, livesDelta, partnerId, seeding } = parseResult.data;
 
     // === Partner Assignment (§3.1) ===
     // Set or clear the partner player ID for pair running (admin only)
@@ -381,6 +404,21 @@ export async function PUT(
           });
         }
       }
+
+      return createSuccessResponse({ entry: updatedEntry });
+    }
+
+    // === Seeding Update (§3.1) ===
+    // Update the seeding number for a TA entry (admin only, per-tournament)
+    if (action === "update_seeding") {
+      const authResult = await requireAdminAndGetSession();
+      if (authResult.error) return authResult.error;
+
+      const updatedEntry = await prisma.tTEntry.update({
+        where: { id: entryId },
+        data: { seeding: seeding ?? null },
+        include: { player: true },
+      });
 
       return createSuccessResponse({ entry: updatedEntry });
     }
@@ -520,6 +558,17 @@ export async function PUT(
       const isPartner = entry.partnerId === currentPlayerId;
       if (!isOwner && !isPartner) {
         return createErrorResponse('Forbidden: You can only update your own or your partner\'s times', 403, 'FORBIDDEN');
+      }
+
+      // §3.1 taPlayerSelfEdit: when disabled, players can only edit partner's times
+      if (isOwner && !isPartner) {
+        const tournamentSettings = await prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          select: { taPlayerSelfEdit: true },
+        });
+        if (tournamentSettings?.taPlayerSelfEdit === false) {
+          return createErrorResponse('Forbidden: Self-editing is disabled for this tournament', 403, 'FORBIDDEN');
+        }
       }
 
       if (entry.stage === "qualification" && await hasKnockoutStageStarted(tournamentId)) {

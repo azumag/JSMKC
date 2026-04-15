@@ -227,6 +227,8 @@
     "activeStatus": "進行中",
     "completed": "完了",
     "failedToCreate": "トーナメントの作成に失敗しました",
+    "failedToDelete": "トーナメントの削除に失敗しました",
+    "cannotDeleteStartedTournament": "開始済みのトーナメントは削除できません",
     "fetchError": "トーナメントの読み込みに失敗しました。再試行してください。",
     "customUrl": "カスタムURL（任意）",
     "customUrlPlaceholder": "例: jsmkc2026",

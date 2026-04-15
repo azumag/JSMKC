@@ -312,7 +312,6 @@ describe('PUT /api/players/[id]', () => {
             name: 'Updated Name',
             nickname: 'updated',
             country: 'US',
-            ttSeeding: null,
           },
         })
       );

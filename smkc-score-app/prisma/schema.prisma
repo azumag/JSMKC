@@ -79,7 +79,6 @@ model Player {
   name      String
   nickname  String   @unique
   country   String?
-  ttSeeding Int?      // §3.1: TA pair assignment seed ranking (lower = stronger)
   password  String?  // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int      @default(0) // 楽観的ロック用
@@ -126,6 +125,7 @@ model Tournament {
   date          DateTime
   status        String   @default("draft") // draft, active, completed
   dualReportEnabled Boolean @default(false) // When true, both players must report matching scores for auto-confirmation
+  taPlayerSelfEdit  Boolean @default(true)  // §3.1: When false, players cannot edit their own TA times (only partner's)
   frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用
@@ -469,6 +469,7 @@ model TTEntry {
   stage        String     @default("qualification") // qualification, phase1, phase2, phase3
   lives        Int        @default(3) // For phase3 finals
   eliminated   Boolean    @default(false)
+  seeding      Int?       // §3.1: TA pair assignment seed ranking (lower = stronger), per-tournament
   partnerId    String?    // §3.1: Partner player ID for pair running (partner enters your times)
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds

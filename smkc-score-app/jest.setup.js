@@ -86,6 +86,11 @@ if (typeof global.TextDecoder === 'undefined') {
   global.TextDecoder = util.TextDecoder;
 }
 
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: jest.fn(() => ({ env: { DB: {} } })),
+  initOpenNextCloudflareForDev: jest.fn(),
+}))
+
 // Mock Prisma client globally - optimized to minimize overhead
 // Provides both default and named `prisma` export to match src/lib/prisma.ts
 jest.mock('@/lib/prisma', () => {

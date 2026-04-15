@@ -8,7 +8,14 @@ import createNextIntlPlugin from 'next-intl/plugin';
  * getCloudflareContext() works in `next dev`.
  */
 import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
-initOpenNextCloudflareForDev();
+const isJest = process.env.NODE_ENV === 'test'
+  || process.env.JEST_WORKER_ID !== undefined
+  || process.env.SKIP_OPENNEXT_CLOUDFLARE_DEV === '1'
+  || process.argv.some((arg) => arg.includes('jest'));
+
+if (!isJest) {
+  initOpenNextCloudflareForDev();
+}
 
 /**
  * next-intl plugin wraps the Next.js config to enable i18n support.

@@ -312,6 +312,7 @@ describe('/api/tournaments/[id]/ta', () => {
           playerId: VALID_UUID2,
           stage: 'qualification',
           times: {},
+          seeding: null,
         },
         include: { player: true },
       });

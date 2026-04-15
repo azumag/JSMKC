@@ -33,7 +33,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
   ) {
     const logger = createLogger(config.loggerName);
     const { id } = await params;
-    const tournamentId = await resolveTournamentId(id);
+    let tournamentId = id;
 
     try {
       const { searchParams } = new URL(request.url);
@@ -45,6 +45,8 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
       if (!session?.user) {
         return handleAuthError();
       }
+
+      tournamentId = await resolveTournamentId(id);
 
       // Verify the tournament exists before fetching matches
       const tournament = await prisma.tournament.findFirst({

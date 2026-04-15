@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "NODE_OPTIONS='--max-old-space-size=4096' jest",
+    "test": "SKIP_OPENNEXT_CLOUDFLARE_DEV=1 NODE_ENV=test NODE_OPTIONS='--max-old-space-size=4096' jest",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
     "build:cf": "npx @opennextjs/cloudflare build",

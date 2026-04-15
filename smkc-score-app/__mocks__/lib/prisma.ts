@@ -14,6 +14,7 @@ const mockPrisma = {
     update: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    deleteMany: jest.fn(),
   },
   bMMatch: {
     update: jest.fn(),

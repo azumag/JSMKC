@@ -74,7 +74,6 @@ interface Player {
   name: string;
   nickname: string;
   country: string | null;
-  ttSeeding: number | null;
   createdAt: string;
   /** Set by the API for admin users: true if the player is registered in any tournament. */
   hasTournamentData?: boolean;
@@ -124,7 +123,6 @@ export default function PlayersPage() {
     name: "",
     nickname: "",
     country: "",
-    ttSeeding: "",
   });
 
   /* Currently editing player ID (null when adding a new player) */
@@ -191,10 +189,7 @@ export default function PlayersPage() {
         response = await fetch("/api/players", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...formData,
-            ttSeeding: formData.ttSeeding ? Number(formData.ttSeeding) : null,
-          }),
+          body: JSON.stringify(formData),
         });
         if (response.ok) break;
         // 409 on retry = player was created on a previous attempt that crashed
@@ -218,12 +213,11 @@ export default function PlayersPage() {
           name: formData.name,
           nickname: formData.nickname,
           country: formData.country || null,
-          ttSeeding: formData.ttSeeding ? Number(formData.ttSeeding) : null,
           createdAt: new Date().toISOString(),
         };
         setPlayers(prev => [...prev, newPlayer]);
 
-        setFormData({ name: "", nickname: "", country: "", ttSeeding: "" });
+        setFormData({ name: "", nickname: "", country: "" });
         setIsAddDialogOpen(false);
 
         if (!isLostResponse && data.temporaryPassword) {
@@ -269,10 +263,7 @@ export default function PlayersPage() {
         response = await fetch(`/api/players/${editingPlayerId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...formData,
-            ttSeeding: formData.ttSeeding ? Number(formData.ttSeeding) : null,
-          }),
+          body: JSON.stringify(formData),
         });
         if (response.ok || response.status < 500) break;
         if (attempt === 0) await new Promise(r => setTimeout(r, 800));
@@ -282,12 +273,12 @@ export default function PlayersPage() {
         // Optimistic update: immediately reflect changes in the list
         setPlayers(prev => prev.map(p =>
           p.id === editingPlayerId
-            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null, ttSeeding: formData.ttSeeding ? Number(formData.ttSeeding) : null }
+            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null }
             : p
         ));
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
-        setFormData({ name: "", nickname: "", country: "", ttSeeding: "" });
+        setFormData({ name: "", nickname: "", country: "" });
       } else {
         const text = await response!.text();
         try {
@@ -398,7 +389,6 @@ export default function PlayersPage() {
       name: player.name,
       nickname: player.nickname,
       country: player.country || "",
-      ttSeeding: String(player.ttSeeding ?? ""),
     });
     setEditingPlayerId(player.id);
     setError("");
@@ -413,7 +403,7 @@ export default function PlayersPage() {
     setIsEditDialogOpen(open);
     if (!open) {
       setEditingPlayerId(null);
-      setFormData({ name: "", nickname: "", country: "", ttSeeding: "" });
+      setFormData({ name: "", nickname: "", country: "" });
     }
   };
 
@@ -456,7 +446,7 @@ export default function PlayersPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", nickname: "", country: "", ttSeeding: "" })}>
+              <Button onClick={() => setFormData({ name: "", nickname: "", country: "" })}>
                 {tc('addPlayer')}
               </Button>
             </DialogTrigger>
@@ -507,19 +497,6 @@ export default function PlayersPage() {
                     placeholder={t('countryPlaceholder')}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ttSeeding">{t('ttSeeding')}</Label>
-                  <Input
-                    id="ttSeeding"
-                    type="number"
-                    min="1"
-                    value={formData.ttSeeding}
-                    onChange={(e) =>
-                      setFormData({ ...formData, ttSeeding: e.target.value })
-                    }
-                    placeholder={t('ttSeedingPlaceholder')}
-                  />
-                </div>
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting}>
@@ -563,7 +540,6 @@ export default function PlayersPage() {
                   <TableHead>{t('nickname')}</TableHead>
                   <TableHead>{t('fullName')}</TableHead>
                   <TableHead>{t('country')}</TableHead>
-                  {isAdmin && <TableHead className="text-right">{t('ttSeeding')}</TableHead>}
                   {/* Actions column only visible to admins */}
                   {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                 </TableRow>
@@ -576,7 +552,6 @@ export default function PlayersPage() {
                     </TableCell>
                     <TableCell>{player.name}</TableCell>
                     <TableCell>{player.country || "-"}</TableCell>
-                    {isAdmin && <TableCell className="text-right">{player.ttSeeding ?? "-"}</TableCell>}
                     {/* Admin-only action buttons: Edit and Delete */}
                     {isAdmin && (
                       <TableCell className="text-right space-x-2">
@@ -656,19 +631,6 @@ export default function PlayersPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, country: e.target.value })
                   }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-ttSeeding">{t('ttSeeding')}</Label>
-                <Input
-                  id="edit-ttSeeding"
-                  type="number"
-                  min="1"
-                  value={formData.ttSeeding}
-                  onChange={(e) =>
-                    setFormData({ ...formData, ttSeeding: e.target.value })
-                  }
-                  placeholder={t('ttSeedingPlaceholder')}
                 />
               </div>
             </div>

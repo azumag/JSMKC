@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, dualReportEnabled } = body;
+    const { name, date, dualReportEnabled, taPlayerSelfEdit } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
         date: new Date(date),
         status: "draft",
         dualReportEnabled: dualReportEnabled === true,
+        taPlayerSelfEdit: taPlayerSelfEdit !== false,
       },
     });
 

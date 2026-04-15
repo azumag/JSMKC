@@ -148,7 +148,7 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status, frozenStages } = body;
+    const { name, date, status, frozenStages, taPlayerSelfEdit } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -180,6 +180,7 @@ export async function PUT(
         ...(date && { date: new Date(date) }),
         ...(status && { status }),
         ...(frozenStages !== undefined && { frozenStages }),
+        ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
       },
     });
 
@@ -243,11 +244,13 @@ export async function PUT(
  * DELETE /api/tournaments/:id
  *
  * Deletes a tournament. Requires admin authentication.
+ * Only draft tournaments can be deleted; active/completed tournaments are locked.
  *
  * Response:
  *   200 - { success: true, message: "..." }
  *   403 - Not authorized (non-admin)
- *   404 - Tournament not found (Prisma P2025)
+ *   404 - Tournament not found
+ *   409 - Tournament has already started
  *   500 - Server error
  */
 export async function DELETE(
@@ -267,10 +270,26 @@ export async function DELETE(
   const resolvedId = await resolveTournamentId(id);
 
   try {
-    // Delete the tournament record from the database
-    await prisma.tournament.delete({
-      where: { id: resolvedId }
+    const deleteResult = await prisma.tournament.deleteMany({
+      where: { id: resolvedId, status: "draft" },
     });
+
+    if (deleteResult.count === 0) {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: resolvedId },
+        select: { status: true },
+      });
+
+      if (!tournament) {
+        return createErrorResponse("Tournament not found", 404);
+      }
+
+      return createErrorResponse(
+        "Started tournaments cannot be deleted",
+        409,
+        "CONFLICT"
+      );
+    }
 
     // Audit log for the deletion - important for security tracking
     try {
@@ -301,7 +320,7 @@ export async function DELETE(
     // Log error with tournament ID for debugging
     logger.error("Failed to delete tournament", { error, id: resolvedId });
 
-    // P2025: Record not found - cannot delete a non-existent tournament
+    // P2025: Record not found - retained for defensive compatibility.
     if (
       error &&
       typeof error === "object" &&

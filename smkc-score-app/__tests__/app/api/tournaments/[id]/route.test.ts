@@ -552,7 +552,7 @@ describe('DELETE /api/tournaments/[id]', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.delete as jest.Mock).mockResolvedValue(undefined);
+      (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
@@ -562,9 +562,9 @@ describe('DELETE /api/tournaments/[id]', () => {
 
       await tournamentRoute.DELETE(request, { params: Promise.resolve({ id: 't1' }) });
 
-      expect(prisma.tournament.delete).toHaveBeenCalledWith(
+      expect(prisma.tournament.deleteMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 't1' },
+          where: { id: 't1', status: 'draft' },
         })
       );
 
@@ -593,11 +593,44 @@ describe('DELETE /api/tournaments/[id]', () => {
   });
 
   describe('Error Cases', () => {
+    it.each(['active', 'completed'])(
+      'should return 409 when tournament status is %s',
+      async (status) => {
+        (auth as jest.Mock).mockResolvedValue({
+          user: { id: 'admin-1', role: 'admin' },
+        });
+        (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
+        (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ status });
+
+        await tournamentRoute.DELETE(
+          new NextRequest('http://localhost:3000/api/tournaments/t1'),
+          { params: Promise.resolve({ id: 't1' }) }
+        );
+
+        expect(prisma.tournament.deleteMany).toHaveBeenCalledWith({
+          where: { id: 't1', status: 'draft' },
+        });
+        expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
+          where: { id: 't1' },
+          select: { status: true },
+        });
+        expect(auditLogMock.createAuditLog).not.toHaveBeenCalled();
+        expect(NextResponse.json).toHaveBeenCalledWith(
+          {
+            success: false,
+            error: 'Started tournaments cannot be deleted',
+            code: 'CONFLICT',
+          },
+          { status: 409 }
+        );
+      }
+    );
+
     it('should handle audit log failures gracefully', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.delete as jest.Mock).mockResolvedValue(undefined);
+      (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
       auditLogMock.createAuditLog.mockRejectedValue(new Error('Audit log error'));
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 
@@ -621,14 +654,12 @@ describe('DELETE /api/tournaments/[id]', () => {
       });
     });
 
-    it('should return 404 when tournament not found (P2025)', async () => {
-      const prismaError = new Error('Record not found') as Error & { code?: string };
-      prismaError.code = 'P2025';
-
+    it('should return 404 when tournament not found', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.delete as jest.Mock).mockRejectedValue(prismaError);
+      (prisma.tournament.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
       auditLogMock.createAuditLog.mockResolvedValue(undefined);
       (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
 

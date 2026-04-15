@@ -1,19 +1,14 @@
 /**
- * Battle Mode Match Entry Page
+ * Battle Mode Match Detail Page (View Only)
  *
- * Public-facing page for individual BM match viewing and score entry.
- * Viewing is public (no auth), but score entry requires authentication
- * as a match participant or admin (enforced by useMatchReportAuth hook
- * on the UI side, and checkScoreReportAuth on the API side).
+ * Public-facing page for viewing individual BM match status and results.
+ * Score entry has been consolidated into the participant page
+ * (/tournaments/[id]/bm/participant) for a unified entry point.
  *
  * Features:
- * - Authorization-gated score entry (participants and admins only)
- * - Auto-selection of player identity for logged-in participants
- * - Increment/decrement score buttons for easy mobile input
- * - Validation: total rounds must equal 4 (BM qualification format)
- * - Score submission via the /report API endpoint
- * - Real-time polling (3s) to detect when the other player submits or match completes
- * - Three UI states: score entry, submitted (waiting), and completed
+ * - Match info display (players, current score)
+ * - Real-time polling (3s) to detect when match completes
+ * - Completed state with final score and winner
  */
 
 "use client";
@@ -22,7 +17,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -35,14 +29,10 @@ import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
-import { createLogger } from "@/lib/client-logger";
-import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 
 import type { Player } from "@/lib/types";
 
-const logger = createLogger({ serviceName: 'tournaments-bm-match' });
-
-/** BM Match data with player relations and reported scores */
+/** BM Match data with player relations */
 interface BMMatch {
   id: string;
   matchNumber: number;
@@ -57,12 +47,6 @@ interface BMMatch {
   assignedCourses?: string[];
   player1: Player;
   player2: Player;
-  /** Player 1's self-reported scores */
-  player1ReportedScore1?: number;
-  player1ReportedScore2?: number;
-  /** Player 2's self-reported scores */
-  player2ReportedScore1?: number;
-  player2ReportedScore2?: number;
 }
 
 /** Tournament metadata for display */
@@ -72,23 +56,16 @@ interface Tournament {
 }
 
 /**
- * Match entry page component for individual BM matches.
+ * Match detail page component for individual BM matches (view only).
  * Uses React 19's `use()` hook to unwrap async params (tournamentId + matchId).
  */
-export default function MatchEntryPage({
+export default function MatchDetailPage({
   params,
 }: {
   params: Promise<{ id: string; matchId: string }>;
 }) {
   const { id: tournamentId, matchId } = use(params);
 
-  /**
-   * i18n translation hooks for the match entry page.
-   * Two namespaces are used:
-   * - 'match': Match-specific strings (score entry, submission states, results)
-   * - 'bm': Battle Mode shared strings (match title with dynamic number)
-   * Hooks must be called at the top of the component before any other hooks.
-   */
   const tMatch = useTranslations('match');
   const tBm = useTranslations('bm');
 
@@ -96,17 +73,6 @@ export default function MatchEntryPage({
   const [match, setMatch] = useState<BMMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-
-  /* Authorization: determines if current user can report scores */
-  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
-    useMatchReportAuth(match);
-
-  /* Score entry state */
-  const [submitting, setSubmitting] = useState(false);
-  const [score1, setScore1] = useState(0);
-  const [score2, setScore2] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
 
   /**
    * Fetch match and tournament data in parallel.
@@ -137,7 +103,7 @@ export default function MatchEntryPage({
   }, [tournamentId, matchId]);
 
   /* Poll at the standard interval for real-time match updates */
-  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling, refetch } = usePolling(
+  const { data: pollData, isLoading: pollLoading, lastUpdated, isPolling } = usePolling(
     fetchMatchData, {
     interval: POLLING_INTERVAL,
   });
@@ -154,54 +120,6 @@ export default function MatchEntryPage({
   useEffect(() => {
     setLoading(pollLoading);
   }, [pollLoading]);
-
-  /**
-   * Handle score submission.
-   * Validates that a player is selected and total rounds equal 4,
-   * then sends the score report to the API.
-   */
-  const handleSubmit = async () => {
-    if (selectedPlayer === null) {
-      setError("Please select which player you are");
-      return;
-    }
-    /* BM qualification matches must total exactly 4 rounds */
-    if (score1 + score2 !== 4) {
-      setError("Total rounds must equal 4");
-      return;
-    }
-
-    setSubmitting(true);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/bm/match/${matchId}/report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reportingPlayer: selectedPlayer,
-            score1,
-            score2,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setSubmitted(true);
-        refetch(); // Refresh data to show updated state
-      } else {
-        const data = await response.json();
-        setError(data.error || "Failed to submit score");
-      }
-    } catch (err) {
-      logger.error("Failed to submit score:", { error: err });
-      setError("Failed to submit score");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   /* Loading skeleton for initial page load */
   if (loading) {
@@ -247,7 +165,7 @@ export default function MatchEntryPage({
               <span className="text-2xl font-mono">vs</span>
               <span>{match.player2.nickname}</span>
             </CardTitle>
-            {/* Show final score badge if match is completed */}
+            {/* Show score badge if match is completed */}
             {match.completed && (
               <CardDescription className="text-center">
                 <Badge variant="secondary" className="text-lg px-4 py-1">
@@ -266,149 +184,6 @@ export default function MatchEntryPage({
           )}
         </Card>
 
-        {/* Not authorized message - shown to users who are not match participants.
-            Guarded by !isSessionLoading to avoid flash during session fetch. */}
-        {!match.completed && !canReport && !isSessionLoading && (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Score Entry UI - shown when match is not completed and user is authorized */}
-        {!match.completed && !submitted && canReport && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMatch('enterScore')}</CardTitle>
-              <CardDescription>
-                {tMatch('selectIdentity')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Player Self-Identification */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{tMatch('iAm')}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={selectedPlayer === 1 ? "default" : "outline"}
-                    className="h-16 text-lg"
-                    onClick={() => setSelectedPlayer(1)}
-                  >
-                    {match.player1.nickname}
-                  </Button>
-                  <Button
-                    variant={selectedPlayer === 2 ? "default" : "outline"}
-                    className="h-16 text-lg"
-                    onClick={() => setSelectedPlayer(2)}
-                  >
-                    {match.player2.nickname}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Score Input - shown after player selection */}
-              {selectedPlayer && (
-                <div className="space-y-4">
-                  <p className="text-sm font-medium text-center">
-                    {tMatch('scoreRoundsWon')}
-                  </p>
-                  <div className="flex items-center justify-center gap-4">
-                    {/* Player 1 score with increment/decrement buttons */}
-                    <div className="text-center">
-                      <p className="text-sm mb-2">{match.player1.nickname}</p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="h-12 w-12 text-xl"
-                          onClick={() => setScore1(Math.max(0, score1 - 1))}
-                        >
-                          -
-                        </Button>
-                        <span className="text-4xl font-bold w-12 text-center">
-                          {score1}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="h-12 w-12 text-xl"
-                          onClick={() => setScore1(Math.min(4, score1 + 1))}
-                        >
-                          +
-                        </Button>
-                      </div>
-                    </div>
-                    <span className="text-2xl">-</span>
-                    {/* Player 2 score with increment/decrement buttons */}
-                    <div className="text-center">
-                      <p className="text-sm mb-2">{match.player2.nickname}</p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="h-12 w-12 text-xl"
-                          onClick={() => setScore2(Math.max(0, score2 - 1))}
-                        >
-                          -
-                        </Button>
-                        <span className="text-4xl font-bold w-12 text-center">
-                          {score2}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="h-12 w-12 text-xl"
-                          onClick={() => setScore2(Math.min(4, score2 + 1))}
-                        >
-                          +
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Validation warning: total rounds must equal 4 */}
-                  {score1 + score2 !== 4 && (score1 > 0 || score2 > 0) && (
-                    <p className="text-yellow-600 text-sm text-center">
-                      {tMatch('totalMustEqual4')}
-                    </p>
-                  )}
-
-                  {/* Error message display */}
-                  {error && (
-                    <p className="text-red-500 text-sm text-center">{error}</p>
-                  )}
-
-                  {/* Submit button - disabled until valid score is entered */}
-                  <Button
-                    className="w-full h-14 text-lg"
-                    onClick={handleSubmit}
-                    disabled={submitting || score1 + score2 !== 4}
-                  >
-                    {submitting ? tMatch('submitting') : tMatch('submitScore')}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Submitted State - waiting for other player's confirmation */}
-        {submitted && !match.completed && (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-4">✓</div>
-              <h3 className="text-lg font-semibold mb-2">{tMatch('scoreSubmitted')}</h3>
-              <p className="text-muted-foreground">
-                {tMatch('waitingConfirm')}
-              </p>
-              <p className="text-sm mt-4">
-                {tMatch('yourReport', { score1, score2 })}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Completed State - final score display */}
         {match.completed && (
           <Card>
@@ -425,6 +200,15 @@ export default function MatchEntryPage({
                   ? tMatch('playerWins', { player: match.player2.nickname })
                   : tMatch('draw')}
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* In-progress state */}
+        {!match.completed && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">{tMatch('matchInProgress')}</p>
             </CardContent>
           </Card>
         )}

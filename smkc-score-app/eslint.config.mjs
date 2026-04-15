@@ -9,11 +9,14 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".open-next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
     "e2e/**", // Add e2e test files to ignore
     "coverage/**", // Add coverage directory to ignore
+    "bm-debug*.js",
+    "bm-group-debug.js",
   ]),
   {
     rules: {
