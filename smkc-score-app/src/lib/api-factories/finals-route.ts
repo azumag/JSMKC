@@ -238,7 +238,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             stage: 'finals',
             round: bracketMatch.round,
             player1Id: player1?.playerId || seededPlayers[0].playerId,
-            player2Id: player2?.playerId || seededPlayers[1].playerId,
+            player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
           },
           include: { player1: true, player2: true },
@@ -363,13 +363,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         playerId: string,
       ) => {
         try {
-          await model(prisma).update({
+          await model(prisma).updateMany({
             where: {
-              tournamentId_matchNumber_stage: {
-                tournamentId,
-                matchNumber: targetMatchNumber,
-                stage: 'finals',
-              },
+              tournamentId,
+              matchNumber: targetMatchNumber,
+              stage: 'finals',
             },
             data: position === 1 ? { player1Id: playerId } : { player2Id: playerId },
           });
@@ -395,6 +393,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             data:
               position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
           });
+          await updateRoutedMatch(currentBracketMatch.winnerGoesTo, position, winnerId);
         } else {
           await updateRoutedMatch(currentBracketMatch.winnerGoesTo, currentBracketMatch.position || 1, winnerId);
         }
@@ -427,6 +426,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
                 ? { player1Id: loserId }
                 : { player2Id: loserId },
           });
+          await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         } else {
           await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         }
