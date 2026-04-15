@@ -172,15 +172,19 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     }
   }, [pollingData, pollingError, tournamentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Filter matches for the current player — incomplete only */
+  /* Filter matches for the current player — pending first, then completed */
   useEffect(() => {
     if (playerId && matches.length > 0) {
       const playerMatches = matches.filter(
         (match) =>
-          !match.completed &&
-          !match.isBye && /* BYE matches are auto-completed; don't show in pending */
+          !match.isBye && /* BYE matches are auto-completed; don't show */
           (match.player1.id === playerId || match.player2.id === playerId)
       );
+      /* Sort: pending (incomplete) matches first, then completed */
+      playerMatches.sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return a.matchNumber - b.matchNumber;
+      });
       setMyMatches(playerMatches);
     } else {
       setMyMatches([]);

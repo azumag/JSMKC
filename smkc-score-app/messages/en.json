@@ -482,6 +482,7 @@
     "noPendingMR": "You don't have any pending match races. Check back later for new matches.",
     "noPendingGP": "You don't have any pending Grand Prix matches. Check back later for new matches.",
     "yourPendingMatches": "Your Pending Matches",
+    "yourMatches": "Your Matches",
     "matchNumber": "Match #{number}",
     "tvInfo": "TV {tv}",
     "qualification": "Group Stage",

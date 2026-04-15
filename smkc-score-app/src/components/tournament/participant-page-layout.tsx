@@ -180,7 +180,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
               <div className="flex items-center gap-2">
                 <SectionIcon className="h-6 w-6 text-yellow-600" />
                 <h2 className="text-2xl font-semibold">
-                  {tPart("yourPendingMatches")}
+                  {tPart("yourMatches")}
                 </h2>
               </div>
 
