@@ -348,7 +348,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Bracket progression: advance winner and loser to next matches */
       const bracketStructure = generateBracketStructure(8);
-      const matchNumber = Number(match.matchNumber);
+      const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
       const currentBracketMatch = bracketStructure.find(
         (b) => b.matchNumber === matchNumber,
       );
