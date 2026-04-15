@@ -379,6 +379,131 @@
   6. 作成したトーナメントを削除する
 - **期待結果**: 奇数人数でも POST 201、グループ設定成功、アラートなし
 
+## TC-501: BMプレイヤーログインからスコア入力・送信まで
+- **URL**: /auth/signin -> /tournaments/[temp-id]/bm/participant
+- **authRequired**: true (player)
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー2名を作成し、一時パスワードを取得する
+  2. 一時トーナメントで BM 予選をグループ設定APIで作成し、2名のpendingマッチを生成する
+  3. 別の一時ブラウザコンテキストで対象プレイヤー（player1）としてログインする
+  4. `/tournaments/[temp-id]/bm/participant` を開き、pendingマッチが表示されることを確認する
+  5. +/-ボタンで score1=3, score2=1 に設定し「Submit Scores」をクリックする
+  6. 成功アラートが表示され、pendingマッチが消えることを確認する
+  7. 管理者APIで対象マッチがcompletedになり、score1=3, score2=1が保存されていることを確認する
+  8. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: BMのparticipant入力フォームから実際にスコア送信でき、結果が永続化される
+
+## TC-502: BMプレイヤー引き分け(2-2)スコアの送信
+- **URL**: /tournaments/[temp-id]/bm/participant
+- **authRequired**: true (player)
+- **背景**: §4.1により2-2引き分けは有効（draw = 1ポイント）
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー2名を作成する
+  2. BMグループ設定を行い、pendingマッチを生成する
+  3. 一時ブラウザで対象プレイヤーとしてログインし、`/bm/participant` を開く
+  4. +/-ボタンで score1=2, score2=2 に設定する
+  5. 「Submit Scores」ボタンが有効であることを確認し、クリックする
+  6. 成功アラートが表示されることを確認する
+  7. 管理者APIでマッチがcompletedかつscore1=2, score2=2であることを確認する
+  8. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: 2-2の引き分けスコアが正常に送信・保存される
+
+## TC-503: BM決勝ブラケット生成とスコア入力
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
+  2. BMグループ設定を行い、全予選マッチのスコアをAPIで入力して完了させる
+  3. `/tournaments/[temp-id]/bm/finals` を開き、「Generate Bracket」ボタンをクリックする
+  4. 確認ダイアログで「Top 8」を選択し、「Generate」をクリックする
+  5. ダブルイリミネーションブラケットが表示されることを確認する（QF 4試合が表示）
+  6. QF Match #1 をクリックし、スコア入力ダイアログが開くことを確認する
+  7. score1=5, score2=2（best-of-9）を入力し「Save Score」をクリックする
+  8. ブラケットが更新され、勝者がWinners Bracket次ラウンドに、敗者がLosers Bracketに移動することを確認する
+  9. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: ブラケット生成、スコア入力、勝敗によるブラケット進行が正常に動作する
+
+## TC-504: BM決勝ブラケットリセット
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. TC-503と同様にブラケットを生成し、一部スコアを入力する
+  2. 「Reset Bracket」ボタンをクリックする
+  3. 確認ダイアログで「Reset」をクリックする
+  4. ブラケットが再生成され、入力済みスコアがリセットされることを確認する
+  5. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: ブラケットリセットが正常に機能し、全マッチがpending状態に戻る
+
+## TC-505: BM決勝 Grand Final → チャンピオン決定
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
+  2. BMグループ設定→全予選マッチ完了→ブラケット生成する
+  3. 全ブラケットマッチ（Winners QF〜Grand Final）のスコアをAPIで入力する
+     - Winners Bracket: QF(1-4), SF(5-6), WF(7)
+     - Losers Bracket: L_R1(8-9), L_R2(10-11), L_R3(12-13), LSF(14), LF(15)
+     - Grand Final(16): best-of-9
+  4. Grand FinalでWinners側が勝った場合、チャンピオンカードが表示されることを確認する
+  5. チャンピオンのニックネームが正しく表示されることを確認する
+  6. 進行バッジが「Tournament Complete」を示すことを確認する
+  7. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: 全マッチ完了後にチャンピオンが正しく決定・表示される
+
+## TC-506: BM決勝 Grand Final Reset Match
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: Grand FinalでLosers側が勝った場合、Reset Match（17試合目）が発生する
+- **手順**:
+  1. TC-505と同様に全マッチを進め、Grand Final(16)でLosers側勝者が勝つようにスコアを入力する
+  2. Grand Final Reset(17)マッチがブラケットに出現することを確認する
+  3. Reset Matchのスコアを入力する
+  4. チャンピオンが正しく決定されることを確認する
+  5. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: Grand Final Resetが正しくトリガーされ、最終勝者がチャンピオンとなる
+
+## TC-507: BM二重報告 — 双方一致で自動確定
+- **URL**: /tournaments/[temp-id]/bm/participant
+- **authRequired**: true (player × 2)
+- **背景**: dualReportEnabled=true のトーナメントでは両プレイヤーが同じスコアを報告すると自動確定
+- **手順**:
+  1. 管理者セッションで dualReportEnabled=true のトーナメントとプレイヤー2名を作成
+  2. BMグループ設定でpendingマッチを生成
+  3. 一時ブラウザでP1としてログインし /bm/participant でスコア3-1を送信
+  4. レスポンスに `waitingFor: player2` が含まれることを確認
+  5. 管理者APIでマッチが未完了(completed=false)かつ player1ReportedScore1=3 であることを確認
+  6. 別の一時ブラウザでP2としてログインし /bm/participant でスコア3-1を送信
+  7. レスポンスに `autoConfirmed: true` が含まれることを確認
+  8. 管理者APIでマッチが completed=true, score1=3, score2=1 であることを確認
+  9. クリーンアップ
+- **期待結果**: 双方が同じスコアを報告するとマッチが自動確定される
+
+## TC-508: BM二重報告 — 不一致でmismatch検出
+- **URL**: /tournaments/[temp-id]/bm/participant
+- **authRequired**: true (player × 2)
+- **背景**: 両プレイヤーが異なるスコアを報告した場合、mismatchフラグが立ち管理者レビュー待ちになる
+- **手順**:
+  1. 管理者セッションで dualReportEnabled=true のトーナメントとプレイヤー2名を作成
+  2. BMグループ設定でpendingマッチを生成
+  3. P1が3-1でスコア報告
+  4. P2が1-3でスコア報告（不一致）
+  5. レスポンスに `mismatch: true` が含まれることを確認
+  6. 管理者APIでマッチが completed=false のままであることを確認
+  7. 管理者がPUTでスコアを確定し、completed=true になることを確認
+  8. クリーンアップ
+- **期待結果**: 不一致時はマッチが未完了のままで管理者レビュー待ちになる
+
+## TC-509: BM二重報告 — previousReports表示確認
+- **URL**: /tournaments/[temp-id]/bm/participant
+- **authRequired**: true (player)
+- **手順**:
+  1. dualReportEnabled=true のトーナメントでP1が3-1を報告
+  2. P2として /bm/participant を開く
+  3. 「Previous Reports」セクションにP1の報告(3-1)が表示されることを確認
+  4. P2がスコアを報告後、双方の報告が表示されることを確認
+  5. クリーンアップ
+- **期待結果**: 既存の報告がparticipantページに表示される
+
 ---
 
 ## E2Eテスト実行ガイド

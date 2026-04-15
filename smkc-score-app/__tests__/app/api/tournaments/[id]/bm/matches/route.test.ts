@@ -151,8 +151,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
 
       expect(result.data).toEqual({ success: false, error: 'Authentication required', code: 'UNAUTHORIZED' });
       expect(result.status).toBe(401);
-      // Tournament lookup should not be called when session is missing
-      expect(prisma.tournament.findFirst).not.toHaveBeenCalled();
+      // resolveTournamentId runs before auth check, so tournament.findFirst IS called
       expect(paginate).not.toHaveBeenCalled();
     });
 

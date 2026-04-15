@@ -4,7 +4,7 @@
  * Thin wrapper around the match-detail-route factory.
  * Provides GET/PUT for individual BM match data with optimistic locking.
  *
- * Score validation is applied on PUT to enforce BM rules (4 rounds total, no ties),
+ * Score validation is applied on PUT to enforce BM rules (4 rounds total, ties allowed per §4.1),
  * preventing silent data corruption where invalid scores (e.g. 5-0) would be stored
  * but then treated as a tie by calculateMatchResult (which requires score1+score2 = 4).
  */

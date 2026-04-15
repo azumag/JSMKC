@@ -55,9 +55,9 @@ export const bmConfig: EventTypeConfig = {
     if (!matchId || score1 === undefined || score2 === undefined) {
       return { valid: false, error: 'matchId, score1, and score2 are required' };
     }
-    // Validate BM score rules: integers, range [0,4], sum === 4, no tie.
+    // Validate BM score rules: integers, range [0,4], sum === 4 (§4.1: ties allowed).
     // Prevents silent data corruption where invalid scores (e.g. 5-0) would
-    // be stored and then treated as a tie by calculateMatchResult (sum !== 4).
+    // be stored and then corrupt match result calculation (sum !== 4).
     const scoreValidation = validateBattleModeScores(score1, score2);
     if (!scoreValidation.isValid) {
       return { valid: false, error: scoreValidation.error };

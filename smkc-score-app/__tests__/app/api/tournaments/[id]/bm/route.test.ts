@@ -381,16 +381,33 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMQualification.updateMany).toHaveBeenCalledTimes(2);
     });
 
-    // Validation error - 2-2 tie is rejected by validateBattleModeScores (tie check)
-    it('should reject tie results (2-2) with 400', async () => {
+    // §4.1: 2-2 tie is a valid BM result (draw = 1 point each)
+    it('should accept tie results (2-2) per §4.1', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        score1: 2,
+        score2: 2,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.bMMatch.update as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { matchId: 'm1', score1: 2, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      // validateBattleModeScores rejects 2-2: sum=4 (valid) but scores are equal (tie)
-      expect(result.status).toBe(400);
-      expect(result.data).toEqual({ success: false, error: 'Scores must be different', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
-      expect(prisma.bMMatch.update).not.toHaveBeenCalled();
+      expect(result.status).toBe(200);
+      expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
+      expect(prisma.bMMatch.update).toHaveBeenCalledWith({
+        where: { id: 'm1' },
+        data: { score1: 2, score2: 2, rounds: null, completed: true },
+        include: { player1: true, player2: true },
+      });
     });
 
     // Validation error - 2-1 (sum=3) is rejected by validateBattleModeScores (sum check)

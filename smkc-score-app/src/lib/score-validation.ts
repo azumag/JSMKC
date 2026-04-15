@@ -5,7 +5,7 @@
  *
  * - BM (Battle Mode): Fixed 4-round match format (score1 + score2 must equal 4).
  *   Scores represent rounds won (0–4); a player wins by taking 3 or more rounds.
- *   Ties (2-2) indicate a data entry error and are not allowed.
+ *   A 2-2 tie is a valid result (§4.1: draw = 1 point each).
  *
  * - MR (Match Race): Fixed 4-course qualification format (§6.3, §10.5).
  *   All 4 pre-assigned courses are always played; score1 + score2 must equal 4.
@@ -44,9 +44,9 @@ export interface ScoreValidationResult {
 }
 
 /**
- * Validate battle mode scores according to the tournament rules.
+ * Validate battle mode scores according to the tournament rules (§4.1).
  *
- * BM matches consist of exactly TOTAL_BM_ROUNDS (4) rounds. Four checks are performed
+ * BM matches consist of exactly TOTAL_BM_ROUNDS (4) rounds. Three checks are performed
  * in priority order:
  * 1. Integer check: Both scores must be whole numbers. Non-integers (floats, null,
  *    undefined) are rejected because rounds won is always a discrete count.
@@ -55,12 +55,13 @@ export interface ScoreValidationResult {
  * 3. Sum check: score1 + score2 must equal TOTAL_BM_ROUNDS (4). This enforces that
  *    exactly 4 rounds were played and recorded. A sum ≠ 4 indicates missing or extra
  *    rounds in the entry, which would silently corrupt match results.
- * 4. Tie check: Scores must differ (i.e., reject 2-2). Battle Mode always produces a
- *    winner; a tie would indicate a data entry error that requires a rematch.
+ *
+ * A 2-2 tie is a valid result per §4.1 (draw = 1 point each). Unlike MR where ties
+ * are also valid, BM ties affect qualification standings via the tie-count column.
  *
  * @param score1 - Rounds won by player 1 (integer 0–4)
  * @param score2 - Rounds won by player 2 (integer 0–4)
- * @returns Validation result; `isValid` is true if all four checks pass
+ * @returns Validation result; `isValid` is true if all three checks pass
  */
 export function validateBattleModeScores(score1: number, score2: number): ScoreValidationResult {
   // Integer check: round counts are discrete values. Number.isInteger rejects
@@ -88,14 +89,6 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
     return {
       isValid: false,
       error: `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got ${score1 + score2})`,
-    };
-  }
-
-  // Tie check: a 2-2 result requires a rematch and should not be recorded as-is.
-  if (score1 === score2) {
-    return {
-      isValid: false,
-      error: "Scores must be different",
     };
   }
 
@@ -237,8 +230,7 @@ export function calculateMatchResult(score1: number, score2: number) {
   } else if (score2 > score1) {
     return { winner: 2, result1: "loss" as const, result2: "win" as const };
   } else {
-    // Defensive tie handling: should never occur in BM after proper validation,
-    // but included for safety and potential reuse in other modes
+    // Tie handling: valid in both BM (§4.1, draw = 1 point) and MR (2-2 draw)
     return { winner: null, result1: "tie" as const, result2: "tie" as const };
   }
 }

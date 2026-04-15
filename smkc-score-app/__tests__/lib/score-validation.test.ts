@@ -4,9 +4,10 @@
  * Test suite for the score validation utilities (score-validation.ts).
  *
  * Covers the following functionality:
- * - validateBattleModeScores(): Validates BM scores according to 4-round match rules.
- *   Checks: integer type, range [0, MAX_BATTLE_SCORE=4], sum === 4, no tie.
- *   - Tests valid combos (1-3, 3-1, 0-4, 4-0), invalid sums, ties, out-of-range,
+ * - validateBattleModeScores(): Validates BM scores according to 4-round match rules (§4.1).
+ *   Checks: integer type, range [0, MAX_BATTLE_SCORE=4], sum === 4.
+ *   A 2-2 tie is valid (draw = 1 point each per §4.1).
+ *   - Tests valid combos (1-3, 3-1, 0-4, 4-0, 2-2), invalid sums, out-of-range,
  *     non-integer, null, and undefined inputs.
  * - isPlayer1Win(): Determines whether player 1 won based on score comparison.
  *   - Tests normal wins, losses, ties, and edge cases with null/undefined/negative
@@ -35,7 +36,7 @@ import { MIN_BATTLE_SCORE, MAX_BATTLE_SCORE, TOTAL_BM_ROUNDS, BM_FINALS_TARGET_W
 
 describe('Score Validation Utilities', () => {
   describe('validateBattleModeScores', () => {
-    // === Valid cases: integer, in range [0,4], sum === 4, not tied ===
+    // === Valid cases: integer, in range [0,4], sum === 4 (ties allowed per §4.1) ===
 
     it('should accept 3-1 (player 1 wins with 3 rounds)', () => {
       const result = validateBattleModeScores(3, 1);
@@ -57,6 +58,12 @@ describe('Score Validation Utilities', () => {
 
     it('should accept 0-4 (player 2 wins all rounds)', () => {
       const result = validateBattleModeScores(MIN_BATTLE_SCORE, MAX_BATTLE_SCORE);
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
+
+    it('should accept 2-2 tie (§4.1: draw = 1 point each)', () => {
+      const result = validateBattleModeScores(2, 2);
       expect(result.isValid).toBe(true);
       expect(result.error).toBeUndefined();
     });
@@ -151,13 +158,6 @@ describe('Score Validation Utilities', () => {
       );
     });
 
-    // === Tie check: 2-2 is the only in-range, valid-sum pair that is a tie ===
-
-    it('should reject tie (2-2 sums to 4 but is a draw)', () => {
-      const result = validateBattleModeScores(2, 2);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe('Scores must be different');
-    });
   });
 
   describe('isPlayer1Win', () => {

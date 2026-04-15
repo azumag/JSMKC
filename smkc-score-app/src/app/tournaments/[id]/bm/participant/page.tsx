@@ -4,15 +4,14 @@
  * Player-facing page for reporting BM match scores.
  * Uses shared useParticipantMatches hook and ParticipantPageLayout.
  *
- * BM-specific: direct score1/score2 input (0-5 range, no ties allowed).
+ * BM-specific: increment/decrement (+/-) buttons for score1/score2 input.
+ * Score range 0-4, total must equal 4. A 2-2 tie is valid (§4.1).
  */
 "use client";
 
 import { useState, use } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Trophy } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
@@ -40,54 +39,38 @@ export default function BattleModeParticipantPage({
   /* Shared hook for session, data fetching, polling, match filtering */
   const ctx = useParticipantMatches<BMMatch>({ tournamentId, mode: "bm" });
 
-  /* BM-specific: score entry form state */
+  /* BM-specific: score entry form state (number-based for +/- button UI) */
   const [reportingScores, setReportingScores] = useState<
-    Record<string, { score1: string; score2: string }>
+    Record<string, { score1: number; score2: number }>
   >({});
 
-  /** Initialize form state when myMatches changes */
-  const ensureFormState = (matchId: string) => {
-    if (!reportingScores[matchId]) {
-      setReportingScores((prev) => ({
-        ...prev,
-        [matchId]: { score1: "", score2: "" },
-      }));
-    }
-  };
-
-  const handleScoreChange = (
+  /** Increment or decrement a score field, clamped to [0, 4] */
+  const adjustScore = (
     matchId: string,
     field: "score1" | "score2",
-    value: string
+    delta: number
   ) => {
-    setReportingScores((prev) => ({
-      ...prev,
-      [matchId]: { ...prev[matchId], [field]: value },
-    }));
+    setReportingScores((prev) => {
+      const current = prev[matchId] ?? { score1: 0, score2: 0 };
+      const clamped = Math.max(0, Math.min(4, current[field] + delta));
+      return { ...prev, [matchId]: { ...current, [field]: clamped } };
+    });
   };
 
-  /** BM validation: both scores required, 0-5 range, no ties */
+  /** BM validation: total must equal 4 (ties allowed per §4.1) */
   const handleSubmitScore = async (match: BMMatch) => {
-    const scores = reportingScores[match.id];
-    if (!scores?.score1 || !scores?.score2) return;
+    const scores = reportingScores[match.id] ?? { score1: 0, score2: 0 };
     const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
-    const s1 = parseInt(scores.score1, 10);
-    const s2 = parseInt(scores.score2, 10);
-
-    if (s1 < 0 || s1 > 5 || s2 < 0 || s2 > 5) {
-      ctx.setError(tPart("invalidScoreRange"));
-      return;
-    }
-    if (s1 === s2) {
-      ctx.setError(tPart("noTiesAllowed"));
+    if (scores.score1 + scores.score2 !== 4) {
+      ctx.setError(tMatch("totalMustEqual4"));
       return;
     }
 
     const data = await ctx.submitReport(match.id, {
       reportingPlayer,
-      score1: s1,
-      score2: s2,
+      score1: scores.score1,
+      score2: scores.score2,
     });
 
     if (data) {
@@ -118,49 +101,80 @@ export default function BattleModeParticipantPage({
       playerId={ctx.playerId}
       submitting={ctx.submitting}
       renderMatchForm={(match) => {
-        ensureFormState(match.id);
+        const scores = reportingScores[match.id] ?? { score1: 0, score2: 0 };
+        const totalValid = scores.score1 + scores.score2 === 4;
         return (
           <div className="border-t pt-4">
             <h4 className="font-medium mb-3">{tPart("reportMatchResult")}</h4>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <Label className="text-sm">
-                  {tPart("playerWins", { player: match.player1.nickname })}
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="5"
-                  placeholder="0-5"
-                  value={reportingScores[match.id]?.score1 || ""}
-                  onChange={(e) =>
-                    handleScoreChange(match.id, "score1", e.target.value)
-                  }
-                />
+            {/* +/- button score input: [Player1 [-][score][+]] - [Player2 [-][score][+]] */}
+            <div className="flex items-center justify-center gap-3 mb-4">
+              {/* Player 1 score */}
+              <div className="text-center">
+                <p className="text-sm mb-2">{match.player1.nickname}</p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player1.nickname} -1`}
+                    onClick={() => adjustScore(match.id, "score1", -1)}
+                  >
+                    -
+                  </Button>
+                  <span className="text-3xl font-bold w-10 text-center">
+                    {scores.score1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player1.nickname} +1`}
+                    onClick={() => adjustScore(match.id, "score1", 1)}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label className="text-sm">
-                  {tPart("playerWins", { player: match.player2.nickname })}
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="5"
-                  placeholder="0-5"
-                  value={reportingScores[match.id]?.score2 || ""}
-                  onChange={(e) =>
-                    handleScoreChange(match.id, "score2", e.target.value)
-                  }
-                />
+              <span className="text-xl mt-6">-</span>
+              {/* Player 2 score */}
+              <div className="text-center">
+                <p className="text-sm mb-2">{match.player2.nickname}</p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player2.nickname} -1`}
+                    onClick={() => adjustScore(match.id, "score2", -1)}
+                  >
+                    -
+                  </Button>
+                  <span className="text-3xl font-bold w-10 text-center">
+                    {scores.score2}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player2.nickname} +1`}
+                    onClick={() => adjustScore(match.id, "score2", 1)}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
             </div>
+
+            {/* Validation: total rounds must equal 4 */}
+            {!totalValid && (scores.score1 > 0 || scores.score2 > 0) && (
+              <p className="text-yellow-600 text-sm text-center mb-3">
+                {tMatch("totalMustEqual4")}
+              </p>
+            )}
+
             <Button
               onClick={() => handleSubmitScore(match)}
-              disabled={
-                ctx.submitting === match.id ||
-                !reportingScores[match.id]?.score1 ||
-                !reportingScores[match.id]?.score2
-              }
+              disabled={ctx.submitting === match.id || !totalValid}
               className="w-full"
             >
               {ctx.submitting === match.id
