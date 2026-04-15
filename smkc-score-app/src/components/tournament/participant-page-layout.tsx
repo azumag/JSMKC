@@ -241,6 +241,20 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                         })}
                       </div>
 
+                      {/* Completed match: show final score */}
+                      {match.completed && (() => {
+                        /* Extract score from mode-specific fields (BM/MR: score1/2, GP: points1/2) */
+                        const m = match as Record<string, unknown>;
+                        const s1 = String(m.score1 ?? m.points1 ?? "?");
+                        const s2 = String(m.score2 ?? m.points2 ?? "?");
+                        return (
+                          <div className="border-t pt-4 text-center">
+                            <p className="text-sm text-muted-foreground mb-1">{tPart("finalResult")}</p>
+                            <p className="text-3xl font-bold font-mono">{s1} - {s2}</p>
+                          </div>
+                        );
+                      })()}
+
                       {/* Mode-specific form (injected by each page) */}
                       {!match.completed && renderMatchForm(match)}
 

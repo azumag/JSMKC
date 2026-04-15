@@ -487,6 +487,7 @@
     "qualification": "予選",
     "completed": "完了",
     "pending": "保留中",
+    "finalResult": "最終スコア",
     "you": "自分",
     "controller": "コントローラー {side}",
     "reportMatchResult": "試合結果を報告",

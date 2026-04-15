@@ -487,6 +487,7 @@
     "qualification": "Group Stage",
     "completed": "Completed",
     "pending": "Pending",
+    "finalResult": "Final Score",
     "you": "You",
     "controller": "Controller {side}",
     "reportMatchResult": "Report Match Result",

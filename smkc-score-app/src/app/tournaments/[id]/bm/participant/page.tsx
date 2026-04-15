@@ -184,13 +184,15 @@ export default function BattleModeParticipantPage({
           </div>
         );
       }}
-      renderPreviousReports={(match) =>
-        match.player1ReportedScore1 !== undefined ||
-        match.player2ReportedScore1 !== undefined ? (
+      renderPreviousReports={(match) => {
+        const p1reported = match.player1ReportedScore1 != null;
+        const p2reported = match.player2ReportedScore1 != null;
+        if (!p1reported && !p2reported) return null;
+        return (
           <div className="border-t pt-4">
             <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
             <div className="space-y-2 text-sm">
-              {match.player1ReportedScore1 !== undefined && (
+              {p1reported && (
                 <div className="flex justify-between p-2 bg-gray-50 rounded">
                   <span>
                     {tPart("playerReported", {
@@ -203,7 +205,7 @@ export default function BattleModeParticipantPage({
                   </span>
                 </div>
               )}
-              {match.player2ReportedScore1 !== undefined && (
+              {p2reported && (
                 <div className="flex justify-between p-2 bg-gray-50 rounded">
                   <span>
                     {tPart("playerReported", {
@@ -218,8 +220,8 @@ export default function BattleModeParticipantPage({
               )}
             </div>
           </div>
-        ) : null
-      }
+        );
+      }}
     />
   );
 }
