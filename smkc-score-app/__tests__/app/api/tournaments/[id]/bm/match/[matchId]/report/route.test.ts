@@ -15,7 +15,7 @@
  *   - Admin score reporting via tournament token and admin role
  *   - Auto-confirmation when both players report matching scores (triggers qualification update)
  *   - Score mismatch detection and flagging for admin review
- *   - Input validation: invalid characters, missing matches, completed matches,
+ *   - Input validation: invalid characters, missing matches,
  *     invalid reportingPlayer values, invalid score combinations
  *   - Authentication: unauthorized users, OAuth-linked players
  *   - Optimistic locking conflict handling (409 responses)
@@ -409,25 +409,38 @@ describe('BM Match Report API Route - /api/tournaments/[id]/bm/match/[matchId]/r
       });
     });
 
-    // Validation error case - Returns 400 when match is already completed
-    it('should return 400 when match is already completed', async () => {
+    it('should allow a player to correct a completed match score', async () => {
       const mockMatch = {
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
         completed: true,
+        player1: { id: 'p1', userId: 'user1' },
+        player2: { id: 'p2', userId: 'user2' },
+      };
+      const correctedMatch = {
+        ...mockMatch,
+        score1: 2,
+        score2: 2,
+        version: 4,
       };
 
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'user1', userType: 'player', playerId: 'p1' } });
       (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (updateWithRetry as jest.Mock).mockResolvedValue(correctedMatch);
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([correctedMatch]);
+      (calculateMatchResult as jest.Mock).mockReturnValue({ result1: 'tie', result2: 'tie' });
 
-      const request = new MockNextRequest({ reportingPlayer: 1, score1: 3, score2: 1 });
+      const request = new MockNextRequest({ reportingPlayer: 1, score1: 2, score2: 2 });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
       const result = await POST(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'Match already completed', field: 'matchStatus' },
-        status: 400
+        data: { match: correctedMatch, corrected: true },
+        message: 'Score correction saved',
+        status: 200
       });
+      expect(updateWithRetry).toHaveBeenCalledTimes(1);
     });
 
     // Authentication error case - Returns 401 when user is not authorized

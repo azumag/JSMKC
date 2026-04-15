@@ -1697,6 +1697,161 @@ async function nav(p, u) {
     }
   }
 
+  // TC-322: BM participant can correct a submitted score
+  // Creates a draft temp tournament (so cleanup remains allowed), submits a BM score
+  // as a player, then uses the completed-match correction UI to change 3-1 -> 2-2.
+  {
+    let tc322TournamentId = null;
+    let tc322Player1Id = null;
+    let tc322Player2Id = null;
+    let tc322PlayerBrowser = null;
+    try {
+      const stamp = Date.now();
+      const tc322P1Nick = `e2e_bmc1_${stamp}`;
+      const tc322P2Nick = `e2e_bmc2_${stamp}`;
+
+      const p1 = await page.evaluate(async (d) => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: 'E2E BM Correct P1', nickname: tc322P1Nick, country: 'JP' });
+      tc322Player1Id = p1.b?.data?.player?.id ?? null;
+      const tc322Password = p1.b?.data?.temporaryPassword ?? null;
+
+      const p2 = await page.evaluate(async (d) => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: 'E2E BM Correct P2', nickname: tc322P2Nick, country: 'JP' });
+      tc322Player2Id = p2.b?.data?.player?.id ?? null;
+
+      if (p1.s !== 201 || p2.s !== 201 || !tc322Player1Id || !tc322Player2Id || !tc322Password) {
+        throw new Error('Failed to create BM correction players');
+      }
+
+      const tournament = await page.evaluate(async (d) => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, {
+        name: `E2E BM Correction ${stamp}`,
+        date: new Date().toISOString(),
+        dualReportEnabled: false,
+      });
+      tc322TournamentId = tournament.b?.data?.id ?? null;
+      if (tournament.s !== 201 || !tc322TournamentId) {
+        throw new Error('Failed to create BM correction tournament');
+      }
+
+      const setup = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [
+        `/api/tournaments/${tc322TournamentId}/bm`,
+        {
+          players: [
+            { playerId: tc322Player1Id, group: 'A' },
+            { playerId: tc322Player2Id, group: 'A' },
+          ],
+        },
+      ]);
+      if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+      const initialBm = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        const j = await r.json().catch(() => ({}));
+        return j.data || j;
+      }, `/api/tournaments/${tc322TournamentId}/bm`);
+      const match = (initialBm.matches || []).find(m => !m.isBye);
+      if (!match) throw new Error('No non-BYE BM match found');
+
+      const p1Label = match.player1.nickname;
+      const p2Label = match.player2.nickname;
+
+      tc322PlayerBrowser = await chromium.launch({ headless: false });
+      const playerContext = await tc322PlayerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+      const playerPage = await playerContext.newPage();
+
+      await nav(playerPage, '/auth/signin');
+      await playerPage.locator('#nickname').fill(tc322P1Nick);
+      await playerPage.locator('#password').fill(tc322Password);
+      await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+      await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+      await playerPage.waitForTimeout(1000);
+
+      await nav(playerPage, `/tournaments/${tc322TournamentId}/bm/participant`);
+
+      for (let i = 0; i < 3; i++) {
+        await playerPage.getByRole('button', { name: new RegExp(`${p1Label} \\+1`) }).click();
+      }
+      await playerPage.getByRole('button', { name: new RegExp(`${p2Label} \\+1`) }).click();
+
+      playerPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await playerPage.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
+      await playerPage.waitForFunction(() => {
+        const text = document.body.innerText;
+        return text.includes('スコアを修正') || text.includes('Correct Score');
+      }, null, { timeout: 15000 });
+
+      await playerPage.getByRole('button', { name: /スコアを修正|Correct Score/ }).click();
+      await playerPage.getByRole('button', { name: new RegExp(`${p1Label} -1`) }).click();
+      await playerPage.getByRole('button', { name: new RegExp(`${p2Label} \\+1`) }).click();
+
+      playerPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await playerPage.getByRole('button', { name: /修正を送信|Submit Correction/ }).click();
+      await playerPage.waitForTimeout(3000);
+
+      const correctedBm = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        const j = await r.json().catch(() => ({}));
+        return j.data || j;
+      }, `/api/tournaments/${tc322TournamentId}/bm`);
+      const correctedMatch = (correctedBm.matches || []).find(m => m.id === match.id);
+      const correctionPersisted =
+        correctedMatch?.completed === true &&
+        correctedMatch.score1 === 2 &&
+        correctedMatch.score2 === 2;
+
+      log('TC-322', correctionPersisted ? 'PASS' : 'FAIL',
+        correctionPersisted ? ''
+        : !correctedMatch ? 'Corrected match not found'
+        : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
+    } catch (err) {
+      log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
+    } finally {
+      if (tc322PlayerBrowser) await tc322PlayerBrowser.close().catch(() => {});
+      if (tc322TournamentId) {
+        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
+          `/api/tournaments/${tc322TournamentId}`).catch(() => {});
+      }
+      if (tc322Player1Id) {
+        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
+          `/api/players/${tc322Player1Id}`).catch(() => {});
+      }
+      if (tc322Player2Id) {
+        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
+          `/api/players/${tc322Player2Id}`).catch(() => {});
+      }
+    }
+  }
+
   // ===== Summary =====
   console.log('\n========== SUMMARY ==========');
   const p = results.filter(r => r.s === 'PASS').length;
