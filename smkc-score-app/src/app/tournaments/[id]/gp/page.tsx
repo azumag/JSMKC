@@ -141,8 +141,9 @@ export default function GrandPrixPage({
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
-  /* State for match group filter ("all" | "A" | "B" | ...) */
+  /* State for match filters */
   const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
+  const [matchPlayerFilter, setMatchPlayerFilter] = useState<string>("all");
   const [selectedCup, setSelectedCup] = useState<string>("");
   /* GP matches have exactly 5 races per cup (§7.2) */
   const [races, setRaces] = useState<Race[]>(
@@ -570,9 +571,21 @@ export default function GrandPrixPage({
                   const getMatchGroup = (m: GPMatch): string | undefined =>
                     playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
 
-                  const filteredMatches = matchGroupFilter === "all"
+                  /* Apply group filter, then player filter */
+                  let filteredMatches = matchGroupFilter === "all"
                     ? matches
                     : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+                  if (matchPlayerFilter !== "all") {
+                    filteredMatches = filteredMatches.filter(
+                      (m) => m.player1Id === matchPlayerFilter || m.player2Id === matchPlayerFilter
+                    );
+                  }
+                  const playersInScope = matchGroupFilter === "all"
+                    ? qualifications
+                    : qualifications.filter((q) => q.group === matchGroupFilter);
+                  const playerOptions = playersInScope
+                    .map((q) => ({ id: q.playerId, nickname: q.player.nickname }))
+                    .sort((a, b) => a.nickname.localeCompare(b.nickname));
 
                   const hasRoundNumbers = filteredMatches.some((m) => m.roundNumber != null);
                   const matchesByDay = hasRoundNumbers
@@ -587,28 +600,43 @@ export default function GrandPrixPage({
 
                   return (
                     <div className="space-y-6">
-                      {/* Group filter buttons */}
-                      {groups.length > 1 && (
-                        <div className="flex gap-2 flex-wrap">
-                          <Button
-                            variant={matchGroupFilter === "all" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setMatchGroupFilter("all")}
-                          >
-                            {tc('allGroups')}
-                          </Button>
-                          {groups.map((g) => (
+                      {/* Match filters: group buttons + player dropdown */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        {groups.length > 1 && (
+                          <div className="flex gap-2 flex-wrap">
                             <Button
-                              key={g}
-                              variant={matchGroupFilter === g ? "default" : "outline"}
+                              variant={matchGroupFilter === "all" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => setMatchGroupFilter(g)}
+                              onClick={() => { setMatchGroupFilter("all"); setMatchPlayerFilter("all"); }}
                             >
-                              {tc('groupLabel', { group: g })}
+                              {tc('allGroups')}
                             </Button>
+                            {groups.map((g) => (
+                              <Button
+                                key={g}
+                                variant={matchGroupFilter === g ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => { setMatchGroupFilter(g); setMatchPlayerFilter("all"); }}
+                              >
+                                {tc('groupLabel', { group: g })}
+                              </Button>
                           ))}
                         </div>
                       )}
+                        {/* Player filter dropdown */}
+                        {playerOptions.length > 0 && (
+                          <select
+                            className="h-8 px-2 text-sm border rounded bg-background"
+                            value={matchPlayerFilter}
+                            onChange={(e) => setMatchPlayerFilter(e.target.value)}
+                          >
+                            <option value="all">{tc('allPlayers')}</option>
+                            {playerOptions.map((p) => (
+                              <option key={p.id} value={p.id}>{p.nickname}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                       {sortedDays.map((day) => (
                         <div key={day}>
                           {hasRoundNumbers && day > 0 && (

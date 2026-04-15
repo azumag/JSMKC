@@ -93,6 +93,7 @@
     "recommendedGroups": "Recommended: {count}",
     "dayLabel": "Round {day}",
     "allGroups": "All",
+    "allPlayers": "All Players",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",
