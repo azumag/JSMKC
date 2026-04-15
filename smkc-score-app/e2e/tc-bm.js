@@ -286,17 +286,25 @@ async function runTc323(adminPage) {
     await adminPage.getByLabel(`${match1.player2.nickname} score`).fill('0');
     await adminPage.getByRole('button', { name: /スコア保存|Save Score/ }).click();
 
-    await adminPage.waitForFunction(async ([url, matchId]) => {
-      const r = await fetch(url);
-      const j = await r.json().catch(() => ({}));
-      const match = (j.matches || []).find((m) => m.id === matchId);
-      return match?.completed === true && match.score1 === 5 && match.score2 === 0;
-    }, [`/api/tournaments/${tournamentId}/bm/finals`, match1.id], { timeout: 15000 });
+    let updated = null;
+    const routingDeadline = Date.now() + 20000;
+    while (Date.now() < routingDeadline) {
+      updated = await adminPage.evaluate(async (url) => {
+        const r = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store' });
+        return r.json().catch(() => ({}));
+      }, `/api/tournaments/${tournamentId}/bm/finals`);
 
-    const updated = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      return r.json().catch(() => ({}));
-    }, `/api/tournaments/${tournamentId}/bm/finals`);
+      const polledMatches = updated.matches || [];
+      const match = polledMatches.find((m) => m.id === match1.id);
+      const winnerTarget = polledMatches.find((m) => m.matchNumber === 5);
+      const loserTarget = polledMatches.find((m) => m.matchNumber === 8);
+      const scoreSaved = match?.completed === true && match.score1 === 5 && match.score2 === 0;
+      const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(match1.player1Id);
+      const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(match1.player2Id);
+      if (scoreSaved && winnerRouted && loserRouted) break;
+
+      await adminPage.waitForTimeout(500);
+    }
     const updatedMatches = updated.matches || [];
     const updatedMatch1 = updatedMatches.find((m) => m.id === match1.id);
     const winnerTarget = updatedMatches.find((m) => m.matchNumber === 5);
