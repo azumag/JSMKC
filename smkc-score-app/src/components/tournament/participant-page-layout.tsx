@@ -177,15 +177,43 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
             </Card>
           ) : (
             <div className="space-y-6">
-              <div className="flex items-center gap-2">
-                <SectionIcon className="h-6 w-6 text-yellow-600" />
-                <h2 className="text-2xl font-semibold">
-                  {tPart("yourMatches")}
-                </h2>
-              </div>
+              {/* Split matches into pending and completed sections */}
+              {(() => {
+                const pendingMatches = myMatches.filter((m) => !m.completed);
+                const completedMatches = myMatches.filter((m) => m.completed);
+                return (
+                  <>
+                    {/* Pending section */}
+                    {pendingMatches.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-yellow-600" />
+                          <h2 className="text-xl font-semibold">
+                            {tPart("pendingSection", { count: pendingMatches.length })}
+                          </h2>
+                        </div>
+                        {pendingMatches.map((match) => renderMatchCard(match))}
+                      </>
+                    )}
 
-              {myMatches.map((match) => (
-                <Card key={match.id}>
+                    {/* Completed section */}
+                    {completedMatches.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <h2 className="text-xl font-semibold text-muted-foreground">
+                            {tPart("completedSection", { count: completedMatches.length })}
+                          </h2>
+                        </div>
+                        {completedMatches.map((match) => renderMatchCard(match))}
+                      </>
+                    )}
+                  </>
+                );
+
+                function renderMatchCard(match: TMatch) {
+                  return (
+                <Card key={match.id} className={match.completed ? "opacity-75" : ""}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
@@ -263,7 +291,9 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                  );
+                }
+              })()}
             </div>
           )}
         </div>

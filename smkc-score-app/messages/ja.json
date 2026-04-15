@@ -484,6 +484,8 @@
     "noPendingGP": "保留中のグランプリの試合はありません。新しい試合があるか後で確認してください。",
     "yourPendingMatches": "あなたの保留中の試合",
     "yourMatches": "あなたの試合",
+    "pendingSection": "未完了 ({count})",
+    "completedSection": "完了済み ({count})",
     "matchNumber": "試合 #{number}",
     "tvInfo": "TV {tv}",
     "qualification": "予選",

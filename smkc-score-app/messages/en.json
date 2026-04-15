@@ -484,6 +484,8 @@
     "noPendingGP": "You don't have any pending Grand Prix matches. Check back later for new matches.",
     "yourPendingMatches": "Your Pending Matches",
     "yourMatches": "Your Matches",
+    "pendingSection": "Pending ({count})",
+    "completedSection": "Completed ({count})",
     "matchNumber": "Match #{number}",
     "tvInfo": "TV {tv}",
     "qualification": "Group Stage",
