@@ -91,7 +91,7 @@
     "autoDistributeDesc": "シード順に基づきスネーク方式でグループ自動振分け",
     "enterSeedingFirst": "先にシード番号を入力してください",
     "recommendedGroups": "推奨: {count}グループ",
-    "dayLabel": "Day {day}",
+    "dayLabel": "ラウンド {day}",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "同順位が検出されました — 順位の鉛筆アイコンで手動解決してください",

@@ -91,7 +91,7 @@
     "autoDistributeDesc": "Distribute players to groups by seeding (snake pattern)",
     "enterSeedingFirst": "Enter seeding numbers first",
     "recommendedGroups": "Recommended: {count}",
-    "dayLabel": "Day {day}",
+    "dayLabel": "Round {day}",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",
