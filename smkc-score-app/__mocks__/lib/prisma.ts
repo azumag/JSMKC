@@ -18,6 +18,7 @@ const mockPrisma = {
   },
   bMMatch: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
@@ -27,6 +28,7 @@ const mockPrisma = {
   },
   mRMatch: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
@@ -36,6 +38,7 @@ const mockPrisma = {
   },
   gPMatch: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },

@@ -357,6 +357,27 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return NextResponse.json({ match: updatedMatch });
       }
 
+      const updateRoutedMatch = async (
+        targetMatchNumber: number,
+        position: 1 | 2,
+        playerId: string,
+      ) => {
+        try {
+          await model(prisma).update({
+            where: {
+              tournamentId_matchNumber_stage: {
+                tournamentId,
+                matchNumber: targetMatchNumber,
+                stage: 'finals',
+              },
+            },
+            data: position === 1 ? { player1Id: playerId } : { player2Id: playerId },
+          });
+        } catch {
+          /* Missing future bracket slots are tolerated for partially generated brackets. */
+        }
+      };
+
       /* Advance winner to next match */
       if (currentBracketMatch.winnerGoesTo) {
         const nextWinnerMatch = await model(prisma).findFirst({
@@ -374,6 +395,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
             data:
               position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
           });
+        } else {
+          await updateRoutedMatch(currentBracketMatch.winnerGoesTo, currentBracketMatch.position || 1, winnerId);
         }
       }
 
@@ -387,16 +410,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
         });
 
-        if (nextLoserMatch) {
-          let loserPosition: 1 | 2 = 1;
-          if (currentBracketMatch.round === 'winners_qf') {
-            loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
-          } else if (currentBracketMatch.round === 'winners_sf') {
-            loserPosition = 1;
-          } else if (currentBracketMatch.round === 'winners_final') {
-            loserPosition = 2;
-          }
+        let loserPosition: 1 | 2 = 1;
+        if (currentBracketMatch.round === 'winners_qf') {
+          loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
+        } else if (currentBracketMatch.round === 'winners_sf') {
+          loserPosition = 1;
+        } else if (currentBracketMatch.round === 'winners_final') {
+          loserPosition = 2;
+        }
 
+        if (nextLoserMatch) {
           await model(prisma).update({
             where: { id: nextLoserMatch.id },
             data:
@@ -404,6 +427,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
                 ? { player1Id: loserId }
                 : { player2Id: loserId },
           });
+        } else {
+          await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         }
       }
 
@@ -423,6 +448,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
           if (resetMatch) {
             await model(prisma).update({
               where: { id: resetMatch.id },
+              data: {
+                player1Id: winnerId,
+                player2Id: loserId,
+              },
+            });
+          } else {
+            await model(prisma).updateMany({
+              where: {
+                tournamentId,
+                stage: 'finals',
+                round: 'grand_final_reset',
+              },
               data: {
                 player1Id: winnerId,
                 player2Id: loserId,
