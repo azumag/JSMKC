@@ -141,6 +141,8 @@ export default function GrandPrixPage({
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
+  /* State for match group filter ("all" | "A" | "B" | ...) */
+  const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
   const [selectedCup, setSelectedCup] = useState<string>("");
   /* GP matches have exactly 5 races per cup (§7.2) */
   const [races, setRaces] = useState<Race[]>(
@@ -546,7 +548,7 @@ export default function GrandPrixPage({
             </div>
           </TabsContent>
 
-          {/* Matches Tab - Day-grouped match list with TV# assignment and BYE styling */}
+          {/* Matches Tab - Group-filtered, round-grouped match list */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -560,19 +562,53 @@ export default function GrandPrixPage({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const hasRoundNumbers = matches.some((m) => m.roundNumber != null);
+                  /* Build player→group lookup for match filtering */
+                  const playerGroupMap = new Map<string, string>();
+                  for (const q of qualifications) {
+                    playerGroupMap.set(q.playerId, q.group);
+                  }
+                  const getMatchGroup = (m: GPMatch): string | undefined =>
+                    playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
+
+                  const filteredMatches = matchGroupFilter === "all"
+                    ? matches
+                    : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+
+                  const hasRoundNumbers = filteredMatches.some((m) => m.roundNumber != null);
                   const matchesByDay = hasRoundNumbers
-                    ? matches.reduce<Record<number, GPMatch[]>>((acc, m) => {
+                    ? filteredMatches.reduce<Record<number, GPMatch[]>>((acc, m) => {
                         const day = m.roundNumber ?? 0;
                         if (!acc[day]) acc[day] = [];
                         acc[day].push(m);
                         return acc;
                       }, {})
-                    : { 0: matches };
+                    : { 0: filteredMatches };
                   const sortedDays = Object.keys(matchesByDay).map(Number).sort((a, b) => a - b);
 
                   return (
                     <div className="space-y-6">
+                      {/* Group filter buttons */}
+                      {groups.length > 1 && (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            variant={matchGroupFilter === "all" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setMatchGroupFilter("all")}
+                          >
+                            {tc('allGroups')}
+                          </Button>
+                          {groups.map((g) => (
+                            <Button
+                              key={g}
+                              variant={matchGroupFilter === g ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setMatchGroupFilter(g)}
+                            >
+                              {tc('groupLabel', { group: g })}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                       {sortedDays.map((day) => (
                         <div key={day}>
                           {hasRoundNumbers && day > 0 && (

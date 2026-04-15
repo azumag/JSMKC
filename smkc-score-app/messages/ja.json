@@ -92,6 +92,7 @@
     "enterSeedingFirst": "先にシード番号を入力してください",
     "recommendedGroups": "推奨: {count}グループ",
     "dayLabel": "ラウンド {day}",
+    "allGroups": "全体",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "同順位が検出されました — 順位の鉛筆アイコンで手動解決してください",

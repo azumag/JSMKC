@@ -92,6 +92,7 @@
     "enterSeedingFirst": "Enter seeding numbers first",
     "recommendedGroups": "Recommended: {count}",
     "dayLabel": "Round {day}",
+    "allGroups": "All",
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",

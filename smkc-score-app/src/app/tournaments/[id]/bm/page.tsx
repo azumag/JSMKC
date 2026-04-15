@@ -130,6 +130,8 @@ export default function BattleModePage({
   >([]);
   const [groupCount, setGroupCount] = useState(3);
   const [setupSaving, setSetupSaving] = useState(false);
+  /* State for match group filter ("all" | "A" | "B" | ...) */
+  const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
   /* State for score entry dialog */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
@@ -468,7 +470,7 @@ export default function BattleModePage({
             </div>
           </TabsContent>
 
-          {/* Matches Tab - Day-grouped match list with TV# assignment and BYE styling */}
+          {/* Matches Tab - Group-filtered, round-grouped match list */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -483,27 +485,70 @@ export default function BattleModePage({
               <CardContent>
                 {(() => {
                   /*
-                   * Group matches by roundNumber (Day) for circle-method display.
+                   * Build player→group lookup from qualification data.
+                   * Used to determine which group each match belongs to
+                   * (the match model doesn't store group directly).
+                   */
+                  const playerGroupMap = new Map<string, string>();
+                  for (const q of qualifications) {
+                    playerGroupMap.set(q.playerId, q.group);
+                  }
+
+                  /*
+                   * Group filter state is managed via URL-free local state.
+                   * "all" shows every match; "A", "B", etc. filter by group.
+                   */
+                  const getMatchGroup = (m: BMMatch): string | undefined =>
+                    playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
+
+                  const filteredMatches = matchGroupFilter === "all"
+                    ? matches
+                    : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+
+                  /*
+                   * Group matches by roundNumber for circle-method display.
                    * Falls back to a flat list when roundNumber is not set (legacy data).
                    */
-                  const hasRoundNumbers = matches.some((m) => m.roundNumber != null);
+                  const hasRoundNumbers = filteredMatches.some((m) => m.roundNumber != null);
                   const matchesByDay = hasRoundNumbers
-                    ? matches.reduce<Record<number, BMMatch[]>>((acc, m) => {
+                    ? filteredMatches.reduce<Record<number, BMMatch[]>>((acc, m) => {
                         const day = m.roundNumber ?? 0;
                         if (!acc[day]) acc[day] = [];
                         acc[day].push(m);
                         return acc;
                       }, {})
-                    : { 0: matches };
+                    : { 0: filteredMatches };
                   const sortedDays = Object.keys(matchesByDay)
                     .map(Number)
                     .sort((a, b) => a - b);
 
                   return (
                     <div className="space-y-6">
+                      {/* Group filter buttons: All | A | B | C | ... */}
+                      {groups.length > 1 && (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            variant={matchGroupFilter === "all" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setMatchGroupFilter("all")}
+                          >
+                            {tc('allGroups')}
+                          </Button>
+                          {groups.map((g) => (
+                            <Button
+                              key={g}
+                              variant={matchGroupFilter === g ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setMatchGroupFilter(g)}
+                            >
+                              {tc('groupLabel', { group: g })}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                       {sortedDays.map((day) => (
                         <div key={day}>
-                          {/* Day header (only shown when round-robin scheduling is active) */}
+                          {/* Round header (only shown when round-robin scheduling is active) */}
                           {hasRoundNumbers && day > 0 && (
                             <h3 className="font-semibold text-sm text-muted-foreground mb-2">
                               {tc('dayLabel', { day })}
@@ -573,7 +618,7 @@ export default function BattleModePage({
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right space-x-2">
-                                    {/* Share link (not for BYE matches) */}
+                                    {/* Match detail link (not for BYE matches) */}
                                     {!match.isBye && (
                                       <Button
                                         variant="ghost"
@@ -581,7 +626,7 @@ export default function BattleModePage({
                                         asChild
                                       >
                                         <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
-                                          {tc('scoreEntryLink')}
+                                          {tc('matchDetails')}
                                         </Link>
                                       </Button>
                                     )}

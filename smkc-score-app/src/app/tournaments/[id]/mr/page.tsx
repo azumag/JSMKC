@@ -128,6 +128,8 @@ export default function MatchRacePage({
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
+  /* State for match group filter ("all" | "A" | "B" | ...) */
+  const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");
   /* Initialize 4 empty rounds for the match result dialog */
   const [rounds, setRounds] = useState<Round[]>(
     Array.from({ length: TOTAL_MR_RACES }, () => ({ course: "", winner: null }))
@@ -480,7 +482,7 @@ export default function MatchRacePage({
             </div>
           </TabsContent>
 
-          {/* Matches Tab - Day-grouped match list with TV# assignment and BYE styling */}
+          {/* Matches Tab - Group-filtered, round-grouped match list */}
           <TabsContent value="matches">
             <Card>
               <CardHeader>
@@ -494,19 +496,53 @@ export default function MatchRacePage({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const hasRoundNumbers = matches.some((m) => m.roundNumber != null);
+                  /* Build player→group lookup for match filtering */
+                  const playerGroupMap = new Map<string, string>();
+                  for (const q of qualifications) {
+                    playerGroupMap.set(q.playerId, q.group);
+                  }
+                  const getMatchGroup = (m: MRMatch): string | undefined =>
+                    playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
+
+                  const filteredMatches = matchGroupFilter === "all"
+                    ? matches
+                    : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
+
+                  const hasRoundNumbers = filteredMatches.some((m) => m.roundNumber != null);
                   const matchesByDay = hasRoundNumbers
-                    ? matches.reduce<Record<number, MRMatch[]>>((acc, m) => {
+                    ? filteredMatches.reduce<Record<number, MRMatch[]>>((acc, m) => {
                         const day = m.roundNumber ?? 0;
                         if (!acc[day]) acc[day] = [];
                         acc[day].push(m);
                         return acc;
                       }, {})
-                    : { 0: matches };
+                    : { 0: filteredMatches };
                   const sortedDays = Object.keys(matchesByDay).map(Number).sort((a, b) => a - b);
 
                   return (
                     <div className="space-y-6">
+                      {/* Group filter buttons */}
+                      {groups.length > 1 && (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            variant={matchGroupFilter === "all" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setMatchGroupFilter("all")}
+                          >
+                            {tc('allGroups')}
+                          </Button>
+                          {groups.map((g) => (
+                            <Button
+                              key={g}
+                              variant={matchGroupFilter === g ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setMatchGroupFilter(g)}
+                            >
+                              {tc('groupLabel', { group: g })}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                       {sortedDays.map((day) => (
                         <div key={day}>
                           {hasRoundNumbers && day > 0 && (
