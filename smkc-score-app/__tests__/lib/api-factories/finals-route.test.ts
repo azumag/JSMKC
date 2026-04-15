@@ -758,7 +758,7 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toBe('Match must have a winner (best of 5: first to 3)');
+      expect(json.error).toBe('Match must have a winner (first to 3)');
     });
 
     it('should return 404 when matchId not found', async () => {

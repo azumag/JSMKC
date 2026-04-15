@@ -7,6 +7,7 @@
  */
 
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
+import { BM_FINALS_TARGET_WINS } from '@/lib/constants';
 
 const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'bMMatch',
@@ -15,6 +16,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
   getStyle: 'grouped',
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },
+  targetWins: BM_FINALS_TARGET_WINS,
   getErrorMessage: 'Failed to fetch finals data',
   postErrorMessage: 'Failed to create finals bracket',
   postRequiresAuth: true,

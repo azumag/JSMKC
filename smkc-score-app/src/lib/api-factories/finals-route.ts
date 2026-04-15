@@ -48,6 +48,8 @@ export interface FinalsConfig {
   putScoreFields: { dbField1: string; dbField2: string };
   /** Additional body fields to include in PUT update data (e.g. 'rounds' for MR) */
   putAdditionalFields?: string[];
+  /** Number of wins required to complete a finals match. Defaults to 3. */
+  targetWins?: number;
   /** Error message returned when GET fails */
   getErrorMessage: string;
   /** Error message returned when POST fails */
@@ -312,13 +314,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      /* Determine winner/loser: best of 5, first to 3 */
-      const winnerId = score1 >= 3 ? match.player1Id : score2 >= 3 ? match.player2Id : null;
-      const loserId = score1 >= 3 ? match.player2Id : score2 >= 3 ? match.player1Id : null;
+      const targetWins = config.targetWins ?? 3;
+      const player1ReachedTarget = score1 >= targetWins;
+      const player2ReachedTarget = score2 >= targetWins;
 
-      if (!winnerId) {
-        return handleValidationError('Match must have a winner (best of 5: first to 3)', 'score');
+      if (player1ReachedTarget === player2ReachedTarget) {
+        return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
       }
+
+      const winnerId = player1ReachedTarget ? match.player1Id : match.player2Id;
+      const loserId = player1ReachedTarget ? match.player2Id : match.player1Id;
 
       /* Build update data with configurable score field names */
       const updateData: Record<string, unknown> = {

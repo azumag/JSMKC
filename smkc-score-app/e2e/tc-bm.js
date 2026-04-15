@@ -193,6 +193,150 @@ async function runTc322(adminPage) {
   }
 }
 
+async function runTc323(adminPage) {
+  // TC-323: BM finals bracket generation and first-to-5 score progression.
+  // Creates a draft temp tournament with 8 BM qualifiers, generates the finals
+  // bracket through the UI, verifies 3-0 is rejected, then saves 5-0 and checks
+  // winner/loser routing.
+  let tournamentId = null;
+  const playerIds = [];
+
+  try {
+    const stamp = Date.now();
+    for (let i = 1; i <= 8; i++) {
+      const player = await adminPage.evaluate(async (d) => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, {
+        name: `E2E BM Final P${i}`,
+        nickname: `e2e_bmf_${stamp}_${i}`,
+        country: 'JP',
+      });
+      const playerId = player.b?.data?.player?.id ?? null;
+      if (player.s !== 201 || !playerId) {
+        throw new Error(`Failed to create BM finals player ${i}`);
+      }
+      playerIds.push(playerId);
+    }
+
+    const tournament = await adminPage.evaluate(async (d) => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, {
+      name: `E2E BM Finals ${stamp}`,
+      date: new Date().toISOString(),
+      dualReportEnabled: false,
+    });
+    tournamentId = tournament.b?.data?.id ?? null;
+    if (tournament.s !== 201 || !tournamentId) {
+      throw new Error('Failed to create BM finals tournament');
+    }
+
+    const setup = await adminPage.evaluate(async ([url, ids]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          players: ids.map((playerId, index) => ({
+            playerId,
+            group: 'A',
+            seeding: index + 1,
+          })),
+        }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm`, playerIds]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+    await adminPage.getByRole('button', { name: /ブラケット生成|Generate Bracket/ }).click();
+    await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
+    await adminPage.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes('0 / 17') && (text.includes('M1') || text.includes('Match 1'));
+    }, null, { timeout: 20000 });
+
+    const generated = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/bm/finals`);
+    const matches = generated.matches || [];
+    const match1 = matches.find((m) => m.matchNumber === 1);
+    if (!match1) throw new Error('Generated bracket is missing match 1');
+
+    const invalidFirstToThree = await adminPage.evaluate(async ([url, matchId]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, score1: 3, score2: 0 }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/bm/finals`, match1.id]);
+
+    await adminPage.locator(`[aria-label^="Match 1:"]`).first().click();
+    await adminPage.getByLabel(`${match1.player1.nickname} score`).fill('5');
+    await adminPage.getByLabel(`${match1.player2.nickname} score`).fill('0');
+    await adminPage.getByRole('button', { name: /スコア保存|Save Score/ }).click();
+
+    await adminPage.waitForFunction(async ([url, matchId]) => {
+      const r = await fetch(url);
+      const j = await r.json().catch(() => ({}));
+      const match = (j.matches || []).find((m) => m.id === matchId);
+      return match?.completed === true && match.score1 === 5 && match.score2 === 0;
+    }, [`/api/tournaments/${tournamentId}/bm/finals`, match1.id], { timeout: 15000 });
+
+    const updated = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/bm/finals`);
+    const updatedMatches = updated.matches || [];
+    const updatedMatch1 = updatedMatches.find((m) => m.id === match1.id);
+    const winnerTarget = updatedMatches.find((m) => m.matchNumber === 5);
+    const loserTarget = updatedMatches.find((m) => m.matchNumber === 8);
+
+    const bracketGenerated =
+      updatedMatches.length === 17 &&
+      (updated.winnersMatches || []).length === 7 &&
+      (updated.losersMatches || []).length === 8 &&
+      (updated.grandFinalMatches || []).length === 2;
+    const firstToThreeRejected = invalidFirstToThree.s === 400;
+    const scoreSaved =
+      updatedMatch1?.completed === true &&
+      updatedMatch1.score1 === 5 &&
+      updatedMatch1.score2 === 0;
+    const routed =
+      winnerTarget?.player1Id === match1.player1Id &&
+      loserTarget?.player1Id === match1.player2Id;
+
+    log('TC-323',
+      bracketGenerated && firstToThreeRejected && scoreSaved && routed ? 'PASS' : 'FAIL',
+      !bracketGenerated ? `Unexpected bracket counts: matches=${updatedMatches.length} winners=${(updated.winnersMatches || []).length} losers=${(updated.losersMatches || []).length} gf=${(updated.grandFinalMatches || []).length}`
+      : !firstToThreeRejected ? `3-0 was not rejected (${invalidFirstToThree.s})`
+      : !scoreSaved ? `Score not saved: ${updatedMatch1?.score1}-${updatedMatch1?.score2} completed=${updatedMatch1?.completed}`
+      : !routed ? `Routing mismatch: m5.p1=${winnerTarget?.player1Id} m8.p1=${loserTarget?.player1Id}`
+      : '');
+  } catch (err) {
+    log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM finals flow failed');
+  } finally {
+    if (tournamentId) {
+      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
+        `/api/tournaments/${tournamentId}`).catch(() => {});
+    }
+    for (const playerId of playerIds) {
+      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
+        `/api/players/${playerId}`).catch(() => {});
+    }
+  }
+}
+
 (async () => {
   const browser = await chromium.launchPersistentContext(
     '/tmp/playwright-smkc-profile',
@@ -202,6 +346,7 @@ async function runTc322(adminPage) {
 
   await nav(page, '/');
   await runTc322(page);
+  await runTc323(page);
 
   console.log('\n========== SUMMARY ==========');
   const p = results.filter((r) => r.s === 'PASS').length;

@@ -64,6 +64,8 @@ interface DoubleEliminationBracketProps {
   onMatchClick?: (match: BMMatch) => void;
   /** Optional seeded player data for displaying seed numbers */
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
+  /** Number of wins required to highlight a completed match winner. */
+  targetWins?: number;
 }
 
 /**
@@ -83,12 +85,14 @@ function MatchCard({
   seededPlayers,
   onClick,
   isTBD,
+  targetWins,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   onClick?: () => void;
   isTBD: boolean;
+  targetWins: number;
 }) {
   /* Look up seeded players for displaying seed numbers in first-round matches */
   const seededPlayer1 = bracketMatch.player1Seed
@@ -102,9 +106,8 @@ function MatchCard({
   const player1: Player | undefined = match?.player1 || seededPlayer1;
   const player2: Player | undefined = match?.player2 || seededPlayer2;
 
-  /* Determine winners for visual highlighting (3 wins needed in BM finals) */
-  const isWinner1 = match?.completed && match.score1 >= 3;
-  const isWinner2 = match?.completed && match.score2 >= 3;
+  const isWinner1 = match?.completed && match.score1 >= targetWins;
+  const isWinner2 = match?.completed && match.score2 >= targetWins;
 
   /*
    * Determine if this match should show "TBD" for players.
@@ -248,6 +251,7 @@ export function DoubleEliminationBracket({
   bracketStructure,
   onMatchClick,
   seededPlayers,
+  targetWins = 3,
 }: DoubleEliminationBracketProps) {
   /** Look up a match by its bracket match number */
   const getMatch = (matchNumber: number) =>
@@ -320,6 +324,7 @@ export function DoubleEliminationBracket({
                       if (match && onMatchClick) onMatchClick(match);
                     }}
                     isTBD={isTBD(b.matchNumber)}
+                    targetWins={targetWins}
                   />
                 ))}
               </div>
@@ -343,6 +348,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -365,6 +371,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -385,6 +392,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -412,6 +420,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -434,6 +443,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -456,6 +466,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -479,6 +490,7 @@ export function DoubleEliminationBracket({
                       if (match && onMatchClick) onMatchClick(match);
                     }}
                     isTBD={isTBD(b.matchNumber)}
+                    targetWins={targetWins}
                   />
                 ))}
               </div>
@@ -502,6 +514,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -522,6 +535,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
+                  targetWins={targetWins}
                 />
               ))}
             </div>
@@ -548,6 +562,7 @@ export function DoubleEliminationBracket({
                   if (match && onMatchClick) onMatchClick(match);
                 }}
                 isTBD={isTBD(b.matchNumber)}
+                targetWins={targetWins}
               />
             ))}
           </div>
@@ -572,6 +587,7 @@ export function DoubleEliminationBracket({
                   if (match && onMatchClick) onMatchClick(match);
                 }}
                 isTBD={isTBD(b.matchNumber)}
+                targetWins={targetWins}
               />
             ))}
           </div>

@@ -454,6 +454,7 @@ export default function BattleModeFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          targetWins={BM_FINALS_TARGET_WINS}
           onMatchClick={isAdmin ? openScoreDialog : undefined}
         />
       )}
