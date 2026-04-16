@@ -75,9 +75,10 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 /**
  * Find the set of entry IDs involved in unresolved ties.
  *
- * A tie group is "unresolved" when NOT ALL members of the tied group have a
- * rankOverride set. If even one member still has rankOverride=null, the whole
- * group is considered unresolved (ambiguous ordering remains).
+ * A tie group of N members is "resolved" when at least N-1 members have
+ * distinct (non-duplicate) rankOverride values — the last remaining member's
+ * position is then unambiguous. A group is "unresolved" if fewer than N-1
+ * distinct overrides exist, or if any override values are duplicated.
  *
  * Returns a Set<id> for O(1) membership testing in render loops.
  */
@@ -96,14 +97,20 @@ export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number
   for (const group of rankGroups.values()) {
     // Only a group with 2+ entries can be a tie
     if (group.length < 2) continue;
-    // The group is unresolved if:
-    // (a) at least one member lacks an override, OR
-    // (b) two members share the same override value (duplicate overrides remain ambiguous)
-    const overrides = group.map((e) => e.rankOverride);
-    const allSet = overrides.every((v) => v != null);
-    const allDistinct = allSet && new Set(overrides).size === group.length;
-    const allResolved = allSet && allDistinct;
-    if (!allResolved) {
+    // A tie group of N members is resolved when N-1 members have distinct
+    // overrides — the last remaining member's position is then unambiguous.
+    // This matches real-world admin workflow: setting one override in a 2-way
+    // tie fully determines both positions.
+    // Duplicate override values (e.g., two members both set to rank 1) still
+    // count as unresolved because the ordering remains ambiguous.
+    const setOverrides = group
+      .map((e) => e.rankOverride)
+      .filter((v): v is number => v != null);
+    const distinctOverrides = new Set(setOverrides).size;
+    // All set overrides must be unique (no duplicates) AND at least N-1 distinct
+    const noDuplicates = distinctOverrides === setOverrides.length;
+    const resolved = noDuplicates && distinctOverrides >= group.length - 1;
+    if (!resolved) {
       for (const entry of group) {
         tiedIds.add(entry.id);
       }

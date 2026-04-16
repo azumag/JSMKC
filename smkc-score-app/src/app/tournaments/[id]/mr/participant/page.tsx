@@ -132,7 +132,13 @@ export default function MatchRaceParticipantPage({
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium">{tPart("raceResults")}</h4>
-              <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={races.length >= 5}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => addRaceResult(match.id)}
+                disabled={races.length >= 5}
+                aria-label="Add Race"
+              >
                 {tPart("addRace")}
               </Button>
             </div>

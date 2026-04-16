@@ -156,15 +156,57 @@ describe("findUnresolvedTies", () => {
     expect(ties.has("b")).toBe(true);
   });
 
-  it("treats a group as unresolved if only SOME members have overrides", () => {
-    // Partial override: one member resolved, one still ambiguous — still unresolved
+  it("resolves a 2-way tie when one member has an override (last remaining is implicit)", () => {
+    // In a 2-way tie, setting one override determines both positions:
+    // a gets override=1, so b must be the other position. No ambiguity remains.
     const entries = [
       { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
       { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
     ];
+    expect(findUnresolvedTies(entries).size).toBe(0);
+  });
+
+  it("resolves a 3-way tie when N-1 members have distinct overrides", () => {
+    // In a 3-way tie at rank 1, two distinct overrides leave only one possible
+    // position for the remaining member. The tie is fully resolved.
+    const entries = [
+      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: "b", score: 10, points: 2, rankOverride: 2, _autoRank: 1 },
+      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+    ];
+    expect(findUnresolvedTies(entries).size).toBe(0);
+  });
+
+  it("keeps a 3-way tie unresolved when only 1 of 3 members has an override", () => {
+    // Only 1 override among 3 tied entries: 2 positions remain ambiguous.
+    const entries = [
+      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: "b", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+    ];
     const ties = findUnresolvedTies(entries);
-    expect(ties.has("a")).toBe(true);
-    expect(ties.has("b")).toBe(true);
+    expect(ties.size).toBe(3);
+  });
+
+  it("keeps a 3-way tie unresolved when 2 overrides are set but not distinct", () => {
+    // N-1=2 overrides exist, but both are rank 1 (duplicate) → still ambiguous.
+    const entries = [
+      { id: "a", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: "b", score: 10, points: 2, rankOverride: 1, _autoRank: 1 },
+      { id: "c", score: 10, points: 2, rankOverride: null, _autoRank: 1 },
+    ];
+    const ties = findUnresolvedTies(entries);
+    expect(ties.size).toBe(3);
+  });
+
+  it("resolves a 4-way tie when N-1 members have distinct overrides", () => {
+    const entries = [
+      { id: "a", score: 5, points: 0, rankOverride: 1, _autoRank: 1 },
+      { id: "b", score: 5, points: 0, rankOverride: 2, _autoRank: 1 },
+      { id: "c", score: 5, points: 0, rankOverride: 3, _autoRank: 1 },
+      { id: "d", score: 5, points: 0, rankOverride: null, _autoRank: 1 },
+    ];
+    expect(findUnresolvedTies(entries).size).toBe(0);
   });
 
   it("handles multiple independent tie groups", () => {
@@ -223,6 +265,19 @@ describe("filterActiveTiedIds", () => {
   it("returns empty set when tiedIds is empty", () => {
     const entries = [{ id: "a", mp: 3 }];
     expect(filterActiveTiedIds(new Set(), entries).size).toBe(0);
+  });
+
+  it("full round-trip: 2-way tie resolved by single override shows no warning", () => {
+    // Mirrors the exact page flow: admin sets one override in a 2-way tie
+    const groupEntries = [
+      { id: "a", score: 10, points: 2, rankOverride: 1, mp: 2 },
+      { id: "b", score: 10, points: 2, rankOverride: null, mp: 2 },
+    ];
+    const byEffectiveRank = computeTieAwareRanks(groupEntries, bmCompareFn);
+    const tiedIds = findUnresolvedTies(byEffectiveRank);
+    const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
+    expect(tiedIds.size).toBe(0);
+    expect(activeTiedIds.size).toBe(0);
   });
 
   it("full round-trip: all-zero group is silenced after computeTieAwareRanks", () => {

@@ -357,7 +357,7 @@ export default function MatchRaceFinals({
           {isAdmin && (matches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button disabled={creating}>
+                <Button disabled={creating} aria-label="Generate finals bracket">
                   {/* i18n: Generate bracket button with creating state */}
                   {creating ? tFinals('creating') : tFinals('generateBracket')}
                 </Button>

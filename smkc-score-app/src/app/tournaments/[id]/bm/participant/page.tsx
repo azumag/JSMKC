@@ -175,12 +175,14 @@ export default function BattleModeParticipantPage({
           </div>
         </div>
 
-        {/* Validation: total rounds must equal 4 */}
-        {!totalValid && (scores.score1 > 0 || scores.score2 > 0) && (
-          <p className="text-yellow-600 text-sm text-center mb-3">
-            {tMatch("totalMustEqual4")}
-          </p>
-        )}
+        {/* Validation: total rounds must equal 4.
+           Always rendered to reserve vertical space and prevent layout shift. */}
+        <p className={`text-sm text-center mb-3 ${
+          !totalValid && (scores.score1 > 0 || scores.score2 > 0)
+            ? 'text-yellow-600' : 'invisible'
+        }`}>
+          {tMatch("totalMustEqual4")}
+        </p>
 
         <Button
           onClick={() => handleSubmitScore(match)}

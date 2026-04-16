@@ -468,14 +468,16 @@ export default function GrandPrixFinals({
                 />
               </div>
             </div>
-            {/* Warning when neither player has reached 3 wins yet */}
-            {scoreForm.score1 + scoreForm.score2 > 0 &&
+            {/* Warning when neither player has reached 3 wins yet.
+               Always rendered to reserve vertical space and prevent layout shift. */}
+            <p className={`text-sm text-center ${
+              scoreForm.score1 + scoreForm.score2 > 0 &&
               scoreForm.score1 < 3 &&
-              scoreForm.score2 < 3 && (
-                <p className="text-sm text-yellow-600 text-center">
-                  {tFinals('matchNeedWinner')}
-                </p>
-              )}
+              scoreForm.score2 < 3
+                ? 'text-yellow-600' : 'invisible'
+            }`}>
+              {tFinals('matchNeedWinner')}
+            </p>
           </div>
           <DialogFooter>
             <Button

@@ -12,6 +12,7 @@
     "test:coverage": "npm test -- --coverage",
     "e2e:all": "node e2e/tc-all.js",
     "e2e:bm": "node e2e/tc-bm.js",
+    "e2e:mr": "node e2e/tc-mr.js",
     "build:cf": "npx @opennextjs/cloudflare build",
     "preview": "npx @opennextjs/cloudflare dev",
     "deploy": "npm run build:cf && npx wrangler deploy"

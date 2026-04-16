@@ -1852,14 +1852,185 @@ async function nav(p, u) {
     }
   }
 
+  // TC-323: BM tie warning banner disappears after admin sets rankOverride
+  // Creates 3 players, sets up BM qualification, submits all matches as 2-2 ties
+  // to force identical standings, then verifies:
+  //   (a) tie warning banner appears on the standings tab
+  //   (b) after setting rankOverride on N-1 players, the banner disappears
+  {
+    let tc323TournamentId = null;
+    const tc323PlayerIds = [];
+    try {
+      const stamp = Date.now();
+
+      // Create 3 players for a round-robin group
+      for (let i = 1; i <= 3; i++) {
+        const p = await page.evaluate(async (d) => {
+          const r = await fetch('/api/players', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        }, { name: `E2E Tie P${i}`, nickname: `e2e_tie${i}_${stamp}`, country: 'JP' });
+        const id = p.b?.data?.player?.id;
+        if (p.s !== 201 || !id) throw new Error(`Failed to create player ${i}`);
+        tc323PlayerIds.push(id);
+      }
+
+      // Create & activate tournament
+      const tournament = await page.evaluate(async (d) => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: `E2E Tie Warn ${stamp}`, date: new Date().toISOString(), dualReportEnabled: false });
+      tc323TournamentId = tournament.b?.data?.id ?? null;
+      if (tournament.s !== 201 || !tc323TournamentId) throw new Error('Failed to create tournament');
+
+      await page.evaluate(async ([u, d]) => {
+        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+      }, [`/api/tournaments/${tc323TournamentId}`, { status: 'active' }]);
+
+      // Setup BM qualification with 3 players in group A
+      const setup = await page.evaluate(async ([u, d]) => {
+        const r = await fetch(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [
+        `/api/tournaments/${tc323TournamentId}/bm`,
+        { players: tc323PlayerIds.map((id, i) => ({ playerId: id, group: 'A', seeding: i + 1 })) },
+      ]);
+      if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+      // Get matches and submit all non-BYE matches as 2-2 ties
+      const bmData = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        const j = await r.json().catch(() => ({}));
+        return j.data || j;
+      }, `/api/tournaments/${tc323TournamentId}/bm`);
+      const nonByeMatches = (bmData.matches || []).filter(m => !m.isBye);
+
+      for (const match of nonByeMatches) {
+        // Submit 2-2 tie via admin API (PUT)
+        const put = await page.evaluate(async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status };
+        }, [
+          `/api/tournaments/${tc323TournamentId}/bm`,
+          { matchId: match.id, score1: 2, score2: 2 },
+        ]);
+        if (put.s !== 200) throw new Error(`Failed to submit score for match ${match.matchNumber} (${put.s})`);
+      }
+
+      // Navigate to BM page standings tab and check for tie warning banner
+      await nav(page, `/tournaments/${tc323TournamentId}/bm`);
+      // Click standings tab
+      const standingsTab = page.locator('button[role="tab"]').filter({ hasText: /順位表|Standings/ });
+      if (await standingsTab.count() > 0) {
+        await standingsTab.click();
+        await page.waitForTimeout(2000);
+      }
+
+      // Check that the tie warning banner is visible
+      const bannerBefore = await page.locator('text=同順位が検出されました').count() +
+        await page.locator('text=Tied ranks detected').count();
+      const hasBannerBefore = bannerBefore > 0;
+
+      // Get qualifications to find tied player IDs for rankOverride
+      const qualData = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        const j = await r.json().catch(() => ({}));
+        return j.data || j;
+      }, `/api/tournaments/${tc323TournamentId}/bm`);
+      const quals = (qualData.qualifications || []).filter(q => q.group === 'A');
+
+      // Set rankOverride on N-1 (= 2) of the 3 tied players to resolve the tie
+      // In a 3-way tie, setting 2 distinct overrides makes the last position unambiguous
+      for (let i = 0; i < quals.length - 1; i++) {
+        const patch = await page.evaluate(async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status };
+        }, [
+          `/api/tournaments/${tc323TournamentId}/bm`,
+          { qualificationId: quals[i].id, rankOverride: i + 1 },
+        ]);
+        if (patch.s !== 200) throw new Error(`Failed to set rankOverride for qual ${i} (${patch.s})`);
+      }
+
+      // Reload and check that the banner disappeared
+      await nav(page, `/tournaments/${tc323TournamentId}/bm`);
+      if (await standingsTab.count() > 0) {
+        await standingsTab.click();
+        await page.waitForTimeout(2000);
+      }
+
+      const bannerAfter = await page.locator('text=同順位が検出されました').count() +
+        await page.locator('text=Tied ranks detected').count();
+      const hasBannerAfter = bannerAfter > 0;
+
+      log('TC-323', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
+        !hasBannerBefore ? 'Tie warning banner never appeared (expected tie from 2-2 draws)'
+        : hasBannerAfter ? 'Tie warning banner still visible after setting rankOverride on N-1 players'
+        : '');
+    } catch (err) {
+      log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM tie warning flow failed');
+    } finally {
+      if (tc323TournamentId) {
+        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
+          `/api/tournaments/${tc323TournamentId}`).catch(() => {});
+      }
+      for (const id of tc323PlayerIds) {
+        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
+          `/api/players/${id}`).catch(() => {});
+      }
+    }
+  }
+
+  // ===== MR Tests (tc-mr.js) — run as child process =====
+  console.log('\n========== Running MR Tests ==========');
+  const { execSync } = require('child_process');
+  let mrFailed = false;
+  try {
+    // tc-mr.js runs its own browser instance; close ours first to avoid conflicts
+    await browser.close();
+    const mrOutput = execSync('node e2e/tc-mr.js', {
+      cwd: __dirname.replace(/\/e2e$/, ''),
+      env: { ...process.env, E2E_BASE_URL: BASE },
+      timeout: 600000,
+      encoding: 'utf-8',
+    });
+    console.log(mrOutput);
+    if (mrOutput.includes('FAIL:') && !mrOutput.includes('FAIL: 0')) {
+      mrFailed = true;
+    }
+  } catch (err) {
+    console.log(err.stdout || '');
+    console.error(err.stderr || err.message);
+    mrFailed = true;
+  }
+
   // ===== Summary =====
-  console.log('\n========== SUMMARY ==========');
+  console.log('\n========== SUMMARY (tc-all.js inline tests) ==========');
   const p = results.filter(r => r.s === 'PASS').length;
   const f = results.filter(r => r.s === 'FAIL').length;
   const sk = results.filter(r => r.s === 'SKIP').length;
   console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
   if (f > 0) results.filter(r => r.s === 'FAIL').forEach(r => console.log(`  ❌ [${r.tc}] ${r.d}`));
+  if (mrFailed) console.log('  ⚠️  MR tests (tc-mr.js) had failures — see output above');
 
-  await browser.close();
-  process.exit(f > 0 ? 1 : 0);
+  process.exit((f > 0 || mrFailed) ? 1 : 0);
 })();

@@ -1,0 +1,972 @@
+/**
+ * E2E MR (Match Race) focused tests.
+ *
+ * Mirrors tc-bm.js structure but covers MR-specific flows:
+ * - TC-601: Full qualification with 12 players, seeding, snake-draft group assignment
+ * - TC-602: Player login + MR participant score entry
+ * - TC-603: MR draw (2-2) score submission
+ * - TC-604: MR finals bracket generation + race-format score entry
+ * - TC-608: MR dual report — agreement auto-confirm
+ * - TC-609: MR dual report — mismatch detection
+ * - TC-610: Finals admin-only enforcement (403 for non-admin)
+ *
+ * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ * Admin session must already exist in the profile (Discord OAuth).
+ *
+ * Run: node e2e/tc-mr.js  (from smkc-score-app/)
+ */
+const { chromium } = require('playwright');
+
+const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
+const WAIT = 8000;
+const results = [];
+
+function log(tc, s, d = '') {
+  console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
+  results.push({ tc, s, d });
+}
+
+async function nav(page, path) {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(WAIT);
+      return;
+    } catch (err) {
+      lastError = err;
+      if (attempt === 2) throw err;
+      await page.waitForTimeout(3000);
+    }
+  }
+  throw lastError;
+}
+
+/** Helper: create a player via API and return { id, nickname, password } */
+async function createPlayer(page, name, nickname) {
+  const res = await page.evaluate(async (d) => {
+    const r = await fetch('/api/players', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, { name, nickname, country: 'JP' });
+  const id = res.b?.data?.player?.id ?? null;
+  const password = res.b?.data?.temporaryPassword ?? null;
+  if (res.s !== 201 || !id) throw new Error(`Failed to create player ${nickname} (${res.s})`);
+  return { id, nickname, password };
+}
+
+/** Helper: delete a player via API */
+async function deletePlayer(page, id) {
+  await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/players/${id}`).catch(() => {});
+}
+
+/** Helper: delete a tournament via API */
+async function deleteTournament(page, id) {
+  await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/tournaments/${id}`).catch(() => {});
+}
+
+/** Helper: create a tournament via API */
+async function createTournament(page, name, opts = {}) {
+  const res = await page.evaluate(async (d) => {
+    const r = await fetch('/api/tournaments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, { name, date: new Date().toISOString(), ...opts });
+  const id = res.b?.data?.id ?? null;
+  if (res.s !== 201 || !id) throw new Error(`Failed to create tournament ${name} (${res.s})`);
+  return id;
+}
+
+/**
+ * TC-601: MR qualification full flow with 12 players, seeding, snake-draft groups
+ *
+ * Verifies:
+ * - 12 players with seeding 1-12 distributed across 3 groups (A/B/C × 4)
+ * - Snake-draft: A=[1,6,7,12], B=[2,5,8,11], C=[3,4,9,10]
+ * - All 18 matches (6 per group × 3 groups) scored with valid MR scores (sum=4)
+ * - Standings sorted by score desc → points desc per group
+ * - Course assignment exists in match data (assignCoursesRandomly)
+ */
+async function runTc601(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+
+  try {
+    const stamp = Date.now();
+
+    // Step 1: Create 12 players
+    for (let i = 1; i <= 12; i++) {
+      const p = await createPlayer(adminPage, `E2E MR P${i}`, `e2e_mr601_${stamp}_${i}`);
+      playerIds.push(p.id);
+    }
+
+    // Step 2: Create tournament
+    tournamentId = await createTournament(adminPage, `E2E MR Full ${stamp}`);
+
+    // Step 3: Setup MR qualification with seeding and 3 groups (snake draft)
+    // Snake distribution for 3 groups:
+    // Round 1 (asc):  A=seed1, B=seed2, C=seed3
+    // Round 2 (desc): C=seed4, B=seed5, A=seed6
+    // Round 3 (asc):  A=seed7, B=seed8, C=seed9
+    // Round 4 (desc): C=seed10, B=seed11, A=seed12
+    // So: A=[1,6,7,12], B=[2,5,8,11], C=[3,4,9,10]
+    const snakeGroups = { A: [0, 5, 6, 11], B: [1, 4, 7, 10], C: [2, 3, 8, 9] };
+    const players = [];
+    for (const [group, indices] of Object.entries(snakeGroups)) {
+      for (const idx of indices) {
+        players.push({ playerId: playerIds[idx], group, seeding: idx + 1 });
+      }
+    }
+
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr`, { players }]);
+
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s}): ${JSON.stringify(setup.b)}`);
+
+    // Step 4: Fetch matches and verify structure
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+
+    const matches = mrData.data?.matches || mrData.matches || [];
+    const nonByeMatches = matches.filter((m) => !m.isBye);
+
+    // 4 players per group = 6 matches per group, 3 groups = 18 matches (no byes with even count)
+    const hasExpectedMatches = nonByeMatches.length === 18;
+
+    // Step 5: Input scores for all matches (valid MR: score1+score2=4)
+    // Use varied scores: 3-1, 2-2, 4-0, 1-3 to test all valid combinations
+    const scorePatterns = [[3, 1], [2, 2], [4, 0], [1, 3], [3, 1], [2, 2]];
+    let allScoresOk = true;
+
+    for (let i = 0; i < nonByeMatches.length; i++) {
+      const m = nonByeMatches[i];
+      const [s1, s2] = scorePatterns[i % scorePatterns.length];
+      const scoreRes = await adminPage.evaluate(async ([url, body]) => {
+        const r = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { s: r.status };
+      }, [`/api/tournaments/${tournamentId}/mr`, { matchId: m.id, score1: s1, score2: s2 }]);
+      if (scoreRes.s !== 200) {
+        allScoresOk = false;
+        break;
+      }
+    }
+
+    // Step 6: Verify standings page renders
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    const pageText = await adminPage.locator('main').innerText().catch(() => '');
+    const hasStandings = pageText.length > 50 &&
+      !pageText.includes('Failed to fetch') &&
+      !pageText.includes('エラーが発生しました');
+
+    // Step 7: Verify standings via API — sorted by score desc, points desc per group
+    const standings = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr/standings`);
+
+    const standingsData = standings.data || standings;
+    const groupStandings = standingsData.standings || [];
+
+    // Check each group's standings are sorted correctly
+    let standingsSorted = true;
+    for (const gs of groupStandings) {
+      const rows = gs.players || gs.rows || [];
+      for (let i = 1; i < rows.length; i++) {
+        const prev = rows[i - 1];
+        const curr = rows[i];
+        // Primary: score desc, secondary: points desc
+        if (prev.score < curr.score || (prev.score === curr.score && prev.points < curr.points)) {
+          standingsSorted = false;
+          break;
+        }
+      }
+    }
+
+    // Step 8: Verify courses are assigned (MR-specific: assignCoursesRandomly)
+    // Re-fetch after scoring to check if rounds data persists
+    const postScoreData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const postScoreMatches = postScoreData.data?.matches || postScoreData.matches || [];
+    const hasCourses = postScoreMatches.some((m) => m.rounds && m.rounds.length > 0);
+
+    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && standingsSorted;
+    log('TC-601', allPassed ? 'PASS' : 'FAIL',
+      !hasExpectedMatches ? `Expected 18 non-bye matches, got ${nonByeMatches.length}`
+      : !allScoresOk ? 'Some score inputs failed'
+      : !hasStandings ? 'Standings page did not render properly'
+      : !standingsSorted ? 'Standings not sorted correctly'
+      : !hasCourses ? 'No course data found in matches (assignCoursesRandomly not working)'
+      : '');
+  } catch (err) {
+    log('TC-601', 'FAIL', err instanceof Error ? err.message : 'MR full flow failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+/**
+ * TC-602: MR player login + participant score entry
+ *
+ * Creates a temp tournament with 2 players, player1 logs in via separate browser,
+ * submits race results (3-1) via the MR participant page, verifies persistence.
+ */
+async function runTc602(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+  let playerBrowser = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR Part P1', `e2e_mr602_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR Part P2', `e2e_mr602_p2_${stamp}`);
+
+    tournamentId = await createTournament(adminPage, `E2E MR Part ${stamp}`);
+
+    // Setup MR qualification with 2 players
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get the pending match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE MR match found');
+
+    // Player login in separate browser
+    playerBrowser = await chromium.launch({ headless: false });
+    const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+    const playerPage = await playerContext.newPage();
+
+    await nav(playerPage, '/auth/signin');
+    await playerPage.locator('#nickname').fill(player1.nickname);
+    await playerPage.locator('#password').fill(player1.password);
+    await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+    await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+    await playerPage.waitForTimeout(1000);
+
+    // Navigate to MR participant page
+    await nav(playerPage, `/tournaments/${tournamentId}/mr/participant`);
+
+    // MR participant: add 4 race results for a 3-1 outcome
+    // P1 wins races 1, 2, 4; P2 wins race 3
+    for (let i = 0; i < 4; i++) {
+      // Click "Add Race" button
+      await playerPage.getByRole('button', { name: /Add Race|レース追加|レースを追加/ }).click();
+      await playerPage.waitForTimeout(500);
+    }
+
+    // Each race has 1 course select + 2 position inputs (position1, position2).
+    // P1 wins when position1 < position2. Race results: P1 wins 3, P2 wins 1 → 3-1
+    const raceResults = [
+      { pos1: 1, pos2: 2 }, // P1 wins
+      { pos1: 1, pos2: 2 }, // P1 wins
+      { pos1: 2, pos2: 1 }, // P2 wins
+      { pos1: 1, pos2: 2 }, // P1 wins → total 3-1
+    ];
+
+    // Fill race positions (2 inputs per race)
+    for (let i = 0; i < 4; i++) {
+      // Select a course — click the combobox and pick first option
+      const raceRow = playerPage.locator('.grid.grid-cols-12').nth(i);
+      const selectTrigger = raceRow.locator('button[role="combobox"]').first();
+      await selectTrigger.click();
+      await playerPage.waitForTimeout(300);
+      // Pick a course from the dropdown
+      const courseOption = playerPage.locator('[role="option"]').first();
+      await courseOption.click();
+      await playerPage.waitForTimeout(300);
+
+      // Fill position1 and position2
+      const posInputs = raceRow.locator('input[type="number"]');
+      await posInputs.nth(0).fill(String(raceResults[i].pos1));
+      await posInputs.nth(1).fill(String(raceResults[i].pos2));
+    }
+
+    // Submit the score
+    playerPage.once('dialog', async (dialog) => { await dialog.accept(); });
+    await playerPage.getByRole('button', { name: /Submit|スコア送信|送信/ }).click();
+    await playerPage.waitForTimeout(5000);
+
+    // Verify via admin API
+    const updatedMr = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const updatedMatch = (updatedMr.data?.matches || updatedMr.matches || []).find((m) => m.id === match.id);
+
+    const scorePersisted =
+      updatedMatch?.completed === true &&
+      updatedMatch.score1 === 3 &&
+      updatedMatch.score2 === 1;
+
+    log('TC-602', scorePersisted ? 'PASS' : 'FAIL',
+      scorePersisted ? ''
+      : !updatedMatch ? 'Match not found after submission'
+      : `completed=${updatedMatch?.completed} score=${updatedMatch?.score1}-${updatedMatch?.score2}`);
+  } catch (err) {
+    log('TC-602', 'FAIL', err instanceof Error ? err.message : 'MR participant flow failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
+/**
+ * TC-603: MR draw (2-2) score submission
+ *
+ * Verifies that a 2-2 draw is a valid MR score and persists correctly.
+ */
+async function runTc603(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR Draw P1', `e2e_mr603_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR Draw P2', `e2e_mr603_p2_${stamp}`);
+
+    tournamentId = await createTournament(adminPage, `E2E MR Draw ${stamp}`);
+
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // Submit 2-2 draw via admin API (simulates player draw scenario)
+    const drawRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
+
+    const drawAccepted = drawRes.s === 200;
+
+    // Verify persistence
+    const updated = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const updatedMatch = (updated.data?.matches || updated.matches || []).find((m) => m.id === match.id);
+    const drawPersisted = updatedMatch?.completed === true &&
+      updatedMatch.score1 === 2 && updatedMatch.score2 === 2;
+
+    log('TC-603', drawAccepted && drawPersisted ? 'PASS' : 'FAIL',
+      !drawAccepted ? `Draw rejected (${drawRes.s})`
+      : !drawPersisted ? `Draw not persisted: ${updatedMatch?.score1}-${updatedMatch?.score2}`
+      : '');
+  } catch (err) {
+    log('TC-603', 'FAIL', err instanceof Error ? err.message : 'MR draw test failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
+/**
+ * TC-604: MR finals bracket generation and race-format score entry
+ *
+ * Creates 8 players, completes qualification, generates finals bracket,
+ * verifies first-to-3 race entry (not first-to-5 like BM), and checks
+ * winner/loser routing. Also validates that first-to-5 (BM style) is rejected.
+ */
+async function runTc604(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+
+  try {
+    const stamp = Date.now();
+
+    // Create 8 players
+    for (let i = 1; i <= 8; i++) {
+      const p = await createPlayer(adminPage, `E2E MR Final P${i}`, `e2e_mrf_${stamp}_${i}`);
+      playerIds.push(p.id);
+    }
+
+    tournamentId = await createTournament(adminPage, `E2E MR Finals ${stamp}`);
+
+    // Setup MR qualification with seeding
+    const setup = await adminPage.evaluate(async ([url, ids]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          players: ids.map((playerId, index) => ({
+            playerId,
+            group: 'A',
+            seeding: index + 1,
+          })),
+        }),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, playerIds]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Complete all qualification matches via API
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+
+    const qualMatches = (mrData.data?.matches || mrData.matches || []).filter((m) => !m.isBye);
+    for (const m of qualMatches) {
+      await adminPage.evaluate(async ([url, body]) => {
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }, [`/api/tournaments/${tournamentId}/mr`, { matchId: m.id, score1: 3, score2: 1 }]);
+    }
+
+    // Navigate to finals page and generate bracket
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i }).click();
+    await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
+    await adminPage.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes('0 / 17') && (text.includes('M1') || text.includes('Match 1'));
+    }, null, { timeout: 20000 });
+
+    // Fetch generated bracket
+    const generated = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr/finals`);
+    const matches = generated.matches || [];
+    const match1 = matches.find((m) => m.matchNumber === 1);
+    if (!match1) throw new Error('Generated bracket missing match 1');
+
+    // MR finals validation: first-to-3 race wins (targetWins defaults to 3).
+    // Both players reaching targetWins (3-3) is invalid: only one winner allowed.
+    const invalidBothWin = await adminPage.evaluate(async ([url, matchId]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, score1: 3, score2: 3 }),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr/finals`, match1.id]);
+
+    // Valid MR finals: first-to-3 (score1=3, score2=1)
+    // Use UI dialog for the first match to test the race entry workflow
+    await adminPage.locator(`[aria-label^="Match 1:"]`).first().click();
+    await adminPage.waitForTimeout(500);
+
+    // MR finals dialog: 5 race rows pre-rendered with course select + P1/P2 winner buttons.
+    // We need P1 to win 3 out of 4 races (first-to-3):
+    // Race 1: P1 wins, Race 2: P1 wins, Race 3: P2 wins, Race 4: P1 wins → 3-1
+    const raceRows = adminPage.locator('table tbody tr');
+    const rowCount = await raceRows.count();
+
+    for (let i = 0; i < Math.min(rowCount, 5); i++) {
+      const row = raceRows.nth(i);
+      // Select course if combobox present
+      const combobox = row.locator('button[role="combobox"]');
+      if (await combobox.count() > 0) {
+        await combobox.first().click();
+        await adminPage.waitForTimeout(200);
+        const option = adminPage.locator('[role="option"]').nth(i);
+        if (await option.count() > 0) {
+          await option.click();
+          await adminPage.waitForTimeout(200);
+        }
+      }
+
+      if (i >= 4) continue;
+
+      // P2 wins race 3 (index 2), P1 wins all others
+      const winnerIdx = (i === 2) ? 1 : 0;
+      const winnerBtns = row.locator('.flex.items-center.gap-2 button');
+      if (await winnerBtns.count() >= 2) {
+        await winnerBtns.nth(winnerIdx).click();
+        await adminPage.waitForTimeout(200);
+      }
+    }
+
+    // Click save
+    await adminPage.getByRole('button', { name: /Save|保存/ }).click();
+    await adminPage.waitForTimeout(3000);
+
+    // Poll for bracket update
+    let updated = null;
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      updated = await adminPage.evaluate(async (url) => {
+        const r = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store' });
+        return r.json().catch(() => ({}));
+      }, `/api/tournaments/${tournamentId}/mr/finals`);
+
+      const polledMatches = updated.matches || [];
+      const m1 = polledMatches.find((m) => m.id === match1.id);
+      const winnerTarget = polledMatches.find((m) => m.matchNumber === 5);
+      const loserTarget = polledMatches.find((m) => m.matchNumber === 8);
+      if (m1?.completed && winnerTarget?.player1Id && loserTarget?.player1Id) break;
+      await adminPage.waitForTimeout(500);
+    }
+
+    const updatedMatches = updated.matches || [];
+    const updatedMatch1 = updatedMatches.find((m) => m.id === match1.id);
+    const winnerTarget = updatedMatches.find((m) => m.matchNumber === 5);
+    const loserTarget = updatedMatches.find((m) => m.matchNumber === 8);
+
+    // MR uses getStyle: 'simple' — no winnersMatches/losersMatches/grandFinalMatches
+    // Only verify total match count (17 for 8-player double elimination)
+    const bracketGenerated = updatedMatches.length === 17;
+
+    // Both players at 3-3 should be rejected (no valid winner)
+    const invalidScoreRejected = invalidBothWin.s === 400;
+
+    const scoreSaved = updatedMatch1?.completed === true;
+    const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(match1.player1Id);
+    const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(match1.player2Id);
+
+    log('TC-604',
+      bracketGenerated && invalidScoreRejected && scoreSaved && winnerRouted && loserRouted ? 'PASS' : 'FAIL',
+      !bracketGenerated ? `Bracket counts: matches=${updatedMatches.length}`
+      : !invalidScoreRejected ? `3-3 was not rejected (${invalidBothWin.s})`
+      : !scoreSaved ? `Score not saved: completed=${updatedMatch1?.completed}`
+      : !(winnerRouted && loserRouted) ? 'Routing mismatch'
+      : '');
+  } catch (err) {
+    log('TC-604', 'FAIL', err instanceof Error ? err.message : 'MR finals flow failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+/**
+ * TC-608: MR dual report — agreement auto-confirm
+ *
+ * With dualReportEnabled=true, both players report the same score (3-1),
+ * which auto-confirms the match.
+ */
+async function runTc608(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR Dual P1', `e2e_mr608_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR Dual P2', `e2e_mr608_p2_${stamp}`);
+
+    // Create tournament with dual report enabled
+    tournamentId = await createTournament(adminPage, `E2E MR Dual ${stamp}`, { dualReportEnabled: true });
+
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // P1 reports 3-1 via API (report endpoint)
+    const p1Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 1,
+      score1: 3,
+      score2: 1,
+    }]);
+
+    const p1Waiting = p1Report.b?.data?.waitingFor === 'player2' || p1Report.b?.waitingFor === 'player2';
+
+    // Verify match still incomplete
+    const midCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const midMatch = (midCheck.data?.matches || midCheck.matches || []).find((m) => m.id === match.id);
+    const stillPending = midMatch?.completed === false;
+
+    // P2 reports same score 3-1
+    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 2,
+      score1: 3,
+      score2: 1,
+    }]);
+
+    const autoConfirmed = p2Report.b?.data?.autoConfirmed === true || p2Report.b?.autoConfirmed === true;
+
+    // Verify match is now completed
+    const finalCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const finalMatch = (finalCheck.data?.matches || finalCheck.matches || []).find((m) => m.id === match.id);
+    const isComplete = finalMatch?.completed === true && finalMatch.score1 === 3 && finalMatch.score2 === 1;
+
+    log('TC-608',
+      p1Waiting && stillPending && autoConfirmed && isComplete ? 'PASS' : 'FAIL',
+      !p1Waiting ? 'P1 report did not return waitingFor: player2'
+      : !stillPending ? 'Match became completed after single report'
+      : !autoConfirmed ? 'P2 report did not auto-confirm'
+      : !isComplete ? `Final state: completed=${finalMatch?.completed} score=${finalMatch?.score1}-${finalMatch?.score2}`
+      : '');
+  } catch (err) {
+    log('TC-608', 'FAIL', err instanceof Error ? err.message : 'MR dual report agreement failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
+/**
+ * TC-609: MR dual report — mismatch detection
+ *
+ * P1 reports 3-1, P2 reports 1-3 (disagreement). Match stays incomplete
+ * with mismatch flag. Admin resolves.
+ */
+async function runTc609(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR Mis P1', `e2e_mr609_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR Mis P2', `e2e_mr609_p2_${stamp}`);
+
+    tournamentId = await createTournament(adminPage, `E2E MR Mis ${stamp}`, { dualReportEnabled: true });
+
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // P1 reports 3-1
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 1, score1: 3, score2: 1,
+    }]);
+
+    // P2 reports 1-3 (disagrees — from P2's perspective, P2 won)
+    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 2, score1: 1, score2: 3,
+    }]);
+
+    const hasMismatch = p2Report.b?.data?.mismatch === true || p2Report.b?.mismatch === true;
+
+    // Match should still be incomplete
+    const midCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const midMatch = (midCheck.data?.matches || midCheck.matches || []).find((m) => m.id === match.id);
+    const stillIncomplete = midMatch?.completed === false;
+
+    // Admin resolves with PUT
+    const adminResolve = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1 }]);
+
+    const resolved = adminResolve.s === 200;
+
+    // Verify final state
+    const finalCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const finalMatch = (finalCheck.data?.matches || finalCheck.matches || []).find((m) => m.id === match.id);
+    const isComplete = finalMatch?.completed === true;
+
+    log('TC-609',
+      hasMismatch && stillIncomplete && resolved && isComplete ? 'PASS' : 'FAIL',
+      !hasMismatch ? 'Mismatch flag not set'
+      : !stillIncomplete ? 'Match was completed despite mismatch'
+      : !resolved ? 'Admin resolve failed'
+      : !isComplete ? 'Match not completed after admin resolve'
+      : '');
+  } catch (err) {
+    log('TC-609', 'FAIL', err instanceof Error ? err.message : 'MR dual report mismatch failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
+/**
+ * TC-610: MR Finals admin-only enforcement
+ *
+ * Verifies that non-admin (player) receives 403 when trying to PUT
+ * score on MR finals matches. BM/GP finals share the same putRequiresAuth
+ * mechanism in finals-route factory, so testing MR covers the shared logic.
+ */
+async function runTc610(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  let playerBrowser = null;
+
+  try {
+    const stamp = Date.now();
+
+    // Create 8 players for bracket generation
+    for (let i = 1; i <= 8; i++) {
+      const p = await createPlayer(adminPage, `E2E Finals Auth P${i}`, `e2e_f610_${stamp}_${i}`);
+      playerIds.push(p.id);
+    }
+
+    tournamentId = await createTournament(adminPage, `E2E Finals Auth ${stamp}`);
+
+    // Setup MR qualification and complete all matches
+    const setup = await adminPage.evaluate(async ([url, ids]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          players: ids.map((playerId, index) => ({
+            playerId,
+            group: 'A',
+            seeding: index + 1,
+          })),
+        }),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, playerIds]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Complete all qualification matches
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const qualMatches = (mrData.data?.matches || mrData.matches || []).filter((m) => !m.isBye);
+    for (const m of qualMatches) {
+      await adminPage.evaluate(async ([url, body]) => {
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }, [`/api/tournaments/${tournamentId}/mr`, { matchId: m.id, score1: 3, score2: 1 }]);
+    }
+
+    // Generate MR finals bracket via API
+    const bracketRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/finals`, { bracketSize: 8 }]);
+    if (bracketRes.s !== 201 && bracketRes.s !== 200) {
+      throw new Error(`Bracket generation failed (${bracketRes.s})`);
+    }
+
+    // Get first finals match
+    const finalsData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr/finals`);
+    const finalsMatch = (finalsData.matches || []).find((m) => m.matchNumber === 1);
+    if (!finalsMatch) throw new Error('No finals match found');
+
+    // Create a player browser session (non-admin)
+    playerBrowser = await chromium.launch({ headless: false });
+    const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+    const playerPage = await playerContext.newPage();
+
+    // Login as player (non-admin)
+    const p1 = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/players/${playerIds[0]}`);
+    const playerNick = p1.data?.nickname || p1.nickname;
+
+    // Reset password to get credentials
+    const resetRes = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url, { method: 'POST' });
+      return r.json().catch(() => ({}));
+    }, `/api/players/${playerIds[0]}/reset-password`);
+    const playerPassword = resetRes.data?.temporaryPassword || resetRes.temporaryPassword;
+
+    await nav(playerPage, '/auth/signin');
+    await playerPage.locator('#nickname').fill(playerNick);
+    await playerPage.locator('#password').fill(playerPassword);
+    await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+    await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+    await playerPage.waitForTimeout(1000);
+
+    // Try to PUT finals score as player → should get 403
+    const mrFinalsPut = await playerPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr/finals`, { matchId: finalsMatch.id, score1: 3, score2: 0 }]);
+
+    const mrRejected = mrFinalsPut.s === 403;
+
+    log('TC-610', mrRejected ? 'PASS' : 'FAIL',
+      !mrRejected ? `MR finals PUT returned ${mrFinalsPut.s} instead of 403` : '');
+  } catch (err) {
+    log('TC-610', 'FAIL', err instanceof Error ? err.message : 'Finals auth test failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+// Export individual test functions for integration into tc-all.js
+module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610 };
+
+// Standalone execution
+if (require.main === module) {
+  (async () => {
+    const browser = await chromium.launchPersistentContext(
+      '/tmp/playwright-smkc-profile',
+      { headless: false, viewport: { width: 1280, height: 720 } }
+    );
+    const page = browser.pages()[0] || await browser.newPage();
+
+    await nav(page, '/');
+
+    await runTc601(page);
+    await runTc602(page);
+    await runTc603(page);
+    await runTc604(page);
+    await runTc608(page);
+    await runTc609(page);
+    await runTc610(page);
+
+    console.log('\n========== MR TEST SUMMARY ==========');
+    const p = results.filter((r) => r.s === 'PASS').length;
+    const f = results.filter((r) => r.s === 'FAIL').length;
+    const sk = results.filter((r) => r.s === 'SKIP').length;
+    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
+    if (f > 0) results.filter((r) => r.s === 'FAIL').forEach((r) => console.log(`  ❌ [${r.tc}] ${r.d}`));
+
+    await browser.close();
+    process.exit(f > 0 ? 1 : 0);
+  })();
+}

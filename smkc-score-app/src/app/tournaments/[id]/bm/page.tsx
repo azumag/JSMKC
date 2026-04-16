@@ -780,12 +780,12 @@ export default function BattleModePage({
                 />
               </div>
             </div>
-            {/* Validation warning when total rounds != 4 */}
-            {scoreForm.score1 + scoreForm.score2 !== 4 && (
-              <p className="text-sm text-yellow-600 text-center">
-                {tc('totalRoundsShouldEqual4')}
-              </p>
-            )}
+            {/* Validation warning when total rounds != 4.
+               Always rendered to reserve vertical space and prevent layout shift
+               when the warning appears/disappears during score input. */}
+            <p className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 !== 4 ? 'text-yellow-600' : 'invisible'}`}>
+              {tc('totalRoundsShouldEqual4')}
+            </p>
           </div>
           <DialogFooter>
             <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
