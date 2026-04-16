@@ -96,6 +96,11 @@ export const gpConfig: EventTypeConfig = {
       if (!p2Result.isValid) {
         return { valid: false, error: `Race ${i + 1} position2: ${p2Result.error}` };
       }
+      // Two human players cannot finish in the same position in SMK GP.
+      // Exception: both at position 0 (both game over) is allowed per §7.2.
+      if (race.position1 === race.position2 && race.position1 !== 0) {
+        return { valid: false, error: `Race ${i + 1}: both players cannot finish in the same position (${race.position1})` };
+      }
     }
     return { valid: true, data: { matchId, cup, races } };
   },

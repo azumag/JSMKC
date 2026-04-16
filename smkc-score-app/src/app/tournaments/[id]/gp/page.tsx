@@ -408,6 +408,15 @@ export default function GrandPrixPage({
       return;
     }
 
+    /* Two players cannot finish in the same position (except both game-over at 0) */
+    const duplicateRace = completedRaces.find(
+      (r) => r.position1 === r.position2 && r.position1 !== 0
+    );
+    if (duplicateRace) {
+      alert(tc('samePositionError'));
+      return;
+    }
+
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp`, {
         method: "PUT",

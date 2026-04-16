@@ -84,6 +84,7 @@
     "mrFourRaceDrawNote": "MR予選は4レース固定です。2-2 の引き分けも登録できます。",
     "pleaseSelectCup": "カップを選択してください",
     "pleaseCompleteAllRaces": "5レースすべてを入力してください",
+    "samePositionError": "同じレースで両プレイヤーが同じ順位にはなれません",
     "show": "表示",
     "hide": "非表示",
     "randomAssign": "ランダム割り当て",

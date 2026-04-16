@@ -128,7 +128,8 @@ export default function GrandPrixParticipantPage({
       if (!r.course || r.position1 === null || r.position2 === null) {
         ctx.setError(tPart("completeAllRaceFields")); return;
       }
-      if (r.position1 === r.position2) {
+      /* Two players cannot finish in same position, except both game-over (0) per §7.2 */
+      if (r.position1 === r.position2 && r.position1 !== 0) {
         ctx.setError(tPart("racePositionsCannotBeEqual")); return;
       }
     }

@@ -84,6 +84,7 @@
     "mrFourRaceDrawNote": "MR qualification always records 4 races. A 2-2 draw is a valid result.",
     "pleaseSelectCup": "Please select a cup",
     "pleaseCompleteAllRaces": "Please complete all 5 races",
+    "samePositionError": "Both players cannot finish in the same position in a race",
     "show": "Show",
     "hide": "Hide",
     "randomAssign": "Random Assign",

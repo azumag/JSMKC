@@ -322,9 +322,9 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
 
       const races = [
         { course: 'Mario Circuit 1', position1: 2, position2: 1 },
-        { course: 'Donut Plains 1', position1: 2, position2: 2 },
+        { course: 'Donut Plains 1', position1: 3, position2: 2 },
         { course: 'Ghost Valley 1', position1: 2, position2: 1 },
-        { course: 'Bowser Castle 1', position1: 2, position2: 2 },
+        { course: 'Bowser Castle 1', position1: 3, position2: 1 },
         { course: 'Mario Circuit 2', position1: 1, position2: 2 },
       ];
 
