@@ -1044,8 +1044,130 @@ async function runTc611(adminPage) {
   }
 }
 
+/**
+ * TC-612: GP race same-position validation
+ *
+ * Verifies that the GP qualification API rejects races where both players
+ * have the same finishing position (e.g. both 2nd), but allows both at
+ * position 0 (both game over, §7.2).
+ */
+async function runTc612(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E GP Pos P1', `e2e_gp612_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E GP Pos P2', `e2e_gp612_p2_${stamp}`);
+
+    tournamentId = await createTournament(adminPage, `E2E GP Pos ${stamp}`);
+
+    // Setup GP qualification
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
+
+    // Get match
+    const gpData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/gp`);
+    const match = (gpData.data?.matches || gpData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE GP match');
+    const cup = match.cup || 'Mushroom';
+
+    // Test 1: Same position (both 2nd) should be rejected (400)
+    const samePos = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp`, {
+      matchId: match.id,
+      cup,
+      races: [
+        { course: 'MC1', position1: 1, position2: 3 },
+        { course: 'DP1', position1: 2, position2: 2 }, // same position!
+        { course: 'GV1', position1: 1, position2: 4 },
+        { course: 'BC1', position1: 3, position2: 1 },
+        { course: 'MC2', position1: 1, position2: 5 },
+      ],
+    }]);
+    const sameRejected = samePos.s === 400;
+
+    // Test 2: Both game over (0-0) should be allowed (200)
+    const bothGameOver = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp`, {
+      matchId: match.id,
+      cup,
+      races: [
+        { course: 'MC1', position1: 1, position2: 3 },
+        { course: 'DP1', position1: 0, position2: 0 }, // both game over
+        { course: 'GV1', position1: 1, position2: 4 },
+        { course: 'BC1', position1: 3, position2: 1 },
+        { course: 'MC2', position1: 1, position2: 5 },
+      ],
+    }]);
+    const gameOverAccepted = bothGameOver.s === 200;
+
+    // Test 3: Normal valid data (all different positions) should succeed (200)
+    const validData = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp`, {
+      matchId: match.id,
+      cup,
+      races: [
+        { course: 'MC1', position1: 1, position2: 3 },
+        { course: 'DP1', position1: 2, position2: 4 },
+        { course: 'GV1', position1: 1, position2: 5 },
+        { course: 'BC1', position1: 3, position2: 1 },
+        { course: 'MC2', position1: 1, position2: 2 },
+      ],
+    }]);
+    const validAccepted = validData.s === 200;
+
+    const allPassed = sameRejected && gameOverAccepted && validAccepted;
+    log('TC-612', allPassed ? 'PASS' : 'FAIL',
+      !sameRejected ? `Same position not rejected (got ${samePos.s}, expected 400)`
+      : !gameOverAccepted ? `Both game-over rejected (got ${bothGameOver.s}, expected 200)`
+      : !validAccepted ? `Valid data rejected (got ${validData.s}, expected 200)`
+      : '');
+  } catch (err) {
+    log('TC-612', 'FAIL', err instanceof Error ? err.message : 'GP position validation failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
 // Export individual test functions for integration into tc-all.js
-module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610, runTc611 };
+module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610, runTc611, runTc612 };
 
 // Standalone execution
 if (require.main === module) {
@@ -1066,6 +1188,7 @@ if (require.main === module) {
     await runTc609(page);
     await runTc610(page);
     await runTc611(page);
+    await runTc612(page);
 
     console.log('\n========== MR TEST SUMMARY ==========');
     const p = results.filter((r) => r.s === 'PASS').length;
