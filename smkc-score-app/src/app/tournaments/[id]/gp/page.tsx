@@ -329,11 +329,16 @@ export default function GrandPrixPage({
       setSelectedCup(match.cup);
       setRaces(match.races as Race[]);
     } else {
-      /* Pre-select cup if pre-assigned at setup time (§7.4), otherwise reset */
-      setSelectedCup(match.cup || "");
-      setRaces(
-        Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null }))
-      );
+      /* Pre-select cup if pre-assigned at setup time (§7.4), otherwise reset.
+       * Auto-fill courses from the fixed cup sequence (no manual course selection). */
+      const cup = match.cup || "";
+      setSelectedCup(cup);
+      if (cup) {
+        const cupCourses = getCupCourses(cup);
+        setRaces(cupCourses.map((course) => ({ course, position1: null, position2: null })));
+      } else {
+        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null })));
+      }
     }
     setIsMatchDialogOpen(true);
   };
@@ -864,8 +869,10 @@ export default function GrandPrixPage({
               <Label>{t('selectCup')}</Label>
               <Select value={selectedCup} onValueChange={(cup) => {
                 setSelectedCup(cup);
-                /* Clear course selections when switching cups — different cups have different courses */
-                setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "", position1: null, position2: null })));
+                /* Auto-fill courses in fixed order when cup is selected.
+                 * SMK cups have a fixed course sequence — no manual selection needed. */
+                const cupCourses = getCupCourses(cup);
+                setRaces(cupCourses.map((course) => ({ course, position1: null, position2: null })));
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('selectCupPlaceholder')} />
@@ -944,35 +951,14 @@ export default function GrandPrixPage({
                 </TableHeader>
                 <TableBody>
                   {races.map((race, index) => {
-                    const cupCourses = getCupCourses(selectedCup);
                     return (
                       <TableRow key={`race-${selectedMatch?.id}-${index}`}>
                         <TableCell className="font-medium">
                           {tc('race')} {index + 1}
                         </TableCell>
-                        <TableCell>
-                          <Select
-                            value={race.course}
-                            onValueChange={(value) => {
-                              const newRaces = [...races];
-                              newRaces[index].course = value as CourseAbbr;
-                              setRaces(newRaces);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={tc('selectCourse')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {cupCourses.map((course) => (
-                                <SelectItem key={course} value={course}>
-                                  {
-                                    COURSE_INFO.find((c) => c.abbr === course)
-                                      ?.name
-                                  }
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <TableCell className="text-sm">
+                          {/* Course is auto-determined by cup + race order (SMK fixed sequence) */}
+                          {COURSE_INFO.find((c) => c.abbr === race.course)?.name || race.course}
                         </TableCell>
                         <TableCell>
                           <Select

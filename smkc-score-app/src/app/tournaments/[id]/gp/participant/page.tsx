@@ -174,7 +174,12 @@ export default function GrandPrixParticipantPage({
                 const current = activeCups[match.id] || match.cup;
                 const next = current === match.cup ? CUP_SUBSTITUTIONS[match.cup] : match.cup;
                 setCupOverrides((prev) => ({ ...prev, [match.id]: next }));
-                setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
+                /* Auto-fill 5 races with fixed cup course order (SMK courses are sequential) */
+                const nextCourses = COURSE_INFO.filter((c) => c.cup === next).map((c) => c.abbr);
+                setRaceResults((prev) => ({
+                  ...prev,
+                  [match.id]: nextCourses.map((course) => ({ course, position1: null, position2: null, points1: 0, points2: 0 })),
+                }));
               }}
             >
               {(activeCups[match.id] || match.cup) === match.cup
@@ -185,20 +190,26 @@ export default function GrandPrixParticipantPage({
         </>
       )}
       renderMatchForm={(match) => {
-        const races = raceResults[match.id] || [];
+        /* Auto-initialize 5 races from cup's fixed course order if not yet set */
+        const cup = activeCups[match.id];
+        let races = raceResults[match.id] || [];
+        if (races.length === 0 && cup) {
+          const cupCourses = COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
+          const initialized = cupCourses.map((course) => ({ course, position1: null, position2: null, points1: 0, points2: 0 }));
+          /* Eagerly set state so re-renders have data; avoids stale closure issue */
+          if (raceResults[match.id] === undefined || raceResults[match.id]?.length === 0) {
+            setRaceResults((prev) => ({ ...prev, [match.id]: initialized }));
+          }
+          races = initialized;
+        }
         const { points1, points2 } = calculateTotalPoints(races);
 
         return (
           <div className="border-t pt-4">
             <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <h4 className="font-medium">{tPart("raceResults")}</h4>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="text-sm font-medium text-muted-foreground">
-                  {tMatch("totalPoints", { points1, points2 })}
-                </div>
-                <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={races.length >= TOTAL_GP_RACES}>
-                  {tPart("addRace")}
-                </Button>
+              <div className="text-sm font-medium text-muted-foreground">
+                {tMatch("totalPoints", { points1, points2 })}
               </div>
             </div>
 
@@ -210,23 +221,16 @@ export default function GrandPrixParticipantPage({
             ) : (
               <div className="space-y-3">
                 {races.map((result, index) => (
-                  <div key={index} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[4rem_minmax(12rem,1fr)_minmax(8rem,0.7fr)_4rem_minmax(8rem,0.7fr)_4rem_auto] lg:items-end">
+                  <div key={index} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[4rem_minmax(12rem,1fr)_minmax(8rem,0.7fr)_4rem_minmax(8rem,0.7fr)_4rem] lg:items-end">
                     <div className="text-sm font-medium lg:pb-2">
                       {tMatch("raceN", { n: index + 1 })}
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{tCommon("course")}</p>
-                      <Select value={result.course} onValueChange={(v) => updateRaceResult(match.id, index, "course", v)}>
-                        <SelectTrigger><SelectValue placeholder={tCommon("course")} /></SelectTrigger>
-                        <SelectContent>
-                          {(activeCups[match.id]
-                            ? COURSE_INFO.filter((c) => c.cup === activeCups[match.id])
-                            : COURSE_INFO
-                          ).map((c) => (
-                            <SelectItem key={c.abbr} value={c.abbr}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {/* Course is auto-determined by cup + race order (SMK fixed sequence) */}
+                      <p className="text-sm font-medium py-2">
+                        {COURSE_INFO.find((c) => c.abbr === result.course)?.name || result.course}
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
@@ -266,11 +270,7 @@ export default function GrandPrixParticipantPage({
                     <div className="rounded-md bg-muted px-2 py-2 text-center font-mono text-sm">
                       {tMatch("pts", { points: result.points2 })}
                     </div>
-                    <div className="lg:pb-1">
-                      <Button size="sm" variant="ghost" onClick={() => removeRaceResult(match.id, index)} className="w-full lg:w-auto">
-                        ×
-                      </Button>
-                    </div>
+                    {/* Race removal removed: 5 races are fixed per cup */}
                   </div>
                 ))}
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">
