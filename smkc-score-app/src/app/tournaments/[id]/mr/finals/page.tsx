@@ -492,7 +492,7 @@ export default function MatchRaceFinals({
 
       {/* Match result entry dialog: admin-only */}
       {isAdmin && <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             {/* i18n: Match result dialog title */}
             <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
@@ -548,13 +548,14 @@ export default function MatchRaceFinals({
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm w-12">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player1.nickname}>
                           {selectedMatch?.player1.nickname}
                         </span>
                         <Button
                           variant={round.winner === 1 ? "default" : "outline"}
                           size="sm"
+                          className="w-10 px-0"
                           onClick={() => {
                             const newRounds = [...rounds];
                             newRounds[index].winner = round.winner === 1 ? null : 1;
@@ -566,6 +567,7 @@ export default function MatchRaceFinals({
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
                           size="sm"
+                          className="w-10 px-0"
                           onClick={() => {
                             const newRounds = [...rounds];
                             newRounds[index].winner = round.winner === 2 ? null : 2;
@@ -574,7 +576,7 @@ export default function MatchRaceFinals({
                         >
                           {round.winner === 2 ? "\u2713" : "-"}
                         </Button>
-                        <span className="text-sm w-12">
+                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
                           {selectedMatch?.player2.nickname}
                         </span>
                       </div>

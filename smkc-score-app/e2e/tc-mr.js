@@ -283,39 +283,13 @@ async function runTc602(adminPage) {
     // Navigate to MR participant page
     await nav(playerPage, `/tournaments/${tournamentId}/mr/participant`);
 
-    // MR participant: add 4 race results for a 3-1 outcome
-    // P1 wins races 1, 2, 4; P2 wins race 3
+    // MR participant: fixed 4 assigned courses with winner buttons.
+    // P1 wins races 1, 2, 4; P2 wins race 3 → 3-1
     for (let i = 0; i < 4; i++) {
-      // Click "Add Race" button
-      await playerPage.getByRole('button', { name: /Add Race|レース追加|レースを追加/ }).click();
-      await playerPage.waitForTimeout(500);
-    }
-
-    // Each race has 1 course select + 2 position inputs (position1, position2).
-    // P1 wins when position1 < position2. Race results: P1 wins 3, P2 wins 1 → 3-1
-    const raceResults = [
-      { pos1: 1, pos2: 2 }, // P1 wins
-      { pos1: 1, pos2: 2 }, // P1 wins
-      { pos1: 2, pos2: 1 }, // P2 wins
-      { pos1: 1, pos2: 2 }, // P1 wins → total 3-1
-    ];
-
-    // Fill race positions (2 inputs per race)
-    for (let i = 0; i < 4; i++) {
-      // Select a course — click the combobox and pick first option
-      const raceRow = playerPage.locator('.grid.grid-cols-12').nth(i);
-      const selectTrigger = raceRow.locator('button[role="combobox"]').first();
-      await selectTrigger.click();
+      const winnerButtons = playerPage.locator(`button[aria-label$="wins race ${i + 1}"]`);
+      const winnerIdx = i === 2 ? 1 : 0;
+      await winnerButtons.nth(winnerIdx).click();
       await playerPage.waitForTimeout(300);
-      // Pick a course from the dropdown
-      const courseOption = playerPage.locator('[role="option"]').first();
-      await courseOption.click();
-      await playerPage.waitForTimeout(300);
-
-      // Fill position1 and position2
-      const posInputs = raceRow.locator('input[type="number"]');
-      await posInputs.nth(0).fill(String(raceResults[i].pos1));
-      await posInputs.nth(1).fill(String(raceResults[i].pos2));
     }
 
     // Submit the score

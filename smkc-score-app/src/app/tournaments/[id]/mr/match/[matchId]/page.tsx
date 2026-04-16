@@ -382,14 +382,17 @@ export default function MatchDetailPage({
                    */}
                   <div className="space-y-3">
                     {rounds.map((round, index) => (
-                      <div key={index} className="flex items-center gap-2">
+                      <div
+                        key={index}
+                        className="grid gap-2 rounded-md border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(7rem,auto)_minmax(7rem,auto)] sm:items-center"
+                      >
                         {/* i18n: Race number label */}
-                        <span className="text-sm font-medium w-20">{tMatch('raceN', { n: index + 1 })}</span>
+                        <span className="text-sm font-medium">{tMatch('raceN', { n: index + 1 })}</span>
                         {/*
                          * Pre-assigned course display: course is fixed at setup time (§10.5),
                          * so we show the course name as a static label instead of a dropdown.
                          */}
-                        <span className="flex-1 text-sm border rounded px-3 py-2 bg-muted text-muted-foreground">
+                        <span className="min-w-0 truncate rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
                           {round.course ? getCourseName(round.course) : "—"}
                         </span>
                         <Button
@@ -400,10 +403,12 @@ export default function MatchDetailPage({
                             newRounds[index].winner = round.winner === 1 ? null : 1;
                             setRounds(newRounds);
                           }}
-                          className="w-24"
+                          className="w-full min-w-0"
                         >
                           {/* i18n: Winner buttons use 'I Won' or 'Player Won' depending on identity */}
-                          {selectedPlayer === 1 ? tMatch('iWon') : tMatch('playerWon', { player: match.player1.nickname })}
+                          <span className="truncate">
+                            {selectedPlayer === 1 ? tMatch('iWon') : tMatch('playerWon', { player: match.player1.nickname })}
+                          </span>
                         </Button>
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
@@ -413,9 +418,11 @@ export default function MatchDetailPage({
                             newRounds[index].winner = round.winner === 2 ? null : 2;
                             setRounds(newRounds);
                           }}
-                          className="w-24"
+                          className="w-full min-w-0"
                         >
-                          {selectedPlayer === 2 ? tMatch('iWon') : tMatch('playerWon', { player: match.player2.nickname })}
+                          <span className="truncate">
+                            {selectedPlayer === 2 ? tMatch('iWon') : tMatch('playerWon', { player: match.player2.nickname })}
+                          </span>
                         </Button>
                       </div>
                     ))}
@@ -521,4 +528,3 @@ export default function MatchDetailPage({
     </div>
   );
 }
-

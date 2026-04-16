@@ -636,13 +636,6 @@ export default function MatchRacePage({
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right space-x-2">
-                                    {!match.isBye && (
-                                      <Button variant="ghost" size="sm" asChild>
-                                        <Link href={`/tournaments/${tournamentId}/mr/match/${match.id}`}>
-                                          {tc('scoreEntryLink')}
-                                        </Link>
-                                      </Button>
-                                    )}
                                     {isAdmin && !match.isBye && (
                                       <Button
                                         variant={match.completed ? "outline" : "default"}
@@ -670,7 +663,7 @@ export default function MatchRacePage({
 
       {/* Match result entry dialog */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{t('enterMatchResult')}</DialogTitle>
             <DialogDescription>
@@ -686,9 +679,9 @@ export default function MatchRacePage({
           <div className="space-y-4 py-4">
             {selectedMatch && (
               <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                   <span className="font-medium">{tc('scorePreview')}</span>
-                  <span className="font-mono text-base">
+                  <span className="min-w-0 break-words font-mono text-base">
                     {selectedMatch.player1.nickname} [{rounds.filter((round) => round.winner === 1).length}]
                     {" - "}
                     [{rounds.filter((round) => round.winner === 2).length}] {selectedMatch.player2.nickname}
@@ -749,13 +742,14 @@ export default function MatchRacePage({
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm w-12">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player1.nickname}>
                           {selectedMatch?.player1.nickname}
                         </span>
                         <Button
                           variant={round.winner === 1 ? "default" : "outline"}
                           size="sm"
+                          className="w-10 px-0"
                           aria-label={`${selectedMatch?.player1.nickname} wins race ${index + 1}`}
                           onClick={() => {
                             const newRounds = [...rounds];
@@ -768,6 +762,7 @@ export default function MatchRacePage({
                         <Button
                           variant={round.winner === 2 ? "default" : "outline"}
                           size="sm"
+                          className="w-10 px-0"
                           aria-label={`${selectedMatch?.player2.nickname} wins race ${index + 1}`}
                           onClick={() => {
                             const newRounds = [...rounds];
@@ -777,7 +772,7 @@ export default function MatchRacePage({
                         >
                           {round.winner === 2 ? "\u2713" : "-"}
                         </Button>
-                        <span className="text-sm w-12">
+                        <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
                           {selectedMatch?.player2.nickname}
                         </span>
                       </div>

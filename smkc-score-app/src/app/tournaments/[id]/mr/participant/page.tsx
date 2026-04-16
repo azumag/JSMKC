@@ -4,18 +4,16 @@
  * Player-facing page for reporting MR match results with race-by-race entry.
  * Uses shared useParticipantMatches hook and ParticipantPageLayout.
  *
- * MR-specific: race results with course selection + position inputs.
- * Scores are auto-calculated from race results (position1 < position2 = P1 win).
+ * MR-specific: fixed assigned courses with per-race winner buttons.
+ * Scores are auto-calculated from the selected race winners.
  */
 "use client";
 
 import { useState, use } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Flag } from "lucide-react";
-import { COURSE_INFO } from "@/lib/constants";
+import { COURSE_INFO, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 
@@ -23,6 +21,7 @@ import { ParticipantPageLayout } from "@/components/tournament/participant-page-
 interface MRMatch extends BaseMatch {
   score1: number;
   score2: number;
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1ReportedPoints1?: number;
   player1ReportedPoints2?: number;
@@ -30,11 +29,10 @@ interface MRMatch extends BaseMatch {
   player2ReportedPoints2?: number;
 }
 
-/** Individual race result */
-interface RaceResult {
-  course: string;
-  position1: number;
-  position2: number;
+/** Individual MR race result */
+interface RoundResult {
+  course: CourseAbbr | "";
+  winner: number | null;
 }
 
 export default function MatchRaceParticipantPage({
@@ -49,61 +47,79 @@ export default function MatchRaceParticipantPage({
 
   const ctx = useParticipantMatches<MRMatch>({ tournamentId, mode: "mr" });
 
-  /* MR-specific: race results per match */
-  const [raceResults, setRaceResults] = useState<Record<string, RaceResult[]>>({});
+  /* MR-specific: per-match race winners. Courses are fixed at setup time. */
+  const [matchRounds, setMatchRounds] = useState<Record<string, RoundResult[]>>({});
 
-  const addRaceResult = (matchId: string) => {
-    setRaceResults((prev) => ({
-      ...prev,
-      [matchId]: [...(prev[matchId] || []), { course: "", position1: 0, position2: 0 }],
+  const getCourseName = (abbr: string) => {
+    const course = COURSE_INFO.find((c) => c.abbr === abbr);
+    return course ? course.name : abbr;
+  };
+
+  const buildInitialRounds = (match: MRMatch): RoundResult[] => {
+    if (Array.isArray(match.rounds) && match.rounds.length === TOTAL_MR_RACES) {
+      return match.rounds.map((round) => ({
+        course: (round.course as CourseAbbr) || "",
+        winner: round.winner ?? null,
+      }));
+    }
+
+    const assignedCourses = Array.isArray(match.assignedCourses)
+      ? match.assignedCourses
+      : [];
+
+    return Array.from({ length: TOTAL_MR_RACES }, (_, index) => ({
+      course: (assignedCourses[index] as CourseAbbr | undefined) ?? "",
+      winner: null,
     }));
   };
 
-  const updateRaceResult = (matchId: string, index: number, field: keyof RaceResult, value: string | number) => {
-    setRaceResults((prev) => ({
-      ...prev,
-      [matchId]: prev[matchId].map((r, i) => (i === index ? { ...r, [field]: value } : r)),
-    }));
-  };
+  const getRounds = (match: MRMatch) => matchRounds[match.id] ?? buildInitialRounds(match);
 
-  const removeRaceResult = (matchId: string, index: number) => {
-    setRaceResults((prev) => ({
-      ...prev,
-      [matchId]: prev[matchId].filter((_, i) => i !== index),
-    }));
-  };
+  const updateWinner = (match: MRMatch, index: number, winner: number) => {
+    setMatchRounds((prev) => {
+      const rounds = prev[match.id] ?? buildInitialRounds(match);
+      const nextRounds = rounds.map((round, i) =>
+        i === index
+          ? { ...round, winner: round.winner === winner ? null : winner }
+          : round
+      );
 
-  /** Auto-calculate scores from race positions */
-  const calculateScores = (results: RaceResult[]) => {
-    let score1 = 0, score2 = 0;
-    results.forEach((r) => {
-      if (r.position1 < r.position2) score1++;
-      else if (r.position2 < r.position1) score2++;
+      return { ...prev, [match.id]: nextRounds };
     });
+  };
+
+  const calculateScores = (rounds: RoundResult[]) => {
+    let score1 = 0;
+    let score2 = 0;
+
+    rounds.forEach((round) => {
+      if (round.winner === 1) score1++;
+      else if (round.winner === 2) score2++;
+    });
+
     return { score1, score2 };
   };
 
   const handleSubmitMatch = async (match: MRMatch) => {
-    const races = raceResults[match.id] || [];
-    if (races.length === 0) { ctx.setError("Please add at least one race result."); return; }
+    const rounds = getRounds(match);
     const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
-    for (const r of races) {
-      if (!r.course || r.position1 === 0 || r.position2 === 0) {
-        ctx.setError("Please complete all race fields."); return;
-      }
-      if (r.position1 === r.position2) {
-        ctx.setError("Race positions cannot be equal."); return;
-      }
+    if (rounds.some((round) => round.winner === null)) {
+      ctx.setError(tCommon("selectWinnerForAllRaces", { count: TOTAL_MR_RACES }));
+      return;
     }
 
-    const { score1, score2 } = calculateScores(races);
+    ctx.setError(null);
+    const { score1, score2 } = calculateScores(rounds);
     const data = await ctx.submitReport(match.id, {
-      reportingPlayer, score1, score2, races,
+      reportingPlayer,
+      score1,
+      score2,
+      rounds,
     });
 
     if (data) {
-      setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
+      setMatchRounds((prev) => ({ ...prev, [match.id]: buildInitialRounds(match) }));
       alert(tPart("matchReportedSuccess"));
     }
   };
@@ -125,61 +141,65 @@ export default function MatchRaceParticipantPage({
       playerId={ctx.playerId}
       submitting={ctx.submitting}
       renderMatchForm={(match) => {
-        const races = raceResults[match.id] || [];
-        const { score1, score2 } = calculateScores(races);
+        const rounds = getRounds(match);
+        const { score1, score2 } = calculateScores(rounds);
 
         return (
           <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <h4 className="font-medium">{tPart("raceResults")}</h4>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => addRaceResult(match.id)}
-                disabled={races.length >= 5}
-                aria-label="Add Race"
-              >
-                {tPart("addRace")}
-              </Button>
+              <div className="text-sm font-medium text-muted-foreground">
+                {tPart("currentScore", { score1, score2 })}
+              </div>
             </div>
 
-            {races.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Flag className="h-8 w-8 mx-auto mb-2" />
-                <p>{tPart("noRacesYet")}</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {races.map((result, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-4">
-                      <Select value={result.course} onValueChange={(v) => updateRaceResult(match.id, index, "course", v)}>
-                        <SelectTrigger><SelectValue placeholder={tCommon("selectCourse")} /></SelectTrigger>
-                        <SelectContent>
-                          {COURSE_INFO.map((c) => (
-                            <SelectItem key={c.abbr} value={c.abbr}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="col-span-3">
-                      <Input type="number" min="1" max="2" placeholder={tCommon("first")} value={result.position1 || ""} onChange={(e) => updateRaceResult(match.id, index, "position1", parseInt(e.target.value) || 0)} />
-                    </div>
-                    <div className="col-span-3">
-                      <Input type="number" min="1" max="2" placeholder={tCommon("second")} value={result.position2 || ""} onChange={(e) => updateRaceResult(match.id, index, "position2", parseInt(e.target.value) || 0)} />
-                    </div>
-                    <div className="col-span-2">
-                      <Button size="sm" variant="ghost" onClick={() => removeRaceResult(match.id, index)}>{tCommon("remove")}</Button>
-                    </div>
-                  </div>
-                ))}
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="font-medium text-center">{tPart("currentScore", { score1, score2 })}</div>
+            <div className="space-y-3">
+              {rounds.map((round, index) => (
+                <div
+                  key={`${match.id}-${index}`}
+                  className="grid gap-2 rounded-md border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(7rem,auto)_minmax(7rem,auto)] sm:items-center"
+                >
+                  <span className="text-sm font-medium">
+                    {tMatch("raceN", { n: index + 1 })}
+                  </span>
+                  <span className="min-w-0 truncate rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                    {round.course ? getCourseName(round.course) : "-"}
+                  </span>
+                  <Button
+                    variant={round.winner === 1 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => updateWinner(match, index, 1)}
+                    className="w-full min-w-0"
+                    aria-label={`${match.player1.nickname} wins race ${index + 1}`}
+                  >
+                    <span className="truncate">
+                      {match.player1.id === ctx.playerId
+                        ? tMatch("iWon")
+                        : tMatch("playerWon", { player: match.player1.nickname })}
+                    </span>
+                  </Button>
+                  <Button
+                    variant={round.winner === 2 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => updateWinner(match, index, 2)}
+                    className="w-full min-w-0"
+                    aria-label={`${match.player2.nickname} wins race ${index + 1}`}
+                  >
+                    <span className="truncate">
+                      {match.player2.id === ctx.playerId
+                        ? tMatch("iWon")
+                        : tMatch("playerWon", { player: match.player2.nickname })}
+                    </span>
+                  </Button>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
 
-            <Button onClick={() => handleSubmitMatch(match)} disabled={ctx.submitting === match.id || races.length === 0} className="w-full mt-4">
+            <Button
+              onClick={() => handleSubmitMatch(match)}
+              disabled={ctx.submitting === match.id || rounds.some((round) => round.winner === null)}
+              className="mt-4 h-12 w-full text-base"
+            >
               {ctx.submitting === match.id ? tMatch("submitting") : tPart("submitMatchResult")}
             </Button>
           </div>

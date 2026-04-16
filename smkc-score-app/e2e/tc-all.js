@@ -1541,9 +1541,9 @@ async function nav(p, u) {
     }
   }
 
-  // TC-320: Match list link labels — BM shows "Details"/"詳細", MR/GP show "Score Entry"/"スコア入力"
+  // TC-320: Match list link labels — BM shows "Details"/"詳細", MR no longer shows row-level score entry, GP shows "Score Entry"/"スコア入力"
   // BM match page is view-only (score entry consolidated to participant page), so BM link says "Details".
-  // MR/GP still link to per-match score entry pages.
+  // MR score entry is consolidated to the participant page; GP still links to per-match score entry pages.
   {
     let tc320 = true;
     let tc320Detail = '';
@@ -1562,8 +1562,14 @@ async function nav(p, u) {
           tc320 = false;
           tc320Detail = 'BM missing "Details"/"詳細" link';
         }
+      } else if (m === 'mr') {
+        const hasRowScoreEntry = await page.locator('tbody a:has-text("Score Entry"), tbody a:has-text("スコア入力")').count();
+        if (hasRowScoreEntry > 0) {
+          tc320 = false;
+          tc320Detail = 'MR still shows row-level "Score Entry"/"スコア入力" link';
+        }
       } else {
-        // MR/GP: should show "Score Entry"/"スコア入力" (not "Share"/"共有")
+        // GP: should show "Score Entry"/"スコア入力" (not "Share"/"共有")
         const hasScoreEntryLabel = bodyText.includes('Score Entry') || bodyText.includes('スコア入力');
         const shareButtons = await page.locator('a:has-text("Share"), a:has-text("共有")').count();
         if (!hasScoreEntryLabel && shareButtons > 0) {
