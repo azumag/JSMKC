@@ -103,6 +103,10 @@ interface MRMatch {
   completed: boolean;
   assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
+  player1ReportedPoints1?: number | null;
+  player1ReportedPoints2?: number | null;
+  player2ReportedPoints1?: number | null;
+  player2ReportedPoints2?: number | null;
   player1: Player;
   player2: Player;
 }
@@ -191,6 +195,41 @@ export default function MatchRacePage({
   /* Shared handlers for rank override, TV assignment, and CSV export */
   const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
     useQualificationActions({ tournamentId, mode: "mr", refetch });
+
+  const getReportStatus = (match: MRMatch) => {
+    if (match.isBye || match.completed) return null;
+
+    const player1Reported =
+      match.player1ReportedPoints1 != null && match.player1ReportedPoints2 != null;
+    const player2Reported =
+      match.player2ReportedPoints1 != null && match.player2ReportedPoints2 != null;
+
+    if (player1Reported && player2Reported) {
+      return {
+        tone: "warning",
+        label: tc('bothReportsMismatch'),
+        detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2} / ${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
+      };
+    }
+
+    if (player1Reported) {
+      return {
+        tone: "info",
+        label: tc('reportedBy', { player: match.player1.nickname }),
+        detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2}`,
+      };
+    }
+
+    if (player2Reported) {
+      return {
+        tone: "info",
+        label: tc('reportedBy', { player: match.player2.nickname }),
+        detail: `${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
+      };
+    }
+
+    return null;
+  };
 
   /**
    * Submit group setup with player assignments.
@@ -586,6 +625,7 @@ export default function MatchRacePage({
                                 <TableHead className="text-center w-24">{tc('score')}</TableHead>
                                 <TableHead>{tc('player2')}</TableHead>
                                 <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                {isAdmin && <TableHead className="text-center w-44">{tc('reportStatus')}</TableHead>}
                                 <TableHead className="text-right">{tc('actions')}</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -635,6 +675,26 @@ export default function MatchRacePage({
                                       match.tvNumber ? `${match.tvNumber}` : "-"
                                     )}
                                   </TableCell>
+                                  {isAdmin && (
+                                    <TableCell className="text-center">
+                                      {(() => {
+                                        const status = getReportStatus(match);
+                                        if (!status) {
+                                          return <span className="text-sm text-muted-foreground">-</span>;
+                                        }
+                                        return (
+                                          <div className={`inline-flex max-w-40 flex-col items-center rounded-md border px-2 py-1 text-xs ${
+                                            status.tone === "warning"
+                                              ? "border-yellow-300 bg-yellow-50 text-yellow-800"
+                                              : "border-blue-200 bg-blue-50 text-blue-800"
+                                          }`}>
+                                            <span className="max-w-full truncate">{status.label}</span>
+                                            <span className="font-mono">{status.detail}</span>
+                                          </div>
+                                        );
+                                      })()}
+                                    </TableCell>
+                                  )}
                                   <TableCell className="text-right space-x-2">
                                     {isAdmin && !match.isBye && (
                                       <Button

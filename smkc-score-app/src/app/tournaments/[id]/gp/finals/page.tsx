@@ -413,7 +413,7 @@ export default function GrandPrixFinals({
 
       {/* Score entry dialog: admin-only */}
       {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-lg p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
             <DialogDescription>
@@ -433,9 +433,11 @@ export default function GrandPrixFinals({
           </DialogHeader>
           <div className="space-y-4 py-4">
             {/* Score input: best of 5 (first to 3 wins) */}
-            <div className="flex items-center justify-center gap-4">
-              <div className="text-center">
-                <Label>{selectedMatch?.player1.nickname}</Label>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 sm:gap-4">
+              <div className="min-w-0 text-center">
+                <Label className="block truncate" title={selectedMatch?.player1.nickname}>
+                  {selectedMatch?.player1.nickname}
+                </Label>
                 <Input
                   type="number"
                   min={0}
@@ -447,12 +449,14 @@ export default function GrandPrixFinals({
                       score1: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="w-20 text-center text-2xl"
+                  className="mx-auto w-20 text-center text-2xl"
                 />
               </div>
-              <span className="text-2xl">-</span>
-              <div className="text-center">
-                <Label>{selectedMatch?.player2.nickname}</Label>
+              <span className="pb-2 text-2xl">-</span>
+              <div className="min-w-0 text-center">
+                <Label className="block truncate" title={selectedMatch?.player2.nickname}>
+                  {selectedMatch?.player2.nickname}
+                </Label>
                 <Input
                   type="number"
                   min={0}
@@ -464,7 +468,7 @@ export default function GrandPrixFinals({
                       score2: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="w-20 text-center text-2xl"
+                  className="mx-auto w-20 text-center text-2xl"
                 />
               </div>
             </div>

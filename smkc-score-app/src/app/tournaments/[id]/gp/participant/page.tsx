@@ -100,7 +100,7 @@ export default function GrandPrixParticipantPage({
   const removeRaceResult = (matchId: string, index: number) => {
     setRaceResults((prev) => ({
       ...prev,
-      [matchId]: prev[matchId].filter((_, i) => i !== index),
+      [matchId]: (prev[matchId] || []).filter((_, i) => i !== index),
     }));
   };
 
@@ -109,6 +109,15 @@ export default function GrandPrixParticipantPage({
     results.forEach((r) => { points1 += r.points1; points2 += r.points2; });
     return { points1, points2 };
   };
+
+  const canSubmitRaces = (races: RaceResult[]) =>
+    races.length === TOTAL_GP_RACES &&
+    races.every((race) =>
+      race.course &&
+      race.position1 !== null &&
+      race.position2 !== null &&
+      race.position1 !== race.position2
+    );
 
   const handleSubmitMatch = async (match: GPMatch) => {
     const races = raceResults[match.id] || [];
@@ -180,11 +189,16 @@ export default function GrandPrixParticipantPage({
 
         return (
           <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <h4 className="font-medium">{tPart("raceResults")}</h4>
-              <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={races.length >= TOTAL_GP_RACES}>
-                {tPart("addRace")}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="text-sm font-medium text-muted-foreground">
+                  {tMatch("totalPoints", { points1, points2 })}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => addRaceResult(match.id)} disabled={races.length >= TOTAL_GP_RACES}>
+                  {tPart("addRace")}
+                </Button>
+              </div>
             </div>
 
             {races.length === 0 ? (
@@ -195,8 +209,12 @@ export default function GrandPrixParticipantPage({
             ) : (
               <div className="space-y-3">
                 {races.map((result, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-3">
+                  <div key={index} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[4rem_minmax(12rem,1fr)_minmax(8rem,0.7fr)_4rem_minmax(8rem,0.7fr)_4rem_auto] lg:items-end">
+                    <div className="text-sm font-medium lg:pb-2">
+                      {tMatch("raceN", { n: index + 1 })}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{tCommon("course")}</p>
                       <Select value={result.course} onValueChange={(v) => updateRaceResult(match.id, index, "course", v)}>
                         <SelectTrigger><SelectValue placeholder={tCommon("course")} /></SelectTrigger>
                         <SelectContent>
@@ -209,7 +227,8 @@ export default function GrandPrixParticipantPage({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
                       <Select
                         value={result.position1?.toString() ?? ""}
                         onValueChange={(v) => updateRaceResult(match.id, index, "position1", v === "" ? null : parseInt(v, 10))}
@@ -224,10 +243,11 @@ export default function GrandPrixParticipantPage({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points1 })}</div>
+                    <div className="rounded-md bg-muted px-2 py-2 text-center font-mono text-sm">
+                      {tMatch("pts", { points: result.points1 })}
                     </div>
-                    <div className="col-span-2">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{match.player2.nickname}</p>
                       <Select
                         value={result.position2?.toString() ?? ""}
                         onValueChange={(v) => updateRaceResult(match.id, index, "position2", v === "" ? null : parseInt(v, 10))}
@@ -242,11 +262,13 @@ export default function GrandPrixParticipantPage({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <div className="text-center font-mono text-sm">{tMatch("pts", { points: result.points2 })}</div>
+                    <div className="rounded-md bg-muted px-2 py-2 text-center font-mono text-sm">
+                      {tMatch("pts", { points: result.points2 })}
                     </div>
-                    <div className="col-span-1">
-                      <Button size="sm" variant="ghost" onClick={() => removeRaceResult(match.id, index)}>×</Button>
+                    <div className="lg:pb-1">
+                      <Button size="sm" variant="ghost" onClick={() => removeRaceResult(match.id, index)} className="w-full lg:w-auto">
+                        ×
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -256,7 +278,11 @@ export default function GrandPrixParticipantPage({
               </div>
             )}
 
-            <Button onClick={() => handleSubmitMatch(match)} disabled={ctx.submitting === match.id || races.length === 0} className="w-full mt-4">
+            <Button
+              onClick={() => handleSubmitMatch(match)}
+              disabled={ctx.submitting === match.id || !canSubmitRaces(races)}
+              className="mt-4 h-12 w-full text-base"
+            >
               {ctx.submitting === match.id ? tMatch("submitting") : tPart("submitMatchResult")}
             </Button>
           </div>

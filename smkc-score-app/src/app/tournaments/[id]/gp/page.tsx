@@ -114,6 +114,10 @@ interface GPMatch {
     points1: number;
     points2: number;
   }[];
+  player1ReportedPoints1?: number | null;
+  player1ReportedPoints2?: number | null;
+  player2ReportedPoints1?: number | null;
+  player2ReportedPoints2?: number | null;
   player1: Player;
   player2: Player;
 }
@@ -216,6 +220,41 @@ export default function GrandPrixPage({
   /* Shared handlers for rank override, TV assignment, and CSV export */
   const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
     useQualificationActions({ tournamentId, mode: "gp", refetch });
+
+  const getReportStatus = (match: GPMatch) => {
+    if (match.isBye || match.completed) return null;
+
+    const player1Reported =
+      match.player1ReportedPoints1 != null && match.player1ReportedPoints2 != null;
+    const player2Reported =
+      match.player2ReportedPoints1 != null && match.player2ReportedPoints2 != null;
+
+    if (player1Reported && player2Reported) {
+      return {
+        tone: "warning",
+        label: tc('bothReportsMismatch'),
+        detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2} / ${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
+      };
+    }
+
+    if (player1Reported) {
+      return {
+        tone: "info",
+        label: tc('reportedBy', { player: match.player1.nickname }),
+        detail: `${match.player1ReportedPoints1} - ${match.player1ReportedPoints2}`,
+      };
+    }
+
+    if (player2Reported) {
+      return {
+        tone: "info",
+        label: tc('reportedBy', { player: match.player2.nickname }),
+        detail: `${match.player2ReportedPoints1} - ${match.player2ReportedPoints2}`,
+      };
+    }
+
+    return null;
+  };
 
   /**
    * Submit group setup to create qualification round-robin matches.
@@ -652,6 +691,7 @@ export default function GrandPrixPage({
                                 <TableHead className="text-center w-24">{tc('points')}</TableHead>
                                 <TableHead>{tc('player2')}</TableHead>
                                 <TableHead className="text-center w-16">{tc('tvNumber')}</TableHead>
+                                {isAdmin && <TableHead className="text-center w-44">{tc('reportStatus')}</TableHead>}
                                 <TableHead className="text-right">{tc('actions')}</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -711,14 +751,27 @@ export default function GrandPrixPage({
                                       match.tvNumber ? `${match.tvNumber}` : "-"
                                     )}
                                   </TableCell>
+                                  {isAdmin && (
+                                    <TableCell className="text-center">
+                                      {(() => {
+                                        const status = getReportStatus(match);
+                                        if (!status) {
+                                          return <span className="text-sm text-muted-foreground">-</span>;
+                                        }
+                                        return (
+                                          <div className={`inline-flex max-w-40 flex-col items-center rounded-md border px-2 py-1 text-xs ${
+                                            status.tone === "warning"
+                                              ? "border-yellow-300 bg-yellow-50 text-yellow-800"
+                                              : "border-blue-200 bg-blue-50 text-blue-800"
+                                          }`}>
+                                            <span className="max-w-full truncate">{status.label}</span>
+                                            <span className="font-mono">{status.detail}</span>
+                                          </div>
+                                        );
+                                      })()}
+                                    </TableCell>
+                                  )}
                                   <TableCell className="text-right space-x-2">
-                                    {!match.isBye && (
-                                      <Button variant="ghost" size="sm" asChild>
-                                        <Link href={`/tournaments/${tournamentId}/gp/match/${match.id}`}>
-                                          {tc('scoreEntryLink')}
-                                        </Link>
-                                      </Button>
-                                    )}
                                     {isAdmin && !match.isBye && (
                                       <Button
                                         variant={match.completed ? "outline" : "default"}
@@ -746,7 +799,7 @@ export default function GrandPrixPage({
 
       {/* Match result entry dialog */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{t('enterMatchResult')}</DialogTitle>
             <DialogDescription>
@@ -934,7 +987,7 @@ export default function GrandPrixPage({
                   {t('driverPoints')}
                 </p>
                 {selectedMatch && (
-                  <div className="flex gap-4 justify-center">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-center sm:gap-4">
                     <div>
                       <span className="text-sm">{selectedMatch.player1.nickname}:</span>
                       <span className="ml-2 font-bold">
