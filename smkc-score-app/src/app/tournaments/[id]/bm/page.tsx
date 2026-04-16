@@ -168,6 +168,7 @@ export default function BattleModePage({
       qualifications: bmData.qualifications || [],
       matches: bmData.matches || [],
       allPlayers: extractArrayData<Player>(playersJson),
+      qualificationConfirmed: bmData.qualificationConfirmed ?? false,
     };
   }, [tournamentId]);
 
@@ -191,6 +192,8 @@ export default function BattleModePage({
   const qualifications: BMQualification[] = pollData?.qualifications ?? [];
   const matches: BMMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  /* Whether qualification scores are locked by admin confirmation */
+  const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
 
   /* Shared handlers for rank override, TV assignment, and CSV export */
   const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
@@ -230,6 +233,32 @@ export default function BattleModePage({
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
+    }
+  };
+
+  /**
+   * Toggle qualification confirmed state.
+   * When confirmed, all score edits (admin and player) are locked.
+   */
+  const handleToggleQualificationConfirmed = async () => {
+    const newValue = !qualificationConfirmed;
+    /* Require explicit confirmation before locking */
+    if (newValue && !confirm(tc('confirmQualificationDialog'))) return;
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qualificationConfirmed: newValue }),
+      });
+      if (response.ok) {
+        refetch();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to update qualification status');
+      }
+    } catch (err) {
+      logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
     }
   };
 
@@ -317,8 +346,13 @@ export default function BattleModePage({
           <p className="text-muted-foreground">
             {t('qualificationDesc')}
           </p>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+            {qualificationConfirmed && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                {tc('qualificationConfirmed')}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -337,6 +371,16 @@ export default function BattleModePage({
               disabled={exporting}
             >
               {exporting ? tc('exporting') : tc('exportToExcel')}
+            </Button>
+          )}
+
+          {/* Admin-only qualification confirmation toggle */}
+          {isAdmin && qualifications.length > 0 && (
+            <Button
+              variant={qualificationConfirmed ? "destructive" : "outline"}
+              onClick={handleToggleQualificationConfirmed}
+            >
+              {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
             </Button>
           )}
 
@@ -680,12 +724,13 @@ export default function BattleModePage({
                                         </Link>
                                       </Button>
                                     )}
-                                    {/* Admin-only score entry/edit button (not for BYE matches) */}
+                                    {/* Admin-only score entry/edit button (not for BYE matches, locked when confirmed) */}
                                     {isAdmin && !match.isBye && (
                                       <Button
                                         variant={match.completed ? "outline" : "default"}
                                         size="sm"
                                         onClick={() => openScoreDialog(match)}
+                                        disabled={qualificationConfirmed}
                                       >
                                         {match.completed ? tc('edit') : tc('enterScore')}
                                       </Button>

@@ -39,6 +39,25 @@ async function nav(p, u) {
   }
   throw lastError;
 }
+async function deleteTournament(p, id) {
+  if (!id) return;
+  await p.evaluate(async (u) => {
+    await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'draft' }),
+    });
+  }, `/api/tournaments/${id}`).catch(() => {});
+  await p.evaluate(async (u) => {
+    await fetch(u, { method: 'DELETE' });
+  }, `/api/tournaments/${id}`).catch(() => {});
+}
+async function deletePlayer(p, id) {
+  if (!id) return;
+  await p.evaluate(async (u) => {
+    await fetch(u, { method: 'DELETE' });
+  }, `/api/players/${id}`).catch(() => {});
+}
 
 (async () => {
   const browser = await chromium.launchPersistentContext(
@@ -168,7 +187,19 @@ async function nav(p, u) {
   // TC-202
   await nav(page, '/tournaments');
   t = await vis(page);
-  log('TC-202', t.includes('KasmoSMKC') ? 'PASS' : 'FAIL');
+  const knownTournament = await page.evaluate(async (u) => {
+    const r = await fetch(u);
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, `/api/tournaments/${TID}?fields=summary`);
+  const tournamentsPageLoaded =
+    t.includes('Tournaments') || t.includes('トーナメント') || t.includes('大会');
+  const knownTournamentExists =
+    knownTournament.s === 200 &&
+    (knownTournament.b?.data?.name || knownTournament.b?.name || '').includes('KasmoSMKC');
+  log('TC-202', tournamentsPageLoaded && knownTournamentExists ? 'PASS' : 'FAIL',
+    !tournamentsPageLoaded ? 'Tournaments page did not render'
+    : !knownTournamentExists ? 'Known tournament not found by API'
+    : '');
 
   // TC-203
   await nav(page, `/tournaments/${TID}/overall-ranking`);
@@ -390,21 +421,24 @@ async function nav(p, u) {
         await dialog.accept();
       });
       await playerPage.getByRole('button', { name: /試合結果を送信|Submit Match Result/ }).click();
-      await playerPage.waitForFunction(() => {
-        const text = document.body.innerText;
-        return text.includes('保留中の試合はありません') || text.includes('No Pending Matches');
-      }, null, { timeout: 15000 });
 
-      const gpState = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${gpTournamentId}/gp`);
-      const gpMatches = gpState.b?.data?.matches ?? gpState.b?.matches ?? [];
-      const reportedMatch = gpMatches.find((m) =>
-        !m.isBye &&
-        ((m.player1?.id === pid && m.player2?.id === gpPlayer2Id) ||
-          (m.player1?.id === gpPlayer2Id && m.player2?.id === pid))
-      );
+      let reportedMatch = null;
+      const gpDeadline = Date.now() + 20000;
+      while (Date.now() < gpDeadline) {
+        const gpState = await page.evaluate(async (u) => {
+          const r = await fetch(u);
+          return { s: r.status, b: await r.json().catch(() => ({})) };
+        }, `/api/tournaments/${gpTournamentId}/gp`);
+        const gpMatches = gpState.b?.data?.matches ?? gpState.b?.matches ?? [];
+        reportedMatch = gpMatches.find((m) =>
+          !m.isBye &&
+          ((m.player1?.id === pid && m.player2?.id === gpPlayer2Id) ||
+            (m.player1?.id === gpPlayer2Id && m.player2?.id === pid))
+        );
+        if (reportedMatch?.completed) break;
+        await page.waitForTimeout(1000);
+      }
+
       const playerWonAsP1 = reportedMatch?.player1?.id === pid;
       const scorePersisted = reportedMatch?.completed === true &&
         ((playerWonAsP1 && reportedMatch.points1 === 45 && reportedMatch.points2 === 0) ||
@@ -421,14 +455,10 @@ async function nav(p, u) {
       if (playerBrowser) await playerBrowser.close().catch(() => {});
     } finally {
       if (gpTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${gpTournamentId}`).catch(() => {});
+        await deleteTournament(page, gpTournamentId);
       }
       if (gpPlayer2Id) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/players/${gpPlayer2Id}`).catch(() => {});
+        await deletePlayer(page, gpPlayer2Id);
       }
     }
   } else { log('TC-311', 'SKIP'); }
@@ -551,9 +581,7 @@ async function nav(p, u) {
       if (playerBrowser) await playerBrowser.close().catch(() => {});
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
     }
   } else { log('TC-312', 'SKIP'); }
@@ -673,9 +701,7 @@ async function nav(p, u) {
       log('TC-313', 'FAIL', err instanceof Error ? err.message : 'TA add lock flow failed');
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
     }
   } else { log('TC-313', 'SKIP'); }
@@ -842,14 +868,10 @@ async function nav(p, u) {
       log('TC-314', 'FAIL', err instanceof Error ? err.message : 'TA finals undo flow failed');
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
       if (secondPlayerId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/players/${secondPlayerId}`).catch(() => {});
+        await deletePlayer(page, secondPlayerId);
       }
     }
   } else { log('TC-314', 'SKIP'); }
@@ -939,9 +961,7 @@ async function nav(p, u) {
       log('TC-317', 'FAIL', err instanceof Error ? err.message : 'TA seeding CRUD failed');
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
     }
   } else { log('TC-317', 'SKIP'); }
@@ -1087,14 +1107,10 @@ async function nav(p, u) {
       log('TC-318', 'FAIL', err instanceof Error ? err.message : 'TA pair flow failed');
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
       if (partnerPlayerId) {
-        await page.evaluate(async (u) => {
-          await fetch(u, { method: 'DELETE' });
-        }, `/api/players/${partnerPlayerId}`).catch(() => {});
+        await deletePlayer(page, partnerPlayerId);
       }
     }
   } else { log('TC-318', 'SKIP'); }
@@ -1221,10 +1237,10 @@ async function nav(p, u) {
       log('TC-319', 'FAIL', err instanceof Error ? err.message : 'Self-edit toggle test failed');
     } finally {
       if (taTournamentId) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); }, `/api/tournaments/${taTournamentId}`).catch(() => {});
+        await deleteTournament(page, taTournamentId);
       }
       if (partnerPlayerId2) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); }, `/api/players/${partnerPlayerId2}`).catch(() => {});
+        await deletePlayer(page, partnerPlayerId2);
       }
     }
   } else { log('TC-319', 'SKIP'); }

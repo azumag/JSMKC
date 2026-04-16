@@ -43,6 +43,7 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
 
 /**
  * GP-specific stats recalculation config.
@@ -82,6 +83,10 @@ export async function POST(
   }
 
   try {
+    /* Block score reports when qualification is confirmed */
+    const lockError = await checkQualificationConfirmed(prisma, tournamentId);
+    if (lockError) return lockError;
+
     const userAgent = getUserAgent(request);
 
     const body = sanitizeInput(await request.json());

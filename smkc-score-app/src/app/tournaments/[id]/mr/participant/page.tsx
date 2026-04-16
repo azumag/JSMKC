@@ -140,6 +140,7 @@ export default function MatchRaceParticipantPage({
       tournamentId={tournamentId}
       playerId={ctx.playerId}
       submitting={ctx.submitting}
+      qualificationConfirmed={ctx.qualificationConfirmed}
       renderMatchForm={(match) => {
         const rounds = getRounds(match);
         const { score1, score2 } = calculateScores(rounds);

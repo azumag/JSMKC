@@ -42,6 +42,19 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('@/lib/score-validation', () => ({
   validateMatchRaceScores: jest.requireActual('@/lib/score-validation').validateMatchRaceScores,
 }));
+/* Mock qualification-confirmed-check: the match-detail-route factory now checks
+ * if qualification is locked before allowing score edits. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
+/* Mock rate-limit: required by the factory's PUT handler */
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+}));
+/* Mock request-utils: required by the factory's rate-limit integration */
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';

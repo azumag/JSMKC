@@ -196,6 +196,7 @@ export default function GrandPrixPage({
       qualifications: gpData.qualifications || [],
       matches: gpData.matches || [],
       allPlayers: extractArrayData<Player>(playersJson),
+      qualificationConfirmed: gpData.qualificationConfirmed ?? false,
     };
   }, [tournamentId]);
 
@@ -216,10 +217,37 @@ export default function GrandPrixPage({
   const qualifications: GPQualification[] = pollData?.qualifications ?? [];
   const matches: GPMatch[] = pollData?.matches ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  /* Whether qualification scores are locked by admin confirmation */
+  const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
 
   /* Shared handlers for rank override, TV assignment, and CSV export */
   const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
     useQualificationActions({ tournamentId, mode: "gp", refetch });
+
+  /**
+   * Toggle qualification confirmed state.
+   * When confirmed, all score edits (admin and player) are locked.
+   */
+  const handleToggleQualificationConfirmed = async () => {
+    const newValue = !qualificationConfirmed;
+    if (newValue && !confirm(tc('confirmQualificationDialog'))) return;
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qualificationConfirmed: newValue }),
+      });
+      if (response.ok) {
+        refetch();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to update qualification status');
+      }
+    } catch (err) {
+      logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
+    }
+  };
 
   const getReportStatus = (match: GPMatch) => {
     if (match.isBye || match.completed) return null;
@@ -442,8 +470,13 @@ export default function GrandPrixPage({
           <p className="text-muted-foreground">
             {t('qualificationDesc')}
           </p>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
+            {qualificationConfirmed && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                {tc('qualificationConfirmed')}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -461,6 +494,17 @@ export default function GrandPrixPage({
           >
             {exporting ? tc('exporting') : tc('exportToExcel')}
           </Button>
+
+          {/* Admin-only qualification confirmation toggle */}
+          {isAdmin && qualifications.length > 0 && (
+            <Button
+              variant={qualificationConfirmed ? "destructive" : "outline"}
+              onClick={handleToggleQualificationConfirmed}
+            >
+              {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
+            </Button>
+          )}
+
           {/* Link to finals page (only shown when ALL qualification matches are completed) */}
           {qualifications.length > 0 &&
            matches.length > 0 &&
@@ -777,6 +821,7 @@ export default function GrandPrixPage({
                                         variant={match.completed ? "outline" : "default"}
                                         size="sm"
                                         onClick={() => openMatchDialog(match)}
+                                        disabled={qualificationConfirmed}
                                       >
                                         {match.completed ? tc('edit') : tc('enterResult')}
                                       </Button>

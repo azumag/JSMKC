@@ -34,6 +34,11 @@ jest.mock('@/lib/request-utils', () => ({
   getUserAgent: jest.fn()
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
+/* Mock qualification-confirmed-check: the report route now checks if qualification
+ * is locked before allowing score reports. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('@/lib/constants', () => ({
   SMK_CHARACTERS: ['Mario', 'Luigi', 'Yoshi'],
   TOTAL_MR_RACES: 4,

@@ -74,6 +74,7 @@ export async function GET(
             date: true,
             status: true,
             frozenStages: true,
+            qualificationConfirmed: true,
             createdAt: true,
             updatedAt: true,
           }
@@ -84,6 +85,7 @@ export async function GET(
             date: true,
             status: true,
             frozenStages: true,
+            qualificationConfirmed: true,
             createdAt: true,
             updatedAt: true,
             bmQualifications: {
@@ -148,7 +150,7 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status, frozenStages, taPlayerSelfEdit } = body;
+    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -181,6 +183,10 @@ export async function PUT(
         ...(status && { status }),
         ...(frozenStages !== undefined && { frozenStages }),
         ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
+        ...(qualificationConfirmed !== undefined && {
+          qualificationConfirmed: qualificationConfirmed === true,
+          qualificationConfirmedAt: qualificationConfirmed ? new Date() : null,
+        }),
       },
     });
 
@@ -201,6 +207,7 @@ export async function PUT(
           date,
           status,
           frozenStages,
+          qualificationConfirmed,
         },
       });
     } catch (logError) {

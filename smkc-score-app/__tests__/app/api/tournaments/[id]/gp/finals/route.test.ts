@@ -576,7 +576,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (best of 5: first to 3)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      /* Error message updated: finals-route.ts now uses dynamic "first to N" format */
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 3)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
       expect(result.status).toBe(400);
     });
 

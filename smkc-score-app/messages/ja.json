@@ -101,7 +101,13 @@
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "同順位が検出されました — 順位の鉛筆アイコンで手動解決してください",
-    "tiedRanksWarningViewer": "同順位が検出されました — 管理者による解決待ちです"
+    "tiedRanksWarningViewer": "同順位が検出されました — 管理者による解決待ちです",
+    "confirmQualification": "予選を確定",
+    "unconfirmQualification": "予選のロック解除",
+    "qualificationConfirmed": "予選確定済み",
+    "qualificationConfirmedDesc": "スコアはロックされています。編集するにはロック解除してください。",
+    "confirmQualificationDialog": "予選を確定しますか？全プレイヤー・管理者のスコア編集がロックされます。",
+    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。"
   },
   "home": {
     "tagline": "SMKC スコア管理",
@@ -558,7 +564,8 @@
     "myTimesTitle": "自分のタイム",
     "selfEditDisabled": "このトーナメントでは自分のタイムの編集が無効になっています。パートナーがあなたのタイムを入力します。",
     "myTimesReadOnly": "自分のタイム（閲覧のみ）",
-    "partnerTimesSubmittedSuccess": "パートナーのタイムを送信しました！"
+    "partnerTimesSubmittedSuccess": "パートナーのタイムを送信しました！",
+    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。"
   },
   "overall": {
     "title": "総合ランキング",

@@ -30,6 +30,11 @@ jest.mock('@/lib/request-utils', () => ({ getServerSideIdentifier: jest.fn(), ge
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' } }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+/* Mock qualification-confirmed-check: the qualification-route factory now checks
+ * if qualification is locked before allowing score edits. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -96,8 +101,9 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      /* createSuccessResponse wraps data in { success: true, data: ... } (#274) */
-      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches } });
+      /* createSuccessResponse wraps data in { success: true, data: ... } (#274).
+       * qualificationConfirmed is now included in the GET response. */
+      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false } });
       expect(result.status).toBe(200);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -120,7 +126,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [] } });
+      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [], qualificationConfirmed: false } });
       expect(result.status).toBe(200);
     });
 

@@ -69,6 +69,8 @@ export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
   matches: TMatch[];
   setMatches: React.Dispatch<React.SetStateAction<TMatch[]>>;
   myMatches: TMatch[];
+  /** Whether qualification is confirmed (locked from edits) */
+  qualificationConfirmed: boolean;
   /* UI state */
   loading: boolean;
   error: string | null;
@@ -105,6 +107,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   const [error, setError] = useState<string | null>(null);
   const [myMatches, setMyMatches] = useState<TMatch[]>([]);
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [qualificationConfirmed, setQualificationConfirmed] = useState(false);
 
   /* Initial data fetch on mount */
   useEffect(() => {
@@ -131,6 +134,10 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           /* Unwrap createSuccessResponse wrapper (#274) */
           const data = json.data ?? json;
           setMatches(data.matches || []);
+          /* Track qualification lock state for disabling score entry */
+          if (data.qualificationConfirmed !== undefined) {
+            setQualificationConfirmed(data.qualificationConfirmed);
+          }
         }
       } catch (err) {
         logger.error("Data fetch error:", { error: err, tournamentId });
@@ -166,6 +173,10 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   useEffect(() => {
     if (pollingData && typeof pollingData === "object" && "matches" in pollingData) {
       setMatches(pollingData.matches as TMatch[]);
+      /* Update qualification lock state from polling data */
+      if ("qualificationConfirmed" in pollingData) {
+        setQualificationConfirmed(pollingData.qualificationConfirmed as boolean);
+      }
     }
     if (pollingError) {
       logger.error("Polling error:", { error: pollingError, tournamentId });
@@ -245,6 +256,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     matches,
     setMatches,
     myMatches,
+    qualificationConfirmed,
     loading,
     error,
     setError,

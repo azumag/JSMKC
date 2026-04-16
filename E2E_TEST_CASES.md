@@ -655,6 +655,22 @@
   5. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: MR決勝スコア入力は管理者のみ許可され、プレイヤーは403で拒否される
 
+## TC-611: BM/MR/GP予選確定 — スコアロック検証
+- **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
+- **authRequired**: true (admin)
+- **背景**: 予選確定後はスコア入力・編集・プレイヤー報告が全てロックされる
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー2名を作成する
+  2. MR予選グループ設定でpendingマッチを生成する
+  3. スコアを1試合入力し成功（200）を確認する
+  4. Tournament PUT APIで `qualificationConfirmed: true` を送信する
+  5. 同じマッチにスコア更新PUTを送信 → 403 (QUALIFICATION_CONFIRMED) を確認する
+  6. プレイヤー報告POSTを送信 → 403 を確認する
+  7. Tournament PUT APIで `qualificationConfirmed: false` に戻す（ロック解除）
+  8. スコア更新PUTが再び成功（200）することを確認する
+  9. 一時トーナメントと一時プレイヤーを削除する
+- **期待結果**: 予選確定中はスコア操作が403で拒否され、解除後は再び編集可能になる
+
 ---
 
 ## E2Eテスト実行ガイド

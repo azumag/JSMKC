@@ -46,6 +46,8 @@ interface ParticipantPageLayoutProps<TMatch extends BaseMatch> {
   tournamentId: string;
   playerId: string | undefined;
   submitting: string | null;
+  /** Whether qualification is confirmed (score entry locked) */
+  qualificationConfirmed?: boolean;
   /** Render extra content in the match card header (e.g., GP cup info) */
   renderCardHeaderExtra?: (match: TMatch) => ReactNode;
   /** Render the mode-specific score entry form inside each match card */
@@ -69,6 +71,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
   tournamentId,
   playerId,
   submitting: _submitting,
+  qualificationConfirmed = false,
   renderCardHeaderExtra,
   renderMatchForm,
   renderPreviousReports,
@@ -283,8 +286,17 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                         );
                       })()}
 
-                      {/* Mode-specific form (injected by each page) */}
-                      {!match.completed && renderMatchForm(match)}
+                      {/* Mode-specific form — hidden when qualification is confirmed */}
+                      {!match.completed && (qualificationConfirmed ? (
+                        <div className="border-t pt-4">
+                          <Alert>
+                            <CheckCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              {tPart("qualificationLocked")}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      ) : renderMatchForm(match))}
 
                       {/* Mode-specific previous reports (injected by each page) */}
                       {renderPreviousReports(match)}

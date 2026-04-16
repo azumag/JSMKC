@@ -46,6 +46,7 @@ import {
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
 
 /**
  * BM-specific stats recalculation config.
@@ -86,6 +87,10 @@ export async function POST(
   }
 
   try {
+    /* Block score reports when qualification is confirmed */
+    const lockError = await checkQualificationConfirmed(prisma, tournamentId);
+    if (lockError) return lockError;
+
     const body = sanitizeInput(await request.json());
     const { reportingPlayer, score1, score2, character } = body;
 

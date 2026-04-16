@@ -24,6 +24,7 @@ import {
 import { createLogger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
+import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 
 /**
  * Configuration for the match detail route factory.
@@ -157,15 +158,25 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         return handleValidationError('version is required and must be a number', 'version');
       }
 
+      /* Block qualification score edits when confirmed.
+       * Fetch match stage + tournamentId to check the lock. This read is reused
+       * by the stage-aware validation below so there's no wasted DB call. */
+      const matchMeta = await model(prisma).findUnique({
+        where: { id: matchId },
+        select: { stage: true, tournamentId: true },
+      });
+      if (matchMeta?.stage === 'qualification') {
+        const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId);
+        if (lockError) return lockError;
+      }
+
       /* Stage-aware score validation: qualification and finals have different rules.
        * BM qualification: 4 rounds, sum=4, max=4; BM finals: best-of-9, max=5.
        * Only fetch stage when a separate finals validator exists; otherwise use
        * the single validateScores for all stages (avoids an extra DB read). */
       if (config.validateFinalsScores) {
-        const matchForStage = await model(prisma).findUnique({
-          where: { id: matchId },
-          select: { stage: true },
-        });
+        /* Reuse matchMeta already fetched above to avoid extra DB read */
+        const matchForStage = matchMeta;
         // All bracket matches (including grand final / reset) use stage='finals';
         // the `round` field distinguishes bracket position. Default to qualification.
         const isFinalsMatch = matchForStage?.stage === 'finals';

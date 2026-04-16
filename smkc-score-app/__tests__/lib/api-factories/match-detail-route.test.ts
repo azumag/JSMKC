@@ -34,6 +34,19 @@ jest.mock('@/lib/auth');
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/error-handling');
 jest.mock('@/lib/logger');
+/* Mock qualification-confirmed-check: the factory now checks if qualification is
+ * locked before allowing score edits. Return null (= not locked) by default. */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
+/* Mock rate-limit: required by the factory's PUT handler */
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }),
+}));
+/* Mock request-utils: required by the factory's rate-limit integration */
+jest.mock('@/lib/request-utils', () => ({
+  getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
+}));
 
 import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';

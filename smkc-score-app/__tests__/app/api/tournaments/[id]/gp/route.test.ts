@@ -20,6 +20,11 @@ jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), check
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_GP_MATCH: 'CREATE_GP_MATCH' } }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+/* Mock qualification-confirmed-check: the qualification-route factory now checks
+ * if qualification is locked before allowing score edits. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -82,7 +87,8 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: _mockQualifications, matches: mockMatches } });
+      /* qualificationConfirmed is now included in the GET response */
+      expect(result.data).toEqual({ success: true, data: { qualifications: _mockQualifications, matches: mockMatches, qualificationConfirmed: false } });
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -105,7 +111,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [] } });
+      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [], qualificationConfirmed: false } });
       expect(result.status).toBe(200);
     });
 

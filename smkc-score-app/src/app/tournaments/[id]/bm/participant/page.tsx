@@ -213,6 +213,7 @@ export default function BattleModeParticipantPage({
       tournamentId={tournamentId}
       playerId={ctx.playerId}
       submitting={ctx.submitting}
+      qualificationConfirmed={ctx.qualificationConfirmed}
       renderMatchForm={(match) => {
         return renderScoreEditor(
           match,

@@ -160,6 +160,7 @@ export default function GrandPrixParticipantPage({
       tournamentId={tournamentId}
       playerId={ctx.playerId}
       submitting={ctx.submitting}
+      qualificationConfirmed={ctx.qualificationConfirmed}
       renderCardHeaderExtra={(match) => (
         <>
           {match.cup && ` • ${tGp("cupLabel", { cup: activeCups[match.id] || match.cup })}`}

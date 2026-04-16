@@ -101,7 +101,13 @@
     "tvNumber": "TV#",
     "bye": "BREAK",
     "tiedRanksWarningAdmin": "Tied ranks detected — use the rank pencil icon to resolve manually",
-    "tiedRanksWarningViewer": "Tied ranks detected — awaiting admin resolution"
+    "tiedRanksWarningViewer": "Tied ranks detected — awaiting admin resolution",
+    "confirmQualification": "Confirm Qualification",
+    "unconfirmQualification": "Unlock Qualification",
+    "qualificationConfirmed": "Qualification Confirmed",
+    "qualificationConfirmedDesc": "Scores are locked. Unlock to allow edits.",
+    "confirmQualificationDialog": "Are you sure you want to confirm qualification? Score editing will be locked for all players and admins.",
+    "qualificationLocked": "Qualification results are confirmed. Score editing is locked."
   },
   "home": {
     "tagline": "SMKC Score Management",
@@ -558,7 +564,8 @@
     "myTimesTitle": "My Times",
     "selfEditDisabled": "Self-editing is disabled for this tournament. Your partner will enter your times.",
     "myTimesReadOnly": "My Times (Read Only)",
-    "partnerTimesSubmittedSuccess": "Partner's times submitted successfully!"
+    "partnerTimesSubmittedSuccess": "Partner's times submitted successfully!",
+    "qualificationLocked": "Qualification results are confirmed. Score editing is locked."
   },
   "overall": {
     "title": "Overall Ranking",

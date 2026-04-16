@@ -21,6 +21,7 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -98,20 +99,29 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     const tournamentId = await resolveTournamentId(id);
 
     try {
-      const qualifications = await qualModel(prisma).findMany({
-        where: { tournamentId },
-        include: { player: true },
-        orderBy: config.qualificationOrderBy,
-      });
-
-      const matches = await matchModel(prisma).findMany({
-        where: { tournamentId, stage: 'qualification' },
-        include: { player1: true, player2: true },
-        orderBy: { matchNumber: 'asc' },
-      });
+      const [qualifications, matches, tournament] = await Promise.all([
+        qualModel(prisma).findMany({
+          where: { tournamentId },
+          include: { player: true },
+          orderBy: config.qualificationOrderBy,
+        }),
+        matchModel(prisma).findMany({
+          where: { tournamentId, stage: 'qualification' },
+          include: { player1: true, player2: true },
+          orderBy: { matchNumber: 'asc' },
+        }),
+        prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          select: { qualificationConfirmed: true },
+        }),
+      ]);
 
       /* Wrap in standard success response format for API consistency (#274) */
-      return createSuccessResponse({ qualifications, matches });
+      return createSuccessResponse({
+        qualifications,
+        matches,
+        qualificationConfirmed: tournament?.qualificationConfirmed ?? false,
+      });
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
       return createErrorResponse(`Failed to fetch ${config.eventDisplayName} data`, 500, 'INTERNAL_ERROR');
@@ -370,6 +380,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     const tournamentId = await resolveTournamentId(id);
 
     try {
+      /* Block score edits when qualification is confirmed (admin locked results) */
+      const lockError = await checkQualificationConfirmed(prisma, tournamentId);
+      if (lockError) return lockError;
+
       /* Defense-in-depth: always sanitize user input */
       const body = sanitizeInput(await request.json());
       const parseResult = config.parsePutBody(body);

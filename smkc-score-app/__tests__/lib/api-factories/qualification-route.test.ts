@@ -40,6 +40,10 @@ import { EventTypeConfig } from '@/lib/event-types/types';
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/auth');
 jest.mock('@/lib/audit-log');
+/* Mock qualification-confirmed check: defaults to unlocked (null = no error) */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');

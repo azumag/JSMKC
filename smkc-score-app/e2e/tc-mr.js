@@ -911,8 +911,141 @@ async function runTc610(adminPage) {
   }
 }
 
+/**
+ * TC-611: Qualification confirmed — score lock verification
+ *
+ * Verifies the full lifecycle:
+ * 1. Score edit works before confirmation
+ * 2. qualificationConfirmed=true locks PUT and report POST with 403
+ * 3. qualificationConfirmed=false unlocks score editing again
+ */
+async function runTc611(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E QC Lock P1', `e2e_qc611_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E QC Lock P2', `e2e_qc611_p2_${stamp}`);
+
+    tournamentId = await createTournament(adminPage, `E2E QC Lock ${stamp}`);
+
+    // Setup MR qualification
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [
+        { playerId: player1.id, group: 'A' },
+        { playerId: player2.id, group: 'A' },
+      ],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // Step 1: Score edit works before confirmation
+    const preRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1 }]);
+    const preEditOk = preRes.s === 200;
+
+    // Step 2: Confirm qualification
+    const confirmRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: true }]);
+    const confirmOk = confirmRes.s === 200;
+
+    // Step 3: Score edit should be blocked (403)
+    const lockedPut = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
+    const putBlocked = lockedPut.s === 403;
+
+    // Step 4: Player report should also be blocked (403)
+    const lockedReport = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 1, score1: 3, score2: 1,
+    }]);
+    const reportBlocked = lockedReport.s === 403;
+
+    // Step 5: Unlock qualification
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: false }]);
+
+    // Step 6: Score edit should work again
+    const postUnlock = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
+    const postUnlockOk = postUnlock.s === 200;
+
+    const allPassed = preEditOk && confirmOk && putBlocked && reportBlocked && postUnlockOk;
+    log('TC-611', allPassed ? 'PASS' : 'FAIL',
+      !preEditOk ? 'Pre-confirmation score edit failed'
+      : !confirmOk ? 'Qualification confirmation failed'
+      : !putBlocked ? `PUT not blocked (got ${lockedPut.s}, expected 403)`
+      : !reportBlocked ? `Report not blocked (got ${lockedReport.s}, expected 403)`
+      : !postUnlockOk ? `Post-unlock score edit failed (${postUnlock.s})`
+      : '');
+  } catch (err) {
+    log('TC-611', 'FAIL', err instanceof Error ? err.message : 'Qualification lock test failed');
+  } finally {
+    // Ensure unlock before cleanup so tournament deletion works
+    if (tournamentId) {
+      await adminPage.evaluate(async ([url, body]) => {
+        await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: false }]).catch(() => {});
+      await deleteTournament(adminPage, tournamentId);
+    }
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
 // Export individual test functions for integration into tc-all.js
-module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610 };
+module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610, runTc611 };
 
 // Standalone execution
 if (require.main === module) {
@@ -932,6 +1065,7 @@ if (require.main === module) {
     await runTc608(page);
     await runTc609(page);
     await runTc610(page);
+    await runTc611(page);
 
     console.log('\n========== MR TEST SUMMARY ==========');
     const p = results.filter((r) => r.s === 'PASS').length;
