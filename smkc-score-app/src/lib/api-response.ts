@@ -35,3 +35,52 @@ export function extractArrayData<T>(payload: unknown): T[] {
 
   return Array.isArray(nestedData) ? (nestedData as T[]) : [];
 }
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+function isPaginationMeta(value: unknown): value is PaginationMeta {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const meta = value as Partial<PaginationMeta>;
+
+  return (
+    Number.isFinite(meta.total) &&
+    Number.isFinite(meta.page) &&
+    Number.isFinite(meta.limit) &&
+    Number.isFinite(meta.totalPages)
+  );
+}
+
+/**
+ * Extracts pagination metadata from supported paginated API response shapes.
+ *
+ * Supported formats:
+ * - { data: T[], meta: ... }
+ * - { success: true, data: { data: T[], meta: ... } }
+ */
+export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const directMeta = (payload as { meta?: unknown }).meta;
+  if (isPaginationMeta(directMeta)) {
+    return directMeta;
+  }
+
+  const data = (payload as { data?: unknown }).data;
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const nestedMeta = (data as { meta?: unknown }).meta;
+
+  return isPaginationMeta(nestedMeta) ? nestedMeta : null;
+}

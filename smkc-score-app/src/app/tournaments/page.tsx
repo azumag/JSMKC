@@ -59,13 +59,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { extractArrayData } from "@/lib/api-response";
+import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
 import { createLogger } from "@/lib/client-logger";
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { getTournamentUrlIdentifier } from "@/lib/tournament-identifier";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-list' });
+
+const TOURNAMENTS_PAGE_SIZE = 50;
 
 /**
  * Tournament data model matching the API response shape.
@@ -101,6 +103,8 @@ export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta | null>(null);
 
   /* Create tournament dialog state */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -122,11 +126,20 @@ export default function TournamentsPage() {
   const fetchTournaments = useCallback(async () => {
     try {
       setFetchError(false);
-      // fetchWithRetry handles up to 5 retries for Workers 1101
-      const response = await fetchWithRetry("/api/tournaments");
+      // fetchWithRetry handles transient Workers errors
+      const response = await fetchWithRetry(`/api/tournaments?page=${currentPage}&limit=${TOURNAMENTS_PAGE_SIZE}`);
       if (response.ok) {
         const result = await response.json();
+        const meta = extractPaginationMeta(result);
+
+        if (meta && meta.page > meta.totalPages) {
+          setLoading(true);
+          setCurrentPage(meta.totalPages);
+          return;
+        }
+
         setTournaments(extractArrayData<Tournament>(result));
+        setPaginationMeta(meta);
       } else {
         setFetchError(true);
         logger.error("API returned error status", { status: response.status });
@@ -138,7 +151,7 @@ export default function TournamentsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage]);
 
   /* Fetch tournaments on component mount */
   useEffect(() => {
@@ -163,7 +176,11 @@ export default function TournamentsPage() {
       if (response.ok) {
         setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true });
         setIsAddDialogOpen(false);
-        fetchTournaments();
+        if (currentPage === 1) {
+          fetchTournaments();
+        } else {
+          setCurrentPage(1);
+        }
       } else {
         const data = await response.json();
         setError(data.error || t('failedToCreate'));
@@ -206,6 +223,11 @@ export default function TournamentsPage() {
       alert(t('failedToDelete'));
     }
   };
+
+  const totalTournaments = paginationMeta?.total ?? tournaments.length;
+  const totalPages = paginationMeta?.totalPages ?? 1;
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
 
   /**
    * Returns a styled Badge component based on tournament status.
@@ -344,7 +366,7 @@ export default function TournamentsPage() {
         <CardHeader>
           <CardTitle>{t('tournamentList')}</CardTitle>
           <CardDescription>
-            {t('tournamentCount', { count: tournaments.length })}
+            {t('tournamentCount', { count: totalTournaments })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -364,59 +386,91 @@ export default function TournamentsPage() {
                 : t('noTournamentsView')}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('name')}</TableHead>
-                  <TableHead>{t('date')}</TableHead>
-                  <TableHead>{t('status')}</TableHead>
-                  <TableHead className="text-right">{tc('actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tournaments.map((tournament) => (
-                  <TableRow key={tournament.id}>
-                    {/* Tournament name links to the detail page */}
-                    <TableCell className="font-medium">
-                      <Link
-                        href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}
-                        className="hover:underline"
-                      >
-                        {tournament.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(tournament.date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(tournament.status)}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      {/* Open button navigates to tournament detail page */}
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>
-                          {tc('open')}
-                        </Link>
-                      </Button>
-                      {/* Delete button - admin only, with confirmation */}
-                      {isAdmin && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(tournament.id, tournament.status)}
-                          disabled={tournament.status !== "draft"}
-                          title={
-                            tournament.status !== "draft"
-                              ? t('cannotDeleteStartedTournament')
-                              : undefined
-                          }
-                        >
-                          {tc('delete')}
-                        </Button>
-                      )}
-                    </TableCell>
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('name')}</TableHead>
+                    <TableHead>{t('date')}</TableHead>
+                    <TableHead>{t('status')}</TableHead>
+                    <TableHead className="text-right">{tc('actions')}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {tournaments.map((tournament) => (
+                    <TableRow key={tournament.id}>
+                      {/* Tournament name links to the detail page */}
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}
+                          className="hover:underline"
+                        >
+                          {tournament.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(tournament.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(tournament.status)}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        {/* Open button navigates to tournament detail page */}
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>
+                            {tc('open')}
+                          </Link>
+                        </Button>
+                        {/* Delete button - admin only, with confirmation */}
+                        {isAdmin && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(tournament.id, tournament.status)}
+                            disabled={tournament.status !== "draft"}
+                            title={
+                              tournament.status !== "draft"
+                                ? t('cannotDeleteStartedTournament')
+                                : undefined
+                            }
+                          >
+                            {tc('delete')}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoPrevious}
+                    onClick={() => {
+                      setLoading(true);
+                      setCurrentPage((page) => Math.max(1, page - 1));
+                    }}
+                  >
+                    {t('previousPage')}
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    {t('pageStatus', { page: currentPage, totalPages })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoNext}
+                    onClick={() => {
+                      setLoading(true);
+                      setCurrentPage((page) => Math.min(totalPages, page + 1));
+                    }}
+                  >
+                    {t('nextPage')}
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
