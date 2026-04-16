@@ -379,39 +379,34 @@ async function deletePlayer(p, id) {
       await playerPage.waitForTimeout(2000);
 
       await nav(playerPage, `/tournaments/${gpTournamentId}/gp/participant`);
-      for (let i = 0; i < 5; i++) {
-        await playerPage.getByRole('button', { name: /レース追加|Add Race/ }).click();
-        await playerPage.waitForTimeout(250);
-      }
 
-      // Each race row has 3 Select comboboxes: course, position1, position2.
-      // For 5 races → 15 comboboxes total. Layout per race i:
-      //   index i*3   = course
-      //   index i*3+1 = position1 (player1)
-      //   index i*3+2 = position2 (player2)
+      // Courses are now auto-filled when cup is pre-assigned (fixed sequence).
+      // No "Add Race" clicks needed — 5 races appear automatically.
+      // Each race row has 2 Select comboboxes: position1, position2 (course is a label).
+      // For 5 races → 10 comboboxes total. Layout per race i:
+      //   index i*2   = position1 (player1)
+      //   index i*2+1 = position2 (player2)
       const allCb = playerPage.locator('button[role="combobox"]');
+      // Wait for auto-generated race rows to appear
+      await playerPage.waitForFunction(() => {
+        return document.querySelectorAll('button[role="combobox"]').length >= 10;
+      }, null, { timeout: 15000 });
       const cbCount = await allCb.count();
-      if (cbCount < 15) {
-        throw new Error(`Expected 15 comboboxes (5×3), got ${cbCount}`);
+      if (cbCount < 10) {
+        throw new Error(`Expected ≥10 comboboxes (5×2 positions), got ${cbCount}`);
       }
 
       // GP driver points: 1st=9, 5th=0
       // Expected totals: player1 = 9×5 = 45, player2 = 0×5 = 0
       for (let i = 0; i < 5; i++) {
-        // Select course (first available option, different each time)
-        await allCb.nth(i * 3).click();
-        await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
-        await playerPage.locator('[role="listbox"] [role="option"]').nth(i).click();
-        await playerPage.waitForTimeout(300);
-
         // Select position1 = 1st (index 0 in options list [1,2,3,4,5,6,7,8])
-        await allCb.nth(i * 3 + 1).click();
+        await allCb.nth(i * 2).click();
         await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
         await playerPage.locator('[role="listbox"] [role="option"]').nth(0).click();
         await playerPage.waitForTimeout(300);
 
         // Select position2 = 5th (index 4 in options list, 0 driver points)
-        await allCb.nth(i * 3 + 2).click();
+        await allCb.nth(i * 2 + 1).click();
         await playerPage.waitForSelector('[role="listbox"]', { timeout: 5000 });
         await playerPage.locator('[role="listbox"] [role="option"]').nth(4).click();
         await playerPage.waitForTimeout(300);
