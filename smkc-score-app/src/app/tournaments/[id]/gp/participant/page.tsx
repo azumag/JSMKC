@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useState, useMemo, use } from "react";
+import { useState, useMemo, useEffect, use } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +72,25 @@ export default function GrandPrixParticipantPage({
   /* Merge: user overrides take precedence over match-derived defaults */
   const activeCups = useMemo(() => ({ ...matchCups, ...cupOverrides }), [matchCups, cupOverrides]);
 
+  /* Auto-initialize 5 races from cup's fixed course order when matches load.
+   * This replaces the previous in-render setState which violated React rules. */
+  useEffect(() => {
+    if (ctx.myMatches.length === 0) return;
+    setRaceResults((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const match of ctx.myMatches) {
+        const cup = cupOverrides[match.id] || match.cup;
+        if (cup && (!next[match.id] || next[match.id].length === 0)) {
+          const cupCourses = COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
+          next[match.id] = cupCourses.map((course) => ({ course, position1: null, position2: null, points1: 0, points2: 0 }));
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [ctx.myMatches, cupOverrides]);
+
   const addRaceResult = (matchId: string) => {
     setRaceResults((prev) => ({
       ...prev,
@@ -110,13 +129,15 @@ export default function GrandPrixParticipantPage({
     return { points1, points2 };
   };
 
+  /** Check if all races are complete and valid for submission.
+   * Same-position is blocked except both at 0 (game over, §7.2). */
   const canSubmitRaces = (races: RaceResult[]) =>
     races.length === TOTAL_GP_RACES &&
     races.every((race) =>
       race.course &&
       race.position1 !== null &&
       race.position2 !== null &&
-      race.position1 !== race.position2
+      (race.position1 !== race.position2 || race.position1 === 0)
     );
 
   const handleSubmitMatch = async (match: GPMatch) => {
@@ -175,12 +196,8 @@ export default function GrandPrixParticipantPage({
                 const current = activeCups[match.id] || match.cup;
                 const next = current === match.cup ? CUP_SUBSTITUTIONS[match.cup] : match.cup;
                 setCupOverrides((prev) => ({ ...prev, [match.id]: next }));
-                /* Auto-fill 5 races with fixed cup course order (SMK courses are sequential) */
-                const nextCourses = COURSE_INFO.filter((c) => c.cup === next).map((c) => c.abbr);
-                setRaceResults((prev) => ({
-                  ...prev,
-                  [match.id]: nextCourses.map((course) => ({ course, position1: null, position2: null, points1: 0, points2: 0 })),
-                }));
+                /* Clear races so useEffect re-initializes with new cup's courses */
+                setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
               }}
             >
               {(activeCups[match.id] || match.cup) === match.cup
@@ -191,18 +208,8 @@ export default function GrandPrixParticipantPage({
         </>
       )}
       renderMatchForm={(match) => {
-        /* Auto-initialize 5 races from cup's fixed course order if not yet set */
-        const cup = activeCups[match.id];
-        let races = raceResults[match.id] || [];
-        if (races.length === 0 && cup) {
-          const cupCourses = COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
-          const initialized = cupCourses.map((course) => ({ course, position1: null, position2: null, points1: 0, points2: 0 }));
-          /* Eagerly set state so re-renders have data; avoids stale closure issue */
-          if (raceResults[match.id] === undefined || raceResults[match.id]?.length === 0) {
-            setRaceResults((prev) => ({ ...prev, [match.id]: initialized }));
-          }
-          races = initialized;
-        }
+        /* Races are auto-initialized by useEffect when matches load */
+        const races = raceResults[match.id] || [];
         const { points1, points2 } = calculateTotalPoints(races);
 
         return (
