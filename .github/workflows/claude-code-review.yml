@@ -20,8 +20,8 @@ jobs:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
+      contents: write
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -34,11 +34,36 @@ jobs:
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*)"'
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            Steps:
+            1. Run `gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get PR metadata.
+            2. Run `gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get the diff.
+            3. Assess the change against CLAUDE.md review aspects: code quality, bugs/edge cases, performance, security, simplicity (no over-abstraction), test coverage, YAGNI.
+            4. Decide a verdict:
+               - If there are NO blocking issues (bugs, security risks, missing critical tests): submit APPROVE.
+               - If there are blocking issues: submit REQUEST_CHANGES.
+               - Minor style suggestions alone should not block — approve with comments.
+            5. Submit the review with a concise body summarizing findings:
+               - Approve: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --approve --body "<summary>"`
+               - Request changes: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --request-changes --body "<summary>"`
+
+            Write the review body in Japanese. Keep it focused on actionable findings.
+
+      # Opt-in auto-merge: only PRs labeled `auto-merge` get auto-merged.
+      # `--auto` waits for required status checks defined in branch protection.
+      - name: Enable auto-merge (opt-in via label)
+        if: |
+          success() &&
+          contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
+          github.event.pull_request.draft == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
 
