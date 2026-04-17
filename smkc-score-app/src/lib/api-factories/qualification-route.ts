@@ -300,8 +300,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * BYE matches are auto-completed on creation, so the player's win
        * must be reflected in standings right away — not deferred until
        * their first real match is submitted via PUT.
+       * Use Promise.all for parallel execution to reduce latency.
        */
-      for (const playerId of byeRecipientIds) {
+      await Promise.all([...byeRecipientIds].map(async (playerId) => {
         const byeMatches = await matchModel(prisma).findMany({
           where: {
             tournamentId,
@@ -319,7 +320,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           where: { tournamentId, playerId },
           data: stats.qualificationData,
         });
-      }
+      }));
 
       /* Audit logging if configured */
       if (config.auditAction && currentSession) {
