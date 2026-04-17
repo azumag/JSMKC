@@ -22,6 +22,7 @@ import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { invalidate } from '@/lib/standings-cache';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -527,6 +528,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             rankOverrideAt: rankOverride != null ? new Date() : null,
           },
         });
+
+        // Invalidate standings cache so the rank change takes effect immediately
+        await invalidate(tournamentId, 'qualification');
 
         logger.info('Rank override updated', {
           tournamentId,
