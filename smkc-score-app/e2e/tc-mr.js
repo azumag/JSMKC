@@ -63,8 +63,17 @@ async function deletePlayer(page, id) {
   await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/players/${id}`).catch(() => {});
 }
 
-/** Helper: delete a tournament via API */
+/** Helper: delete a tournament via API.
+ *  DELETE /api/tournaments/:id only accepts status='draft', so we demote first. */
 async function deleteTournament(page, id) {
+  if (!id) return;
+  await page.evaluate(async (url) => {
+    await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'draft' }),
+    });
+  }, `/api/tournaments/${id}`).catch(() => {});
   await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/tournaments/${id}`).catch(() => {});
 }
 
