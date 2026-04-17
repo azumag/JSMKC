@@ -55,7 +55,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TableSkeleton } from "@/components/ui/loading-skeleton";
-import { extractArrayData } from "@/lib/api-response";
+import { extractArrayData, extractPaginationMeta, type PaginationMeta } from "@/lib/api-response";
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { createLogger } from "@/lib/client-logger";
 
@@ -64,6 +64,13 @@ import { createLogger } from "@/lib/client-logger";
  * Uses structured logging for consistent error tracking.
  */
 const logger = createLogger({ serviceName: 'players' });
+
+/**
+ * Page size for the player list. Matches the tournaments list page
+ * and stays at or below the API default so the server does not need
+ * to clamp the requested limit.
+ */
+const PLAYERS_PAGE_SIZE = 50;
 
 /**
  * Player data model matching the API response shape.
@@ -102,6 +109,8 @@ export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta | null>(null);
 
   /* Dialog visibility states for add, edit, and password display modals */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -143,10 +152,27 @@ export default function PlayersPage() {
   const fetchPlayers = useCallback(async () => {
     try {
       setFetchError(false);
-      const response = await fetchWithRetry("/api/players");
+      const response = await fetchWithRetry(
+        `/api/players?page=${currentPage}&limit=${PLAYERS_PAGE_SIZE}`
+      );
       if (response.ok) {
         const result = await response.json();
+        const meta = extractPaginationMeta(result);
+
+        /*
+         * If the current page is past the last page (e.g. the last player on
+         * a page was just deleted), bounce back to the last valid page and
+         * let the effect re-fetch. Skip when totalPages is 0 so an empty
+         * dataset does not push the page index to 0.
+         */
+        if (meta && meta.totalPages > 0 && meta.page > meta.totalPages) {
+          setLoading(true);
+          setCurrentPage(meta.totalPages);
+          return;
+        }
+
         setPlayers(extractArrayData<Player>(result));
+        setPaginationMeta(meta);
       } else {
         setFetchError(true);
         logger.error("API returned error status", { status: response.status });
@@ -158,7 +184,7 @@ export default function PlayersPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage]);
 
   /* Fetch players on component mount */
   useEffect(() => {
@@ -315,8 +341,11 @@ export default function PlayersPage() {
       }
 
       if (response!.ok) {
-        // Optimistic update: immediately remove from list
+        // Optimistic update: immediately remove from list, then re-fetch so
+        // paginationMeta (total, totalPages) stays accurate and we bounce
+        // back a page if the delete emptied the current one.
         setPlayers(prev => prev.filter(p => p.id !== id));
+        fetchPlayers();
       } else {
         const text = await response!.text();
         try {
@@ -406,6 +435,14 @@ export default function PlayersPage() {
       setFormData({ name: "", nickname: "", country: "" });
     }
   };
+
+  /* Pagination derived values; hidden when there is only one page. */
+  const totalPages = paginationMeta?.totalPages ?? 1;
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+  /* Count in the card description uses the API-reported total so the
+     figure does not collapse to the current page size when paginated. */
+  const totalPlayers = paginationMeta?.total ?? players.length;
 
   /* Loading skeleton: shows animated placeholders while data is fetched */
   if (loading) {
@@ -514,7 +551,7 @@ export default function PlayersPage() {
         <CardHeader>
           <CardTitle>{t('playerList')}</CardTitle>
           <CardDescription>
-            {t('playersRegistered', { count: players.length })}
+            {t('playersRegistered', { count: totalPlayers })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -534,57 +571,89 @@ export default function PlayersPage() {
                 : t('noPlayersView')}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('nickname')}</TableHead>
-                  <TableHead>{t('fullName')}</TableHead>
-                  <TableHead>{t('country')}</TableHead>
-                  {/* Actions column only visible to admins */}
-                  {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {players.map((player) => (
-                  <TableRow key={player.id}>
-                    <TableCell className="font-medium">
-                      {player.nickname}
-                    </TableCell>
-                    <TableCell>{player.name}</TableCell>
-                    <TableCell>{player.country || "-"}</TableCell>
-                    {/* Admin-only action buttons: Edit and Delete */}
-                    {isAdmin && (
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditDialog(player)}
-                        >
-                          {tc('edit')}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={submitting}
-                          onClick={() => handleResetPassword(player.id)}
-                        >
-                          {t('resetPassword')}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={submitting || !!player.hasTournamentData}
-                          title={player.hasTournamentData ? t('cannotDeleteTournamentPlayer') : undefined}
-                          onClick={() => handleDelete(player.id)}
-                        >
-                          {tc('delete')}
-                        </Button>
-                      </TableCell>
-                    )}
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('nickname')}</TableHead>
+                    <TableHead>{t('fullName')}</TableHead>
+                    <TableHead>{t('country')}</TableHead>
+                    {/* Actions column only visible to admins */}
+                    {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {players.map((player) => (
+                    <TableRow key={player.id}>
+                      <TableCell className="font-medium">
+                        {player.nickname}
+                      </TableCell>
+                      <TableCell>{player.name}</TableCell>
+                      <TableCell>{player.country || "-"}</TableCell>
+                      {/* Admin-only action buttons: Edit and Delete */}
+                      {isAdmin && (
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(player)}
+                          >
+                            {tc('edit')}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={submitting}
+                            onClick={() => handleResetPassword(player.id)}
+                          >
+                            {t('resetPassword')}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={submitting || !!player.hasTournamentData}
+                            title={player.hasTournamentData ? t('cannotDeleteTournamentPlayer') : undefined}
+                            onClick={() => handleDelete(player.id)}
+                          >
+                            {tc('delete')}
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoPrevious}
+                    onClick={() => {
+                      setLoading(true);
+                      setCurrentPage((page) => Math.max(1, page - 1));
+                    }}
+                  >
+                    {t('previousPage')}
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    {t('pageStatus', { page: currentPage, totalPages })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canGoNext}
+                    onClick={() => {
+                      setLoading(true);
+                      setCurrentPage((page) => Math.min(totalPages, page + 1));
+                    }}
+                  >
+                    {t('nextPage')}
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
