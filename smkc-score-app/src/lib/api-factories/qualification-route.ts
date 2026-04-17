@@ -555,10 +555,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       /*
-       * Verify the match belongs to this tournament before updating.
+       * Verify the match exists and belongs to this tournament before updating.
        * Prevents IDOR: an admin could otherwise modify matches in other tournaments
        * by guessing/enumerating matchIds.
        */
+      const existingMatch = await matchModel(prisma).findFirst({
+        where: { id: matchId, tournamentId },
+      });
+      if (!existingMatch) {
+        return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+      }
+
       const match = await matchModel(prisma).update({
         where: { id: matchId, tournamentId },
         data: { tvNumber: tvNumber ?? null },
