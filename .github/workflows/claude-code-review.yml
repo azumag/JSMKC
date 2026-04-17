@@ -56,12 +56,11 @@ jobs:
 
             Write the review body in Japanese. Keep it focused on actionable findings.
 
-      # Opt-in auto-merge: only PRs labeled `auto-merge` get auto-merged.
-      # `--auto` waits for required status checks defined in branch protection.
-      - name: Enable auto-merge (opt-in via label)
+      # Auto-merge every non-draft PR. `--auto` waits for required status checks
+      # and approving reviews defined in branch protection before merging.
+      - name: Enable auto-merge
         if: |
           success() &&
-          contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
           github.event.pull_request.draft == false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
