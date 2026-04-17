@@ -252,15 +252,16 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
           /*
            * §10.5: Assign 4 pre-determined courses to this match from the shuffled list.
-           * BYE matches receive courses too (for record consistency), but the courses
-           * are not actually played since BYE is auto-completed immediately.
+           * BYE matches are auto-completed immediately (§10.2) and don't actually play
+           * the courses, so skip assignment for BYE matches.
            */
-          const assignedCourses = shuffledCourses
+          const isRealMatch = !m.isBye;
+          const assignedCourses = shuffledCourses && isRealMatch
             ? getAssignedCourses(shuffledCourses, matchSequenceIndex)
             : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this match (GP only) */
-          const assignedCup = shuffledCups
+          const assignedCup = shuffledCups && isRealMatch
             ? shuffledCups[matchSequenceIndex % shuffledCups.length]
             : undefined;
 
@@ -286,10 +287,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
           if (m.isBye) {
             byeRecipientIds.add(p1Id);
+          } else {
+            matchSequenceIndex++;
           }
 
           matchNumber++;
-          matchSequenceIndex++;
         }
       }
 
