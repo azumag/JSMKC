@@ -108,8 +108,9 @@ export const gpConfig: EventTypeConfig = {
   updateMatch: async (prisma, data) => {
     // §7.4 + §7.1: Validate submitted cup against pre-assigned cup.
     // Fetch existing match to check if a cup was pre-assigned at setup time.
+    // Include tournamentId to prevent updating a match from a different tournament.
     const existing = await prisma.gPMatch.findUnique({
-      where: { id: data.matchId },
+      where: { id: data.matchId, tournamentId: data.tournamentId },
       select: { cup: true },
     });
     if (existing?.cup && !isValidCupChoice(existing.cup, data.cup!)) {
@@ -133,7 +134,7 @@ export const gpConfig: EventTypeConfig = {
     });
 
     const match = await prisma.gPMatch.update({
-      where: { id: data.matchId },
+      where: { id: data.matchId, tournamentId: data.tournamentId },
       data: {
         cup: data.cup,
         points1: totalPoints1,

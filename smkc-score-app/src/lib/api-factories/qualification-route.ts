@@ -396,7 +396,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return handleValidationError(parseResult.error!, 'scores');
       }
 
-      const putData = parseResult.data!;
+      const putData = { ...parseResult.data!, tournamentId };
       const { match, score1OrPoints1, score2OrPoints2 } = await config.updateMatch(prisma, putData);
       const { result1, result2 } = config.calculateMatchResult(score1OrPoints1, score2OrPoints2);
 

@@ -200,11 +200,17 @@ export async function createCharacterUsageLog(
  * When enabled, both players must report matching scores for auto-confirmation.
  */
 export async function isDualReportEnabled(tournamentId: string): Promise<boolean> {
-  const tournament = await prisma.tournament.findUnique({
-    where: { id: tournamentId },
-    select: { dualReportEnabled: true },
-  });
-  return tournament?.dualReportEnabled === true;
+  try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { dualReportEnabled: true },
+    });
+    return tournament?.dualReportEnabled === true;
+  } catch (error) {
+    const logger = createLogger('score-report-helpers');
+    logger.warn('Failed to check dual report status', { tournamentId, error });
+    return false;
+  }
 }
 
 export function validateCharacter(character: string | undefined): boolean {

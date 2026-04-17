@@ -87,7 +87,7 @@ export const mrConfig: EventTypeConfig = {
 
   updateMatch: async (prisma, data) => {
     const match = await prisma.mRMatch.update({
-      where: { id: data.matchId },
+      where: { id: data.matchId, tournamentId: data.tournamentId },
       data: {
         score1: data.score1,
         score2: data.score2,

@@ -84,6 +84,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
 
+    // Defensive: verify tournament exists before querying matches
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+    });
+    if (!tournament) {
+      return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
+    }
+
     try {
       if (config.getStyle === 'paginated') {
         const { searchParams } = new URL(request.url);

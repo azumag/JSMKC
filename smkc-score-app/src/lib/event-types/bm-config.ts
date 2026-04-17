@@ -67,7 +67,7 @@ export const bmConfig: EventTypeConfig = {
 
   updateMatch: async (prisma, data) => {
     const match = await prisma.bMMatch.update({
-      where: { id: data.matchId },
+      where: { id: data.matchId, tournamentId: data.tournamentId },
       data: {
         score1: data.score1,
         score2: data.score2,
