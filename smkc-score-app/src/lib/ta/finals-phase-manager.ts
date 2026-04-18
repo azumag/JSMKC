@@ -215,20 +215,21 @@ export async function promoteToPhase1(
     if (!existing) {
       // Create phase1 entry with qualification data carried forward
       // Lives set to 0 because phase1 uses direct elimination (no life system)
-      const entry = await prisma.tTEntry.create({
-        data: {
-          tournamentId,
-          playerId: qual.playerId,
-          stage: "phase1",
-          lives: 0, // No lives in phase1
-          eliminated: false,
-          times: qual.times as Prisma.InputJsonValue,
-          totalTime: qual.totalTime,
-          rank: qual.rank,
-        },
-        include: { player: true },
-      });
-      createdEntries.push(entry);
+      try {
+        const entry = await prisma.tTEntry.create({
+          data: {
+            tournamentId,
+            playerId: qual.playerId,
+            stage: "phase1",
+            lives: 0, // No lives in phase1
+            eliminated: false,
+            times: qual.times as Prisma.InputJsonValue,
+            totalTime: qual.totalTime,
+            rank: qual.rank,
+          },
+          include: { player: true },
+        });
+        createdEntries.push(entry);
 
       // Audit log for accountability (failure is non-critical)
       try {
@@ -251,6 +252,15 @@ export async function promoteToPhase1(
         logger.error("Failed to create audit log", {
           error: logError instanceof Error ? logError.message : logError,
         });
+      }
+      } catch (e) {
+        // P2002 = unique constraint violation = entry created by concurrent request
+        if (e instanceof Error && e.message.includes("P2002")) {
+          // Race condition handled: another request created the entry first
+          skippedPlayers.push(qual.playerId);
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -336,23 +346,24 @@ export async function promoteToPhase2(
 
     if (!existing) {
       // Create phase2 entry with source stage data carried forward
-      const entry = await prisma.tTEntry.create({
-        data: {
-          tournamentId,
-          playerId: source.playerId,
-          stage: "phase2",
-          lives: 0, // No lives in phase2
-          eliminated: false,
-          times: source.times as Prisma.InputJsonValue,
-          totalTime: source.totalTime,
-          rank: source.rank,
-        },
-        include: { player: true },
-      });
-      createdEntries.push(entry);
-
-      // Audit log for accountability (non-critical)
       try {
+        const entry = await prisma.tTEntry.create({
+          data: {
+            tournamentId,
+            playerId: source.playerId,
+            stage: "phase2",
+            lives: 0, // No lives in phase2
+            eliminated: false,
+            times: source.times as Prisma.InputJsonValue,
+            totalTime: source.totalTime,
+            rank: source.rank,
+          },
+          include: { player: true },
+        });
+        createdEntries.push(entry);
+
+        // Audit log for accountability (non-critical)
+        try {
         await createAuditLog({
           userId,
           ipAddress,
@@ -372,6 +383,14 @@ export async function promoteToPhase2(
         logger.error("Failed to create audit log", {
           error: logError instanceof Error ? logError.message : logError,
         });
+      }
+      } catch (e) {
+        // P2002 = unique constraint violation = entry created by concurrent request
+        if (e instanceof Error && e.message.includes("P2002")) {
+          skippedPlayers.push(source.playerId);
+        } else {
+          throw e;
+        }
       }
     }
   }
@@ -456,23 +475,24 @@ export async function promoteToPhase3(
 
     if (!existing) {
       // Create phase3 entry with initial lives for life-based elimination
-      const entry = await prisma.tTEntry.create({
-        data: {
-          tournamentId,
-          playerId: source.playerId,
-          stage: "phase3",
-          lives: config.initialLives, // Start with 3 lives
-          eliminated: false,
-          times: source.times as Prisma.InputJsonValue,
-          totalTime: source.totalTime,
-          rank: source.rank,
-        },
-        include: { player: true },
-      });
-      createdEntries.push(entry);
-
-      // Audit log for accountability (non-critical)
       try {
+        const entry = await prisma.tTEntry.create({
+          data: {
+            tournamentId,
+            playerId: source.playerId,
+            stage: "phase3",
+            lives: config.initialLives, // Start with 3 lives
+            eliminated: false,
+            times: source.times as Prisma.InputJsonValue,
+            totalTime: source.totalTime,
+            rank: source.rank,
+          },
+          include: { player: true },
+        });
+        createdEntries.push(entry);
+
+        // Audit log for accountability (non-critical)
+        try {
         await createAuditLog({
           userId,
           ipAddress,
@@ -493,6 +513,14 @@ export async function promoteToPhase3(
         logger.error("Failed to create audit log", {
           error: logError instanceof Error ? logError.message : logError,
         });
+      }
+      } catch (e) {
+        // P2002 = unique constraint violation = entry created by concurrent request
+        if (e instanceof Error && e.message.includes("P2002")) {
+          skippedPlayers.push(source.playerId);
+        } else {
+          throw e;
+        }
       }
     }
   }
