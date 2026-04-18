@@ -220,6 +220,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
                 tournamentId,
                 stage: 'qualification',
                 completed: true,
+                isBye: false, // Exclude BYE matches from H2H calculation
                 player1Id: { in: tiedPlayerIds },
                 player2Id: { in: tiedPlayerIds },
               },
