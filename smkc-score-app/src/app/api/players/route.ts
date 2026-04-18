@@ -82,17 +82,18 @@ export async function GET(request: NextRequest) {
 
       // Use Promise.all for parallel queries to reduce latency.
       // Wrap individual queries so D1 failures don't cascade - if any query fails,
-      // we gracefully degrade by returning players without the hasTournamentData flag.
+      // we gracefully degrade by returning players without the hasTournamentData flag,
+      // but log the failure for monitoring.
       try {
         const [bmqIds, bmmRows, mrqIds, mrmRows, gpqIds, gpmRows, tteIds, tpsIds] = await Promise.all([
-          prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch(() => []),
-          prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch(() => []),
-          prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch(() => []),
-          prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch(() => []),
-          prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch(() => []),
-          prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch(() => []),
-          prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch(() => []),
-          prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch(() => []),
+          prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("bmQualification query failed, degrading", { error: e }); return []; }),
+          prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("bMMatch query failed, degrading", { error: e }); return []; }),
+          prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("mRQualification query failed, degrading", { error: e }); return []; }),
+          prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("mRMatch query failed, degrading", { error: e }); return []; }),
+          prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("gPQualification query failed, degrading", { error: e }); return []; }),
+          prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("gPMatch query failed, degrading", { error: e }); return []; }),
+          prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("tTEntry query failed, degrading", { error: e }); return []; }),
+          prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("tournamentPlayerScore query failed, degrading", { error: e }); return []; }),
         ]);
 
         const registeredIds = new Set<string>([
