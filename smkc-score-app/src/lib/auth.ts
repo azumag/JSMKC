@@ -45,13 +45,17 @@ function isAllowedDiscordAdmin(profile: { id?: string } | undefined): boolean {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDiscordAdminSignIn(user: any, account: any): Promise<void> {
+async function handleDiscordAdminSignIn(user: any, account: any, profile: any): Promise<void> {
+  // Defense-in-depth: verify whitelist even if outer callback already checked.
+  // This prevents privilege escalation if the function is ever called directly
+  // without the outer guard.
+  if (!isAllowedDiscordAdmin(profile)) {
+    throw new Error('Discord admin sign-in attempted by non-whitelisted user');
+  }
+
   const prisma = await getPrisma();
   const providerAccountId = String(account.providerAccountId);
   const fallbackEmail = `discord-${providerAccountId}@discord.local`;
-
-  // Note: Discord admin whitelist check is already performed in the outer signIn
-  // callback before this function is called. Only whitelisted users reach here.
 
   const existingAccount = await prisma.account.findUnique({
     where: {
@@ -226,7 +230,7 @@ export const authConfig = {
         }
 
         try {
-          await handleDiscordAdminSignIn(user, account);
+          await handleDiscordAdminSignIn(user, account, profile);
           return true;
         } catch (error) {
           logger.error('Discord admin sign-in failed', {
