@@ -1365,21 +1365,47 @@ async function runTc822(adminPage) {
     const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
     if (!match) throw new Error('No non-BYE match');
 
-    // First PUT to confirm mismatched report (admin resolves)
+    // Step 1: P1 reports 3-1
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 1, score1: 3, score2: 1,
+    }]);
+
+    // Step 2: P2 reports 1-3 (disagreement — mismatch detected)
+    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 2, score1: 1, score2: 3,
+    }]);
+
+    const hasMismatch = p2Report.b?.data?.mismatch === true || p2Report.b?.mismatch === true;
+
+    // Step 3: Admin resolves mismatch via PUT (this sets scoresConfirmed)
     const confirm = await adminPage.evaluate(async ([url, data]) => {
       const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       return { s: r.status };
     }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1 }]);
-    if (confirm.s !== 200) throw new Error(`Confirm failed (${confirm.s})`);
+    if (confirm.s !== 200) throw new Error(`Admin resolve failed (${confirm.s})`);
 
-    // Second PUT should be blocked
+    // Step 4: Second PUT should be blocked (scoresConfirmed is set)
     const secondPut = await adminPage.evaluate(async ([url, data]) => {
       const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       return { s: r.status };
     }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
 
-    log('TC-822', secondPut.s === 400 ? 'PASS' : 'FAIL',
-      secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
+    log('TC-822', hasMismatch && secondPut.s === 400 ? 'PASS' : 'FAIL',
+      !hasMismatch ? 'Mismatch not detected after dual report'
+        : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
   } catch (err) {
     log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR scoresConfirmed test failed');
   } finally {

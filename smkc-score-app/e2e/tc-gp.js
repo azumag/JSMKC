@@ -579,8 +579,9 @@ async function runTc821(adminPage) {
     const matchText = await adminPage.locator('body').innerText();
 
     const showsPlayers = matchText.includes(player1.nickname) && matchText.includes(player2.nickname);
-    // GP match page shows driver points, not race entry form
-    const noRaceEntry = !matchText.includes('Submit') && !matchText.includes('1st') && !matchText.includes('送信');
+    // GP match page is view-only; score entry uses /gp/participant page
+    // Check for absence of form submission buttons
+    const noRaceEntry = !matchText.includes('Submit') && !matchText.includes('送信');
 
     log('TC-821', showsPlayers && noRaceEntry ? 'PASS' : 'FAIL',
       !showsPlayers ? 'Match page missing player names' : !noRaceEntry ? 'Match page has race entry form' : '');
