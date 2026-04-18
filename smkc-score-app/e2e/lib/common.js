@@ -467,8 +467,10 @@ async function apiGenerateGpFinals(page, tournamentId, topN = 8) {
   { label: `GP finals POST` });
 }
 
-/** GP finals uses 'paginated' GET style: { data, meta, totalPages }.
- *  Aggregate up to 5 pages of 50 entries (17 finals matches always fit in 1 page). */
+/** GP finals uses 'paginated' GET style: { success: true, data: { data: [...], meta: {...} } }.
+ *  Aggregate up to 5 pages of 50 entries (17 finals matches always fit in 1 page).
+ *  Note: createSuccessResponse wraps the paginated result, so json.data = { data, meta }.
+ *  TC-701/702/707/708 PASS because they use apiFetchGp (qualification), not finals. */
 async function apiFetchGpFinalsMatches(page, tournamentId) {
   const all = [];
   for (let p = 1; p <= 5; p++) {
@@ -476,13 +478,242 @@ async function apiFetchGpFinalsMatches(page, tournamentId) {
       const r = await fetch(`${u}?page=${pp}&limit=50&ts=${Date.now()}`, { cache: 'no-store' });
       return r.json().catch(() => ({}));
     }, [`/api/tournaments/${tournamentId}/gp/finals`, p]);
-    const data = json.data || [];
-    if (data.length === 0) break;
-    all.push(...data);
-    const totalPages = json.totalPages || 1;
+    /* Unwrap createSuccessResponse: json.data = { data: [...matches], meta: { total, page, limit, totalPages } } */
+    const wrapped = json.data;
+    const raw = (wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped))
+      ? (wrapped.data || [])
+      : (Array.isArray(wrapped) ? wrapped : []);
+    if (raw.length === 0) break;
+    all.push(...raw);
+    const totalPages = wrapped?.meta?.totalPages || 1;
     if (p >= totalPages) break;
   }
   return all.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+}
+
+/* ───────── TA helpers ─────────
+ * TA (Time Attack / Time Trial) has two distinct PUT contracts:
+ *   1. Admin:       PUT /api/tournaments/:id/tt/entries/:entryId
+ *                   Body: { version, times: {MC1: "1:00.00", ...}, totalTime, rank }
+ *                   — sets the full qualification time record (optimistic-locked).
+ *   2. Participant: PUT /api/tournaments/:id/ta
+ *                   Body: { entryId, course, time }
+ *                   — updates a single course cell; allowed for self or partner.
+ * and several action flavours via PUT /ta: set_partner, update_seeding,
+ *   update_lives, reset_lives, eliminate. */
+
+const TA_COURSES = [
+  'MC1', 'DP1', 'GV1', 'BC1', 'MC2',
+  'CI1', 'GV2', 'DP2', 'BC2', 'MC3',
+  'KB1', 'CI2', 'VL1', 'BC3', 'MC4',
+  'DP3', 'KB2', 'GV3', 'VL2', 'RR',
+];
+
+/** PUT /api/tournaments/:id with arbitrary patch body. Used to activate (status)
+ *  or toggle feature flags (taPlayerSelfEdit, dualReportEnabled, etc.). */
+async function apiUpdateTournament(page, tournamentId, body) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}`, body]);
+}
+
+/** Convenience wrapper — throws so callers can early-exit on activation failure. */
+async function apiActivateTournament(page, tournamentId) {
+  const res = await apiUpdateTournament(page, tournamentId, { status: 'active' });
+  if (res.s !== 200) {
+    throw new Error(`Failed to activate tournament ${tournamentId} (${res.s})`);
+  }
+  return res;
+}
+
+/** Add TA qualification entries. Supports both legacy single-player shape
+ *  (`{ playerId }`) and the preferred seeded form (`{ playerEntries: [...] }`). */
+async function apiAddTaEntries(page, tournamentId, payload) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta`, payload]);
+}
+
+async function apiGetTtEntry(page, tournamentId, entryId) {
+  return page.evaluate(async (u) => {
+    const r = await fetch(u);
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, `/api/tournaments/${tournamentId}/tt/entries/${entryId}`);
+}
+
+/** Admin PUT: overwrite qualification times + totalTime + rank. Optimistic-locked
+ *  via `version`. Retried on 5xx since D1 occasionally 503s under load. */
+async function apiUpdateTtEntry(page, tournamentId, entryId, payload) {
+  return withRetry(() => page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/tt/entries/${entryId}`, payload]),
+  { label: `TT entry PUT ${entryId}` });
+}
+
+/** Fetch current version, then PUT full times + totalTime + rank in one call.
+ *  Callers pass already-formatted `times` (e.g. { MC1: '1:00.00' }) + totalTimeMs + rank. */
+async function apiSeedTtEntry(page, tournamentId, entryId, times, totalTimeMs, rank) {
+  const ge = await apiGetTtEntry(page, tournamentId, entryId);
+  const version = ge.b?.data?.version;
+  if (ge.s !== 200 || typeof version !== 'number') {
+    throw new Error(`Failed to fetch TT entry version for ${entryId} (${ge.s})`);
+  }
+  const res = await apiUpdateTtEntry(page, tournamentId, entryId, {
+    version,
+    times,
+    totalTime: totalTimeMs,
+    rank,
+  });
+  if (res.s !== 200) {
+    throw new Error(`Failed to seed TT entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 200)}`);
+  }
+  return res;
+}
+
+async function apiPromoteTaPhase(page, tournamentId, action) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta/phases`, { action }]);
+}
+
+async function apiSetTaPartner(page, tournamentId, entryId, partnerId) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'set_partner', partnerId }]);
+}
+
+async function apiUpdateTaSeeding(page, tournamentId, entryId, seeding) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_seeding', seeding }]);
+}
+
+/** Participant PUT: single-course time update. Works for self or partner per
+ *  taPlayerSelfEdit / partnerId rules. Admin can bypass. */
+async function apiTaParticipantEditTime(page, tournamentId, entryId, course, time) {
+  return page.evaluate(async ([u, d]) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, course, time }]);
+}
+
+async function apiFetchTa(page, tournamentId, stage = 'qualification') {
+  return page.evaluate(async (u) => {
+    const r = await fetch(u);
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, `/api/tournaments/${tournamentId}/ta?stage=${stage}`);
+}
+
+/** Format a ms duration as the "M:SS.mm" string the TT API accepts. */
+function formatTtTime(ms) {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const hundredths = Math.floor((ms % 1000) / 10);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+}
+
+/** Build a 20-course `times` object for a player at `rank`. Spacing is
+ *  rank×200 ms per course ⇒ ~4 sec total differential between players,
+ *  enough for the scoring engine to sort deterministically. */
+function makeTaTimesForRank(rank) {
+  const times = {};
+  let totalMs = 0;
+  for (const course of TA_COURSES) {
+    const courseMs = 60000 + rank * 200;
+    times[course] = formatTtTime(courseMs);
+    totalMs += courseMs;
+  }
+  return { times, totalMs };
+}
+
+/** 28-player TA qualification setup: creates players + tournament, activates,
+ *  adds all 28 via playerEntries, then seeds each entry with 20-course times.
+ *  Returns { tournamentId, playerIds, nicknames, entryIds, cleanup }. */
+async function setupTa28PlayerQual(adminPage, label, opts = {}) {
+  const stamp = Date.now();
+  const playerIds = [];
+  const nicknames = [];
+  const entryIds = [];
+  let tournamentId = null;
+
+  const cleanup = async () => {
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  };
+
+  try {
+    for (let i = 1; i <= 28; i++) {
+      const p = await apiCreatePlayer(
+        adminPage,
+        `E2E TA ${label} P${i}`,
+        `e2e_ta${label}_${stamp}_${i}`,
+      );
+      playerIds.push(p.id);
+      nicknames.push(p.nickname);
+    }
+    tournamentId = await apiCreateTournament(
+      adminPage,
+      `E2E TA ${label} ${stamp}`,
+      { dualReportEnabled: false, ...opts },
+    );
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const add = await apiAddTaEntries(adminPage, tournamentId, {
+      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
+    });
+    if (add.s !== 201) {
+      throw new Error(`TA 28-player add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
+    }
+
+    /* Seed per-entry qualification times. Assign rank = seeding so the best
+     * seed produces the fastest time; real ranks are recomputed server-side. */
+    const entries = add.b?.data?.entries ?? [];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const rank = i + 1;
+      const { times, totalMs } = makeTaTimesForRank(rank);
+      await apiSeedTtEntry(adminPage, tournamentId, entry.id, times, totalMs, rank);
+      entryIds.push(entry.id);
+    }
+    return { tournamentId, playerIds, nicknames, entryIds, cleanup };
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
 }
 
 async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
@@ -578,4 +809,20 @@ module.exports = {
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
   setupGp28PlayerFinals,
+  /* TA */
+  TA_COURSES,
+  apiUpdateTournament,
+  apiActivateTournament,
+  apiAddTaEntries,
+  apiGetTtEntry,
+  apiUpdateTtEntry,
+  apiSeedTtEntry,
+  apiPromoteTaPhase,
+  apiSetTaPartner,
+  apiUpdateTaSeeding,
+  apiTaParticipantEditTime,
+  apiFetchTa,
+  formatTtTime,
+  makeTaTimesForRank,
+  setupTa28PlayerQual,
 };
