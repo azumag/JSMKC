@@ -116,6 +116,9 @@ export function GroupSetupDialog({
   /* Available groups based on current group count selection */
   const availableGroups = GROUPS.slice(0, groupCount);
 
+  /* 2P modes (BM/MR/GP) allow 1 group; TA requires at least 2 */
+  const minGroups = mode === "ta" ? 2 : 1;
+
   /**
    * Handle dialog open/close with automatic state management.
    * On open: pre-populates with existing assignments if in edit mode.
@@ -132,7 +135,7 @@ export function GroupSetupDialog({
       const maxIdx = Math.max(
         ...existingAssignments.map((a) => (GROUPS as readonly string[]).indexOf(a.group)),
       );
-      setGroupCount(Math.max(maxIdx + 1, 2));
+      setGroupCount(Math.max(maxIdx + 1, minGroups));
     } else if (!open) {
       /* Close: reset all form state */
       setSetupPlayers([]);
@@ -156,7 +159,7 @@ export function GroupSetupDialog({
   /** Handle random group assignment for all selected players */
   const handleRandomAssign = () => {
     if (setupPlayers.length === 0) return;
-    setSetupPlayers(randomlyAssignGroups(setupPlayers, groupCount));
+    setSetupPlayers(randomlyAssignGroups(setupPlayers, groupCount, minGroups));
   };
 
   /**
@@ -165,7 +168,7 @@ export function GroupSetupDialog({
    */
   const handleAutoDistribute = () => {
     if (setupPlayers.length === 0 || !allHaveSeeding) return;
-    setSetupPlayers(assignGroupsBySeeding(setupPlayers, groupCount));
+    setSetupPlayers(assignGroupsBySeeding(setupPlayers, groupCount, minGroups));
   };
 
   /**
@@ -329,7 +332,7 @@ export function GroupSetupDialog({
                 {/* Group count selector with auto-recommendation per §4.1 */}
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
-                  {[2, 3, 4].map((n) => (
+                  {[...new Set([minGroups, 2, 3, 4])].map((n) => (
                     <Button
                       key={n}
                       variant={groupCount === n ? "default" : "outline"}
