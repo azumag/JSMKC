@@ -788,7 +788,7 @@ export default function TimeAttackPage({
                         // Compute once outside map to avoid O(N²) repeated filter calls
                         const qualEntries = entries.filter(e => e.stage === "qualification");
                         return qualEntries
-                        .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
+                        .sort((a, b) => (a.seeding == null ? Infinity : a.seeding) - (b.seeding == null ? Infinity : b.seeding))
                         .map(entry => {
                           const effectivePartnerId = entry.id in pairOverrides
                             ? pairOverrides[entry.id]

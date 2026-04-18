@@ -243,8 +243,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         const groupPlayers = players
           .filter((p: { group: string }) => p.group === group)
           .sort((a: { seeding?: number }, b: { seeding?: number }) => {
-            const sa = a.seeding ?? Infinity;
-            const sb = b.seeding ?? Infinity;
+            const sa = a.seeding == null ? Infinity : a.seeding;
+            const sb = b.seeding == null ? Infinity : b.seeding;
             return sa - sb;
           });
         const playerIds = groupPlayers.map((p: { playerId: string }) => p.playerId);

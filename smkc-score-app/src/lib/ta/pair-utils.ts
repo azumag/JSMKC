@@ -31,8 +31,8 @@ export interface PairPlayer {
  */
 export function computeAutoPairs<T extends PairPlayer>(players: T[]): Array<[T, T]> {
   const sorted = [...players].sort((a, b) => {
-    const sa = a.seeding ?? Infinity;
-    const sb = b.seeding ?? Infinity;
+    const sa = a.seeding == null ? Infinity : a.seeding;
+    const sb = b.seeding == null ? Infinity : b.seeding;
     // Secondary sort by playerId ensures deterministic output when seeding is equal
     return sa - sb || a.playerId.localeCompare(b.playerId);
   });

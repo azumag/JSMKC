@@ -69,7 +69,7 @@ export function assignGroupsBySeeding(
   const groups = GROUPS.slice(0, safeCount);
   /* Sort by seeding ascending; players without seeding go to end */
   const sorted = [...players].sort(
-    (a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity),
+    (a, b) => (a.seeding == null ? Infinity : a.seeding) - (b.seeding == null ? Infinity : b.seeding),
   );
   return sorted.map((p, idx) => ({
     ...p,
