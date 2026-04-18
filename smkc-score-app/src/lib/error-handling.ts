@@ -65,6 +65,12 @@ export interface SuccessResponse<T> {
   message?: string;
 }
 
+/** Options for success response creation. */
+export interface SuccessResponseOptions {
+  /** HTTP status code for the response. Defaults to NextResponse.json's 200. */
+  status?: number;
+}
+
 // ============================================================
 // Response Factory Functions
 // ============================================================
@@ -106,13 +112,13 @@ export function createErrorResponse(
 /**
  * Creates a standardized success response as a NextResponse object.
  *
- * Always returns HTTP 200 with the data payload wrapped in the
- * standard success response format.
+ * Returns the data payload wrapped in the standard success response format.
  *
  * @template T - The type of the data payload
  * @param data - The response data payload
  * @param message - Optional human-readable success message
- * @returns NextResponse with the success body and 200 status
+ * @param options - Optional response settings such as HTTP status
+ * @returns NextResponse with the success body and configured status
  *
  * @example
  *   const players = await prisma.player.findMany();
@@ -120,7 +126,8 @@ export function createErrorResponse(
  */
 export function createSuccessResponse<T>(
   data: T,
-  message?: string
+  message?: string,
+  options: SuccessResponseOptions = {}
 ): NextResponse {
   // Construct success response body following project standard format
   const body: SuccessResponse<T> = {
@@ -130,7 +137,9 @@ export function createSuccessResponse<T>(
     ...(message && { message }),
   };
 
-  return NextResponse.json(body);
+  return options.status !== undefined
+    ? NextResponse.json(body, { status: options.status })
+    : NextResponse.json(body);
 }
 
 // ============================================================

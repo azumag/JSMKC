@@ -11,7 +11,7 @@
  * POST: Create a new finals match with bracket metadata and player assignments
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
@@ -175,7 +175,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
         logger.warn('Failed to create audit log', { error: logError, tournamentId, action: config.auditAction });
       }
 
-      return createSuccessResponse({ match }, 'Match created successfully');
+      return createSuccessResponse({ match }, 'Match created successfully', { status: 201 });
     } catch (error) {
       logger.error('Failed to create match', { error, tournamentId });
       return createErrorResponse('Failed to create match', 500, 'INTERNAL_ERROR');
