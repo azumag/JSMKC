@@ -21,7 +21,7 @@ const {
   makeResults, makeLog, nav,
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
   apiActivateTournament, apiAddTaEntries,
-  apiFetchTa, apiPromoteTaPhase,
+  apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
   setupTa28PlayerQual,
 } = require('./lib/common');
 const { runSuite } = require('./lib/runner');
@@ -65,7 +65,7 @@ async function runTc801(adminPage) {
 /* ───────── TC-804: Promote to Phase 1 ─────────
  * After promote_phase1, ranks 17-24 should move to stage='phase1'.
  * The qualification stage still contains 28 entries (promotion clones, it
- * doesn't remove), so we check phase1 count = 8 via the ?stage=phase1 GET. */
+ * doesn't remove), so we check phase1 count = 8 via the phase API. */
 async function runTc804(adminPage) {
   let setup = null;
   try {
@@ -76,7 +76,7 @@ async function runTc804(adminPage) {
       throw new Error(`promote_phase1 returned ${promote.s}: ${JSON.stringify(promote.b).slice(0, 200)}`);
     }
 
-    const phase1 = await apiFetchTa(adminPage, setup.tournamentId, 'phase1');
+    const phase1 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1');
     const entries = phase1.b?.data?.entries ?? [];
     const countOk = entries.length === 8;
     /* The 8 phase1 entries must correspond to qual ranks 17-24. */
@@ -162,10 +162,18 @@ async function runTc805(adminPage) {
 
     await rowFor(p1.nickname).waitFor({ state: 'detached', timeout: 15000 });
 
-    const data = await apiFetchTa(adminPage, tournamentId);
-    const entries = data.b?.data?.entries ?? [];
-    const removedFromApi = !entries.some((entry) => entry.playerId === p1.id);
-    const retainedOther = entries.some((entry) => entry.playerId === p2.id);
+    let entries = [];
+    let removedFromApi = false;
+    let retainedOther = false;
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      const data = await apiFetchTa(adminPage, tournamentId);
+      entries = data.b?.data?.entries ?? [];
+      removedFromApi = !entries.some((entry) => entry.playerId === p1.id);
+      retainedOther = entries.some((entry) => entry.playerId === p2.id);
+      if (removedFromApi && retainedOther) break;
+      await adminPage.waitForTimeout(1000);
+    }
 
     await adminPage.getByRole('button', { name: /プレイヤー追加|Add Player/ }).click();
     await adminPage.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
