@@ -116,8 +116,8 @@ export function GroupSetupDialog({
   /* Available groups based on current group count selection */
   const availableGroups = GROUPS.slice(0, groupCount);
 
-  /* 2P modes (BM/MR/GP) allow 1 group; TA requires at least 2 */
-  const minGroups = mode === "ta" ? 2 : 1;
+  /* All 2P modes (BM/MR/GP) allow 1 group; TA doesn't use this dialog */
+  const minGroups = 1;
 
   /**
    * Handle dialog open/close with automatic state management.
