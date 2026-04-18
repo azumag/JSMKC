@@ -1347,7 +1347,7 @@ async function deletePlayer(p, id) {
       log('TC-315', 'FAIL', e.message);
     } finally {
       if (tc315TournamentId) {
-        await page.evaluate(async u => fetch(u, { method: 'DELETE' }), `/api/tournaments/${tc315TournamentId}`);
+        await deleteTournament(page, tc315TournamentId);
       }
     }
   }
@@ -1547,7 +1547,7 @@ async function deletePlayer(p, id) {
       log('TC-316', 'FAIL', e.message);
     } finally {
       if (tc316TournamentId) {
-        await page.evaluate(async u => fetch(u, { method: 'DELETE' }), `/api/tournaments/${tc316TournamentId}`).catch(() => {});
+        await deleteTournament(page, tc316TournamentId);
       }
     }
   }
@@ -1692,16 +1692,13 @@ async function deletePlayer(p, id) {
       log('TC-321', 'FAIL', err instanceof Error ? err.message : 'BM match view-only test failed');
     } finally {
       if (tc321TournamentId) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/tournaments/${tc321TournamentId}`).catch(() => {});
+        await deleteTournament(page, tc321TournamentId);
       }
       if (tc321Player1Id) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/players/${tc321Player1Id}`).catch(() => {});
+        await deletePlayer(page, tc321Player1Id);
       }
       if (tc321Player2Id) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/players/${tc321Player2Id}`).catch(() => {});
+        await deletePlayer(page, tc321Player2Id);
       }
     }
   }
@@ -1847,16 +1844,13 @@ async function deletePlayer(p, id) {
     } finally {
       if (tc322PlayerBrowser) await tc322PlayerBrowser.close().catch(() => {});
       if (tc322TournamentId) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/tournaments/${tc322TournamentId}`).catch(() => {});
+        await deleteTournament(page, tc322TournamentId);
       }
       if (tc322Player1Id) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/players/${tc322Player1Id}`).catch(() => {});
+        await deletePlayer(page, tc322Player1Id);
       }
       if (tc322Player2Id) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/players/${tc322Player2Id}`).catch(() => {});
+        await deletePlayer(page, tc322Player2Id);
       }
     }
   }
@@ -1999,12 +1993,10 @@ async function deletePlayer(p, id) {
       log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM tie warning flow failed');
     } finally {
       if (tc323TournamentId) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/tournaments/${tc323TournamentId}`).catch(() => {});
+        await deleteTournament(page, tc323TournamentId);
       }
       for (const id of tc323PlayerIds) {
-        await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
-          `/api/players/${id}`).catch(() => {});
+        await deletePlayer(page, id);
       }
     }
   }
