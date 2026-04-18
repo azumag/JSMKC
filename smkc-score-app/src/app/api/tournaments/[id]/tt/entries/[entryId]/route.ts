@@ -28,6 +28,7 @@ import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { timeToMs } from "@/lib/ta/time-utils";
 import { sanitizeInput } from "@/lib/sanitize";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -58,12 +59,14 @@ export async function GET(
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('tt-entry-api');
-  const { entryId } = await params;
+  const { id, entryId } = await params;
+  const tournamentId = await resolveTournamentId(id);
   try {
 
     // Fetch entry with related player and tournament data
+    // Verify entry belongs to the specified tournament (IDOR prevention)
     const entry = await prisma.tTEntry.findUnique({
-      where: { id: entryId },
+      where: { id: entryId, tournamentId },
       include: {
         player: true,
         tournament: true,
@@ -77,7 +80,7 @@ export async function GET(
     return createSuccessResponse(entry);
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to fetch entry", { error, entryId });
+    logger.error("Failed to fetch entry", { error, entryId, tournamentId });
     return handleDatabaseError(error, "fetch time trial entry");
   }
 }
