@@ -107,6 +107,29 @@ interface SeededPlayer {
   player: Player;
 }
 
+function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
+  if (json && typeof json === "object" && "success" in json && "data" in json) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
+function getMatchWinner(match: MRMatch): Player | null {
+  if (!match.completed) return null;
+  if (match.score1 > match.score2) return match.player1;
+  if (match.score2 > match.score1) return match.player2;
+  return null;
+}
+
+function getCompletedChampion(matches: MRMatch[]): Player | null {
+  const reset = matches.find((m) => m.round === "grand_final_reset" && m.completed);
+  if (reset) return getMatchWinner(reset);
+
+  const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
+  if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
+  return grandFinal.player1;
+}
+
 /** Individual race round entry */
 interface Round {
   course: CourseAbbr | "";
@@ -165,7 +188,12 @@ export default function MatchRaceFinals({
       throw new Error(`Failed to fetch MR finals data: ${response.status}`);
     }
 
-    const data = await response.json();
+    const json = await response.json();
+    const data = unwrapApiData<{
+      matches?: MRMatch[];
+      bracketStructure?: BracketMatch[];
+      roundNames?: Record<string, string>;
+    }>(json);
 
     return {
       matches: data.matches || [],
@@ -186,6 +214,7 @@ export default function MatchRaceFinals({
       setMatches(pollData.matches);
       setBracketStructure(pollData.bracketStructure);
       setRoundNames(pollData.roundNames);
+      setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);
 
@@ -207,10 +236,16 @@ export default function MatchRaceFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{
+          matches?: MRMatch[];
+          bracketStructure?: BracketMatch[];
+          seededPlayers?: SeededPlayer[];
+        }>(json);
         setMatches(data.matches || []);
         setBracketStructure(data.bracketStructure || []);
         setSeededPlayers(data.seededPlayers || []);
+        setChampion(null);
         refetch();
       } else {
         const error = await response.json();
@@ -281,7 +316,8 @@ export default function MatchRaceFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{ isComplete?: boolean; champion?: string }>(json);
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
         setRounds([

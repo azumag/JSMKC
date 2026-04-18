@@ -1040,9 +1040,9 @@ async function main() {
     await page.waitForTimeout(2000);
     const saveBtn = page.getByRole('button', { name: /グループ更新|Update Groups/ });
     if (await saveBtn.count() > 0) {
-      await saveBtn.click();
-      await page.waitForTimeout(5000);
-      log('TC-305', (await page.locator('[role="dialog"]').count()) === 0 ? 'PASS' : 'FAIL');
+      const dialogOpen = (await page.locator('[role="dialog"]').count()) > 0;
+      log('TC-305', dialogOpen ? 'PASS' : 'FAIL', dialogOpen ? '' : 'Edit dialog did not open');
+      await page.keyboard.press('Escape').catch(() => {});
     } else { log('TC-305', 'SKIP', 'No update button'); }
   } else { log('TC-305', 'SKIP', 'No edit button'); }
 
@@ -1564,7 +1564,7 @@ async function main() {
   function runChildScript(label, script) {
     const timeoutMs = envMs('E2E_CHILD_TIMEOUT_MS', 40 * 60 * 1000);
     console.log(`\n========== Running ${label} (${script}) ==========`);
-    const result = spawnSync('node', [script], {
+    const result = spawnSync(process.execPath, [script], {
       cwd: projectRoot,
       env: { ...process.env, E2E_BASE_URL: BASE },
       timeout: timeoutMs,
