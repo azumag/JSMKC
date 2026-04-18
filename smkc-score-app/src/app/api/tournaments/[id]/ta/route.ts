@@ -104,7 +104,7 @@ const PostRequestSchema = z.object({
   players: z.array(z.string().cuid()).optional(),
   playerEntries: z.array(z.object({
     playerId: z.string().cuid(),
-    seeding: z.number().int().positive().optional(),
+    seeding: z.number().int().nonnegative().optional(),
   })).optional(),
   action: z.enum(["add"]).optional(),
 }).refine(
@@ -136,7 +136,7 @@ const PutRequestSchema = z.object({
   livesDelta: z.number().optional(),
   eliminated: z.boolean().optional(),
   partnerId: z.string().cuid().nullable().optional(),
-  seeding: z.number().int().positive().nullable().optional(),
+  seeding: z.number().int().nonnegative().nullable().optional(),
   action: z.enum(["update_times", "update_lives", "eliminate", "reset_lives", "set_partner", "update_seeding"]).optional(),
 }).refine(
   (data) => data.action === "update_lives" ? data.livesDelta !== undefined :
