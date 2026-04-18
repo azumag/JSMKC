@@ -80,21 +80,20 @@ export async function GET(request: NextRequest) {
       const players = result.data as Array<{ id: string }>;
       const pagePlayerIds = players.map(p => p.id);
 
-      // Use Promise.all for parallel queries to reduce latency.
-      // Wrap individual queries so D1 failures don't cascade - if any query fails,
-      // we gracefully degrade by returning players without the hasTournamentData flag,
-      // but log the failure for monitoring.
+      // Run queries sequentially to avoid D1 (SQLite) concurrent query failures.
+      // D1 can intermittently fail under parallel query load (Promise.all with 8 queries),
+      // causing the entire /api/players endpoint to return 500.
+      // Gracefully degrade: if hasTournamentData fails, return players without the flag
+      // rather than failing the entire request.
       try {
-        const [bmqIds, bmmRows, mrqIds, mrmRows, gpqIds, gpmRows, tteIds, tpsIds] = await Promise.all([
-          prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("bmQualification query failed, degrading", { error: e }); return []; }),
-          prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("bMMatch query failed, degrading", { error: e }); return []; }),
-          prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("mRQualification query failed, degrading", { error: e }); return []; }),
-          prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("mRMatch query failed, degrading", { error: e }); return []; }),
-          prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("gPQualification query failed, degrading", { error: e }); return []; }),
-          prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } }).catch((e) => { logger.warn("gPMatch query failed, degrading", { error: e }); return []; }),
-          prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("tTEntry query failed, degrading", { error: e }); return []; }),
-          prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } }).catch((e) => { logger.warn("tournamentPlayerScore query failed, degrading", { error: e }); return []; }),
-        ]);
+        const bmqIds = await prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
+        const bmmRows = await prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const mrqIds = await prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
+        const mrmRows = await prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const gpqIds = await prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
+        const gpmRows = await prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const tteIds = await prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
+        const tpsIds = await prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
 
         const registeredIds = new Set<string>([
           ...bmqIds.map(r => r.playerId),
