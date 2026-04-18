@@ -9,9 +9,9 @@
  * - getUserAgent: Extracts the User-Agent header string
  *
  * Client identification strategy (in priority order):
- * 1. x-forwarded-for header (behind reverse proxy/load balancer)
- * 2. x-real-ip header (Nginx convention)
- * 3. cf-connecting-ip header (Cloudflare)
+ * 1. cf-connecting-ip header (Cloudflare - trusted, set by CDN)
+ * 2. x-real-ip header (Nginx convention - trusted within internal network)
+ * 3. x-forwarded-for header (untrusted - can be spoofed by clients)
  * 4. 'unknown' fallback (should not happen in production)
  *
  * Usage:
@@ -53,24 +53,24 @@ const logger = createLogger('request-utils');
  *   }
  */
 export function getClientIdentifier(request: NextRequest): string {
-  // x-forwarded-for contains a comma-separated list of IPs.
-  // The first IP is the original client, subsequent IPs are proxies.
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    // Extract only the first IP (original client) and trim whitespace
-    return forwardedFor.split(',')[0].trim();
+  // cf-connecting-ip is set by Cloudflare's CDN/proxy and is trustworthy
+  const cfIp = request.headers.get('cf-connecting-ip');
+  if (cfIp) {
+    return cfIp;
   }
 
   // x-real-ip is set by Nginx and some other reverse proxies
+  // Only trustworthy when request comes from known internal network
   const realIp = request.headers.get('x-real-ip');
   if (realIp) {
     return realIp;
   }
 
-  // cf-connecting-ip is set by Cloudflare's CDN/proxy
-  const cfIp = request.headers.get('cf-connecting-ip');
-  if (cfIp) {
-    return cfIp;
+  // x-forwarded-for can be spoofed by clients - use as last resort
+  // Extract only the first IP (original client) and trim whitespace
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
   }
 
   // Fallback when no identifying header is present.
@@ -110,10 +110,11 @@ export async function getServerSideIdentifier(): Promise<string> {
     // that provides access to incoming request headers
     const headersList = await headers();
 
-    // Same priority order as getClientIdentifier
-    const forwardedFor = headersList.get('x-forwarded-for');
-    if (forwardedFor) {
-      return forwardedFor.split(',')[0].trim();
+    // Same priority order as getClientIdentifier:
+    // cf-connecting-ip (trusted) > x-real-ip (internal) > x-forwarded-for (untrusted)
+    const cfIp = headersList.get('cf-connecting-ip');
+    if (cfIp) {
+      return cfIp;
     }
 
     const realIp = headersList.get('x-real-ip');
@@ -121,9 +122,9 @@ export async function getServerSideIdentifier(): Promise<string> {
       return realIp;
     }
 
-    const cfIp = headersList.get('cf-connecting-ip');
-    if (cfIp) {
-      return cfIp;
+    const forwardedFor = headersList.get('x-forwarded-for');
+    if (forwardedFor) {
+      return forwardedFor.split(',')[0].trim();
     }
 
     return 'unknown';
