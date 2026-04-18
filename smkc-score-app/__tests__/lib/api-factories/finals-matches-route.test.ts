@@ -263,7 +263,7 @@ describe('Finals Matches Route Factory', () => {
     expect(response.status).toBe(201);
     const json = await response.json();
     expect(json.message).toBe('Match created successfully');
-    expect(json.match).toEqual(mockCreatedMatch);
+    expect(json.data.match).toEqual(mockCreatedMatch);
   });
 
   // Include: Player1 and player2 relations are included in create query
@@ -347,7 +347,7 @@ describe('Finals Matches Route Factory', () => {
     /* Should still return 201 despite audit log failure */
     expect(response.status).toBe(201);
     const json = await response.json();
-    expect(json.match).toEqual(mockCreatedMatch);
+    expect(json.data.match).toEqual(mockCreatedMatch);
   });
 
   // === ERROR HANDLING ===
