@@ -32,11 +32,79 @@
  */
 
 import prisma from '@/lib/prisma';
-import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
 
-/** Logger scoped to audit logging operations */
+/**
+ * Logger scoped to audit logging operations
+ */
 const logger = createLogger('audit-log');
+
+/**
+ * Maximum length for audit log string fields.
+ * Prevents excessive storage usage and long-field issues in logs.
+ */
+const MAX_AUDIT_LOG_FIELD_LENGTH = 500;
+
+/**
+ * Sanitizes a string for safe inclusion in audit logs.
+ *
+ * Unlike sanitizeInput (XSS prevention), this function targets log injection
+ * attacks which use:
+ * - Newlines and line breaks to fake structured log entries
+ * - Control characters to corrupt log parsers
+ * - ANSI escape sequences to colorize fake log entries
+ *
+ * This function does NOT perform HTML encoding because audit logs are
+ * stored in database tables, not rendered in HTML contexts.
+ *
+ * @param str - Raw string to sanitize for audit logging
+ * @param maxLength - Maximum allowed length (default 500)
+ * @returns Sanitized string safe for audit logs
+ */
+function sanitizeForAuditLog(str: string, maxLength = MAX_AUDIT_LOG_FIELD_LENGTH): string {
+  if (!str) return '';
+
+  return str
+    // Remove control characters including LF (0x0A) and CR (0x0D)
+    // which are the primary vectors for log injection attacks
+    .replace(/[\x00-\x08\x0A-\x0D\x0E-\x1F\x7F]/g, '')
+    // Remove ANSI escape sequences that could colorize fake entries
+    .replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
+    // Trim whitespace and limit length
+    .trim()
+    .slice(0, maxLength);
+}
+
+/**
+ * Sanitizes an object for safe inclusion in audit logs.
+ * Recursively processes all string values within the object.
+ *
+ * @param obj - Object to sanitize for audit logging
+ * @param maxLength - Maximum allowed length per field (default 500)
+ * @returns Sanitized object with all string values sanitized
+ */
+function sanitizeObjectForAuditLog(
+  obj: Record<string, unknown>,
+  maxLength = MAX_AUDIT_LOG_FIELD_LENGTH
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeForAuditLog(value, maxLength);
+    } else if (Array.isArray(value)) {
+      sanitized[key] = value.map((item) =>
+        typeof item === 'string' ? sanitizeForAuditLog(item, maxLength) : item
+      );
+    } else if (value !== null && typeof value === 'object') {
+      sanitized[key] = sanitizeObjectForAuditLog(value as Record<string, unknown>, maxLength);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
 
 // ============================================================
 // Types
@@ -109,25 +177,24 @@ export interface AuditLogParams {
 export async function createAuditLog(params: AuditLogParams): Promise<void> {
   try {
     // Sanitize all string inputs to prevent log injection attacks.
-    // Log injection occurs when attackers include newlines, control
-    // characters, or HTML in logged values to corrupt log files
-    // or exploit log viewing dashboards.
-    const sanitizedIpAddress = sanitizeInput(params.ipAddress);
-    const sanitizedUserAgent = sanitizeInput(params.userAgent);
-    const sanitizedAction = sanitizeInput(params.action);
+    // Unlike sanitizeInput (XSS prevention), this targets log injection
+    // which uses newlines, control characters, and ANSI escapes.
+    const sanitizedIpAddress = sanitizeForAuditLog(params.ipAddress);
+    const sanitizedUserAgent = sanitizeForAuditLog(params.userAgent);
+    const sanitizedAction = sanitizeForAuditLog(params.action);
 
     // Sanitize optional fields only when present
     const sanitizedTargetId = params.targetId
-      ? sanitizeInput(params.targetId)
+      ? sanitizeForAuditLog(params.targetId)
       : undefined;
     const sanitizedTargetType = params.targetType
-      ? sanitizeInput(params.targetType)
+      ? sanitizeForAuditLog(params.targetType)
       : undefined;
 
     // Sanitize the details object if provided.
     // This recursively sanitizes all string values within the JSON.
     const sanitizedDetails = params.details
-      ? sanitizeInput(params.details)
+      ? sanitizeObjectForAuditLog(params.details)
       : undefined;
 
     // Create the audit log entry in the database.
