@@ -209,12 +209,10 @@ function isOptimisticLockError(error: Prisma.PrismaClientKnownRequestError): boo
   // 2. The record exists but the version doesn't match (optimistic lock failure)
   // We require BOTH the P2025 code AND a version-related message to avoid
   // treating generic "not found" errors as lock conflicts.
-  if (error.code === 'P2025') {
-    return error.message.includes('version') ||
-           error.message.includes('Record to update not found');
-  }
-  return error.message.includes('version') ||
-         error.message.includes('Record to update not found');
+  return error.code === 'P2025' && (
+    error.message.includes('version') ||
+    error.message.includes('Record to update not found')
+  );
 }
 
 /**
