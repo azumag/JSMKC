@@ -73,7 +73,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.ipAddress).toBe('192.168.1.1[FAKE_LOG_ENTRY]');
     });
 
@@ -86,7 +86,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.userAgent).toBe('Mozilla/5.0[INJECTED]');
     });
 
@@ -100,7 +100,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.details.userAgent).toBe('Red Text');
     });
 
@@ -118,7 +118,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.details.player).toBe('John[FAKE_LOG]');
       expect(call.data.details.score).toBe(100);
       expect(call.data.details.nested.message).toBe('TestInjection');
@@ -134,7 +134,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.ipAddress.length).toBe(500);
     });
 
@@ -195,7 +195,7 @@ describe('Audit Log', () => {
 
       await createAuditLog(params);
 
-      const call = (prismaMock.auditLog.create as any).mock.calls[0];
+      const call = (prismaMock.auditLog.create as any).mock.calls[0][0];
       expect(call.data.userId).toBeNull();
     });
 
