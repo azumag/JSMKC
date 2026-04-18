@@ -105,10 +105,6 @@ export async function POST(
       return handleValidationError("Match not found", "matchId");
     }
 
-    if (match.completed) {
-      return handleValidationError("Match already completed", "matchStatus");
-    }
-
     /* Validate reportingPlayer before auth check to prevent invalid values propagating */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
@@ -118,6 +114,77 @@ export async function POST(
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return handleAuthError('Unauthorized: Not authorized for this match');
+    }
+
+    /*
+     * Correction path: let a participant fix a GP score after the match has
+     * already been confirmed. Keep the match completed, update the final score
+     * and the reporting player's stored report, then recalculate standings.
+     */
+    if (match.completed) {
+      /* Process races: convert finishing positions to driver points (same as normal flow) */
+      let totalPoints1 = 0;
+      let totalPoints2 = 0;
+
+      const processedRaces = races.map((race: { position1: number; position2: number; course: string }) => {
+        const pts1 = getDriverPoints(race.position1);
+        const pts2 = getDriverPoints(race.position2);
+        totalPoints1 += pts1;
+        totalPoints2 += pts2;
+        return {
+          course: race.course,
+          position1: race.position1,
+          position2: race.position2,
+          points1: pts1,
+          points2: pts2,
+        };
+      });
+
+      try {
+        const correctedMatch = await updateWithRetry(prisma, async (tx) => {
+          const currentMatch = await tx.gPMatch.findUnique({
+            where: { id: matchId },
+            select: { version: true },
+          });
+
+          if (!currentMatch) {
+            throw new Error("Match not found");
+          }
+
+          const reportData =
+            reportingPlayer === 1
+              ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: processedRaces }
+              : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: processedRaces };
+
+          return tx.gPMatch.update({
+            where: { id: matchId, version: currentMatch.version },
+            data: {
+              points1: totalPoints1,
+              points2: totalPoints2,
+              completed: true,
+              ...reportData,
+              version: { increment: 1 },
+            },
+            include: { player1: true, player2: true },
+          });
+        });
+
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, correctedMatch.player1Id);
+        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, correctedMatch.player2Id);
+
+        return createSuccessResponse({
+          match: correctedMatch,
+          corrected: true,
+        }, "Score correction saved");
+      } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          return createErrorResponse(
+            "This match was updated by someone else. Please refresh and try again.",
+            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          );
+        }
+        return handleDatabaseError(error, "score correction");
+      }
     }
 
     /* Validate character selection */
