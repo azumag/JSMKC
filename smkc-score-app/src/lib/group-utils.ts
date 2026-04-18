@@ -9,7 +9,7 @@
 export const GROUPS = ["A", "B", "C", "D"] as const;
 
 /** Valid range for group count */
-const MIN_GROUPS = 2;
+const DEFAULT_MIN_GROUPS = 2;
 const MAX_GROUPS = GROUPS.length;
 
 /** Minimum player count to show a group-count recommendation in the UI */
@@ -23,11 +23,13 @@ export interface SetupPlayer {
 }
 
 /**
- * Clamp groupCount to valid range [2, GROUPS.length].
+ * Clamp groupCount to valid range [min, GROUPS.length].
  * Prevents division-by-zero and out-of-bounds access.
+ * @param groupCount - Raw group count from UI
+ * @param minGroups - Minimum allowed groups (default: 2, or 1 for BM/MR/GP)
  */
-function clampGroupCount(groupCount: number): number {
-  return Math.max(MIN_GROUPS, Math.min(MAX_GROUPS, Math.floor(groupCount)));
+function clampGroupCount(groupCount: number, minGroups: number = DEFAULT_MIN_GROUPS): number {
+  return Math.max(minGroups, Math.min(MAX_GROUPS, Math.floor(groupCount)));
 }
 
 /**
@@ -64,8 +66,9 @@ export function recommendGroupCount(playerCount: number): number {
 export function assignGroupsBySeeding(
   players: SetupPlayer[],
   groupCount: number,
+  minGroups: number = DEFAULT_MIN_GROUPS,
 ): SetupPlayer[] {
-  const safeCount = clampGroupCount(groupCount);
+  const safeCount = clampGroupCount(groupCount, minGroups);
   const groups = GROUPS.slice(0, safeCount);
   /* Sort by seeding ascending; players without seeding go to end */
   const sorted = [...players].sort(
@@ -89,8 +92,9 @@ export function assignGroupsBySeeding(
 export function randomlyAssignGroups(
   players: SetupPlayer[],
   groupCount: number = 3,
+  minGroups: number = DEFAULT_MIN_GROUPS,
 ): SetupPlayer[] {
-  const safeCount = clampGroupCount(groupCount);
+  const safeCount = clampGroupCount(groupCount, minGroups);
   const groups = GROUPS.slice(0, safeCount);
   /* Fisher-Yates shuffle for unbiased random ordering */
   const shuffled = [...players];
