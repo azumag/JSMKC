@@ -469,7 +469,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         });
       }
 
-      return NextResponse.json({ match, result1, result2 });
+      return createSuccessResponse({ match, result1, result2 });
     } catch (error) {
       // Surface cup validation errors (§7.1/§7.4) as 400 rather than 500
       if (error instanceof CupMismatchError) {
