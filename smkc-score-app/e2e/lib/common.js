@@ -226,11 +226,12 @@ async function apiFetchBmFinalsMatches(page, tournamentId) {
     const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
     return r.json().catch(() => ({}));
   }, `/api/tournaments/${tournamentId}/bm/finals`);
-  /* BM uses 'grouped' GET style. Fall back to grouped arrays if `matches` is absent. */
-  const arr = json.matches || [
-    ...(json.winnersMatches || []),
-    ...(json.losersMatches || []),
-    ...(json.grandFinalMatches || []),
+  /* BM uses 'grouped' GET style: { success: true, data: { matches, winnersMatches, losersMatches, grandFinalMatches } } */
+  const wrapped = json.data;
+  const arr = wrapped?.matches || [
+    ...(wrapped?.winnersMatches || []),
+    ...(wrapped?.losersMatches || []),
+    ...(wrapped?.grandFinalMatches || []),
   ];
   return arr.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
 }
@@ -343,7 +344,9 @@ async function apiFetchMrFinalsMatches(page, tournamentId) {
     const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
     return r.json().catch(() => ({}));
   }, `/api/tournaments/${tournamentId}/mr/finals`);
-  return (json.matches || []).slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+  /* Unwrap createSuccessResponse: json.data = { matches, bracketStructure, roundNames } */
+  const matches = json.data?.matches || json.matches || [];
+  return matches.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
 }
 
 async function setupMr28PlayerFinals(adminPage, label, opts = {}) {
