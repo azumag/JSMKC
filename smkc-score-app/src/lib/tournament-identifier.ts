@@ -26,6 +26,11 @@ export async function resolveTournamentId(identifier: string): Promise<string> {
 
     return tournament?.id ?? identifier;
   } catch {
+    // On DB error, validate identifier format before returning it.
+    // Invalid identifiers could indicate injection attempts or malformed input.
+    if (!isValidTournamentSlug(identifier)) {
+      throw new Error(`Invalid tournament identifier: ${identifier}`);
+    }
     return identifier;
   }
 }
