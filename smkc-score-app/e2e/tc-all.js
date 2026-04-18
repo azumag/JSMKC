@@ -245,32 +245,59 @@ async function main() {
 
   // ===== Admin tests (use existing session from persistent profile) =====
 
-  // TC-201: Mode data loading
-  let tc201 = true;
-  for (const m of ['ta', 'bm', 'mr', 'gp']) {
-    await nav(page, `/tournaments/${TID}/${m}`);
-    t = await vis(page);
-    if (['Failed to fetch', 'エラーが発生しました', '再試行'].some(e => t.includes(e))) tc201 = false;
-    if (!t.includes('KasmoSMKC')) tc201 = false;
-  }
-  log('TC-201', tc201 ? 'PASS' : 'FAIL');
+  // TC-201 / TC-202: Create a dedicated test tournament so these tests don't
+  // depend on a specific production tournament (previously targeted KasmoSMKC).
+  // A fresh tournament shows its name in the layout header on every mode page,
+  // so we can verify both page-load health and tournament name visibility.
+  const tc201TournamentName = `E2E TC-201 ${Date.now()}`;
+  let tc201TournamentId = null;
+  try {
+    const tc201Create = await page.evaluate(async d => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, { name: tc201TournamentName, date: new Date().toISOString() });
+    tc201TournamentId = tc201Create.b?.data?.id ?? null;
+    if (tc201Create.s !== 201 || !tc201TournamentId) {
+      throw new Error(`Failed to create TC-201 tournament (${tc201Create.s})`);
+    }
 
-  // TC-202
-  await nav(page, '/tournaments');
-  t = await vis(page);
-  const knownTournament = await page.evaluate(async (u) => {
-    const r = await fetch(u);
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, `/api/tournaments/${TID}?fields=summary`);
-  const tournamentsPageLoaded =
-    t.includes('Tournaments') || t.includes('トーナメント') || t.includes('大会');
-  const knownTournamentExists =
-    knownTournament.s === 200 &&
-    (knownTournament.b?.data?.name || knownTournament.b?.name || '').includes('KasmoSMKC');
-  log('TC-202', tournamentsPageLoaded && knownTournamentExists ? 'PASS' : 'FAIL',
-    !tournamentsPageLoaded ? 'Tournaments page did not render'
-    : !knownTournamentExists ? 'Known tournament not found by API'
-    : '');
+    // TC-201: Mode data loading
+    let tc201 = true;
+    for (const m of ['ta', 'bm', 'mr', 'gp']) {
+      await nav(page, `/tournaments/${tc201TournamentId}/${m}`);
+      t = await vis(page);
+      if (['Failed to fetch', 'エラーが発生しました', '再試行'].some(e => t.includes(e))) tc201 = false;
+      if (!t.includes(tc201TournamentName)) tc201 = false;
+    }
+    log('TC-201', tc201 ? 'PASS' : 'FAIL');
+
+    // TC-202
+    await nav(page, '/tournaments');
+    t = await vis(page);
+    const knownTournament = await page.evaluate(async (u) => {
+      const r = await fetch(u);
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, `/api/tournaments/${tc201TournamentId}?fields=summary`);
+    const tournamentsPageLoaded =
+      t.includes('Tournaments') || t.includes('トーナメント') || t.includes('大会');
+    const knownTournamentExists =
+      knownTournament.s === 200 &&
+      (knownTournament.b?.data?.name || knownTournament.b?.name || '') === tc201TournamentName;
+    log('TC-202', tournamentsPageLoaded && knownTournamentExists ? 'PASS' : 'FAIL',
+      !tournamentsPageLoaded ? 'Tournaments page did not render'
+      : !knownTournamentExists ? 'Created tournament not found by API'
+      : '');
+  } catch (err) {
+    log('TC-201', 'FAIL', err instanceof Error ? err.message : 'Setup failed');
+    log('TC-202', 'FAIL', err instanceof Error ? err.message : 'Setup failed');
+  } finally {
+    if (tc201TournamentId) {
+      await deleteTournament(page, tc201TournamentId);
+    }
+  }
 
   // TC-203
   await nav(page, `/tournaments/${TID}/overall-ranking`);
