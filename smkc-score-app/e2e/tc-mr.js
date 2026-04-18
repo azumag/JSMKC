@@ -1258,7 +1258,7 @@ async function runTc612(adminPage) {
 }
 
 // Export individual test functions for integration into tc-all.js
-module.exports = { runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607, runTc608, runTc609, runTc610, runTc611, runTc612 };
+module.exports = { runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607, runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822 };
 
 // Standalone execution
 if (require.main === module) {
@@ -1279,6 +1279,147 @@ if (require.main === module) {
       { name: 'TC-610', fn: runTc610 },
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-612', fn: runTc612 },
+      { name: 'TC-820', fn: runTc820 },
+      { name: 'TC-822', fn: runTc822 },
     ],
   });
+}
+
+/* ───────── TC-820: MR match/[matchId] page view-only ─────────
+ * Similar to TC-321 (BM match page), MR match pages are also view-only.
+ * Score entry is consolidated to the /mr/participant page. */
+async function runTc820(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR 820 P1', `e2e_mr820_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR 820 P2', `e2e_mr820_p2_${stamp}`);
+    tournamentId = await createTournament(adminPage, `E2E MR 820 ${stamp}`);
+
+    // Setup MR qualification
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [{ playerId: player1.id, group: 'A' }, { playerId: player2.id, group: 'A' }],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get a non-BYE match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // Visit match page
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/match/${match.id}`);
+    const matchText = await adminPage.locator('body').innerText();
+
+    // Should show player names
+    const showsPlayers = matchText.includes(player1.nickname) && matchText.includes(player2.nickname);
+    // Should NOT have score entry form (winner buttons, course selectors)
+    const noScoreForm = !matchText.includes('wins race') && !matchText.includes('I am') && !matchText.includes('私は');
+
+    log('TC-820', showsPlayers && noScoreForm ? 'PASS' : 'FAIL',
+      !showsPlayers ? 'Match page missing player names' : !noScoreForm ? 'Match page has score entry form' : '');
+  } catch (err) {
+    log('TC-820', 'FAIL', err instanceof Error ? err.message : 'MR match view test failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
+}
+
+/* ───────── TC-822: MR scoresConfirmed → subsequent PUT blocked ─────────
+ * After admin confirms a mismatched dual-report, scoresConfirmed flag is set.
+ * A second PUT should return 400. */
+async function runTc822(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+  try {
+    const stamp = Date.now();
+    player1 = await createPlayer(adminPage, 'E2E MR 822 P1', `e2e_mr822_p1_${stamp}`);
+    player2 = await createPlayer(adminPage, 'E2E MR 822 P2', `e2e_mr822_p2_${stamp}`);
+    tournamentId = await createTournament(adminPage, `E2E MR 822 ${stamp}`, { dualReportEnabled: true });
+
+    // Setup MR with dualReport
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      players: [{ playerId: player1.id, group: 'A' }, { playerId: player2.id, group: 'A' }],
+    }]);
+    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
+
+    // Get match
+    const mrData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const match = (mrData.data?.matches || mrData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    // Step 1: P1 reports 3-1
+    await adminPage.evaluate(async ([url, body]) => {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 1, score1: 3, score2: 1,
+    }]);
+
+    // Step 2: P2 reports 1-3 (disagreement — mismatch detected)
+    const p2Report = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${tournamentId}/mr/match/${match.id}/report`, {
+      reportingPlayer: 2, score1: 1, score2: 3,
+    }]);
+
+    const hasMismatch = p2Report.b?.data?.mismatch === true || p2Report.b?.mismatch === true;
+
+    // Step 3: Admin resolves mismatch via PUT (this sets scoresConfirmed)
+    const confirm = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1 }]);
+    if (confirm.s !== 200) throw new Error(`Admin resolve failed (${confirm.s})`);
+
+    // Verify match is completed after admin resolve
+    const finalCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const finalMatch = (finalCheck.data?.matches || finalCheck.matches || []).find((m) => m.id === match.id);
+    const isComplete = finalMatch?.completed === true;
+
+    // Step 4: Second PUT should be blocked (scoresConfirmed is set)
+    const secondPut = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
+
+    log('TC-822', hasMismatch && isComplete && secondPut.s === 400 ? 'PASS' : 'FAIL',
+      !hasMismatch ? 'Mismatch not detected after dual report'
+        : !isComplete ? `Match not completed after resolve: completed=${finalMatch?.completed}`
+        : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
+  } catch (err) {
+    log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR scoresConfirmed test failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    if (player1) await deletePlayer(adminPage, player1.id);
+    if (player2) await deletePlayer(adminPage, player2.id);
+  }
 }

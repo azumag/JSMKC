@@ -524,7 +524,7 @@ async function runTc709(adminPage) {
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709,
+  runTc707, runTc708, runTc709, runTc821,
 };
 
 if (require.main === module) {
@@ -542,6 +542,54 @@ if (require.main === module) {
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
+      { name: 'TC-821', fn: runTc821 },
     ],
   });
+}
+
+/* ───────── TC-821: GP match/[matchId] page view-only ─────────
+ * Similar to TC-320/TC-821 for MR, GP match pages are also view-only.
+ * Score entry is via /gp/participant or API report endpoint. */
+async function runTc821(adminPage) {
+  let tournamentId = null;
+  let player1 = null;
+  let player2 = null;
+  try {
+    const stamp = Date.now();
+    player1 = await apiCreatePlayer(adminPage, 'E2E GP 821 P1', `e2e_gp821_p1_${stamp}`);
+    player2 = await apiCreatePlayer(adminPage, 'E2E GP 821 P2', `e2e_gp821_p2_${stamp}`);
+    tournamentId = await apiCreateTournament(adminPage, `E2E GP 821 ${stamp}`);
+
+    const setup = await adminPage.evaluate(async ([url, data]) => {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp`, {
+      players: [{ playerId: player1.id, group: 'A' }, { playerId: player2.id, group: 'A' }],
+    }]);
+    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
+
+    const gpData = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/gp`);
+    const match = (gpData.data?.matches || gpData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp/match/${match.id}`);
+    const matchText = await adminPage.locator('body').innerText();
+
+    const showsPlayers = matchText.includes(player1.nickname) && matchText.includes(player2.nickname);
+    // GP match page is view-only; score entry uses /gp/participant page
+    // Check for absence of form submission buttons
+    const noRaceEntry = !matchText.includes('Submit') && !matchText.includes('送信');
+
+    log('TC-821', showsPlayers && noRaceEntry ? 'PASS' : 'FAIL',
+      !showsPlayers ? 'Match page missing player names' : !noRaceEntry ? 'Match page has race entry form' : '');
+  } catch (err) {
+    log('TC-821', 'FAIL', err instanceof Error ? err.message : 'GP match view test failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    if (player1) await apiDeletePlayer(adminPage, player1.id);
+    if (player2) await apiDeletePlayer(adminPage, player2.id);
+  }
 }
