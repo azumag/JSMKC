@@ -787,7 +787,7 @@
 
 ---
 
-## TT (Time Trial / TA) フルワークフローテスト  *(scenario only — 実装は別タスク)*
+## TT (Time Trial / TA) フルワークフローテスト  *(TC-801/804/805/806/807/808 実装済み)*
 
 ### 設計方針
 - **エントリー数**: 28名（TA はグループ分けなし、全員が同一プールでタイムを競う）
@@ -908,3 +908,37 @@ E2Eテストでは以下を必ず確認すること：
 3. **ローディング完了**: `読み込み中` が消えていること
 
 HTTPステータスコード200だけでは不十分。ページの`innerText`を取得して上記を検証すること（`textContent`はi18n JSONを含むため使用不可）。
+
+## 未カバー領域のテストケース（調査後追加）
+
+### TC-820: MR match/[matchId] ページ view-only確認
+- **URL**: /tournaments/[temp-id]/mr/match/[matchId]
+- **authRequired**: false
+- **背景**: TC-321はBM matchページのみテスト済み。MR/GP matchページもview-onlyであることを確認
+- **手順**:
+  1. MRPreparaciónをセットアップし、非BYEマッチを生成
+  2. `/mr/match/[matchId]` ページにアクセス
+  3. プレイヤー名とマッチ情報が表示されることを確認（view-only）
+  4. スコア入力フォーム要素が存在しないことを確認（参加者ページで入力）
+- **期待結果**: MR matchページはview-onlyでスコア入力フォームがない
+
+### TC-821: GP match/[matchId] ページ view-only確認
+- **URL**: /tournaments/[temp-id]/gp/match/[matchId]
+- **authRequired**: false
+- **手順**:
+  1. GPPreparaciónをセットアップし、非BYEマッチを生成
+  2. `/gp/match/[matchId]` ページにアクセス
+  3. プレイヤー名とマッチ情報が表示されることを確認（view-only）
+  4. スコア入力フォーム要素が存在しないことを確認
+- **期待結果**: GP matchページはview-onlyでスコア入力フォームがない
+
+### TC-822: MR二重報告 — 管理者確定後のスコア変更不可
+- **URL**: /api/tournaments/[temp-id]/mr/matches/[matchId]
+- **authRequired**: true (admin)
+- **背景**: 不一致報告後に管理者が確定したマッチは、scoresConfirmedフラグでロックされる
+- **手順**:
+  1. dualReportEnabled=trueのトーナメントでMRマッチを生成
+  2. P1が3-1で、P2が1-3で報告（不一致）
+  3. 管理者が不一致を確認後、PUTでスコアを確定
+  4. 同じマッチに再度PUTを送信 → 400で拒否されることを確認
+- **期待結果**: scoresConfirmed後のPUTは400で拒否される
