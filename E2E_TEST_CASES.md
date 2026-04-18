@@ -785,6 +785,42 @@
   4. クリーンアップ
 - **期待結果**: GP 決勝スコア入力は管理者のみ許可、プレイヤーは 403 拒否
 
+## TC-820: MR match/[matchId] ページがview-onlyであることを確認
+- **URL**: /tournaments/[temp-id]/mr/match/[matchId]
+- **authRequired**: true (player)
+- **背景**: MRのmatch detailページは参加者によるスコア送信ではなく結果閲覧所用的
+- **手順**:
+  1. MR qualification済みの一時トーナメントとプレイヤー2名を作成
+  2. pending matchのIDを取得
+  3. プレイヤーとして `/mr/match/[matchId]` にアクセス
+  4. 「スコア入力」ボタンまたはフォームが存在しないことを確認（view-only）
+  5. クリーンアップ
+- **期待結果**: MR match detailはスコア入力UIなしで結果表示のみ
+
+## TC-821: GP match/[matchId] ページがview-onlyであることを確認
+- **URL**: /tournaments/[temp-id]/gp/match/[matchId]
+- **authRequired**: true (player)
+- **背景**: GPのmatch detailページは直接アクセスの場合結果閲覧のみ（スコア送信はparticipant経由）
+- **手順**:
+  1. GP qualification済みの一時トーナメントとプレイヤー2名を作成
+  2. pending matchのIDを取得
+  3. プレイヤーとして直接 `/gp/match/[matchId]` にアクセス
+  4. レース入力用のSelect/Input要素がないことを確認
+  5. クリーンアップ
+- **期待結果**: GP match detailは直接アクセスでは入力UIなし（participantページから入力）
+
+## TC-822: MR scoresConfirmed後のPUTが400でブロックされることを確認
+- **URL**: /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
+- **authRequired**: true (player)
+- **背景**: MRのdual reportにおいて、管理者が不一致を確定（scoresConfirmed）後のPUTはブロックされる
+- **手順**:
+  1. dualReportEnabled=true のトーナメントでMR matchを作成
+  2. P1とP2が異なるスコアを報告し、mismatch状態を作る
+  3. 管理者がPUTでscoresConfirmed=trueに確定
+  4. 再度スコア報告PUTを送信 → 400で拒否されること
+  5. クリーンアップ
+- **期待結果**: scoresConfirmed後のスコア報告は400で拒否される
+
 ---
 
 ## TT (Time Trial / TA) フルワークフローテスト  *(scenario only — 実装は別タスク)*
