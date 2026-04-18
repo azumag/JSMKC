@@ -10,13 +10,15 @@ on:
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
 
+# Cancel any in-progress review for the same PR so only the latest commit is reviewed.
+concurrency:
+  group: claude-review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Skip drafts so we don't review twice (once on `opened` as draft, again on `ready_for_review`).
+    if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
     permissions:
