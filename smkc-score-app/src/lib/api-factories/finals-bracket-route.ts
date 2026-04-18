@@ -90,7 +90,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
         points: q.points,
       }));
 
-      return NextResponse.json({
+      return createSuccessResponse({
         matches,
         players,
         totalPlayers: players.length,
