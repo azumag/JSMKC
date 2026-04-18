@@ -122,7 +122,12 @@ async function runTc702(adminPage) {
   }
 }
 
-/* ───────── TC-703: 28-player full + finals bracket gen + 1 score ───────── */
+/* ───────── TC-703: 28-player full + finals bracket gen + 1 score ─────────
+ * Also asserts that right after bracket generation, QF matches (M1..M4) each
+ * carry two DISTINCT real qualifier IDs — guards against the factory's
+ * placeholder behaviour (non-first-round matches get seededPlayers[0] on both
+ * slots until routing fills them) leaking into the QF. And verifies the
+ * finals page actually renders those qualifier nicknames (not all "TBD"). */
 async function runTc703(adminPage) {
   let setup = null;
   try {
@@ -134,6 +139,27 @@ async function runTc703(adminPage) {
     const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const m1 = matches.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Match 1 missing');
+
+    /* QF real-player check: M1..M4 must have 8 distinct non-null IDs. */
+    const qfMatches = [1, 2, 3, 4].map((n) => matches.find((m) => m.matchNumber === n));
+    if (qfMatches.some((m) => !m)) throw new Error('QF matches missing');
+    const qfIds = qfMatches.flatMap((m) => [m.player1Id, m.player2Id]);
+    const qfAllPresent = qfIds.every((id) => typeof id === 'string' && id.length > 0);
+    const qfAllDistinct = new Set(qfIds).size === 8;
+
+    /* Top 8 qualifiers must populate the QF — compare against setup.playerIds
+     * bucket. setup.playerIds are seeded 1..28 via snakeDraft28; the API picks
+     * top 8 by qualification standings, which with P1-wins-all scoring should
+     * come from the early seeds. We just check the 8 QF IDs are a subset. */
+    const allSetupIds = new Set(setup.playerIds);
+    const qfAllRegistered = qfIds.every((id) => allSetupIds.has(id));
+
+    /* Frontend: QF cards must show real nicknames (not "TBD"). Pick any QF
+     * player's nickname and assert it appears on the page. */
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/gp/finals`);
+    const pageText = await adminPage.locator('body').innerText();
+    const qfNick = setup.nicknames[setup.playerIds.indexOf(qfMatches[0].player1Id)];
+    const qfRendered = !!qfNick && pageText.includes(qfNick);
 
     /* GP finals validation: targetWins=3 default. score1=9 (P1 1st in 1 race) >= 3, score2=0 < 3. */
     const valid = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 9, 0);
@@ -148,9 +174,14 @@ async function runTc703(adminPage) {
     const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id);
     const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
-    const ok = bracketCount && scoreSaved && winnerRouted && loserRouted;
+    const ok = bracketCount && scoreSaved && winnerRouted && loserRouted
+      && qfAllPresent && qfAllDistinct && qfAllRegistered && qfRendered;
     log('TC-703', ok ? 'PASS' : 'FAIL',
-      !bracketCount ? `bracket size=${after.length}`
+      !qfAllPresent ? 'QF has null player IDs'
+      : !qfAllDistinct ? `QF IDs not 8 distinct: ${new Set(qfIds).size}`
+      : !qfAllRegistered ? 'QF contains unknown player IDs'
+      : !qfRendered ? `QF nickname not on finals page (${qfNick})`
+      : !bracketCount ? `bracket size=${after.length}`
       : !scoreSaved ? `score: ${updated?.points1}-${updated?.points2}`
       : !winnerRouted || !loserRouted ? 'routing mismatch'
       : '');
@@ -205,12 +236,21 @@ async function runTc705(adminPage) {
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* Drive M1..M16 with P1 always winning 9-0. */
+    /* Drive M1..M16 with P1 always winning 9-0. Each match must have two
+     * DISTINCT real qualifier IDs by the time we score it — if routing broke
+     * and both slots stayed on the seededPlayers[0] placeholder, the put would
+     * still succeed and the test would silently "pass" without real players. */
     for (let mn = 1; mn <= 16; mn++) {
       const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) {
         throw new Error(`Match ${mn} not ready`);
+      }
+      if (match.player1Id === match.player2Id) {
+        throw new Error(`Match ${mn} has placeholder players (same ID on both slots)`);
+      }
+      if (!playerIds.includes(match.player1Id) || !playerIds.includes(match.player2Id)) {
+        throw new Error(`Match ${mn} has unregistered player IDs`);
       }
       const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
