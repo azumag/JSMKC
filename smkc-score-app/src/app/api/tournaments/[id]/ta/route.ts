@@ -261,6 +261,9 @@ export async function POST(
     // other players without admin privileges.
     if (authResult.session!.user.role !== 'admin') {
       const selfPlayerId = authResult.session!.user.playerId;
+      if (!selfPlayerId) {
+        return createErrorResponse('Player ID not found in session', 401);
+      }
       const isAddingSelf = playerIds.length > 0 && playerIds.every(pid => pid === selfPlayerId);
       if (!isAddingSelf) {
         return createErrorResponse('Forbidden: Players can only add themselves', 403, 'FORBIDDEN');
@@ -554,6 +557,9 @@ export async function PUT(
     // Admins can update any entry.
     if (authResult.session!.user.role !== 'admin') {
       const currentPlayerId = authResult.session!.user.playerId;
+      if (!currentPlayerId) {
+        return createErrorResponse('Player ID not found in session', 401);
+      }
       const isOwner = currentPlayerId === entry.playerId;
       const isPartner = entry.partnerId === currentPlayerId;
       if (!isOwner && !isPartner) {
