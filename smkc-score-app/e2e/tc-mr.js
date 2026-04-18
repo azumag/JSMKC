@@ -1397,14 +1397,24 @@ async function runTc822(adminPage) {
     }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 3, score2: 1 }]);
     if (confirm.s !== 200) throw new Error(`Admin resolve failed (${confirm.s})`);
 
+    // Verify match is completed after admin resolve
+    const finalCheck = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return r.json().catch(() => ({}));
+    }, `/api/tournaments/${tournamentId}/mr`);
+    const finalMatch = (finalCheck.data?.matches || finalCheck.matches || []).find((m) => m.id === match.id);
+    const isComplete = finalMatch?.completed === true;
+
     // Step 4: Second PUT should be blocked (scoresConfirmed is set)
     const secondPut = await adminPage.evaluate(async ([url, data]) => {
       const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       return { s: r.status };
     }, [`/api/tournaments/${tournamentId}/mr`, { matchId: match.id, score1: 2, score2: 2 }]);
 
-    log('TC-822', hasMismatch && secondPut.s === 400 ? 'PASS' : 'FAIL',
+    log('TC-822', hasMismatch && isComplete && secondPut.s === 400 ? 'PASS' : 'FAIL',
       !hasMismatch ? 'Mismatch not detected after dual report'
+        : !isComplete ? `Match not completed after resolve: completed=${finalMatch?.completed}`
+        : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
         : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
   } catch (err) {
     log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR scoresConfirmed test failed');
