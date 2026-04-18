@@ -58,6 +58,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
@@ -153,6 +163,8 @@ export default function TimeAttackPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [entryToRemove, setEntryToRemove] = useState<TTEntry | null>(null);
+  const [removingEntryId, setRemovingEntryId] = useState<string | null>(null);
 
   // Pair management dialog state (admin only, §3.1)
   const [isPairDialogOpen, setIsPairDialogOpen] = useState(false);
@@ -568,26 +580,30 @@ export default function TimeAttackPage({
     }
   };
 
-  /** Delete an entry from the qualification round (with confirmation) */
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!confirm(tc('confirmRemovePlayer'))) return;
-
+  /** Delete an entry from the qualification round after explicit confirmation */
+  const handleDeleteEntry = async (entry: TTEntry) => {
+    setRemovingEntryId(entry.id);
     try {
       const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta?entryId=${entryId}`,
+        `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`,
         { method: "DELETE" }
       );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to delete entry");
+        throw new Error(errorData.error || t('removeQualificationEntryError'));
       }
 
+      toast.success(t('removeQualificationEntrySuccess', { nickname: entry.player.nickname }));
+      setEntryToRemove(null);
       refetch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to delete entry";
+      const errorMessage = err instanceof Error ? err.message : t('removeQualificationEntryError');
       logger.error("Failed to delete entry:", { error: err, tournamentId });
+      toast.error(errorMessage);
       setError(errorMessage);
+    } finally {
+      setRemovingEntryId(null);
     }
   };
 
@@ -1269,9 +1285,9 @@ export default function TimeAttackPage({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteEntry(entry.id)}
+                              onClick={() => setEntryToRemove(entry)}
                             >
-                              {tc('remove')}
+                              {t('removeFromQualification')}
                             </Button>
                           )}
                         </TableCell>
@@ -1386,6 +1402,41 @@ export default function TimeAttackPage({
           </TabsContent>
         </Tabs>
       )}
+
+      <AlertDialog
+        open={entryToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open && !removingEntryId) setEntryToRemove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('removeQualificationEntryTitle', {
+                nickname: entryToRemove?.player.nickname ?? "",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('removeQualificationEntryDesc')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingEntryId !== null}>
+              {tc('cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removingEntryId !== null || entryToRemove === null}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (entryToRemove) await handleDeleteEntry(entryToRemove);
+              }}
+            >
+              {removingEntryId !== null ? tc('saving') : t('removeQualificationEntryConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
        * The dialog is opened via openTimeEntryDialog() which is only callable
