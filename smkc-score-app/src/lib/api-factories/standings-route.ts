@@ -19,7 +19,7 @@ import { auth } from '@/lib/auth';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse } from '@/lib/error-handling';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
@@ -98,15 +98,10 @@ export function createStandingsHandlers(config: StandingsConfig) {
       const cached = await get(tournamentId, 'qualification');
 
       if (cached && !isExpired(cached) && ifNoneMatch !== '*') {
-        return NextResponse.json(
-          { ...cached.data, _cached: true },
-          {
-            headers: {
-              'ETag': cached.etag,
-              'Cache-Control': 'public, max-age=300',
-            },
-          },
-        );
+        const response = createSuccessResponse({ ...cached.data, _cached: true });
+        response.headers.set('ETag', cached.etag);
+        response.headers.set('Cache-Control', 'public, max-age=300');
+        return response;
       }
 
       if (config.usePagination) {
@@ -141,7 +136,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
 
         await set(tournamentId, 'qualification', result.data, etag);
 
-        return NextResponse.json({
+        return createSuccessResponse({
           tournamentId,
           stage: 'qualification',
           lastUpdated,
@@ -315,7 +310,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
           ? withOverrides.map(config.transformQualification)
           : withOverrides;
 
-        return NextResponse.json({
+        return createSuccessResponse({
           tournamentId,
           stage: 'qualification',
           lastUpdated,
