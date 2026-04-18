@@ -347,7 +347,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       return NextResponse.json(
-        { message: config.setupCompleteMessage, qualifications },
+        { success: true, data: { message: config.setupCompleteMessage, qualifications } },
         { status: 201 },
       );
     } catch (error) {

@@ -22,7 +22,7 @@ import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -113,7 +113,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? generateBracketStructure(8)
           : [];
 
-        return NextResponse.json({
+        return createSuccessResponse({
           ...result,
           bracketStructure,
           roundNames,
@@ -142,7 +142,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           (m: { round?: string }) => m.round?.startsWith('grand_final') || false,
         );
 
-        return NextResponse.json({
+        return createSuccessResponse({
           matches,
           winnersMatches,
           losersMatches,
@@ -153,7 +153,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       /* 'simple' style */
-      return NextResponse.json({
+      return createSuccessResponse({
         matches,
         bracketStructure,
         roundNames,
@@ -314,11 +314,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       const match = await model(prisma).findUnique({
-        where: { id: matchId },
+        where: { id: matchId, tournamentId },
         include: { player1: true, player2: true },
       });
 
-      if (!match || match.stage !== 'finals') {
+      if (!match) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
@@ -492,7 +492,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         champion = winnerId;
       }
 
-      return NextResponse.json({
+      return createSuccessResponse({
         match: updatedMatch,
         winnerId,
         loserId,

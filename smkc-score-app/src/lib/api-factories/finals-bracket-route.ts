@@ -18,7 +18,7 @@ import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
-import { createErrorResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -182,7 +182,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
         logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_BRACKET' });
       }
 
-      return NextResponse.json(bracketData);
+      return createSuccessResponse(bracketData);
     } catch (error) {
       logger.error('Failed to generate bracket', { error, tournamentId });
       return createErrorResponse('Failed to generate bracket', 500, 'INTERNAL_ERROR');
