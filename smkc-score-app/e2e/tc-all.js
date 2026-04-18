@@ -1032,17 +1032,23 @@ async function main() {
   const mrBody = await getBody(`${BASE}/tournaments/${TID}/mr`);
   log('TC-304', (mrBody.includes('Please wait') || mrBody.includes('セットアップが完了するまで')) ? 'PASS' : 'FAIL');
 
-  // TC-305: BM group dialog
+  // TC-305: BM group dialog - verify dialog closes after save
   await nav(page, `/tournaments/${TID}/bm`);
-  const editBtn = page.getByRole('button', { name: /グループ編集|Edit Groups/ });
-  if (await editBtn.count() > 0) {
-    await editBtn.click();
+  const editBtn305 = page.getByRole('button', { name: /グループ編集|Edit Groups/ });
+  if (await editBtn305.count() > 0) {
+    await editBtn305.click();
     await page.waitForTimeout(2000);
-    const saveBtn = page.getByRole('button', { name: /グループ更新|Update Groups/ });
-    if (await saveBtn.count() > 0) {
-      const dialogOpen = (await page.locator('[role="dialog"]').count()) > 0;
-      log('TC-305', dialogOpen ? 'PASS' : 'FAIL', dialogOpen ? '' : 'Edit dialog did not open');
-      await page.keyboard.press('Escape').catch(() => {});
+    const saveBtn305 = page.getByRole('button', { name: /グループ更新|Update Groups/ });
+    if (await saveBtn305.count() > 0) {
+      // Click save and verify dialog closes
+      await saveBtn305.click();
+      await page.waitForTimeout(5000); // Wait for save + dialog close
+      const dialogCount = await page.locator('[role="dialog"]').count();
+      const dialogClosed = dialogCount === 0;
+      log('TC-305', dialogClosed ? 'PASS' : 'FAIL', dialogClosed ? '' : `Dialog still open after save (count=${dialogCount})`);
+      if (!dialogClosed) {
+        await page.keyboard.press('Escape').catch(() => {});
+      }
     } else { log('TC-305', 'SKIP', 'No update button'); }
   } else { log('TC-305', 'SKIP', 'No edit button'); }
 
