@@ -1,14 +1,22 @@
 /**
  * E2E MR (Match Race) focused tests.
  *
- * Mirrors tc-bm.js structure but covers MR-specific flows:
- * - TC-601: Full qualification with 12 players, seeding, snake-draft group assignment
- * - TC-602: Player login + MR participant score entry
- * - TC-603: MR draw (2-2) score submission
- * - TC-604: MR finals bracket generation + race-format score entry
- * - TC-608: MR dual report — agreement auto-confirm
- * - TC-609: MR dual report — mismatch detection
- * - TC-610: Finals admin-only enforcement (403 for non-admin)
+ * Mirrors tc-bm.js structure but covers MR-specific flows.
+ * Full-workflow tests use 28 players (4 groups × 7, snake-draft).
+ * Single-match tests use 2 players for speed.
+ *
+ *  TC-601  28-player qualification full flow + standings + course assignment
+ *  TC-602  MR participant score entry (UI, 2 players)
+ *  TC-603  MR draw 2-2 score (admin PUT, 2 players)
+ *  TC-604  28-player full + finals bracket gen + race-format UI score entry
+ *  TC-605  28-player full + finals bracket reset
+ *  TC-606  28-player full + Grand Final → champion
+ *  TC-607  28-player full + Grand Final Reset Match (M17)
+ *  TC-608  MR dual report — agreement → autoConfirmed
+ *  TC-609  MR dual report — mismatch detection
+ *  TC-610  MR finals admin-only enforcement (403 for non-admin)
+ *  TC-611  BM/MR/GP qualification confirmed → score-input lock
+ *  TC-612  GP race position validation (no-tie + double-game-over)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -17,88 +25,51 @@
  */
 const { chromium } = require('playwright');
 
-const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
-const WAIT = 8000;
-const results = [];
+/* Shared helpers (logging, API CRUD, snake-draft, 28-player setup) live in
+ * e2e/lib/common.js. We import-and-alias to keep call-sites in this file
+ * unchanged from the pre-common-extraction version. */
+const {
+  makeResults, makeLog, nav,
+  apiCreatePlayer: createPlayer,
+  apiCreateTournament: createTournament,
+  apiDeletePlayer: deletePlayer,
+  apiDeleteTournament: deleteTournament,
+  apiPutMrQualScore,
+  apiGenerateMrFinals: generateMrFinalsBracket,
+  apiSetMrFinalsScore: setMrFinalsScore,
+  apiFetchMrFinalsMatches: fetchMrFinalsMatches,
+  setupMr28PlayerFinals,
+  snakeDraft28: snakeDraftMr28,
+} = require('./lib/common');
 
-function log(tc, s, d = '') {
-  console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
-  results.push({ tc, s, d });
-}
+const results = makeResults();
+const log = makeLog(results);
 
-async function nav(page, path) {
-  let lastError;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      await page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(WAIT);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (attempt === 2) throw err;
-      await page.waitForTimeout(3000);
+/** Complete every non-BYE MR qualification match via admin PUT (3-1 by default).
+ *  Used by TC-604/605/606/607 setup paths that call setupMr28PlayerFinals
+ *  internally; kept here for any tests that need to score additional matches
+ *  after the helper-driven setup. */
+async function completeAllMrQualMatches(adminPage, tournamentId, score1 = 3, score2 = 1) {
+  const data = await adminPage.evaluate(async (url) => {
+    const r = await fetch(url);
+    return r.json().catch(() => ({}));
+  }, `/api/tournaments/${tournamentId}/mr`);
+  const matches = (data.data?.matches || data.matches || []).filter((m) => !m.isBye && !m.completed);
+  for (const m of matches) {
+    const res = await apiPutMrQualScore(adminPage, tournamentId, m.id, score1, score2);
+    if (res.s !== 200) {
+      throw new Error(`MR qual put failed (${res.s}) match=${m.id}`);
     }
   }
-  throw lastError;
-}
-
-/** Helper: create a player via API and return { id, nickname, password } */
-async function createPlayer(page, name, nickname) {
-  const res = await page.evaluate(async (d) => {
-    const r = await fetch('/api/players', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, { name, nickname, country: 'JP' });
-  const id = res.b?.data?.player?.id ?? null;
-  const password = res.b?.data?.temporaryPassword ?? null;
-  if (res.s !== 201 || !id) throw new Error(`Failed to create player ${nickname} (${res.s})`);
-  return { id, nickname, password };
-}
-
-/** Helper: delete a player via API */
-async function deletePlayer(page, id) {
-  await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/players/${id}`).catch(() => {});
-}
-
-/** Helper: delete a tournament via API.
- *  DELETE /api/tournaments/:id only accepts status='draft', so we demote first. */
-async function deleteTournament(page, id) {
-  if (!id) return;
-  await page.evaluate(async (url) => {
-    await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'draft' }),
-    });
-  }, `/api/tournaments/${id}`).catch(() => {});
-  await page.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); }, `/api/tournaments/${id}`).catch(() => {});
-}
-
-/** Helper: create a tournament via API */
-async function createTournament(page, name, opts = {}) {
-  const res = await page.evaluate(async (d) => {
-    const r = await fetch('/api/tournaments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d),
-    });
-    return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, { name, date: new Date().toISOString(), ...opts });
-  const id = res.b?.data?.id ?? null;
-  if (res.s !== 201 || !id) throw new Error(`Failed to create tournament ${name} (${res.s})`);
-  return id;
 }
 
 /**
- * TC-601: MR qualification full flow with 12 players, seeding, snake-draft groups
+ * TC-601: MR qualification full flow with 28 players, seeding, snake-draft 4 groups
  *
  * Verifies:
- * - 12 players with seeding 1-12 distributed across 3 groups (A/B/C × 4)
- * - Snake-draft: A=[1,6,7,12], B=[2,5,8,11], C=[3,4,9,10]
- * - All 18 matches (6 per group × 3 groups) scored with valid MR scores (sum=4)
+ * - 28 players with seeding 1-28 distributed across 4 groups (A/B/C/D × 7)
+ * - Snake-draft (boustrophedon: row r=floor(i/4), col=i%4 normally / 3-i%4 odd row)
+ * - All 84 non-BYE matches (7-player RR = 21 × 4 groups) scored sum=4 (BYE allowed for odd group size)
  * - Standings sorted by score desc → points desc per group
  * - Course assignment exists in match data (assignCoursesRandomly)
  */
@@ -109,8 +80,8 @@ async function runTc601(adminPage) {
   try {
     const stamp = Date.now();
 
-    // Step 1: Create 12 players
-    for (let i = 1; i <= 12; i++) {
+    // Step 1: Create 28 players
+    for (let i = 1; i <= 28; i++) {
       const p = await createPlayer(adminPage, `E2E MR P${i}`, `e2e_mr601_${stamp}_${i}`);
       playerIds.push(p.id);
     }
@@ -118,20 +89,15 @@ async function runTc601(adminPage) {
     // Step 2: Create tournament
     tournamentId = await createTournament(adminPage, `E2E MR Full ${stamp}`);
 
-    // Step 3: Setup MR qualification with seeding and 3 groups (snake draft)
-    // Snake distribution for 3 groups:
-    // Round 1 (asc):  A=seed1, B=seed2, C=seed3
-    // Round 2 (desc): C=seed4, B=seed5, A=seed6
-    // Round 3 (asc):  A=seed7, B=seed8, C=seed9
-    // Round 4 (desc): C=seed10, B=seed11, A=seed12
-    // So: A=[1,6,7,12], B=[2,5,8,11], C=[3,4,9,10]
-    const snakeGroups = { A: [0, 5, 6, 11], B: [1, 4, 7, 10], C: [2, 3, 8, 9] };
-    const players = [];
-    for (const [group, indices] of Object.entries(snakeGroups)) {
-      for (const idx of indices) {
-        players.push({ playerId: playerIds[idx], group, seeding: idx + 1 });
-      }
-    }
+    // Step 3: Setup MR qualification with seeding across 4 groups (snake draft).
+    // Boustrophedon: row r = floor(i/4); column c = i%4 on even rows, 3-(i%4) on odd rows.
+    // 7 rows × 4 cols = 28 entries. Each column maps to a group A/B/C/D.
+    const groupNames = ['A', 'B', 'C', 'D'];
+    const players = playerIds.map((playerId, i) => {
+      const row = Math.floor(i / 4);
+      const col = row % 2 === 0 ? (i % 4) : (3 - (i % 4));
+      return { playerId, group: groupNames[col], seeding: i + 1 };
+    });
 
     const setup = await adminPage.evaluate(async ([url, data]) => {
       const r = await fetch(url, {
@@ -153,8 +119,8 @@ async function runTc601(adminPage) {
     const matches = mrData.data?.matches || mrData.matches || [];
     const nonByeMatches = matches.filter((m) => !m.isBye);
 
-    // 4 players per group = 6 matches per group, 3 groups = 18 matches (no byes with even count)
-    const hasExpectedMatches = nonByeMatches.length === 18;
+    // 7-player RR per group = 21 matches × 4 groups = 84 non-BYE matches
+    const hasExpectedMatches = nonByeMatches.length === 84;
 
     // Step 5: Input scores for all matches (valid MR: score1+score2=4)
     // Use varied scores: 3-1, 2-2, 4-0, 1-3 to test all valid combinations
@@ -220,7 +186,7 @@ async function runTc601(adminPage) {
 
     const allPassed = hasExpectedMatches && allScoresOk && hasStandings && standingsSorted;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
-      !hasExpectedMatches ? `Expected 18 non-bye matches, got ${nonByeMatches.length}`
+      !hasExpectedMatches ? `Expected 84 non-bye matches, got ${nonByeMatches.length}`
       : !allScoresOk ? 'Some score inputs failed'
       : !hasStandings ? 'Standings page did not render properly'
       : !standingsSorted ? 'Standings not sorted correctly'
@@ -407,60 +373,21 @@ async function runTc603(adminPage) {
 }
 
 /**
- * TC-604: MR finals bracket generation and race-format score entry
+ * TC-604: MR predicated 28-player full + finals bracket gen + race-format UI score entry
  *
- * Creates 8 players, completes qualification, generates finals bracket,
- * verifies first-to-3 race entry (not first-to-5 like BM), and checks
- * winner/loser routing. Also validates that first-to-5 (BM style) is rejected.
+ * Creates 28 players in 4 groups (snake-draft), completes 84 qualification matches,
+ * then generates the finals bracket via the UI (top 8) and uses the race entry dialog
+ * to score the first match (first-to-3). Also validates that first-to-5 (BM style)
+ * is rejected via API. Verifies winner/loser routing into M5 and M8.
  */
 async function runTc604(adminPage) {
   let tournamentId = null;
-  const playerIds = [];
+  let playerIds = [];
 
   try {
-    const stamp = Date.now();
-
-    // Create 8 players
-    for (let i = 1; i <= 8; i++) {
-      const p = await createPlayer(adminPage, `E2E MR Final P${i}`, `e2e_mrf_${stamp}_${i}`);
-      playerIds.push(p.id);
-    }
-
-    tournamentId = await createTournament(adminPage, `E2E MR Finals ${stamp}`);
-
-    // Setup MR qualification with seeding
-    const setup = await adminPage.evaluate(async ([url, ids]) => {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          players: ids.map((playerId, index) => ({
-            playerId,
-            group: 'A',
-            seeding: index + 1,
-          })),
-        }),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${tournamentId}/mr`, playerIds]);
-    if (setup.s !== 201) throw new Error(`MR setup failed (${setup.s})`);
-
-    // Complete all qualification matches via API
-    const mrData = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      return r.json().catch(() => ({}));
-    }, `/api/tournaments/${tournamentId}/mr`);
-
-    const qualMatches = (mrData.data?.matches || mrData.matches || []).filter((m) => !m.isBye);
-    for (const m of qualMatches) {
-      await adminPage.evaluate(async ([url, body]) => {
-        await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      }, [`/api/tournaments/${tournamentId}/mr`, { matchId: m.id, score1: 3, score2: 1 }]);
-    }
+    const setup = await setupMr28PlayerFinals(adminPage, '604');
+    tournamentId = setup.tournamentId;
+    playerIds = setup.playerIds;
 
     // Navigate to finals page and generate bracket
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
@@ -573,6 +500,160 @@ async function runTc604(adminPage) {
       : '');
   } catch (err) {
     log('TC-604', 'FAIL', err instanceof Error ? err.message : 'MR finals flow failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+/* setupMr28PlayerFinals / generateMrFinalsBracket / setMrFinalsScore /
+ * fetchMrFinalsMatches / snakeDraftMr28 are imported from ./lib/common above. */
+
+/* ───────── TC-605: MR finals bracket reset (28-player full) ─────────
+ * Re-POST to /finals (same endpoint the UI's Reset button calls) regenerates
+ * the bracket with all 17 matches pending. */
+async function runTc605(adminPage) {
+  let tournamentId = null;
+  let playerIds = [];
+  try {
+    const setup = await setupMr28PlayerFinals(adminPage, '605');
+    tournamentId = setup.tournamentId;
+    playerIds = setup.playerIds;
+
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const before = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Bracket missing match 1');
+
+    const score = await setMrFinalsScore(adminPage, tournamentId, m1.id, 3, 0);
+    if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
+
+    const completedBefore = (await fetchMrFinalsMatches(adminPage, tournamentId))
+      .filter((m) => m.completed).length;
+    if (completedBefore < 1) throw new Error('Pre-reset score not persisted');
+
+    const reset = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (reset.s !== 200 && reset.s !== 201) throw new Error(`Bracket reset failed (${reset.s})`);
+
+    const after = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const completedAfter = after.filter((m) => m.completed).length;
+    const ok = completedBefore >= 1 && completedAfter === 0 && after.length === 17;
+    log('TC-605', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`);
+  } catch (err) {
+    log('TC-605', 'FAIL', err instanceof Error ? err.message : 'MR 605 failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+/* ───────── TC-606: MR Grand Final → champion (28-player full) ─────────
+ * Drive M1..M16 with player1 sweeping 3-0 each. The Winners-side champion
+ * takes M16 and the champion banner on /mr/finals must show the expected nick. */
+async function runTc606(adminPage) {
+  let tournamentId = null;
+  let playerIds = [];
+  let nicknames = [];
+  try {
+    const setup = await setupMr28PlayerFinals(adminPage, '606');
+    tournamentId = setup.tournamentId;
+    playerIds = setup.playerIds;
+    nicknames = setup.nicknames;
+
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    /* Drive M1..M16 sequentially. P1 wins 3-0 so seeds propagate deterministically. */
+    for (let mn = 1; mn <= 16; mn++) {
+      const matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id) {
+        throw new Error(`Match ${mn} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
+      }
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    const finalMatches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const m16 = finalMatches.find((m) => m.matchNumber === 16);
+    const expectedChampionId = m16?.player1Id;
+    if (!expectedChampionId) throw new Error('GF (M16) missing player1');
+    const championNickname = nicknames[playerIds.indexOf(expectedChampionId)];
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    const pageText = await adminPage.locator('body').innerText();
+    const m16Completed = m16?.completed === true && m16.score1 === 3 && m16.score2 === 0;
+    const championShown = pageText.includes(championNickname) &&
+      (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
+
+    log('TC-606', m16Completed && championShown ? 'PASS' : 'FAIL',
+      !m16Completed ? `M16 not completed: ${m16?.score1}-${m16?.score2} completed=${m16?.completed}`
+      : !championShown ? `Champion banner missing nickname ${championNickname}`
+      : '');
+  } catch (err) {
+    log('TC-606', 'FAIL', err instanceof Error ? err.message : 'MR 606 failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await deletePlayer(adminPage, id);
+  }
+}
+
+/* ───────── TC-607: MR Grand Final Reset Match (M17) ─────────
+ * If the L-side champion takes the GF, M17 is generated. We force this by
+ * scoring M16 0-3 (the L-side champion is in the P2 slot per bracket routing). */
+async function runTc607(adminPage) {
+  let tournamentId = null;
+  let playerIds = [];
+  try {
+    const setup = await setupMr28PlayerFinals(adminPage, '607');
+    tournamentId = setup.tournamentId;
+    playerIds = setup.playerIds;
+
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    /* M1..M15: P1 wins 3-0 each */
+    for (let mn = 1; mn <= 15; mn++) {
+      const matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    /* M16: L-side champion (P2) wins 0-3 → triggers M17 */
+    let matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const m16 = matches.find((m) => m.matchNumber === 16);
+    if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
+    const expectedResetChampionId = m16.player2Id;
+    const m16Res = await setMrFinalsScore(adminPage, tournamentId, m16.id, 0, 3);
+    if (m16Res.s !== 200) throw new Error(`M16 put failed (${m16Res.s})`);
+
+    matches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const m17 = matches.find((m) => m.matchNumber === 17);
+    if (!m17) throw new Error('M17 not generated');
+    const m17Populated = !!m17.player1Id && !!m17.player2Id;
+
+    /* Play M17. The L-side champion's slot may be P1 or P2 depending on routing. */
+    const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
+    const m17Res = await setMrFinalsScore(adminPage, tournamentId, m17.id,
+      m17ScoreP1Wins ? 3 : 0,
+      m17ScoreP1Wins ? 0 : 3);
+    if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
+
+    const finalMatches = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const finalM17 = finalMatches.find((m) => m.matchNumber === 17);
+    const m17Completed = finalM17?.completed === true;
+
+    log('TC-607', m17Populated && m17Completed ? 'PASS' : 'FAIL',
+      !m17Populated ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
+      : !m17Completed ? 'M17 not completed'
+      : '');
+  } catch (err) {
+    log('TC-607', 'FAIL', err instanceof Error ? err.message : 'MR 607 failed');
   } finally {
     if (tournamentId) await deleteTournament(adminPage, tournamentId);
     for (const id of playerIds) await deletePlayer(adminPage, id);
@@ -1176,7 +1257,7 @@ async function runTc612(adminPage) {
 }
 
 // Export individual test functions for integration into tc-all.js
-module.exports = { runTc601, runTc602, runTc603, runTc604, runTc608, runTc609, runTc610, runTc611, runTc612 };
+module.exports = { runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607, runTc608, runTc609, runTc610, runTc611, runTc612 };
 
 // Standalone execution
 if (require.main === module) {
@@ -1193,6 +1274,9 @@ if (require.main === module) {
     await runTc602(page);
     await runTc603(page);
     await runTc604(page);
+    await runTc605(page);
+    await runTc606(page);
+    await runTc607(page);
     await runTc608(page);
     await runTc609(page);
     await runTc610(page);
@@ -1200,11 +1284,11 @@ if (require.main === module) {
     await runTc612(page);
 
     console.log('\n========== MR TEST SUMMARY ==========');
-    const p = results.filter((r) => r.s === 'PASS').length;
-    const f = results.filter((r) => r.s === 'FAIL').length;
-    const sk = results.filter((r) => r.s === 'SKIP').length;
+    const p = results.filter((r) => r.status === 'PASS').length;
+    const f = results.filter((r) => r.status === 'FAIL').length;
+    const sk = results.filter((r) => r.status === 'SKIP').length;
     console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-    if (f > 0) results.filter((r) => r.s === 'FAIL').forEach((r) => console.log(`  ❌ [${r.tc}] ${r.d}`));
+    if (f > 0) results.filter((r) => r.status === 'FAIL').forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
 
     await browser.close();
     process.exit(f > 0 ? 1 : 0);

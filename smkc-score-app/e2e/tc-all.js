@@ -1360,87 +1360,8 @@ async function deletePlayer(p, id) {
   }
   log('TC-307', tc307 ? 'PASS' : 'FAIL');
 
-  // TC-401: MR group setup + standings verification
-  await nav(page, `/tournaments/${TID}/mr`);
-  t = await vis(page);
-  const mrHasGroups = t.includes('Group A') || t.includes('グループ A');
-  const mrHasStandings = mrHasGroups && (t.includes('MP') || t.includes('試合数'));
-  log('TC-401', mrHasGroups && mrHasStandings ? 'PASS' : 'FAIL',
-    !mrHasGroups ? 'No groups' : !mrHasStandings ? 'No standings' : '');
-
-  // TC-402: GP group setup + standings verification
-  await nav(page, `/tournaments/${TID}/gp`);
-  t = await vis(page);
-  const gpHasGroups = t.includes('Group A') || t.includes('グループ A');
-  const gpHasStandings = gpHasGroups && (t.includes('MP') || t.includes('試合数'));
-  log('TC-402', gpHasGroups && gpHasStandings ? 'PASS' : 'FAIL',
-    !gpHasGroups ? 'No groups' : !gpHasStandings ? 'No standings' : '');
-
-  // TC-403: GP admin dialog exposes manual total-score correction
-  await nav(page, `/tournaments/${TID}/gp`);
-  const gpMatchesTab = page.getByRole('tab', { name: /試合|Matches/ });
-  if (await gpMatchesTab.count() > 0) {
-    await gpMatchesTab.click();
-    await page.waitForTimeout(1000);
-  }
-  const gpEditButtons = page.locator('tbody button').filter({ hasText: /編集|Edit/ });
-  const gpEnterButtons = page.locator('tbody button').filter({ hasText: /結果入力|Enter Result/ });
-  const gpActionBtn = await gpEditButtons.count() > 0 ? gpEditButtons.first() : gpEnterButtons.first();
-  if (await gpActionBtn.count() > 0) {
-    await gpActionBtn.click();
-    await page.waitForTimeout(2000);
-    const dialogText = await page.locator('[role="dialog"]').last().innerText();
-    const hasManualScoreUi =
-      dialogText.includes('合計ポイントを手動修正') ||
-      dialogText.includes('Manual Total Score');
-    log('TC-403', hasManualScoreUi ? 'PASS' : 'FAIL');
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(1000);
-  } else {
-    log('TC-403', 'SKIP', 'No GP edit button');
-  }
-
-  // TC-404: GP admin dialog allows 8th-place input
-  await nav(page, `/tournaments/${TID}/gp`);
-  if (await gpMatchesTab.count() > 0) {
-    await gpMatchesTab.click();
-    await page.waitForTimeout(1000);
-  }
-  const gpActionBtnForPosition = await gpEditButtons.count() > 0 ? gpEditButtons.first() : gpEnterButtons.first();
-  if (await gpActionBtnForPosition.count() > 0) {
-    await gpActionBtnForPosition.click();
-    await page.waitForTimeout(2000);
-    const dialog = page.locator('[role="dialog"]').last();
-    if (await dialog.locator('[role="combobox"]').count() < 3) {
-      const cupSelect = dialog.locator('[role="combobox"]').first();
-      if (await cupSelect.count() > 0) {
-        await cupSelect.click();
-        await page.waitForTimeout(1000);
-        const firstCupOption = page.locator('[role="option"]').first();
-        if (await firstCupOption.count() > 0) {
-          await firstCupOption.click();
-          await page.waitForTimeout(1000);
-        }
-      }
-    }
-    const positionSelect = dialog.locator('[role="combobox"]').nth(2);
-    if (await positionSelect.count() > 0) {
-      await positionSelect.click();
-      await page.waitForTimeout(1000);
-      const hasEighthOption = await page.locator('[role="option"]').filter({ hasText: /8位|8th/ }).count();
-      log('TC-404', hasEighthOption > 0 ? 'PASS' : 'FAIL');
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(1000);
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(1000);
-    } else {
-      log('TC-404', 'SKIP', 'No GP position select');
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(1000);
-    }
-  } else {
-    log('TC-404', 'SKIP', 'No GP result button');
-  }
+  // TC-401/402/403/404 (旧「軽量フルワークフロー」と GP ダイアログUI checks) は廃止。
+  // 機能カバレッジは tc-bm.js / tc-mr.js / tc-gp.js の 28人フルワークフロー (TC-5xx/6xx/7xx) に集約。
 
   // TC-316: Tiebreaker warning suppressed at group setup (mp=0), shown after tie match
   // Regression test for #filterActiveTiedIds: at mp=0 all players share 0-0 scores,
@@ -1703,159 +1624,9 @@ async function deletePlayer(p, id) {
     }
   }
 
-  // TC-322: BM participant can correct a submitted score
-  // Creates a draft temp tournament (so cleanup remains allowed), submits a BM score
-  // as a player, then uses the completed-match correction UI to change 3-1 -> 2-2.
-  {
-    let tc322TournamentId = null;
-    let tc322Player1Id = null;
-    let tc322Player2Id = null;
-    let tc322PlayerBrowser = null;
-    try {
-      const stamp = Date.now();
-      const tc322P1Nick = `e2e_bmc1_${stamp}`;
-      const tc322P2Nick = `e2e_bmc2_${stamp}`;
+  // TC-322 (BM participant correction) は tc-bm.js が担当。tc-all.js 末尾の child process で実行される。
 
-      const p1 = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E BM Correct P1', nickname: tc322P1Nick, country: 'JP' });
-      tc322Player1Id = p1.b?.data?.player?.id ?? null;
-      const tc322Password = p1.b?.data?.temporaryPassword ?? null;
-
-      const p2 = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E BM Correct P2', nickname: tc322P2Nick, country: 'JP' });
-      tc322Player2Id = p2.b?.data?.player?.id ?? null;
-
-      if (p1.s !== 201 || p2.s !== 201 || !tc322Player1Id || !tc322Player2Id || !tc322Password) {
-        throw new Error('Failed to create BM correction players');
-      }
-
-      const tournament = await page.evaluate(async (d) => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E BM Correction ${stamp}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      tc322TournamentId = tournament.b?.data?.id ?? null;
-      if (tournament.s !== 201 || !tc322TournamentId) {
-        throw new Error('Failed to create BM correction tournament');
-      }
-
-      const setup = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${tc322TournamentId}/bm`,
-        {
-          players: [
-            { playerId: tc322Player1Id, group: 'A' },
-            { playerId: tc322Player2Id, group: 'A' },
-          ],
-        },
-      ]);
-      if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-      const initialBm = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        const j = await r.json().catch(() => ({}));
-        return j.data || j;
-      }, `/api/tournaments/${tc322TournamentId}/bm`);
-      const match = (initialBm.matches || []).find(m => !m.isBye);
-      if (!match) throw new Error('No non-BYE BM match found');
-
-      const p1Label = match.player1.nickname;
-      const p2Label = match.player2.nickname;
-
-      tc322PlayerBrowser = await chromium.launch({ headless: false });
-      const playerContext = await tc322PlayerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
-      const playerPage = await playerContext.newPage();
-
-      await nav(playerPage, '/auth/signin');
-      await playerPage.locator('#nickname').fill(tc322P1Nick);
-      await playerPage.locator('#password').fill(tc322Password);
-      await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
-      await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
-      await playerPage.waitForTimeout(1000);
-
-      await nav(playerPage, `/tournaments/${tc322TournamentId}/bm/participant`);
-
-      for (let i = 0; i < 3; i++) {
-        await playerPage.getByRole('button', { name: new RegExp(`${p1Label} \\+1`) }).click();
-      }
-      await playerPage.getByRole('button', { name: new RegExp(`${p2Label} \\+1`) }).click();
-
-      playerPage.once('dialog', async (dialog) => {
-        await dialog.accept();
-      });
-      await playerPage.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
-      await playerPage.waitForFunction(() => {
-        const text = document.body.innerText;
-        return text.includes('スコアを修正') || text.includes('Correct Score');
-      }, null, { timeout: 15000 });
-
-      await playerPage.getByRole('button', { name: /スコアを修正|Correct Score/ }).click();
-      await playerPage.getByRole('button', { name: new RegExp(`${p1Label} -1`) }).click();
-      await playerPage.getByRole('button', { name: new RegExp(`${p2Label} \\+1`) }).click();
-
-      playerPage.once('dialog', async (dialog) => {
-        await dialog.accept();
-      });
-      await playerPage.getByRole('button', { name: /修正を送信|Submit Correction/ }).click();
-      await playerPage.waitForTimeout(3000);
-
-      const correctedBm = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        const j = await r.json().catch(() => ({}));
-        return j.data || j;
-      }, `/api/tournaments/${tc322TournamentId}/bm`);
-      const correctedMatch = (correctedBm.matches || []).find(m => m.id === match.id);
-      const correctionPersisted =
-        correctedMatch?.completed === true &&
-        correctedMatch.score1 === 2 &&
-        correctedMatch.score2 === 2;
-
-      log('TC-322', correctionPersisted ? 'PASS' : 'FAIL',
-        correctionPersisted ? ''
-        : !correctedMatch ? 'Corrected match not found'
-        : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
-    } catch (err) {
-      log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
-    } finally {
-      if (tc322PlayerBrowser) await tc322PlayerBrowser.close().catch(() => {});
-      if (tc322TournamentId) {
-        await deleteTournament(page, tc322TournamentId);
-      }
-      if (tc322Player1Id) {
-        await deletePlayer(page, tc322Player1Id);
-      }
-      if (tc322Player2Id) {
-        await deletePlayer(page, tc322Player2Id);
-      }
-    }
-  }
-
-  // TC-323: BM tie warning banner disappears after admin sets rankOverride
+  // TC-324: BM tie warning banner disappears after admin sets rankOverride
   // Creates 3 players, sets up BM qualification, submits all matches as 2-2 ties
   // to force identical standings, then verifies:
   //   (a) tie warning banner appears on the standings tab
@@ -1985,12 +1756,12 @@ async function deletePlayer(p, id) {
         await page.locator('text=Tied ranks detected').count();
       const hasBannerAfter = bannerAfter > 0;
 
-      log('TC-323', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
+      log('TC-324', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
         !hasBannerBefore ? 'Tie warning banner never appeared (expected tie from 2-2 draws)'
         : hasBannerAfter ? 'Tie warning banner still visible after setting rankOverride on N-1 players'
         : '');
     } catch (err) {
-      log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM tie warning flow failed');
+      log('TC-324', 'FAIL', err instanceof Error ? err.message : 'BM tie warning flow failed');
     } finally {
       if (tc323TournamentId) {
         await deleteTournament(page, tc323TournamentId);
@@ -2001,28 +1772,39 @@ async function deletePlayer(p, id) {
     }
   }
 
-  // ===== MR Tests (tc-mr.js) — run as child process =====
-  console.log('\n========== Running MR Tests ==========');
-  const { execSync } = require('child_process');
-  let mrFailed = false;
-  try {
-    // tc-mr.js runs its own browser instance; close ours first to avoid conflicts
-    await browser.close();
-    const mrOutput = execSync('node e2e/tc-mr.js', {
-      cwd: __dirname.replace(/\/e2e$/, ''),
+  // ===== Mode-specific child-process suites =====
+  // tc-bm.js / tc-mr.js / tc-gp.js each spawn their own Playwright browser, so we
+  // must close the persistent profile here first to release the lock. Run them
+  // sequentially (not in parallel) for the same reason.
+  //
+  // Use spawnSync + stdio: 'inherit' (instead of execSync which buffers and
+  // truncates at 1MB by default). The 28-player full workflows produce too
+  // much console output to safely buffer; inheriting stdio also gives the
+  // operator real-time visibility instead of waiting for the child to finish.
+  // We rely on the child's exit code (non-zero ⇒ failure) for pass/fail
+  // tracking, since the buffered "FAIL:" string parser can't see inherited output.
+  const { spawnSync } = require('child_process');
+  const projectRoot = __dirname.replace(/\/e2e$/, '');
+  await browser.close();
+
+  function runChildScript(label, script) {
+    console.log(`\n========== Running ${label} (${script}) ==========`);
+    const result = spawnSync('node', [script], {
+      cwd: projectRoot,
       env: { ...process.env, E2E_BASE_URL: BASE },
-      timeout: 600000,
-      encoding: 'utf-8',
+      timeout: 1800000, // 30 min: 28-player full workflows take several minutes each
+      stdio: 'inherit',
     });
-    console.log(mrOutput);
-    if (mrOutput.includes('FAIL:') && !mrOutput.includes('FAIL: 0')) {
-      mrFailed = true;
+    if (result.error) {
+      console.error(`[${label}] spawn error:`, result.error.message);
+      return true;
     }
-  } catch (err) {
-    console.log(err.stdout || '');
-    console.error(err.stderr || err.message);
-    mrFailed = true;
+    return result.status !== 0;
   }
+
+  const bmFailed = runChildScript('BM Tests', 'e2e/tc-bm.js');
+  const mrFailed = runChildScript('MR Tests', 'e2e/tc-mr.js');
+  const gpFailed = runChildScript('GP Tests', 'e2e/tc-gp.js');
 
   // ===== Summary =====
   console.log('\n========== SUMMARY (tc-all.js inline tests) ==========');
@@ -2031,7 +1813,9 @@ async function deletePlayer(p, id) {
   const sk = results.filter(r => r.s === 'SKIP').length;
   console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
   if (f > 0) results.filter(r => r.s === 'FAIL').forEach(r => console.log(`  ❌ [${r.tc}] ${r.d}`));
+  if (bmFailed) console.log('  ⚠️  BM tests (tc-bm.js) had failures — see output above');
   if (mrFailed) console.log('  ⚠️  MR tests (tc-mr.js) had failures — see output above');
+  if (gpFailed) console.log('  ⚠️  GP tests (tc-gp.js) had failures — see output above');
 
-  process.exit((f > 0 || mrFailed) ? 1 : 0);
+  process.exit((f > 0 || bmFailed || mrFailed || gpFailed) ? 1 : 0);
 })();

@@ -1,46 +1,154 @@
 /**
- * E2E BM focused tests.
+ * E2E BM (Battle Mode) tests.
  *
- * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
- * Admin session must already exist in the profile (Discord OAuth).
+ * Coverage:
+ *   TC-501  BM participant single-match submission (UI, 2 players)
+ *   TC-502  BM participant draw 2-2 (UI, 2 players)
+ *   TC-507  BM dual report — agreement → autoConfirmed (2 players)
+ *   TC-508  BM dual report — mismatch (2 players)
+ *   TC-509  BM dual report — previousReports panel (2 players)
+ *   TC-322  BM participant correction (UI, 2 players)
+ *   TC-503  28-player full qualification + finals bracket gen + first-to-5 routing
+ *   TC-504  28-player full + finals bracket reset
+ *   TC-505  28-player full + Grand Final → champion
+ *   TC-506  28-player full + Grand Final Reset Match (M17)
  *
- * Run: npm run e2e:bm  (from smkc-score-app/)
+ * Setup:
+ *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ *   - The profile must already hold a Discord OAuth admin session.
+ *   - Player-credential tests open separate non-persistent browser contexts so
+ *     the admin session is never disturbed.
+ *
+ * Cleanup (every test):
+ *   - 28-player setup helpers return a `cleanup` closure; callers always call
+ *     it in `finally`. The helpers also self-cleanup on partial failure so
+ *     production never leaks tournaments/players.
+ *
+ * Run: node e2e/tc-bm.js  (from smkc-score-app/)  or:  npm run e2e:bm
  */
 const { chromium } = require('playwright');
+const {
+  makeResults, makeLog, nav, escapeRegex,
+  apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
+  apiSetupBmGroup, apiFetchBm, apiPutBmQualScore,
+  apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches,
+  setupBm28PlayerFinals, loginPlayerBrowser,
+} = require('./lib/common');
 
-const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
-const WAIT = 8000;
-const results = [];
+const results = makeResults();
+const log = makeLog(results);
 
-function log(tc, s, d = '') {
-  console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
-  results.push({ tc, s, d });
-}
+/* ───────── TC-501: BM participant single-match submission (UI) ───────── */
+async function runTc501(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  let playerBrowser = null;
+  try {
+    const stamp = Date.now();
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 501 P1', `e2e_bm501_p1_${stamp}`);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 501 P2', `e2e_bm501_p2_${stamp}`);
+    playerIds.push(p1.id, p2.id);
 
-async function nav(page, path) {
-  let lastError;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      await page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(WAIT);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (attempt === 2) throw err;
-      await page.waitForTimeout(3000);
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM 501 ${stamp}`, { dualReportEnabled: false });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: p1.id, group: 'A' },
+      { playerId: p2.id, group: 'A' },
+    ]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const initial = await apiFetchBm(adminPage, tournamentId);
+    const match = (initial.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match found');
+
+    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    playerBrowser = ctx.browser;
+    await nav(ctx.page, `/tournaments/${tournamentId}/bm/participant`);
+
+    const p1Label = match.player1.nickname;
+    const p2Label = match.player2.nickname;
+    /* Increment via UI: P1 +3 then P2 +1 → 3-1 */
+    for (let i = 0; i < 3; i++) {
+      await ctx.page.getByRole('button', { name: new RegExp(`${escapeRegex(p1Label)} \\+1`) }).click();
     }
+    await ctx.page.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
+    ctx.page.once('dialog', (d) => d.accept());
+    await ctx.page.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
+    await ctx.page.waitForTimeout(3000);
+
+    const after = await apiFetchBm(adminPage, tournamentId);
+    const updated = (after.matches || []).find((m) => m.id === match.id);
+    const ok = updated?.completed === true && updated.score1 === 3 && updated.score2 === 1;
+    log('TC-501', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`);
+  } catch (err) {
+    log('TC-501', 'FAIL', err instanceof Error ? err.message : 'BM 501 failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
-  throw lastError;
 }
 
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* ───────── TC-502: BM participant draw 2-2 (UI) ─────────
+ * Per §4.1, 2-2 is a valid score (each player scores 1 draw point). */
+async function runTc502(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  let playerBrowser = null;
+  try {
+    const stamp = Date.now();
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 502 P1', `e2e_bm502_p1_${stamp}`);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 502 P2', `e2e_bm502_p2_${stamp}`);
+    playerIds.push(p1.id, p2.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM 502 ${stamp}`, { dualReportEnabled: false });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: p1.id, group: 'A' },
+      { playerId: p2.id, group: 'A' },
+    ]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const initial = await apiFetchBm(adminPage, tournamentId);
+    const match = (initial.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match found');
+
+    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    playerBrowser = ctx.browser;
+    await nav(ctx.page, `/tournaments/${tournamentId}/bm/participant`);
+
+    const p1Label = match.player1.nickname;
+    const p2Label = match.player2.nickname;
+    /* 2-2: alternate +1 P1, +1 P2 twice each */
+    for (let i = 0; i < 2; i++) {
+      await ctx.page.getByRole('button', { name: new RegExp(`${escapeRegex(p1Label)} \\+1`) }).click();
+      await ctx.page.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
+    }
+    const submitBtn = ctx.page.getByRole('button', { name: /スコア送信|Submit Scores/ });
+    const enabledBefore = await submitBtn.isEnabled();
+    ctx.page.once('dialog', (d) => d.accept());
+    await submitBtn.click();
+    await ctx.page.waitForTimeout(3000);
+
+    const after = await apiFetchBm(adminPage, tournamentId);
+    const updated = (after.matches || []).find((m) => m.id === match.id);
+    const ok = enabledBefore && updated?.completed === true && updated.score1 === 2 && updated.score2 === 2;
+    log('TC-502', ok ? 'PASS' : 'FAIL',
+      ok ? '' :
+      !enabledBefore ? 'Submit button disabled — 2-2 should be valid per §4.1'
+      : `completed=${updated?.completed} score=${updated?.score1}-${updated?.score2}`);
+  } catch (err) {
+    log('TC-502', 'FAIL', err instanceof Error ? err.message : 'BM 502 failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  }
 }
 
+/* ───────── TC-322: BM participant correction (UI) ─────────
+ * Submit 3-1, then use the "Correct Score" UI to flip to 2-2 and confirm
+ * the change persists via admin-side API fetch. */
 async function runTc322(adminPage) {
-  // TC-322: BM participant can correct a submitted score.
-  // Creates a draft temp tournament (so cleanup remains allowed), submits a BM score
-  // as a player, then uses the completed-match correction UI to change 3-1 -> 2-2.
   let tournamentId = null;
   let player1Id = null;
   let player2Id = null;
@@ -51,88 +159,31 @@ async function runTc322(adminPage) {
     const player1Nick = `e2e_bmc1_${stamp}`;
     const player2Nick = `e2e_bmc2_${stamp}`;
 
-    const p1 = await adminPage.evaluate(async (d) => {
-      const r = await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, { name: 'E2E BM Correct P1', nickname: player1Nick, country: 'JP' });
-    player1Id = p1.b?.data?.player?.id ?? null;
-    const playerPassword = p1.b?.data?.temporaryPassword ?? null;
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM Correct P1', player1Nick);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM Correct P2', player2Nick);
+    player1Id = p1.id;
+    player2Id = p2.id;
+    const playerPassword = p1.password;
+    if (!playerPassword) throw new Error('No temp password for player 1');
 
-    const p2 = await adminPage.evaluate(async (d) => {
-      const r = await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, { name: 'E2E BM Correct P2', nickname: player2Nick, country: 'JP' });
-    player2Id = p2.b?.data?.player?.id ?? null;
-
-    if (p1.s !== 201 || p2.s !== 201 || !player1Id || !player2Id || !playerPassword) {
-      throw new Error('Failed to create BM correction players');
-    }
-
-    const tournament = await adminPage.evaluate(async (d) => {
-      const r = await fetch('/api/tournaments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, {
-      name: `E2E BM Correction ${stamp}`,
-      date: new Date().toISOString(),
-      dualReportEnabled: false,
-    });
-    tournamentId = tournament.b?.data?.id ?? null;
-    if (tournament.s !== 201 || !tournamentId) {
-      throw new Error('Failed to create BM correction tournament');
-    }
-
-    const setup = await adminPage.evaluate(async ([url, data]) => {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${tournamentId}/bm`,
-      {
-        players: [
-          { playerId: player1Id, group: 'A' },
-          { playerId: player2Id, group: 'A' },
-        ],
-      },
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM Correction ${stamp}`,
+      { dualReportEnabled: false });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: player1Id, group: 'A' },
+      { playerId: player2Id, group: 'A' },
     ]);
     if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
 
-    const initialBm = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      const j = await r.json().catch(() => ({}));
-      return j.data || j;
-    }, `/api/tournaments/${tournamentId}/bm`);
+    const initialBm = await apiFetchBm(adminPage, tournamentId);
     const match = (initialBm.matches || []).find((m) => !m.isBye);
     if (!match) throw new Error('No non-BYE BM match found');
 
     const p1Label = match.player1.nickname;
     const p2Label = match.player2.nickname;
 
-    playerBrowser = await chromium.launch({ headless: false });
-    const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
-    const playerPage = await playerContext.newPage();
-
-    await nav(playerPage, '/auth/signin');
-    await playerPage.locator('#nickname').fill(player1Nick);
-    await playerPage.locator('#password').fill(playerPassword);
-    await playerPage.getByRole('button', { name: /ログイン|Login/ }).click();
-    await playerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
-    await playerPage.waitForTimeout(1000);
-
+    const ctx = await loginPlayerBrowser(player1Nick, playerPassword);
+    playerBrowser = ctx.browser;
+    const playerPage = ctx.page;
     await nav(playerPage, `/tournaments/${tournamentId}/bm/participant`);
 
     for (let i = 0; i < 3; i++) {
@@ -140,229 +191,491 @@ async function runTc322(adminPage) {
     }
     await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
 
-    playerPage.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
+    playerPage.once('dialog', (d) => d.accept());
     await playerPage.getByRole('button', { name: /スコア送信|Submit Scores/ }).click();
+    /* Wait for correction affordance (= match completed and re-rendered). */
     await playerPage.waitForFunction(() => {
       const text = document.body.innerText;
       return text.includes('スコアを修正') || text.includes('Correct Score');
     }, null, { timeout: 15000 });
 
+    /* Open correction UI and flip to 2-2. */
     await playerPage.getByRole('button', { name: /スコアを修正|Correct Score/ }).click();
     await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p1Label)} -1`) }).click();
     await playerPage.getByRole('button', { name: new RegExp(`${escapeRegex(p2Label)} \\+1`) }).click();
 
-    playerPage.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
+    playerPage.once('dialog', (d) => d.accept());
     await playerPage.getByRole('button', { name: /修正を送信|Submit Correction/ }).click();
     await playerPage.waitForTimeout(3000);
 
-    const correctedBm = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      const j = await r.json().catch(() => ({}));
-      return j.data || j;
-    }, `/api/tournaments/${tournamentId}/bm`);
+    const correctedBm = await apiFetchBm(adminPage, tournamentId);
     const correctedMatch = (correctedBm.matches || []).find((m) => m.id === match.id);
-    const correctionPersisted =
+    const ok =
       correctedMatch?.completed === true &&
       correctedMatch.score1 === 2 &&
       correctedMatch.score2 === 2;
 
-    log('TC-322', correctionPersisted ? 'PASS' : 'FAIL',
-      correctionPersisted ? ''
-      : !correctedMatch ? 'Corrected match not found'
+    log('TC-322', ok ? 'PASS' : 'FAIL',
+      ok ? '' :
+      !correctedMatch ? 'Corrected match not found'
       : `completed=${correctedMatch.completed} score=${correctedMatch.score1}-${correctedMatch.score2}`);
   } catch (err) {
     log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
-    if (tournamentId) {
-      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
-        `/api/tournaments/${tournamentId}`).catch(() => {});
-    }
-    if (player1Id) {
-      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
-        `/api/players/${player1Id}`).catch(() => {});
-    }
-    if (player2Id) {
-      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
-        `/api/players/${player2Id}`).catch(() => {});
-    }
+    await apiDeleteTournament(adminPage, tournamentId);
+    await apiDeletePlayer(adminPage, player1Id);
+    await apiDeletePlayer(adminPage, player2Id);
   }
 }
 
-async function runTc323(adminPage) {
-  // TC-323: BM finals bracket generation and first-to-5 score progression.
-  // Creates a draft temp tournament with 8 BM qualifiers, generates the finals
-  // bracket through the UI, verifies 3-0 is rejected, then saves 5-0 and checks
-  // winner/loser routing.
-  let tournamentId = null;
-  const playerIds = [];
-
+/* ───────── TC-503: 28-player full + finals bracket gen + first-to-5 routing ─────────
+ * Validates: 84 quals succeed, top-8 bracket (17 matches), first-to-5 rejection
+ * of 3-0, 5-0 acceptance with M1 winner→M5 / loser→M8 routing. */
+async function runTc503(adminPage) {
+  let setup = null;
   try {
-    const stamp = Date.now();
-    for (let i = 1; i <= 8; i++) {
-      const player = await adminPage.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E BM Final P${i}`,
-        nickname: `e2e_bmf_${stamp}_${i}`,
-        country: 'JP',
-      });
-      const playerId = player.b?.data?.player?.id ?? null;
-      if (player.s !== 201 || !playerId) {
-        throw new Error(`Failed to create BM finals player ${i}`);
-      }
-      playerIds.push(playerId);
-    }
+    setup = await setupBm28PlayerFinals(adminPage, '503');
 
-    const tournament = await adminPage.evaluate(async (d) => {
-      const r = await fetch('/api/tournaments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, {
-      name: `E2E BM Finals ${stamp}`,
-      date: new Date().toISOString(),
-      dualReportEnabled: false,
-    });
-    tournamentId = tournament.b?.data?.id ?? null;
-    if (tournament.s !== 201 || !tournamentId) {
-      throw new Error('Failed to create BM finals tournament');
-    }
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    const setup = await adminPage.evaluate(async ([url, ids]) => {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          players: ids.map((playerId, index) => ({
-            playerId,
-            group: 'A',
-            seeding: index + 1,
-          })),
-        }),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/bm`, playerIds]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Bracket missing match 1');
 
-    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
-    await adminPage.getByRole('button', { name: /Generate finals bracket/i }).click();
-    await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return text.includes('0 / 17') && (text.includes('M1') || text.includes('Match 1'));
-    }, null, { timeout: 20000 });
+    /* BM finals = best-of-9, first-to-5. 3-0 must be rejected. */
+    const reject = await apiSetBmFinalsScore(adminPage, setup.tournamentId, m1.id, 3, 0);
+    const firstToFiveRejected = reject.s === 400;
 
-    const generated = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      return r.json().catch(() => ({}));
-    }, `/api/tournaments/${tournamentId}/bm/finals`);
-    const matches = generated.matches || [];
-    const match1 = matches.find((m) => m.matchNumber === 1);
-    if (!match1) throw new Error('Generated bracket is missing match 1');
+    /* 5-0 valid → routing into M5 (winner) and M8 (loser). */
+    const valid = await apiSetBmFinalsScore(adminPage, setup.tournamentId, m1.id, 5, 0);
+    if (valid.s !== 200) throw new Error(`Valid 5-0 put failed (${valid.s})`);
 
-    const invalidFirstToThree = await adminPage.evaluate(async ([url, matchId]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, score1: 3, score2: 0 }),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${tournamentId}/bm/finals`, match1.id]);
+    const after = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const updated = after.find((m) => m.id === m1.id);
+    const winnerTarget = after.find((m) => m.matchNumber === 5);
+    const loserTarget = after.find((m) => m.matchNumber === 8);
+    const bracketCount = after.length === 17;
+    const scoreSaved = updated?.completed === true && updated.score1 === 5 && updated.score2 === 0;
+    const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id);
+    const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
-    await adminPage.locator(`[aria-label^="Match 1:"]`).first().click();
-    await adminPage.getByLabel(`${match1.player1.nickname} score`).fill('5');
-    await adminPage.getByLabel(`${match1.player2.nickname} score`).fill('0');
-    await adminPage.getByRole('button', { name: /スコア保存|Save Score/ }).click();
-
-    let updated = null;
-    const routingDeadline = Date.now() + 20000;
-    while (Date.now() < routingDeadline) {
-      updated = await adminPage.evaluate(async (url) => {
-        const r = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store' });
-        return r.json().catch(() => ({}));
-      }, `/api/tournaments/${tournamentId}/bm/finals`);
-
-      const polledMatches = updated.matches || [];
-      const match = polledMatches.find((m) => m.id === match1.id);
-      const winnerTarget = polledMatches.find((m) => m.matchNumber === 5);
-      const loserTarget = polledMatches.find((m) => m.matchNumber === 8);
-      const scoreSaved = match?.completed === true && match.score1 === 5 && match.score2 === 0;
-      const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(match1.player1Id);
-      const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(match1.player2Id);
-      if (scoreSaved && winnerRouted && loserRouted) break;
-
-      await adminPage.waitForTimeout(500);
-    }
-    const updatedMatches = updated.matches || [];
-    const updatedMatch1 = updatedMatches.find((m) => m.id === match1.id);
-    const winnerTarget = updatedMatches.find((m) => m.matchNumber === 5);
-    const loserTarget = updatedMatches.find((m) => m.matchNumber === 8);
-
-    const bracketGenerated =
-      updatedMatches.length === 17 &&
-      (updated.winnersMatches || []).length === 7 &&
-      (updated.losersMatches || []).length === 8 &&
-      (updated.grandFinalMatches || []).length === 2;
-    const firstToThreeRejected = invalidFirstToThree.s === 400;
-    const scoreSaved =
-      updatedMatch1?.completed === true &&
-      updatedMatch1.score1 === 5 &&
-      updatedMatch1.score2 === 0;
-    const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(match1.player1Id);
-    const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(match1.player2Id);
-    const routed = winnerRouted && loserRouted;
-
-    log('TC-323',
-      bracketGenerated && firstToThreeRejected && scoreSaved && routed ? 'PASS' : 'FAIL',
-      !bracketGenerated ? `Unexpected bracket counts: matches=${updatedMatches.length} winners=${(updated.winnersMatches || []).length} losers=${(updated.losersMatches || []).length} gf=${(updated.grandFinalMatches || []).length}`
-      : !firstToThreeRejected ? `3-0 was not rejected (${invalidFirstToThree.s})`
-      : !scoreSaved ? `Score not saved: ${updatedMatch1?.score1}-${updatedMatch1?.score2} completed=${updatedMatch1?.completed}`
-      : !routed ? `Routing mismatch: m1=${match1.player1Id}/${match1.player2Id} m5=${winnerTarget?.player1Id}/${winnerTarget?.player2Id} m8=${loserTarget?.player1Id}/${loserTarget?.player2Id}`
+    const ok = bracketCount && firstToFiveRejected && scoreSaved && winnerRouted && loserRouted;
+    log('TC-503', ok ? 'PASS' : 'FAIL',
+      !bracketCount ? `bracket size=${after.length} (expected 17)`
+      : !firstToFiveRejected ? `3-0 not rejected (status=${reject.s})`
+      : !scoreSaved ? `score not saved: ${updated?.score1}-${updated?.score2} completed=${updated?.completed}`
+      : !winnerRouted || !loserRouted ? `routing mismatch w=${winnerRouted} l=${loserRouted}`
       : '');
   } catch (err) {
-    log('TC-323', 'FAIL', err instanceof Error ? err.message : 'BM finals flow failed');
+    log('TC-503', 'FAIL', err instanceof Error ? err.message : 'BM 503 failed');
   } finally {
-    if (tournamentId) {
-      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
-        `/api/tournaments/${tournamentId}`).catch(() => {});
-    }
-    for (const playerId of playerIds) {
-      await adminPage.evaluate(async (url) => { await fetch(url, { method: 'DELETE' }); },
-        `/api/players/${playerId}`).catch(() => {});
-    }
+    if (setup) await setup.cleanup();
   }
 }
 
-(async () => {
-  const browser = await chromium.launchPersistentContext(
-    '/tmp/playwright-smkc-profile',
-    { headless: false, viewport: { width: 1280, height: 720 } }
-  );
-  const page = browser.pages()[0] || await browser.newPage();
+/* ───────── TC-504: BM finals bracket reset (28-player setup) ─────────
+ * Re-POST to /finals (same endpoint UI's Reset button calls) regenerates
+ * the bracket with all matches pending. */
+async function runTc504(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupBm28PlayerFinals(adminPage, '504');
 
-  await nav(page, '/');
-  await runTc322(page);
-  await runTc323(page);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-  console.log('\n========== SUMMARY ==========');
-  const p = results.filter((r) => r.s === 'PASS').length;
-  const f = results.filter((r) => r.s === 'FAIL').length;
-  const sk = results.filter((r) => r.s === 'SKIP').length;
-  console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-  if (f > 0) results.filter((r) => r.s === 'FAIL').forEach((r) => console.log(`  ❌ [${r.tc}] ${r.d}`));
+    const before = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+    const score = await apiSetBmFinalsScore(adminPage, setup.tournamentId, m1.id, 5, 0);
+    if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
 
-  await browser.close();
-  process.exit(f > 0 ? 1 : 0);
-})();
+    const completedBefore = (await apiFetchBmFinalsMatches(adminPage, setup.tournamentId))
+      .filter((m) => m.completed).length;
+    if (completedBefore < 1) throw new Error('Pre-reset score not persisted');
+
+    const reset = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (reset.s !== 200 && reset.s !== 201) throw new Error(`Bracket reset failed (${reset.s})`);
+
+    const after = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const completedAfter = after.filter((m) => m.completed).length;
+    const ok = completedBefore >= 1 && completedAfter === 0 && after.length === 17;
+    log('TC-504', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`);
+  } catch (err) {
+    log('TC-504', 'FAIL', err instanceof Error ? err.message : 'BM 504 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-505: BM Grand Final → champion (28-player full) ─────────
+ * Drives M1..M16 with player1 sweeping 5-0 each so seeds propagate
+ * deterministically. Winners-side champion takes the GF; the champion
+ * banner on /bm/finals must show the expected nickname. */
+async function runTc505(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupBm28PlayerFinals(adminPage, '505');
+    const { tournamentId, playerIds, nicknames } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    for (let mn = 1; mn <= 16; mn++) {
+      const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id) {
+        throw new Error(`Match ${mn} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
+      }
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const m16 = matches.find((m) => m.matchNumber === 16);
+    const expectedChampionId = m16?.player1Id;
+    if (!expectedChampionId) throw new Error('GF (M16) missing player1');
+    const championNickname = nicknames[playerIds.indexOf(expectedChampionId)];
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+    const pageText = await adminPage.locator('body').innerText();
+    const championShown = pageText.includes(championNickname) &&
+      (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
+    const m16Ok = m16.completed === true && m16.score1 === 5 && m16.score2 === 0;
+
+    log('TC-505', m16Ok && championShown ? 'PASS' : 'FAIL',
+      !m16Ok ? `M16 not completed: score=${m16?.score1}-${m16?.score2}`
+      : !championShown ? `Champion banner missing nickname ${championNickname}`
+      : '');
+  } catch (err) {
+    log('TC-505', 'FAIL', err instanceof Error ? err.message : 'BM 505 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-506: BM Grand Final Reset Match (M17) ─────────
+ * If the L-side champion wins the GF, M17 is generated. Force this by
+ * scoring M16 0-5. */
+async function runTc506(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupBm28PlayerFinals(adminPage, '506');
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    /* M1..M15: player1 wins 5-0 */
+    for (let mn = 1; mn <= 15; mn++) {
+      const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    /* M16: P2 (L-side champion) wins 0-5 → triggers M17 */
+    let matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const m16 = matches.find((m) => m.matchNumber === 16);
+    if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
+    const expectedResetChampionId = m16.player2Id;
+    const m16Res = await apiSetBmFinalsScore(adminPage, tournamentId, m16.id, 0, 5);
+    if (m16Res.s !== 200) throw new Error(`M16 put failed (${m16Res.s})`);
+
+    matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const m17 = matches.find((m) => m.matchNumber === 17);
+    if (!m17) throw new Error('M17 not generated');
+    const m17Populated = !!m17.player1Id && !!m17.player2Id;
+
+    /* Play M17. The L-side champion's slot may be P1 or P2 depending on routing. */
+    const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
+    const m17Res = await apiSetBmFinalsScore(adminPage, tournamentId, m17.id,
+      m17ScoreP1Wins ? 5 : 0,
+      m17ScoreP1Wins ? 0 : 5);
+    if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
+
+    const finalMatches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const finalM17 = finalMatches.find((m) => m.matchNumber === 17);
+    const m17Completed = finalM17?.completed === true;
+
+    log('TC-506', m17Populated && m17Completed ? 'PASS' : 'FAIL',
+      !m17Populated ? `M17 not populated p1=${m17.player1Id} p2=${m17.player2Id}`
+      : !m17Completed ? 'M17 not completed'
+      : '');
+  } catch (err) {
+    log('TC-506', 'FAIL', err instanceof Error ? err.message : 'BM 506 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-507: BM dual report — agreement → autoConfirmed ───────── */
+async function runTc507(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  const browsers = [];
+  try {
+    const stamp = Date.now();
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 507 P1', `e2e_bm507_p1_${stamp}`);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 507 P2', `e2e_bm507_p2_${stamp}`);
+    playerIds.push(p1.id, p2.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM 507 ${stamp}`, { dualReportEnabled: true });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: p1.id, group: 'A' },
+      { playerId: p2.id, group: 'A' },
+    ]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const data = await apiFetchBm(adminPage, tournamentId);
+    const match = (data.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    /* P1 reports 3-1 → response should include waitingFor=player2 */
+    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    browsers.push(ctx1.browser);
+    const r1 = await ctx1.page.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
+      { reportingPlayer: 1, score1: 3, score2: 1 },
+    ]);
+    const r1WaitingForP2 = r1.s === 200 &&
+      (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
+
+    const mid = await apiFetchBm(adminPage, tournamentId);
+    const midMatch = (mid.matches || []).find((m) => m.id === match.id);
+    const midOk = midMatch?.completed === false &&
+      midMatch.player1ReportedScore1 === 3 &&
+      midMatch.player1ReportedScore2 === 1;
+
+    /* P2 reports identical 3-1 → autoConfirmed */
+    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    browsers.push(ctx2.browser);
+    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
+      { reportingPlayer: 2, score1: 3, score2: 1 },
+    ]);
+    const autoConfirmed = r2.s === 200 &&
+      (r2.b?.data?.autoConfirmed === true || r2.b?.autoConfirmed === true);
+
+    const finalData = await apiFetchBm(adminPage, tournamentId);
+    const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
+    const persisted = finalMatch?.completed === true &&
+      finalMatch.score1 === 3 && finalMatch.score2 === 1;
+
+    const ok = r1WaitingForP2 && midOk && autoConfirmed && persisted;
+    log('TC-507', ok ? 'PASS' : 'FAIL',
+      !r1WaitingForP2 ? `P1 missing waitingFor (status=${r1.s})`
+      : !midOk ? `mid state wrong: completed=${midMatch?.completed} reportedP1=${midMatch?.player1ReportedScore1}-${midMatch?.player1ReportedScore2}`
+      : !autoConfirmed ? `P2 missing autoConfirmed (status=${r2.s})`
+      : !persisted ? `final not persisted: ${finalMatch?.score1}-${finalMatch?.score2}`
+      : '');
+  } catch (err) {
+    log('TC-507', 'FAIL', err instanceof Error ? err.message : 'BM 507 failed');
+  } finally {
+    for (const b of browsers) await b.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  }
+}
+
+/* ───────── TC-508: BM dual report — mismatch ─────────
+ * P1 reports 3-1, P2 reports 1-3 → mismatch flag, match stays incomplete.
+ * Admin then resolves via PUT /api/tournaments/:id/bm. */
+async function runTc508(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  const browsers = [];
+  try {
+    const stamp = Date.now();
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 508 P1', `e2e_bm508_p1_${stamp}`);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 508 P2', `e2e_bm508_p2_${stamp}`);
+    playerIds.push(p1.id, p2.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM 508 ${stamp}`, { dualReportEnabled: true });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: p1.id, group: 'A' },
+      { playerId: p2.id, group: 'A' },
+    ]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const data = await apiFetchBm(adminPage, tournamentId);
+    const match = (data.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    browsers.push(ctx1.browser);
+    await ctx1.page.evaluate(async ([u, body]) => {
+      await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [
+      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
+      { reportingPlayer: 1, score1: 3, score2: 1 },
+    ]);
+
+    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    browsers.push(ctx2.browser);
+    /* P2 disagrees: 1-3 instead of 3-1 → mismatch */
+    const r2 = await ctx2.page.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
+      { reportingPlayer: 2, score1: 1, score2: 3 },
+    ]);
+    const mismatchFlag = r2.s === 200 &&
+      (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
+
+    const mid = await apiFetchBm(adminPage, tournamentId);
+    const midMatch = (mid.matches || []).find((m) => m.id === match.id);
+    const stillIncomplete = midMatch?.completed === false;
+
+    /* Admin overrides via qualification PUT */
+    const adminPut = await apiPutBmQualScore(adminPage, tournamentId, match.id, 3, 1);
+    const finalData = await apiFetchBm(adminPage, tournamentId);
+    const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
+    const adminConfirmed = adminPut.s === 200 && finalMatch?.completed === true;
+
+    const ok = mismatchFlag && stillIncomplete && adminConfirmed;
+    log('TC-508', ok ? 'PASS' : 'FAIL',
+      !mismatchFlag ? `mismatch flag missing (status=${r2.s})`
+      : !stillIncomplete ? 'match auto-completed despite mismatch'
+      : !adminConfirmed ? `admin PUT failed (${adminPut.s}) or not completed`
+      : '');
+  } catch (err) {
+    log('TC-508', 'FAIL', err instanceof Error ? err.message : 'BM 508 failed');
+  } finally {
+    for (const b of browsers) await b.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  }
+}
+
+/* ───────── TC-509: BM dual report — previousReports panel ─────────
+ * After P1 reports, P2 visiting /bm/participant should see P1's submission
+ * in a "Previous Reports" / "過去の報告" / "既に報告" section. */
+async function runTc509(adminPage) {
+  let tournamentId = null;
+  const playerIds = [];
+  const browsers = [];
+  try {
+    const stamp = Date.now();
+    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 509 P1', `e2e_bm509_p1_${stamp}`);
+    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 509 P2', `e2e_bm509_p2_${stamp}`);
+    playerIds.push(p1.id, p2.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E BM 509 ${stamp}`, { dualReportEnabled: true });
+    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
+      { playerId: p1.id, group: 'A' },
+      { playerId: p2.id, group: 'A' },
+    ]);
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const data = await apiFetchBm(adminPage, tournamentId);
+    const match = (data.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match');
+
+    /* P1 reports first */
+    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    browsers.push(ctx1.browser);
+    await ctx1.page.evaluate(async ([u, body]) => {
+      await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }, [
+      `/api/tournaments/${tournamentId}/bm/match/${match.id}/report`,
+      { reportingPlayer: 1, score1: 3, score2: 1 },
+    ]);
+
+    /* P2 opens participant page and should see P1's report. */
+    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    browsers.push(ctx2.browser);
+    await nav(ctx2.page, `/tournaments/${tournamentId}/bm/participant`);
+    const pageText = await ctx2.page.locator('body').innerText();
+
+    /* Either an English or Japanese label may appear; accept the common variants. */
+    const labelShown = pageText.includes('Previous Reports') ||
+      pageText.includes('過去の報告') ||
+      pageText.includes('既に報告');
+    const scoreShown = /3\s*[-−]\s*1/.test(pageText);
+
+    log('TC-509', labelShown && scoreShown ? 'PASS' : 'FAIL',
+      !labelShown ? 'Previous Reports section not found in page text'
+      : !scoreShown ? `P1 report (3-1) not visible — page snippet: ${pageText.slice(0, 200)}`
+      : '');
+  } catch (err) {
+    log('TC-509', 'FAIL', err instanceof Error ? err.message : 'BM 509 failed');
+  } finally {
+    for (const b of browsers) await b.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  }
+}
+
+module.exports = {
+  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506,
+  runTc507, runTc508, runTc509,
+};
+
+if (require.main === module) {
+  (async () => {
+    const browser = await chromium.launchPersistentContext(
+      '/tmp/playwright-smkc-profile',
+      { headless: false, viewport: { width: 1280, height: 720 } },
+    );
+    const page = browser.pages()[0] || await browser.newPage();
+
+    await nav(page, '/');
+
+    /* Light single-match tests first (fast feedback) */
+    await runTc501(page);
+    await runTc502(page);
+    await runTc507(page);
+    await runTc508(page);
+    await runTc509(page);
+    await runTc322(page);
+
+    /* Heavy 28-player full-workflow tests last */
+    await runTc503(page);
+    await runTc504(page);
+    await runTc505(page);
+    await runTc506(page);
+
+    console.log('\n========== BM TEST SUMMARY ==========');
+    const p = results.filter((r) => r.status === 'PASS').length;
+    const f = results.filter((r) => r.status === 'FAIL').length;
+    const sk = results.filter((r) => r.status === 'SKIP').length;
+    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
+    if (f > 0) results.filter((r) => r.status === 'FAIL')
+      .forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
+
+    await browser.close();
+    process.exit(f > 0 ? 1 : 0);
+  })();
+}
