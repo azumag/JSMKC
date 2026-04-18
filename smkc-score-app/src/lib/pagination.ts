@@ -73,6 +73,8 @@ export interface PaginationOptions {
   page?: number;
   /** Requested records per page. Defaults to 50, max 100. */
   limit?: number;
+  /** Optional Prisma include for eager-loading relations (e.g., player1/player2). */
+  include?: Record<string, unknown>;
 }
 
 // ============================================================
@@ -106,7 +108,7 @@ export interface PaginationOptions {
  */
 export function getPaginationParams(
   options?: PaginationOptions
-): { page: number; limit: number; skip: number } {
+): { page: number; limit: number; skip: number; include?: Record<string, unknown> } {
   // Apply defaults for missing values.
   // Page defaults to 1 (first page) and limit defaults to 50 records.
   const rawPage = options?.page ?? 1;
@@ -126,7 +128,7 @@ export function getPaginationParams(
   // Page 1 skips 0, page 2 skips `limit`, page 3 skips `2 * limit`, etc.
   const skip = (page - 1) * limit;
 
-  return { page, limit, skip };
+  return { page, limit, skip, include: options?.include };
 }
 
 // ============================================================
@@ -149,6 +151,7 @@ interface PrismaModelDelegate {
     orderBy: Record<string, unknown>;
     skip: number;
     take: number;
+    include?: Record<string, unknown>;
   }) => Promise<unknown[]>;
 }
 
@@ -185,7 +188,7 @@ export async function paginate<T>(
   options?: PaginationOptions
 ): Promise<PaginatedResponse<T>> {
   // Process and validate pagination parameters
-  const { page, limit, skip } = getPaginationParams(options);
+  const { page, limit, skip, include } = getPaginationParams(options);
 
   // Execute count and findMany in parallel for efficiency.
   // Both use the same where clause to ensure consistency.
@@ -198,6 +201,7 @@ export async function paginate<T>(
       orderBy,
       skip,
       take: limit,
+      ...(include ? { include } : {}),
     }),
   ]);
 

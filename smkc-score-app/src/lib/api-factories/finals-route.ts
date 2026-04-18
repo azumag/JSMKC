@@ -106,7 +106,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
           { tournamentId, stage: 'finals' },
           { matchNumber: 'asc' },
-          { page, limit },
+          { page, limit, include: { player1: true, player2: true } },
         );
 
         const bracketStructure = result.data.length > 0
