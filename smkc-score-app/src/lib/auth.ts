@@ -50,6 +50,9 @@ async function handleDiscordAdminSignIn(user: any, account: any): Promise<void> 
   const providerAccountId = String(account.providerAccountId);
   const fallbackEmail = `discord-${providerAccountId}@discord.local`;
 
+  // Note: Discord admin whitelist check is already performed in the outer signIn
+  // callback before this function is called. Only whitelisted users reach here.
+
   const existingAccount = await prisma.account.findUnique({
     where: {
       provider_providerAccountId: {
@@ -83,6 +86,7 @@ async function handleDiscordAdminSignIn(user: any, account: any): Promise<void> 
       providerAccountId,
     });
   } else if (dbUser.role !== 'admin') {
+    // Only promote to admin if already verified as Discord admin via whitelist
     dbUser = await prisma.user.update({
       where: { id: dbUser.id },
       data: { role: 'admin' },
