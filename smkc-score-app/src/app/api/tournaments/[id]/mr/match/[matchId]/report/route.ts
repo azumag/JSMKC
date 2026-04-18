@@ -107,11 +107,6 @@ export async function POST(
       return handleValidationError("Match not found", "matchId");
     }
 
-    /* Prevent reports on completed matches (checked before auth) */
-    if (match.completed) {
-      return handleValidationError("Match already completed", "matchStatus");
-    }
-
     /* Validate required fields before auth to fail fast on malformed requests */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
@@ -125,6 +120,65 @@ export async function POST(
     const isAuthorized = await checkScoreReportAuth(request, tournamentId, reportingPlayer, match);
     if (!isAuthorized) {
       return handleAuthError('Unauthorized: Not authorized for this match');
+    }
+
+    /*
+     * Correction path: let a participant fix a MR score after the match has
+     * already been confirmed. Keep the match completed, update the final score
+     * and the reporting player's stored report, then recalculate standings.
+     */
+    if (match.completed) {
+      /* Validate MR scores are in legal range (sum must equal TOTAL_MR_RACES=4) */
+      const scoreValidation = validateMatchRaceScores(score1, score2);
+      if (!scoreValidation.isValid) {
+        return handleValidationError(scoreValidation.error!, "scores");
+      }
+
+      try {
+        const correctedMatch = await updateWithRetry(prisma, async (tx) => {
+          const currentMatch = await tx.mRMatch.findUnique({
+            where: { id: matchId },
+            select: { version: true },
+          });
+
+          if (!currentMatch) {
+            throw new Error("Match not found");
+          }
+
+          const reportData =
+            reportingPlayer === 1
+              ? { player1ReportedPoints1: score1, player1ReportedPoints2: score2, player1ReportedRaces: rounds }
+              : { player2ReportedPoints1: score1, player2ReportedPoints2: score2, player2ReportedRaces: rounds };
+
+          return tx.mRMatch.update({
+            where: { id: matchId, version: currentMatch.version },
+            data: {
+              score1,
+              score2,
+              completed: true,
+              ...reportData,
+              version: { increment: 1 },
+            },
+            include: { player1: true, player2: true },
+          });
+        });
+
+        await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, correctedMatch.player1Id);
+        await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, correctedMatch.player2Id);
+
+        return createSuccessResponse({
+          match: correctedMatch,
+          corrected: true,
+        }, "Score correction saved");
+      } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          return createErrorResponse(
+            "This match was updated by someone else. Please refresh and try again.",
+            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          );
+        }
+        return handleDatabaseError(error, "score correction");
+      }
     }
 
     /* Validate MR scores are in legal range (sum must equal TOTAL_MR_RACES=4) */
