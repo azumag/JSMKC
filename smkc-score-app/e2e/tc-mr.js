@@ -950,7 +950,7 @@ async function runTc610(adminPage) {
       const r = await fetch(url);
       return r.json().catch(() => ({}));
     }, `/api/tournaments/${tournamentId}/mr/finals`);
-    const finalsMatch = (finalsData.matches || []).find((m) => m.matchNumber === 1);
+    const finalsMatch = (finalsData.data?.matches || finalsData.matches || []).find((m) => m.matchNumber === 1);
     if (!finalsMatch) throw new Error('No finals match found');
 
     // Create a player browser session (non-admin)
