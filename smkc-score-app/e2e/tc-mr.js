@@ -1415,7 +1415,6 @@ async function runTc822(adminPage) {
       !hasMismatch ? 'Mismatch not detected after dual report'
         : !isComplete ? `Match not completed after resolve: completed=${finalMatch?.completed}`
         : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
-        : secondPut.s !== 400 ? `Expected 400, got ${secondPut.s}` : '');
   } catch (err) {
     log('TC-822', 'FAIL', err instanceof Error ? err.message : 'MR scoresConfirmed test failed');
   } finally {
