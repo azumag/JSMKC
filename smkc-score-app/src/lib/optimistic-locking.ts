@@ -204,9 +204,17 @@ export async function updateWithRetry<T>(
  * @returns True if the error indicates an optimistic lock conflict
  */
 function isOptimisticLockError(error: Prisma.PrismaClientKnownRequestError): boolean {
-  return error.message.includes('Record to update not found') ||
-         error.message.includes('version') ||
-         error.code === 'P2025';
+  // P2025 is a generic "record not found" error that can mean either:
+  // 1. The record genuinely doesn't exist
+  // 2. The record exists but the version doesn't match (optimistic lock failure)
+  // We require BOTH the P2025 code AND a version-related message to avoid
+  // treating generic "not found" errors as lock conflicts.
+  if (error.code === 'P2025') {
+    return error.message.includes('version') ||
+           error.message.includes('Record to update not found');
+  }
+  return error.message.includes('version') ||
+         error.message.includes('Record to update not found');
 }
 
 /**
