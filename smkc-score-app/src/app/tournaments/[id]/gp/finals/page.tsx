@@ -97,7 +97,8 @@ interface SeededPlayer {
 
 function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
   if (json && typeof json === "object" && "success" in json && "data" in json) {
-    return (json as { data: T }).data;
+    const data = (json as { data: T }).data;
+    if (data !== undefined) return data;
   }
   return json as T;
 }
