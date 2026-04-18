@@ -26,7 +26,6 @@
  *
  * Run: node e2e/tc-bm.js  (from smkc-score-app/)  or:  npm run e2e:bm
  */
-const { chromium } = require('playwright');
 const {
   makeResults, makeLog, nav, escapeRegex,
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
@@ -34,6 +33,7 @@ const {
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches,
   setupBm28PlayerFinals, loginPlayerBrowser,
 } = require('./lib/common');
+const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -644,38 +644,21 @@ module.exports = {
 };
 
 if (require.main === module) {
-  (async () => {
-    const browser = await chromium.launchPersistentContext(
-      '/tmp/playwright-smkc-profile',
-      { headless: false, viewport: { width: 1280, height: 720 } },
-    );
-    const page = browser.pages()[0] || await browser.newPage();
-
-    await nav(page, '/');
-
-    /* Light single-match tests first (fast feedback) */
-    await runTc501(page);
-    await runTc502(page);
-    await runTc507(page);
-    await runTc508(page);
-    await runTc509(page);
-    await runTc322(page);
-
-    /* Heavy 28-player full-workflow tests last */
-    await runTc503(page);
-    await runTc504(page);
-    await runTc505(page);
-    await runTc506(page);
-
-    console.log('\n========== BM TEST SUMMARY ==========');
-    const p = results.filter((r) => r.status === 'PASS').length;
-    const f = results.filter((r) => r.status === 'FAIL').length;
-    const sk = results.filter((r) => r.status === 'SKIP').length;
-    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-    if (f > 0) results.filter((r) => r.status === 'FAIL')
-      .forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
-
-    await browser.close();
-    process.exit(f > 0 ? 1 : 0);
-  })();
+  runSuite({
+    suiteName: 'BM',
+    results,
+    log,
+    tests: [
+      { name: 'TC-501', fn: runTc501 },
+      { name: 'TC-502', fn: runTc502 },
+      { name: 'TC-507', fn: runTc507 },
+      { name: 'TC-508', fn: runTc508 },
+      { name: 'TC-509', fn: runTc509 },
+      { name: 'TC-322', fn: runTc322 },
+      { name: 'TC-503', fn: runTc503 },
+      { name: 'TC-504', fn: runTc504 },
+      { name: 'TC-505', fn: runTc505 },
+      { name: 'TC-506', fn: runTc506 },
+    ],
+  });
 }

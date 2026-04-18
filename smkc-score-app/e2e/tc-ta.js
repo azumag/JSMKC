@@ -17,12 +17,12 @@
  *
  * Run: node e2e/tc-ta.js  (from smkc-score-app/)
  */
-const { chromium } = require('playwright');
 const {
   makeResults, makeLog, nav,
   apiFetchTa, apiPromoteTaPhase,
   setupTa28PlayerQual,
 } = require('./lib/common');
+const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -97,27 +97,13 @@ async function runTc804(adminPage) {
 }
 
 if (require.main === module) {
-  (async () => {
-    const browser = await chromium.launchPersistentContext(
-      '/tmp/playwright-smkc-profile',
-      { headless: false, viewport: { width: 1280, height: 720 } },
-    );
-    const page = browser.pages()[0] || await browser.newPage();
-
-    await nav(page, '/');
-
-    await runTc801(page);
-    await runTc804(page);
-
-    console.log('\n========== TA TEST SUMMARY ==========');
-    const p = results.filter((r) => r.status === 'PASS').length;
-    const f = results.filter((r) => r.status === 'FAIL').length;
-    const sk = results.filter((r) => r.status === 'SKIP').length;
-    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-    if (f > 0) results.filter((r) => r.status === 'FAIL')
-      .forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
-
-    await browser.close();
-    process.exit(f > 0 ? 1 : 0);
-  })();
+  runSuite({
+    suiteName: 'TA',
+    results,
+    log,
+    tests: [
+      { name: 'TC-801', fn: runTc801 },
+      { name: 'TC-804', fn: runTc804 },
+    ],
+  });
 }

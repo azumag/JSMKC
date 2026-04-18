@@ -21,15 +21,24 @@ const {
   apiFetchTa,
   apiTaParticipantEditTime,
 } = require('./lib/common');
+const {
+  closeBrowser,
+  createProgressWatchdog,
+  envMs,
+  exitAfterCleanup,
+  formatDuration,
+} = require('./lib/runner');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const TID = process.env.E2E_TOURNAMENT_ID || 'cmmvbmrr00000o01slo9jy3o8';
 const WAIT = 8000;
 const results = [];
+let progressWatchdog = null;
 
 function log(tc, s, d = '') {
   console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
   results.push({ tc, s, d });
+  if (progressWatchdog) progressWatchdog.reset(tc);
 }
 async function vis(p) {
   const m = p.locator('main');
@@ -70,12 +79,68 @@ async function deletePlayer(p, id) {
   }, `/api/players/${id}`).catch(() => {});
 }
 
-(async () => {
-  const browser = await chromium.launchPersistentContext(
-    '/tmp/playwright-smkc-profile',
-    { headless: false, viewport: { width: 1280, height: 720 } }
-  );
-  const page = browser.pages()[0] || await browser.newPage();
+function httpsRequest(url, read, fallback) {
+  const timeoutMs = envMs('E2E_HTTP_TIMEOUT_MS', 15000);
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const req = https.get(url, (res) => read(res, done));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      done(fallback);
+    });
+    req.on('error', () => done(fallback));
+  });
+}
+
+function getHeaders(url) {
+  return httpsRequest(url, (res, done) => {
+    done(res.headers);
+    res.resume();
+  }, {});
+}
+
+function getStatus(url) {
+  return httpsRequest(url, (res, done) => {
+    done(res.statusCode);
+    res.resume();
+  }, 0);
+}
+
+function getBody(url) {
+  return httpsRequest(url, (res, done) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (chunk) => { data += chunk; });
+    res.on('end', () => done(data));
+  }, '');
+}
+
+async function main() {
+  let browser = null;
+  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 60 * 60 * 1000));
+  const suiteTimer = setTimeout(() => {
+    console.error(`[tc-all] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
+    exitAfterCleanup(124, () => closeBrowser(browser));
+  }, suiteTimeoutMs);
+  progressWatchdog = createProgressWatchdog('tc-all', undefined, () => closeBrowser(browser));
+
+  try {
+    browser = await chromium.launchPersistentContext(
+      process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile',
+      {
+        headless: process.env.E2E_HEADLESS === '1',
+        viewport: { width: 1280, height: 720 },
+      },
+    );
+    const page = browser.pages()[0] || await browser.newPage();
+    page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
+    page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
 
   // ===== Public page tests (work regardless of login state) =====
 
@@ -157,9 +222,7 @@ async function deletePlayer(p, id) {
   // ===== Security tests (no browser session needed — use https/curl) =====
 
   // TC-105
-  const hdrs = await new Promise(r => {
-    https.get(BASE + '/', res => { r(res.headers); res.resume(); }).on('error', () => r({}));
-  });
+  const hdrs = await getHeaders(BASE + '/');
   const miss = ['content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy']
     .filter(h => !hdrs[h]);
   log('TC-105', miss.length === 0 ? 'PASS' : 'FAIL', miss.length > 0 ? 'Missing: ' + miss.join(',') : '');
@@ -171,10 +234,7 @@ async function deletePlayer(p, id) {
   // TC-107: Forbidden consistency (unauthenticated curl — not browser session)
   let tc107 = true;
   for (const ep of ['bm/standings', 'mr/standings', 'gp/standings', 'ta/standings']) {
-    const status = await new Promise(r => {
-      https.get(`${BASE}/api/tournaments/${TID}/${ep}`, res => { r(res.statusCode); res.resume(); })
-        .on('error', () => r(0));
-    });
+    const status = await getStatus(`${BASE}/api/tournaments/${TID}/${ep}`);
     if (status !== 403) tc107 = false;
   }
   log('TC-107', tc107 ? 'PASS' : 'FAIL');
@@ -969,13 +1029,7 @@ async function deletePlayer(p, id) {
   } else { log('TC-104', 'SKIP'); }
 
   // TC-304: Viewer empty group message (check via unauthenticated curl)
-  const mrBody = await new Promise(r => {
-    let data = '';
-    https.get(`${BASE}/tournaments/${TID}/mr`, res => {
-      res.on('data', d => data += d);
-      res.on('end', () => r(data));
-    }).on('error', () => r(''));
-  });
+  const mrBody = await getBody(`${BASE}/tournaments/${TID}/mr`);
   log('TC-304', (mrBody.includes('Please wait') || mrBody.includes('セットアップが完了するまで')) ? 'PASS' : 'FAIL');
 
   // TC-305: BM group dialog
@@ -1504,18 +1558,21 @@ async function deletePlayer(p, id) {
   // tracking, since the buffered "FAIL:" string parser can't see inherited output.
   const { spawnSync } = require('child_process');
   const projectRoot = __dirname.replace(/\/e2e$/, '');
-  await browser.close();
+  await closeBrowser(browser);
+  browser = null;
 
   function runChildScript(label, script) {
+    const timeoutMs = envMs('E2E_CHILD_TIMEOUT_MS', 40 * 60 * 1000);
     console.log(`\n========== Running ${label} (${script}) ==========`);
     const result = spawnSync('node', [script], {
       cwd: projectRoot,
       env: { ...process.env, E2E_BASE_URL: BASE },
-      timeout: 1800000, // 30 min: 28-player full workflows take several minutes each
+      timeout: timeoutMs,
+      killSignal: 'SIGTERM',
       stdio: 'inherit',
     });
     if (result.error) {
-      console.error(`[${label}] spawn error:`, result.error.message);
+      console.error(`[${label}] spawn error after ${formatDuration(timeoutMs)}:`, result.error.message);
       return true;
     }
     return result.status !== 0;
@@ -1538,5 +1595,20 @@ async function deletePlayer(p, id) {
   if (gpFailed) console.log('  ⚠️  GP tests (tc-gp.js) had failures — see output above');
   if (taFailed) console.log('  ⚠️  TA tests (tc-ta.js) had failures — see output above');
 
-  process.exit((f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0);
-})();
+    return (f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0;
+  } finally {
+    clearTimeout(suiteTimer);
+    if (progressWatchdog) {
+      progressWatchdog.stop();
+      progressWatchdog = null;
+    }
+    await closeBrowser(browser);
+  }
+}
+
+main()
+  .then((exitCode) => process.exit(exitCode))
+  .catch((err) => {
+    console.error('[tc-all] fatal error:', err instanceof Error ? err.stack || err.message : err);
+    process.exit(1);
+  });
