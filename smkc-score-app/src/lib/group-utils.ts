@@ -49,7 +49,7 @@ function clampGroupCount(groupCount: number, minGroups: number = DEFAULT_MIN_GRO
 export function recommendGroupCount(playerCount: number): number {
   if (playerCount >= 24) return MAX_GROUPS; // 4
   if (playerCount >= 16) return 3;
-  return MIN_GROUPS; // 2
+  return DEFAULT_MIN_GROUPS; // 2
 }
 
 /**

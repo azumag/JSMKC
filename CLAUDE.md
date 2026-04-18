@@ -27,7 +27,23 @@ JSMKC (Japan SMK Championship) is a tournament management and scoring system for
 ## SRC
 under `./smkc-score-app`
 
-## E2E Test Loop (定期E2Eテスト)
+## Scheduled Tasks (定期タスク)
+
+以下は定期実行される定期タスク。session-only の CronJob。7日後に自動失効。
+
+| Job ID | 間隔 | タスク内容 | 復帰用コマンド |
+|--------|------|-----------|--------------|
+| `0b0f8c19` | 1h | mainブランチに移動し、git pull を使いmainブランチを最新化 | `/loop 1h mainブランチに移動し、git pull を使いmainブランチを最新化` |
+| `58ac80d6` | 1h | PRのコンフリクトが出ていたら適切に解決してpushしなおせ。git worktree で作業すること | `/loop 1h PRのコンフリクトが出ていたら適切に解決してpushしなおせ. git worktree で作業すること。` |
+| `ef011b26` | 1h | 提出されているPRを確認し、レビューがついていたらそれに対応してpushせよ。git worktreeで作業すること | `/loop 1h 提出されているPRを確認し、レビューがついていたらそれに対応してpushせよ。git worktreeで作業すること。` |
+| `b9a10dd2` | 1h | 未解決issueにプランを投稿し、plannedラベルを付与 | `/loop 1h 未解決issueにプランを投稿し、plannedラベルを付与` |
+| `6c0095ee` | 1h | plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与 | `/loop 1h plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与` |
+| `10f3fced` | 1h | change-requestラベル付きissueのプランを更新し、change-requestラベルを削除 | `/loop 1h change-requestラベル付きissueのプランを更新し、change-requestラベルを削除` |
+| `810556ce` | 1h | review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose。git worktree で作業すること | `/loop 1h review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose. git worktree で作業すること` |
+| `586f6461` | 4h | コードベースを精査し、新着問題を発見してGitHub issueを作成 | `/loop 4h コードベースを精査し、新着問題を発見してGitHub issueを作成` |
+| `0f9b0a4a` | 1h | mainブランチ以外に存在している、不要なgit branchおよびworktreeを削除する。git worktree list と git branch -vv の結果を確認し、mergedされたbranchおよびunreachableなworktreeを削除すること。削除対象の基本方針：originにマージ済みのlocal branch、存在しないremoteを追跡しているbranch（gone 표시）、作業が完了して主プロジェクトに戻ったworktree。削除前に 각対象が本当にマージ済み・不要かを確認すること。 | `/loop 1h mainブランチに移動し、git pull を使いmainブランチを最新化。未解決issueにプランを投稿し、plannedラベルを付与。plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与。change-requestラベル付きissueのプランを更新し、change-requestラベルを削除。review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose。提出されているPRを確認し、レビューがついていたらそれに対応してpush。PRのコンフリクトが出ていたら適切に解決してpushしなおせ。main以外の必要ないブランチ, worktree を削除して。` |
+
+### E2E Test Loop (定期E2Eテスト)
 
 本番環境 https://smkc.bluemoon.works/ に対して定期的にE2Eテストを実施し、問題を発見・修正・デプロイ・検証する。
 
