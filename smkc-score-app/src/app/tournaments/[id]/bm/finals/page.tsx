@@ -106,6 +106,29 @@ interface SeededPlayer {
   player: Player;
 }
 
+function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
+  if (json && typeof json === "object" && "success" in json && "data" in json) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
+function getMatchWinner(match: BMMatch): Player | null {
+  if (!match.completed) return null;
+  if (match.score1 > match.score2) return match.player1;
+  if (match.score2 > match.score1) return match.player2;
+  return null;
+}
+
+function getCompletedChampion(matches: BMMatch[]): Player | null {
+  const reset = matches.find((m) => m.round === "grand_final_reset" && m.completed);
+  if (reset) return getMatchWinner(reset);
+
+  const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
+  if (!grandFinal || grandFinal.score1 <= grandFinal.score2) return null;
+  return grandFinal.player1;
+}
+
 /**
  * Battle Mode Finals page component.
  * Uses React 19's `use()` hook to unwrap the async params.
@@ -164,7 +187,12 @@ export default function BattleModeFinals({
       throw new Error(`Failed to fetch BM finals data: ${response.status}`);
     }
 
-    const data = await response.json();
+    const json = await response.json();
+    const data = unwrapApiData<{
+      matches?: BMMatch[];
+      bracketStructure?: BracketMatch[];
+      roundNames?: Record<string, string>;
+    }>(json);
 
     return {
       matches: data.matches || [],
@@ -184,6 +212,7 @@ export default function BattleModeFinals({
       setMatches(pollData.matches);
       setBracketStructure(pollData.bracketStructure);
       setRoundNames(pollData.roundNames);
+      setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);
 
@@ -207,10 +236,16 @@ export default function BattleModeFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{
+          matches?: BMMatch[];
+          bracketStructure?: BracketMatch[];
+          seededPlayers?: SeededPlayer[];
+        }>(json);
         setMatches(data.matches || []);
         setBracketStructure(data.bracketStructure || []);
         setSeededPlayers(data.seededPlayers || []);
+        setChampion(null);
         refetch();
       } else {
         const error = await response.json();
@@ -253,7 +288,8 @@ export default function BattleModeFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{ isComplete?: boolean; champion?: string }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });

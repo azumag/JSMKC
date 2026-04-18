@@ -621,6 +621,7 @@ async function runTc509(adminPage) {
 
     /* Either an English or Japanese label may appear; accept the common variants. */
     const labelShown = pageText.includes('Previous Reports') ||
+      pageText.includes('前回の報告') ||
       pageText.includes('過去の報告') ||
       pageText.includes('既に報告');
     const scoreShown = /3\s*[-−]\s*1/.test(pageText);

@@ -72,6 +72,8 @@ interface GPMatch {
   player2Id: string;
   score1: number;
   score2: number;
+  points1?: number;
+  points2?: number;
   completed: boolean;
   player1: Player;
   player2: Player;
@@ -91,6 +93,37 @@ interface SeededPlayer {
   seed: number;
   playerId: string;
   player: Player;
+}
+
+function unwrapApiData<T>(json: T | { success?: boolean; data?: T }): T {
+  if (json && typeof json === "object" && "success" in json && "data" in json) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
+function getGpScore(match: GPMatch, side: 1 | 2): number {
+  return side === 1
+    ? match.points1 ?? match.score1 ?? 0
+    : match.points2 ?? match.score2 ?? 0;
+}
+
+function getMatchWinner(match: GPMatch): Player | null {
+  if (!match.completed) return null;
+  const score1 = getGpScore(match, 1);
+  const score2 = getGpScore(match, 2);
+  if (score1 > score2) return match.player1;
+  if (score2 > score1) return match.player2;
+  return null;
+}
+
+function getCompletedChampion(matches: GPMatch[]): Player | null {
+  const reset = matches.find((m) => m.round === "grand_final_reset" && m.completed);
+  if (reset) return getMatchWinner(reset);
+
+  const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
+  if (!grandFinal || getGpScore(grandFinal, 1) <= getGpScore(grandFinal, 2)) return null;
+  return grandFinal.player1;
 }
 
 export default function GrandPrixFinals({
@@ -135,10 +168,16 @@ export default function GrandPrixFinals({
       throw new Error(`Failed to fetch GP finals data: ${response.status}`);
     }
 
-    const data = await response.json();
+    const json = await response.json();
+    const data = unwrapApiData<{
+      matches?: GPMatch[];
+      data?: GPMatch[];
+      bracketStructure?: BracketMatch[];
+      roundNames?: Record<string, string>;
+    }>(json);
 
     return {
-      matches: data.matches || [],
+      matches: data.matches || data.data || [],
       bracketStructure: data.bracketStructure || [],
       roundNames: data.roundNames || {},
     };
@@ -155,6 +194,7 @@ export default function GrandPrixFinals({
       setMatches(pollData.matches);
       setBracketStructure(pollData.bracketStructure);
       setRoundNames(pollData.roundNames);
+      setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);
 
@@ -177,10 +217,16 @@ export default function GrandPrixFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{
+          matches?: GPMatch[];
+          bracketStructure?: BracketMatch[];
+          seededPlayers?: SeededPlayer[];
+        }>(json);
         setMatches(data.matches || []);
         setBracketStructure(data.bracketStructure || []);
         setSeededPlayers(data.seededPlayers || []);
+        setChampion(null);
         refetch();
       } else {
         const error = await response.json();
@@ -197,7 +243,7 @@ export default function GrandPrixFinals({
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2 });
+    setScoreForm({ score1: getGpScore(match, 1), score2: getGpScore(match, 2) });
     setIsScoreDialogOpen(true);
   };
 
@@ -221,7 +267,8 @@ export default function GrandPrixFinals({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const json = await response.json();
+        const data = unwrapApiData<{ isComplete?: boolean; champion?: string }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
