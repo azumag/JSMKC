@@ -175,9 +175,19 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return handleValidationError('Players array is required', 'players');
       }
 
-      /* Clear existing qualification data for fresh setup */
-      await qualModel(prisma).deleteMany({ where: { tournamentId } });
-      await matchModel(prisma).deleteMany({ where: { tournamentId, stage: 'qualification' } });
+      /*
+       * Collect existing record IDs before DELETE to enable safe delete-first-then-create pattern.
+       * D1 does not support prisma.$transaction, so we collect IDs first, then create new records,
+       * then delete old records by ID (not by tournamentId which would also delete new records).
+       */
+      const existingQualificationIds = await qualModel(prisma).findMany({
+        where: { tournamentId },
+        select: { id: true },
+      });
+      const existingMatchIds = await matchModel(prisma).findMany({
+        where: { tournamentId, stage: 'qualification' },
+        select: { id: true },
+      });
 
       /* Create qualification records for each player */
       const qualifications = await Promise.all(
@@ -344,6 +354,21 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             action: config.auditAction,
           });
         }
+      }
+
+      /*
+       * Delete old records after all creates succeed — preserves new records.
+       * Uses ID-based deletion (not tournamentId) to avoid deleting newly created records.
+       */
+      if (existingQualificationIds.length > 0) {
+        await qualModel(prisma).deleteMany({
+          where: { id: { in: existingQualificationIds.map(q => q.id) } },
+        });
+      }
+      if (existingMatchIds.length > 0) {
+        await matchModel(prisma).deleteMany({
+          where: { id: { in: existingMatchIds.map(m => m.id) } },
+        });
       }
 
       return NextResponse.json(
