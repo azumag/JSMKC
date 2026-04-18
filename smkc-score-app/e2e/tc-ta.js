@@ -19,6 +19,8 @@
  */
 const {
   makeResults, makeLog, nav,
+  apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
+  apiActivateTournament, apiAddTaEntries,
   apiFetchTa, apiPromoteTaPhase,
   setupTa28PlayerQual,
 } = require('./lib/common');
@@ -96,6 +98,91 @@ async function runTc804(adminPage) {
   }
 }
 
+/* ───────── TC-805: Remove a mistaken TA qualification player via UI ─────────
+ * The admin can remove a qualification entry, cancel safely, then confirm. The
+ * player master record remains available and the player returns to the Add
+ * Player candidate list for re-entry. */
+async function runTc805(adminPage) {
+  const playerIds = [];
+  const stamp = Date.now();
+  let tournamentId = null;
+
+  const cleanup = async () => {
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  };
+
+  try {
+    const p1 = await apiCreatePlayer(adminPage, `E2E TA 805 P1`, `e2e_ta805_${stamp}_1`);
+    const p2 = await apiCreatePlayer(adminPage, `E2E TA 805 P2`, `e2e_ta805_${stamp}_2`);
+    playerIds.push(p1.id, p2.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E TA 805 ${stamp}`, { dualReportEnabled: false });
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const add = await apiAddTaEntries(adminPage, tournamentId, {
+      playerEntries: [
+        { playerId: p1.id, seeding: 1 },
+        { playerId: p2.id, seeding: 2 },
+      ],
+    });
+    if (add.s !== 201) {
+      throw new Error(`TA add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
+    }
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    await adminPage.getByRole('tab', { name: /タイム入力|Time Entry/ }).click();
+
+    const rowFor = (nickname) => adminPage
+      .getByRole('row')
+      .filter({ hasText: nickname });
+
+    const targetRow = rowFor(p1.nickname);
+    await targetRow.getByRole('button', { name: /予選から削除|Remove from qualification/ }).click();
+
+    const dialog = adminPage.getByRole('alertdialog');
+    await dialog.getByText(/予選から削除しますか|Remove .* from qualification/).waitFor({ timeout: 10000 });
+    const dialogText = await dialog.innerText();
+    const explainsRemoval = /プレイヤー自体は削除されません|player record is not deleted/i.test(dialogText);
+    const explainsReAdd = /再追加|add the player again/i.test(dialogText);
+    if (!explainsRemoval || !explainsReAdd) {
+      throw new Error(`Removal dialog did not explain deletion scope/re-add path: ${dialogText}`);
+    }
+
+    await dialog.getByRole('button', { name: /キャンセル|Cancel/ }).click();
+    await rowFor(p1.nickname).waitFor({ timeout: 10000 });
+
+    await rowFor(p1.nickname)
+      .getByRole('button', { name: /予選から削除|Remove from qualification/ })
+      .click();
+    await adminPage
+      .getByRole('alertdialog')
+      .getByRole('button', { name: /予選から削除|Remove from qualification/ })
+      .click();
+
+    await rowFor(p1.nickname).waitFor({ state: 'detached', timeout: 15000 });
+
+    const data = await apiFetchTa(adminPage, tournamentId);
+    const entries = data.b?.data?.entries ?? [];
+    const removedFromApi = !entries.some((entry) => entry.playerId === p1.id);
+    const retainedOther = entries.some((entry) => entry.playerId === p2.id);
+
+    await adminPage.getByRole('button', { name: /プレイヤー追加|Add Player/ }).click();
+    await adminPage.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
+    await adminPage.getByText(new RegExp(p1.nickname)).waitFor({ timeout: 10000 });
+
+    const ok = removedFromApi && retainedOther;
+    log('TC-805', ok ? 'PASS' : 'FAIL',
+      !removedFromApi ? 'removed player still exists in TA API'
+      : !retainedOther ? 'non-removed player disappeared from TA API'
+      : '');
+  } catch (err) {
+    log('TC-805', 'FAIL', err instanceof Error ? err.message : 'TA 805 failed');
+  } finally {
+    await cleanup();
+  }
+}
+
 if (require.main === module) {
   runSuite({
     suiteName: 'TA',
@@ -104,6 +191,7 @@ if (require.main === module) {
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-804', fn: runTc804 },
+      { name: 'TC-805', fn: runTc805 },
     ],
   });
 }
