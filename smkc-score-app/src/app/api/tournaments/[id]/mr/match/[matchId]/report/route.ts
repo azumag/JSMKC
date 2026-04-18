@@ -97,9 +97,9 @@ export async function POST(
       return handleValidationError("Invalid character", "character");
     }
 
-    /* Fetch match */
+    /* Fetch match and verify it belongs to this tournament */
     const match = await prisma.mRMatch.findUnique({
-      where: { id: matchId },
+      where: { id: matchId, tournamentId },
       include: { player1: true, player2: true },
     });
 

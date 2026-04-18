@@ -94,7 +94,7 @@ export async function POST(
 
     /* Fetch match with player userId for auth check */
     const match = await prisma.gPMatch.findUnique({
-      where: { id: matchId },
+      where: { id: matchId, tournamentId },
       include: {
         player1: { select: { userId: true } },
         player2: { select: { userId: true } },
