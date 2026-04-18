@@ -190,6 +190,21 @@
   2. 全て `"error": "Forbidden"` を返すことを確認
 - **期待結果**: 全エンドポイントで統一された "Forbidden" メッセージ
 
+## TC-108: Players API ページネーション
+- **URL**: /api/players, /players
+- **authRequired**: false
+- **背景**: コミット 0269c8f で Players ページがページネーション化された。
+  `page`/`limit` クエリで分割取得し `{ data, meta: { total, page, limit, totalPages } }` を返す契約。
+  デフォルト limit=50、最大 100。
+- **手順**:
+  1. `/api/players?page=1&limit=10` を GET し、`data` が10件以下、`meta.page=1`, `meta.limit=10`,
+     `meta.total>=data.length`, `meta.totalPages=Math.ceil(total/10)` であることを確認
+  2. `/api/players?page=2&limit=10` を GET し、1ページ目と異なる ID のレコードが返ること
+     （または total<=10 で空配列）
+  3. `/api/players?page=1&limit=200` を GET → 200 を要求しても `meta.limit<=100` にクランプされること
+  4. `/players` ページを開き、プレイヤー数が既定 limit (50) を超える場合にページャー UI が出ること
+- **期待結果**: ページネーションが API/UI 双方で機能し、limit クランプが効いている
+
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
 - **authRequired**: true (admin)
@@ -220,40 +235,6 @@
   2. 「トーナメントが見つかりません」が表示されないこと
   3. 「総合ランキング」タイトルが表示されること
 - **期待結果**: ランキングページがレイアウトごと正常表示される
-
----
-
-## フルワークフローテスト
-
-## TC-401: MR予選グループ設定→スコア入力→順位表確認
-- **URL**: /tournaments/[id]/mr
-- **authRequired**: true (admin)
-- **手順**:
-  1. MR予選ページで「グループ設定」をクリック
-  2. 4名以上のプレイヤーを選択、グループAに割り当て
-  3. 「グループ作成」をクリック → ダイアログが閉じること
-  4. 順位表タブにプレイヤーが表示されること
-  5. 試合一覧タブに試合が作成されていること
-  6. 任意の試合でスコア入力 → 保存成功
-  7. 順位表に結果が反映されること
-  8. **クリーンアップ**: グループ編集で再作成（データリセット）
-- **期待結果**: グループ作成→スコア入力→順位表反映の一連のフローが正常動作
-
-## TC-402: GP予選グループ設定→スコア入力→順位表確認
-- **URL**: /tournaments/[id]/gp
-- **authRequired**: true (admin)
-- **手順**:
-  1. GP予選ページで「グループ設定」をクリック
-  2. 4名以上のプレイヤーを選択、グループAに割り当て
-  3. 「グループ作成」をクリック → ダイアログが閉じること
-  4. 順位表タブにプレイヤーが表示されること
-  5. 試合一覧タブに試合が作成されていること（カップ割り当て付き）
-  6. 任意の試合でカップ選択 → 5コースが固定順で自動入力されること
-  7. 各レースの順位（1-8）を入力 → 保存成功
-  8. 順位表にドライバーズポイントが反映されること
-  9. 必要に応じて管理者が合計ポイントのみ手動修正できること
-  10. **クリーンアップ**: グループ編集で再作成（データリセット）
-- **期待結果**: グループ作成→カップ選択→コース自動入力→順位入力→順位表反映の一連のフローが正常動作
 
 ---
 
@@ -381,6 +362,13 @@
   6. 作成したトーナメントを削除する
 - **期待結果**: 奇数人数でも POST 201、グループ設定成功、アラートなし
 
+## BM フルワークフロー設計方針
+- **予選プレイヤー数**: 28名（4グループ × 7名、7はオッドのため各グループに BYE が混在）
+- **予選試合数**: 7名RR = 21試合 × 4グループ = **84試合**（API一括投入）
+- **決勝**: 上位8名でダブルイリミネーション (17試合)
+- **決勝形式**: best-of-9 (first-to-5)、`score1 + score2 ≦ 9` で一方が `5` に到達した時点で勝者確定
+- 単発の participant テスト (TC-322/501/502/507/508/509) は 2 名のみで設置（高速フィードバック用）
+
 ## TC-501: BMプレイヤーログインからスコア入力・送信まで
 - **URL**: /auth/signin -> /tournaments/[temp-id]/bm/participant
 - **authRequired**: true (player)
@@ -410,59 +398,55 @@
   8. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: 2-2の引き分けスコアが正常に送信・保存される
 
-## TC-503: BM決勝ブラケット生成とスコア入力
+## TC-503: BM予選28名フル + 決勝ブラケット生成・1試合スコア入力
 - **URL**: /tournaments/[temp-id]/bm/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
-  2. BMグループ設定を行い、全予選マッチのスコアをAPIで入力して完了させる
-  3. `/tournaments/[temp-id]/bm/finals` を開き、「Generate Bracket」ボタンをクリックする
-  4. 確認ダイアログで「Top 8」を選択し、「Generate」をクリックする
-  5. ダブルイリミネーションブラケットが表示されることを確認する（QF 4試合が表示）
-  6. QF Match #1 をクリックし、スコア入力ダイアログが開くことを確認する
-  7. score1=5, score2=2（best-of-9）を入力し「Save Score」をクリックする
-  8. ブラケットが更新され、勝者がWinners Bracket次ラウンドに、敗者がLosers Bracketに移動することを確認する
-  9. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: ブラケット生成、スコア入力、勝敗によるブラケット進行が正常に動作する
+  1. 管理者セッションで一時トーナメントとプレイヤー **28名** を作成する
+  2. BMグループ設定を 4グループ × 7名 (snake-draft) に登録（奇数なのでBYE発生）
+  3. 全予選マッチ（21試合 × 4 = 84試合）のスコアを API で 3-1 入力し completed にする
+  4. `POST /api/tournaments/[id]/bm/finals` `{ topN: 8 }` でブラケット生成（17試合）
+  5. M1 に 3-0 で PUT → 400 拒否（best-of-9 なので first-to-5 必須）
+  6. M1 に 5-0 で PUT → 200 受理、勝者→M5、敗者→M8 にルーティングされること
+  7. クリーンアップ（トーナメント `status='draft'` に降格 → DELETE → プレイヤー DELETE）
+- **期待結果**: 28名予選→上位8名抽出→決勝ブラケットの全フローが正常動作
 
-## TC-504: BM決勝ブラケットリセット
+## TC-504: BM決勝ブラケットリセット（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. TC-503と同様にブラケットを生成し、一部スコアを入力する
-  2. 「Reset Bracket」ボタンをクリックする
-  3. 確認ダイアログで「Reset」をクリックする
-  4. ブラケットが再生成され、入力済みスコアがリセットされることを確認する
-  5. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: ブラケットリセットが正常に機能し、全マッチがpending状態に戻る
+  1. TC-503同様に 28名予選 + 決勝ブラケット生成
+  2. M1 に 5-0 で PUT
+  3. ブラケット生成 API を再 POST（=「Reset Bracket」UI 動作と同等）
+  4. 全 17 マッチが `completed=false` の pending 状態に戻ること
+  5. クリーンアップ
+- **期待結果**: ブラケットリセットで全マッチが未完了状態に戻る
 
-## TC-505: BM決勝 Grand Final → チャンピオン決定
+## TC-505: BM Grand Final → チャンピオン決定（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
-  2. BMグループ設定→全予選マッチ完了→ブラケット生成する
-  3. 全ブラケットマッチ（Winners QF〜Grand Final）のスコアをAPIで入力する
-     - Winners Bracket: QF(1-4), SF(5-6), WF(7)
-     - Losers Bracket: L_R1(8-9), L_R2(10-11), L_R3(12-13), LSF(14), LF(15)
-     - Grand Final(16): best-of-9
-  4. Grand FinalでWinners側が勝った場合、チャンピオンカードが表示されることを確認する
-  5. チャンピオンのニックネームが正しく表示されることを確認する
-  6. 進行バッジが「Tournament Complete」を示すことを確認する
-  7. 一時トーナメントと一時プレイヤーを削除する
+  1. 28名予選 + 決勝ブラケット生成（TC-503同様）
+  2. M1〜M16 を P1 win 5-0 で API 連続入力
+     - Winners: QF(1-4), SF(5-6), WF(7)
+     - Losers : L_R1(8-9), L_R2(10-11), L_R3(12-13), LSF(14), LF(15)
+     - Grand Final: M16 (best-of-9)
+  3. M16 で Winners 側勝者 (P1) が 5-0 で勝つ
+  4. `/bm/finals` ページの `body.innerText` にチャンピオンの nickname と "Champion/チャンピオン/優勝" のいずれかが含まれること
+  5. クリーンアップ
 - **期待結果**: 全マッチ完了後にチャンピオンが正しく決定・表示される
 
-## TC-506: BM決勝 Grand Final Reset Match
+## TC-506: BM Grand Final Reset Match（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals
 - **authRequired**: true (admin)
-- **背景**: Grand FinalでLosers側が勝った場合、Reset Match（17試合目）が発生する
+- **背景**: Grand Final で Losers 側が勝った場合、Reset Match (M17) が発生する
 - **手順**:
-  1. TC-505と同様に全マッチを進め、Grand Final(16)でLosers側勝者が勝つようにスコアを入力する
-  2. Grand Final Reset(17)マッチがブラケットに出現することを確認する
-  3. Reset Matchのスコアを入力する
-  4. チャンピオンが正しく決定されることを確認する
-  5. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: Grand Final Resetが正しくトリガーされ、最終勝者がチャンピオンとなる
+  1. TC-505 同様に M1〜M15 を P1 win 5-0 で消化
+  2. M16 (Grand Final) で Losers 側勝者 (P2) が 0-5 で勝つようにスコア入力
+  3. M17 (Grand Final Reset) が出現し両プレイヤーが populate されること
+  4. M17 にスコア入力（L-side 勝者を勝たせる）→ completed
+  5. クリーンアップ
+- **期待結果**: Grand Final Reset が正しくトリガーされ、最終勝者がチャンピオンとなる
 
 ## TC-507: BM二重報告 — 双方一致で自動確定
 - **URL**: /tournaments/[temp-id]/bm/participant
@@ -512,25 +496,26 @@
 
 ### 設計方針
 - BMテスト(TC-5xx)と対称に構成。BMとの差異（決勝がレース形式、コース割当あり）以外は同じシナリオ
-- 予選プレイヤー数: 12名（3グループ×4名）
-- シード入力・推奨グループ数・自動振り分けをカバー
-- プレイヤー側の試合リストからの「スコア入力」リンクテスト(TC-307相当)はMRでは不要
+- **予選プレイヤー数**: 28名（4グループ × 7名、奇数のためBYEあり）
+- **予選試合数**: 7名RR = 21試合 × 4グループ = **84試合**
+- **決勝形式**: best-of-5 races (first-to-3)、5レース分のコース選択+勝者選択
+- 単発の participant テスト (TC-602/603/608/609/610/611/612) は 2 名のみで設置
 
-## TC-601: MR予選フルフロー（12名、シード、推奨グループ、自動振り分け）
+## TC-601: MR予選フルフロー（28名、シード、4グループ snake-draft）
 - **URL**: /tournaments/[temp-id]/mr
 - **authRequired**: true (admin)
 - **手順**:
-  1. 管理者セッションで一時トーナメントと12名のプレイヤーを作成する
-  2. MR予選グループ設定APIで12名をシード1〜12で登録、3グループ（A/B/C × 4名）に自動振り分けする
-     - シードはsnake配分: A=[1,6,7,12], B=[2,5,8,11], C=[3,4,9,10]
-  3. APIレスポンスでグループごとに4名が割り当てられていることを確認する
-  4. 各グループの全試合（4名RR = 6試合 × 3グループ = 18試合）のスコアをAPIで入力する
-     - score1+score2=4 のルールを遵守（例: 3-1, 2-2, 4-0 等）
-  5. MR予選ページを開き、順位表に全12名が表示されることを確認する
-  6. 各グループの順位表がscore desc → points descで正しくソートされていることを確認する
-  7. コース割当がランダムシャッフルされていることを確認する（rounds配列にcourse情報あり）
-  8. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: 12名3グループのMR予選がシード・自動振り分けで正しく設定・実行・集計される
+  1. 管理者セッションで一時トーナメントと **28名** のプレイヤーを作成
+  2. MR予選グループ設定APIで28名をシード1〜28で登録、4グループ（A/B/C/D × 7名）に snake-draft で自動振り分け
+     - boustrophedon: row r = floor(i/4), col = i%4 (even row) / 3-i%4 (odd row)
+  3. APIレスポンスで各グループに7名が割り当てられていることを確認
+  4. 各グループの全試合（7名RR = 21試合 × 4グループ = 84試合）のスコアを API で入力
+     - score1+score2=4 のルール（例: 3-1, 2-2, 4-0 等）。test スコアパターンは循環使用
+  5. MR予選ページを開き、順位表に全28名が表示されること
+  6. 各グループの順位表が score desc → points desc で正しくソートされていること
+  7. コース割当がランダムシャッフルされていること（rounds配列にcourse情報あり）
+  8. クリーンアップ
+- **期待結果**: 28名4グループのMR予選がシード・自動振り分けで正しく設定・実行・集計される
 
 ## TC-602: MR予選プレイヤーログインからスコア入力・送信まで
 - **URL**: /auth/signin -> /tournaments/[temp-id]/mr/participant
@@ -559,60 +544,56 @@
   6. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: 2-2の引き分けスコアがバリデーションを通過し正常に保存される
 
-## TC-604: MR決勝ブラケット生成とスコア入力
+## TC-604: MR予選28名フル + 決勝ブラケット生成 + race-format UI スコア入力
 - **URL**: /tournaments/[temp-id]/mr/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
-  2. MRグループ設定を行い、全予選マッチのスコアをAPIで入力して完了させる
-  3. `/tournaments/[temp-id]/mr/finals` を開き、「Generate Bracket」ボタンをクリックする
-  4. 確認ダイアログで「Top 8」を選択し、「Generate」をクリックする
-  5. ダブルイリミネーションブラケットが表示されることを確認する（QF 4試合が表示）
-  6. QF Match #1 をクリックし、スコア入力ダイアログが開くことを確認する
-  7. **MR固有**: レーステーブルでコース選択＋勝者選択を行う。P1が3勝（best-of-5でfirst-to-3）になるよう入力
-  8. 「Save Result」をクリックする
-  9. ブラケットが更新され、勝者がWinners Bracket次ラウンドに、敗者がLosers Bracketに移動することを確認する
-  10. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: MR決勝ブラケット生成、レース形式スコア入力、勝敗によるブラケット進行が正常に動作する
+  1. 管理者セッションで一時トーナメントと **28名** のプレイヤーを作成
+  2. MR予選グループ設定 (4グループ × 7名) → 全 84 試合を API で 3-1 入力
+  3. `/mr/finals` を開き、「Generate Bracket」→「Top 8」→「Generate」をクリック
+  4. ダブルイリミネーションブラケットが生成されること（17試合）
+  5. M1 に対して 3-3 を API PUT → 400 拒否（first-to-3 なのでどちらか一方が 3 必須）
+  6. M1 ダイアログを UI で開き、各レースのコース選択＋勝者選択で P1 3勝にして「Save」
+  7. 勝者が M5、敗者が M8 に移動していること（routing）
+  8. クリーンアップ
+- **期待結果**: 28名予選→Top 8抽出→MR決勝ブラケット生成→ race-format スコア入力→ routing が全て正常動作
 
-## TC-605: MR決勝ブラケットリセット
+## TC-605: MR決勝ブラケットリセット（28名予選後）
 - **URL**: /tournaments/[temp-id]/mr/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. TC-604と同様にブラケットを生成し、一部スコアを入力する
-  2. 「Reset Bracket」ボタンをクリックする
-  3. 確認ダイアログで「Reset」をクリックする
-  4. ブラケットが再生成され、入力済みスコアがリセットされることを確認する
-  5. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: ブラケットリセットが正常に機能し、全マッチがpending状態に戻る
+  1. TC-604 と同様に 28名予選 + ブラケット生成
+  2. M1 に 3-0 で API PUT
+  3. ブラケット生成 API を再 POST（=「Reset Bracket」UI 動作と同等）
+  4. 全 17 マッチが pending 状態に戻ること
+  5. クリーンアップ
+- **期待結果**: ブラケットリセットで全マッチが未完了状態に戻る
 
-## TC-606: MR決勝 Grand Final → チャンピオン決定
+## TC-606: MR Grand Final → チャンピオン決定（28名予選後）
 - **URL**: /tournaments/[temp-id]/mr/finals
 - **authRequired**: true (admin)
 - **手順**:
-  1. 管理者セッションで一時トーナメントとプレイヤー8名を作成する
-  2. MRグループ設定→全予選マッチ完了→ブラケット生成する
-  3. 全ブラケットマッチ（Winners QF〜Grand Final）のスコアをAPIで入力する
-     - Winners Bracket: QF(1-4), SF(5-6), WF(7)
-     - Losers Bracket: L_R1(8-9), L_R2(10-11), L_R3(12-13), LSF(14), LF(15)
-     - Grand Final(16): **MR固有** best-of-5レース（first-to-3）
-  4. Grand FinalでWinners側が勝った場合、チャンピオンカードが表示されることを確認する
-  5. チャンピオンのニックネームが正しく表示されることを確認する
-  6. 進行バッジが「Tournament Complete」を示すことを確認する
-  7. 一時トーナメントと一時プレイヤーを削除する
+  1. 28名予選 + 決勝ブラケット生成
+  2. M1〜M16 を P1 win 3-0 で API 連続入力
+     - Winners: QF(1-4), SF(5-6), WF(7)
+     - Losers : L_R1(8-9), L_R2(10-11), L_R3(12-13), LSF(14), LF(15)
+     - Grand Final: M16 (best-of-5 races, first-to-3)
+  3. M16 で Winners 側勝者 (P1) が 3-0 で勝つ
+  4. `/mr/finals` ページの `body.innerText` にチャンピオンの nickname と "Champion/チャンピオン/優勝" のいずれかが含まれること
+  5. クリーンアップ
 - **期待結果**: 全マッチ完了後にチャンピオンが正しく決定・表示される
 
-## TC-607: MR決勝 Grand Final Reset Match
+## TC-607: MR Grand Final Reset Match（28名予選後）
 - **URL**: /tournaments/[temp-id]/mr/finals
 - **authRequired**: true (admin)
-- **背景**: Grand FinalでLosers側が勝った場合、Reset Match（17試合目）が発生する
+- **背景**: Grand Final で Losers 側が勝った場合、Reset Match (M17) が発生する
 - **手順**:
-  1. TC-606と同様に全マッチを進め、Grand Final(16)でLosers側勝者が勝つようにスコアを入力する
-  2. Grand Final Reset(17)マッチがブラケットに出現することを確認する
-  3. Reset Matchのスコアを入力する（MR形式のレース入力）
-  4. チャンピオンが正しく決定されることを確認する
-  5. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: Grand Final Resetが正しくトリガーされ、最終勝者がチャンピオンとなる
+  1. TC-606 と同様に M1〜M15 を P1 win 3-0 で消化
+  2. M16 で Losers 側勝者 (P2) が 0-3 で勝つようにスコア入力
+  3. M17 (Grand Final Reset) が出現し両プレイヤーが populate されること
+  4. M17 にスコア入力（L-side 勝者を勝たせる）→ completed
+  5. クリーンアップ
+- **期待結果**: Grand Final Reset が正しくトリガーされ、最終勝者がチャンピオンとなる
 
 ## TC-608: MR二重報告 — 双方一致で自動確定
 - **URL**: /tournaments/[temp-id]/mr/participant
@@ -688,6 +669,202 @@
 
 ---
 
+## GP (Grand Prix) フルワークフローテスト
+
+### 設計方針
+- BM/MR と対称に構成。GP 固有: 1試合 = 5レース（カップ単位）、各レースで position 1〜8 を入力 →
+  driver points (1st=9, 2nd=6, 3rd=3, 4th=1, 5th〜=0) に換算
+- **予選プレイヤー数**: 28名（4グループ × 7名）
+- **予選試合数**: 7名RR × 4 = 84試合。各試合は 5 races の `{ course, position1, position2 }` 配列で送信
+- **決勝**: 上位8名でダブルイリミネーション (17試合)。各試合は API PUT `{ score1, score2 }` で
+  `points1/points2` を直接指定。`targetWins=3` のため score1 >= 3 XOR score2 >= 3 が必要
+- 単発の participant テスト (TC-702/707/708) は 2 名のみで設置
+
+## TC-701: GP予選フルフロー（28名、シード、4グループ）
+- **URL**: /tournaments/[temp-id]/gp
+- **authRequired**: true (admin)
+- **手順**:
+  1. 管理者セッションで一時トーナメントと28名のプレイヤーを作成
+  2. GP予選グループ設定APIで28名をシード1〜28で登録、4グループ × 7 名に snake-draft で振り分け
+  3. APIレスポンスで各グループに7名が割り当てられていること
+  4. 各試合（合計84試合）について、5レース分の `races: [{ course, position1, position2 }]` を
+     管理者 PUT (`{ matchId, cup, races }`) で投入し completed にする
+  5. 順位表で driver points DESC → match score DESC でソートされていること
+  6. クリーンアップ
+- **期待結果**: 28名4グループのGP予選がシード・自動振り分け・driver points換算で正しく集計される
+
+## TC-702: GPプレイヤーログインから 5-race 送信
+- **URL**: /auth/signin -> /tournaments/[temp-id]/gp/participant
+- **authRequired**: true (player)
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー2名を作成（`dualReportEnabled=false`）
+  2. GP予選グループ設定で2名のpendingマッチを生成（カップ自動割当付き）
+  3. 別の一時ブラウザでP1としてログインし `/api/.../gp/match/:id/report` に
+     `{ reportingPlayer: 1, races: [...5 entries with position1=1, position2=5...] }` を POST
+  4. レスポンスに `autoConfirmed: true` が含まれること（`dualReportEnabled=false` のため即時確定）
+  5. 管理者APIでマッチが completed、`points1=45, points2=0` で保存されていること
+  6. クリーンアップ
+- **期待結果**: GP participant 入力で5レース順位送信→driver points換算→永続化が動作
+
+## TC-703: GP予選28名フル + 決勝ブラケット生成・1試合スコア入力
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. 28名予選 + 全予選マッチ完了（TC-701同様）
+  2. `POST /api/.../gp/finals { topN: 8 }` でブラケット生成（17試合）
+  3. M1 に `{ score1: 9, score2: 0 }` で API PUT → 200 受理（targetWins=3、9 >= 3 XOR 0 < 3）
+  4. 勝者→M5、敗者→M8 にルーティングされること
+  5. クリーンアップ
+- **期待結果**: 28名予選→上位8名→GP決勝ブラケット生成・スコア入力・進行が正常動作
+
+## TC-704: GP決勝ブラケットリセット（28名予選後）
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. TC-703と同様にブラケット生成 → M1 に 9-0 入力
+  2. ブラケット生成 API を再 POST（=「Reset Bracket」UI 動作と同等）
+  3. 全 17 マッチが pending 状態に戻ること
+  4. クリーンアップ
+- **期待結果**: ブラケットリセットで全マッチが未完了状態に戻る
+
+## TC-705: GP Grand Final → チャンピオン決定（28名予選後）
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成
+  2. M1〜M16 を P1 win 9-0 で API 連続入力
+  3. M16 (Grand Final) で Winners 側勝者 (P1) が 9-0 で勝つ
+  4. `/gp/finals` ページの `body.innerText` にチャンピオンの nickname と "Champion/チャンピオン/優勝" が含まれること
+  5. クリーンアップ
+- **期待結果**: 全マッチ完了後にチャンピオンが正しく決定・表示される
+
+## TC-706: GP Grand Final Reset Match（28名予選後）
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **背景**: Grand Final で Losers 側が勝った場合、Reset Match (M17) が発生する
+- **手順**:
+  1. TC-705 同様に M1〜M15 を P1 win 9-0 で消化
+  2. M16 で L-side 勝者 (P2) が 0-9 で勝つようにスコア入力
+  3. M17 が出現し両プレイヤーが populate されること
+  4. M17 にスコア入力（L-side 勝者を勝たせる）→ completed
+  5. クリーンアップ
+- **期待結果**: Grand Final Reset が正しくトリガーされ、最終勝者がチャンピオンとなる
+
+## TC-707: GP二重報告 — 双方一致で自動確定
+- **URL**: /tournaments/[temp-id]/gp/participant
+- **authRequired**: true (player × 2)
+- **手順**:
+  1. `dualReportEnabled=true` のトーナメントとプレイヤー2名を作成
+  2. GPグループ設定でpendingマッチを生成
+  3. P1 が `races=[各レース position1=1, position2=5]` を送信 → `waitingFor: player2`
+  4. P2 が同じ `races` を送信 → `autoConfirmed: true` で confirmed
+  5. 管理者APIでマッチが completed、`points1=45, points2=0`
+  6. クリーンアップ
+- **期待結果**: 双方一致で GP マッチが自動確定される
+
+## TC-708: GP二重報告 — 不一致でmismatch検出
+- **URL**: /tournaments/[temp-id]/gp/participant
+- **authRequired**: true (player × 2)
+- **手順**:
+  1. `dualReportEnabled=true` のトーナメントとプレイヤー2名を作成
+  2. GPグループ設定でpendingマッチを生成
+  3. P1 が race position 1-vs-5 で送信、P2 が race position 5-vs-1 で送信（不一致）
+  4. レスポンスに `mismatch: true` が含まれ、マッチは completed=false のまま
+  5. 管理者 PUT (`{ matchId, cup, races }`) で確定 → completed=true
+  6. クリーンアップ
+- **期待結果**: 不一致時はマッチが未完了のまま管理者レビュー待ちになる
+
+## TC-709: GP決勝 — 非管理者のスコア入力拒否
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (player — 管理者ではない)
+- **背景**: 決勝は putRequiresAuth: true で管理者のみ
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成
+  2. 一般プレイヤーとしてログインし、決勝APIにPUT
+  3. HTTP 403 Forbidden が返ること
+  4. クリーンアップ
+- **期待結果**: GP 決勝スコア入力は管理者のみ許可、プレイヤーは 403 拒否
+
+---
+
+## TT (Time Trial / TA) フルワークフローテスト  *(scenario only — 実装は別タスク)*
+
+### 設計方針
+- **エントリー数**: 28名（TA はグループ分けなし、全員が同一プールでタイムを競う）
+- **コース数**: 1 ラウンド = 20 コース（cycle、no-repeat until all used）
+- **フェーズ**: 予選 → Phase 1 (17〜24位の8→4) → Phase 2 (1〜16位の16→4) → Phase 3 (決勝、最大16名のノックアウト)
+- **タイ処理**: 同タイムは平均ポイント按分、per-course 線形補間（50pt 上限）
+- **スコア**: `qualification-scoring.ts` で算出（合計値だけ floor、per-course は double-floor しない）
+
+## TC-801: TA予選フルフロー（28名、20コース）
+- **URL**: /tournaments/[temp-id]/ta
+- **authRequired**: true (admin)
+- **手順**:
+  1. 一時トーナメント + プレイヤー28名 + TA 予選 entry 作成
+  2. 各プレイヤーに 20 コース分の time を API でランダム入力
+  3. 順位表が `qualification-scoring.ts` の per-course 線形補間 + 平均按分で算出されていること
+  4. floor は合計値のみ（per-course の double-floor になっていないこと）
+  5. クリーンアップ
+- **期待結果**: 28名のTA予選順位がスコア式どおりに集計される
+
+## TC-802: TAプレイヤーログインからタイム入力
+- **URL**: /auth/signin -> /tournaments/[temp-id]/ta/participant
+- **authRequired**: true (player)
+- **手順**:
+  1. 一時トーナメント + プレイヤー1名 + entry 作成
+  2. 一時ブラウザでログイン → `/ta/participant`
+  3. 自分の20コース分のタイムを順次入力・送信
+  4. 順位表に反映されること
+  5. クリーンアップ
+- **期待結果**: 参加者UIから自分の予選タイムを入力できる
+
+## TC-803: TAペア機能 + パートナー編集
+- **URL**: /api/tournaments/[temp-id]/ta + /ta/participant
+- **authRequired**: true (player)
+- **手順**:
+  1. プレイヤー2名でTAエントリー
+  2. `set_partner` でペア結成
+  3. P1 がログインし P2 のタイムを編集 → 成功
+  4. 逆方向 (P2 → P1) も成功
+  5. クリーンアップ
+- **期待結果**: ペアが双方向にタイム編集可能（TC-318 と重複しないよう統合検討）
+
+## TC-804: TA予選確定 → Phase 1 開始
+- **URL**: /api/tournaments/[temp-id]/ta/phases (POST `promote_phase1`)
+- **authRequired**: true (admin)
+- **手順**:
+  1. 28名予選完了
+  2. `promote_phase1` を送信 → 17〜24位の8名が Phase 1 へ抽出
+  3. Phase 1 ラウンドが開始されること
+  4. プレイヤー側で予選タイム編集が disabled になること（TC-312 既存の確認）
+  5. クリーンアップ
+- **期待結果**: Phase 1 開始でノックアウト枠が確定し、予選タイムロックが効く
+
+## TC-805: TA Phase 2 → 上位16名のノックアウト
+- **URL**: /api/tournaments/[temp-id]/ta/phases (POST `promote_phase2`)
+- **authRequired**: true (admin)
+- **手順**:
+  1. Phase 1 のラウンド結果を入力
+  2. `promote_phase2` を送信 → 1〜16位の枠がノックアウトに進む
+  3. 各プレイヤーが Phase 2 ラウンドのタイムを送信
+  4. 順位/勝ち上がりが正しく更新されること
+  5. クリーンアップ
+- **期待結果**: Phase 2 が正しく進行する
+
+## TC-806: TA Phase 3 → 決勝ラウンドとチャンピオン決定
+- **URL**: /api/tournaments/[temp-id]/ta/phases (POST `promote_phase3`) + /ta/finals
+- **authRequired**: true (admin)
+- **手順**:
+  1. Phase 2 完了
+  2. `promote_phase3` で決勝（最大16名）を開始
+  3. 決勝の各ラウンドのタイムを入力 → 上位者が勝ち上がる
+  4. 最終ラウンドでチャンピオンが決定し UI 表示されること
+  5. 「直前ラウンドを取り消す」ボタンで再入力できる（TC-314 と整合）
+  6. クリーンアップ
+- **期待結果**: TA決勝がフェーズ3で完結し、チャンピオン表示まで通る
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）
@@ -699,9 +876,30 @@
 - TC-304（観覧者メッセージ）も同様に `https` で認証なしHTMLを取得して確認
 
 ### スクリプト構成
-- `e2e/tc-all.js` — 全TCを1つのスクリプトで実行（セッション維持）
-- `e2e/tc-bm.js` — BM専用テスト（TC-322, TC-323）
-- `e2e/tc-mr.js` — MR専用テスト（TC-601〜TC-610）
+- `e2e/tc-all.js` — 全TCを1つのスクリプトで実行（セッション維持）。
+  自身のインライン TC（TC-001〜TC-324 の基本機能・回帰系）を実行後、
+  child process で `tc-bm.js` → `tc-mr.js` → `tc-gp.js` を逐次呼ぶ。
+- `e2e/tc-bm.js` — BM 専用（TC-322 訂正、TC-501〜TC-509）
+- `e2e/tc-mr.js` — MR 専用 + 共通系（TC-601〜TC-612）
+- `e2e/tc-gp.js` — GP 専用（TC-701〜TC-709）
+
+**TC ID 命名ルール**:
+- TC-0xx: 公開ページ表示・ナビゲーション
+- TC-1xx: 認証必須の基本機能（プレイヤーCRUD・ページネーション等）
+- TC-2xx: データ読み込みとレンダリング
+- TC-3xx: リグレッション・補助機能テスト（既存issue由来）
+- TC-4xx: **欠番**（旧「軽量フルワークフロー」を廃止し、フル版に集約）
+- TC-5xx: BMフルワークフロー（28名予選 + 決勝）
+- TC-6xx: MRフルワークフロー（28名予選 + 決勝）+ MR/GP共通の決勝/予選ロック検証
+- TC-7xx: GPフルワークフロー（28名予選 + 決勝）
+- TC-8xx: TT(TA)フルワークフロー（28名予選 + フェーズ1〜3 決勝）— **scenario only**
+
+**欠番 / リネーム履歴**:
+- 旧 TC-323 (`tc-bm.js` のBM決勝ブラケット生成) → **TC-503** にリネーム
+  （tc-all.js TC-323 と内容衝突していたため）
+- 旧 tc-all.js TC-323 (BM tie warning banner) → **TC-324** にリネーム
+- TC-323 は欠番（再利用しないこと）
+- TC-401〜TC-404 は廃止（軽量フルワークフローおよびGPダイアログUIチェック）
 
 ### ページ中身の確認ルール（重要）
 E2Eテストでは以下を必ず確認すること：
