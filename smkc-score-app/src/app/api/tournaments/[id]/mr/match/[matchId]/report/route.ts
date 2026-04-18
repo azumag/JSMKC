@@ -128,6 +128,12 @@ export async function POST(
      * and the reporting player's stored report, then recalculate standings.
      */
     if (match.completed) {
+      /* Validate MR scores are in legal range (sum must equal TOTAL_MR_RACES=4) */
+      const scoreValidation = validateMatchRaceScores(score1, score2);
+      if (!scoreValidation.isValid) {
+        return handleValidationError(scoreValidation.error!, "scores");
+      }
+
       try {
         const correctedMatch = await updateWithRetry(prisma, async (tx) => {
           const currentMatch = await tx.mRMatch.findUnique({

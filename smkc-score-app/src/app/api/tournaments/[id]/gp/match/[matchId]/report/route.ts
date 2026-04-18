@@ -122,6 +122,25 @@ export async function POST(
      * and the reporting player's stored report, then recalculate standings.
      */
     if (match.completed) {
+      /* Validate GP race positions are in legal range (0-8) before processing */
+      if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
+        return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
+      }
+      for (let i = 0; i < races.length; i++) {
+        const race = races[i] as { position1: number; position2: number; course: string };
+        const pos1Result = validateGPRacePosition(race.position1);
+        if (!pos1Result.isValid) return handleValidationError(pos1Result.error!, "position1");
+        const pos2Result = validateGPRacePosition(race.position2);
+        if (!pos2Result.isValid) return handleValidationError(pos2Result.error!, "position2");
+        /* Two players cannot finish in the same position (except both game-over at 0 per §7.2) */
+        if (race.position1 === race.position2 && race.position1 !== 0) {
+          return handleValidationError(
+            `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
+            "position",
+          );
+        }
+      }
+
       /* Process races: convert finishing positions to driver points (same as normal flow) */
       let totalPoints1 = 0;
       let totalPoints2 = 0;
