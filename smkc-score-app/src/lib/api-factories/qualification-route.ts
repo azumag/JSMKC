@@ -362,12 +362,12 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        */
       if (existingQualificationIds.length > 0) {
         await qualModel(prisma).deleteMany({
-          where: { id: { in: existingQualificationIds.map(q => q.id) } },
+          where: { id: { in: existingQualificationIds.map((q: { id: string }) => q.id) } },
         });
       }
       if (existingMatchIds.length > 0) {
         await matchModel(prisma).deleteMany({
-          where: { id: { in: existingMatchIds.map(m => m.id) } },
+          where: { id: { in: existingMatchIds.map((m: { id: string }) => m.id) } },
         });
       }
 

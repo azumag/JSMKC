@@ -20,7 +20,7 @@ export type MatchResult = {
 /** Parsed PUT request body for qualification match updates */
 export type QualificationPutData = {
   matchId: string;
-  tournamentId: string;
+  tournamentId?: string;
   score1?: number;
   score2?: number;
   points1?: number;
