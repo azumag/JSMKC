@@ -786,8 +786,8 @@ describe('Qualification Route Factory', () => {
 
       expect(config.calculateMatchResult).toHaveBeenCalledWith(3, 1);
       const json = await response.json();
-      expect(json.result1).toBe('WIN');
-      expect(json.result2).toBe('LOSS');
+      expect(json.data.result1).toBe('WIN');
+      expect(json.data.result2).toBe('LOSS');
     });
 
     it('should aggregate player stats via config.aggregatePlayerStats', async () => {
