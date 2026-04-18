@@ -123,8 +123,9 @@ describe('updateWithRetry', () => {
 
   it('should retry on optimistic lock error (version in message)', async () => {
     const { Prisma } = jest.requireMock('@prisma/client');
+    // P2025 with version message = optimistic lock error (not a genuine "not found")
     const versionError = new Prisma.PrismaClientKnownRequestError('version mismatch detected', {
-      code: 'P2003',
+      code: 'P2025',
       clientVersion: '5.0.0',
     });
 
@@ -141,8 +142,9 @@ describe('updateWithRetry', () => {
 
   it('should retry on optimistic lock error (Record to update not found)', async () => {
     const { Prisma } = jest.requireMock('@prisma/client');
+    // P2025 with "Record to update not found" = optimistic lock error (version mismatch in D1)
     const notFoundError = new Prisma.PrismaClientKnownRequestError('Record to update not found', {
-      code: 'P2001',
+      code: 'P2025',
       clientVersion: '5.0.0',
     });
 
