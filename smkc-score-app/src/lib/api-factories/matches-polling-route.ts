@@ -14,7 +14,7 @@ import prisma from '@/lib/prisma';
 import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { auth } from '@/lib/auth';
-import { createErrorResponse, handleAuthError } from '@/lib/error-handling';
+import { createErrorResponse, createSuccessResponse, handleAuthError } from '@/lib/error-handling';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 export interface MatchesPollingConfig {
@@ -68,7 +68,7 @@ export function createMatchesPollingHandlers(config: MatchesPollingConfig) {
         { page, limit }
       );
 
-      return NextResponse.json(result);
+      return createSuccessResponse(result);
     } catch (error) {
       logger.error(config.errorMessage, { error, tournamentId });
       return createErrorResponse(config.errorMessage, 500, 'INTERNAL_ERROR');

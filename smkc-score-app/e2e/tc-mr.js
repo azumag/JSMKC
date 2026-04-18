@@ -41,6 +41,7 @@ const {
   setupMr28PlayerFinals,
   snakeDraft28: snakeDraftMr28,
 } = require('./lib/common');
+const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -1261,36 +1262,23 @@ module.exports = { runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, r
 
 // Standalone execution
 if (require.main === module) {
-  (async () => {
-    const browser = await chromium.launchPersistentContext(
-      '/tmp/playwright-smkc-profile',
-      { headless: false, viewport: { width: 1280, height: 720 } }
-    );
-    const page = browser.pages()[0] || await browser.newPage();
-
-    await nav(page, '/');
-
-    await runTc601(page);
-    await runTc602(page);
-    await runTc603(page);
-    await runTc604(page);
-    await runTc605(page);
-    await runTc606(page);
-    await runTc607(page);
-    await runTc608(page);
-    await runTc609(page);
-    await runTc610(page);
-    await runTc611(page);
-    await runTc612(page);
-
-    console.log('\n========== MR TEST SUMMARY ==========');
-    const p = results.filter((r) => r.status === 'PASS').length;
-    const f = results.filter((r) => r.status === 'FAIL').length;
-    const sk = results.filter((r) => r.status === 'SKIP').length;
-    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-    if (f > 0) results.filter((r) => r.status === 'FAIL').forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
-
-    await browser.close();
-    process.exit(f > 0 ? 1 : 0);
-  })();
+  runSuite({
+    suiteName: 'MR',
+    results,
+    log,
+    tests: [
+      { name: 'TC-601', fn: runTc601 },
+      { name: 'TC-602', fn: runTc602 },
+      { name: 'TC-603', fn: runTc603 },
+      { name: 'TC-604', fn: runTc604 },
+      { name: 'TC-605', fn: runTc605 },
+      { name: 'TC-606', fn: runTc606 },
+      { name: 'TC-607', fn: runTc607 },
+      { name: 'TC-608', fn: runTc608 },
+      { name: 'TC-609', fn: runTc609 },
+      { name: 'TC-610', fn: runTc610 },
+      { name: 'TC-611', fn: runTc611 },
+      { name: 'TC-612', fn: runTc612 },
+    ],
+  });
 }

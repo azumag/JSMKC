@@ -18,7 +18,6 @@
  *
  * Run: node e2e/tc-gp.js  (from smkc-score-app/)  or:  npm run e2e:gp
  */
-const { chromium } = require('playwright');
 const {
   makeResults, makeLog, nav,
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
@@ -27,6 +26,7 @@ const {
   setupGp28PlayerFinals, makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
 } = require('./lib/common');
+const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -488,35 +488,20 @@ module.exports = {
 };
 
 if (require.main === module) {
-  (async () => {
-    const browser = await chromium.launchPersistentContext(
-      '/tmp/playwright-smkc-profile',
-      { headless: false, viewport: { width: 1280, height: 720 } },
-    );
-    const page = browser.pages()[0] || await browser.newPage();
-
-    await nav(page, '/');
-
-    /* Light tests first; heavy 28-player full-workflow tests last */
-    await runTc702(page);
-    await runTc707(page);
-    await runTc708(page);
-    await runTc701(page);
-    await runTc703(page);
-    await runTc704(page);
-    await runTc705(page);
-    await runTc706(page);
-    await runTc709(page);
-
-    console.log('\n========== GP TEST SUMMARY ==========');
-    const p = results.filter((r) => r.status === 'PASS').length;
-    const f = results.filter((r) => r.status === 'FAIL').length;
-    const sk = results.filter((r) => r.status === 'SKIP').length;
-    console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
-    if (f > 0) results.filter((r) => r.status === 'FAIL')
-      .forEach((r) => console.log(`  ❌ [${r.tc}] ${r.detail}`));
-
-    await browser.close();
-    process.exit(f > 0 ? 1 : 0);
-  })();
+  runSuite({
+    suiteName: 'GP',
+    results,
+    log,
+    tests: [
+      { name: 'TC-702', fn: runTc702 },
+      { name: 'TC-707', fn: runTc707 },
+      { name: 'TC-708', fn: runTc708 },
+      { name: 'TC-701', fn: runTc701 },
+      { name: 'TC-703', fn: runTc703 },
+      { name: 'TC-704', fn: runTc704 },
+      { name: 'TC-705', fn: runTc705 },
+      { name: 'TC-706', fn: runTc706 },
+      { name: 'TC-709', fn: runTc709 },
+    ],
+  });
 }

@@ -10,15 +10,35 @@
  */
 const { chromium } = require('playwright');
 const https = require('https');
+const {
+  apiActivateTournament,
+  apiUpdateTournament,
+  apiAddTaEntries,
+  apiSeedTtEntry,
+  apiPromoteTaPhase,
+  apiSetTaPartner,
+  apiUpdateTaSeeding,
+  apiFetchTa,
+  apiTaParticipantEditTime,
+} = require('./lib/common');
+const {
+  closeBrowser,
+  createProgressWatchdog,
+  envMs,
+  exitAfterCleanup,
+  formatDuration,
+} = require('./lib/runner');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const TID = process.env.E2E_TOURNAMENT_ID || 'cmmvbmrr00000o01slo9jy3o8';
 const WAIT = 8000;
 const results = [];
+let progressWatchdog = null;
 
 function log(tc, s, d = '') {
   console.log(`${s === 'PASS' ? '✅' : s === 'SKIP' ? '⏭️' : '❌'} [${tc}] ${s}${d ? ' — ' + d : ''}`);
   results.push({ tc, s, d });
+  if (progressWatchdog) progressWatchdog.reset(tc);
 }
 async function vis(p) {
   const m = p.locator('main');
@@ -59,12 +79,68 @@ async function deletePlayer(p, id) {
   }, `/api/players/${id}`).catch(() => {});
 }
 
-(async () => {
-  const browser = await chromium.launchPersistentContext(
-    '/tmp/playwright-smkc-profile',
-    { headless: false, viewport: { width: 1280, height: 720 } }
-  );
-  const page = browser.pages()[0] || await browser.newPage();
+function httpsRequest(url, read, fallback) {
+  const timeoutMs = envMs('E2E_HTTP_TIMEOUT_MS', 15000);
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const req = https.get(url, (res) => read(res, done));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      done(fallback);
+    });
+    req.on('error', () => done(fallback));
+  });
+}
+
+function getHeaders(url) {
+  return httpsRequest(url, (res, done) => {
+    done(res.headers);
+    res.resume();
+  }, {});
+}
+
+function getStatus(url) {
+  return httpsRequest(url, (res, done) => {
+    done(res.statusCode);
+    res.resume();
+  }, 0);
+}
+
+function getBody(url) {
+  return httpsRequest(url, (res, done) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (chunk) => { data += chunk; });
+    res.on('end', () => done(data));
+  }, '');
+}
+
+async function main() {
+  let browser = null;
+  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 60 * 60 * 1000));
+  const suiteTimer = setTimeout(() => {
+    console.error(`[tc-all] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
+    exitAfterCleanup(124, () => closeBrowser(browser));
+  }, suiteTimeoutMs);
+  progressWatchdog = createProgressWatchdog('tc-all', undefined, () => closeBrowser(browser));
+
+  try {
+    browser = await chromium.launchPersistentContext(
+      process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile',
+      {
+        headless: process.env.E2E_HEADLESS === '1',
+        viewport: { width: 1280, height: 720 },
+      },
+    );
+    const page = browser.pages()[0] || await browser.newPage();
+    page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
+    page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
 
   // ===== Public page tests (work regardless of login state) =====
 
@@ -146,9 +222,7 @@ async function deletePlayer(p, id) {
   // ===== Security tests (no browser session needed — use https/curl) =====
 
   // TC-105
-  const hdrs = await new Promise(r => {
-    https.get(BASE + '/', res => { r(res.headers); res.resume(); }).on('error', () => r({}));
-  });
+  const hdrs = await getHeaders(BASE + '/');
   const miss = ['content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy']
     .filter(h => !hdrs[h]);
   log('TC-105', miss.length === 0 ? 'PASS' : 'FAIL', miss.length > 0 ? 'Missing: ' + miss.join(',') : '');
@@ -160,10 +234,7 @@ async function deletePlayer(p, id) {
   // TC-107: Forbidden consistency (unauthenticated curl — not browser session)
   let tc107 = true;
   for (const ep of ['bm/standings', 'mr/standings', 'gp/standings', 'ta/standings']) {
-    const status = await new Promise(r => {
-      https.get(`${BASE}/api/tournaments/${TID}/${ep}`, res => { r(res.statusCode); res.resume(); })
-        .on('error', () => r(0));
-    });
+    const status = await getStatus(`${BASE}/api/tournaments/${TID}/${ep}`);
     if (status !== 403) tc107 = false;
   }
   log('TC-107', tc107 ? 'PASS' : 'FAIL');
@@ -479,69 +550,21 @@ async function deletePlayer(p, id) {
       if (taTournament.s !== 201 || !taTournamentId) {
         throw new Error('Failed to create TA tournament');
       }
+      await apiActivateTournament(page, taTournamentId);
 
-      const activateTournament = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { ok: r.ok, s: r.status };
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-      if (!activateTournament.ok) {
-        throw new Error(`Failed to activate TA tournament (${activateTournament.s})`);
-      }
-
-      const addTaEntry = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, { playerId: pid }]);
+      const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId: pid });
       const taEntryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
       if (addTaEntry.s !== 201 || !taEntryId) {
         throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
       }
 
-      const getEntry = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`);
-      const version = getEntry.b?.data?.version;
-      if (getEntry.s !== 200 || typeof version !== 'number') {
-        throw new Error(`Failed to fetch TT entry version (${getEntry.s})`);
-      }
+      /* Seed rank 17 so promote_phase1 (ranks 17–24) picks this entry up. */
+      await apiSeedTtEntry(
+        page, taTournamentId, taEntryId,
+        { MC1: '1:00.00' }, 60000, 17
+      );
 
-      const seedQualification = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`,
-        {
-          version,
-          times: { MC1: '1:00.00' },
-          totalTime: 60000,
-          rank: 17,
-        },
-      ]);
-      if (seedQualification.s !== 200) {
-        throw new Error(`Failed to seed qualification entry (${seedQualification.s})`);
-      }
-
-      const promotePhase1 = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta/phases`, { action: 'promote_phase1' }]);
+      const promotePhase1 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
       if (promotePhase1.s !== 200) {
         throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
       }
@@ -601,69 +624,20 @@ async function deletePlayer(p, id) {
       if (taTournament.s !== 201 || !taTournamentId) {
         throw new Error('Failed to create TA tournament');
       }
+      await apiActivateTournament(page, taTournamentId);
 
-      const activateTournament = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { ok: r.ok, s: r.status };
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-      if (!activateTournament.ok) {
-        throw new Error(`Failed to activate TA tournament (${activateTournament.s})`);
-      }
-
-      const addTaEntry = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, { playerId: pid }]);
+      const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId: pid });
       const taEntryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
       if (addTaEntry.s !== 201 || !taEntryId) {
         throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
       }
 
-      const getEntry = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`);
-      const version = getEntry.b?.data?.version;
-      if (getEntry.s !== 200 || typeof version !== 'number') {
-        throw new Error(`Failed to fetch TT entry version (${getEntry.s})`);
-      }
+      await apiSeedTtEntry(
+        page, taTournamentId, taEntryId,
+        { MC1: '1:00.00' }, 60000, 17
+      );
 
-      const seedQualification = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${taTournamentId}/tt/entries/${taEntryId}`,
-        {
-          version,
-          times: { MC1: '1:00.00' },
-          totalTime: 60000,
-          rank: 17,
-        },
-      ]);
-      if (seedQualification.s !== 200) {
-        throw new Error(`Failed to seed qualification entry (${seedQualification.s})`);
-      }
-
-      const promotePhase1 = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta/phases`, { action: 'promote_phase1' }]);
+      const promotePhase1 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
       if (promotePhase1.s !== 200) {
         throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
       }
@@ -735,29 +709,11 @@ async function deletePlayer(p, id) {
       if (taTournament.s !== 201 || !taTournamentId) {
         throw new Error('Failed to create TA tournament');
       }
-
-      const activateTournament = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { ok: r.ok, s: r.status };
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-      if (!activateTournament.ok) {
-        throw new Error(`Failed to activate TA tournament (${activateTournament.s})`);
-      }
+      await apiActivateTournament(page, taTournamentId);
 
       const entryIds = [];
       for (const playerId of [pid, secondPlayerId]) {
-        const addTaEntry = await page.evaluate(async ([u, d]) => {
-          const r = await fetch(u, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status, b: await r.json().catch(() => ({})) };
-        }, [`/api/tournaments/${taTournamentId}/ta`, { playerId }]);
+        const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId });
         const entryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
         if (addTaEntry.s !== 201 || !entryId) {
           throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
@@ -766,44 +722,15 @@ async function deletePlayer(p, id) {
       }
 
       for (const [index, entryId] of entryIds.entries()) {
-        const getEntry = await page.evaluate(async (u) => {
-          const r = await fetch(u);
-          return { s: r.status, b: await r.json().catch(() => ({})) };
-        }, `/api/tournaments/${taTournamentId}/tt/entries/${entryId}`);
-        const version = getEntry.b?.data?.version;
-        if (getEntry.s !== 200 || typeof version !== 'number') {
-          throw new Error(`Failed to fetch TT entry version (${getEntry.s})`);
-        }
-
-        const updateEntry = await page.evaluate(async ([u, d]) => {
-          const r = await fetch(u, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status, b: await r.json().catch(() => ({})) };
-        }, [
-          `/api/tournaments/${taTournamentId}/tt/entries/${entryId}`,
-          {
-            version,
-            times: { MC1: index === 0 ? '1:00.00' : '1:01.00' },
-            totalTime: index === 0 ? 60000 : 61000,
-            rank: index + 1,
-          },
-        ]);
-        if (updateEntry.s !== 200) {
-          throw new Error(`Failed to seed qualification entry (${updateEntry.s})`);
-        }
+        await apiSeedTtEntry(
+          page, taTournamentId, entryId,
+          { MC1: index === 0 ? '1:00.00' : '1:01.00' },
+          index === 0 ? 60000 : 61000,
+          index + 1,
+        );
       }
 
-      const promotePhase3 = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta/phases`, { action: 'promote_phase3' }]);
+      const promotePhase3 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase3');
       if (promotePhase3.s !== 200) {
         throw new Error(`Failed to promote Phase 3 (${promotePhase3.s})`);
       }
@@ -875,75 +802,36 @@ async function deletePlayer(p, id) {
   if (pid) {
     let taTournamentId = null;
     try {
-      // Create temp tournament
-      const taTournament = await page.evaluate(async d => {
+      const created = await page.evaluate(async d => {
         const r = await fetch('/api/tournaments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(d),
         });
         return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E TA Seeding ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
+      }, { name: `E2E TA Seeding ${Date.now()}`, date: new Date().toISOString(), dualReportEnabled: false });
+      taTournamentId = created.b?.data?.id ?? null;
+      if (created.s !== 201 || !taTournamentId) throw new Error('Failed to create TA tournament');
+      await apiActivateTournament(page, taTournamentId);
+
+      const addResult = await apiAddTaEntries(page, taTournamentId, {
+        playerEntries: [{ playerId: pid, seeding: 3 }],
       });
-      taTournamentId = taTournament.b?.data?.id ?? null;
-      if (taTournament.s !== 201 || !taTournamentId) {
-        throw new Error('Failed to create TA tournament');
-      }
-
-      // Activate
-      await page.evaluate(async ([u, d]) => {
-        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-
-      // Add entry via playerEntries (new format with seeding)
-      const addResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, { playerEntries: [{ playerId: pid, seeding: 3 }] }]);
       const entryId = addResult.b?.data?.entries?.[0]?.id ?? null;
       const initialSeeding = addResult.b?.data?.entries?.[0]?.seeding;
       if (addResult.s !== 201 || !entryId) {
         throw new Error(`Failed to create TA entry with seeding (${addResult.s})`);
       }
-
-      // Verify seeding was set on creation
       const step1 = initialSeeding === 3;
 
-      // Update seeding via PUT update_seeding
-      const updateResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, { entryId, action: 'update_seeding', seeding: 7 }]);
+      const updateResult = await apiUpdateTaSeeding(page, taTournamentId, entryId, 7);
       const step2 = updateResult.s === 200;
 
-      // Verify seeding persisted via GET
-      const getResult = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/ta?stage=qualification`);
+      const getResult = await apiFetchTa(page, taTournamentId);
       const entry = getResult.b?.data?.entries?.find(e => e.id === entryId);
       const step3 = entry?.seeding === 7;
 
-      // Clear seeding (set to null)
-      const clearResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, { entryId, action: 'update_seeding', seeding: null }]);
+      const clearResult = await apiUpdateTaSeeding(page, taTournamentId, entryId, null);
       const step4 = clearResult.s === 200 && clearResult.b?.data?.entry?.seeding === null;
 
       log('TC-317', step1 && step2 && step3 && step4 ? 'PASS' : 'FAIL',
@@ -966,7 +854,6 @@ async function deletePlayer(p, id) {
     let taTournamentId = null;
     let partnerPlayerId = null;
     try {
-      // Create a second player to be the partner
       const partnerNick = `e2e_pair_${Date.now()}`;
       const partnerResult = await page.evaluate(async (d) => {
         const r = await fetch('/api/players', {
@@ -982,83 +869,46 @@ async function deletePlayer(p, id) {
         throw new Error(`Failed to create partner player (${partnerResult.s})`);
       }
 
-      // Create tournament
-      const taTournament = await page.evaluate(async d => {
+      const created = await page.evaluate(async d => {
         const r = await fetch('/api/tournaments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(d),
         });
         return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E TA Pair ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      taTournamentId = taTournament.b?.data?.id ?? null;
-      if (taTournament.s !== 201 || !taTournamentId) {
-        throw new Error('Failed to create TA tournament');
-      }
+      }, { name: `E2E TA Pair ${Date.now()}`, date: new Date().toISOString(), dualReportEnabled: false });
+      taTournamentId = created.b?.data?.id ?? null;
+      if (created.s !== 201 || !taTournamentId) throw new Error('Failed to create TA tournament');
+      await apiActivateTournament(page, taTournamentId);
 
-      // Activate
-      await page.evaluate(async ([u, d]) => {
-        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-
-      // Add both players with seeding via playerEntries
-      const addBoth = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, {
+      const addBoth = await apiAddTaEntries(page, taTournamentId, {
         playerEntries: [
           { playerId: pid, seeding: 1 },
           { playerId: partnerPlayerId, seeding: 2 },
         ],
-      }]);
-      if (addBoth.s !== 201) {
-        throw new Error(`Failed to add players to TA (${addBoth.s})`);
-      }
+      });
+      if (addBoth.s !== 201) throw new Error(`Failed to add players to TA (${addBoth.s})`);
       const entry1 = addBoth.b?.data?.entries?.find(e => e.playerId === pid);
       const entry2 = addBoth.b?.data?.entries?.find(e => e.playerId === partnerPlayerId);
       if (!entry1 || !entry2) throw new Error('Missing entries after add');
 
-      // Step 1: Set partner via admin API (pid ↔ partnerPlayerId)
-      const setPairResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, {
-        entryId: entry1.id,
-        action: 'set_partner',
-        partnerId: partnerPlayerId,
-      }]);
+      const setPairResult = await apiSetTaPartner(page, taTournamentId, entry1.id, partnerPlayerId);
       const step1 = setPairResult.s === 200;
 
-      // Step 2: Verify both entries have partner set (bidirectional)
-      const getEntries = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/ta?stage=qualification`);
+      const getEntries = await apiFetchTa(page, taTournamentId);
       const e1 = getEntries.b?.data?.entries?.find(e => e.playerId === pid);
       const e2 = getEntries.b?.data?.entries?.find(e => e.playerId === partnerPlayerId);
       const step2 = e1?.partnerId === partnerPlayerId && e2?.partnerId === pid;
 
-      // Step 3: Partner player logs in and edits pid's entry time
+      /* Partner session: separate ephemeral browser so the admin persistent
+       * profile stays untouched. The partner PUT /ta exercises the partnerId
+       * rule in src/app/api/tournaments/[id]/ta/route.ts. */
       let partnerBrowser = null;
       let step3 = false;
       try {
         partnerBrowser = await chromium.launch({ headless: false });
         const partnerCtx = await partnerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
         const partnerPage = await partnerCtx.newPage();
-
-        // Login as partner player
         await nav(partnerPage, '/auth/signin');
         await partnerPage.locator('#nickname').fill(partnerNick);
         await partnerPage.locator('#password').fill(partnerPassword);
@@ -1066,29 +916,15 @@ async function deletePlayer(p, id) {
         await partnerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
         await partnerPage.waitForTimeout(2000);
 
-        // Partner edits pid's entry time (allowed because they are partners)
-        const partnerEditResult = await partnerPage.evaluate(async ([u, d]) => {
-          const r = await fetch(u, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status, b: await r.json().catch(() => ({})) };
-        }, [`/api/tournaments/${taTournamentId}/ta`, {
-          entryId: entry1.id,
-          course: 'MC1',
-          time: '1:23.45',
-        }]);
+        const partnerEditResult = await apiTaParticipantEditTime(
+          partnerPage, taTournamentId, entry1.id, 'MC1', '1:23.45'
+        );
         step3 = partnerEditResult.s === 200;
       } finally {
         if (partnerBrowser) await partnerBrowser.close().catch(() => {});
       }
 
-      // Step 4: Verify the time was saved
-      const verifyEntries = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/ta?stage=qualification`);
+      const verifyEntries = await apiFetchTa(page, taTournamentId);
       const updatedEntry = verifyEntries.b?.data?.entries?.find(e => e.playerId === pid);
       const step4 = updatedEntry?.times?.MC1 === '1:23.45';
 
@@ -1101,21 +937,18 @@ async function deletePlayer(p, id) {
     } catch (err) {
       log('TC-318', 'FAIL', err instanceof Error ? err.message : 'TA pair flow failed');
     } finally {
-      if (taTournamentId) {
-        await deleteTournament(page, taTournamentId);
-      }
-      if (partnerPlayerId) {
-        await deletePlayer(page, partnerPlayerId);
-      }
+      if (taTournamentId) await deleteTournament(page, taTournamentId);
+      if (partnerPlayerId) await deletePlayer(page, partnerPlayerId);
     }
   } else { log('TC-318', 'SKIP'); }
 
   // TC-319: taPlayerSelfEdit=false blocks self-edit, allows partner edit
+  // Verified indirectly: admin bypasses the self-edit gate, so we probe the
+  // flag via GET /ta.data.taPlayerSelfEdit and via a round-trip PUT toggle.
   if (pid) {
     let taTournamentId = null;
     let partnerPlayerId2 = null;
     try {
-      // Create partner player
       const pNick = `e2e_selfed_${Date.now()}`;
       const pResult = await page.evaluate(async (d) => {
         const r = await fetch('/api/players', {
@@ -1128,8 +961,7 @@ async function deletePlayer(p, id) {
       partnerPlayerId2 = pResult.b?.data?.player?.id ?? null;
       if (!partnerPlayerId2) throw new Error('Failed to create partner');
 
-      // Create tournament with taPlayerSelfEdit=false
-      const t = await page.evaluate(async d => {
+      const created = await page.evaluate(async d => {
         const r = await fetch('/api/tournaments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1142,84 +974,35 @@ async function deletePlayer(p, id) {
         dualReportEnabled: false,
         taPlayerSelfEdit: false,
       });
-      taTournamentId = t.b?.data?.id ?? null;
+      taTournamentId = created.b?.data?.id ?? null;
       if (!taTournamentId) throw new Error('Failed to create tournament');
+      await apiActivateTournament(page, taTournamentId);
 
-      // Activate
-      await page.evaluate(async ([u, d]) => {
-        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-      }, [`/api/tournaments/${taTournamentId}`, { status: 'active' }]);
-
-      // Add both players
-      const addResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [`/api/tournaments/${taTournamentId}/ta`, {
+      const addResult = await apiAddTaEntries(page, taTournamentId, {
         playerEntries: [
           { playerId: pid, seeding: 1 },
           { playerId: partnerPlayerId2, seeding: 2 },
         ],
-      }]);
+      });
       const entry1 = addResult.b?.data?.entries?.find(e => e.playerId === pid);
       const entry2 = addResult.b?.data?.entries?.find(e => e.playerId === partnerPlayerId2);
       if (!entry1 || !entry2) throw new Error('Missing entries');
 
-      // Set partner
-      await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status };
-      }, [`/api/tournaments/${taTournamentId}/ta`, {
-        entryId: entry1.id, action: 'set_partner', partnerId: partnerPlayerId2,
-      }]);
+      await apiSetTaPartner(page, taTournamentId, entry1.id, partnerPlayerId2);
 
-      // Step 1: Self-edit should be blocked (player edits own entry)
-      // Login as pid player and try to edit own entry via API
-      const selfEditResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status };
-      }, [`/api/tournaments/${taTournamentId}/ta`, {
-        entryId: entry1.id, course: 'MC1', time: '1:00.00',
-      }]);
-      // Admin is doing the call, so it should succeed (admin bypass)
-      // We need to test as a player — but the admin session is active.
-      // Instead, verify the API returns taPlayerSelfEdit=false in GET
-      const getResult = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/ta?stage=qualification`);
+      /* Admin session → PUT /ta is allowed (admin bypass); this proves
+       * the endpoint is reachable and the toggle below is the only gate. */
+      const selfEditResult = await apiTaParticipantEditTime(
+        page, taTournamentId, entry1.id, 'MC1', '1:00.00'
+      );
+      const getResult = await apiFetchTa(page, taTournamentId);
       const step1 = getResult.b?.data?.taPlayerSelfEdit === false;
-
-      // Step 2: Admin can still edit (bypass)
       const step2 = selfEditResult.s === 200;
 
-      // Step 3: Verify setting can be toggled via PUT
-      const toggleResult = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status };
-      }, [`/api/tournaments/${taTournamentId}`, { taPlayerSelfEdit: true }]);
+      const toggleResult = await apiUpdateTournament(page, taTournamentId, { taPlayerSelfEdit: true });
       const step3 = toggleResult.s === 200;
 
-      // Step 4: After toggle, taPlayerSelfEdit should be true
-      const getResult2 = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `/api/tournaments/${taTournamentId}/ta?stage=qualification`);
+      const getResult2 = await apiFetchTa(page, taTournamentId);
       const step4 = getResult2.b?.data?.taPlayerSelfEdit === true;
 
       log('TC-319', step1 && step2 && step3 && step4 ? 'PASS' : 'FAIL',
@@ -1231,12 +1014,8 @@ async function deletePlayer(p, id) {
     } catch (err) {
       log('TC-319', 'FAIL', err instanceof Error ? err.message : 'Self-edit toggle test failed');
     } finally {
-      if (taTournamentId) {
-        await deleteTournament(page, taTournamentId);
-      }
-      if (partnerPlayerId2) {
-        await deletePlayer(page, partnerPlayerId2);
-      }
+      if (taTournamentId) await deleteTournament(page, taTournamentId);
+      if (partnerPlayerId2) await deletePlayer(page, partnerPlayerId2);
     }
   } else { log('TC-319', 'SKIP'); }
 
@@ -1250,13 +1029,7 @@ async function deletePlayer(p, id) {
   } else { log('TC-104', 'SKIP'); }
 
   // TC-304: Viewer empty group message (check via unauthenticated curl)
-  const mrBody = await new Promise(r => {
-    let data = '';
-    https.get(`${BASE}/tournaments/${TID}/mr`, res => {
-      res.on('data', d => data += d);
-      res.on('end', () => r(data));
-    }).on('error', () => r(''));
-  });
+  const mrBody = await getBody(`${BASE}/tournaments/${TID}/mr`);
   log('TC-304', (mrBody.includes('Please wait') || mrBody.includes('セットアップが完了するまで')) ? 'PASS' : 'FAIL');
 
   // TC-305: BM group dialog
@@ -1785,18 +1558,21 @@ async function deletePlayer(p, id) {
   // tracking, since the buffered "FAIL:" string parser can't see inherited output.
   const { spawnSync } = require('child_process');
   const projectRoot = __dirname.replace(/\/e2e$/, '');
-  await browser.close();
+  await closeBrowser(browser);
+  browser = null;
 
   function runChildScript(label, script) {
+    const timeoutMs = envMs('E2E_CHILD_TIMEOUT_MS', 40 * 60 * 1000);
     console.log(`\n========== Running ${label} (${script}) ==========`);
     const result = spawnSync('node', [script], {
       cwd: projectRoot,
       env: { ...process.env, E2E_BASE_URL: BASE },
-      timeout: 1800000, // 30 min: 28-player full workflows take several minutes each
+      timeout: timeoutMs,
+      killSignal: 'SIGTERM',
       stdio: 'inherit',
     });
     if (result.error) {
-      console.error(`[${label}] spawn error:`, result.error.message);
+      console.error(`[${label}] spawn error after ${formatDuration(timeoutMs)}:`, result.error.message);
       return true;
     }
     return result.status !== 0;
@@ -1805,6 +1581,7 @@ async function deletePlayer(p, id) {
   const bmFailed = runChildScript('BM Tests', 'e2e/tc-bm.js');
   const mrFailed = runChildScript('MR Tests', 'e2e/tc-mr.js');
   const gpFailed = runChildScript('GP Tests', 'e2e/tc-gp.js');
+  const taFailed = runChildScript('TA Tests', 'e2e/tc-ta.js');
 
   // ===== Summary =====
   console.log('\n========== SUMMARY (tc-all.js inline tests) ==========');
@@ -1816,6 +1593,22 @@ async function deletePlayer(p, id) {
   if (bmFailed) console.log('  ⚠️  BM tests (tc-bm.js) had failures — see output above');
   if (mrFailed) console.log('  ⚠️  MR tests (tc-mr.js) had failures — see output above');
   if (gpFailed) console.log('  ⚠️  GP tests (tc-gp.js) had failures — see output above');
+  if (taFailed) console.log('  ⚠️  TA tests (tc-ta.js) had failures — see output above');
 
-  process.exit((f > 0 || bmFailed || mrFailed || gpFailed) ? 1 : 0);
-})();
+    return (f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0;
+  } finally {
+    clearTimeout(suiteTimer);
+    if (progressWatchdog) {
+      progressWatchdog.stop();
+      progressWatchdog = null;
+    }
+    await closeBrowser(browser);
+  }
+}
+
+main()
+  .then((exitCode) => process.exit(exitCode))
+  .catch((err) => {
+    console.error('[tc-all] fatal error:', err instanceof Error ? err.stack || err.message : err);
+    process.exit(1);
+  });
