@@ -97,11 +97,11 @@ describe('Finals Bracket Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual(mockMatches);
+      expect(json.data.matches).toEqual(mockMatches);
       // Players should be mapped with qualifyingRank based on position
-      expect(json.players[0].qualifyingRank).toBe(1);
-      expect(json.players[1].qualifyingRank).toBe(2);
-      expect(json.players[3].qualifyingRank).toBe(4);
+      expect(json.data.players[0].qualifyingRank).toBe(1);
+      expect(json.data.players[1].qualifyingRank).toBe(2);
+      expect(json.data.players[3].qualifyingRank).toBe(4);
     });
 
     // Success: Returns totalPlayers count
@@ -115,7 +115,7 @@ describe('Finals Bracket Route Factory', () => {
       const response = await GET(request, { params });
 
       const json = await response.json();
-      expect(json.totalPlayers).toBe(8);
+      expect(json.data.totalPlayers).toBe(8);
     });
 
     // Query: Matches queried with stage='finals', ordered by matchNumber asc
@@ -145,7 +145,7 @@ describe('Finals Bracket Route Factory', () => {
       const response = await GET(request, { params });
 
       const json = await response.json();
-      expect(json.players[0]).toEqual({
+      expect(json.data.players[0]).toEqual({
         playerId: 'player-0',
         playerName: 'Player 1',
         playerNickname: 'P1',
@@ -216,10 +216,10 @@ describe('Finals Bracket Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.winnerBracket).toEqual(mockBracketResult.winnerBracket);
-      expect(json.loserBracket).toEqual(mockBracketResult.loserBracket);
-      expect(json.grandFinal).toEqual(mockBracketResult.grandFinal);
-      expect(json.totalPlayers).toBe(8);
+      expect(json.data.winnerBracket).toEqual(mockBracketResult.winnerBracket);
+      expect(json.data.loserBracket).toEqual(mockBracketResult.loserBracket);
+      expect(json.data.grandFinal).toEqual(mockBracketResult.grandFinal);
+      expect(json.data.totalPlayers).toBe(8);
     });
 
     // Validation: Returns 400 when no qualifications exist
@@ -278,7 +278,7 @@ describe('Finals Bracket Route Factory', () => {
       // Should still return 200 despite audit log failure
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.totalPlayers).toBe(4);
+      expect(json.data.totalPlayers).toBe(4);
     });
 
     // Error: Returns 500 on database failure

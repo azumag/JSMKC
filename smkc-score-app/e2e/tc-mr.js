@@ -404,7 +404,7 @@ async function runTc604(adminPage) {
       const r = await fetch(url);
       return r.json().catch(() => ({}));
     }, `/api/tournaments/${tournamentId}/mr/finals`);
-    const matches = generated.matches || [];
+    const matches = generated.data?.matches || generated.matches || [];
     const match1 = matches.find((m) => m.matchNumber === 1);
     if (!match1) throw new Error('Generated bracket missing match 1');
 
@@ -468,7 +468,7 @@ async function runTc604(adminPage) {
         return r.json().catch(() => ({}));
       }, `/api/tournaments/${tournamentId}/mr/finals`);
 
-      const polledMatches = updated.matches || [];
+      const polledMatches = updated.data?.matches || updated.matches || [];
       const m1 = polledMatches.find((m) => m.id === match1.id);
       const winnerTarget = polledMatches.find((m) => m.matchNumber === 5);
       const loserTarget = polledMatches.find((m) => m.matchNumber === 8);
@@ -476,7 +476,7 @@ async function runTc604(adminPage) {
       await adminPage.waitForTimeout(500);
     }
 
-    const updatedMatches = updated.matches || [];
+    const updatedMatches = updated.data?.matches || updated.matches || [];
     const updatedMatch1 = updatedMatches.find((m) => m.id === match1.id);
     const winnerTarget = updatedMatches.find((m) => m.matchNumber === 5);
     const loserTarget = updatedMatches.find((m) => m.matchNumber === 8);

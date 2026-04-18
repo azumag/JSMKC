@@ -12,7 +12,7 @@
  * POST: Generate a new double-elimination bracket from qualification results
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
@@ -90,7 +90,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
         points: q.points,
       }));
 
-      return NextResponse.json({
+      return createSuccessResponse({
         matches,
         players,
         totalPlayers: players.length,

@@ -232,6 +232,20 @@ describe('Error Handling Module', () => {
       );
     });
 
+    it('should pass a custom status when provided', () => {
+      const data = { id: '1' };
+      createSuccessResponse(data, 'Created', { status: 201 });
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        {
+          success: true,
+          data,
+          message: 'Created',
+        },
+        { status: 201 }
+      );
+    });
+
     it('should not include message when not provided', () => {
       const data = { id: '1' };
       createSuccessResponse(data);

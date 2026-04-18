@@ -766,12 +766,12 @@ export default function TimeAttackPage({
                   {t('managePairs')}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{t('managePairsTitle')}</DialogTitle>
                   <DialogDescription>{t('managePairsDesc')}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-2">
+                <div className="space-y-4 py-2 overflow-y-auto flex-1">
                   <Button variant="outline" size="sm" onClick={handleAutoPair}>
                     {t('autoPair')}
                   </Button>
