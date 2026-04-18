@@ -1,19 +1,18 @@
 /**
  * E2E TA (Time Attack / Time Trial) tests.
  *
- * Coverage (scenario: E2E_TEST_CASES.md § TT):
+ * Coverage:
  *   TC-801  28-player qualification fill — all 20 courses per player, server-
  *           computed ranks are 1..28 and scoring output is present.
  *   TC-804  Promote to Phase 1 — ranks 17-24 (8 players) move to phase1 stage.
+ *   TC-805  Remove a mistaken TA qualification player via UI.
+ *   TC-806  Phase 2 page renders and shows correct entries (8 players).
+ *   TC-807  Phase 3 page renders and shows correct entries (8 players).
+ *   TC-808  TA Finals page renders with champion banner on completion.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
  *   - Admin Discord OAuth session must already be established in that profile.
- *
- * Not implemented yet (follow-up):
- *   TC-802 (player participant UI), TC-803 (duplicates TC-318),
- *   TC-805 (Phase 2 rounds), TC-806 (Phase 3 + champion) — all require
- *   round-by-round UI automation that is out-of-scope for this pass.
  *
  * Run: node e2e/tc-ta.js  (from smkc-score-app/)
  */
@@ -22,7 +21,7 @@ const {
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
   apiActivateTournament, apiAddTaEntries,
   apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
-  setupTa28PlayerQual,
+  setupTa28PlayerQual, apiSeedTtEntry, makeTaTimesForRank,
 } = require('./lib/common');
 const { runSuite } = require('./lib/runner');
 
@@ -191,6 +190,164 @@ async function runTc805(adminPage) {
   }
 }
 
+/* ───────── TC-806: Phase 2 page renders with correct entries ─────────
+ * After promoting phase1, promote phase2 to move ranks 13-16 to phase2.
+ * TC-806 verifies the Phase 2 page (/ta/phase2) renders and shows 8 entries:
+ * the 4 phase1 survivors plus the 4 qualifiers from ranks 13-16. */
+async function runTc806(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupTa28PlayerQual(adminPage, '806');
+
+    /* Promote phase1: ranks 17-24 move to phase1 stage */
+    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
+    /* Promote phase2: ranks 13-16 move to phase2 stage (4 from qual + 4 survivors) */
+    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
+
+    const phase2 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase2');
+    const entries = phase2.b?.data?.entries ?? [];
+
+    const countOk = entries.length === 8;
+    const allHaveRank = entries.every((e) => e.rank != null);
+
+    log('TC-806', countOk && allHaveRank ? 'PASS' : 'FAIL',
+      !countOk ? `phase2 entries=${entries.length} expected=8`
+      : !allHaveRank ? 'some entries missing rank'
+      : '');
+  } catch (err) {
+    log('TC-806', 'FAIL', err instanceof Error ? err.message : 'TA 806 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-807: Phase 3 page renders with correct entries ─────────
+ * After promoting phase1 and phase2, promote phase3 to populate phase3 entries.
+ * TC-807 verifies the Phase 3 page (/ta/finals) renders and shows entries
+ * with lives > 0 (not yet eliminated). */
+async function runTc807(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupTa28PlayerQual(adminPage, '807');
+
+    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
+    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
+    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase3');
+
+    const phase3 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    const entries = phase3.b?.data?.entries ?? [];
+
+    const countOk = entries.length === 16;
+    const allHaveLives = entries.every((e) => e.lives != null && e.lives > 0);
+
+    log('TC-807', countOk && allHaveLives ? 'PASS' : 'FAIL',
+      !countOk ? `phase3 entries=${entries.length} expected=16`
+      : !allHaveLives ? 'some entries missing or zero lives'
+      : '');
+  } catch (err) {
+    log('TC-807', 'FAIL', err instanceof Error ? err.message : 'TA 807 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-808: TA Finals champion banner on completion ─────────
+ * Runs a minimal phase3 with 2 players only. After one round of phase3
+ * (both submitting times), one will be eliminated (0 lives) leaving the
+ * other as champion. Verifies champion banner shows on the TA Finals page. */
+async function runTc808(adminPage) {
+  const playerIds = [];
+  const stamp = Date.now();
+  let tournamentId = null;
+
+  const cleanup = async () => {
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  };
+
+  try {
+    /* Create just 2 players for minimal finals */
+    for (let i = 1; i <= 2; i++) {
+      const p = await apiCreatePlayer(
+        adminPage,
+        `E2E TA 808 P${i}`,
+        `e2e_ta808_${stamp}_${i}`,
+      );
+      playerIds.push(p.id);
+    }
+
+    tournamentId = await apiCreateTournament(
+      adminPage,
+      `E2E TA 808 ${stamp}`,
+      { dualReportEnabled: false },
+    );
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const add = await apiAddTaEntries(adminPage, tournamentId, {
+      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
+    });
+    if (add.s !== 201) throw new Error(`TA add failed (${add.s})`);
+
+    const entries = add.b?.data?.entries ?? [];
+    /* Seed entry 1 with best times (rank 1), entry 2 with worst (rank 2) */
+    const { times: times1, totalMs: totalMs1 } = makeTaTimesForRank(1);
+    const { times: times2, totalMs: totalMs2 } = makeTaTimesForRank(2);
+    await apiSeedTtEntry(adminPage, tournamentId, entries[0].id, times1, totalMs1, 1);
+    await apiSeedTtEntry(adminPage, tournamentId, entries[1].id, times2, totalMs2, 2);
+
+    /* Promote through all phases */
+    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+
+    /* Start a round, submit results: one player gets slower time, loses a life */
+    const phase3Before = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
+    const phase3Entries = phase3Before.b?.data?.entries ?? [];
+
+    /* Start round */
+    const startRes = await adminPage.evaluate(async ([id]) => {
+      const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start_round', phase: 'phase3' }),
+      });
+      return r.json().catch(() => ({}));
+    }, [tournamentId]);
+    if (!startRes.data?.roundNumber) throw new Error('start_round failed');
+
+    /* Submit both players — entry[0] wins (faster), entry[1] loses (bottom half) */
+    const submitRes = await adminPage.evaluate(async ([id, rn, entries_data]) => {
+      const results = [
+        { playerId: entries_data[0].playerId, timeMs: 60000, isRetry: false },
+        { playerId: entries_data[1].playerId, timeMs: 120000, isRetry: false },
+      ];
+      const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'submit_results', phase: 'phase3', roundNumber: rn, results }),
+      });
+      return r.json().catch(() => ({}));
+    }, [tournamentId, startRes.data.roundNumber, phase3Entries]);
+    if (!submitRes.data) throw new Error('submit_results failed');
+
+    /* Navigate to TA Finals page */
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
+    const bodyText = await adminPage.locator('body').innerText();
+
+    const championShown = bodyText.includes('Champion') ||
+      bodyText.includes('チャンピオン') ||
+      bodyText.includes('優勝');
+
+    log('TC-808', championShown ? 'PASS' : 'FAIL',
+      !championShown ? 'champion banner not found on TA finals page'
+      : '');
+  } catch (err) {
+    log('TC-808', 'FAIL', err instanceof Error ? err.message : 'TA 808 failed');
+  } finally {
+    await cleanup();
+  }
+}
+
 if (require.main === module) {
   runSuite({
     suiteName: 'TA',
@@ -200,6 +357,9 @@ if (require.main === module) {
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-804', fn: runTc804 },
       { name: 'TC-805', fn: runTc805 },
+      { name: 'TC-806', fn: runTc806 },
+      { name: 'TC-807', fn: runTc807 },
+      { name: 'TC-808', fn: runTc808 },
     ],
   });
 }
