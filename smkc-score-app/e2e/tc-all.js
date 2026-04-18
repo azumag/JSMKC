@@ -1069,7 +1069,7 @@ async function main() {
     if (await saveBtn305.count() > 0) {
       // Click save and verify dialog closes
       await saveBtn305.click();
-      await page.waitForTimeout(5000); // Wait for save + dialog close
+      await page.waitForTimeout(8000); // Wait for save + dialog close (increased from 5s per issue #374)
       const dialogCount = await page.locator('[role="dialog"]').count();
       const dialogClosed = dialogCount === 0;
       log('TC-305', dialogClosed ? 'PASS' : 'FAIL', dialogClosed ? '' : `Dialog still open after save (count=${dialogCount})`);
