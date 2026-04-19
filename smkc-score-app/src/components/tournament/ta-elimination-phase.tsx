@@ -139,6 +139,10 @@ export default function TAEliminationPhase({
     roundNumber: number;
     course: string;
   } | null>(null);
+  // Ref to track currentRound for use in callbacks without stale closure issues.
+  // This ensures the auto-recovery check always reads the latest value.
+  const currentRoundRef = useRef(currentRound);
+  currentRoundRef.current = currentRound;
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -202,7 +206,7 @@ export default function TAEliminationPhase({
       if (fetchedRounds.length > 0) {
         const lastRound = fetchedRounds[fetchedRounds.length - 1];
         const lastRoundResults = lastRound.results;
-        if (lastRoundResults.length === 0 && !currentRound) {
+        if (lastRoundResults.length === 0 && !currentRoundRef.current) {
           const activeEntries = fetchedEntries.filter((e) => !e.eliminated);
           const initialTimes: Record<string, string> = {};
           const initialRetry: Record<string, boolean> = {};
