@@ -206,7 +206,8 @@ export default function BattleModePage({
    */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
-      alert(tc('addAtLeastOnePlayer'));
+      /* No players to save — close dialog (user cancelled or form was empty) */
+      setIsSetupDialogOpen(false);
       return;
     }
 
@@ -223,13 +224,16 @@ export default function BattleModePage({
         setSetupPlayers([]);
         refetch();
       } else {
-        /* Show server error to admin so they know why setup failed */
+        /* Show server error to admin so they know why setup failed.
+         * Close dialog even on error — user can reopen to retry. */
+        setIsSetupDialogOpen(false);
         const errorData = await response.json().catch(() => ({}));
         const msg = errorData.error || `Setup failed (${response.status})`;
         alert(msg);
       }
     } catch (err) {
       logger.error("Failed to setup:", { error: err, tournamentId });
+      setIsSetupDialogOpen(false);
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);

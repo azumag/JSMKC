@@ -218,6 +218,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const bracketStructure = generateBracketStructure(topN);
 
+      /* Delete existing finals matches first to avoid unique-constraint violations
+       * when recreating a bracket (e.g., "reset" scenario in TC-504).
+       * If creation fails afterward the tournament will have no finals matches,
+       * but this is unavoidable without a true transaction. */
+      await model(prisma).deleteMany({
+        where: { tournamentId, stage: 'finals' },
+      });
+
       const seededPlayers = qualifications.map(
         (q: { playerId: string; player: unknown }, index: number) => ({
           seed: index + 1,
@@ -226,12 +234,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }),
       );
 
-      /*
-       * Create all matches BEFORE deleting old ones.
-       * This ensures that if creation fails, the old matches are still intact.
-       * Only delete old matches after all new matches are successfully created.
-       * This prevents leaving the tournament in an incomplete state (no finals matches).
-       */
       const createdMatches = [];
       for (const bracketMatch of bracketStructure) {
         const player1 = bracketMatch.player1Seed
@@ -262,11 +264,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
           player2Seed: bracketMatch.player2Seed,
         });
       }
-
-      /* Delete old matches only after all new matches are successfully created */
-      await model(prisma).deleteMany({
-        where: { tournamentId, stage: 'finals', id: { notIn: createdMatches.map(m => m.id) } },
-      });
 
       return NextResponse.json(
         {

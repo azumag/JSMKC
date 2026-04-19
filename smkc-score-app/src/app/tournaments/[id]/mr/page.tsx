@@ -265,7 +265,7 @@ export default function MatchRacePage({
    */
   const handleSetup = async () => {
     if (setupPlayers.length === 0) {
-      alert(tc('addAtLeastOnePlayer'));
+      setIsSetupDialogOpen(false);
       return;
     }
 
@@ -282,12 +282,14 @@ export default function MatchRacePage({
         setSetupPlayers([]);
         refetch();
       } else {
+        setIsSetupDialogOpen(false);
         const errorData = await response.json().catch(() => ({}));
         const msg = errorData.error || `Setup failed (${response.status})`;
         alert(msg);
       }
     } catch (err) {
       logger.error("Failed to setup:", { error: err, tournamentId });
+      setIsSetupDialogOpen(false);
       alert(tc('networkError') ?? 'Network error — please try again');
     } finally {
       setSetupSaving(false);
