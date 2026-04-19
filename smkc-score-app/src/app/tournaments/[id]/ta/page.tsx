@@ -56,22 +56,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  GroupSetupDialog,
+  type SetupPlayer,
+} from "@/components/tournament/group-setup-dialog";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
-import { computeAutoPairs } from "@/lib/ta/pair-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -157,20 +148,20 @@ export default function TimeAttackPage({
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [isAddPlayerDialogOpen, setIsAddPlayerDialogOpen] = useState(false);
   const [isTimeEntryDialogOpen, setIsTimeEntryDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TTEntry | null>(null);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [entryToRemove, setEntryToRemove] = useState<TTEntry | null>(null);
-  const [removingEntryId, setRemovingEntryId] = useState<string | null>(null);
 
-  // Pair management dialog state (admin only, §3.1)
-  const [isPairDialogOpen, setIsPairDialogOpen] = useState(false);
-  const [pairAssigning, setPairAssigning] = useState(false);
-  // Pending pair overrides: entryId -> partnerId (null = clear partner)
-  const [pairOverrides, setPairOverrides] = useState<Record<string, string | null>>({});
+  // Unified setup dialog state (shared with BM/MR/GP via GroupSetupDialog).
+  // Handles add/remove players, seeding, and pair (partner) assignment.
+  const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
+  const [setupPlayers, setSetupPlayers] = useState<SetupPlayer[]>([]);
+  const [setupSaving, setSetupSaving] = useState(false);
+  /* groupCount is required by GroupSetupDialog but ignored in TA mode; keep
+   * a stable constant to avoid needless re-renders. */
+  const [groupCount, setGroupCount] = useState(1);
 
   // View-only dialog state: opened when non-admin/non-owner clicks "View Times"
   const [isViewTimesDialogOpen, setIsViewTimesDialogOpen] = useState(false);
@@ -179,78 +170,12 @@ export default function TimeAttackPage({
   // Course rankings accordion state: tracks which courses are expanded
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
 
-  // Bulk player add: track selected player IDs and search query for filtering
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
-
   // Export state (qualification and knockout tracked separately)
   const [exporting, setExporting] = useState(false);
   const [exportingPhases, setExportingPhases] = useState(false);
 
   // Development-only flag: inlined at build time, tree-shaken in production
   const isDevelopment = process.env.NODE_ENV === 'development';
-
-  // === Pair Management (§3.1) ===
-
-  /** Call the existing set_partner API for a single entry */
-  const setPartner = async (entryId: string, partnerId: string | null) => {
-    const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entryId, action: "set_partner", partnerId }),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || t('pairSaveError'));
-    }
-  };
-
-  /** Apply all pending pair overrides and persist to API */
-  const handleSavePairs = async () => {
-    if (pairAssigning) return;
-    setPairAssigning(true);
-    try {
-      // Sequential execution: partner assignments are reciprocal (A↔B),
-      // so concurrent writes could race on the same records.
-      for (const [entryId, partnerId] of Object.entries(pairOverrides)) {
-        await setPartner(entryId, partnerId);
-      }
-      setPairOverrides({});
-      setIsPairDialogOpen(false);
-      refetch();
-      toast.success(t('pairsSaved'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('pairSaveError'));
-    } finally {
-      setPairAssigning(false);
-    }
-  };
-
-  /** Compute snake pairs from qualification entries and populate overrides state */
-  const handleAutoPair = () => {
-    const qualEntries = entries.filter(e => e.stage === "qualification");
-    // Adapt TTEntry to PairPlayer shape: seeding is on the entry itself (per-tournament)
-    const pairPlayers = qualEntries.map(e => ({
-      id: e.id,
-      playerId: e.playerId,
-      seeding: e.seeding,
-    }));
-    const rawPairs = computeAutoPairs(pairPlayers);
-    // Re-map pair player ids back to full TTEntry objects
-    const pairs = rawPairs.map(([a, b]) => [
-      qualEntries.find(e => e.id === a.id)!,
-      qualEntries.find(e => e.id === b.id)!,
-    ] as [TTEntry, TTEntry]);
-    const overrides: Record<string, string | null> = {};
-    // Clear all existing partners first
-    qualEntries.forEach(e => { overrides[e.id] = null; });
-    // Set new snake pairs bidirectionally
-    pairs.forEach(([a, b]) => {
-      overrides[a.id] = b.playerId;
-      overrides[b.id] = a.playerId;
-    });
-    setPairOverrides(overrides);
-  };
 
   // Fill random times for all courses in the single-player time entry dialog
   const handleFillRandomTimes = () => {
@@ -335,7 +260,6 @@ export default function TimeAttackPage({
     return {
       entries: taData.entries || [],
       allPlayers: extractArrayData<Player>(playersJson),
-      qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
       frozenStages: taData.frozenStages || [],
     };
   }, [tournamentId]);
@@ -356,12 +280,8 @@ export default function TimeAttackPage({
    */
   const entries: TTEntry[] = pollData?.entries ?? [];
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
-  const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
-  const showQualificationRegistrationLockedToast = () => {
-    toast.info(t('qualificationRegistrationLocked'));
-  };
 
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
@@ -456,35 +376,125 @@ export default function TimeAttackPage({
 
   // === Event Handlers ===
 
-  /** Add multiple selected players to the qualification round in batch.
-   *  Uses the existing batch API endpoint (players: string[]) for efficiency. */
-  const handleAddPlayers = async () => {
-    if (selectedPlayerIds.length === 0) return;
-    setSaving(true);
-    setSaveError(null);
+  /**
+   * Reconcile the unified-setup dialog's local state against the persisted
+   * qualification entries. Called when the admin clicks Save.
+   *
+   * Diffs `setupPlayers` (the dialog's staged state) against `entries`
+   * (qualification stage from the server) and sequentially issues:
+   *   1. POST   add-entry   for players newly checked
+   *   2. DELETE entry       for players unchecked (removes times + partner links)
+   *   3. PUT    seeding     for entries whose seeding changed
+   *   4. PUT    set_partner for entries whose partner changed
+   *
+   * Sequential execution is required because partner assignments are reciprocal
+   * (A↔B) and parallel writes would race on the same records. See the
+   * existing pair-management implementation for context.
+   */
+  const handleSetupSave = async () => {
+    if (setupSaving) return;
+    setSetupSaving(true);
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ players: selectedPlayerIds, action: "add" }),
-      });
+      const qualEntries = entries.filter((e) => e.stage === "qualification");
+      const existingByPid = new Map(qualEntries.map((e) => [e.playerId, e]));
+      const setupByPid = new Map(setupPlayers.map((p) => [p.playerId, p]));
+      /* playerId → entryId lookup. Updated after POSTs so we can reference
+       * newly-created entries when applying seeding/partner changes. */
+      const entryIdByPid = new Map(qualEntries.map((e) => [e.playerId, e.id]));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to add players");
+      // 1. Add new entries (individually so we can capture each returned entryId)
+      const toAdd = setupPlayers.filter((p) => !existingByPid.has(p.playerId));
+      for (const p of toAdd) {
+        const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            playerEntries: [{ playerId: p.playerId, seeding: p.seeding }],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to add player");
+        }
+        const json = await res.json();
+        const created = json.data?.entries?.[0];
+        if (created?.id) entryIdByPid.set(p.playerId, created.id);
       }
 
-      // Reset dialog state on success
-      setIsAddPlayerDialogOpen(false);
-      setSelectedPlayerIds([]);
-      setPlayerSearchQuery("");
+      // 2. Delete removed entries (server clears partner back-links automatically)
+      const toRemove = qualEntries.filter((e) => !setupByPid.has(e.playerId));
+      for (const e of toRemove) {
+        const res = await fetch(
+          `/api/tournaments/${tournamentId}/ta?entryId=${e.id}`,
+          { method: "DELETE" },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || t("removeQualificationEntryError"));
+        }
+      }
+
+      // 3. Seeding updates for entries that remained (new entries already had
+      //    seeding persisted by the POST above, so skip them here).
+      for (const p of setupPlayers) {
+        const existing = existingByPid.get(p.playerId);
+        if (!existing) continue;
+        /* Normalise both sides to `null` — server persists null for missing
+         * seeding while the dialog uses undefined. */
+        const newSeeding = p.seeding ?? null;
+        const existingSeeding = existing.seeding ?? null;
+        if (newSeeding === existingSeeding) continue;
+        const entryId = entryIdByPid.get(p.playerId);
+        if (!entryId) continue;
+        const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entryId,
+            action: "update_seeding",
+            seeding: newSeeding,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to update seeding");
+        }
+      }
+
+      // 4. Partner updates for every entry whose partnerId differs from server state.
+      //    Newly-added entries start with partnerId=null on the server; any
+      //    non-null partner in the dialog state needs a PUT.
+      for (const p of setupPlayers) {
+        const existingPartner = existingByPid.get(p.playerId)?.partnerId ?? null;
+        const newPartner = p.partnerId ?? null;
+        if (newPartner === existingPartner) continue;
+        const entryId = entryIdByPid.get(p.playerId);
+        if (!entryId) continue;
+        const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entryId,
+            action: "set_partner",
+            partnerId: newPartner,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || t("pairSaveError"));
+        }
+      }
+
+      setIsSetupDialogOpen(false);
+      setSetupPlayers([]);
       refetch();
+      toast.success(t("pairsSaved"));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to add players";
-      logger.error("Failed to add players:", { error: err, tournamentId });
-      setSaveError(errorMessage);
+      const msg = err instanceof Error ? err.message : t("pairSaveError");
+      logger.error("Failed to save TA setup", { error: err, tournamentId });
+      toast.error(msg);
     } finally {
-      setSaving(false);
+      setSetupSaving(false);
     }
   };
 
@@ -580,33 +590,6 @@ export default function TimeAttackPage({
     }
   };
 
-  /** Delete an entry from the qualification round after explicit confirmation */
-  const handleDeleteEntry = async (entry: TTEntry) => {
-    setRemovingEntryId(entry.id);
-    try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`,
-        { method: "DELETE" }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || t('removeQualificationEntryError'));
-      }
-
-      toast.success(t('removeQualificationEntrySuccess', { nickname: entry.player.nickname }));
-      setEntryToRemove(null);
-      refetch();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('removeQualificationEntryError');
-      logger.error("Failed to delete entry:", { error: err, tournamentId });
-      toast.error(errorMessage);
-      setError(errorMessage);
-    } finally {
-      setRemovingEntryId(null);
-    }
-  };
-
   /** Shared download helper: fetch a CSV endpoint and trigger a browser download */
   const downloadCsv = async (endpoint: string, fallbackFilename: string) => {
     const response = await fetch(endpoint);
@@ -664,22 +647,6 @@ export default function TimeAttackPage({
     if (!entry.times) return 0;
     return Object.values(entry.times).filter((t) => t && t !== "").length;
   };
-
-  /** Filter to players not yet added to this tournament's TA qualification */
-  const availablePlayers = allPlayers.filter(
-    (p) => !entries.find((e) => e.playerId === p.id)
-  );
-
-  /** Players filtered by search query for the add-player dialog (case-insensitive partial match) */
-  const filteredPlayers = availablePlayers.filter((p) => {
-    if (!playerSearchQuery) return true;
-    const q = playerSearchQuery.toLowerCase();
-    return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
-  });
-
-  /** Whether all currently visible (filtered) players are selected */
-  const allFilteredSelected = filteredPlayers.length > 0 &&
-    filteredPlayers.every((p) => selectedPlayerIds.includes(p.id));
 
   /* Show error state if the first fetch fails and there's no cached data.
      Must be checked before the skeleton to avoid permanent loading on error. */
@@ -771,232 +738,34 @@ export default function TimeAttackPage({
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
-          {/* Pair Management Dialog: admin-only, §3.1 pair running assignment */}
-          {isAdmin && entries.filter(e => e.stage === "qualification").length >= 2 && (
-            <Dialog open={isPairDialogOpen} onOpenChange={(open) => {
-              setIsPairDialogOpen(open);
-              if (!open) setPairOverrides({});
-            }}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  {t('managePairs')}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>{t('managePairsTitle')}</DialogTitle>
-                  <DialogDescription>{t('managePairsDesc')}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-2 overflow-y-auto flex-1">
-                  <Button variant="outline" size="sm" onClick={handleAutoPair}>
-                    {t('autoPair')}
-                  </Button>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{tc('player')}</TableHead>
-                        <TableHead>{t('ttSeedingLabel')}</TableHead>
-                        <TableHead>{t('partner')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(() => {
-                        // Compute once outside map to avoid O(N²) repeated filter calls
-                        const qualEntries = entries.filter(e => e.stage === "qualification");
-                        return qualEntries
-                        .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
-                        .map(entry => {
-                          const effectivePartnerId = entry.id in pairOverrides
-                            ? pairOverrides[entry.id]
-                            : entry.partnerId;
-                          return (
-                            <TableRow key={entry.id}>
-                              <TableCell className="font-medium">{entry.player.nickname}</TableCell>
-                              <TableCell>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                  defaultValue={entry.seeding ?? ""}
-                                  onBlur={async (ev) => {
-                                    const val = ev.target.value;
-                                    const parsed = parseInt(val, 10);
-                                    const newSeeding = val && !Number.isNaN(parsed) && parsed >= 1 ? parsed : null;
-                                    if (newSeeding === entry.seeding) return; // no change
-                                    // Persist to server, then refetch to update UI
-                                    await fetchWithRetry(`/api/tournaments/${tournamentId}/ta`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ entryId: entry.id, action: "update_seeding", seeding: newSeeding }),
-                                    });
-                                    refetch();
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  className="border rounded px-2 py-1 text-sm bg-background"
-                                  value={effectivePartnerId ?? ""}
-                                  onChange={ev => {
-                                    const val = ev.target.value || null;
-                                    const newOverrides = { ...pairOverrides };
-                                    // Clear old partner's back-link
-                                    const oldPartnerId = effectivePartnerId;
-                                    if (oldPartnerId) {
-                                      const oldPartnerEntry = qualEntries.find(e => e.playerId === oldPartnerId);
-                                      if (oldPartnerEntry) newOverrides[oldPartnerEntry.id] = null;
-                                    }
-                                    newOverrides[entry.id] = val;
-                                    // Set reverse link for new partner
-                                    if (val) {
-                                      const partnerEntry = qualEntries.find(e => e.playerId === val);
-                                      if (partnerEntry) newOverrides[partnerEntry.id] = entry.playerId;
-                                    }
-                                    setPairOverrides(newOverrides);
-                                  }}
-                                >
-                                  <option value="">{t('noPair')}</option>
-                                  {qualEntries
-                                    .filter(e => e.id !== entry.id)
-                                    .map(e => (
-                                      <option key={e.id} value={e.playerId}>
-                                        {e.player.nickname}{e.seeding != null ? ` (#${e.seeding})` : ""}
-                                      </option>
-                                    ))}
-                                </select>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        });
-                      })()}
-                    </TableBody>
-                  </Table>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsPairDialogOpen(false)}>
-                    {tc('cancel')}
-                  </Button>
-                  <Button onClick={handleSavePairs} disabled={pairAssigning}>
-                    {pairAssigning ? tc('saving') : tc('save')}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-          {/* Add Players Dialog: admin-only, checkbox-based bulk selection */}
+          {/* Unified setup dialog: add/remove players, seeding, and pair management.
+           * Shares the same UI component as BM/MR/GP (mode="ta" hides groups and
+           * shows a partner selector per §3.1). Stays available after knockout
+           * starts so admins can still fix seedings and pairs; the server rejects
+           * add-player requests with 409 in that state. */}
           {isAdmin && (
-          <Dialog
-            open={isAddPlayerDialogOpen}
-            onOpenChange={(open) => {
-              if (qualificationRegistrationLocked && open) return;
-              setIsAddPlayerDialogOpen(open);
-              if (!open) {
-                // Reset selection state when dialog closes
-                setSaveError(null);
-                setSelectedPlayerIds([]);
-                setPlayerSearchQuery("");
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                className={`w-full sm:w-auto ${qualificationRegistrationLocked ? "cursor-not-allowed opacity-50" : ""}`}
-                aria-disabled={qualificationRegistrationLocked}
-                title={qualificationRegistrationLocked ? t('qualificationRegistrationLocked') : undefined}
-                onClick={(event) => {
-                  if (!qualificationRegistrationLocked) return;
-                  event.preventDefault();
-                  showQualificationRegistrationLockedToast();
-                }}
-              >
-                {tc('addPlayer')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>{t('addPlayerToTA')}</DialogTitle>
-                <DialogDescription>
-                  {t('selectPlayersToAdd')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 py-2">
-                {/* Search filter: narrow down players by name or nickname */}
-                <Input
-                  placeholder={t('searchPlayers')}
-                  value={playerSearchQuery}
-                  onChange={(e) => setPlayerSearchQuery(e.target.value)}
-                />
-                {/* Select All / Deselect All toggle for filtered results */}
-                {filteredPlayers.length > 0 && (
-                  <div className="flex items-center gap-2 py-1 border-b">
-                    <Checkbox
-                      id="select-all"
-                      checked={allFilteredSelected}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          // Add all filtered players to selection (preserving already-selected non-filtered ones)
-                          const filteredIds = filteredPlayers.map((p) => p.id);
-                          setSelectedPlayerIds((prev) => [
-                            ...new Set([...prev, ...filteredIds]),
-                          ]);
-                        } else {
-                          // Remove only the filtered players from selection
-                          const filteredIds = new Set(filteredPlayers.map((p) => p.id));
-                          setSelectedPlayerIds((prev) =>
-                            prev.filter((id) => !filteredIds.has(id))
-                          );
-                        }
-                      }}
-                    />
-                    <Label htmlFor="select-all" className="cursor-pointer font-medium">
-                      {t('selectAll')}
-                    </Label>
-                  </div>
-                )}
-                {/* Scrollable player list with checkboxes */}
-                <div className="max-h-60 overflow-y-auto space-y-1">
-                  {filteredPlayers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-2">
-                      {tc('noPlayersSelected')}
-                    </p>
-                  ) : (
-                    filteredPlayers.map((player) => (
-                      <div key={player.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50">
-                        <Checkbox
-                          id={`player-${player.id}`}
-                          checked={selectedPlayerIds.includes(player.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedPlayerIds((prev) =>
-                              checked
-                                ? [...prev, player.id]
-                                : prev.filter((id) => id !== player.id)
-                            );
-                          }}
-                        />
-                        <Label htmlFor={`player-${player.id}`} className="cursor-pointer flex-1">
-                          {player.nickname} ({player.name})
-                        </Label>
-                      </div>
-                    ))
-                  )}
-                </div>
-                {saveError && (
-                  <p className="text-destructive text-sm">{saveError}</p>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={handleAddPlayers}
-                  disabled={selectedPlayerIds.length === 0 || saving}
-                >
-                  {saving
-                    ? t('adding')
-                    : t('addSelectedPlayers', { count: selectedPlayerIds.length })}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <GroupSetupDialog
+              mode="ta"
+              allPlayers={allPlayers}
+              setupPlayers={setupPlayers}
+              setSetupPlayers={setSetupPlayers}
+              isOpen={isSetupDialogOpen}
+              setIsOpen={setIsSetupDialogOpen}
+              onSave={handleSetupSave}
+              saving={setupSaving}
+              existingAssignments={entries
+                .filter((e) => e.stage === "qualification")
+                .map((e) => ({
+                  playerId: e.playerId,
+                  /* TA doesn't use groups; the dialog hides this field but SetupPlayer
+                   * requires a non-empty string. Use "A" as a stable placeholder. */
+                  group: "A",
+                  seeding: e.seeding ?? undefined,
+                  partnerId: e.partnerId,
+                }))}
+              groupCount={groupCount}
+              setGroupCount={setGroupCount}
+            />
           )}
         </div>
       </div>
@@ -1280,16 +1049,9 @@ export default function TimeAttackPage({
                               {t('viewTimes')}
                             </Button>
                           )}
-                          {/* Remove button: admin-only (players cannot remove entries) */}
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEntryToRemove(entry)}
-                            >
-                              {t('removeFromQualification')}
-                            </Button>
-                          )}
+                          {/* Player removal is handled inside the unified setup
+                           * dialog (top-right "プレイヤー・ペア編集" button) to
+                           * match BM/MR/GP's group-edit flow. */}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1402,41 +1164,6 @@ export default function TimeAttackPage({
           </TabsContent>
         </Tabs>
       )}
-
-      <AlertDialog
-        open={entryToRemove !== null}
-        onOpenChange={(open) => {
-          if (!open && !removingEntryId) setEntryToRemove(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('removeQualificationEntryTitle', {
-                nickname: entryToRemove?.player.nickname ?? "",
-              })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('removeQualificationEntryDesc')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removingEntryId !== null}>
-              {tc('cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={removingEntryId !== null || entryToRemove === null}
-              onClick={async (event) => {
-                event.preventDefault();
-                if (entryToRemove) await handleDeleteEntry(entryToRemove);
-              }}
-            >
-              {removingEntryId !== null ? tc('saving') : t('removeQualificationEntryConfirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
        * The dialog is opened via openTimeEntryDialog() which is only callable

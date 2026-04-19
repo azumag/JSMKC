@@ -20,6 +20,11 @@ export interface SetupPlayer {
   playerId: string;
   group: string;
   seeding?: number;
+  /**
+   * Partner player ID used only by TA (Time Attack) mode for pair running (§3.1).
+   * BM/MR/GP ignore this field. `null` / `undefined` means no partner.
+   */
+  partnerId?: string | null;
 }
 
 /**
