@@ -1198,13 +1198,16 @@ async function main() {
     await page.waitForTimeout(2000);
     const saveBtn305 = page.getByRole('button', { name: /グループ更新|Update Groups/ });
     if (await saveBtn305.count() > 0) {
-      // Click save and verify dialog closes
+      // Grab a reference to the specific dialog before saving
+      const dialogLocator = page.locator('[role="dialog"]').first();
+      await dialogLocator.waitFor({ state: 'visible', timeout: 5000 });
+      // Click save and verify THIS dialog closes
       await saveBtn305.click();
-      await page.waitForTimeout(10000); // Wait longer for save + dialog close
-      const dialogCount = await page.locator('[role="dialog"]').count();
-      const dialogClosed = dialogCount === 0;
-      log('TC-305', dialogClosed ? 'PASS' : 'FAIL', dialogClosed ? '' : `Dialog still open after save (count=${dialogCount})`);
-      if (!dialogClosed) {
+      try {
+        await dialogLocator.waitFor({ state: 'hidden', timeout: 15000 });
+        log('TC-305', 'PASS');
+      } catch {
+        log('TC-305', 'FAIL', 'Dialog did not close after save');
         await page.keyboard.press('Escape').catch(() => {});
       }
     } else { log('TC-305', 'SKIP', 'No update button'); }
