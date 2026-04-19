@@ -12,12 +12,19 @@ import { validateBattleModeScores } from '@/lib/score-validation';
 
 /**
  * Calculate BM match result from round scores.
- * Total rounds must equal 4 for a valid result; otherwise treated as tie.
+ * - 0-0 (cleared match): returns 'no_contest' - match does not count in standings
+ * - sum !== 4: returns 'no_contest' - invalid match (should not reach here if validation works)
+ * - sum === 4 with score >= 3: returns 'win' or 'loss'
+ * - sum === 4 with score < 3: returns 'tie' (2-2 is a valid draw per §4.1)
  */
 function calculateMatchResult(score1: number, score2: number): MatchResult {
+  // 0-0 indicates admin-cleared match (voided) - does not count
+  if (score1 === 0 && score2 === 0) {
+    return { winner: null, result1: 'no_contest', result2: 'no_contest' };
+  }
   const totalRounds = score1 + score2;
   if (totalRounds !== 4) {
-    return { winner: null, result1: 'tie', result2: 'tie' };
+    return { winner: null, result1: 'no_contest', result2: 'no_contest' };
   }
   if (score1 >= 3) {
     return { winner: 1, result1: 'win', result2: 'loss' };
@@ -84,6 +91,11 @@ export const bmConfig: EventTypeConfig = {
   aggregatePlayerStats: (matches, playerId, calcResult) => {
     const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of matches) {
+      // Skip 0-0 matches: these are admin-cleared matches (not actual ties).
+      // A 0-0 score indicates the match was voided and should not affect standings.
+      const isClearedMatch = m.score1 === 0 && m.score2 === 0;
+      if (isClearedMatch) continue;
+
       stats.mp++;
       const isPlayer1 = m.player1Id === playerId;
       stats.winRounds += isPlayer1 ? m.score1 : m.score2;
