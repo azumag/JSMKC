@@ -20,6 +20,7 @@ const {
   apiUpdateTaSeeding,
   apiFetchTa,
   apiTaParticipantEditTime,
+  setupAllModes28PlayerQualification,
 } = require('./lib/common');
 const {
   closeBrowser,
@@ -115,15 +116,6 @@ function getStatus(url) {
   }, 0);
 }
 
-function getBody(url) {
-  return httpsRequest(url, (res, done) => {
-    let data = '';
-    res.setEncoding('utf8');
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => done(data));
-  }, '');
-}
-
 async function main() {
   let browser = null;
   /* 90m default: BM alone runs ~28m, so 60m easily cuts off cleanup even on a
@@ -139,6 +131,20 @@ async function main() {
   let sharedTournamentId = null;
   let sharedPage = null;
 
+  const cleanupSharedResources = async () => {
+    if (!sharedPage) return;
+    const tournamentId = sharedTournamentId;
+    const playerIds = sharedPlayerIds.splice(0);
+    sharedTournamentId = null;
+
+    if (tournamentId) {
+      await deleteTournament(sharedPage, tournamentId).catch(() => {});
+    }
+    for (const playerId of playerIds) {
+      await deletePlayer(sharedPage, playerId).catch(() => {});
+    }
+  };
+
   try {
     browser = await chromium.launchPersistentContext(
       process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile',
@@ -152,61 +158,17 @@ async function main() {
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
 
-  /* ===== Create a dedicated test tournament used by TID-dependent tests =====
-   * Setup: activated tournament + 8 players + BM/GP group setup (MR left empty
-   * so TC-304's "empty group" message check still passes). All resources are
-   * cleaned up in the finally block at the end of main(). */
-  // Initial navigation so page.evaluate() can resolve relative /api URLs
+  /* ===== Create the dedicated cross-mode test tournament used by TID-dependent tests =====
+   * One activated tournament owns the same 28 players across TA/BM/MR/GP. All
+   * four qualification datasets are completed up front so page checks and
+   * overall ranking calculations exercise the integrated tournament shape. */
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   {
-    const stamp = Date.now();
-    const createRes = await page.evaluate(async (d) => {
-      const r = await fetch('/api/tournaments', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, { name: `E2E tc-all ${stamp}`, date: new Date().toISOString() });
-    sharedTournamentId = createRes.b?.data?.id ?? null;
-    if (!sharedTournamentId) {
-      console.error(`[tc-all] failed to create test tournament (${createRes.s}): ${JSON.stringify(createRes.b).slice(0, 300)}`);
-      throw new Error(`Shared test tournament creation failed (${createRes.s}) — ensure admin session is valid`);
-    }
+    const sharedSetup = await setupAllModes28PlayerQualification(page, 'tcall');
+    sharedTournamentId = sharedSetup.tournamentId;
+    sharedPlayerIds.push(...sharedSetup.playerIds);
     TID = sharedTournamentId;
-
-    // Activate so mode pages render
-    await page.evaluate(async ([u, d]) => {
-      await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-    }, [`/api/tournaments/${sharedTournamentId}`, { status: 'active' }]);
-
-    // Create 8 players for BM/GP group setup (2 groups × 4 players)
-    for (let i = 1; i <= 8; i++) {
-      const pRes = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `E2E tc-all P${i}`, nickname: `e2e_tcall_${stamp}_${i}`, country: 'JP' });
-      const pid = pRes.b?.data?.player?.id ?? null;
-      if (pid) sharedPlayerIds.push(pid);
-    }
-
-    if (sharedPlayerIds.length === 8) {
-      const assignments = sharedPlayerIds.map((playerId, i) => ({
-        playerId,
-        group: i < 4 ? 'A' : 'B',
-        seeding: i + 1,
-      }));
-      // Set up BM + GP only. MR stays empty so TC-304 can verify the empty-group message.
-      for (const mode of ['bm', 'gp']) {
-        await page.evaluate(async ([u, d]) => {
-          await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-        }, [`/api/tournaments/${sharedTournamentId}/${mode}`, { players: assignments }]);
-      }
-    } else {
-      console.warn(`[tc-all] created only ${sharedPlayerIds.length}/8 players — BM/GP setup skipped`);
-    }
+    console.log(`[tc-all] shared all-mode tournament ready: ${TID} (${sharedPlayerIds.length} players)`);
   }
 
   // ===== Public page tests (work regardless of login state) =====
@@ -370,6 +332,101 @@ async function main() {
   await nav(page, `/tournaments/${TID}/overall-ranking`);
   t = await vis(page);
   log('TC-203', (t.includes('Overall') || t.includes('総合')) ? 'PASS' : 'FAIL');
+
+  // TC-401: Shared all-mode tournament has completed qualification data in TA/BM/MR/GP
+  try {
+    const sharedState = await page.evaluate(async (id) => {
+      const fetchJson = async (path) => {
+        const r = await fetch(path, { cache: 'no-store' });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      };
+      return {
+        ta: await fetchJson(`/api/tournaments/${id}/ta?stage=qualification&ts=${Date.now()}`),
+        bm: await fetchJson(`/api/tournaments/${id}/bm?ts=${Date.now()}`),
+        mr: await fetchJson(`/api/tournaments/${id}/mr?ts=${Date.now()}`),
+        gp: await fetchJson(`/api/tournaments/${id}/gp?ts=${Date.now()}`),
+      };
+    }, TID);
+    const taEntries = sharedState.ta.b?.data?.entries ?? [];
+    const bmMatches = (sharedState.bm.b?.data?.matches ?? sharedState.bm.b?.matches ?? []).filter((m) => !m.isBye);
+    const mrMatches = (sharedState.mr.b?.data?.matches ?? sharedState.mr.b?.matches ?? []).filter((m) => !m.isBye);
+    const gpMatches = (sharedState.gp.b?.data?.matches ?? sharedState.gp.b?.matches ?? []).filter((m) => !m.isBye);
+
+    const taOk = taEntries.length === 28 && taEntries.every((e) => e.totalTime != null && e.totalTime > 0);
+    const bmOk = bmMatches.length === 84 && bmMatches.every((m) => m.completed);
+    const mrOk = mrMatches.length === 84 && mrMatches.every((m) => m.completed);
+    const gpOk = gpMatches.length === 84 && gpMatches.every((m) => m.completed);
+
+    log('TC-401', taOk && bmOk && mrOk && gpOk ? 'PASS' : 'FAIL',
+      !taOk ? `TA entries=${taEntries.length}`
+      : !bmOk ? `BM matches=${bmMatches.length} completed=${bmMatches.filter((m) => m.completed).length}`
+      : !mrOk ? `MR matches=${mrMatches.length} completed=${mrMatches.filter((m) => m.completed).length}`
+      : !gpOk ? `GP matches=${gpMatches.length} completed=${gpMatches.filter((m) => m.completed).length}`
+      : '');
+  } catch (err) {
+    log('TC-401', 'FAIL', err instanceof Error ? err.message : 'Shared all-mode verification failed');
+  }
+
+  // TC-402: Overall ranking calculation + persisted display for the shared all-mode tournament
+  let topOverallRanking = null;
+  try {
+    const calc = await page.evaluate(async (u) => {
+      const r = await fetch(u, { method: 'POST' });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, `/api/tournaments/${TID}/overall-ranking`);
+    const rankings = calc.b?.data?.rankings ?? [];
+    topOverallRanking = rankings[0] ?? null;
+
+    const topBreakdown =
+      topOverallRanking
+        ? topOverallRanking.taQualificationPoints +
+          topOverallRanking.bmQualificationPoints +
+          topOverallRanking.mrQualificationPoints +
+          topOverallRanking.gpQualificationPoints +
+          topOverallRanking.taFinalsPoints +
+          topOverallRanking.bmFinalsPoints +
+          topOverallRanking.mrFinalsPoints +
+          topOverallRanking.gpFinalsPoints
+        : null;
+    const hasAllModes = rankings.some((r) =>
+      r.taQualificationPoints > 0 &&
+      r.bmQualificationPoints > 0 &&
+      r.mrQualificationPoints > 0 &&
+      r.gpQualificationPoints > 0
+    );
+    const totalsOk = topOverallRanking && topBreakdown === topOverallRanking.totalPoints;
+    const ranksOk = rankings.length === 28 && topOverallRanking?.overallRank === 1;
+
+    const stored = await page.evaluate(async (u) => {
+      const r = await fetch(u, { cache: 'no-store' });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, `/api/tournaments/${TID}/overall-ranking?ts=${Date.now()}`);
+    const storedRankings = stored.b?.data?.rankings ?? [];
+    const persistedOk =
+      stored.s === 200 &&
+      storedRankings.length === 28 &&
+      storedRankings[0]?.playerId === topOverallRanking?.playerId &&
+      storedRankings[0]?.totalPoints === topOverallRanking?.totalPoints;
+
+    await nav(page, `/tournaments/${TID}/overall-ranking`);
+    const overallText = await vis(page);
+    const topTotalText = topOverallRanking?.totalPoints?.toLocaleString?.() ?? '';
+    const displayOk =
+      !!topOverallRanking &&
+      overallText.includes(topOverallRanking.playerNickname) &&
+      (overallText.includes(String(topOverallRanking.totalPoints)) || overallText.includes(topTotalText));
+
+    log('TC-402', calc.s === 200 && ranksOk && hasAllModes && totalsOk && persistedOk && displayOk ? 'PASS' : 'FAIL',
+      calc.s !== 200 ? `POST returned ${calc.s}: ${JSON.stringify(calc.b).slice(0, 200)}`
+      : !ranksOk ? `rankings=${rankings.length} topRank=${topOverallRanking?.overallRank}`
+      : !hasAllModes ? 'No ranking row has points from all 4 qualification modes'
+      : !totalsOk ? `top total=${topOverallRanking?.totalPoints} breakdown=${topBreakdown}`
+      : !persistedOk ? 'GET did not return persisted calculation'
+      : !displayOk ? `Overall page missing top ranking ${topOverallRanking?.playerNickname}`
+      : '');
+  } catch (err) {
+    log('TC-402', 'FAIL', err instanceof Error ? err.message : 'Overall ranking calculation/display failed');
+  }
 
   // TC-101: Player add (via API, cleanup after)
   const nick = `e2e_tc_${Date.now()}`;
@@ -1122,9 +1179,16 @@ async function main() {
     log('TC-104', dr.ok ? 'PASS' : 'FAIL');
   } else { log('TC-104', 'SKIP'); }
 
-  // TC-304: Viewer empty group message (check via unauthenticated curl)
-  const mrBody = await getBody(`${BASE}/tournaments/${TID}/mr`);
-  log('TC-304', (mrBody.includes('Please wait') || mrBody.includes('セットアップが完了するまで')) ? 'PASS' : 'FAIL');
+  // TC-304: MR is set up in the shared tournament and renders match data
+  await nav(page, `/tournaments/${TID}/mr`);
+  const mrSharedText = await vis(page);
+  const mrSharedOk =
+    (mrSharedText.includes('Match Race') || mrSharedText.includes('マッチレース')) &&
+    (mrSharedText.includes('Group A') || mrSharedText.includes('グループ A')) &&
+    !mrSharedText.includes('Please wait') &&
+    !mrSharedText.includes('セットアップが完了するまで');
+  log('TC-304', mrSharedOk ? 'PASS' : 'FAIL',
+    mrSharedOk ? '' : 'Shared MR tournament did not render configured groups');
 
   // TC-305: BM group dialog - verify dialog closes after save
   await nav(page, `/tournaments/${TID}/bm`);
@@ -1233,8 +1297,8 @@ async function main() {
   }
   log('TC-307', tc307 ? 'PASS' : 'FAIL');
 
-  // TC-401/402/403/404 (旧「軽量フルワークフロー」と GP ダイアログUI checks) は廃止。
-  // 機能カバレッジは tc-bm.js / tc-mr.js / tc-gp.js の 28人フルワークフロー (TC-5xx/6xx/7xx) に集約。
+  // 旧 TC-403/404 (軽量フルワークフローと GP ダイアログUI checks) は廃止。
+  // TC-401/402 は上の共有4モード大会と総合ランキング検証に再利用。
 
   // TC-316: Tiebreaker warning suppressed at group setup (mp=0), shown after tie match
   // Regression test for #filterActiveTiedIds: at mp=0 all players share 0-0 scores,
@@ -1497,7 +1561,8 @@ async function main() {
     }
   }
 
-  // TC-322 (BM participant correction) は tc-bm.js が担当。tc-all.js 末尾の child process で実行される。
+  // TC-322 (BM participant correction) は tc-bm.js が担当。
+  // tc-all からは E2E_RUN_FOCUSED_SUITES=1 のときだけ末尾の child process で実行される。
 
   // TC-324: BM tie warning banner disappears after admin sets rankOverride
   // Creates 3 players, sets up BM qualification, submits all matches as 2-2 ties
@@ -1645,7 +1710,7 @@ async function main() {
     }
   }
 
-  // ===== Mode-specific child-process suites =====
+  // ===== Optional mode-specific child-process suites =====
   // tc-bm.js / tc-mr.js / tc-gp.js each spawn their own Playwright browser, so we
   // must close the persistent profile here first to release the lock. Run them
   // sequentially (not in parallel) for the same reason.
@@ -1658,6 +1723,7 @@ async function main() {
   // tracking, since the buffered "FAIL:" string parser can't see inherited output.
   const { spawnSync } = require('child_process');
   const projectRoot = __dirname.replace(/\/e2e$/, '');
+  await cleanupSharedResources();
   await closeBrowser(browser);
   browser = null;
 
@@ -1686,10 +1752,11 @@ async function main() {
     progressWatchdog = null;
   }
 
-  const bmFailed = runChildScript('BM Tests', 'e2e/tc-bm.js');
-  const mrFailed = runChildScript('MR Tests', 'e2e/tc-mr.js');
-  const gpFailed = runChildScript('GP Tests', 'e2e/tc-gp.js');
-  const taFailed = runChildScript('TA Tests', 'e2e/tc-ta.js');
+  const runFocusedSuites = process.env.E2E_RUN_FOCUSED_SUITES === '1';
+  const bmFailed = runFocusedSuites ? runChildScript('BM Tests', 'e2e/tc-bm.js') : false;
+  const mrFailed = runFocusedSuites ? runChildScript('MR Tests', 'e2e/tc-mr.js') : false;
+  const gpFailed = runFocusedSuites ? runChildScript('GP Tests', 'e2e/tc-gp.js') : false;
+  const taFailed = runFocusedSuites ? runChildScript('TA Tests', 'e2e/tc-ta.js') : false;
 
   // ===== Summary =====
   console.log('\n========== SUMMARY (tc-all.js inline tests) ==========');
@@ -1702,18 +1769,14 @@ async function main() {
   if (mrFailed) console.log('  ⚠️  MR tests (tc-mr.js) had failures — see output above');
   if (gpFailed) console.log('  ⚠️  GP tests (tc-gp.js) had failures — see output above');
   if (taFailed) console.log('  ⚠️  TA tests (tc-ta.js) had failures — see output above');
+  if (!runFocusedSuites) {
+    console.log('  ℹ️  Focused mode suites skipped (set E2E_RUN_FOCUSED_SUITES=1 to run tc-bm/tc-mr/tc-gp/tc-ta)');
+  }
 
     return (f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0;
   } finally {
-    // Clean up the shared test tournament + players before closing the browser
-    if (sharedPage) {
-      if (sharedTournamentId) {
-        await deleteTournament(sharedPage, sharedTournamentId).catch(() => {});
-      }
-      for (const pid of sharedPlayerIds) {
-        await deletePlayer(sharedPage, pid).catch(() => {});
-      }
-    }
+    // Clean up the shared test tournament + players before closing the browser.
+    await cleanupSharedResources();
     clearTimeout(suiteTimer);
     if (progressWatchdog) {
       progressWatchdog.stop();

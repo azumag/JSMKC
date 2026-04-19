@@ -773,6 +773,104 @@ async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
   }
 }
 
+/** Shared 28-player tournament setup for tc-all's integrated cross-mode flow.
+ * Creates one tournament, registers the same 28 players in TA/BM/MR/GP, and
+ * completes qualification data for every mode so overall ranking can be
+ * calculated from real multi-mode results. */
+async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
+  const stamp = Date.now();
+  const playerIds = [];
+  const nicknames = [];
+  const entryIds = [];
+  let tournamentId = null;
+
+  const cleanup = async () => {
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  };
+
+  try {
+    for (let i = 1; i <= 28; i++) {
+      const p = await apiCreatePlayer(
+        adminPage,
+        `E2E ALL ${label} P${i}`,
+        `e2e_all${label}_${stamp}_${i}`,
+      );
+      playerIds.push(p.id);
+      nicknames.push(p.nickname);
+    }
+
+    tournamentId = await apiCreateTournament(
+      adminPage,
+      `E2E All Modes ${label} ${stamp}`,
+      { dualReportEnabled: false, ...opts },
+    );
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const addTa = await apiAddTaEntries(adminPage, tournamentId, {
+      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
+    });
+    if (addTa.s !== 201) {
+      throw new Error(`TA shared setup failed (${addTa.s}): ${JSON.stringify(addTa.b).slice(0, 200)}`);
+    }
+
+    const entries = addTa.b?.data?.entries ?? [];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const rank = i + 1;
+      const { times, totalMs } = makeTaTimesForRank(rank);
+      await apiSeedTtEntry(adminPage, tournamentId, entry.id, times, totalMs, rank);
+      entryIds.push(entry.id);
+    }
+
+    const assignments = snakeDraft28(playerIds);
+
+    const bmSetup = await apiSetupBmGroup(adminPage, tournamentId, assignments);
+    if (bmSetup.s !== 201) {
+      throw new Error(`BM shared setup failed (${bmSetup.s}): ${JSON.stringify(bmSetup.b).slice(0, 200)}`);
+    }
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    for (const match of (bmData.matches || []).filter((m) => !m.isBye && !m.completed)) {
+      const res = await apiPutBmQualScore(adminPage, tournamentId, match.id, 3, 1);
+      if (res.s !== 200) {
+        throw new Error(`BM shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
+      }
+    }
+
+    const mrSetup = await apiSetupMrGroup(adminPage, tournamentId, assignments);
+    if (mrSetup.s !== 201) {
+      throw new Error(`MR shared setup failed (${mrSetup.s}): ${JSON.stringify(mrSetup.b).slice(0, 200)}`);
+    }
+    const mrData = await apiFetchMr(adminPage, tournamentId);
+    for (const match of (mrData.matches || []).filter((m) => !m.isBye && !m.completed)) {
+      const res = await apiPutMrQualScore(adminPage, tournamentId, match.id, 3, 1);
+      if (res.s !== 200) {
+        throw new Error(`MR shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
+      }
+    }
+
+    const gpSetup = await apiSetupGpGroup(adminPage, tournamentId, assignments);
+    if (gpSetup.s !== 201) {
+      throw new Error(`GP shared setup failed (${gpSetup.s}): ${JSON.stringify(gpSetup.b).slice(0, 200)}`);
+    }
+    const gpData = await apiFetchGp(adminPage, tournamentId);
+    for (const match of (gpData.matches || []).filter((m) => !m.isBye && !m.completed)) {
+      if (!match.cup) {
+        throw new Error(`GP shared match missing cup match=${match.id}`);
+      }
+      const res = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
+      if (res.s !== 200) {
+        throw new Error(`GP shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
+      }
+    }
+
+    return { tournamentId, playerIds, nicknames, entryIds, cleanup };
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+}
+
 module.exports = {
   /* config */
   BASE,
@@ -838,4 +936,5 @@ module.exports = {
   formatTtTime,
   makeTaTimesForRank,
   setupTa28PlayerQual,
+  setupAllModes28PlayerQualification,
 };
