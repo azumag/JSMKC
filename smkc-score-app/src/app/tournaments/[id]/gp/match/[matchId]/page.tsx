@@ -22,6 +22,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,8 +104,10 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
+  const { data: session } = useSession();
   const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
+  const isAdmin = session?.user?.role === "admin";
 
   const [submitting, setSubmitting] = useState(false);
   /* GP cup has 5 races (§7.2), each with course and position selections */
@@ -333,8 +336,9 @@ export default function GPMatchPage({
           </Card>
         )}
 
-        {/* Result entry form (shown when match is not complete and user is authorized) */}
-        {!match.completed && !submitted && canReport && (
+        {/* Result entry form (shown when match is not complete and user is authorized)
+            Admins should not see the score entry form here — they use the /gp/participant page. */}
+        {!match.completed && !submitted && canReport && !isAdmin && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>

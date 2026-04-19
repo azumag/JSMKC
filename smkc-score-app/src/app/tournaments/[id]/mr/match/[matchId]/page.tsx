@@ -21,6 +21,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,8 +108,10 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
+  const { data: session } = useSession();
   const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
+  const isAdmin = session?.user?.role === "admin";
 
   const [submitting, setSubmitting] = useState(false);
   /*
@@ -329,8 +332,9 @@ export default function MatchDetailPage({
           </Card>
         )}
 
-        {/* Score entry form (shown when match is not completed and user is authorized) */}
-        {!match.completed && !submitted && canReport && (
+        {/* Score entry form (shown when match is not completed and user is authorized)
+            Admins should not see the score entry form here — they use the /mr/participant page. */}
+        {!match.completed && !submitted && canReport && !isAdmin && (
           <Card>
             <CardHeader>
               {/* i18n: Score entry form header */}
