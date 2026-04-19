@@ -30,7 +30,7 @@ import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 import { selectRandomCourse, getPlayedCourses, getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
-import { RETRY_PENALTY_MS } from "@/lib/constants";
+import { RETRY_PENALTY_MS, CourseAbbr } from "@/lib/constants";
 
 /**
  * Phase configuration constants defining the rules for each phase.
@@ -897,60 +897,82 @@ export async function startPhaseRound(
     throw new Error(`No active players in ${phase}. Promote players first.`);
   }
 
-  // D1/SQLite's single-writer model provides serializable isolation without
-  // needing interactive transactions (which D1 does not support).
-  // The unique constraint [tournamentId, phase, roundNumber] prevents duplicates
-  // if two requests race — the second create will fail with a constraint violation.
-  const existingRounds = await prisma.tTPhaseRound.count({
-    where: { tournamentId, phase },
-  });
-  const roundNumber = existingRounds + 1;
-
-  // Determine the course to use: admin-specified manual override or random selection.
-  // Manual course must be validated against the 20-course cycle to ensure fairness.
-  let course: string;
+  // Retry loop for round creation: handles the race condition where two concurrent
+  // requests compute the same roundNumber. The @@unique([tournamentId, phase, roundNumber])
+  // constraint causes one to fail with P2002, which we catch and retry.
+  const MAX_ROUND_CREATE_ATTEMPTS = 3;
+  let roundNumber = 0;
+  let course = "";
   let manualOverride = false;
 
-  // The `!== ""` guard is a defence-in-depth: Zod's z.string().optional() never
-  // produces an empty string from a missing field, but direct callers (e.g. tests)
-  // may pass "" to mean "use random". Treating "" as "no override" keeps both paths safe.
-  if (manualCourse !== undefined && manualCourse !== "") {
-    // Validate the abbreviation is a known course
-    if (!isValidCourseAbbr(manualCourse)) {
-      throw new Error(
-        `Invalid course abbreviation: "${manualCourse}". Must be one of the 20 standard courses.`
-      );
-    }
-    // Validate the course is still available in the current cycle
-    // (not already played in the current 20-course block)
-    const playedCourses = await getPlayedCourses(prisma, tournamentId, phase);
-    const available = getAvailableCourses(playedCourses);
-    if (!available.includes(manualCourse)) {
-      throw new Error(
-        `Course "${manualCourse}" has already been played in the current cycle. ` +
-          `Available courses: ${available.join(", ")}`
-      );
-    }
-    course = manualCourse;
-    manualOverride = true;
-  } else {
-    // Default: select a random course from the unused pool for this phase.
-    course = await selectRandomCourse(prisma, tournamentId, phase);
-  }
+  for (let attempt = 1; attempt <= MAX_ROUND_CREATE_ATTEMPTS; attempt++) {
+    // Compute roundNumber fresh on each attempt to handle concurrent requests.
+    const existingRounds = await prisma.tTPhaseRound.count({
+      where: { tournamentId, phase },
+    });
+    roundNumber = existingRounds + 1;
 
-  // Create the round record with empty results (to be filled on submitRoundResults).
-  // The @@unique([tournamentId, phase, roundNumber]) constraint guards against
-  // duplicate round numbers from concurrent requests.
-  await prisma.tTPhaseRound.create({
-    data: {
-      tournamentId,
-      phase,
-      roundNumber,
-      course,
-      manualOverride,
-      results: [], // Will be populated by submitRoundResults
-    },
-  });
+    // Determine the course to use: admin-specified manual override or random selection.
+    // Manual course must be validated against the 20-course cycle to ensure fairness.
+    // For random selection, pick a fresh course each retry attempt.
+    if (manualCourse !== undefined && manualCourse !== "") {
+      // Validate the abbreviation is a known course (only on first attempt)
+      if (attempt === 1 && !isValidCourseAbbr(manualCourse)) {
+        throw new Error(
+          `Invalid course abbreviation: "${manualCourse}". Must be one of the 20 standard courses.`
+        );
+      }
+      // Validate the course is still available in the current cycle
+      // (not already played in the current 20-course block)
+      const playedCourses = await getPlayedCourses(prisma, tournamentId, phase);
+      const available = getAvailableCourses(playedCourses);
+      if (!available.includes(manualCourse as CourseAbbr)) {
+        throw new Error(
+          `Course "${manualCourse}" has already been played in the current cycle. ` +
+            `Available courses: ${available.join(", ")}`
+        );
+      }
+      course = manualCourse as CourseAbbr;
+      manualOverride = true;
+    } else {
+      // Default: select a random course from the unused pool for this phase.
+      // Re-select on each retry attempt since playedCourses changes with each race.
+      course = await selectRandomCourse(prisma, tournamentId, phase);
+      manualOverride = false;
+    }
+
+    try {
+      // Create the round record with empty results (to be filled on submitRoundResults).
+      await prisma.tTPhaseRound.create({
+        data: {
+          tournamentId,
+          phase,
+          roundNumber,
+          course,
+          manualOverride,
+          results: [], // Will be populated by submitRoundResults
+        },
+      });
+      // Success — exit the retry loop
+      break;
+    } catch (error) {
+      // P2002 = unique constraint violation = another request created this round first.
+      // Log and retry with the next roundNumber.
+      const isUniqueViolation =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+      if (isUniqueViolation && attempt < MAX_ROUND_CREATE_ATTEMPTS) {
+        logger.warn("Round creation race condition detected, retrying", {
+          tournamentId,
+          phase,
+          attempt,
+          roundNumber,
+        });
+        continue;
+      }
+      // Final attempt failed or non-retryable error — propagate
+      throw error;
+    }
+  }
 
   // Audit log for round start (non-critical, outside transaction)
   try {
