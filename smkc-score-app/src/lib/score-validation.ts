@@ -82,13 +82,15 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
     };
   }
 
-  // Sum check: BM matches are exactly TOTAL_BM_ROUNDS rounds. Without this check,
-  // a score like 1-2 (sum = 3) passes range validation but is silently treated
-  // as a tie by the match result calculation (which requires totalRounds === 4).
-  if (score1 + score2 !== TOTAL_BM_ROUNDS) {
+  // Sum check: BM matches require TOTAL_BM_ROUNDS rounds (sum = 4) for a valid
+  // qualification result. Admin score corrections for disputed/no-show matches
+  // (0-0) are also allowed to support clearing invalid match entries.
+  const isNormalMatch = score1 + score2 === TOTAL_BM_ROUNDS;
+  const isClearedMatch = score1 === 0 && score2 === 0;
+  if (!isNormalMatch && !isClearedMatch) {
     return {
       isValid: false,
-      error: `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got ${score1 + score2})`,
+      error: `Scores must total ${TOTAL_BM_ROUNDS} for a normal match, or be 0-0 to clear a match`,
     };
   }
 

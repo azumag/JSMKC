@@ -224,8 +224,9 @@ export function validateCharacter(character: string | undefined): boolean {
 
 /**
  * Possible match outcome from the perspective of a single player.
+ * 'no_contest' indicates the match was voided (e.g., 0-0 cleared) and should not be counted.
  */
-export type MatchOutcome = 'win' | 'loss' | 'tie';
+export type MatchOutcome = 'win' | 'loss' | 'tie' | 'no_contest';
 
 /**
  * Configuration for recalculatePlayerStats, parameterized per game mode.
@@ -293,7 +294,6 @@ export async function recalculatePlayerStats(
   let winRounds = 0, lossRounds = 0, totalPoints = 0;
 
   for (const m of matches) {
-    mp++;
     const isPlayer1 = m.player1Id === playerId;
     const myScore: number = isPlayer1
       ? m[config.scoreFields.p1]
@@ -303,6 +303,9 @@ export async function recalculatePlayerStats(
       : m[config.scoreFields.p1];
 
     const result = config.determineResult(myScore, oppScore);
+    // 'no_contest' matches (e.g., 0-0 cleared) should not be counted in stats
+    if (result === 'no_contest') continue;
+    mp++;
     if (result === 'win') wins++;
     else if (result === 'loss') losses++;
     else ties++;

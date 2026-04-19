@@ -73,6 +73,8 @@
     "second": "2nd",
     "gameOver": "Game Over",
     "totalRoundsShouldEqual4": "Total rounds should equal 4",
+    "totalRoundsMustBe4Or0": "Scores must be 4 total (or 0-0 to clear)",
+    "clearScores": "Clear",
     "select4UniqueCourses": "Please select 4 unique courses",
     "selectWinnerForAllRaces": "Please select a winner for all {count} races",
     "scorePreview": "Score Preview",

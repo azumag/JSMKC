@@ -132,30 +132,25 @@ describe('Score Validation Utilities', () => {
       expect(result.error).toBe(`Score must be between ${MIN_BATTLE_SCORE} and ${MAX_BATTLE_SCORE}`);
     });
 
-    // === Sum check: score1 + score2 must equal TOTAL_BM_ROUNDS ===
+    // === Sum check: score1 + score2 must be TOTAL_BM_ROUNDS (4) or 0-0 to clear ===
+    // Allows 0-0 for admin corrections (disputed/no-show matches)
 
-    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (2+3=5)', () => {
+    it('should reject scores that exceed TOTAL_BM_ROUNDS (2+3=5)', () => {
       const result = validateBattleModeScores(2, 3);
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(
-        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 5)`
+        `Scores must total ${TOTAL_BM_ROUNDS} for a normal match, or be 0-0 to clear a match`
       );
     });
 
-    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (1+1=2)', () => {
+    it('should reject sub-total scores (1+1=2) for corrections', () => {
       const result = validateBattleModeScores(1, 1);
       expect(result.isValid).toBe(false);
-      expect(result.error).toBe(
-        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 2)`
-      );
     });
 
-    it('should reject scores that do not sum to TOTAL_BM_ROUNDS (0+0=0)', () => {
+    it('should accept zero scores for clear/correction (0+0=0)', () => {
       const result = validateBattleModeScores(0, 0);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBe(
-        `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got 0)`
-      );
+      expect(result.isValid).toBe(true);
     });
 
   });
