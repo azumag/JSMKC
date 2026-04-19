@@ -273,19 +273,28 @@ export async function POST(
       return handleDatabaseError(error, "score report update");
     }
 
-    /* If dual report is disabled (default), immediately confirm the match */
+    /* If dual report is disabled (default), immediately confirm the match.
+     * Use updateWithRetry to prevent concurrent auto-confirm from overwriting. */
     if (!(await isDualReportEnabled(tournamentId))) {
       try {
-        const finalMatch = await prisma.mRMatch.update({
-          where: { id: matchId },
-          data: { score1, score2, completed: true },
-          include: { player1: true, player2: true },
-        });
+        const finalMatch = await updateWithRetry(prisma, async (tx) =>
+          tx.mRMatch.update({
+            where: { id: matchId, version: result.version },
+            data: { score1, score2, completed: true, version: { increment: 1 } },
+            include: { player1: true, player2: true },
+          })
+        );
         await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
         await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
         return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
           "Score confirmed (dual report disabled)");
       } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          return createErrorResponse(
+            "This match was updated by someone else. Please refresh and try again.",
+            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          );
+        }
         return handleDatabaseError(error, "match completion");
       }
     }
