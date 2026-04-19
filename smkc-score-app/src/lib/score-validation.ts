@@ -82,13 +82,14 @@ export function validateBattleModeScores(score1: number, score2: number): ScoreV
     };
   }
 
-  // Sum check: BM matches are exactly TOTAL_BM_ROUNDS rounds. Without this check,
-  // a score like 1-2 (sum = 3) passes range validation but is silently treated
-  // as a tie by the match result calculation (which requires totalRounds === 4).
-  if (score1 + score2 !== TOTAL_BM_ROUNDS) {
+  // Sum check: BM matches require TOTAL_BM_ROUNDS rounds (sum = 4) for a valid
+  // qualification result. However, admin score corrections may need to set scores
+  // to 0-0 (disputed/no-show) or other sub-total values. Allow sum <= TOTAL_BM_ROUNDS
+  // to support both normal entry and correction scenarios.
+  if (score1 + score2 > TOTAL_BM_ROUNDS) {
     return {
       isValid: false,
-      error: `Scores must total exactly ${TOTAL_BM_ROUNDS} rounds (got ${score1 + score2})`,
+      error: `Scores must total at most ${TOTAL_BM_ROUNDS} rounds (got ${score1 + score2})`,
     };
   }
 

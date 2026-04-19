@@ -273,9 +273,10 @@ export default function BattleModePage({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Client-side validation: BM qualification requires exactly 4 rounds */
-    if (scoreForm.score1 + scoreForm.score2 !== 4) {
-      alert(tc('totalRoundsShouldEqual4'));
+    /* Client-side validation: BM qualification requires at most 4 rounds total.
+     * Allow sub-total scores (e.g., 0-0 clear) for score corrections. */
+    if (scoreForm.score1 + scoreForm.score2 > 4) {
+      alert(tc('totalRoundsShouldBeAtMost4'));
       return;
     }
 
@@ -818,15 +819,22 @@ export default function BattleModePage({
                 />
               </div>
             </div>
-            {/* Validation warning when total rounds != 4.
-               Always rendered to reserve vertical space and prevent layout shift
-               when the warning appears/disappears during score input. */}
-            <p className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 !== 4 ? 'text-yellow-600' : 'invisible'}`}>
-              {tc('totalRoundsShouldEqual4')}
+            {/* Validation warning when total rounds > 4.
+               Always rendered to reserve vertical space and prevent layout shift. */}
+            <p className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 > 4 ? 'text-yellow-600' : 'invisible'}`}>
+              {tc('totalRoundsShouldBeAtMost4')}
             </p>
           </div>
           <DialogFooter>
-            <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
+            <div className="flex w-full justify-between">
+              <Button
+                variant="outline"
+                onClick={() => setScoreForm({ score1: 0, score2: 0 })}
+              >
+                {tc('clearScores')}
+              </Button>
+              <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
