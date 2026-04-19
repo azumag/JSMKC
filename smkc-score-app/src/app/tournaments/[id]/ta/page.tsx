@@ -60,6 +60,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   GroupSetupDialog,
+  TA_PLACEHOLDER_GROUP,
   type SetupPlayer,
 } from "@/components/tournament/group-setup-dialog";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
@@ -261,6 +262,9 @@ export default function TimeAttackPage({
       entries: taData.entries || [],
       allPlayers: extractArrayData<Player>(playersJson),
       frozenStages: taData.frozenStages || [],
+      /* Surfaced so handleSetupSave can short-circuit add-player attempts
+       * after knockout starts, rather than letting them fail mid-batch. */
+      qualificationRegistrationLocked: Boolean(taData.qualificationRegistrationLocked),
     };
   }, [tournamentId]);
 
@@ -393,17 +397,38 @@ export default function TimeAttackPage({
    */
   const handleSetupSave = async () => {
     if (setupSaving) return;
+
+    const qualEntries = entries.filter((e) => e.stage === "qualification");
+    const existingByPid = new Map(qualEntries.map((e) => [e.playerId, e]));
+    const setupByPid = new Map(setupPlayers.map((p) => [p.playerId, p]));
+    const toAdd = setupPlayers.filter((p) => !existingByPid.has(p.playerId));
+    const toRemove = qualEntries.filter((e) => !setupByPid.has(e.playerId));
+
+    /* Pre-check: adding a player after knockout has started will fail with 409
+     * on the server. Short-circuit before any write-phase runs so we don't
+     * leave the tournament in a partially-updated state. */
+    if (toAdd.length > 0 && pollData?.qualificationRegistrationLocked) {
+      toast.error(t("qualificationRegistrationLocked"));
+      return;
+    }
+
+    /* Confirm destructive removals — unchecking a player deletes the TTEntry
+     * including its recorded times and partner link, which is irreversible. */
+    const destructiveRemovals = toRemove.filter(
+      (e) => getEnteredTimesCount(e) > 0 || e.partnerId != null,
+    );
+    if (destructiveRemovals.length > 0) {
+      const names = destructiveRemovals.map((e) => e.player.nickname).join(", ");
+      if (!confirm(t("confirmDestructiveRemoval", { names }))) return;
+    }
+
     setSetupSaving(true);
     try {
-      const qualEntries = entries.filter((e) => e.stage === "qualification");
-      const existingByPid = new Map(qualEntries.map((e) => [e.playerId, e]));
-      const setupByPid = new Map(setupPlayers.map((p) => [p.playerId, p]));
       /* playerId → entryId lookup. Updated after POSTs so we can reference
        * newly-created entries when applying seeding/partner changes. */
       const entryIdByPid = new Map(qualEntries.map((e) => [e.playerId, e.id]));
 
       // 1. Add new entries (individually so we can capture each returned entryId)
-      const toAdd = setupPlayers.filter((p) => !existingByPid.has(p.playerId));
       for (const p of toAdd) {
         const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
           method: "POST",
@@ -421,8 +446,16 @@ export default function TimeAttackPage({
         if (created?.id) entryIdByPid.set(p.playerId, created.id);
       }
 
-      // 2. Delete removed entries (server clears partner back-links automatically)
-      const toRemove = qualEntries.filter((e) => !setupByPid.has(e.playerId));
+      /*
+       * 2. Delete removed entries.
+       *
+       * Note on partner back-links: the DELETE endpoint removes only the
+       * target entry and does NOT clear any dangling partnerId fields on
+       * other entries pointing to it. We rely on the dialog's removal
+       * handlers (removePlayerFromSetup / select-all uncheck) to set
+       * partnerId=null on every survivor that referenced a removed player;
+       * those changes are then flushed to the server in step 4 below.
+       */
       for (const e of toRemove) {
         const res = await fetch(
           `/api/tournaments/${tournamentId}/ta?entryId=${e.id}`,
@@ -463,7 +496,8 @@ export default function TimeAttackPage({
 
       // 4. Partner updates for every entry whose partnerId differs from server state.
       //    Newly-added entries start with partnerId=null on the server; any
-      //    non-null partner in the dialog state needs a PUT.
+      //    non-null partner in the dialog state needs a PUT. This also clears
+      //    any dangling back-links to entries deleted in step 2.
       for (const p of setupPlayers) {
         const existingPartner = existingByPid.get(p.playerId)?.partnerId ?? null;
         const newPartner = p.partnerId ?? null;
@@ -488,7 +522,7 @@ export default function TimeAttackPage({
       setIsSetupDialogOpen(false);
       setSetupPlayers([]);
       refetch();
-      toast.success(t("pairsSaved"));
+      toast.success(t("setupSaved"));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("pairSaveError");
       logger.error("Failed to save TA setup", { error: err, tournamentId });
@@ -758,8 +792,8 @@ export default function TimeAttackPage({
                 .map((e) => ({
                   playerId: e.playerId,
                   /* TA doesn't use groups; the dialog hides this field but SetupPlayer
-                   * requires a non-empty string. Use "A" as a stable placeholder. */
-                  group: "A",
+                   * requires a non-empty string. Use the shared placeholder constant. */
+                  group: TA_PLACEHOLDER_GROUP,
                   seeding: e.seeding ?? undefined,
                   partnerId: e.partnerId,
                 }))}

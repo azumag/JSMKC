@@ -55,10 +55,15 @@ import {
 } from "@/lib/group-utils";
 import { computeAutoPairs } from "@/lib/ta/pair-utils";
 
-/* Fixed placeholder group for TA setup rows — TA doesn't use groups but
- * SetupPlayer requires a non-empty `group` value. The UI hides this field
- * entirely in TA mode. */
-const TA_PLACEHOLDER_GROUP = "A";
+/**
+ * Fixed placeholder group for TA setup rows.
+ *
+ * TA does not use qualification groups, but `SetupPlayer` requires a
+ * non-empty `group` value. The dialog hides this field entirely in TA mode.
+ * Exported so parent pages (ta/page.tsx) can use the same constant when
+ * building `existingAssignments` — keeps the placeholder in a single place.
+ */
+export const TA_PLACEHOLDER_GROUP = "A";
 
 /** Player data structure matching the API response */
 export interface Player {

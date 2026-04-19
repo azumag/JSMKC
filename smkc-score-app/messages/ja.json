@@ -290,6 +290,8 @@
     "qualificationStandings": "予選順位表",
     "qualificationRegistrationLocked": "本線開始後は、予選へのプレイヤー追加はできません。",
     "removeQualificationEntryError": "TT予選からの削除に失敗しました",
+    "confirmDestructiveRemoval": "次のプレイヤーを予選から削除すると、入力済みタイムとペア設定も削除されます（元に戻せません）: {names}\n\nこのまま続行しますか？",
+    "setupSaved": "参加者情報を保存しました",
     "playersCompleted": "{completed} / {total} 名完了",
     "rank": "順位",
     "progress": "進捗",
