@@ -28,6 +28,13 @@ import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 
 /**
+ * Bracket size inference thresholds.
+ * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
+ * Threshold of 20 distinguishes between the two (>20 means 16-player).
+ */
+const BRACKET_SIZE_THRESHOLD = 20;
+
+/**
  * Configuration for a finals route handler set.
  *
  * Each event type (BM, MR, GP) supplies its own config to produce
@@ -111,11 +118,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         /* Infer bracket size from total match count:
          * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
-         * Use count > 20 as threshold to distinguish. */
-        const totalCount = await model(prisma).count({
-          where: { tournamentId, stage: 'finals' },
-        });
-        const bracketSize = totalCount > 20 ? 16 : 8;
+         * Use count > 20 as threshold to distinguish.
+         * Use result.total from paginate() to avoid an extra count query. */
+        const bracketSize = (result.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : 8;
 
         const bracketStructure = result.data.length > 0
           ? generateBracketStructure(bracketSize)
@@ -139,7 +144,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       /* Infer bracket size from match count:
        * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
        * Use count > 20 as threshold to distinguish. */
-      const bracketSize = matches.length > 20 ? 16 : 8;
+      const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD ? 16 : 8;
 
       const bracketStructure = matches.length > 0
         ? generateBracketStructure(bracketSize)

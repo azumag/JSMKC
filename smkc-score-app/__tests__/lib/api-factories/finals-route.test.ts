@@ -193,6 +193,46 @@ describe('Finals Route Factory', () => {
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
     });
 
+    it('should infer 16-player bracket when total matches > 20 (paginated)', async () => {
+      mockPaginate.mockResolvedValue({
+        data: [createMockMatch()],
+        meta: { total: 31, page: 1, limit: 50, totalPages: 1 },
+      });
+
+      const config = createMockConfig({ getStyle: 'paginated' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      const json = await response.json();
+      expect(json.bracketSize).toBe(16);
+    });
+
+    it('should default to 8-player bracket when total is 0 (paginated)', async () => {
+      mockPaginate.mockResolvedValue({
+        data: [],
+        meta: { total: 0, page: 1, limit: 50, totalPages: 0 },
+      });
+
+      const config = createMockConfig({ getStyle: 'paginated' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
+      const json = await response.json();
+      expect(json.bracketSize).toBe(8);
+    });
+
     it('should return grouped response when getStyle is grouped', async () => {
       const mockMatches = [
         createMockMatch({ round: 'winners_qf' }),
@@ -222,6 +262,28 @@ describe('Finals Route Factory', () => {
       expect(json.grandFinalMatches).toHaveLength(1); // grand_final
       expect(json.bracketStructure).toBeDefined();
       expect(json.roundNames).toEqual(roundNames);
+      expect(json.bracketSize).toBe(8);
+    });
+
+    it('should infer 16-player bracket when matches > 20 (grouped)', async () => {
+      // 16-player bracket has 31 matches
+      const mockMatches = Array.from({ length: 31 }, (_, i) =>
+        createMockMatch({ matchNumber: i + 1 })
+      );
+      (prisma.bMMatch as any).findMany.mockResolvedValue(mockMatches);
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+      const json = await response.json();
+      expect(json.bracketSize).toBe(16);
     });
 
     it('should return simple response when getStyle is simple', async () => {
@@ -244,6 +306,7 @@ describe('Finals Route Factory', () => {
       expect(json.winnersMatches).toBeUndefined();
       expect(json.losersMatches).toBeUndefined();
       expect(json.grandFinalMatches).toBeUndefined();
+      expect(json.bracketSize).toBe(8);
     });
 
     it('should return empty bracketStructure when matches array is empty', async () => {
@@ -261,6 +324,7 @@ describe('Finals Route Factory', () => {
       const json = await response.json();
       expect(json.matches).toEqual([]);
       expect(json.bracketStructure).toEqual([]);
+      expect(json.bracketSize).toBe(8);
     });
 
     it('should return 500 on database error', async () => {
