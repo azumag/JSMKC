@@ -967,7 +967,7 @@ export async function startPhaseRound(
           attempt,
           roundNumber,
         });
-        continue;
+        // Loop naturally continues to next iteration
       }
       // Final attempt failed or non-retryable error — propagate
       throw error;

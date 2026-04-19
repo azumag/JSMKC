@@ -597,5 +597,35 @@ describe("TA Finals Phase Manager", () => {
         startPhaseRound(mockPrismaClient as any, context, "phase1")
       ).rejects.toThrow("No active players in phase1. Promote players first.");
     });
+
+    it("throws immediately without retry when create fails with non-P2002 error", async () => {
+      // Non-P2002 errors should not trigger retry - thrown immediately
+      mockPrismaClient.tTPhaseRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseRound.create.mockRejectedValue(
+        new Error("Database connection failed")
+      );
+
+      await expect(
+        startPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow("Database connection failed");
+
+      // Only 1 attempt since non-P2002 errors don't trigger retry
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("throws immediately without retry for non-P2002 errors", async () => {
+      // Non-P2002 error should not trigger retry
+      const otherError = new Error("Database connection failed");
+
+      mockPrismaClient.tTPhaseRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseRound.create.mockRejectedValue(otherError);
+
+      await expect(
+        startPhaseRound(mockPrismaClient as any, context, "phase1")
+      ).rejects.toThrow("Database connection failed");
+
+      // Only 1 attempt before throwing
+      expect(mockPrismaClient.tTPhaseRound.create).toHaveBeenCalledTimes(1);
+    });
   });
 });
