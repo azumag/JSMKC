@@ -77,6 +77,7 @@ interface GPMatch {
   completed: boolean;
   player1: Player;
   player2: Player;
+  version: number; // For optimistic locking
 }
 
 /** Abstract bracket position from double-elimination library */
@@ -264,6 +265,7 @@ export default function GrandPrixFinals({
           matchId: selectedMatch.id,
           score1: scoreForm.score1,
           score2: scoreForm.score2,
+          version: selectedMatch.version,
         }),
       });
 

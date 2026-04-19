@@ -41,6 +41,7 @@ interface BMMatch {
   completed: boolean;
   player1: Player;
   player2: Player;
+  version: number; // For optimistic locking
 }
 
 /** Bracket structure definition for a single match position */

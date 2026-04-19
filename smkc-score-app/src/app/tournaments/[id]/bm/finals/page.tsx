@@ -88,6 +88,7 @@ interface BMMatch {
   completed: boolean;
   player1: Player;
   player2: Player;
+  version: number; // For optimistic locking
 }
 
 /** Bracket position definition */
@@ -285,6 +286,7 @@ export default function BattleModeFinals({
           matchId: selectedMatch.id,
           score1: scoreForm.score1,
           score2: scoreForm.score2,
+          version: selectedMatch.version,
         }),
       });
 

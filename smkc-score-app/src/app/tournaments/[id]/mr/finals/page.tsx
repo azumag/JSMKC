@@ -89,6 +89,7 @@ interface MRMatch {
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
+  version: number; // For optimistic locking
 }
 
 /** Abstract bracket match structure */
@@ -313,6 +314,7 @@ export default function MatchRaceFinals({
           score1: winnerCount,
           score2: loserCount,
           rounds,
+          version: selectedMatch.version,
         }),
       });
 

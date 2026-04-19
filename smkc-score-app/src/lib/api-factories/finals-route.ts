@@ -558,8 +558,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         // Version mismatch: another client updated the match since we last read it.
         // Fetch current version to inform the client.
+        // matchId is guaranteed to be defined here because:
+        // 1. If sanitization failed, we'd catch a different error
+        // 2. If validation failed (missing matchId), we'd return early
+        // 3. Only updateWithRetry can trigger this P2025 catch
         const current = await model(prisma).findUnique({
-          where: { id: matchId },
+          where: { id: matchId! },
           select: { version: true },
         });
         return createErrorResponse(
