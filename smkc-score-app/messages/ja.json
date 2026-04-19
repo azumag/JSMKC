@@ -720,6 +720,7 @@
     "roundsCompleted": "{count}ラウンド完了",
     "noRoundsYet": "まだラウンドが行われていません",
     "pass": "パス",
+    "retryLoad": "再試行",
     "passPenalty": "パスとしてマーク（ペナルティ: 9:59.990）",
     "startRoundDesc": "ランダムに選択されたコースで新しいラウンドを開始",
     "activePlayers": "アクティブプレイヤー:",

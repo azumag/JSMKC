@@ -720,6 +720,7 @@
     "roundsCompleted": "{count} rounds completed",
     "noRoundsYet": "No rounds played yet",
     "pass": "Pass",
+    "retryLoad": "Retry",
     "passPenalty": "Mark as pass (penalty: 9:59.990)",
     "startRoundDesc": "Start a new round with a randomly selected course",
     "activePlayers": "Active Players:",
