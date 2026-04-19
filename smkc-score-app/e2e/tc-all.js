@@ -268,6 +268,56 @@ async function main() {
   }
   log('TC-107', tc107 ? 'PASS' : 'FAIL');
 
+  // TC-108: Players API pagination contract + Players page pager visibility
+  const tc108Resp = await page.evaluate(async () => {
+    const fetchJson = async (url) => {
+      const res = await fetch(url);
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, body };
+    };
+    const p1 = await fetchJson('/api/players?page=1&limit=10');
+    const p2 = await fetchJson('/api/players?page=2&limit=10');
+    const pClamp = await fetchJson('/api/players?page=1&limit=200');
+    return { p1, p2, pClamp };
+  });
+  const tc108P1 = tc108Resp.p1?.body ?? {};
+  const tc108P2 = tc108Resp.p2?.body ?? {};
+  const tc108Clamp = tc108Resp.pClamp?.body ?? {};
+  const tc108HasShape = [tc108P1, tc108P2, tc108Clamp]
+    .every((r) => r?.success === true && Array.isArray(r?.data) && r?.meta);
+  const tc108Meta = tc108P1.meta || {};
+  const tc108MetaOk =
+    tc108Meta.page === 1 &&
+    tc108Meta.limit === 10 &&
+    typeof tc108Meta.total === 'number' &&
+    tc108Meta.total >= tc108P1.data.length &&
+    tc108Meta.totalPages === Math.ceil(tc108Meta.total / 10);
+  const tc108P1Ids = new Set((tc108P1.data || []).map((r) => r.id).filter(Boolean));
+  const tc108P2Ids = (tc108P2.data || []).map((r) => r.id).filter(Boolean);
+  const tc108NeedDistinct = (tc108Meta.total || 0) > 10;
+  const tc108DistinctOk = !tc108NeedDistinct || tc108P2Ids.some((id) => !tc108P1Ids.has(id));
+  const tc108ClampLimit = tc108Clamp.meta?.limit;
+  const tc108ClampOk = typeof tc108ClampLimit === 'number' && tc108ClampLimit <= 100;
+
+  await nav(page, '/players');
+  const tc108PagerVisible = await page.evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('a[href*="page="],button,[aria-label]'));
+    return nodes.some((node) => {
+      const href = (node.getAttribute('href') || '').toLowerCase();
+      const label = (node.getAttribute('aria-label') || '').toLowerCase();
+      const txt = (node.textContent || '').toLowerCase();
+      return href.includes('page=') || /next|previous|prev|次へ|前へ|ページ/.test(`${label} ${txt}`);
+    });
+  });
+  const tc108UiOk = (tc108Meta.total || 0) <= 50 || tc108PagerVisible;
+  log('TC-108', tc108HasShape && tc108MetaOk && tc108DistinctOk && tc108ClampOk && tc108UiOk ? 'PASS' : 'FAIL',
+    !tc108HasShape ? 'API shape mismatch'
+      : !tc108MetaOk ? `Unexpected meta page=${tc108Meta.page} limit=${tc108Meta.limit} total=${tc108Meta.total} totalPages=${tc108Meta.totalPages}`
+      : !tc108DistinctOk ? 'Page 1 and page 2 returned same IDs despite total>10'
+      : !tc108ClampOk ? `Limit clamp failed: meta.limit=${tc108ClampLimit}`
+      : !tc108UiOk ? 'Pager UI not visible despite total>50'
+      : '');
+
   // TC-308: Players API format
   const api = await page.evaluate(async () => (await fetch('/api/players')).json());
   log('TC-308', api.success === true && Array.isArray(api.data) && api.meta ? 'PASS' : 'FAIL');
