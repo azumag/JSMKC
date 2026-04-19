@@ -191,7 +191,12 @@ async function runTc805(adminPage) {
 }
 
 /* ───────── TC-806: Phase 2 page renders with correct entries ─────────
- * After promoting phase1, promote phase2 to move ranks 13-16 to phase2.
+ * After promoting phase1 and completing 4 elimination rounds (so only 4
+ * survivors remain), promote phase2 to move those survivors + ranks 13-16.
+ *
+ * Phase 1 uses single elimination: after each course, the slowest player
+ * is eliminated. 8 players → 4 survivors after 4 rounds.
+ *
  * TC-806 verifies the Phase 2 page (/ta/phase2) renders and shows 8 entries:
  * the 4 phase1 survivors plus the 4 qualifiers from ranks 13-16. */
 async function runTc806(adminPage) {
@@ -201,7 +206,55 @@ async function runTc806(adminPage) {
 
     /* Promote phase1: ranks 17-24 move to phase1 stage */
     await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
-    /* Promote phase2: ranks 13-16 move to phase2 stage (4 from qual + 4 survivors) */
+
+    /* Get phase1 entries to know player IDs for submitting results */
+    const phase1Before = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1');
+    const phase1Entries = phase1Before.b?.data?.entries ?? [];
+    if (phase1Entries.length !== 8) {
+      throw new Error(`Phase1 should have 8 entries, got ${phase1Entries.length}`);
+    }
+
+    /* Run 4 elimination rounds in phase1 (8→4 players) */
+    for (let round = 1; round <= 4; round++) {
+      /* Start a round */
+      const startRes = await adminPage.evaluate(async ([id]) => {
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start_round', phase: 'phase1' }),
+        });
+        return r.json().catch(() => ({}));
+      }, [setup.tournamentId]);
+      if (!startRes.data?.roundNumber) throw new Error(`start_round phase1 round ${round} failed`);
+
+      /* Submit results for only non-eliminated (active) phase1 players.
+       * Times are based on rank: rank 17 (slowest of phase1) has highest time,
+       * rank 24 (fastest of phase1) has lowest time. Lower time = safer from elimination.
+       * After 4 rounds, players with ranks 17-20 survive (4 fastest of the 8). */
+      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1'))
+        .b?.data?.entries ?? [];
+      const activeEntries = allEntries.filter((e) => !e.eliminated);
+      const results = activeEntries.map((e) => ({
+        playerId: e.playerId,
+        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        isRetry: false,
+      }));
+      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
+        const bodyStr = JSON.stringify({ action: 'submit_results', phase: 'phase1', roundNumber: rn, results: data });
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyStr,
+        });
+        const text = await r.text().catch(() => 'PARSE_ERROR');
+        let body;
+        try { body = JSON.parse(text); } catch { body = { raw: text.substring(0, 500) }; }
+        return { s: r.status, b: body, debug: { rn, resultsCount: data.length, firstPlayerId: data[0]?.playerId } };
+      }, [setup.tournamentId, startRes.data.roundNumber, results]);
+      if (!submitRes.data && submitRes.s !== 200) throw new Error(`submit_results phase1 round ${round} failed: status=${submitRes.s}, error=${JSON.stringify(submitRes.b ?? 'empty').slice(0, 300)}, debug=${JSON.stringify(submitRes.debug)}`);
+    }
+
+    /* Promote phase2: phase1 survivors (4) + ranks 13-16 (4) = 8 total */
     await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
 
     const phase2 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase2');
@@ -222,16 +275,90 @@ async function runTc806(adminPage) {
 }
 
 /* ───────── TC-807: Phase 3 page renders with correct entries ─────────
- * After promoting phase1 and phase2, promote phase3 to populate phase3 entries.
- * TC-807 verifies the Phase 3 page (/ta/finals) renders and shows entries
+ * After promoting phase1 and completing 4 elimination rounds (8→4),
+ * promote phase2 and complete 4 more elimination rounds (8→4),
+ * then promote phase3 to get phase2 survivors (4) + qual ranks 1-12 (12) = 16.
+ *
+ * TC-807 verifies the Phase 3 page (/ta/finals) renders and shows 16 entries
  * with lives > 0 (not yet eliminated). */
 async function runTc807(adminPage) {
   let setup = null;
   try {
     setup = await setupTa28PlayerQual(adminPage, '807');
 
+    /* Promote phase1: ranks 17-24 move to phase1 stage */
     await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
+
+    /* Run 4 elimination rounds in phase1 (8→4 players) */
+    for (let round = 1; round <= 4; round++) {
+      const startRes = await adminPage.evaluate(async ([id]) => {
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start_round', phase: 'phase1' }),
+        });
+        return r.json().catch(() => ({}));
+      }, [setup.tournamentId]);
+      if (!startRes.data?.roundNumber) throw new Error(`start_round phase1 round ${round} failed`);
+
+      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1'))
+        .b?.data?.entries ?? [];
+      const activeEntries = allEntries.filter((e) => !e.eliminated);
+      const results = activeEntries.map((e) => ({
+        playerId: e.playerId,
+        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        isRetry: false,
+      }));
+      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
+        const bodyStr = JSON.stringify({ action: 'submit_results', phase: 'phase1', roundNumber: rn, results: data });
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyStr,
+        });
+        const text = await r.text().catch(() => 'PARSE_ERROR');
+        let body;
+        try { body = JSON.parse(text); } catch { body = { raw: text.substring(0, 500) }; }
+        return { s: r.status, b: body, debug: { rn, resultsCount: data.length, firstPlayerId: data[0]?.playerId } };
+      }, [setup.tournamentId, startRes.data.roundNumber, results]);
+      if (!submitRes.data && submitRes.s !== 200) throw new Error(`submit_results phase1 round ${round} failed: status=${submitRes.s}, error=${JSON.stringify(submitRes.b ?? 'empty').slice(0, 300)}, debug=${JSON.stringify(submitRes.debug)}`);
+    }
+
+    /* Promote phase2: phase1 survivors (4) + qual ranks 13-16 (4) = 8 total */
     await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
+
+    /* Run 4 elimination rounds in phase2 (8→4 players) */
+    for (let round = 1; round <= 4; round++) {
+      const startRes = await adminPage.evaluate(async ([id]) => {
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start_round', phase: 'phase2' }),
+        });
+        return r.json().catch(() => ({}));
+      }, [setup.tournamentId]);
+      if (!startRes.data?.roundNumber) throw new Error(`start_round phase2 round ${round} failed`);
+
+      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase2'))
+        .b?.data?.entries ?? [];
+      const activeEntries = allEntries.filter((e) => !e.eliminated);
+      const results = activeEntries.map((e) => ({
+        playerId: e.playerId,
+        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        isRetry: false,
+      }));
+      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'submit_results', phase: 'phase2', roundNumber: rn, results: data }),
+        });
+        return r.json().catch(() => ({}));
+      }, [setup.tournamentId, startRes.data.roundNumber, results]);
+      if (!submitRes.data) throw new Error(`submit_results phase2 round ${round} failed`);
+    }
+
+    /* Promote phase3: phase2 survivors (4) + qual ranks 1-12 (12) = 16 total */
     await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase3');
 
     const phase3 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
