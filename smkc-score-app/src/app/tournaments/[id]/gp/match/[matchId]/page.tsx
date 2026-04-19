@@ -103,7 +103,7 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
@@ -333,8 +333,9 @@ export default function GPMatchPage({
           </Card>
         )}
 
-        {/* Result entry form (shown when match is not complete and user is authorized) */}
-        {!match.completed && !submitted && canReport && (
+        {/* Result entry form (shown when match is not complete and user is authorized)
+            Admins should not see the score entry form here — they use the /gp/participant page. */}
+        {!match.completed && !submitted && canReport && !isAdmin && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>

@@ -107,7 +107,7 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
@@ -329,8 +329,9 @@ export default function MatchDetailPage({
           </Card>
         )}
 
-        {/* Score entry form (shown when match is not completed and user is authorized) */}
-        {!match.completed && !submitted && canReport && (
+        {/* Score entry form (shown when match is not completed and user is authorized)
+            Admins should not see the score entry form here — they use the /mr/participant page. */}
+        {!match.completed && !submitted && canReport && !isAdmin && (
           <Card>
             <CardHeader>
               {/* i18n: Score entry form header */}
