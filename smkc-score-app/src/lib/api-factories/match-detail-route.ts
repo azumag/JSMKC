@@ -93,7 +93,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     const { matchId } = await params;
 
     try {
-      const { id: tournamentId, matchId } = await params;
+      const { id: tournamentId } = await params;
       const match = await model(prisma).findUnique({
         where: { id: matchId, tournamentId },
         include: { player1: true, player2: true },
