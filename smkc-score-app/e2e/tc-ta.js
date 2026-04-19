@@ -176,7 +176,9 @@ async function runTc805(adminPage) {
 
     await adminPage.getByRole('button', { name: /プレイヤー追加|Add Player/ }).click();
     await adminPage.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
-    await adminPage.getByText(new RegExp(p1.nickname)).waitFor({ timeout: 10000 });
+    // Use rowFor to scope to the table row, avoiding the toast notification
+    // which also contains the player nickname
+    await rowFor(p1.nickname).waitFor({ timeout: 10000 });
 
     const ok = removedFromApi && retainedOther;
     log('TC-805', ok ? 'PASS' : 'FAIL',
