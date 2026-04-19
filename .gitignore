@@ -1,6 +1,7 @@
 hidden_docs/
 .DS_STORE
 node_modules/
+.claude/worktrees/
 
 STATE.md
 IMPL.md
