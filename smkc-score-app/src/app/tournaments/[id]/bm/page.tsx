@@ -273,10 +273,12 @@ export default function BattleModePage({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Client-side validation: BM qualification requires at most 4 rounds total.
-     * Allow sub-total scores (e.g., 0-0 clear) for score corrections. */
-    if (scoreForm.score1 + scoreForm.score2 > 4) {
-      alert(tc('totalRoundsShouldBeAtMost4'));
+    /* Client-side validation: BM qualification requires sum === 4 for normal matches,
+     * or 0-0 for disputed/no-show match clearing. */
+    const isNormalMatch = scoreForm.score1 + scoreForm.score2 === 4;
+    const isClearedMatch = scoreForm.score1 === 0 && scoreForm.score2 === 0;
+    if (!isNormalMatch && !isClearedMatch) {
+      alert(tc('totalRoundsMustBe4Or0'));
       return;
     }
 
@@ -821,8 +823,8 @@ export default function BattleModePage({
             </div>
             {/* Validation warning when total rounds > 4.
                Always rendered to reserve vertical space and prevent layout shift. */}
-            <p className={`text-sm text-center ${scoreForm.score1 + scoreForm.score2 > 4 ? 'text-yellow-600' : 'invisible'}`}>
-              {tc('totalRoundsShouldBeAtMost4')}
+            <p className={`text-sm text-center ${(scoreForm.score1 + scoreForm.score2 !== 4 && !(scoreForm.score1 === 0 && scoreForm.score2 === 0)) ? 'text-yellow-600' : 'invisible'}`}>
+              {tc('totalRoundsMustBe4Or0')}
             </p>
           </div>
           <DialogFooter>

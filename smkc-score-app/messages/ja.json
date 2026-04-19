@@ -73,7 +73,7 @@
     "second": "2位",
     "gameOver": "ゲームオーバー",
     "totalRoundsShouldEqual4": "ラウンド合計は4になる必要があります",
-    "totalRoundsShouldBeAtMost4": "ラウンド合計は最大4にしてください",
+    "totalRoundsMustBe4Or0": "合計4、または0-0でクリア",
     "clearScores": "クリア",
     "select4UniqueCourses": "4つの異なるコースを選択してください",
     "selectWinnerForAllRaces": "{count}レースすべての勝者を選択してください",
