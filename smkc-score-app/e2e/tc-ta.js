@@ -4,6 +4,7 @@
  * Coverage:
  *   TC-801  28-player qualification fill — all 20 courses per player, server-
  *           computed ranks are 1..28 and scoring output is present.
+ *   TC-802  TA player login + participant 20-course time submission.
  *   TC-804  Promote to Phase 1 — ranks 17-24 (8 players) move to phase1 stage.
  *   TC-805  Remove a mistaken TA qualification player via UI.
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
@@ -22,6 +23,7 @@ const {
   apiActivateTournament, apiAddTaEntries,
   apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
   setupTa28PlayerQual, apiSeedTtEntry, makeTaTimesForRank,
+  loginPlayerBrowser,
 } = require('./lib/common');
 const { runSuite } = require('./lib/runner');
 
@@ -58,6 +60,92 @@ async function runTc801(adminPage) {
     log('TC-801', 'FAIL', err instanceof Error ? err.message : 'TA 801 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-802: TA player login + participant 20-course submit ─────────
+ * Creates one TA entry, logs in as that player in a separate browser context,
+ * submits all 20 course times from participant UI, then verifies persistence
+ * through TA API. */
+async function runTc802(adminPage) {
+  const playerIds = [];
+  const stamp = Date.now();
+  let tournamentId = null;
+  let playerBrowser = null;
+
+  const cleanup = async () => {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+  };
+
+  try {
+    const p1 = await apiCreatePlayer(adminPage, `E2E TA 802 P1`, `e2e_ta802_${stamp}_1`);
+    playerIds.push(p1.id);
+
+    tournamentId = await apiCreateTournament(adminPage, `E2E TA 802 ${stamp}`, { dualReportEnabled: false });
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const add = await apiAddTaEntries(adminPage, tournamentId, { playerId: p1.id });
+    const entryId = add.b?.data?.entries?.[0]?.id ?? null;
+    if (add.s !== 201 || !entryId) {
+      throw new Error(`TA add failed (${add.s})`);
+    }
+
+    const loggedIn = await loginPlayerBrowser(p1.nickname, p1.password);
+    playerBrowser = loggedIn.browser;
+    const playerPage = loggedIn.page;
+
+    await nav(playerPage, `/tournaments/${tournamentId}/ta/participant`);
+
+    const inputs = playerPage.locator('input[placeholder="M:SS.mm"]');
+    await inputs.first().waitFor({ timeout: 15000 });
+    const inputCount = await inputs.count();
+    if (inputCount !== 20) {
+      throw new Error(`expected 20 TA course inputs, got ${inputCount}`);
+    }
+
+    for (let i = 0; i < 20; i++) {
+      const minute = 1 + Math.floor(i / 6);
+      const second = 10 + (i % 6) * 3;
+      const time = `${minute}:${second.toString().padStart(2, '0')}.00`;
+      await inputs.nth(i).fill(time);
+    }
+
+    const submit = playerPage.getByRole('button', { name: /タイム送信|Submit Times/ });
+    await submit.click();
+
+    await playerPage.waitForFunction(() => {
+      const text = document.body?.innerText || '';
+      return /送信しました|Saved|更新しました|success/i.test(text);
+    }, null, { timeout: 15000 }).catch(() => {});
+
+    let persistedEntry = null;
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      const ta = await apiFetchTa(adminPage, tournamentId);
+      const entries = ta.b?.data?.entries ?? [];
+      persistedEntry = entries.find((entry) => entry.playerId === p1.id) ?? null;
+      const times = persistedEntry?.times ?? {};
+      const hasTwentyCourses = Object.keys(times).length === 20;
+      const hasTotalTime = Number(persistedEntry?.totalTime) > 0;
+      if (hasTwentyCourses && hasTotalTime) break;
+      await adminPage.waitForTimeout(1000);
+    }
+
+    const persistedTimes = persistedEntry?.times ?? {};
+    const hasTwentyCourses = Object.keys(persistedTimes).length === 20;
+    const hasTotalTime = Number(persistedEntry?.totalTime) > 0;
+
+    log('TC-802', hasTwentyCourses && hasTotalTime ? 'PASS' : 'FAIL',
+      !persistedEntry ? 'player TA entry not found'
+      : !hasTwentyCourses ? `persisted times=${Object.keys(persistedTimes).length} expected=20`
+      : !hasTotalTime ? `totalTime=${persistedEntry.totalTime}`
+      : '');
+  } catch (err) {
+    log('TC-802', 'FAIL', err instanceof Error ? err.message : 'TA 802 failed');
+  } finally {
+    await cleanup();
   }
 }
 
@@ -497,6 +585,7 @@ if (require.main === module) {
     log,
     tests: [
       { name: 'TC-801', fn: runTc801 },
+      { name: 'TC-802', fn: runTc802 },
       { name: 'TC-804', fn: runTc804 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-806', fn: runTc806 },
