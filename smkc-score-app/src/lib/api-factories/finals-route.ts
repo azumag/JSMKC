@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
@@ -26,7 +27,7 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
-import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { updateWithRetry } from '@/lib/optimistic-locking';
 
 /**
  * Bracket size inference thresholds.
@@ -333,10 +334,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
     try {
       /* Defense-in-depth: always sanitize user input */
       const body = sanitizeInput(await request.json());
-      const { matchId, score1, score2 } = body;
+      const { matchId, score1, score2, version: expectedVersion } = body;
 
       if (!matchId || score1 === undefined || score2 === undefined) {
         return handleValidationError('matchId, score1, and score2 are required', 'request');
+      }
+
+      if (expectedVersion === undefined) {
+        return handleValidationError('version is required for score updates (optimistic locking)', 'request');
       }
 
       const match = await model(prisma).findUnique({
@@ -380,18 +385,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
-      const updatedMatch = await updateWithRetry(prisma, async (tx) => {
-        const currentMatch = await model(tx).findUnique({
-          where: { id: matchId },
-          select: { version: true },
-        });
-        if (!currentMatch) throw new Error("Match not found");
-        return model(tx).update({
-          where: { id: matchId, version: currentMatch.version },
+      const updatedMatch = await updateWithRetry(prisma, async (tx) =>
+        model(tx).update({
+          where: { id: matchId, version: expectedVersion },
           data: { ...updateData, version: { increment: 1 } },
           include: { player1: true, player2: true },
-        });
-      });
+        })
+      );
 
       /* Infer bracket size from total finals match count:
        * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
@@ -550,12 +550,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
         champion,
       });
     } catch (error) {
-      if (error instanceof OptimisticLockError) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        // Version mismatch: another client updated the match since we last read it.
+        // Fetch current version to inform the client.
+        const current = await model(prisma).findUnique({
+          where: { id: matchId },
+          select: { version: true },
+        });
         return createErrorResponse(
           'The match was modified by another user. Please refresh and try again.',
           409,
           'VERSION_CONFLICT',
-          { currentVersion: error.currentVersion },
+          { currentVersion: current?.version ?? null, requiresRefresh: true },
         );
       }
       logger.error('Failed to update finals match', { error, tournamentId });
