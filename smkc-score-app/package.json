@@ -14,6 +14,7 @@
     "e2e:bm": "node e2e/tc-bm.js",
     "e2e:mr": "node e2e/tc-mr.js",
     "e2e:gp": "node e2e/tc-gp.js",
+    "e2e:ta": "node e2e/tc-ta.js",
     "build:cf": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare dev",
     "deploy": "npm run build:cf && wrangler deploy"

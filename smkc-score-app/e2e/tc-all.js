@@ -24,6 +24,7 @@ const {
 } = require('./lib/common');
 const {
   closeBrowser,
+  createBrowserLaunchEnv,
   createProgressWatchdog,
   envMs,
   exitAfterCleanup,
@@ -151,6 +152,8 @@ async function main() {
       {
         headless: process.env.E2E_HEADLESS === '1',
         viewport: { width: 1280, height: 720 },
+        env: createBrowserLaunchEnv(),
+        args: ['--disable-crash-reporter', '--disable-crashpad'],
       },
     );
     const page = browser.pages()[0] || await browser.newPage();
@@ -527,7 +530,11 @@ async function main() {
   if (pid && playerTempPassword) {
     let playerBrowser = null;
     try {
-      playerBrowser = await chromium.launch({ headless: false });
+      playerBrowser = await chromium.launch({
+        headless: false,
+        env: createBrowserLaunchEnv(),
+        args: ['--disable-crash-reporter', '--disable-crashpad'],
+      });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
 
@@ -639,7 +646,11 @@ async function main() {
         throw new Error(`Failed to setup GP qualification (${gpSetup.s})`);
       }
 
-      playerBrowser = await chromium.launch({ headless: false });
+      playerBrowser = await chromium.launch({
+        headless: false,
+        env: createBrowserLaunchEnv(),
+        args: ['--disable-crash-reporter', '--disable-crashpad'],
+      });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
 
@@ -770,7 +781,11 @@ async function main() {
         throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
       }
 
-      playerBrowser = await chromium.launch({ headless: false });
+      playerBrowser = await chromium.launch({
+        headless: false,
+        env: createBrowserLaunchEnv(),
+        args: ['--disable-crash-reporter', '--disable-crashpad'],
+      });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
 
@@ -1107,7 +1122,11 @@ async function main() {
       let partnerBrowser = null;
       let step3 = false;
       try {
-        partnerBrowser = await chromium.launch({ headless: false });
+        partnerBrowser = await chromium.launch({
+          headless: false,
+          env: createBrowserLaunchEnv(),
+          args: ['--disable-crash-reporter', '--disable-crashpad'],
+        });
         const partnerCtx = await partnerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
         const partnerPage = await partnerCtx.newPage();
         await nav(partnerPage, '/auth/signin');

@@ -1,4 +1,7 @@
 const { chromium } = require('playwright');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { nav } = require('./common');
 
 const DEFAULT_PROFILE_DIR = '/tmp/playwright-smkc-profile';
@@ -106,6 +109,22 @@ function summarizeResults(suiteName, results) {
   return { passed, failed, skipped };
 }
 
+function createBrowserLaunchEnv() {
+  const baseHome = process.env.E2E_BROWSER_HOME || path.join(os.tmpdir(), 'playwright-e2e-home');
+  const configHome = path.join(baseHome, '.config');
+  const cacheHome = path.join(baseHome, '.cache');
+  const appSupportHome = path.join(baseHome, 'Library', 'Application Support');
+  for (const dir of [baseHome, configHome, cacheHome, appSupportHome]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return {
+    ...process.env,
+    HOME: baseHome,
+    XDG_CONFIG_HOME: configHome,
+    XDG_CACHE_HOME: cacheHome,
+  };
+}
+
 function recordFailure(results, log, tc, detail) {
   for (let i = results.length - 1; i >= 0; i--) {
     if (results[i].tc === tc) {
@@ -136,6 +155,8 @@ async function runSuite({ suiteName, results, log, tests }) {
     browser = await chromium.launchPersistentContext(profileDir, {
       headless,
       viewport: { width: 1280, height: 720 },
+      env: createBrowserLaunchEnv(),
+      args: ['--disable-crash-reporter', '--disable-crashpad'],
     });
     const page = browser.pages()[0] || await browser.newPage();
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
@@ -181,6 +202,7 @@ module.exports = {
   envMs,
   exitAfterCleanup,
   formatDuration,
+  createBrowserLaunchEnv,
   runSuite,
   summarizeResults,
   withTimeout,
