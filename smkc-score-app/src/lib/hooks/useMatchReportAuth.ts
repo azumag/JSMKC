@@ -26,6 +26,8 @@ interface MatchForAuth {
 interface UseMatchReportAuthResult {
   /** Whether the current user can report scores (admin or match participant) */
   canReport: boolean;
+  /** Whether the current user is an admin */
+  isAdmin: boolean;
   /** Whether the session is still loading (avoid showing "not authorized" flash) */
   isSessionLoading: boolean;
   /** Auto-selected player identity (1 or 2), or null if not auto-selectable */
@@ -49,6 +51,7 @@ export function useMatchReportAuth(
 
   return {
     canReport,
+    isAdmin,
     isSessionLoading: status === "loading",
     selectedPlayer: selectedPlayer ?? autoSelectedPlayer,
     setSelectedPlayer,

@@ -21,7 +21,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,10 +107,8 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { data: session } = useSession();
-  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
-  const isAdmin = session?.user?.role === "admin";
 
   const [submitting, setSubmitting] = useState(false);
   /*
