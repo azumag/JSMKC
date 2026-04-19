@@ -236,7 +236,10 @@ async function runTc806(adminPage) {
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
         playerId: e.playerId,
-        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        /* Per-course single-round time (NOT qualification totalTime).
+         * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
+         * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
+        timeMs: 60000 + (e.rank || 20) * 200,
         isRetry: false,
       }));
       const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
@@ -306,7 +309,10 @@ async function runTc807(adminPage) {
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
         playerId: e.playerId,
-        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        /* Per-course single-round time (NOT qualification totalTime).
+         * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
+         * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
+        timeMs: 60000 + (e.rank || 20) * 200,
         isRetry: false,
       }));
       const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
@@ -344,7 +350,10 @@ async function runTc807(adminPage) {
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
         playerId: e.playerId,
-        timeMs: e.totalTime ?? (60000 + (e.rank || 20) * 200),
+        /* Per-course single-round time (NOT qualification totalTime).
+         * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
+         * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
+        timeMs: 60000 + (e.rank || 20) * 200,
         isRetry: false,
       }));
       const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
@@ -431,31 +440,35 @@ async function runTc808(adminPage) {
     const phase3Before = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
     const phase3Entries = phase3Before.b?.data?.entries ?? [];
 
-    /* Start round */
-    const startRes = await adminPage.evaluate(async ([id]) => {
-      const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start_round', phase: 'phase3' }),
-      });
-      return r.json().catch(() => ({}));
-    }, [tournamentId]);
-    if (!startRes.data?.roundNumber) throw new Error('start_round failed');
+    /* Phase3 uses life-based elimination (3 lives per player, bottom half loses
+     * 1 life per round). With 2 players, the slower one is always in bottom half,
+     * so we need 3 rounds to eliminate them (3 lives → 0). */
+    for (let round = 1; round <= 3; round++) {
+      const startRes = await adminPage.evaluate(async ([id]) => {
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start_round', phase: 'phase3' }),
+        });
+        return r.json().catch(() => ({}));
+      }, [tournamentId]);
+      if (!startRes.data?.roundNumber) throw new Error(`start_round phase3 round ${round} failed`);
 
-    /* Submit both players — entry[0] wins (faster), entry[1] loses (bottom half) */
-    const submitRes = await adminPage.evaluate(async ([id, rn, entries_data]) => {
-      const results = [
-        { playerId: entries_data[0].playerId, timeMs: 60000, isRetry: false },
-        { playerId: entries_data[1].playerId, timeMs: 120000, isRetry: false },
-      ];
-      const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'submit_results', phase: 'phase3', roundNumber: rn, results }),
-      });
-      return r.json().catch(() => ({}));
-    }, [tournamentId, startRes.data.roundNumber, phase3Entries]);
-    if (!submitRes.data) throw new Error('submit_results failed');
+      /* Submit both players — entry[0] is faster (wins), entry[1] is slower (bottom half, loses a life) */
+      const submitRes = await adminPage.evaluate(async ([id, rn, entries_data]) => {
+        const results = [
+          { playerId: entries_data[0].playerId, timeMs: 60000, isRetry: false },
+          { playerId: entries_data[1].playerId, timeMs: 120000, isRetry: false },
+        ];
+        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'submit_results', phase: 'phase3', roundNumber: rn, results }),
+        });
+        return r.json().catch(() => ({}));
+      }, [tournamentId, startRes.data.roundNumber, phase3Entries]);
+      if (!submitRes.data) throw new Error(`submit_results phase3 round ${round} failed`);
+    }
 
     /* Navigate to TA Finals page */
     await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);

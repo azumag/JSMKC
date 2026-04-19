@@ -30,7 +30,10 @@ const {
 } = require('./lib/runner');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
-const TID = process.env.E2E_TOURNAMENT_ID || 'cmmvbmrr00000o01slo9jy3o8';
+/* TID is set at runtime from a dedicated test tournament we create in main().
+ * We deliberately do NOT target a pre-existing production tournament (previously
+ * KasmoSMKC) so the suite is self-contained and safe to run repeatedly. */
+let TID = null;
 const WAIT = 8000;
 const results = [];
 let progressWatchdog = null;
@@ -123,12 +126,18 @@ function getBody(url) {
 
 async function main() {
   let browser = null;
-  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 60 * 60 * 1000));
+  /* 90m default: BM alone runs ~28m, so 60m easily cuts off cleanup even on a
+   * fully-passing run. Override with E2E_ALL_SUITE_TIMEOUT_MS if needed. */
+  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 90 * 60 * 1000));
   const suiteTimer = setTimeout(() => {
     console.error(`[tc-all] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
     exitAfterCleanup(124, () => closeBrowser(browser));
   }, suiteTimeoutMs);
   progressWatchdog = createProgressWatchdog('tc-all', undefined, () => closeBrowser(browser));
+
+  const sharedPlayerIds = [];
+  let sharedTournamentId = null;
+  let sharedPage = null;
 
   try {
     browser = await chromium.launchPersistentContext(
@@ -139,8 +148,66 @@ async function main() {
       },
     );
     const page = browser.pages()[0] || await browser.newPage();
+    sharedPage = page;
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
+
+  /* ===== Create a dedicated test tournament used by TID-dependent tests =====
+   * Setup: activated tournament + 8 players + BM/GP group setup (MR left empty
+   * so TC-304's "empty group" message check still passes). All resources are
+   * cleaned up in the finally block at the end of main(). */
+  // Initial navigation so page.evaluate() can resolve relative /api URLs
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  {
+    const stamp = Date.now();
+    const createRes = await page.evaluate(async (d) => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, { name: `E2E tc-all ${stamp}`, date: new Date().toISOString() });
+    sharedTournamentId = createRes.b?.data?.id ?? null;
+    if (!sharedTournamentId) {
+      console.error(`[tc-all] failed to create test tournament (${createRes.s}): ${JSON.stringify(createRes.b).slice(0, 300)}`);
+      throw new Error(`Shared test tournament creation failed (${createRes.s}) — ensure admin session is valid`);
+    }
+    TID = sharedTournamentId;
+
+    // Activate so mode pages render
+    await page.evaluate(async ([u, d]) => {
+      await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    }, [`/api/tournaments/${sharedTournamentId}`, { status: 'active' }]);
+
+    // Create 8 players for BM/GP group setup (2 groups × 4 players)
+    for (let i = 1; i <= 8; i++) {
+      const pRes = await page.evaluate(async (d) => {
+        const r = await fetch('/api/players', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: `E2E tc-all P${i}`, nickname: `e2e_tcall_${stamp}_${i}`, country: 'JP' });
+      const pid = pRes.b?.data?.player?.id ?? null;
+      if (pid) sharedPlayerIds.push(pid);
+    }
+
+    if (sharedPlayerIds.length === 8) {
+      const assignments = sharedPlayerIds.map((playerId, i) => ({
+        playerId,
+        group: i < 4 ? 'A' : 'B',
+        seeding: i + 1,
+      }));
+      // Set up BM + GP only. MR stays empty so TC-304 can verify the empty-group message.
+      for (const mode of ['bm', 'gp']) {
+        await page.evaluate(async ([u, d]) => {
+          await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+        }, [`/api/tournaments/${sharedTournamentId}/${mode}`, { players: assignments }]);
+      }
+    } else {
+      console.warn(`[tc-all] created only ${sharedPlayerIds.length}/8 players — BM/GP setup skipped`);
+    }
+  }
 
   // ===== Public page tests (work regardless of login state) =====
 
@@ -1611,6 +1678,14 @@ async function main() {
     return result.status !== 0;
   }
 
+  /* Child scripts inherit stdio but do not call tc-all's log(), so the
+   * parent's progress watchdog would otherwise fire after 10m of "silence".
+   * Each child script owns its own watchdog — safe to stop the parent's here. */
+  if (progressWatchdog) {
+    progressWatchdog.stop();
+    progressWatchdog = null;
+  }
+
   const bmFailed = runChildScript('BM Tests', 'e2e/tc-bm.js');
   const mrFailed = runChildScript('MR Tests', 'e2e/tc-mr.js');
   const gpFailed = runChildScript('GP Tests', 'e2e/tc-gp.js');
@@ -1630,6 +1705,15 @@ async function main() {
 
     return (f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0;
   } finally {
+    // Clean up the shared test tournament + players before closing the browser
+    if (sharedPage) {
+      if (sharedTournamentId) {
+        await deleteTournament(sharedPage, sharedTournamentId).catch(() => {});
+      }
+      for (const pid of sharedPlayerIds) {
+        await deletePlayer(sharedPage, pid).catch(() => {});
+      }
+    }
     clearTimeout(suiteTimer);
     if (progressWatchdog) {
       progressWatchdog.stop();

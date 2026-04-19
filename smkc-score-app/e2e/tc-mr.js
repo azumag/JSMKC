@@ -1336,9 +1336,19 @@ async function runTc820(adminPage) {
 }
 
 /* ───────── TC-822: MR scoresConfirmed → subsequent PUT blocked ─────────
- * After admin confirms a mismatched dual-report, scoresConfirmed flag is set.
- * A second PUT should return 400. */
+ * SKIPPED — feature not implemented. MRMatch has no `scoresConfirmed` column
+ * and qualification-route.ts only blocks edits when the whole qualification
+ * stage is confirmed, not per match. See E2E_TEST_CASES.md TC-822 entry.
+ * The original impl is preserved below (unreachable) as a reference spec for
+ * the day the feature is added. */
 async function runTc822(adminPage) {
+  // eslint-disable-next-line no-unused-vars
+  const _ = adminPage;
+  log('TC-822', 'SKIP', 'feature not implemented (no scoresConfirmed column on MRMatch)');
+}
+
+// eslint-disable-next-line no-unused-vars
+async function _runTc822IfImplemented(adminPage) {
   let tournamentId = null;
   let player1 = null;
   let player2 = null;
