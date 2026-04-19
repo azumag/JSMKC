@@ -128,9 +128,6 @@ export default function TimeAttackParticipantPage({
   const [taPlayerSelfEdit, setTaPlayerSelfEdit] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  /* Dev-only features: use NODE_ENV per CLAUDE.md (not hostname checks) */
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
   /**
    * Admin-only: Fill all course times with random values for testing.
    * Generates realistic TA times between 45s and 3:30 per course.
@@ -693,8 +690,8 @@ export default function TimeAttackParticipantPage({
                         <div className="text-2xl font-bold font-mono text-center">{msToDisplayTime(getTotalTime())}</div>
                       </div>
 
-                      {/* Admin-only: Fill random times button (development only) */}
-                      {isAdmin && isDevelopment && myEntry && (
+                      {/* Admin-only: Fill random times button */}
+                      {isAdmin && myEntry && (
                         <Button
                           onClick={handleFillRandomTimes}
                           variant="outline"
@@ -702,7 +699,7 @@ export default function TimeAttackParticipantPage({
                           className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
                         >
                           <Dice5 className="h-4 w-4 mr-2" />
-                          Fill Random Times (Dev Only)
+                          Fill Random Times
                         </Button>
                       )}
 
