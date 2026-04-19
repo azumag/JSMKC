@@ -305,7 +305,11 @@ export function DoubleEliminationBracket({
     <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
       {/* Winners Bracket - Players with no losses */}
       <BracketSection title="Winners Bracket">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
+        {/* overflow-x-auto stays on at every breakpoint: 16-player brackets have
+         * five round columns (R1 → QF → SF → Final + gaps) that routinely exceed
+         * the container width on desktop. Without horizontal scrolling here the
+         * rightmost matches were breaking out of the page pane (issue #424). */}
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Round 1 - Only in 16-player brackets */}
           {is16Player && (
             <div className="space-y-2">
@@ -402,7 +406,10 @@ export function DoubleEliminationBracket({
 
       {/* Losers Bracket - Players with one loss get a second chance */}
       <BracketSection title="Losers Bracket" variant="losers">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
+        {/* See Winners Bracket above: horizontal scrolling must stay enabled on
+         * desktop so wide 16-player losers brackets (up to 6 round columns) can
+         * scroll instead of overflowing the containing pane (issue #424). */}
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Losers Round 1 - First matchups of eliminated players */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
@@ -545,7 +552,9 @@ export function DoubleEliminationBracket({
 
       {/* Grand Final - Winners champion vs Losers champion */}
       <BracketSection title="Grand Final" variant="final">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4 md:overflow-visible md:pb-0">
+        {/* Kept consistent with Winners/Losers sections for predictable layout
+         * behaviour across all bracket sections (issue #424). */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Grand Final match */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
