@@ -26,6 +26,7 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
 
 /**
  * Bracket size inference thresholds.
@@ -379,10 +380,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
-      const updatedMatch = await model(prisma).update({
-        where: { id: matchId },
-        data: updateData,
-        include: { player1: true, player2: true },
+      const updatedMatch = await updateWithRetry(prisma, async (tx) => {
+        const currentMatch = await model(tx).findUnique({
+          where: { id: matchId },
+          select: { version: true },
+        });
+        if (!currentMatch) throw new Error("Match not found");
+        return model(tx).update({
+          where: { id: matchId, version: currentMatch.version },
+          data: { ...updateData, version: { increment: 1 } },
+          include: { player1: true, player2: true },
+        });
       });
 
       /* Infer bracket size from total finals match count:
@@ -542,6 +550,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
         champion,
       });
     } catch (error) {
+      if (error instanceof OptimisticLockError) {
+        return createErrorResponse(
+          'The match was modified by another user. Please refresh and try again.',
+          409,
+          'VERSION_CONFLICT',
+          { currentVersion: error.currentVersion },
+        );
+      }
       logger.error('Failed to update finals match', { error, tournamentId });
       return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
