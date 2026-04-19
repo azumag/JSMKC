@@ -13,8 +13,8 @@
 /** Result of a single match calculation */
 export type MatchResult = {
   winner: number | null;
-  result1: 'win' | 'loss' | 'tie';
-  result2: 'win' | 'loss' | 'tie';
+  result1: 'win' | 'loss' | 'tie' | 'no_contest';
+  result2: 'win' | 'loss' | 'tie' | 'no_contest';
 };
 
 /** Parsed PUT request body for qualification match updates */
