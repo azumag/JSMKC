@@ -242,7 +242,7 @@ export function GroupSetupDialog({
          * - Right: selected players with seeding + group assignments
          */}
         {/* On mobile: whole area scrolls; on desktop: each column scrolls independently */}
-        <div className="flex-1 overflow-y-auto md:overflow-hidden">
+        <div className="flex-1 overflow-y-auto md:overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
             {/* Left column: Player selection with search */}
             <div className="flex flex-col min-h-0">
