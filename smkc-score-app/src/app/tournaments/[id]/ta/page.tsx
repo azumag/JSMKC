@@ -782,7 +782,7 @@ export default function TimeAttackPage({
                   {t('managePairs')}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+              <DialogContent className="sm:max-w-[min(95vw,1400px)] max-h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle>{t('managePairsTitle')}</DialogTitle>
                   <DialogDescription>{t('managePairsDesc')}</DialogDescription>
