@@ -331,10 +331,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
 
+    /* matchId declared outside try so it is accessible in the catch block
+     * for VERSION_CONFLICT responses (error path needs the matchId too). */
+    let matchId: string;
+
     try {
       /* Defense-in-depth: always sanitize user input */
       const body = sanitizeInput(await request.json());
-      const { matchId, score1, score2, version: expectedVersion } = body;
+      const { matchId: bodyMatchId, score1, score2, version: expectedVersion } = body;
+      matchId = bodyMatchId;
 
       if (!matchId || score1 === undefined || score2 === undefined) {
         return handleValidationError('matchId, score1, and score2 are required', 'request');

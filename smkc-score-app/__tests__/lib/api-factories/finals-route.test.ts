@@ -41,12 +41,14 @@ jest.mock('@/lib/double-elimination');
 jest.mock('@/lib/pagination');
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
+jest.mock('@/lib/optimistic-locking');
 
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
+import { updateWithRetry } from '@/lib/optimistic-locking';
 import prisma from '@/lib/prisma';
 
 describe('Finals Route Factory', () => {
@@ -82,6 +84,7 @@ describe('Finals Route Factory', () => {
     score1: 0,
     score2: 0,
     completed: false,
+    version: 0,
     player1: { id: 'player-1', name: 'Player 1' },
     player2: { id: 'player-2', name: 'Player 2' },
     ...overrides,
@@ -119,6 +122,10 @@ describe('Finals Route Factory', () => {
 
     // Default 8-player bracket count (17 matches: 17 <= 20 → bracketSize=8)
     (prisma.bMMatch as any).count.mockResolvedValue(17);
+    // Mock updateWithRetry to pass through to prisma.update directly
+    (updateWithRetry as jest.Mock).mockImplementation(async (prisma, updateFn) => {
+      return updateFn(prisma);
+    });
 
     // Helper to create complete 17-match bracket structure
     // Note: matchNumber 17 is skipped in 8-player bracket, reset is at 18
@@ -577,6 +584,7 @@ describe('Finals Route Factory', () => {
       matchId: 'match-1',
       score1: 3,
       score2: 1,
+      version: 0,
       ...overrides,
     });
 
