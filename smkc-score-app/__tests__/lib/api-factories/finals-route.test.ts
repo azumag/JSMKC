@@ -117,6 +117,11 @@ describe('Finals Route Factory', () => {
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     mockSanitizeInput.mockImplementation((input) => input);
 
+    /* GET short-circuits with 404 if tournament lookup returns null.
+     * Provide a minimal stub for every test so handlers reach the code
+     * path under test. Individual tests can override as needed. */
+    (prisma.tournament as any).findUnique.mockResolvedValue({ id: 'tournament-123' });
+
     // Helper to create complete 17-match bracket structure
     // Note: matchNumber 17 is skipped in 8-player bracket, reset is at 18
     const createFullBracketStructure = () => {
@@ -178,9 +183,12 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.data).toEqual([createMockMatch()]);
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
+      // createSuccessResponse wraps in { success, data }; the paginated payload
+      // keeps its own `data` field, so the inner list is at json.data.data.
+      const payload = json.data ?? json;
+      expect(payload.data).toEqual([createMockMatch()]);
+      expect(payload.bracketStructure).toBeDefined();
+      expect(payload.roundNames).toEqual(roundNames);
       expect(mockPaginate).toHaveBeenCalledWith(
         expect.objectContaining({
           findMany: expect.any(Function),
@@ -188,7 +196,7 @@ describe('Finals Route Factory', () => {
         }),
         { tournamentId: 'tournament-123', stage: 'finals' },
         { matchNumber: 'asc' },
-        { page: 1, limit: 50 }
+        expect.objectContaining({ page: 1, limit: 50 })
       );
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
     });
@@ -216,12 +224,13 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual(mockMatches);
-      expect(json.winnersMatches).toHaveLength(3); // winners_qf, winners_sf, winners_final
-      expect(json.losersMatches).toHaveLength(3); // losers_r1, losers_sf, losers_final
-      expect(json.grandFinalMatches).toHaveLength(1); // grand_final
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
+      const payload = json.data ?? json;
+      expect(payload.matches).toEqual(mockMatches);
+      expect(payload.winnersMatches).toHaveLength(3); // winners_qf, winners_sf, winners_final
+      expect(payload.losersMatches).toHaveLength(3); // losers_r1, losers_sf, losers_final
+      expect(payload.grandFinalMatches).toHaveLength(1); // grand_final
+      expect(payload.bracketStructure).toBeDefined();
+      expect(payload.roundNames).toEqual(roundNames);
     });
 
     it('should return simple response when getStyle is simple', async () => {
@@ -238,12 +247,13 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual(mockMatches);
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
-      expect(json.winnersMatches).toBeUndefined();
-      expect(json.losersMatches).toBeUndefined();
-      expect(json.grandFinalMatches).toBeUndefined();
+      const payload = json.data ?? json;
+      expect(payload.matches).toEqual(mockMatches);
+      expect(payload.bracketStructure).toBeDefined();
+      expect(payload.roundNames).toEqual(roundNames);
+      expect(payload.winnersMatches).toBeUndefined();
+      expect(payload.losersMatches).toBeUndefined();
+      expect(payload.grandFinalMatches).toBeUndefined();
     });
 
     it('should return empty bracketStructure when matches array is empty', async () => {
@@ -259,8 +269,9 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual([]);
-      expect(json.bracketStructure).toEqual([]);
+      const payload = json.data ?? json;
+      expect(payload.matches).toEqual([]);
+      expect(payload.bracketStructure).toEqual([]);
     });
 
     it('should return 500 on database error', async () => {
@@ -537,8 +548,9 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.winnerId).toBe('player-1');
-      expect(json.loserId).toBe('player-2');
+      const data = json.data ?? json;
+      expect(data.winnerId).toBe('player-1');
+      expect(data.loserId).toBe('player-2');
     });
 
     it('should set player2 as winner when score2 >= 3', async () => {
@@ -569,8 +581,9 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.winnerId).toBe('player-2');
-      expect(json.loserId).toBe('player-1');
+      const data = json.data ?? json;
+      expect(data.winnerId).toBe('player-2');
+      expect(data.loserId).toBe('player-1');
     });
 
     it('should advance winner to next match when winnerGoesTo is set', async () => {
@@ -705,8 +718,9 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.isComplete).toBe(true);
-      expect(json.champion).toBe('player-1');
+      const data = json.data ?? json;
+      expect(data.isComplete).toBe(true);
+      expect(data.champion).toBe('player-1');
     });
 
     it('should set tournament complete when grand_final_reset is completed', async () => {
@@ -733,8 +747,9 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.isComplete).toBe(true);
-      expect(json.champion).toBe('player-1');
+      const data = json.data ?? json;
+      expect(data.isComplete).toBe(true);
+      expect(data.champion).toBe('player-1');
     });
 
     it('should return 400 when score1 < 3 and score2 < 3', async () => {
@@ -979,6 +994,244 @@ describe('Finals Route Factory', () => {
         error: expect.any(Error),
         tournamentId: 'tournament-123',
       });
+    });
+  });
+
+  // ============================================================
+  // 16-player bracket support (regression guard)
+  //
+  // These tests pin the behavior added when the factory started
+  // inferring bracket size from match count. Previously the PUT
+  // handler always called generateBracketStructure(8), which
+  // silently broke grand-final (match 30) / grand-final reset
+  // (match 31) handling for 16-player tournaments.
+  // ============================================================
+
+  describe('16-player bracket support', () => {
+    // Minimal 31-match 16-player structure focused on the match
+    // numbers exercised by these tests. Unrelated fields are omitted.
+    const create16PlayerBracketStructure = () => {
+      const matches: any[] = [];
+      for (let i = 1; i <= 31; i++) matches.push({ matchNumber: i });
+      const setRound = (n: number, round: string, extras: any = {}) => {
+        matches[n - 1] = { matchNumber: n, round, ...extras };
+      };
+      // Match 1 (winners_r1) loser → L_R1 match 16
+      setRound(1, 'winners_r1', { winnerGoesTo: 9, loserGoesTo: 16, position: 1 });
+      // Match 9 (winners_qf) loser → L_R2 match 20 (must be position 2 in 16p)
+      setRound(9, 'winners_qf', { winnerGoesTo: 13, loserGoesTo: 20, position: 1 });
+      // Match 30 (grand_final) — WB vs LB winner
+      setRound(30, 'grand_final');
+      // Match 31 (grand_final_reset)
+      setRound(31, 'grand_final_reset');
+      return matches;
+    };
+
+    /* createSuccessResponse wraps the PUT body as { success, data }.
+     * Unwrap here so assertions read against the inner payload. */
+    const unwrapData = (json: any) => json?.data ?? json;
+
+    it('should populate reset match at match 31 when LB winner takes grand final (match 30)', async () => {
+      mockGenerateBracketStructure.mockReturnValue(create16PlayerBracketStructure());
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+
+      const mockMatch = {
+        id: 'match-30',
+        matchNumber: 30,
+        stage: 'finals',
+        round: 'grand_final',
+        player1Id: 'wb-winner',
+        player2Id: 'lb-winner',
+        completed: false,
+      };
+      const resetMatch = { id: 'match-31', matchNumber: 31, round: 'grand_final_reset' };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, completed: true });
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) =>
+        Promise.resolve(args.where?.round === 'grand_final_reset' ? resetMatch : null),
+      );
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        // LB winner (player2) wins → bracket reset
+        body: JSON.stringify({ matchId: 'match-30', score1: 1, score2: 3 }),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      const data = unwrapData(await response.json());
+      // Reset required — tournament is NOT complete yet
+      expect(data.isComplete).toBe(false);
+      expect(data.champion).toBeNull();
+      // Reset match populated with LB winner as player1, WB (previous) as player2
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: resetMatch.id },
+        data: { player1Id: 'lb-winner', player2Id: 'wb-winner' },
+      });
+    });
+
+    it('should end the tournament when WB winner takes grand final (match 30)', async () => {
+      mockGenerateBracketStructure.mockReturnValue(create16PlayerBracketStructure());
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+
+      const mockMatch = {
+        id: 'match-30',
+        matchNumber: 30,
+        stage: 'finals',
+        round: 'grand_final',
+        player1Id: 'wb-winner',
+        player2Id: 'lb-winner',
+        completed: false,
+      };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, completed: true });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(null);
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify({ matchId: 'match-30', score1: 3, score2: 0 }),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      const data = unwrapData(await response.json());
+      expect(data.isComplete).toBe(true);
+      expect(data.champion).toBe('wb-winner');
+    });
+
+    it('should place winners_qf losers at position 2 in 16-player (not parity-based like 8-player)', async () => {
+      mockGenerateBracketStructure.mockReturnValue(create16PlayerBracketStructure());
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+
+      const mockMatch = {
+        id: 'match-9',
+        matchNumber: 9,
+        stage: 'finals',
+        round: 'winners_qf',
+        player1Id: 'player-a',
+        player2Id: 'player-b',
+        completed: false,
+      };
+      const nextLoserMatch = { id: 'match-20', matchNumber: 20 };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, completed: true });
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) =>
+        Promise.resolve(args.where?.matchNumber === 20 ? nextLoserMatch : null),
+      );
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify({ matchId: 'match-9', score1: 3, score2: 0 }),
+      });
+      await PUT(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // In 16-player, QF loser must enter L_R2 as player2
+      // (8-player parity logic would have put match 9 loser at player1).
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id },
+        data: { player2Id: 'player-b' },
+      });
+    });
+
+    it('should route winners_r1 losers with position alternation (16-player only round)', async () => {
+      mockGenerateBracketStructure.mockReturnValue(create16PlayerBracketStructure());
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+
+      const mockMatch = {
+        id: 'match-1',
+        matchNumber: 1,
+        stage: 'finals',
+        round: 'winners_r1',
+        player1Id: 'player-a',
+        player2Id: 'player-b',
+        completed: false,
+      };
+      const nextLoserMatch = { id: 'match-16', matchNumber: 16 };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, completed: true });
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) =>
+        Promise.resolve(args.where?.matchNumber === 16 ? nextLoserMatch : null),
+      );
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify({ matchId: 'match-1', score1: 3, score2: 0 }),
+      });
+      await PUT(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      // Match 1 → L_R1 match 16 at position 1 (parity of matchNumber).
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id },
+        data: { player1Id: 'player-b' },
+      });
+    });
+
+    it('should declare champion when grand_final_reset (match 31) completes', async () => {
+      mockGenerateBracketStructure.mockReturnValue(create16PlayerBracketStructure());
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+
+      const mockMatch = {
+        id: 'match-31',
+        matchNumber: 31,
+        stage: 'finals',
+        round: 'grand_final_reset',
+        player1Id: 'lb-winner',
+        player2Id: 'wb-winner',
+        completed: false,
+      };
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...mockMatch, completed: true });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(null);
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify({ matchId: 'match-31', score1: 3, score2: 1 }),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      const data = unwrapData(await response.json());
+      expect(data.isComplete).toBe(true);
+      expect(data.champion).toBe('lb-winner');
+    });
+
+    it('GET should call generateBracketStructure(16) when tournament has 31 matches', async () => {
+      const bigMatches = Array.from({ length: 31 }, (_, i) => createMockMatch({ matchNumber: i + 1 }));
+      (prisma.bMMatch as any).findMany.mockResolvedValue(bigMatches);
+      /* GET short-circuits with 404 if tournament lookup returns null.
+       * Provide a minimal stub so the handler reaches the bracket-size logic. */
+      (prisma.tournament as any).findUnique.mockResolvedValue({ id: 'tournament-123' });
+
+      const config = createMockConfig({ getStyle: 'simple' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
     });
   });
 });

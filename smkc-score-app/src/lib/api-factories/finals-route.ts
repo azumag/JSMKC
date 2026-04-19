@@ -73,6 +73,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
   const qualModel = (p: any) => p[config.qualificationModel];
 
   /**
+   * Infer the bracket size (8 or 16) from the number of finals matches.
+   *
+   * A 16-player double-elimination bracket has 31 matches, an 8-player bracket
+   * has 17. Without this check, the handlers would hardcode 8 and mis-route
+   * every match in a 16-player tournament — breaking grand-final reset logic
+   * in particular, because match numbers 30/31 (GF / GF reset for 16 players)
+   * would not resolve against an 8-player structure that only covers 1–17.
+   */
+  const inferBracketSize = (matchCount: number): 8 | 16 =>
+    matchCount >= 31 ? 16 : 8;
+
+  /**
    * GET handler: Fetch finals bracket data for a tournament.
    * Response shape depends on config.getStyle.
    */
@@ -109,8 +121,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
           { page, limit, include: { player1: true, player2: true } },
         );
 
-        const bracketStructure = result.data.length > 0
-          ? generateBracketStructure(8)
+        const bracketStructure = result.meta.total > 0
+          ? generateBracketStructure(inferBracketSize(result.meta.total))
           : [];
 
         return createSuccessResponse({
@@ -128,7 +140,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
 
       const bracketStructure = matches.length > 0
-        ? generateBracketStructure(8)
+        ? generateBracketStructure(inferBracketSize(matches.length))
         : [];
 
       if (config.getStyle === 'grouped') {
@@ -322,7 +334,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         include: { player1: true, player2: true },
       });
 
-      if (!match) {
+      /* Guard against cross-stage writes: the finals PUT handler must only
+       * mutate finals matches. Without the stage check, a qualification match
+       * id would trigger bracket-advancement logic against a match that isn't
+       * part of the bracket at all. */
+      if (!match || match.stage !== 'finals') {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
@@ -358,8 +374,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
         include: { player1: true, player2: true },
       });
 
-      /* Bracket progression: advance winner and loser to next matches */
-      const bracketStructure = generateBracketStructure(8);
+      /* Bracket progression: advance winner and loser to next matches.
+       * Determine bracket size (8 vs 16) from the stored match count so that
+       * 16-player tournaments route matches 9–31 correctly — including the
+       * grand-final (30) and grand-final reset (31). Defaulting to 8 here
+       * would leave match numbers above 17 unmatched and silently break
+       * bracket progression, including the bracket-reset rule. */
+      const totalFinalsMatches = await model(prisma).count({
+        where: { tournamentId, stage: 'finals' },
+      });
+      const bracketStructure = generateBracketStructure(
+        inferBracketSize(totalFinalsMatches),
+      );
       const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
       const currentBracketMatch = bracketStructure.find(
         (b) => b.matchNumber === matchNumber,
@@ -421,9 +447,28 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
         });
 
+        /* Loser placement rules mirror getNextMatchInfo in double-elimination.ts.
+         * Must be kept in sync with that file's logic.
+         *
+         * 8-player bracket:
+         *   - winners_qf losers → L_R1 pairs (alternating positions by match parity)
+         *   - winners_sf losers → L_R3 (always position 1)
+         *   - winners_final loser → L_Final (position 2)
+         *
+         * 16-player bracket:
+         *   - winners_r1 losers → L_R1 pairs (alternating positions by match parity)
+         *   - winners_qf losers → L_R2 (always position 2; L_R1 winners take position 1)
+         *   - winners_sf losers → L_R4 (always position 1)
+         *   - winners_final loser → L_Final (position 2)
+         */
+        const is16Player = bracketStructure.length > 17;
         let loserPosition: 1 | 2 = 1;
-        if (currentBracketMatch.round === 'winners_qf') {
+        if (currentBracketMatch.round === 'winners_r1') {
           loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
+        } else if (currentBracketMatch.round === 'winners_qf') {
+          loserPosition = is16Player
+            ? 2
+            : ((((matchNumber - 1) % 2) + 1) as 1 | 2);
         } else if (currentBracketMatch.round === 'winners_sf') {
           loserPosition = 1;
         } else if (currentBracketMatch.round === 'winners_final') {
