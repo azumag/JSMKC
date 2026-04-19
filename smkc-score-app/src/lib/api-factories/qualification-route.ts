@@ -176,17 +176,22 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       }
 
       /*
-       * Collect existing record IDs before DELETE to enable safe delete-first-then-create pattern.
-       * D1 does not support prisma.$transaction, so we collect IDs first, then create new records,
-       * then delete old records by ID (not by tournamentId which would also delete new records).
+       * Delete existing qualification records and matches first to avoid
+       * unique-constraint violations on re-setup (e.g. グループ編集). Without
+       * this, the create calls below collide with existing rows on
+       * MR/BM/GP-Qualification @@unique([tournamentId, playerId]) and
+       * @@unique([tournamentId, matchNumber, stage]) and the request fails with
+       * "Failed to setup ${eventDisplayName}" (matches finals-route.ts pattern
+       * from commit 7c7e57d / TC-504). D1 has no interactive transactions, so
+       * if creation fails afterward the tournament is left without
+       * qualifications — but the alternative (always failing on re-setup)
+       * is worse.
        */
-      const existingQualificationIds = await qualModel(prisma).findMany({
-        where: { tournamentId },
-        select: { id: true },
-      });
-      const existingMatchIds = await matchModel(prisma).findMany({
+      await matchModel(prisma).deleteMany({
         where: { tournamentId, stage: 'qualification' },
-        select: { id: true },
+      });
+      await qualModel(prisma).deleteMany({
+        where: { tournamentId },
       });
 
       /* Create qualification records for each player */
@@ -354,21 +359,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             action: config.auditAction,
           });
         }
-      }
-
-      /*
-       * Delete old records after all creates succeed — preserves new records.
-       * Uses ID-based deletion (not tournamentId) to avoid deleting newly created records.
-       */
-      if (existingQualificationIds.length > 0) {
-        await qualModel(prisma).deleteMany({
-          where: { id: { in: existingQualificationIds.map((q: { id: string }) => q.id) } },
-        });
-      }
-      if (existingMatchIds.length > 0) {
-        await matchModel(prisma).deleteMany({
-          where: { id: { in: existingMatchIds.map((m: { id: string }) => m.id) } },
-        });
       }
 
       return NextResponse.json(

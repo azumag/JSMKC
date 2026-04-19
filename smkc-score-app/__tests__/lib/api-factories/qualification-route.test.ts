@@ -714,6 +714,59 @@ describe('Qualification Route Factory', () => {
       const createCall = (prisma.bMMatch as any).create.mock.calls[0];
       expect(createCall[0].data.assignedCourses).toBeUndefined();
     });
+
+    it('should succeed on re-setup when qualifications already exist (group edit)', async () => {
+      /*
+       * Regression test for "Failed to setup match race" bug.
+       * When a user clicks グループ編集 to re-edit groups, the same playerIds
+       * are submitted again. MRQualification has @@unique([tournamentId, playerId])
+       * and MRMatch has @@unique([tournamentId, matchNumber, stage]), so a
+       * create-before-delete pattern hits a unique-constraint violation and
+       * returns 500. The fix: delete existing records first, then create new ones
+       * (matches the finals-route.ts pattern from commit 7c7e57d / TC-504).
+       */
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+      ];
+
+      (prisma.mRQualification as any).create.mockResolvedValue({ id: 'new-qual' });
+      (prisma.mRQualification as any).deleteMany.mockResolvedValue({ count: 2 });
+      (prisma.mRMatch as any).create.mockResolvedValue({ id: 'new-match' });
+      (prisma.mRMatch as any).deleteMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig({
+        eventTypeCode: 'mr',
+        matchModel: 'mRMatch',
+        qualificationModel: 'mRQualification',
+        eventDisplayName: 'match race',
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      /* Both deletes scoped to tournament must run before any create */
+      expect((prisma.mRQualification as any).deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tournament-123' },
+      });
+      expect((prisma.mRMatch as any).deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: 'tournament-123', stage: 'qualification' },
+      });
+      /* Verify delete-before-create order via mock invocation timing */
+      const qualDeleteOrder = (prisma.mRQualification as any).deleteMany.mock.invocationCallOrder[0];
+      const qualCreateOrder = (prisma.mRQualification as any).create.mock.invocationCallOrder[0];
+      const matchDeleteOrder = (prisma.mRMatch as any).deleteMany.mock.invocationCallOrder[0];
+      const matchCreateOrder = (prisma.mRMatch as any).create.mock.invocationCallOrder[0];
+      expect(qualDeleteOrder).toBeLessThan(qualCreateOrder);
+      expect(matchDeleteOrder).toBeLessThan(matchCreateOrder);
+    });
   });
 
   // ============================================================
