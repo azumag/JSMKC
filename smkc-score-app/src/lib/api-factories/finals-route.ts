@@ -119,8 +119,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
         /* Infer bracket size from total match count:
          * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
          * Use count > 20 as threshold to distinguish.
-         * Use result.total from paginate() to avoid an extra count query. */
-        const bracketSize = (result.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : 8;
+         * Use result.meta.total from paginate() to avoid an extra count query. */
+        const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : 8;
 
         const bracketStructure = result.data.length > 0
           ? generateBracketStructure(bracketSize)
