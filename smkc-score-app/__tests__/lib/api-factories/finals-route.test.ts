@@ -117,6 +117,9 @@ describe('Finals Route Factory', () => {
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     mockSanitizeInput.mockImplementation((input) => input);
 
+    // Default 8-player bracket count (17 matches: 17 <= 20 → bracketSize=8)
+    (prisma.bMMatch as any).count.mockResolvedValue(17);
+
     // Helper to create complete 17-match bracket structure
     // Note: matchNumber 17 is skipped in 8-player bracket, reset is at 18
     const createFullBracketStructure = () => {
@@ -700,6 +703,63 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: nextLoserMatch.id },
         data: { player1Id: 'player-2' },
+      });
+    });
+
+    it('should infer 16-player bracket from totalFinalsMatches count in PUT', async () => {
+      // 16-player bracket has 31 matches (31 > 20 threshold)
+      (prisma.bMMatch as any).count.mockResolvedValue(31);
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(null);
+      (prisma.bMMatch as any).update.mockResolvedValue(null);
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify({ matchId: 'match-1', score1: 3, score2: 1 }),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).count).toHaveBeenCalledWith({
+        where: { tournamentId: 'tournament-123', stage: 'finals' },
+      });
+      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
+    });
+
+    it('should route 16-player QF loser to player2Id (loserPosition=2)', async () => {
+      // In 16-player bracket, QF losers enter L_R2 at position 2
+      const requestBody = createMockRequestBody();
+      const mockMatch = createMockMatch({
+        matchNumber: 1, // winners_qf in 16-player bracket
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      });
+      const nextLoserMatch = createMockMatch({ matchNumber: 10 }); // L_R2 in 16-player
+
+      (prisma.bMMatch as any).count.mockResolvedValue(31); // 16-player bracket
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(nextLoserMatch);
+
+      const config = createMockConfig();
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      // In 16-player QF, loserPosition=2 → player2Id set
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: nextLoserMatch.id },
+        data: { player2Id: 'player-2' },
       });
     });
 
