@@ -220,8 +220,8 @@ export default function GrandPrixPage({
   /* Whether qualification scores are locked by admin confirmation */
   const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
 
-  /* Shared handlers for rank override, TV assignment, and CSV export */
-  const { handleRankOverrideSave, handleTvAssign, handleExport, exporting } =
+  /* Shared handlers for rank override and TV assignment */
+  const { handleRankOverrideSave, handleTvAssign } =
     useQualificationActions({ tournamentId, mode: "gp", refetch });
 
   /**
@@ -501,14 +501,6 @@ export default function GrandPrixPage({
             <Link href={`/tournaments/${tournamentId}/gp/participant`}>
               {tc('enterScore')}
             </Link>
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            {exporting ? tc('exporting') : tc('exportToExcel')}
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}

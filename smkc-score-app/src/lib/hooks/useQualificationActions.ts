@@ -1,22 +1,14 @@
 /**
  * Shared qualification action hooks for BM/MR/GP pages.
  *
- * Extracts the three handler functions that are structurally identical across
- * all 2P qualification pages, differing only in the mode string in the API URL
- * and the CSV filename prefix.
+ * Extracts the handler functions that are structurally identical across
+ * all 2P qualification pages, differing only in the mode string in the API URL.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { createLogger } from "@/lib/client-logger";
 
 type Mode = "bm" | "mr" | "gp";
-
-/** Map mode to human-readable prefix for CSV export filenames */
-const EXPORT_FILENAME_PREFIX: Record<Mode, string> = {
-  bm: "battle-mode",
-  mr: "match-race",
-  gp: "grand-prix",
-};
 
 interface UseQualificationActionsOptions {
   tournamentId: string;
@@ -26,13 +18,12 @@ interface UseQualificationActionsOptions {
 }
 
 /**
- * Returns shared action handlers for rank override, TV assignment, and CSV export.
+ * Returns shared action handlers for rank override and TV assignment.
  * These functions are identical across BM/MR/GP qualification pages.
  */
 export function useQualificationActions({ tournamentId, mode, refetch }: UseQualificationActionsOptions) {
   // Memoize logger so useCallback deps stay referentially stable
   const logger = useMemo(() => createLogger({ serviceName: `tournaments-${mode}` }), [mode]);
-  const [exporting, setExporting] = useState(false);
 
   /**
    * Save rank override for a qualification entry.
@@ -73,33 +64,5 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     }
   }, [tournamentId, mode, refetch, logger]);
 
-  /**
-   * Handle CSV/Excel export.
-   * Downloads the export file via the mode-specific export API endpoint.
-   */
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/${mode}/export`);
-      if (!response.ok) {
-        throw new Error("Failed to export data");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${EXPORT_FILENAME_PREFIX[mode]}-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      logger.error("Failed to export:", { error: err, tournamentId });
-    } finally {
-      setExporting(false);
-    }
-  }, [tournamentId, mode, logger]);
-
-  return { handleRankOverrideSave, handleTvAssign, handleExport, exporting };
+  return { handleRankOverrideSave, handleTvAssign };
 }

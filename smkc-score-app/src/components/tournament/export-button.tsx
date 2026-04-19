@@ -2,18 +2,12 @@
  * ExportButton Component
  *
  * Provides a one-click export action for tournament data. The component
- * fetches a CSV file from the server API and triggers a browser download
- * using a dynamically created anchor element.
+ * fetches the full tournament CSV from the server API and triggers a browser
+ * download using a dynamically created anchor element.
  *
- * Supports exporting either the full tournament or individual competition
- * modes (TA, BM, MR, GP). The API endpoint is constructed based on the
- * selected mode, following the pattern:
- *   - Full export: /api/tournaments/{id}/export
- *   - Mode export: /api/tournaments/{id}/{mode}/export
- *
- * The filename is extracted from the Content-Disposition response header
- * when available, falling back to a generated name based on the tournament
- * name and export mode.
+ * The full tournament export is the single source of truth: per-mode CSV
+ * exports were consolidated into this unified export so operators do not
+ * have to collect multiple files per tournament (see issue #418).
  *
  * Export:
  *   - ExportButton: Named export (the primary component).
@@ -36,10 +30,8 @@ const logger = createLogger({ serviceName: 'export-button' });
  * @property tournamentId - The unique identifier of the tournament to export.
  * @property tournamentName - Human-readable tournament name, used for the
  *   fallback filename. Defaults to "tournament" if not provided.
- * @property mode - Which data to export: "full" for all modes combined,
- *   or a specific mode ("bm", "mr", "gp", "ta"). Defaults to "full".
  * @property children - Optional custom button label. If not provided,
- *   the label is auto-generated (e.g., "Export All" or "Export TA").
+ *   the translated "export all" label is used.
  * @property variant - Button visual variant, passed through to the
  *   underlying Button component. Defaults to "outline".
  * @property size - Button size variant. Defaults to "sm".
@@ -48,7 +40,6 @@ const logger = createLogger({ serviceName: 'export-button' });
 interface ExportButtonProps {
   tournamentId: string;
   tournamentName?: string;
-  mode?: "full" | "bm" | "mr" | "gp" | "ta";
   children?: React.ReactNode;
   variant?: "default" | "outline" | "ghost" | "secondary" | "destructive";
   size?: "default" | "sm" | "lg";
@@ -56,7 +47,7 @@ interface ExportButtonProps {
 }
 
 /**
- * ExportButton - Triggers a file download of tournament data.
+ * ExportButton - Triggers a file download of the full tournament data.
  *
  * The export flow:
  *   1. Fetch the export endpoint as a blob (binary data).
@@ -73,7 +64,6 @@ interface ExportButtonProps {
 export function ExportButton({
   tournamentId,
   tournamentName = "tournament",
-  mode = "full",
   children,
   variant = "outline",
   size = "sm",
@@ -87,16 +77,7 @@ export function ExportButton({
    */
   const handleExport = async () => {
     try {
-      /**
-       * Build the API endpoint based on the export mode.
-       * Full exports use a single endpoint; mode-specific exports
-       * include the mode segment in the URL path.
-       */
-      const endpoint = mode === "full"
-        ? `/api/tournaments/${tournamentId}/export`
-        : `/api/tournaments/${tournamentId}/${mode}/export`;
-
-      const response = await fetch(endpoint);
+      const response = await fetch(`/api/tournaments/${tournamentId}/export`);
 
       if (!response.ok) {
         throw new Error("Failed to export tournament");
@@ -114,15 +95,10 @@ export function ExportButton({
 
       /**
        * Attempt to extract the filename from the Content-Disposition header.
-       * The server may provide a descriptive filename in the format:
-       *   Content-Disposition: attachment; filename="tournament-export.xlsx"
-       *
-       * If the header is absent or unparseable, generate a fallback filename
-       * by sanitizing the tournament name (replacing non-alphanumeric chars
-       * with underscores) and appending the mode and .xlsx extension.
+       * If absent, fall back to a sanitized tournament-name based filename.
        */
       const contentDisposition = response.headers.get("content-disposition");
-      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-${mode}-export.csv`;
+      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.csv`;
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
@@ -146,9 +122,6 @@ export function ExportButton({
     } catch (error) {
       /**
        * Log export failures with structured metadata for debugging.
-       * The error is logged but not re-thrown; the user sees no feedback
-       * beyond the console log. A toast notification could be added here
-       * for better UX in a future iteration.
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error("Export failed", metadata);
@@ -163,8 +136,7 @@ export function ExportButton({
       disabled={disabled}
     >
       <Download className="w-4 h-4 mr-2" />
-      {/* Display custom children label, or use translated export label */}
-      {children || (mode === "full" ? t("exportAll") : `${t("export")} ${mode.toUpperCase()}`)}
+      {children || t("exportAll")}
     </Button>
   );
 }
