@@ -314,16 +314,24 @@ export async function POST(
     /* If dual report is disabled (default), immediately confirm the match */
     if (!(await isDualReportEnabled(tournamentId))) {
       try {
-        const finalMatch = await prisma.gPMatch.update({
-          where: { id: matchId },
-          data: { points1: totalPoints1, points2: totalPoints2, completed: true },
-          include: { player1: true, player2: true },
-        });
+        const finalMatch = await updateWithRetry(prisma, async (tx) =>
+          tx.gPMatch.update({
+            where: { id: matchId, version: updatedMatch.version },
+            data: { points1: totalPoints1, points2: totalPoints2, completed: true, version: { increment: 1 } },
+            include: { player1: true, player2: true },
+          })
+        );
         await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
         await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
         return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
           "Score confirmed (dual report disabled)");
       } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          return createErrorResponse(
+            "This match was updated by someone else. Please refresh and try again.",
+            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          );
+        }
         return handleDatabaseError(error, "match completion");
       }
     }
