@@ -109,13 +109,22 @@ export function createFinalsHandlers(config: FinalsConfig) {
           { page, limit, include: { player1: true, player2: true } },
         );
 
+        /* Infer bracket size from total match count:
+         * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
+         * Use count > 20 as threshold to distinguish. */
+        const totalCount = await model(prisma).count({
+          where: { tournamentId, stage: 'finals' },
+        });
+        const bracketSize = totalCount > 20 ? 16 : 8;
+
         const bracketStructure = result.data.length > 0
-          ? generateBracketStructure(8)
+          ? generateBracketStructure(bracketSize)
           : [];
 
         return createSuccessResponse({
           ...result,
           bracketStructure,
+          bracketSize,
           roundNames,
         });
       }
@@ -127,8 +136,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
+      /* Infer bracket size from match count:
+       * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
+       * Use count > 20 as threshold to distinguish. */
+      const bracketSize = matches.length > 20 ? 16 : 8;
+
       const bracketStructure = matches.length > 0
-        ? generateBracketStructure(8)
+        ? generateBracketStructure(bracketSize)
         : [];
 
       if (config.getStyle === 'grouped') {
@@ -148,6 +162,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           losersMatches,
           grandFinalMatches,
           bracketStructure,
+          bracketSize,
           roundNames,
         });
       }
@@ -156,6 +171,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       return createSuccessResponse({
         matches,
         bracketStructure,
+        bracketSize,
         roundNames,
       });
     } catch (error) {
