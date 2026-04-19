@@ -557,7 +557,7 @@ export default function TAEliminationPhase({
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={fetchData}>{tElim('retry')}</Button>
+            <Button onClick={fetchData}>{tElim('retryLoad')}</Button>
           </CardContent>
         </Card>
       </div>
@@ -678,9 +678,9 @@ export default function TAEliminationPhase({
                       }
                       size="sm"
                       onClick={() => handleRetryToggle(entry.playerId)}
-                      title={tElim('retryPenalty')}
+                      title={tElim('passPenalty')}
                     >
-                      {tElim('retry')}
+                      {tElim('pass')}
                     </Button>
                   </div>
                 ))}
@@ -975,7 +975,7 @@ export default function TAEliminationPhase({
                                   {idx + 1}. {playerNames[result.playerId] || result.playerId}
                                   {result.isRetry && (
                                     <Badge variant="outline" className="ml-1 text-xs">
-                                      {tElim('retry')}
+                                      {tElim('pass')}
                                     </Badge>
                                   )}
                                   {isEliminated && ` (${tElim('eliminated')})`}
