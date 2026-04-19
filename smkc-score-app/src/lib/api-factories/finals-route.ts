@@ -347,6 +347,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
+      /* Defensive: reject non-finals stage to prevent cross-stage bracket mutation.
+       * Qualification matches should never trigger bracket advancement logic. */
+      if (match.stage !== 'finals') {
+        return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+
       const targetWins = config.targetWins ?? 3;
       const player1ReachedTarget = score1 >= targetWins;
       const player2ReachedTarget = score2 >= targetWins;
@@ -379,8 +385,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
         include: { player1: true, player2: true },
       });
 
+      /* Infer bracket size from total finals match count:
+       * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
+       * Threshold of 20 distinguishes between the two (>20 means 16-player).
+       * This ensures correct bracket routing for both sizes in PUT handler. */
+      const totalFinalsMatches = await model(prisma).count({
+        where: { tournamentId, stage: 'finals' },
+      });
+      const bracketSize = totalFinalsMatches > BRACKET_SIZE_THRESHOLD ? 16 : 8;
+
       /* Bracket progression: advance winner and loser to next matches */
-      const bracketStructure = generateBracketStructure(8);
+      const bracketStructure = generateBracketStructure(bracketSize);
       const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
       const currentBracketMatch = bracketStructure.find(
         (b) => b.matchNumber === matchNumber,
@@ -444,7 +459,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         let loserPosition: 1 | 2 = 1;
         if (currentBracketMatch.round === 'winners_qf') {
-          loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
+          /* 16-player: losers from QF enter L_R2 at position 2.
+           * 8-player: uses parity-based calculation ((matchNumber-1)%2 + 1). */
+          loserPosition = bracketSize === 16 ? 2 : (((matchNumber - 1) % 2) + 1) as 1 | 2;
         } else if (currentBracketMatch.round === 'winners_sf') {
           loserPosition = 1;
         } else if (currentBracketMatch.round === 'winners_final') {
