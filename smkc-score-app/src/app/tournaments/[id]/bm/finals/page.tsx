@@ -499,6 +499,7 @@ export default function BattleModeFinals({
       {/* Score Entry Dialog: admin-only */}
       {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent
+          className="sm:max-w-2xl"
           onOpenAutoFocus={(e) => {
             /* Auto-focus the first score input for keyboard usability */
             e.preventDefault();
