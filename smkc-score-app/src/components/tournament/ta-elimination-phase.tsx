@@ -20,7 +20,7 @@
  * - Auto-refresh every 3 seconds for live tournament tracking
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
