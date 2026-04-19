@@ -241,8 +241,9 @@ export function GroupSetupDialog({
          * - Left: player checkbox list with search
          * - Right: selected players with seeding + group assignments
          */}
-        <div className="flex-1 overflow-hidden">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 h-full">
+        {/* On mobile: whole area scrolls; on desktop: each column scrolls independently */}
+        <div className="flex-1 overflow-y-auto md:overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
             {/* Left column: Player selection with search */}
             <div className="flex flex-col min-h-0">
               <h4 className="font-medium mb-2">{tc("player")}</h4>
@@ -286,7 +287,7 @@ export function GroupSetupDialog({
                 </div>
               )}
               {/* Scrollable player list */}
-              <div className="flex-1 overflow-y-auto max-h-[35vh] sm:max-h-[40vh] md:max-h-[50vh] lg:max-h-[55vh] space-y-1">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {filteredPlayers.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-2">
                     {tc("noPlayersSelected")}
@@ -376,7 +377,7 @@ export function GroupSetupDialog({
                 </div>
               )}
               {/* Scrollable selected players list */}
-              <div className="flex-1 overflow-y-auto max-h-[35vh] sm:max-h-[40vh] md:max-h-[50vh] lg:max-h-[55vh] border rounded-lg">
+              <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
                 {setupPlayers.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4 text-center">
                     {tc("noPlayersSelected")}
