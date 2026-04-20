@@ -2,6 +2,12 @@ import prisma from "@/lib/prisma";
 
 export const TOURNAMENT_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * UUID v4 pattern: 8-4-4-4-12 hex digits (uppercase allowed).
+ * Allows UUID-format tournament IDs to pass validation fallback.
+ */
+const UUID_REGEX = /^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}$/;
+
 export function normalizeTournamentSlug(slug: unknown): string | null | undefined {
   if (slug === undefined) return undefined;
   if (slug === null) return null;
@@ -12,7 +18,7 @@ export function normalizeTournamentSlug(slug: unknown): string | null | undefine
 }
 
 export function isValidTournamentSlug(slug: string): boolean {
-  return TOURNAMENT_SLUG_REGEX.test(slug);
+  return TOURNAMENT_SLUG_REGEX.test(slug) || UUID_REGEX.test(slug);
 }
 
 export async function resolveTournamentId(identifier: string): Promise<string> {
