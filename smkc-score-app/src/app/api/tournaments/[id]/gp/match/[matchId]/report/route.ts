@@ -351,7 +351,14 @@ export async function POST(
       const p2Races = updatedMatch.player2ReportedRaces;
 
       /* Check if race data also matches when both players have reported races */
-      if (p1Races != null && p2Races != null && JSON.stringify(p1Races) !== JSON.stringify(p2Races)) {
+      const racesMatch =
+        p1Races.length === p2Races.length &&
+        p1Races.every((race, i) =>
+          race.course === p2Races[i].course &&
+          race.position1 === p2Races[i].position1 &&
+          race.position2 === p2Races[i].position2
+        );
+      if (!racesMatch) {
         return createErrorResponse(
           "Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.",
           409, "RACE_DATA_MISMATCH", {

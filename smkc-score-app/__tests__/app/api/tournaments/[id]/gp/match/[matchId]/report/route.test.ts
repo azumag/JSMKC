@@ -360,7 +360,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       }, 'Score reported but mismatch detected - awaiting admin review');
     });
 
-    // Success case - Race data mismatch when scores match but races differ
+    // Error case - Race data mismatch when scores match but races differ
     it('should return 409 RACE_DATA_MISMATCH when scores match but race data differs', async () => {
       const mockMatch = {
         id: 'm1',
