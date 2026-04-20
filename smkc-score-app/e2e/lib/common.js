@@ -173,27 +173,36 @@ function snakeDraft28(playerIds) {
   });
 }
 
+/* ───────── Browser launch environment setup ───────── */
+/**
+ * Create isolated browser environment with crashpad disabled.
+ * Creates temp directories for HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME.
+ * This prevents the admin's persistent browser profile from being corrupted.
+ */
+function createBrowserLaunchEnv() {
+  const baseHome = process.env.E2E_BROWSER_HOME || path.join(os.tmpdir(), 'playwright-e2e-home');
+  const configHome = path.join(baseHome, '.config');
+  const cacheHome = path.join(baseHome, '.cache');
+  for (const dir of [baseHome, configHome, cacheHome]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return {
+    ...process.env,
+    HOME: baseHome,
+    XDG_CONFIG_HOME: configHome,
+    XDG_CACHE_HOME: cacheHome,
+  };
+}
+
 /* ───────── Player credentials login (separate browser context) ─────────
  * Use a fresh non-persistent browser so the admin's persistent profile stays
  * untouched. Caller must close the returned browser. */
 
 async function loginPlayerBrowser(nickname, password) {
-  const baseHome = process.env.E2E_BROWSER_HOME || path.join(os.tmpdir(), 'playwright-e2e-home');
-  const configHome = path.join(baseHome, '.config');
-  const cacheHome = path.join(baseHome, '.cache');
-  const appSupportHome = path.join(baseHome, 'Library', 'Application Support');
-  for (const dir of [baseHome, configHome, cacheHome, appSupportHome]) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
   const browser = await chromium.launch({
     headless: false,
     args: ['--disable-crash-reporter', '--disable-crashpad'],
-    env: {
-      ...process.env,
-      HOME: baseHome,
-      XDG_CONFIG_HOME: configHome,
-      XDG_CACHE_HOME: cacheHome,
-    },
+    env: createBrowserLaunchEnv(),
   });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   installApiLogging(context, 'player');
@@ -979,6 +988,7 @@ module.exports = {
   snakeDraft28,
   /* player browser */
   loginPlayerBrowser,
+  createBrowserLaunchEnv,
   /* retry */
   withRetry,
   /* BM */
