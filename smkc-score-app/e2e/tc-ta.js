@@ -4,6 +4,7 @@
  * Coverage:
  *   TC-801  28-player qualification fill — all 20 courses per player, server-
  *           computed ranks are 1..28 and scoring output is present.
+ *   TC-802  Player login + TA participant time entry persists.
  *   TC-804  Promote to Phase 1 — ranks 17-24 (8 players) move to phase1 stage.
  *   TC-805  Remove a mistaken TA qualification player via UI.
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
@@ -20,6 +21,7 @@ const {
   makeResults, makeLog, nav,
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
   apiActivateTournament, apiAddTaEntries,
+  apiGetTtEntry, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
   setupTa28PlayerQual, apiSeedTtEntry, makeTaTimesForRank,
 } = require('./lib/common');
@@ -58,6 +60,85 @@ async function runTc801(adminPage) {
     log('TC-801', 'FAIL', err instanceof Error ? err.message : 'TA 801 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-802: Player login + TA participant time entry ─────────
+ * Verifies a player can sign in, open /ta/participant, submit a qualification
+ * time from the UI, and the value persists in the TT entry API. */
+async function runTc802(adminPage) {
+  let player = null;
+  let tournamentId = null;
+  let entryId = null;
+  let playerBrowser = null;
+  const stamp = Date.now();
+  const targetTime = '1:23.45';
+  const targetTimeMs = 83450;
+
+  const cleanup = async () => {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    await apiDeleteTournament(adminPage, tournamentId);
+    await apiDeletePlayer(adminPage, player?.id);
+  };
+
+  try {
+    player = await apiCreatePlayer(
+      adminPage,
+      'E2E TA 802 Player',
+      `e2e_ta802_${stamp}`,
+    );
+    tournamentId = await apiCreateTournament(
+      adminPage,
+      `E2E TA 802 ${stamp}`,
+      { dualReportEnabled: false },
+    );
+    await apiActivateTournament(adminPage, tournamentId);
+
+    const add = await apiAddTaEntries(adminPage, tournamentId, {
+      playerEntries: [{ playerId: player.id, seeding: 1 }],
+    });
+    entryId = add.b?.data?.entries?.[0]?.id ?? null;
+    if (add.s !== 201 || !entryId) {
+      throw new Error(`TA add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
+    }
+
+    const ctx = await loginPlayerBrowser(player.nickname, player.password);
+    playerBrowser = ctx.browser;
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
+
+    const firstTimeInput = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
+    await firstTimeInput.waitFor({ timeout: 15000 });
+    const inputDisabled = await firstTimeInput.isDisabled().catch(() => true);
+    if (inputDisabled) throw new Error('TA participant time input is disabled before knockout');
+
+    await firstTimeInput.fill(targetTime);
+    await ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).click();
+
+    let persisted = false;
+    let observed = '';
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      const current = await apiGetTtEntry(adminPage, tournamentId, entryId);
+      const data = current.b?.data ?? {};
+      const times = data.times ?? {};
+      const values = Object.values(times).map((value) => String(value || ''));
+      const hasExactValue = values.some((value) => value === targetTime);
+      const hasTotalTime = data.totalTime === targetTimeMs;
+      if (hasExactValue || hasTotalTime) {
+        persisted = true;
+        observed = hasExactValue ? targetTime : `totalTime=${data.totalTime}`;
+        break;
+      }
+      observed = values.find(Boolean) || `totalTime=${data.totalTime ?? 'none'}`;
+      await ctx.page.waitForTimeout(1000);
+    }
+
+    log('TC-802', persisted ? 'PASS' : 'FAIL',
+      persisted ? observed : `submitted time not persisted (observed: ${observed || 'empty'})`);
+  } catch (err) {
+    log('TC-802', 'FAIL', err instanceof Error ? err.message : 'TA 802 failed');
+  } finally {
+    await cleanup();
   }
 }
 
@@ -497,6 +578,7 @@ if (require.main === module) {
     log,
     tests: [
       { name: 'TC-801', fn: runTc801 },
+      { name: 'TC-802', fn: runTc802 },
       { name: 'TC-804', fn: runTc804 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-806', fn: runTc806 },

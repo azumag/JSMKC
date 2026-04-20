@@ -12,6 +12,9 @@
  *   internally if setup throws partway through, so partial state never leaks.
  */
 const { chromium } = require('playwright');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const NAV_WAIT_MS = 8000;
@@ -170,12 +173,37 @@ function snakeDraft28(playerIds) {
   });
 }
 
+/* ───────── Browser launch environment setup ───────── */
+/**
+ * Create isolated browser environment with crashpad disabled.
+ * Creates temp directories for HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME.
+ * This prevents the admin's persistent browser profile from being corrupted.
+ */
+function createBrowserLaunchEnv() {
+  const baseHome = process.env.E2E_BROWSER_HOME || path.join(os.tmpdir(), 'playwright-e2e-home');
+  const configHome = path.join(baseHome, '.config');
+  const cacheHome = path.join(baseHome, '.cache');
+  for (const dir of [baseHome, configHome, cacheHome]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return {
+    ...process.env,
+    HOME: baseHome,
+    XDG_CONFIG_HOME: configHome,
+    XDG_CACHE_HOME: cacheHome,
+  };
+}
+
 /* ───────── Player credentials login (separate browser context) ─────────
  * Use a fresh non-persistent browser so the admin's persistent profile stays
  * untouched. Caller must close the returned browser. */
 
 async function loginPlayerBrowser(nickname, password) {
-  const browser = await chromium.launch({ headless: false });
+  const browser = await chromium.launch({
+    headless: false,
+    args: ['--disable-crash-reporter', '--disable-crashpad'],
+    env: createBrowserLaunchEnv(),
+  });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   installApiLogging(context, 'player');
   const page = await context.newPage();
@@ -960,6 +988,7 @@ module.exports = {
   snakeDraft28,
   /* player browser */
   loginPlayerBrowser,
+  createBrowserLaunchEnv,
   /* retry */
   withRetry,
   /* BM */
