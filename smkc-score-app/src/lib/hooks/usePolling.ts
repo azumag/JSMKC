@@ -36,6 +36,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { POLLING_INTERVAL } from '@/lib/constants';
 
+/** TTL for cached polling entries: 30 minutes */
+const POLLING_CACHE_TTL_MS = 30 * 60 * 1000;
+
+/** Maximum number of entries in the polling cache */
+const POLLING_CACHE_MAX_SIZE = 20;
+
+/** Cache entry with timestamp for TTL tracking */
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
 /**
  * Module-level LRU cache for persisting polling data across component
  * unmount/remount cycles. When a component using usePolling unmounts
@@ -50,6 +62,7 @@ import { POLLING_INTERVAL } from '@/lib/constants';
  * Max size is capped to prevent unbounded memory growth during long
  * sessions (e.g., admin browsing many tournaments). When the limit is
  * reached, the oldest entry is evicted (Map preserves insertion order).
+ * Entries also expire after POLLING_CACHE_TTL_MS (30 minutes).
  */
 const pollingCache = new Map<string, CacheEntry>();
 
