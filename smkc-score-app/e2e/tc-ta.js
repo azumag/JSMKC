@@ -240,7 +240,11 @@ async function runTc805(adminPage) {
       await adminPage.waitForTimeout(1000);
     }
 
-    await adminPage.getByRole('button', { name: /プレイヤー追加|Add Player/ }).click();
+    /* Unified TA setup dialog replaced the separate "Add Player" dialog;
+     * the trigger label toggles Setup↔Edit based on whether any roster rows exist. */
+    await adminPage.getByRole('button', {
+      name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+    }).click();
     await adminPage.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
     // Use rowFor to scope to the table row, avoiding the toast notification
     // which also contains the player nickname

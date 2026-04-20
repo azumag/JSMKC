@@ -943,26 +943,31 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players) {
   await page.waitForTimeout(1000);
 }
 
-/** UI-based TA qualification entry addition.
- *  - Navigates to /tournaments/[id]/ta
- *  - Opens the "Add Player" dialog (admin-only)
- *  - Per-player search-and-check so only the intended targets are selected
- *    (the dialog loads every registered player, not just tournament entrants)
- *  - Clicks "Add Selected Players" and waits for POST 201
- *  The dialog has no seeding input; callers who need seeding must follow up
- *  with apiUpdateTaSeeding per entry. */
-async function uiAddPlayersToTa(page, tournamentId, players) {
+/** UI-based TA qualification roster setup.
+ *  Drives the unified "Setup Players / Edit Players" dialog on /ta:
+ *   - Opens the dialog (admin-only; trigger labelled 'Setup Players' when the
+ *     roster is empty, 'Edit Players' once entries exist — both covered).
+ *   - Left column: per-player search + checkbox to include in the roster.
+ *   - Right column: seeding input per selected entry. When `players[i].seeding`
+ *     is a number, we fill it; otherwise the entry is left unranked.
+ *   - Clicks Save. Internally the page sequences DELETE/POST/PUT calls to
+ *     reconcile state, so we wait on the dialog hiding rather than pinning a
+ *     single response.
+ *  Accepts `players: Array<{ id, name, nickname, seeding? }>`. */
+async function uiSetupTaPlayers(page, tournamentId, players) {
   await nav(page, `/tournaments/${tournamentId}/ta`);
-  const trigger = page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
+  const trigger = page.getByRole('button', {
+    name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+  }).first();
   await trigger.click();
 
   const dialog = page.getByRole('dialog').filter({
-    hasText: /Add Players to Time Trial|タイムアタックにプレイヤー追加/,
+    hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
   }).first();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
 
-  /* Check each player individually via search+nickname label so we only
-   * select the intended players even if the global player pool has more. */
+  /* Left column: search + check each target player. Search resets the visible
+   * list; state persists across filters (React-managed). */
   const search = dialog.getByPlaceholder(/Search players|プレイヤーを検索/);
   for (const player of players) {
     await search.fill(player.nickname);
@@ -971,24 +976,31 @@ async function uiAddPlayersToTa(page, tournamentId, players) {
     await dialog.getByLabel(label).check();
   }
   await search.fill('');
+  await page.waitForTimeout(200);
 
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/ta`) &&
-    res.request().method() === 'POST',
-  );
-  await dialog.getByRole('button', { name: /Add Selected Players|選択したプレイヤーを追加/ }).click();
-  const response = await responsePromise;
-  const body = await response.json().catch(() => ({}));
-  if (response.status() !== 201) {
-    throw new Error(`UI TA add players failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+  /* Right column: seeding inputs. Each selected entry renders one number
+   * input with aria-label `${nickname} seeding`. Targeting by aria-label
+   * survives the dialog's seeding-asc re-sort on each keystroke. */
+  for (const player of players) {
+    if (typeof player.seeding !== 'number') continue;
+    const input = dialog.getByLabel(`${player.nickname} seeding`);
+    await input.fill(String(player.seeding));
   }
-  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-  /* Let the TA page settle after the dialog closes. usePolling triggers a
-   * refetch on mount/update that can tear down the execution context in the
-   * subsequent page.evaluate calls ("Failed to fetch"), so wait a beat. */
+
+  /* Dialog save button text: "Save" (EN) / "保存" (JA). */
+  const saveButton = dialog.getByRole('button', { name: /^(Save|保存)$/ });
+  await saveButton.click();
+
+  /* Save fires a sequence of DELETE/POST/PUT calls then closes the dialog.
+   * Wait for the dialog to hide as the completion signal, then let the TA
+   * page settle before the next page.evaluate. */
+  await dialog.waitFor({ state: 'hidden', timeout: 60000 });
   await page.waitForTimeout(1000);
-  return body;
 }
+
+/** Back-compat alias. Older callers import `uiAddPlayersToTa`; the underlying
+ *  flow is now the unified setup dialog, which also accepts seeding. */
+const uiAddPlayersToTa = uiSetupTaPlayers;
 
 /** Open the admin match dialog by clicking the first remaining "Enter Score"
  *  button on the current mode's /matches tab. Returns a boolean indicating
@@ -1229,7 +1241,9 @@ async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = 
 
   await apiActivateTournament(adminPage, tournamentId);
 
-  /* Reset entries so re-running on a reused tournament lands on a clean slate. */
+  /* Reset entries so re-running on a reused tournament lands on a clean slate.
+   * The setup dialog itself diffs against the server state, but starting from
+   * an empty roster keeps the dialog interactions (search/check) deterministic. */
   const existing = await apiFetchTa(adminPage, tournamentId);
   const existingEntries = existing.b?.data?.entries ?? [];
   for (const entry of existingEntries) {
@@ -1243,7 +1257,10 @@ async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = 
     }
   }
 
-  await uiAddPlayersToTa(adminPage, tournamentId, players);
+  /* Drive the unified setup dialog with seeding 1..N pre-assigned so we no
+   * longer need a follow-up apiUpdateTaSeeding loop. */
+  const playersWithSeeding = players.map((p, i) => ({ ...p, seeding: i + 1 }));
+  await uiSetupTaPlayers(adminPage, tournamentId, playersWithSeeding);
 
   const taAfter = await apiFetchTa(adminPage, tournamentId);
   const addedEntries = taAfter.b?.data?.entries ?? [];
@@ -1253,18 +1270,11 @@ async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = 
   for (let i = 0; i < players.length; i++) {
     const row = entriesByPlayerId.get(players[i].id);
     if (!row) throw new Error(`TA entry missing for player ${players[i].nickname}`);
-    const rank = i + 1;
-    /* Seeding stays API-only — no bulk seeding UI, and seeding is admin
-     * metadata rather than a scored/entered result. */
-    const seedRes = await apiUpdateTaSeeding(adminPage, tournamentId, row.id, rank);
-    if (seedRes.s !== 200) {
-      throw new Error(`TA seeding update failed (${seedRes.s}) entry=${row.id}`);
-    }
     entries.push({
       entryId: row.id,
       playerId: players[i].id,
       nickname: players[i].nickname,
-      rank,
+      rank: i + 1,
     });
   }
 
@@ -1422,6 +1432,7 @@ module.exports = {
   /* UI helpers */
   uiCreatePlayer,
   uiAddPlayersToTa,
+  uiSetupTaPlayers,
   setupModePlayersViaUi,
   uiPutAllBmQualScores,
   uiPutAllMrQualScores,

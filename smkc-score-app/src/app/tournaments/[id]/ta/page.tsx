@@ -157,7 +157,6 @@ export default function TimeAttackPage({
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [isAddPlayerDialogOpen, setIsAddPlayerDialogOpen] = useState(false);
   const [isTimeEntryDialogOpen, setIsTimeEntryDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TTEntry | null>(null);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
@@ -166,11 +165,19 @@ export default function TimeAttackPage({
   const [entryToRemove, setEntryToRemove] = useState<TTEntry | null>(null);
   const [removingEntryId, setRemovingEntryId] = useState<string | null>(null);
 
-  // Pair management dialog state (admin only, §3.1)
-  const [isPairDialogOpen, setIsPairDialogOpen] = useState(false);
-  const [pairAssigning, setPairAssigning] = useState(false);
-  // Pending pair overrides: entryId -> partnerId (null = clear partner)
-  const [pairOverrides, setPairOverrides] = useState<Record<string, string | null>>({});
+  /*
+   * Unified "Setup / Edit Players" dialog (admin-only). Replaces the former
+   * separate "Add Player" + "Manage Pairs" dialogs so player roster, seeding,
+   * and pair partners are all configured in one place — matching BM/MR/GP's
+   * group setup dialog pattern. On open, setupEntries is pre-populated from
+   * the current qualification entries so unchecking removes and checking adds.
+   */
+  const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
+  const [setupEntries, setSetupEntries] = useState<Array<{
+    playerId: string;
+    seeding?: number;
+    partnerId?: string | null;
+  }>>([]);
 
   // View-only dialog state: opened when non-admin/non-owner clicks "View Times"
   const [isViewTimesDialogOpen, setIsViewTimesDialogOpen] = useState(false);
@@ -179,74 +186,11 @@ export default function TimeAttackPage({
   // Course rankings accordion state: tracks which courses are expanded
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
 
-  // Bulk player add: track selected player IDs and search query for filtering
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  // Search query used inside the unified setup dialog
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
   // Development-only flag: inlined at build time, tree-shaken in production
   const isDevelopment = process.env.NODE_ENV === 'development';
-
-  // === Pair Management (§3.1) ===
-
-  /** Call the existing set_partner API for a single entry */
-  const setPartner = async (entryId: string, partnerId: string | null) => {
-    const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entryId, action: "set_partner", partnerId }),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || t('pairSaveError'));
-    }
-  };
-
-  /** Apply all pending pair overrides and persist to API */
-  const handleSavePairs = async () => {
-    if (pairAssigning) return;
-    setPairAssigning(true);
-    try {
-      // Sequential execution: partner assignments are reciprocal (A↔B),
-      // so concurrent writes could race on the same records.
-      for (const [entryId, partnerId] of Object.entries(pairOverrides)) {
-        await setPartner(entryId, partnerId);
-      }
-      setPairOverrides({});
-      setIsPairDialogOpen(false);
-      refetch();
-      toast.success(t('pairsSaved'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('pairSaveError'));
-    } finally {
-      setPairAssigning(false);
-    }
-  };
-
-  /** Compute snake pairs from qualification entries and populate overrides state */
-  const handleAutoPair = () => {
-    const qualEntries = entries.filter(e => e.stage === "qualification");
-    // Adapt TTEntry to PairPlayer shape: seeding is on the entry itself (per-tournament)
-    const pairPlayers = qualEntries.map(e => ({
-      id: e.id,
-      playerId: e.playerId,
-      seeding: e.seeding,
-    }));
-    const rawPairs = computeAutoPairs(pairPlayers);
-    // Re-map pair player ids back to full TTEntry objects
-    const pairs = rawPairs.map(([a, b]) => [
-      qualEntries.find(e => e.id === a.id)!,
-      qualEntries.find(e => e.id === b.id)!,
-    ] as [TTEntry, TTEntry]);
-    const overrides: Record<string, string | null> = {};
-    // Clear all existing partners first
-    qualEntries.forEach(e => { overrides[e.id] = null; });
-    // Set new snake pairs bidirectionally
-    pairs.forEach(([a, b]) => {
-      overrides[a.id] = b.playerId;
-      overrides[b.id] = a.playerId;
-    });
-    setPairOverrides(overrides);
-  };
 
   // Fill random times for all courses in the single-player time entry dialog
   const handleFillRandomTimes = () => {
@@ -359,6 +303,166 @@ export default function TimeAttackPage({
     toast.info(t('qualificationRegistrationLocked'));
   };
 
+  // === Unified Setup Dialog (§3.1 pair management + player roster) ===
+
+  /**
+   * Open the setup dialog, seeding local setupEntries from the current
+   * qualification roster so user edits are diffed against the server state
+   * when they click Save.
+   */
+  const openSetupDialog = useCallback(() => {
+    const qualEntries = entries.filter((e) => e.stage === "qualification");
+    setSetupEntries(
+      qualEntries.map((e) => ({
+        playerId: e.playerId,
+        seeding: e.seeding ?? undefined,
+        partnerId: e.partnerId ?? null,
+      })),
+    );
+    setSaveError(null);
+    setPlayerSearchQuery("");
+    setIsSetupDialogOpen(true);
+  }, [entries]);
+
+  /**
+   * Compute snake pairs from the current setupEntries (local dialog state)
+   * and apply them in-place. Operates on the in-flight dialog state rather
+   * than the server so the admin can preview/adjust before saving.
+   */
+  const handleAutoPair = () => {
+    // Only pair entries that have seeding set; entries without seeding stay unpaired.
+    const pairPlayers = setupEntries
+      .filter((s) => typeof s.seeding === "number")
+      .map((s) => ({ id: s.playerId, playerId: s.playerId, seeding: s.seeding ?? null }));
+    const rawPairs = computeAutoPairs(pairPlayers);
+    const partnerMap = new Map<string, string>();
+    rawPairs.forEach(([a, b]) => {
+      partnerMap.set(a.playerId, b.playerId);
+      partnerMap.set(b.playerId, a.playerId);
+    });
+    setSetupEntries((prev) =>
+      prev.map((s) => ({ ...s, partnerId: partnerMap.get(s.playerId) ?? null })),
+    );
+  };
+
+  /**
+   * Diff setupEntries against the current qualification roster and persist.
+   * Order matters: deletions first, then bulk adds (with seeding), then
+   * per-entry seeding + partner updates so the server's row set matches
+   * the final dialog state when we refetch.
+   */
+  const handleSaveSetup = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const existing = entries.filter((e) => e.stage === "qualification");
+      const existingByPlayerId = new Map(existing.map((e) => [e.playerId, e]));
+      const setupByPlayerId = new Map(setupEntries.map((s) => [s.playerId, s]));
+
+      /* 1. Delete entries that were unchecked. Sequential to avoid hammering D1. */
+      for (const e of existing) {
+        if (setupByPlayerId.has(e.playerId)) continue;
+        const res = await fetch(
+          `/api/tournaments/${tournamentId}/ta?entryId=${e.id}`,
+          { method: "DELETE" },
+        );
+        if (!res.ok && res.status !== 404) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Failed to remove ${e.player.nickname}`);
+        }
+      }
+
+      /* 2. Add newly-checked players via the batch endpoint (supports seeding). */
+      const toAdd = setupEntries.filter((s) => !existingByPlayerId.has(s.playerId));
+      if (toAdd.length > 0) {
+        const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            playerEntries: toAdd.map((s) => ({
+              playerId: s.playerId,
+              ...(typeof s.seeding === "number" ? { seeding: s.seeding } : {}),
+            })),
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to add players");
+        }
+      }
+
+      /* 3. Re-fetch so we have entry ids for anything just added, then
+       * reconcile seeding + partner per entry. */
+      const refreshed = await fetchWithRetry(
+        `/api/tournaments/${tournamentId}/ta?stage=qualification`,
+      );
+      if (!refreshed.ok) throw new Error("Failed to refetch TA entries");
+      const refreshedJson = await refreshed.json();
+      const refreshedEntries: TTEntry[] =
+        (refreshedJson.data ?? refreshedJson).entries ?? [];
+      const refreshedByPlayerId = new Map(
+        refreshedEntries.map((e) => [e.playerId, e]),
+      );
+
+      for (const s of setupEntries) {
+        const entry = refreshedByPlayerId.get(s.playerId);
+        if (!entry) continue;
+
+        /* Update seeding only when it actually changes. `undefined` on the
+         * setup side clears seeding back to null. */
+        const desiredSeeding = typeof s.seeding === "number" ? s.seeding : null;
+        if (desiredSeeding !== entry.seeding) {
+          const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entryId: entry.id,
+              action: "update_seeding",
+              seeding: desiredSeeding,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(
+              err.error || `Failed to update seeding for ${entry.player.nickname}`,
+            );
+          }
+        }
+
+        const desiredPartnerId = s.partnerId ?? null;
+        if (desiredPartnerId !== (entry.partnerId ?? null)) {
+          const res = await fetch(`/api/tournaments/${tournamentId}/ta`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entryId: entry.id,
+              action: "set_partner",
+              partnerId: desiredPartnerId,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(
+              err.error || `Failed to update partner for ${entry.player.nickname}`,
+            );
+          }
+        }
+      }
+
+      setIsSetupDialogOpen(false);
+      refetch();
+      toast.success(t("pairsSaved"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Save failed";
+      setSaveError(msg);
+      toast.error(msg);
+      logger.error("Failed to save setup:", { error: err, tournamentId });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Check if qualification entries exist in each phase's rank range.
   // This directly mirrors the backend's getQualificationPlayersByRank checks.
   // If no players are ranked in a phase's range, that phase can be skipped.
@@ -451,38 +555,6 @@ export default function TimeAttackPage({
   };
 
   // === Event Handlers ===
-
-  /** Add multiple selected players to the qualification round in batch.
-   *  Uses the existing batch API endpoint (players: string[]) for efficiency. */
-  const handleAddPlayers = async () => {
-    if (selectedPlayerIds.length === 0) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ players: selectedPlayerIds, action: "add" }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to add players");
-      }
-
-      // Reset dialog state on success
-      setIsAddPlayerDialogOpen(false);
-      setSelectedPlayerIds([]);
-      setPlayerSearchQuery("");
-      refetch();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to add players";
-      logger.error("Failed to add players:", { error: err, tournamentId });
-      setSaveError(errorMessage);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   /** Open the time entry dialog for a specific player */
   const openTimeEntryDialog = (entry: TTEntry) => {
@@ -611,21 +683,22 @@ export default function TimeAttackPage({
     return Object.values(entry.times).filter((t) => t && t !== "").length;
   };
 
-  /** Filter to players not yet added to this tournament's TA qualification */
-  const availablePlayers = allPlayers.filter(
-    (p) => !entries.find((e) => e.playerId === p.id)
-  );
-
-  /** Players filtered by search query for the add-player dialog (case-insensitive partial match) */
-  const filteredPlayers = availablePlayers.filter((p) => {
+  /** Players filtered by search query for the setup dialog (case-insensitive partial match) */
+  const filteredPlayers = allPlayers.filter((p) => {
     if (!playerSearchQuery) return true;
     const q = playerSearchQuery.toLowerCase();
     return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
   });
 
-  /** Whether all currently visible (filtered) players are selected */
+  /** Set of playerIds currently included in the setup (drives checkbox state) */
+  const setupPlayerIdSet = new Set(setupEntries.map((s) => s.playerId));
+
+  /** Whether all currently visible (filtered) players are already in the setup */
   const allFilteredSelected = filteredPlayers.length > 0 &&
-    filteredPlayers.every((p) => selectedPlayerIds.includes(p.id));
+    filteredPlayers.every((p) => setupPlayerIdSet.has(p.id));
+
+  /** Has the qualification roster been initialized (controls Setup vs Edit label)? */
+  const hasQualificationRoster = entries.some((e) => e.stage === "qualification");
 
   /* Show error state if the first fetch fails and there's no cached data.
      Must be checked before the skeleton to avoid permanent loading on error. */
@@ -711,232 +784,284 @@ export default function TimeAttackPage({
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
-          {/* Pair Management Dialog: admin-only, §3.1 pair running assignment */}
-          {isAdmin && entries.filter(e => e.stage === "qualification").length >= 2 && (
-            <Dialog open={isPairDialogOpen} onOpenChange={(open) => {
-              setIsPairDialogOpen(open);
-              if (!open) setPairOverrides({});
-            }}>
+          {/*
+           * Unified Setup / Edit Players dialog.
+           * Single admin entry point for: roster selection, seeding input,
+           * and partner assignment. Matches BM/MR/GP's group setup dialog so
+           * TA no longer has separate "Add Player" + "Manage Pairs" flows.
+           */}
+          {isAdmin && (
+            <Dialog
+              open={isSetupDialogOpen}
+              onOpenChange={(open) => {
+                if (qualificationRegistrationLocked && open) return;
+                if (open) {
+                  openSetupDialog();
+                } else {
+                  setIsSetupDialogOpen(false);
+                  setSaveError(null);
+                  setPlayerSearchQuery("");
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button variant="outline">
-                  {t('managePairs')}
+                <Button
+                  variant={hasQualificationRoster ? "outline" : "default"}
+                  className={`w-full sm:w-auto ${qualificationRegistrationLocked ? "cursor-not-allowed opacity-50" : ""}`}
+                  aria-disabled={qualificationRegistrationLocked}
+                  title={qualificationRegistrationLocked ? t("qualificationRegistrationLocked") : undefined}
+                  onClick={(event) => {
+                    if (!qualificationRegistrationLocked) return;
+                    event.preventDefault();
+                    showQualificationRegistrationLockedToast();
+                  }}
+                >
+                  {hasQualificationRoster ? t("editPlayers") : t("setupPlayers")}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[min(95vw,1400px)] max-h-[85vh] overflow-hidden flex flex-col">
+              <DialogContent className="w-[calc(100vw-2rem)] sm:w-[calc(100vw-4rem)] md:w-[max-content] lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-5 md:p-6">
                 <DialogHeader>
-                  <DialogTitle>{t('managePairsTitle')}</DialogTitle>
-                  <DialogDescription>{t('managePairsDesc')}</DialogDescription>
+                  <DialogTitle>
+                    {hasQualificationRoster ? t("editPlayersTitle") : t("setupPlayersTitle")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {hasQualificationRoster ? t("editPlayersDesc") : t("setupPlayersDesc")}
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-2 overflow-y-auto flex-1">
-                  <Button variant="outline" size="sm" onClick={handleAutoPair}>
-                    {t('autoPair')}
-                  </Button>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{tc('player')}</TableHead>
-                        <TableHead>{t('ttSeedingLabel')}</TableHead>
-                        <TableHead>{t('partner')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(() => {
-                        // Compute once outside map to avoid O(N²) repeated filter calls
-                        const qualEntries = entries.filter(e => e.stage === "qualification");
-                        return qualEntries
-                        .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
-                        .map(entry => {
-                          const effectivePartnerId = entry.id in pairOverrides
-                            ? pairOverrides[entry.id]
-                            : entry.partnerId;
-                          return (
-                            <TableRow key={entry.id}>
-                              <TableCell className="font-medium">{entry.player.nickname}</TableCell>
-                              <TableCell>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                  defaultValue={entry.seeding ?? ""}
-                                  onBlur={async (ev) => {
-                                    const val = ev.target.value;
-                                    const parsed = parseInt(val, 10);
-                                    const newSeeding = val && !Number.isNaN(parsed) && parsed >= 1 ? parsed : null;
-                                    if (newSeeding === entry.seeding) return; // no change
-                                    // Persist to server, then refetch to update UI
-                                    await fetchWithRetry(`/api/tournaments/${tournamentId}/ta`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ entryId: entry.id, action: "update_seeding", seeding: newSeeding }),
-                                    });
-                                    refetch();
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  className="border rounded px-2 py-1 text-sm bg-background"
-                                  value={effectivePartnerId ?? ""}
-                                  onChange={ev => {
-                                    const val = ev.target.value || null;
-                                    const newOverrides = { ...pairOverrides };
-                                    // Clear old partner's back-link
-                                    const oldPartnerId = effectivePartnerId;
-                                    if (oldPartnerId) {
-                                      const oldPartnerEntry = qualEntries.find(e => e.playerId === oldPartnerId);
-                                      if (oldPartnerEntry) newOverrides[oldPartnerEntry.id] = null;
-                                    }
-                                    newOverrides[entry.id] = val;
-                                    // Set reverse link for new partner
-                                    if (val) {
-                                      const partnerEntry = qualEntries.find(e => e.playerId === val);
-                                      if (partnerEntry) newOverrides[partnerEntry.id] = entry.playerId;
-                                    }
-                                    setPairOverrides(newOverrides);
-                                  }}
-                                >
-                                  <option value="">{t('noPair')}</option>
-                                  {qualEntries
-                                    .filter(e => e.id !== entry.id)
-                                    .map(e => (
-                                      <option key={e.id} value={e.playerId}>
-                                        {e.player.nickname}{e.seeding != null ? ` (#${e.seeding})` : ""}
-                                      </option>
-                                    ))}
-                                </select>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        });
-                      })()}
-                    </TableBody>
-                  </Table>
+
+                <div className="flex-1 overflow-y-auto md:overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
+                    {/* Left column: all players checklist */}
+                    <div className="flex flex-col min-h-0">
+                      <h4 className="font-medium mb-2">{tc("player")}</h4>
+                      <Input
+                        placeholder={t("searchPlayers")}
+                        value={playerSearchQuery}
+                        onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                        className="mb-2"
+                      />
+                      {filteredPlayers.length > 0 && (
+                        <div className="flex items-center gap-2 py-1 border-b mb-1">
+                          <Checkbox
+                            id="setup-select-all"
+                            checked={allFilteredSelected}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                const toAdd = filteredPlayers
+                                  .filter((p) => !setupPlayerIdSet.has(p.id))
+                                  .map((p) => ({
+                                    playerId: p.id,
+                                    seeding: undefined as number | undefined,
+                                    partnerId: null as string | null,
+                                  }));
+                                setSetupEntries((prev) => [...prev, ...toAdd]);
+                              } else {
+                                const visibleIds = new Set(filteredPlayers.map((p) => p.id));
+                                setSetupEntries((prev) =>
+                                  prev.filter((s) => !visibleIds.has(s.playerId)),
+                                );
+                              }
+                            }}
+                            className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
+                          />
+                          <Label htmlFor="setup-select-all" className="cursor-pointer font-medium">
+                            {t("selectAll")}
+                          </Label>
+                        </div>
+                      )}
+                      <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+                        {filteredPlayers.length === 0 ? (
+                          <p className="text-muted-foreground text-sm py-2">
+                            {tc("noPlayersSelected")}
+                          </p>
+                        ) : (
+                          filteredPlayers.map((player) => (
+                            <div
+                              key={player.id}
+                              className="flex items-center gap-2 py-2 sm:py-1 px-2 sm:px-1 rounded hover:bg-muted/50"
+                            >
+                              <Checkbox
+                                id={`setup-player-${player.id}`}
+                                checked={setupPlayerIdSet.has(player.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSetupEntries((prev) =>
+                                      prev.some((s) => s.playerId === player.id)
+                                        ? prev
+                                        : [
+                                            ...prev,
+                                            { playerId: player.id, seeding: undefined, partnerId: null },
+                                          ],
+                                    );
+                                  } else {
+                                    setSetupEntries((prev) =>
+                                      prev.filter((s) => s.playerId !== player.id),
+                                    );
+                                  }
+                                }}
+                                className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
+                              />
+                              <Label
+                                htmlFor={`setup-player-${player.id}`}
+                                className="cursor-pointer flex-1"
+                              >
+                                {player.nickname} ({player.name})
+                              </Label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right column: selected entries with seeding + partner */}
+                    <div className="flex flex-col min-h-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h4 className="font-medium">
+                          {tc("selectedPlayers", { count: setupEntries.length })}
+                        </h4>
+                        <div className="flex-1" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAutoPair}
+                          disabled={setupEntries.length < 2}
+                          title={t("managePairsDesc")}
+                        >
+                          {t("autoPair")}
+                        </Button>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
+                        {setupEntries.length === 0 ? (
+                          <p className="text-muted-foreground text-sm py-4 text-center">
+                            {tc("noPlayersSelected")}
+                          </p>
+                        ) : (
+                          <div className="divide-y">
+                            {/*
+                             * Render in seeding-asc order (unranked last) so autoPair
+                             * preview aligns with the computeAutoPairs algorithm.
+                             */}
+                            {[...setupEntries]
+                              .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
+                              .map((s) => {
+                                const player = allPlayers.find((p) => p.id === s.playerId);
+                                const partnerPlayer = s.partnerId
+                                  ? allPlayers.find((p) => p.id === s.partnerId)
+                                  : null;
+                                return (
+                                  <div
+                                    key={s.playerId}
+                                    className="flex items-center gap-2 px-3 py-2"
+                                  >
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      placeholder="#"
+                                      value={s.seeding ?? ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const parsed = parseInt(val, 10);
+                                        const seeding =
+                                          val && !Number.isNaN(parsed) && parsed >= 1
+                                            ? parsed
+                                            : undefined;
+                                        setSetupEntries((prev) =>
+                                          prev.map((p) =>
+                                            p.playerId === s.playerId ? { ...p, seeding } : p,
+                                          ),
+                                        );
+                                      }}
+                                      className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
+                                      aria-label={`${player?.nickname ?? s.playerId} seeding`}
+                                    />
+                                    <span className="flex-1 text-sm truncate">
+                                      {player?.nickname ?? `ID: ${s.playerId.slice(0, 8)}`}
+                                    </span>
+                                    <select
+                                      className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9"
+                                      value={s.partnerId ?? ""}
+                                      onChange={(ev) => {
+                                        const val = ev.target.value || null;
+                                        /* Maintain reciprocal partner links within the dialog
+                                         * state so the UI mirrors the server's bidirectional
+                                         * storage (A↔B). */
+                                        setSetupEntries((prev) => {
+                                          const oldPartner = s.partnerId ?? null;
+                                          const next = prev.map((p) => {
+                                            if (p.playerId === s.playerId) {
+                                              return { ...p, partnerId: val };
+                                            }
+                                            if (oldPartner && p.playerId === oldPartner) {
+                                              return { ...p, partnerId: null };
+                                            }
+                                            if (val && p.playerId === val) {
+                                              /* Also clear the new partner's prior link */
+                                              return { ...p, partnerId: s.playerId };
+                                            }
+                                            return p;
+                                          });
+                                          return next;
+                                        });
+                                      }}
+                                      aria-label={`${player?.nickname ?? s.playerId} partner`}
+                                    >
+                                      <option value="">{t("noPair")}</option>
+                                      {setupEntries
+                                        .filter((e) => e.playerId !== s.playerId)
+                                        .map((e) => {
+                                          const ep = allPlayers.find((p) => p.id === e.playerId);
+                                          return (
+                                            <option key={e.playerId} value={e.playerId}>
+                                              {ep?.nickname ?? e.playerId}
+                                              {typeof e.seeding === "number" ? ` (#${e.seeding})` : ""}
+                                            </option>
+                                          );
+                                        })}
+                                    </select>
+                                    {partnerPlayer && (
+                                      <span
+                                        className="text-xs text-muted-foreground truncate max-w-[6rem] hidden lg:inline"
+                                        title={partnerPlayer.nickname}
+                                      >
+                                        ↔ {partnerPlayer.nickname}
+                                      </span>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        setSetupEntries((prev) =>
+                                          prev.filter((p) => p.playerId !== s.playerId),
+                                        )
+                                      }
+                                      className="min-h-[44px] md:min-h-[32px]"
+                                    >
+                                      {tc("remove")}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsPairDialogOpen(false)}>
-                    {tc('cancel')}
+
+                {saveError && (
+                  <p className="text-destructive text-sm pt-2">{saveError}</p>
+                )}
+
+                <DialogFooter className="pt-4 border-t">
+                  <Button variant="outline" onClick={() => setIsSetupDialogOpen(false)}>
+                    {tc("cancel")}
                   </Button>
-                  <Button onClick={handleSavePairs} disabled={pairAssigning}>
-                    {pairAssigning ? tc('saving') : tc('save')}
+                  <Button onClick={handleSaveSetup} disabled={saving}>
+                    {saving ? t("savingPlayers") : t("savePlayers")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          )}
-          {/* Add Players Dialog: admin-only, checkbox-based bulk selection */}
-          {isAdmin && (
-          <Dialog
-            open={isAddPlayerDialogOpen}
-            onOpenChange={(open) => {
-              if (qualificationRegistrationLocked && open) return;
-              setIsAddPlayerDialogOpen(open);
-              if (!open) {
-                // Reset selection state when dialog closes
-                setSaveError(null);
-                setSelectedPlayerIds([]);
-                setPlayerSearchQuery("");
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                className={`w-full sm:w-auto ${qualificationRegistrationLocked ? "cursor-not-allowed opacity-50" : ""}`}
-                aria-disabled={qualificationRegistrationLocked}
-                title={qualificationRegistrationLocked ? t('qualificationRegistrationLocked') : undefined}
-                onClick={(event) => {
-                  if (!qualificationRegistrationLocked) return;
-                  event.preventDefault();
-                  showQualificationRegistrationLockedToast();
-                }}
-              >
-                {tc('addPlayer')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>{t('addPlayerToTA')}</DialogTitle>
-                <DialogDescription>
-                  {t('selectPlayersToAdd')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 py-2">
-                {/* Search filter: narrow down players by name or nickname */}
-                <Input
-                  placeholder={t('searchPlayers')}
-                  value={playerSearchQuery}
-                  onChange={(e) => setPlayerSearchQuery(e.target.value)}
-                />
-                {/* Select All / Deselect All toggle for filtered results */}
-                {filteredPlayers.length > 0 && (
-                  <div className="flex items-center gap-2 py-1 border-b">
-                    <Checkbox
-                      id="select-all"
-                      checked={allFilteredSelected}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          // Add all filtered players to selection (preserving already-selected non-filtered ones)
-                          const filteredIds = filteredPlayers.map((p) => p.id);
-                          setSelectedPlayerIds((prev) => [
-                            ...new Set([...prev, ...filteredIds]),
-                          ]);
-                        } else {
-                          // Remove only the filtered players from selection
-                          const filteredIds = new Set(filteredPlayers.map((p) => p.id));
-                          setSelectedPlayerIds((prev) =>
-                            prev.filter((id) => !filteredIds.has(id))
-                          );
-                        }
-                      }}
-                    />
-                    <Label htmlFor="select-all" className="cursor-pointer font-medium">
-                      {t('selectAll')}
-                    </Label>
-                  </div>
-                )}
-                {/* Scrollable player list with checkboxes */}
-                <div className="max-h-60 overflow-y-auto space-y-1">
-                  {filteredPlayers.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-2">
-                      {tc('noPlayersSelected')}
-                    </p>
-                  ) : (
-                    filteredPlayers.map((player) => (
-                      <div key={player.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50">
-                        <Checkbox
-                          id={`player-${player.id}`}
-                          checked={selectedPlayerIds.includes(player.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedPlayerIds((prev) =>
-                              checked
-                                ? [...prev, player.id]
-                                : prev.filter((id) => id !== player.id)
-                            );
-                          }}
-                        />
-                        <Label htmlFor={`player-${player.id}`} className="cursor-pointer flex-1">
-                          {player.nickname} ({player.name})
-                        </Label>
-                      </div>
-                    ))
-                  )}
-                </div>
-                {saveError && (
-                  <p className="text-destructive text-sm">{saveError}</p>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={handleAddPlayers}
-                  disabled={selectedPlayerIds.length === 0 || saving}
-                >
-                  {saving
-                    ? t('adding')
-                    : t('addSelectedPlayers', { count: selectedPlayerIds.length })}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
           )}
         </div>
       </div>

@@ -859,8 +859,11 @@ async function main() {
       }
 
       await nav(page, `/tournaments/${taTournamentId}/ta`);
-      const addPlayerButton = page.getByRole('button', { name: /プレイヤー追加|Add Player/ }).first();
-      const ariaDisabled = await addPlayerButton.getAttribute('aria-disabled');
+      /* Unified TA setup dialog trigger: "Setup Players" / "Edit Players" (plus JA). */
+      const setupPlayersButton = page.getByRole('button', {
+        name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+      }).first();
+      const ariaDisabled = await setupPlayersButton.getAttribute('aria-disabled');
       // Use native .click() to bypass Playwright's aria-disabled enabled-check.
       // Native .click() triggers React's synthetic event system (via event delegation)
       // more reliably than dispatchEvent for React 19 production builds.
@@ -872,15 +875,15 @@ async function main() {
       const toastVisible = await page.locator('[data-sonner-toast]').filter({
         hasText: /本線開始後は、予選へのプレイヤー追加はできません。|Players cannot be added to qualification after the knockout stage starts./,
       }).count().then((count) => count > 0);
-      const dialogOpened = await page.getByText(/TA にプレイヤーを追加|Add Player to TA/).count().then((count) => count > 0);
+      const dialogOpened = await page.getByText(/Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/).count().then((count) => count > 0);
 
       log('TC-313', ariaDisabled === 'true' && toastVisible && !dialogOpened ? 'PASS' : 'FAIL',
         ariaDisabled !== 'true'
-          ? 'Add Player button is not marked locked'
+          ? 'Setup Players button is not marked locked'
           : !toastVisible
             ? 'No add-lock toast'
             : dialogOpened
-              ? 'Add Player dialog still opened'
+              ? 'Setup/Edit Players dialog still opened'
               : '');
     } catch (err) {
       log('TC-313', 'FAIL', err instanceof Error ? err.message : 'TA add lock flow failed');
