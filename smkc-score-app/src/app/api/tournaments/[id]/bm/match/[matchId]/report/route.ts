@@ -280,24 +280,20 @@ export async function POST(
       p1s1 === p2s1 && p1s2 === p2s2
     ) {
       try {
+        /*
+         * Use result.version directly to avoid a race where concurrent
+         * auto-confirm from the other player increments the version between
+         * our findUnique and update, causing an unnecessary OptimisticLockError.
+         */
         const finalMatch = await updateWithRetry(prisma, async (tx) => {
-          const currentMatch = await tx.bMMatch.findUnique({
-            where: { id: matchId },
-            select: { version: true }
-          });
-
-          if (!currentMatch) {
-            throw new Error("Match not found");
-          }
-
           const finalResult = await tx.bMMatch.update({
-            where: { id: matchId, version: currentMatch.version },
+            where: { id: matchId, version: result.version },
             data: { score1: p1s1, score2: p1s2, completed: true, version: { increment: 1 } },
             include: { player1: true, player2: true },
           });
 
           if (!finalResult) {
-            throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+            throw new OptimisticLockError('Match was updated by another user', result.version);
           }
 
           return finalResult;
