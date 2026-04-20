@@ -194,14 +194,32 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         where: { tournamentId },
       });
 
-      /* Create qualification records for each player */
-      const qualifications = await Promise.all(
-        players.map((p: { playerId: string; group: string; seeding?: number }) =>
-          qualModel(prisma).create({
-            data: { tournamentId, playerId: p.playerId, group: p.group, seeding: p.seeding },
-          }),
-        ),
+      /*
+       * Bulk-insert qualification records (issue #420).
+       * Single createMany call replaces N parallel create() calls — turning
+       * 32 round-trips (4 groups × 8 players) into 1 SQL statement on D1.
+       * createMany doesn't return inserted rows on SQLite/D1, so we follow
+       * up with one findMany() to recover IDs for the response payload.
+       */
+      const qualData = players.map(
+        (p: { playerId: string; group: string; seeding?: number }) => ({
+          tournamentId,
+          playerId: p.playerId,
+          group: p.group,
+          seeding: p.seeding,
+        }),
       );
+      await qualModel(prisma).createMany({ data: qualData });
+      /*
+       * Unqualified findMany is safe only because the deleteMany at the
+       * top of this handler cleared every qualification row for this
+       * tournament. If that delete is ever scoped down, this query must
+       * grow an additional filter or it will surface stale prior rows.
+       */
+      const qualifications = await qualModel(prisma).findMany({
+        where: { tournamentId },
+        orderBy: config.qualificationOrderBy,
+      });
 
       /*
        * Generate round-robin matches using the circle method.
@@ -237,6 +255,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * first real match is submitted via PUT (which triggers a full recalculation).
        */
       const byeRecipientIds: Set<string> = new Set();
+
+      /*
+       * Collect all match payloads in memory, then bulk-insert with a single
+       * createMany call (issue #420). For an 8-player single-group BM tournament
+       * this turns 28 sequential round-trips into 1 SQL statement.
+       */
+      const matchData: Array<Record<string, unknown>> = [];
 
       for (const group of groups) {
         /*
@@ -281,24 +306,22 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ? shuffledCups[matchSequenceIndex % shuffledCups.length]
             : undefined;
 
-          await matchModel(prisma).create({
-            data: {
-              tournamentId,
-              matchNumber,
-              stage: 'qualification',
-              player1Id: p1Id,
-              player2Id: p2Id,
-              player1Side: 1,
-              player2Side: 2,
-              roundNumber: m.day,
-              isBye: m.isBye,
-              /* Pre-assigned courses for the match (undefined for BM/GP without course assignment) */
-              ...(assignedCourses ? { assignedCourses } : {}),
-              /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
-              ...(assignedCup ? { cup: assignedCup } : {}),
-              /* Auto-complete BYE matches with fixed scores (§10.2) */
-              ...(m.isBye ? { completed: true, ...byeData } : {}),
-            },
+          matchData.push({
+            tournamentId,
+            matchNumber,
+            stage: 'qualification',
+            player1Id: p1Id,
+            player2Id: p2Id,
+            player1Side: 1,
+            player2Side: 2,
+            roundNumber: m.day,
+            isBye: m.isBye,
+            /* Pre-assigned courses for the match (undefined for BM/GP without course assignment) */
+            ...(assignedCourses ? { assignedCourses } : {}),
+            /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
+            ...(assignedCup ? { cup: assignedCup } : {}),
+            /* Auto-complete BYE matches with fixed scores (§10.2) */
+            ...(m.isBye ? { completed: true, ...byeData } : {}),
           });
 
           if (m.isBye) {
@@ -309,6 +332,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
           matchNumber++;
         }
+      }
+
+      if (matchData.length > 0) {
+        await matchModel(prisma).createMany({ data: matchData });
       }
 
       /*

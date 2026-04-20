@@ -407,7 +407,10 @@ describe('Finals Route Factory', () => {
       });
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
-      (prisma.bMMatch as any).create.mockResolvedValue(createMockMatch());
+      // Issue #420: bracket inserted in a single createMany; the inserted rows
+      // are then re-fetched with includes via findMany for the response shape.
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
 
       const config = createMockConfig({ postRequiresAuth: true });
       const { POST } = createFinalsHandlers(config);
@@ -430,7 +433,8 @@ describe('Finals Route Factory', () => {
       mockAuth.mockResolvedValue(null);
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
-      (prisma.bMMatch as any).create.mockResolvedValue(createMockMatch());
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
 
       const config = createMockConfig({ postRequiresAuth: false });
       const { POST } = createFinalsHandlers(config);
@@ -449,7 +453,8 @@ describe('Finals Route Factory', () => {
     it('should create 8-player bracket when topN is 8', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
-      (prisma.bMMatch as any).create.mockResolvedValue(createMockMatch());
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
 
       const config = createMockConfig();
       const { POST } = createFinalsHandlers(config);
@@ -464,7 +469,10 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(201);
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(17); // 17 matches in 8-player bracket
+      // Issue #420: all 17 bracket matches are inserted in one createMany call
+      expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
+      const call = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(call.data).toHaveLength(17);
     });
 
     it('should return 400 when topN is not 8', async () => {
@@ -548,7 +556,8 @@ describe('Finals Route Factory', () => {
     it('should sanitize body when sanitizePostBody is true', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
-      (prisma.bMMatch as any).create.mockResolvedValue(createMockMatch());
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
       mockSanitizeInput.mockReturnValue({ topN: 8 });
 
       const config = createMockConfig({ sanitizePostBody: true });

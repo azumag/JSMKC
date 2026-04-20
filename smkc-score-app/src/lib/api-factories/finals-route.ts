@@ -255,16 +255,25 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }),
       );
 
-      const createdMatches = [];
-      for (const bracketMatch of bracketStructure) {
+      /*
+       * Bulk-insert bracket matches (issue #420). Replaces a sequential
+       * for-loop of N create() calls with a single createMany() — for an
+       * 8-player bracket that's 17 round-trips collapsed into 1, and 31
+       * for a 16-player bracket. createMany on D1 doesn't return the
+       * inserted rows, so we re-fetch with includes after insertion to
+       * preserve the existing response shape (player1/player2 relations).
+       */
+      const matchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
           ? seededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player1Seed)
           : null;
         const player2 = bracketMatch.player2Seed
           ? seededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player2Seed)
           : null;
-
-        const match = await model(prisma).create({
+        return {
+          bracketMatch,
+          player1,
+          player2,
           data: {
             tournamentId,
             matchNumber: bracketMatch.matchNumber,
@@ -274,17 +283,35 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
           },
-          include: { player1: true, player2: true },
-        });
+        };
+      });
 
-        createdMatches.push({
-          ...match,
-          hasPlayer1: !!player1,
-          hasPlayer2: !!player2,
-          player1Seed: bracketMatch.player1Seed,
-          player2Seed: bracketMatch.player2Seed,
-        });
-      }
+      await model(prisma).createMany({ data: matchPlans.map((p) => p.data) });
+
+      const insertedMatches = await model(prisma).findMany({
+        where: { tournamentId, stage: 'finals' },
+        include: { player1: true, player2: true },
+        orderBy: { matchNumber: 'asc' },
+      });
+
+      // Map by matchNumber so we can attach the bracket metadata that's not
+      // stored in the DB (hasPlayer1/hasPlayer2/seed) to each fetched row.
+      const insertedByNumber = new Map<number, (typeof insertedMatches)[number]>(
+        insertedMatches.map((m: { matchNumber: number }) => [m.matchNumber, m]),
+      );
+      const createdMatches = matchPlans
+        .map((p) => {
+          const match = insertedByNumber.get(p.bracketMatch.matchNumber);
+          if (!match) return null;
+          return {
+            ...match,
+            hasPlayer1: !!p.player1,
+            hasPlayer2: !!p.player2,
+            player1Seed: p.bracketMatch.player1Seed,
+            player2Seed: p.bracketMatch.player2Seed,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null);
 
       return createSuccessResponse({
         message: 'Finals bracket created',

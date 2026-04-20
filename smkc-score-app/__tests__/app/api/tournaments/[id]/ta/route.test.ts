@@ -295,8 +295,18 @@ describe('/api/tournaments/[id]/ta', () => {
         player: { id: VALID_UUID2, nickname: 'TestPlayer' },
       };
 
-      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.tTEntry.create as jest.Mock).mockResolvedValue(mockEntry);
+      /*
+       * Issue #420: bulk insert path. POST now does:
+       *   1. findFirst (knockout-stage check)
+       *   2. findMany — duplicate-detection scan over playerIds
+       *   3. createMany — bulk insert of new entries
+       *   4. findMany — re-fetch with includes for response payload
+       * Mock the two findMany calls in order.
+       */
+      (prisma.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([])           // duplicate-detection: nothing exists
+        .mockResolvedValueOnce([mockEntry]); // re-fetch with player include
+      (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       await taRoute.POST(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {
@@ -306,15 +316,14 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: VALID_UUID }) }
       );
 
-      expect(prisma.tTEntry.create).toHaveBeenCalledWith({
-        data: {
+      expect(prisma.tTEntry.createMany).toHaveBeenCalledWith({
+        data: [{
           tournamentId: VALID_UUID,
           playerId: VALID_UUID2,
           stage: 'qualification',
           times: {},
           seeding: null,
-        },
-        include: { player: true },
+        }],
       });
 
       expect(NextResponse.json).toHaveBeenCalledWith(
@@ -341,7 +350,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
         { status: 409 }
       );
-      expect(prisma.tTEntry.create).not.toHaveBeenCalled();
+      expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
     });
 
     it('should return 409 when player tries to self-register after knockout has started', async () => {
@@ -362,7 +371,7 @@ describe('/api/tournaments/[id]/ta', () => {
         { success: false, error: 'Cannot add players after knockout stage has started', code: 'CONFLICT' },
         { status: 409 }
       );
-      expect(prisma.tTEntry.create).not.toHaveBeenCalled();
+      expect(prisma.tTEntry.createMany).not.toHaveBeenCalled();
     });
 
     it('should resolve tournament slug for POST', async () => {
@@ -370,14 +379,16 @@ describe('/api/tournaments/[id]/ta', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', email: 'admin@example.com', role: 'admin' },
       });
-      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.tTEntry.create as jest.Mock).mockResolvedValue({
-        id: VALID_ENTRY_ID,
-        tournamentId: VALID_UUID,
-        playerId: VALID_UUID2,
-        stage: 'qualification',
-        player: { nickname: 'Player' },
-      });
+      (prisma.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([])  // duplicate-detection
+        .mockResolvedValueOnce([{
+          id: VALID_ENTRY_ID,
+          tournamentId: VALID_UUID,
+          playerId: VALID_UUID2,
+          stage: 'qualification',
+          player: { nickname: 'Player' },
+        }]);
+      (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       await taRoute.POST(
         new NextRequest('http://localhost:3000/api/tournaments/jsmkc2026/ta', {
@@ -387,11 +398,11 @@ describe('/api/tournaments/[id]/ta', () => {
         { params: Promise.resolve({ id: 'jsmkc2026' }) }
       );
 
-      expect(prisma.tTEntry.create).toHaveBeenCalledWith(
+      expect(prisma.tTEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            tournamentId: VALID_UUID,
-          }),
+          data: expect.arrayContaining([
+            expect.objectContaining({ tournamentId: VALID_UUID }),
+          ]),
         })
       );
     });
@@ -470,8 +481,10 @@ describe('/api/tournaments/[id]/ta', () => {
         player: { id: VALID_UUID2, nickname: 'TestPlayer' },
       };
 
-      (prisma.tTEntry.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.tTEntry.create as jest.Mock).mockResolvedValue(mockEntry);
+      (prisma.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([])           // duplicate-detection
+        .mockResolvedValueOnce([mockEntry]); // re-fetch with player include
+      (prisma.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       await taRoute.POST(
         new NextRequest(`http://localhost:3000/api/tournaments/${VALID_UUID}/ta`, {

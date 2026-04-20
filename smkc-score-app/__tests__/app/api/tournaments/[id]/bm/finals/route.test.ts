@@ -210,7 +210,9 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
-      (prisma.bMMatch.create as jest.Mock).mockResolvedValue(mockCreatedMatch);
+      // Issue #420: bracket inserted in one createMany then re-fetched.
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 17 });
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([mockCreatedMatch]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -242,7 +244,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
-      (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 17 });
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', {});
       const params = Promise.resolve({ id: 't1' });
@@ -309,7 +312,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.bMMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
-      (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ id: 'm1', player1: { id: 'p1' }, player2: { id: 'p2' } });
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 17 });
+      (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });

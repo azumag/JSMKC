@@ -77,10 +77,12 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
     (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.bMQualification.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.bMQualification.create as jest.Mock).mockResolvedValue({});
+    (prisma.bMQualification.createMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.bMQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.bMMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.bMMatch.create as jest.Mock).mockResolvedValue({});
+    (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.bMMatch.update as jest.Mock).mockResolvedValue({});
   });
 
@@ -166,19 +168,24 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
-      (prisma.bMQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      // Issue #420: setup now uses createMany (1 call per model) plus a
+      // findMany re-fetch for the response payload.
+      (prisma.bMQualification.createMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }, { id: 'q2' }]);
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ message: 'Battle mode setup complete', qualifications: expect.any(Array) });
+      expect(result.data).toEqual({ success: true, data: { message: 'Battle mode setup complete', qualifications: expect.any(Array) } });
       expect(result.status).toBe(201);
       expect(prisma.bMQualification.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1' } });
       expect(prisma.bMMatch.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1', stage: 'qualification' } });
-      expect(prisma.bMQualification.create).toHaveBeenCalledTimes(2);
-      expect(prisma.bMMatch.create).toHaveBeenCalledTimes(1);
+      expect(prisma.bMQualification.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.bMQualification.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
+      expect(prisma.bMMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.bMMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(1);
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith({
         userId: 'admin1',
         ipAddress: 'test-ip',
@@ -202,15 +209,19 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
         { playerId: 'p4', group: 'B' },
       ];
 
-      (prisma.bMQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.bMMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.bMQualification.createMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 2 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      expect(prisma.bMMatch.create).toHaveBeenCalledTimes(2);
+      // Two groups → one createMany call carrying both group A's match
+      // and group B's match in a single 2-element data array.
+      expect(prisma.bMMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.bMMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
       expect(auditLogMock.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
         details: { mode: 'qualification', playerCount: 4 }
       }));

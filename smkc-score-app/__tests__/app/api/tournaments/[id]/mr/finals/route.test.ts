@@ -168,7 +168,9 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-      (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1', player1: { id: 'p1' }, player2: { id: 'p8' } });
+      // Issue #420: bracket inserted in one createMany then re-fetched.
+      (prisma.mRMatch.createMany as jest.Mock).mockResolvedValue({ count: 17 });
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -182,7 +184,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       });
       // Source returns 201 for successful resource creation (POST)
       expect(result.status).toBe(201);
-      expect(prisma.mRMatch.create).toHaveBeenCalled();
+      expect(prisma.mRMatch.createMany).toHaveBeenCalled();
     });
 
     // Success case - Uses default topN=8 when not provided
@@ -200,7 +202,8 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-      (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1', player1: { id: 'p1' }, player2: { id: 'p8' } });
+      (prisma.mRMatch.createMany as jest.Mock).mockResolvedValue({ count: 17 });
+      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', {});
       const params = Promise.resolve({ id: 't1' });
