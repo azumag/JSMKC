@@ -222,18 +222,30 @@ async function apiGenerateBmFinals(page, tournamentId, topN = 8) {
 }
 
 async function apiFetchBmFinalsMatches(page, tournamentId) {
+  const state = await apiFetchBmFinalsState(page, tournamentId);
+  return state.matches;
+}
+
+async function apiFetchBmFinalsState(page, tournamentId) {
   const json = await page.evaluate(async (u) => {
     const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
     return r.json().catch(() => ({}));
   }, `/api/tournaments/${tournamentId}/bm/finals`);
-  /* BM uses 'grouped' GET style: { success: true, data: { matches, winnersMatches, losersMatches, grandFinalMatches } } */
+  /* BM uses 'grouped' GET style: { success: true, data: { matches, ..., playoffMatches } } */
   const wrapped = json.data;
   const arr = wrapped?.matches || [
     ...(wrapped?.winnersMatches || []),
     ...(wrapped?.losersMatches || []),
     ...(wrapped?.grandFinalMatches || []),
   ];
-  return arr.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+  return {
+    raw: json,
+    matches: arr.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || [])
+      .slice()
+      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    bracketSize: wrapped?.bracketSize,
+  };
 }
 
 /** 28-player BM setup with built-in cleanup closure. Throws on failure
@@ -900,6 +912,7 @@ module.exports = {
   apiSetBmFinalsScore,
   apiGenerateBmFinals,
   apiFetchBmFinalsMatches,
+  apiFetchBmFinalsState,
   setupBm28PlayerFinals,
   /* MR */
   apiSetupMrGroup,
