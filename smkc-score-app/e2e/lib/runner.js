@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const { nav } = require('./common');
+const { installApiLogging, nav } = require('./common');
 
 const DEFAULT_PROFILE_DIR = '/tmp/playwright-smkc-profile';
 const DEFAULT_TEST_TIMEOUT_MS = 10 * 60 * 1000;
@@ -137,6 +137,7 @@ async function runSuite({ suiteName, results, log, tests }) {
       headless,
       viewport: { width: 1280, height: 720 },
     });
+    installApiLogging(browser, suiteName);
     const page = browser.pages()[0] || await browser.newPage();
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));

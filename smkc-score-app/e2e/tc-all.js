@@ -20,6 +20,7 @@ const {
   apiUpdateTaSeeding,
   apiFetchTa,
   apiTaParticipantEditTime,
+  installApiLogging,
   setupAllModes28PlayerQualification,
 } = require('./lib/common');
 const {
@@ -153,6 +154,7 @@ async function main() {
         viewport: { width: 1280, height: 720 },
       },
     );
+    installApiLogging(browser, 'tc-all');
     const page = browser.pages()[0] || await browser.newPage();
     sharedPage = page;
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));

@@ -14,7 +14,7 @@
  *   npm run e2e:cleanup -- --dry-run
  */
 const { chromium } = require('playwright');
-const { BASE } = require('./lib/common');
+const { BASE, installApiLogging } = require('./lib/common');
 const { closeBrowser, envMs, formatDuration } = require('./lib/runner');
 
 const PROFILE_DIR = process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile';
@@ -177,6 +177,7 @@ async function main() {
       headless: process.env.E2E_HEADLESS === '1',
       viewport: { width: 1280, height: 720 },
     });
+    installApiLogging(browser, 'cleanup');
 
     const page = browser.pages()[0] || await browser.newPage();
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));

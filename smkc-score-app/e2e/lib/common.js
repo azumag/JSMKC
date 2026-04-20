@@ -15,6 +15,61 @@ const { chromium } = require('playwright');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const NAV_WAIT_MS = 8000;
+const apiLogContexts = new WeakSet();
+
+function formatApiLogUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
+function isApiLogUrl(rawUrl) {
+  try {
+    return new URL(rawUrl).pathname.startsWith('/api/');
+  } catch {
+    return typeof rawUrl === 'string' && rawUrl.startsWith('/api/');
+  }
+}
+
+function installApiLogging(target, label = 'E2E') {
+  if (process.env.E2E_API_LOG === '0') return;
+
+  const context = typeof target?.context === 'function' ? target.context() : target;
+  if (!context || apiLogContexts.has(context)) return;
+  apiLogContexts.add(context);
+
+  const requestStarts = new WeakMap();
+
+  context.on('request', (request) => {
+    if (isApiLogUrl(request.url())) {
+      requestStarts.set(request, Date.now());
+    }
+  });
+
+  context.on('response', (response) => {
+    const request = response.request();
+    if (!isApiLogUrl(response.url())) return;
+
+    const started = requestStarts.get(request);
+    const elapsed = started ? ` ${Date.now() - started}ms` : '';
+    requestStarts.delete(request);
+    console.log(`[API ${label}] ${request.method()} ${response.status()} ${formatApiLogUrl(response.url())}${elapsed}`);
+  });
+
+  context.on('requestfailed', (request) => {
+    if (!isApiLogUrl(request.url())) return;
+
+    const started = requestStarts.get(request);
+    const elapsed = started ? ` ${Date.now() - started}ms` : '';
+    requestStarts.delete(request);
+    const failure = request.failure();
+    const detail = failure?.errorText ? ` ${failure.errorText}` : '';
+    console.log(`[API ${label}] ${request.method()} ERR ${formatApiLogUrl(request.url())}${elapsed}${detail}`);
+  });
+}
 
 function makeResults() {
   /* Each TC suite owns its own results array. */
@@ -122,6 +177,7 @@ function snakeDraft28(playerIds) {
 async function loginPlayerBrowser(nickname, password) {
   const browser = await chromium.launch({ headless: false });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  installApiLogging(context, 'player');
   const page = await context.newPage();
   await nav(page, '/auth/signin');
   await page.locator('#nickname').fill(nickname);
@@ -892,6 +948,7 @@ module.exports = {
   /* logging / nav */
   makeResults,
   makeLog,
+  installApiLogging,
   nav,
   escapeRegex,
   /* CRUD */
