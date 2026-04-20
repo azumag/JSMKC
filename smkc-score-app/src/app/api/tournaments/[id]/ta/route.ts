@@ -20,6 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
@@ -282,7 +283,9 @@ export async function POST(
      * the per-row id; that's acceptable since the create itself is the
      * dominant cost the user perceives.
      */
-    let createdEntries: Awaited<ReturnType<typeof prisma.tTEntry.findMany>> = [];
+    // Explicit payload type so TypeScript knows `.player.nickname` is
+    // safe on each entry after the later findMany runs with the include.
+    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: true } }>[] = [];
 
     if (playerIds.length > 0) {
       const existingEntries = await prisma.tTEntry.findMany({
@@ -333,7 +336,7 @@ export async function POST(
                 details: {
                   tournamentId,
                   playerId: entry.playerId,
-                  playerNickname: (entry as typeof entry & { player: { nickname: string } }).player.nickname,
+                  playerNickname: entry.player.nickname,
                 },
               }),
             ),

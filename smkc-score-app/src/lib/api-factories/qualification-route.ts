@@ -210,6 +210,12 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }),
       );
       await qualModel(prisma).createMany({ data: qualData });
+      /*
+       * Unqualified findMany is safe only because the deleteMany at the
+       * top of this handler cleared every qualification row for this
+       * tournament. If that delete is ever scoped down, this query must
+       * grow an additional filter or it will surface stale prior rows.
+       */
       const qualifications = await qualModel(prisma).findMany({
         where: { tournamentId },
         orderBy: config.qualificationOrderBy,
