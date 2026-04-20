@@ -28,6 +28,7 @@ const {
   apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches,
   makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
+  setupGpQualViaUi,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -71,18 +72,9 @@ async function prepareSharedGpFinalsSetup(adminPage) {
 
   const players = sharedGpPlayers(28);
   const tournamentId = sharedFixture.normalTournament.id;
-  await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
-
-  /* Drive every non-BYE qual match to completion with P1 sweeping all races.
-   * GP qualification PUT requires cup + races (not score1/score2). */
-  const data = await apiFetchGp(adminPage, tournamentId);
-  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-  for (const match of matches) {
-    const res = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
-    if (res.s !== 200) {
-      throw new Error(`GP qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-    }
-  }
+  /* Delegate to the unified UI qualification helper so this suite uses the
+   * same setup path as tc-all and the standalone setupGp28PlayerFinals. */
+  await setupGpQualViaUi(adminPage, tournamentId, players);
 
   return {
     tournamentId,

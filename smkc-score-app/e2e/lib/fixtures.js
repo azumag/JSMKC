@@ -1,14 +1,9 @@
 const {
   apiCreateTournament,
-  apiDeletePlayer,
   apiDeleteTournament,
-  apiActivateTournament,
-  apiAddTaEntries,
-  apiSeedTtEntry,
-  apiFetchTa,
-  makeTaTimesForRank,
   uiCreatePlayer,
   setupModePlayersViaUi,
+  setupTaQualViaUi,
 } = require('./common');
 
 const SHARED_PLAYER_COUNT = 28;
@@ -139,58 +134,10 @@ async function ensureSharedTournament(page, name, opts) {
  * they must continue to provision their own isolated tournaments.
  */
 async function setupTaEntriesFromShared(adminPage, tournamentId, players, { seedTimes = true } = {}) {
-  if (!tournamentId) throw new Error('setupTaEntriesFromShared: tournamentId is required');
-  if (!Array.isArray(players) || players.length === 0) {
-    throw new Error('setupTaEntriesFromShared: players must be a non-empty array');
-  }
-
-  /* Activating an already-active tournament is a no-op PUT; calling
-   * unconditionally avoids an extra GET round-trip. */
-  await apiActivateTournament(adminPage, tournamentId);
-
-  /* Delete any qualification entries left behind by prior runs.
-   * If the tournament still has phase-stage entries from an earlier
-   * aborted promotion, those would freeze the qualification stage; that
-   * case is rare and surfaces here as a non-200 DELETE which we surface. */
-  const existing = await apiFetchTa(adminPage, tournamentId);
-  const existingEntries = existing.b?.data?.entries ?? [];
-  for (const entry of existingEntries) {
-    const res = await fetchJson(adminPage, `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`, { method: 'DELETE' });
-    if (!res.ok && res.s !== 404) {
-      throw new Error(`Failed to delete TA entry ${entry.id} (${res.s})`);
-    }
-  }
-
-  const add = await apiAddTaEntries(adminPage, tournamentId, {
-    playerEntries: players.map((player, i) => ({ playerId: player.id, seeding: i + 1 })),
-  });
-  if (add.s !== 201) {
-    throw new Error(`TA add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
-  }
-
-  const added = add.b?.data?.entries ?? [];
-  /* Add response returns entries ordered by seeding; re-map defensively so
-   * rank 1..N lines up with `players[0..N-1]` even if the server reorders. */
-  const byPlayerId = new Map(added.map((e) => [e.playerId, e]));
-  const entries = players.map((player, i) => {
-    const row = byPlayerId.get(player.id);
-    if (!row) throw new Error(`TA entry missing for player ${player.nickname}`);
-    return {
-      entryId: row.id,
-      playerId: player.id,
-      nickname: player.nickname,
-      rank: i + 1,
-    };
-  });
-
-  if (seedTimes) {
-    for (const entry of entries) {
-      const { times, totalMs } = makeTaTimesForRank(entry.rank);
-      await apiSeedTtEntry(adminPage, tournamentId, entry.entryId, times, totalMs, entry.rank);
-    }
-  }
-
-  return { tournamentId, entries };
+  /* Thin alias over setupTaQualViaUi so the fixture and the standalone bulk
+   * setup helpers share one UI-driven code path. Kept as a separate export
+   * so existing imports elsewhere in the suite continue to resolve. */
+  return setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes });
 }
 
 async function createSharedE2eFixture(page, suiteName) {
@@ -210,12 +157,14 @@ async function createSharedE2eFixture(page, suiteName) {
     players,
     normalTournament,
     dualTournament,
+    /* Cleanup intentionally drops tournaments only. Shared e2e_shared_* players
+     * persist across runs because ensureSharedPlayers is idempotent (matches by
+     * nickname) and UI-based re-creation is slow. Full player teardown now lives
+     * in the standalone `e2e/cleanup.js` script, to be run only when a clean
+     * slate is explicitly desired. */
     cleanup: async () => {
       await apiDeleteTournament(page, normalTournament.id);
       await apiDeleteTournament(page, dualTournament.id);
-      for (const player of players) {
-        await apiDeletePlayer(page, player.id);
-      }
     },
   };
 }

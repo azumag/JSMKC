@@ -332,46 +332,35 @@ async function apiFetchBmFinalsState(page, tournamentId) {
   };
 }
 
-/** 28-player BM setup with built-in cleanup closure. Throws on failure
- *  *after* invoking cleanup so partial data never leaks to production. */
+/** 28-player BM setup with built-in cleanup closure. Delegates to
+ *  setupBmQualViaUi so there is one UI-based qualification path across every
+ *  bulk setup helper. Player creation + tournament creation stay here so the
+ *  helper still owns lifecycle of the isolated resources it produces. */
 async function setupBm28PlayerFinals(adminPage, label, opts = {}) {
   const stamp = Date.now();
-  const playerIds = [];
-  const nicknames = [];
+  const players = [];
   let tournamentId = null;
 
   const cleanup = async () => {
     await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+    for (const p of players) await apiDeletePlayer(adminPage, p.id);
   };
 
   try {
     for (let i = 1; i <= 28; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E BM ${label} P${i}`,
-        `e2e_bm${label}_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
-      nicknames.push(p.nickname);
+      const name = `E2E BM ${label} P${i}`;
+      const nickname = `e2e_bm${label}_${stamp}_${i}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      players.push({ id: p.id, name, nickname });
     }
     tournamentId = await apiCreateTournament(adminPage, `E2E BM ${label} ${stamp}`, opts);
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, snakeDraft28(playerIds));
-    if (setup.s !== 201) {
-      throw new Error(`BM 28-player setup failed (${setup.s}): ${JSON.stringify(setup.b).slice(0, 200)}`);
-    }
-
-    /* 7-player RR per group = 21 non-BYE matches × 4 groups = 84 PUTs.
-     * 3-1 satisfies sum=4 and yields a deterministic seed order in standings. */
-    const data = await apiFetchBm(adminPage, tournamentId);
-    const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-    for (const m of matches) {
-      const res = await apiPutBmQualScore(adminPage, tournamentId, m.id, 3, 1);
-      if (res.s !== 200) {
-        throw new Error(`BM qual put failed (${res.s}) match=${m.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
-    return { tournamentId, playerIds, nicknames, cleanup };
+    await setupBmQualViaUi(adminPage, tournamentId, players);
+    return {
+      tournamentId,
+      playerIds: players.map((p) => p.id),
+      nicknames: players.map((p) => p.nickname),
+      cleanup,
+    };
   } catch (err) {
     await cleanup();
     throw err;
@@ -447,40 +436,29 @@ async function apiFetchMrFinalsMatches(page, tournamentId) {
 
 async function setupMr28PlayerFinals(adminPage, label, opts = {}) {
   const stamp = Date.now();
-  const playerIds = [];
-  const nicknames = [];
+  const players = [];
   let tournamentId = null;
 
   const cleanup = async () => {
     await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+    for (const p of players) await apiDeletePlayer(adminPage, p.id);
   };
 
   try {
     for (let i = 1; i <= 28; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E MR ${label} P${i}`,
-        `e2e_mr${label}_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
-      nicknames.push(p.nickname);
+      const name = `E2E MR ${label} P${i}`;
+      const nickname = `e2e_mr${label}_${stamp}_${i}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      players.push({ id: p.id, name, nickname });
     }
     tournamentId = await apiCreateTournament(adminPage, `E2E MR ${label} ${stamp}`, opts);
-    const setup = await apiSetupMrGroup(adminPage, tournamentId, snakeDraft28(playerIds));
-    if (setup.s !== 201) {
-      throw new Error(`MR 28-player setup failed (${setup.s}): ${JSON.stringify(setup.b).slice(0, 200)}`);
-    }
-
-    const data = await apiFetchMr(adminPage, tournamentId);
-    const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-    for (const m of matches) {
-      const res = await apiPutMrQualScore(adminPage, tournamentId, m.id, 3, 1);
-      if (res.s !== 200) {
-        throw new Error(`MR qual put failed (${res.s}) match=${m.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
-    return { tournamentId, playerIds, nicknames, cleanup };
+    await setupMrQualViaUi(adminPage, tournamentId, players);
+    return {
+      tournamentId,
+      playerIds: players.map((p) => p.id),
+      nicknames: players.map((p) => p.nickname),
+      cleanup,
+    };
   } catch (err) {
     await cleanup();
     throw err;
@@ -707,14 +685,20 @@ async function apiSetTaPartner(page, tournamentId, entryId, partnerId) {
 }
 
 async function apiUpdateTaSeeding(page, tournamentId, entryId, seeding) {
-  return page.evaluate(async ([u, d]) => {
+  /* Wrapped in withRetry because callers often fire this immediately after a
+   * UI action (e.g. uiAddPlayersToTa). The TA page polls on an interval and
+   * can tear down the page.evaluate execution context mid-fetch, producing a
+   * transient "Failed to fetch" on the first attempt. withRetry treats
+   * thrown errors as retryable, so this recovers on the next tick. */
+  return withRetry(() => page.evaluate(async ([u, d]) => {
     const r = await fetch(u, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(d),
     });
     return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_seeding', seeding }]);
+  }, [`/api/tournaments/${tournamentId}/ta`, { entryId, action: 'update_seeding', seeding }]),
+  { label: `TA seeding PUT ${entryId}` });
 }
 
 /** Participant PUT: single-course time update. Works for self or partner per
@@ -768,56 +752,41 @@ function makeTaTimesForRank(rank) {
   return { times, totalMs };
 }
 
-/** 28-player TA qualification setup: creates players + tournament, activates,
- *  adds all 28 via playerEntries, then seeds each entry with 20-course times.
+/** 28-player TA qualification setup: creates players + tournament, then
+ *  delegates to setupTaQualViaUi for the UI-driven entry/seeding/times
+ *  assignment so every bulk setup helper shares one qualification path.
  *  Returns { tournamentId, playerIds, nicknames, entryIds, cleanup }. */
 async function setupTa28PlayerQual(adminPage, label, opts = {}) {
   const stamp = Date.now();
-  const playerIds = [];
-  const nicknames = [];
-  const entryIds = [];
+  const players = [];
   let tournamentId = null;
 
   const cleanup = async () => {
     await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+    for (const p of players) await apiDeletePlayer(adminPage, p.id);
   };
 
   try {
     for (let i = 1; i <= 28; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E TA ${label} P${i}`,
-        `e2e_ta${label}_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
-      nicknames.push(p.nickname);
+      const name = `E2E TA ${label} P${i}`;
+      const nickname = `e2e_ta${label}_${stamp}_${i}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      players.push({ id: p.id, name, nickname });
     }
     tournamentId = await apiCreateTournament(
       adminPage,
       `E2E TA ${label} ${stamp}`,
       { dualReportEnabled: false, ...opts },
     );
-    await apiActivateTournament(adminPage, tournamentId);
 
-    const add = await apiAddTaEntries(adminPage, tournamentId, {
-      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
-    });
-    if (add.s !== 201) {
-      throw new Error(`TA 28-player add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
-    }
-
-    /* Seed per-entry qualification times. Assign rank = seeding so the best
-     * seed produces the fastest time; real ranks are recomputed server-side. */
-    const entries = add.b?.data?.entries ?? [];
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      const rank = i + 1;
-      const { times, totalMs } = makeTaTimesForRank(rank);
-      await apiSeedTtEntry(adminPage, tournamentId, entry.id, times, totalMs, rank);
-      entryIds.push(entry.id);
-    }
-    return { tournamentId, playerIds, nicknames, entryIds, cleanup };
+    const { entries } = await setupTaQualViaUi(adminPage, tournamentId, players);
+    return {
+      tournamentId,
+      playerIds: players.map((p) => p.id),
+      nicknames: players.map((p) => p.nickname),
+      entryIds: entries.map((e) => e.entryId),
+      cleanup,
+    };
   } catch (err) {
     await cleanup();
     throw err;
@@ -826,43 +795,29 @@ async function setupTa28PlayerQual(adminPage, label, opts = {}) {
 
 async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
   const stamp = Date.now();
-  const playerIds = [];
-  const nicknames = [];
+  const players = [];
   let tournamentId = null;
 
   const cleanup = async () => {
     await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+    for (const p of players) await apiDeletePlayer(adminPage, p.id);
   };
 
   try {
     for (let i = 1; i <= 28; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E GP ${label} P${i}`,
-        `e2e_gp${label}_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
-      nicknames.push(p.nickname);
+      const name = `E2E GP ${label} P${i}`;
+      const nickname = `e2e_gp${label}_${stamp}_${i}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      players.push({ id: p.id, name, nickname });
     }
     tournamentId = await apiCreateTournament(adminPage, `E2E GP ${label} ${stamp}`, opts);
-    const setup = await apiSetupGpGroup(adminPage, tournamentId, snakeDraft28(playerIds));
-    if (setup.s !== 201) {
-      throw new Error(`GP 28-player setup failed (${setup.s}): ${JSON.stringify(setup.b).slice(0, 200)}`);
-    }
-
-    /* GP qualification matches each carry a pre-assigned cup. Use the assigned
-     * cup as-is in the PUT (the validator rejects cup mismatches per §7.4). */
-    const data = await apiFetchGp(adminPage, tournamentId);
-    const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-    for (const m of matches) {
-      if (!m.cup) continue;
-      const res = await apiPutGpQualScore(adminPage, tournamentId, m.id, m.cup, makeRacesP1Wins());
-      if (res.s !== 200) {
-        throw new Error(`GP qual put failed (${res.s}) match=${m.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
-    return { tournamentId, playerIds, nicknames, cleanup };
+    await setupGpQualViaUi(adminPage, tournamentId, players);
+    return {
+      tournamentId,
+      playerIds: players.map((p) => p.id),
+      nicknames: players.map((p) => p.nickname),
+      cleanup,
+    };
   } catch (err) {
     await cleanup();
     throw err;
@@ -1028,7 +983,299 @@ async function uiAddPlayersToTa(page, tournamentId, players) {
     throw new Error(`UI TA add players failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
   }
   await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  /* Let the TA page settle after the dialog closes. usePolling triggers a
+   * refetch on mount/update that can tear down the execution context in the
+   * subsequent page.evaluate calls ("Failed to fetch"), so wait a beat. */
+  await page.waitForTimeout(1000);
   return body;
+}
+
+/** Open the admin match dialog by clicking the first remaining "Enter Score"
+ *  button on the current mode's /matches tab. Returns a boolean indicating
+ *  whether any button was clicked (false ⇒ all matches already completed).
+ *  Caller is responsible for navigating to the mode page and switching to
+ *  the Matches tab before the first call. */
+async function openNextMatchDialog(page) {
+  const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力)$/ });
+  const count = await enterButtons.count();
+  if (count === 0) return false;
+  const target = enterButtons.first();
+  await target.scrollIntoViewIfNeeded().catch(() => {});
+  await target.click();
+  return true;
+}
+
+/** Switch to the "Matches" tab on a mode page. No-op if already active. */
+async function openMatchesTab(page) {
+  const matchesTab = page.getByRole('tab', { name: /^(Matches|試合一覧)$/ });
+  if ((await matchesTab.count()) > 0) {
+    await matchesTab.first().click().catch(() => {});
+    await page.waitForTimeout(200);
+  }
+}
+
+/** UI-based BM qualification score entry for EVERY open match of the given
+ *  tournament. Iterates the Matches tab and, for each remaining "Enter Score"
+ *  button, opens the score dialog and submits `score1`-`score2` (defaults to
+ *  3-1, matching the prior API setup and satisfying the sum=4 constraint). */
+async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) {
+  await nav(page, `/tournaments/${tournamentId}/bm`);
+  await openMatchesTab(page);
+
+  /* Safety cap: 4 groups × 21 matches + buffer. Prevents an infinite loop if
+   * the dialog close never flips the button state. */
+  for (let i = 0; i < 120; i++) {
+    const clicked = await openNextMatchDialog(page);
+    if (!clicked) return;
+
+    const dialog = page.getByRole('dialog').filter({
+      hasText: /enterMatchScore|試合スコア入力|Enter Match Score/,
+    }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const inputs = dialog.locator('input[type="number"]');
+    await inputs.nth(0).fill(String(score1));
+    await inputs.nth(1).fill(String(score2));
+
+    const responsePromise = page.waitForResponse((res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/bm`) &&
+      res.request().method() === 'PUT', { timeout: 30000 });
+    await dialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ }).click();
+    const response = await responsePromise;
+    if (response.status() !== 200) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(`BM UI score save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+    }
+    await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  throw new Error('BM UI score entry exceeded iteration cap');
+}
+
+/** UI-based MR qualification score entry. Each MR qualification match has
+ *  pre-assigned courses (set at group-setup time), so we only need to click
+ *  winner buttons. Produces 3-1 by default: player1 wins first 3 races,
+ *  player2 wins the 4th. */
+async function uiPutAllMrQualScores(page, tournamentId) {
+  await nav(page, `/tournaments/${tournamentId}/mr`);
+  await openMatchesTab(page);
+
+  for (let i = 0; i < 120; i++) {
+    const clicked = await openNextMatchDialog(page);
+    if (!clicked) return;
+
+    const dialog = page.getByRole('dialog').filter({
+      hasText: /enterMatchResult|試合結果|Enter Match Result/,
+    }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    /* Winner buttons are per-race rows. Each row has two buttons with
+     * aria-label `<nick> wins race <n>`. Target them positionally: even
+     * indices ⇒ player1-wins, odd indices ⇒ player2-wins. */
+    const winnerButtons = dialog.locator('button[aria-label*="wins race"]');
+    const btnCount = await winnerButtons.count();
+    if (btnCount < 8) {
+      throw new Error(`MR dialog has only ${btnCount} winner buttons (expected 8)`);
+    }
+    /* Race 1/2/3 → player1 wins; Race 4 → player2 wins. */
+    await winnerButtons.nth(0).click();
+    await winnerButtons.nth(2).click();
+    await winnerButtons.nth(4).click();
+    await winnerButtons.nth(7).click();
+
+    const responsePromise = page.waitForResponse((res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/mr`) &&
+      res.request().method() === 'PUT', { timeout: 30000 });
+    await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
+    const response = await responsePromise;
+    if (response.status() !== 200) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(`MR UI score save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+    }
+    await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  throw new Error('MR UI score entry exceeded iteration cap');
+}
+
+/** UI-based GP qualification score entry using the dialog's "Manual Total
+ *  Score" toggle to bypass the per-race position entry. selectedCup is auto-
+ *  initialized from match.cup on dialog open, so we only need to tick the
+ *  manual checkbox and fill two point totals. */
+async function uiPutAllGpQualScores(page, tournamentId, points1 = 45, points2 = 0) {
+  await nav(page, `/tournaments/${tournamentId}/gp`);
+  await openMatchesTab(page);
+
+  for (let i = 0; i < 120; i++) {
+    const clicked = await openNextMatchDialog(page);
+    if (!clicked) return;
+
+    const dialog = page.getByRole('dialog').filter({
+      hasText: /enterMatchResult|試合結果|Enter Match Result/,
+    }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    /* Toggle manual-total-score; the id is stable. */
+    await dialog.locator('#gp-manual-score').check();
+    await dialog.locator('#manual-points1').fill(String(points1));
+    await dialog.locator('#manual-points2').fill(String(points2));
+
+    const responsePromise = page.waitForResponse((res) => {
+      const url = res.url();
+      return (url.includes(`/api/tournaments/${tournamentId}/gp/match/`) ||
+        url.includes(`/api/tournaments/${tournamentId}/gp`)) &&
+        res.request().method() === 'PUT';
+    }, { timeout: 30000 });
+    await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
+    const response = await responsePromise;
+    if (response.status() !== 200) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(`GP UI score save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+    }
+    await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  throw new Error('GP UI score entry exceeded iteration cap');
+}
+
+/** UI-based TA times entry for a single entry. Opens the "Edit Times" dialog
+ *  and fills all 20 course inputs in `times` (keyed by course abbr, e.g. MC1).
+ *  Inputs are positional in TA's four-cup grid (MushroomCup → FlowerCup →
+ *  StarCup → SpecialCup, 5 courses each), so we fill by course abbr using
+ *  the placeholder=M:SS.mm attribute which is stable across courses. */
+async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
+  /* Caller is expected to already be on /tournaments/[id]/ta; only nav if
+   * we're somewhere else so we don't blow away page state between entries. */
+  if (!page.url().includes(`/tournaments/${tournamentId}/ta`)) {
+    await nav(page, `/tournaments/${tournamentId}/ta`);
+  }
+
+  /* Each entry row has an "Edit Times" button; filter the row by nickname. */
+  const row = page.getByRole('row').filter({ hasText: entry.nickname }).first();
+  await row.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).click();
+
+  const dialog = page.getByRole('dialog').filter({
+    has: page.locator('input[placeholder="M:SS.mm"]'),
+  }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+  /* Inputs render in a fixed cup/course order that matches TA_COURSES. */
+  const inputs = dialog.locator('input[placeholder="M:SS.mm"]');
+  for (let i = 0; i < TA_COURSES.length; i++) {
+    const course = TA_COURSES[i];
+    const value = times[course];
+    if (!value) throw new Error(`Missing time for course ${course}`);
+    await inputs.nth(i).fill(value);
+  }
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/tt/entries/`) &&
+    res.request().method() === 'PUT', { timeout: 30000 });
+  await dialog.getByRole('button', { name: /^(Save Times|タイム保存|保存)$/ }).click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(`TA UI times save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+  }
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(300);
+}
+
+/* ───────── Unified UI qualification setup helpers ─────────
+ * Single source of truth for completing a full 28-player qualification round
+ * via the admin UI (group entry + score entry). Every per-mode bulk setup
+ * (setupBm28PlayerFinals, setupTa28PlayerQual, setupTaEntriesFromShared,
+ * setupAllModes28PlayerQualification, and the tc-bm/tc-mr/tc-gp suite
+ * helpers) delegates here so there is exactly one UI-based path for "fill
+ * this tournament with qualification data". Do not add API-score fallbacks. */
+
+/** UI-driven BM qualification: group assignment + all match scores.
+ *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
+ *  because setupModePlayersViaUi clears selected players before re-adding. */
+async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1 } = {}) {
+  await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
+  await uiPutAllBmQualScores(adminPage, tournamentId, score1, score2);
+}
+
+/** UI-driven MR qualification: group assignment + all match scores (3-1
+ *  via per-race winner buttons). */
+async function setupMrQualViaUi(adminPage, tournamentId, players) {
+  await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
+  await uiPutAllMrQualScores(adminPage, tournamentId);
+}
+
+/** UI-driven GP qualification: group assignment + all match scores via the
+ *  dialog's Manual Total Score toggle (45-0 by default, matching the
+ *  player1-wins-all-5-races outcome of makeRacesP1Wins). */
+async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0 } = {}) {
+  await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
+  await uiPutAllGpQualScores(adminPage, tournamentId, points1, points2);
+}
+
+/** UI-driven TA qualification: entry addition + times entry.
+ *  - Activates the tournament (idempotent no-op if already active)
+ *  - Clears prior entries so re-runs are clean
+ *  - Adds all players via the "Add Player" dialog (UI)
+ *  - Assigns seeding 1..N per entry via API (no bulk seeding UI exists)
+ *  - When `seedTimes`, enters 20-course times via the Edit Times dialog (UI)
+ *    with rank = index+1 so downstream standings are deterministic
+ *  Returns `{ tournamentId, entries }` where entries carry entryId/playerId/
+ *  nickname/rank in the input-player order. */
+async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = true } = {}) {
+  if (!tournamentId) throw new Error('setupTaQualViaUi: tournamentId is required');
+  if (!Array.isArray(players) || players.length === 0) {
+    throw new Error('setupTaQualViaUi: players must be a non-empty array');
+  }
+
+  await apiActivateTournament(adminPage, tournamentId);
+
+  /* Reset entries so re-running on a reused tournament lands on a clean slate. */
+  const existing = await apiFetchTa(adminPage, tournamentId);
+  const existingEntries = existing.b?.data?.entries ?? [];
+  for (const entry of existingEntries) {
+    const url = `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`;
+    const res = await adminPage.evaluate(async (u) => {
+      const r = await fetch(u, { method: 'DELETE' });
+      return { s: r.status, ok: r.ok };
+    }, url);
+    if (!res.ok && res.s !== 404) {
+      throw new Error(`Failed to delete TA entry ${entry.id} (${res.s})`);
+    }
+  }
+
+  await uiAddPlayersToTa(adminPage, tournamentId, players);
+
+  const taAfter = await apiFetchTa(adminPage, tournamentId);
+  const addedEntries = taAfter.b?.data?.entries ?? [];
+  const entriesByPlayerId = new Map(addedEntries.map((e) => [e.playerId, e]));
+
+  const entries = [];
+  for (let i = 0; i < players.length; i++) {
+    const row = entriesByPlayerId.get(players[i].id);
+    if (!row) throw new Error(`TA entry missing for player ${players[i].nickname}`);
+    const rank = i + 1;
+    /* Seeding stays API-only — no bulk seeding UI, and seeding is admin
+     * metadata rather than a scored/entered result. */
+    const seedRes = await apiUpdateTaSeeding(adminPage, tournamentId, row.id, rank);
+    if (seedRes.s !== 200) {
+      throw new Error(`TA seeding update failed (${seedRes.s}) entry=${row.id}`);
+    }
+    entries.push({
+      entryId: row.id,
+      playerId: players[i].id,
+      nickname: players[i].nickname,
+      rank,
+    });
+  }
+
+  if (seedTimes) {
+    for (const e of entries) {
+      const { times } = makeTaTimesForRank(e.rank);
+      await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: e.nickname }, times);
+    }
+  }
+
+  return { tournamentId, entries };
 }
 
 /** Shared 28-player tournament setup for tc-all's integrated cross-mode flow.
@@ -1140,59 +1387,13 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
     /* ── TA entry addition via UI ───────────────────────────────────────── */
     await uiAddPlayersToTa(adminPage, tournamentId, uiPlayers);
 
-    /* Re-fetch to pick up server-assigned entry ids; UI dialog has no
-     * seeding input, so we set seeding 1..28 via API per entry to preserve
-     * the ordering contract callers depend on (entryIds[i] ↔ rank i+1). */
-    const taAfter = await apiFetchTa(adminPage, tournamentId);
-    const addedEntries = taAfter.b?.data?.entries ?? [];
-    const entriesByPlayerId = new Map(addedEntries.map((e) => [e.playerId, e]));
-    for (let i = 0; i < playerIds.length; i++) {
-      const entry = entriesByPlayerId.get(playerIds[i]);
-      if (!entry) {
-        throw new Error(`TA entry missing for player ${playerIds[i]} after UI add`);
-      }
-      const rank = i + 1;
-      /* Seeding is separate from rank; the UI bulk-add leaves seeding
-       * unset, so we assign 1..28 here to match prior API-only behavior. */
-      const seedRes = await apiUpdateTaSeeding(adminPage, tournamentId, entry.id, rank);
-      if (seedRes.s !== 200) {
-        throw new Error(`TA seeding update failed (${seedRes.s}) entry=${entry.id}`);
-      }
-      const { times, totalMs } = makeTaTimesForRank(rank);
-      await apiSeedTtEntry(adminPage, tournamentId, entry.id, times, totalMs, rank);
-      entryIds.push(entry.id);
-    }
+    /* ── All four qualifications via the unified UI helpers ─────────────── */
+    const taResult = await setupTaQualViaUi(adminPage, tournamentId, uiPlayers);
+    for (const e of taResult.entries) entryIds.push(e.entryId);
 
-    /* ── BM/MR/GP group setup via UI ────────────────────────────────────── */
-    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, uiPlayers);
-    const bmData = await apiFetchBm(adminPage, tournamentId);
-    for (const match of (bmData.matches || []).filter((m) => !m.isBye && !m.completed)) {
-      const res = await apiPutBmQualScore(adminPage, tournamentId, match.id, 3, 1);
-      if (res.s !== 200) {
-        throw new Error(`BM shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
-
-    await setupModePlayersViaUi(adminPage, 'mr', tournamentId, uiPlayers);
-    const mrData = await apiFetchMr(adminPage, tournamentId);
-    for (const match of (mrData.matches || []).filter((m) => !m.isBye && !m.completed)) {
-      const res = await apiPutMrQualScore(adminPage, tournamentId, match.id, 3, 1);
-      if (res.s !== 200) {
-        throw new Error(`MR shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
-
-    await setupModePlayersViaUi(adminPage, 'gp', tournamentId, uiPlayers);
-    const gpData = await apiFetchGp(adminPage, tournamentId);
-    for (const match of (gpData.matches || []).filter((m) => !m.isBye && !m.completed)) {
-      if (!match.cup) {
-        throw new Error(`GP shared match missing cup match=${match.id}`);
-      }
-      const res = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
-      if (res.s !== 200) {
-        throw new Error(`GP shared qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-      }
-    }
+    await setupBmQualViaUi(adminPage, tournamentId, uiPlayers);
+    await setupMrQualViaUi(adminPage, tournamentId, uiPlayers);
+    await setupGpQualViaUi(adminPage, tournamentId, uiPlayers);
 
     return { tournamentId, playerIds, nicknames, entryIds, cleanup };
   } catch (err) {
@@ -1222,6 +1423,15 @@ module.exports = {
   uiCreatePlayer,
   uiAddPlayersToTa,
   setupModePlayersViaUi,
+  uiPutAllBmQualScores,
+  uiPutAllMrQualScores,
+  uiPutAllGpQualScores,
+  uiSetTaEntryTimes,
+  /* Unified UI qualification helpers */
+  setupBmQualViaUi,
+  setupMrQualViaUi,
+  setupGpQualViaUi,
+  setupTaQualViaUi,
   /* draft */
   snakeDraft28,
   /* player browser */

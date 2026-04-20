@@ -41,6 +41,7 @@ const {
   apiSetMrFinalsScore: setMrFinalsScore,
   apiFetchMrFinalsMatches: fetchMrFinalsMatches,
   loginPlayerBrowser,
+  setupMrQualViaUi,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -89,16 +90,9 @@ async function prepareSharedMrFinalsSetup(adminPage) {
 
   const players = sharedMrPlayers(28);
   const tournamentId = sharedFixture.normalTournament.id;
-  await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
-
-  const data = await apiFetchMr(adminPage, tournamentId);
-  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-  for (const match of matches) {
-    const res = await apiPutMrQualScore(adminPage, tournamentId, match.id, 3, 1);
-    if (res.s !== 200) {
-      throw new Error(`MR qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
-    }
-  }
+  /* Delegate to the unified UI qualification helper so this suite uses the
+   * same setup path as tc-all and the standalone setupMr28PlayerFinals. */
+  await setupMrQualViaUi(adminPage, tournamentId, players);
 
   return {
     tournamentId,
