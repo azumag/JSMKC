@@ -71,7 +71,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
-import { computeAutoPairs } from "@/lib/ta/pair-utils";
+import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -328,21 +328,13 @@ export default function TimeAttackPage({
    * Compute snake pairs from the current setupEntries (local dialog state)
    * and apply them in-place. Operates on the in-flight dialog state rather
    * than the server so the admin can preview/adjust before saving.
+   *
+   * Also invoked automatically whenever a seeding input changes so the UI
+   * mirrors §3.1 without requiring an extra button click (previously users
+   * could save seeded entries with no partners assigned).
    */
   const handleAutoPair = () => {
-    // Only pair entries that have seeding set; entries without seeding stay unpaired.
-    const pairPlayers = setupEntries
-      .filter((s) => typeof s.seeding === "number")
-      .map((s) => ({ id: s.playerId, playerId: s.playerId, seeding: s.seeding ?? null }));
-    const rawPairs = computeAutoPairs(pairPlayers);
-    const partnerMap = new Map<string, string>();
-    rawPairs.forEach(([a, b]) => {
-      partnerMap.set(a.playerId, b.playerId);
-      partnerMap.set(b.playerId, a.playerId);
-    });
-    setSetupEntries((prev) =>
-      prev.map((s) => ({ ...s, partnerId: partnerMap.get(s.playerId) ?? null })),
-    );
+    setSetupEntries((prev) => applyAutoPairsToSetup(prev));
   };
 
   /**
@@ -965,9 +957,13 @@ export default function TimeAttackPage({
                                           val && !Number.isNaN(parsed) && parsed >= 1
                                             ? parsed
                                             : undefined;
+                                        /* Recompute snake pairs immediately so the partner
+                                         * column reflects §3.1 as soon as seedings change. */
                                         setSetupEntries((prev) =>
-                                          prev.map((p) =>
-                                            p.playerId === s.playerId ? { ...p, seeding } : p,
+                                          applyAutoPairsToSetup(
+                                            prev.map((p) =>
+                                              p.playerId === s.playerId ? { ...p, seeding } : p,
+                                            ),
                                           ),
                                         );
                                       }}

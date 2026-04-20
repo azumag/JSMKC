@@ -1,4 +1,4 @@
-import { computeAutoPairs } from '@/lib/ta/pair-utils';
+import { applyAutoPairsToSetup, computeAutoPairs } from '@/lib/ta/pair-utils';
 
 /** Helper to make a minimal PairPlayer entry */
 const makeEntry = (id: string, playerId: string, seeding: number | null) => ({
@@ -83,5 +83,54 @@ describe('computeAutoPairs', () => {
     const original = [...players];
     computeAutoPairs(players);
     expect(players).toEqual(original);
+  });
+});
+
+describe('applyAutoPairsToSetup', () => {
+  it('assigns reciprocal partners to seeded entries using snake pairing', () => {
+    const result = applyAutoPairsToSetup<{ playerId: string; seeding?: number; partnerId?: string | null }>([
+      { playerId: 'p1', seeding: 1 },
+      { playerId: 'p2', seeding: 2 },
+      { playerId: 'p3', seeding: 3 },
+      { playerId: 'p4', seeding: 4 },
+    ]);
+
+    const byId = new Map(result.map((e) => [e.playerId, e.partnerId]));
+    // seed 1 ↔ seed 4, seed 2 ↔ seed 3
+    expect(byId.get('p1')).toBe('p4');
+    expect(byId.get('p4')).toBe('p1');
+    expect(byId.get('p2')).toBe('p3');
+    expect(byId.get('p3')).toBe('p2');
+  });
+
+  it('leaves unranked entries untouched so manual pairings survive seeding edits', () => {
+    const result = applyAutoPairsToSetup([
+      { playerId: 'p1', seeding: 1 },
+      { playerId: 'p2', seeding: 2 },
+      { playerId: 'p3', partnerId: 'p4' },
+      { playerId: 'p4', partnerId: 'p3' },
+    ]);
+
+    const byId = new Map(result.map((e) => [e.playerId, e.partnerId]));
+    // Seeded pair gets computed partnerId
+    expect(byId.get('p1')).toBe('p2');
+    expect(byId.get('p2')).toBe('p1');
+    // Unranked entries keep their prior partnerId
+    expect(byId.get('p3')).toBe('p4');
+    expect(byId.get('p4')).toBe('p3');
+  });
+
+  it('nulls the partner of the odd-player-out when seed count is odd', () => {
+    const result = applyAutoPairsToSetup([
+      { playerId: 'p1', seeding: 1, partnerId: 'p2' },
+      { playerId: 'p2', seeding: 2, partnerId: 'p1' },
+      { playerId: 'p3', seeding: 3, partnerId: 'p1' }, // stale partnerId
+    ]);
+
+    const byId = new Map(result.map((e) => [e.playerId, e.partnerId]));
+    // seed 1 ↔ seed 3 per snake pairing; seed 2 has no partner
+    expect(byId.get('p1')).toBe('p3');
+    expect(byId.get('p3')).toBe('p1');
+    expect(byId.get('p2')).toBeNull();
   });
 });
