@@ -57,6 +57,8 @@ export interface MatchDetailConfig {
   sanitizeBody?: boolean;
   /** Whether PUT endpoint requires admin authentication */
   putRequiresAuth?: boolean;
+  /** Whether GET endpoint requires authentication (player or admin). Defaults to false for backward compatibility. */
+  getRequiresAuth?: boolean;
   /**
    * Optional score validation function called before updateMatchScore.
    * Receives the two score values from the request body.
@@ -85,12 +87,23 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
 
   /**
    * GET handler: Fetch a single match by matchId with player details.
+   *
+   * Authentication: if getRequiresAuth is set, requires session auth (admin or player).
+   * If not set, returns match data without authentication (backward-compatible default).
    */
   async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string; matchId: string }> },
   ) {
     const { matchId } = await params;
+
+    /* Optional auth check for GET endpoint */
+    if (config.getRequiresAuth) {
+      const session = await auth();
+      if (!session?.user) {
+        return createErrorResponse('Unauthorized', 401, 'UNAUTHORIZED');
+      }
+    }
 
     try {
       const { id: tournamentId } = await params;
