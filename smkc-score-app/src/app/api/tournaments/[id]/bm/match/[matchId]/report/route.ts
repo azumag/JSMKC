@@ -70,6 +70,8 @@ const BM_RECALC_CONFIG: RecalculateStatsConfig = {
  * Report score from a player's perspective. Supports:
  * 1. Admin session (full access)
  * 2. Player session (restricted to own matches)
+ *
+ * Authentication: admin or player (for their own reports).
  */
 export async function POST(
   request: NextRequest,

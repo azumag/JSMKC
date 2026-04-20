@@ -66,6 +66,8 @@ const MR_RECALC_CONFIG: RecalculateStatsConfig = {
  * Submit a participant's score report for an MR match.
  * Both players report independently; when reports match,
  * the match is automatically confirmed.
+ *
+ * Authentication: admin or player (for their own reports).
  */
 export async function POST(
   request: NextRequest,
