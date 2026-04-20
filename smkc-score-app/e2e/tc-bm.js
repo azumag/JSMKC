@@ -12,6 +12,7 @@
  *   TC-504  28-player full + finals bracket reset
  *   TC-505  28-player full + Grand Final → champion
  *   TC-506  28-player full + Grand Final Reset Match (M17)
+ *   TC-510  BM Top-24 pre-bracket playoff → Top-16 finals flow
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -30,7 +31,7 @@ const {
   makeResults, makeLog, nav, escapeRegex,
   apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
   apiSetupBmGroup, apiFetchBm, apiPutBmQualScore,
-  apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches,
+  apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
   setupBm28PlayerFinals, loginPlayerBrowser,
 } = require('./lib/common');
 const { runSuite } = require('./lib/runner');
@@ -306,6 +307,96 @@ async function runTc504(adminPage) {
       ok ? '' : `before=${completedBefore} after=${completedAfter} total=${after.length}`);
   } catch (err) {
     log('TC-504', 'FAIL', err instanceof Error ? err.message : 'BM 504 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-510: BM Top-24 pre-bracket playoff → Top-16 finals ─────────
+ * Validates issue #454: topN=24 first creates an 8-match playoff, blocks
+ * Phase 2 while R2 remains incomplete, then creates a 31-match 16-player
+ * finals bracket after all four R2 winners are known. */
+async function runTc510(adminPage) {
+  let setup = null;
+  try {
+    setup = await setupBm28PlayerFinals(adminPage, '510');
+    const { tournamentId } = setup;
+
+    const phase1 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    const phase1Data = phase1.b?.data || {};
+    if (phase1.s !== 201 || phase1Data.phase !== 'playoff') {
+      throw new Error(`Playoff phase creation failed (${phase1.s})`);
+    }
+
+    let state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const r1 = state.playoffMatches.filter((m) => m.round === 'playoff_r1');
+    const r2 = state.playoffMatches.filter((m) => m.round === 'playoff_r2');
+    const playoffCreated =
+      state.matches.length === 0 &&
+      state.playoffMatches.length === 8 &&
+      r1.length === 4 &&
+      r2.length === 4;
+
+    const blocked = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    const phase2Blocked = blocked.s === 409 && blocked.b?.code === 'PLAYOFF_INCOMPLETE';
+
+    let r1Routed = true;
+    for (let mn = 1; mn <= 4; mn++) {
+      state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R1 match ${mn} missing`);
+      const winnerId = match.player1Id;
+      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (score.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${score.s})`);
+      state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const target = state.playoffMatches.find((m) => m.matchNumber === mn + 4);
+      if (target?.player2Id !== winnerId) r1Routed = false;
+    }
+
+    const r2WinnersByUpperSeed = new Map();
+    const upperSeedByR2Match = new Map([
+      [5, 16],
+      [6, 13],
+      [7, 14],
+      [8, 15],
+    ]);
+    let playoffCompleteSignal = false;
+    for (let mn = 5; mn <= 8; mn++) {
+      state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R2 match ${mn} missing`);
+      r2WinnersByUpperSeed.set(upperSeedByR2Match.get(mn), match.player1Id);
+      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (score.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${score.s})`);
+      playoffCompleteSignal = score.b?.data?.playoffComplete === true;
+    }
+
+    const phase2 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    const phase2Data = phase2.b?.data || {};
+    state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const seededPlayers = phase2Data.seededPlayers || [];
+    const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
+      const seeded = seededPlayers.find((p) => p.seed === seed);
+      return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
+    });
+    const finalsCreated =
+      phase2.s === 201 &&
+      phase2Data.phase === 'finals' &&
+      state.matches.length === 31 &&
+      state.bracketSize === 16 &&
+      state.playoffMatches.length === 8 &&
+      playoffWinnersSeeded;
+
+    const ok = playoffCreated && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
+    log('TC-510', ok ? 'PASS' : 'FAIL',
+      !playoffCreated ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
+      : !phase2Blocked ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
+      : !r1Routed ? 'R1 winner did not route into R2 player2'
+      : !playoffCompleteSignal ? 'Last R2 PUT did not signal playoffComplete=true'
+      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} winnersSeeded=${playoffWinnersSeeded}`
+      : '');
+  } catch (err) {
+    log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -658,6 +749,7 @@ if (require.main === module) {
       { name: 'TC-322', fn: runTc322 },
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-504', fn: runTc504 },
+      { name: 'TC-510', fn: runTc510 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
