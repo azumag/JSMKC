@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
+import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -33,6 +33,13 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
  * Threshold of 20 distinguishes between the two (>20 means 16-player).
  */
 const BRACKET_SIZE_THRESHOLD = 20;
+
+/**
+ * Pre-Bracket Playoff ("barrage") entrant count. Supports issue #454:
+ * Top 24 qualifiers → Top 16 Upper Bracket, with 12 entrants from qualification
+ * positions 13-24 competing for the 4 Upper-Bracket seats 13-16.
+ */
+const PLAYOFF_ENTRANT_COUNT = 12;
 
 /**
  * Configuration for a finals route handler set.
@@ -161,11 +168,21 @@ export function createFinalsHandlers(config: FinalsConfig) {
           (m: { round?: string }) => m.round?.startsWith('grand_final') || false,
         );
 
+        /* Pre-Bracket Playoff (issue #454) lives in a distinct `stage='playoff'`
+         * row and must be fetched separately. Empty array when the tournament
+         * uses the standard Top-8/Top-16 flow. */
+        const playoffMatches = await model(prisma).findMany({
+          where: { tournamentId, stage: 'playoff' },
+          include: { player1: true, player2: true },
+          orderBy: { matchNumber: 'asc' },
+        });
+
         return createSuccessResponse({
           matches,
           winnersMatches,
           losersMatches,
           grandFinalMatches,
+          playoffMatches,
           bracketStructure,
           bracketSize,
           roundNames,
@@ -218,9 +235,22 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const body = sanitizeInput(await request.json());
       const { topN = 8 } = body;
 
-      /* Support 8-player and 16-player brackets (§4.2) */
-      if (topN !== 8 && topN !== 16) {
-        return handleValidationError('Only 8-player and 16-player brackets are supported', 'topN');
+      /* Supported bracket sizes:
+       *   8  → 8-player double elimination
+       *  16  → 16-player double elimination (§4.2)
+       *  24  → 16-player Upper Bracket + 12-player Pre-Bracket Playoff (§4.2, issue #454).
+       *        Two-phase: first POST call creates the playoff stage; a second
+       *        call (once all playoff_r2 matches are complete) builds the
+       *        Upper Bracket with the 4 playoff winners filling seeds 13-16. */
+      if (topN !== 8 && topN !== 16 && topN !== 24) {
+        return handleValidationError(
+          'Only 8-player, 16-player, or 24-player (Top-16 + playoff) brackets are supported',
+          'topN',
+        );
+      }
+
+      if (topN === 24) {
+        return handleTop24Post(model, qualModel, tournamentId, config);
       }
 
       const qualifications = await qualModel(prisma).findMany({
@@ -326,6 +356,224 @@ export function createFinalsHandlers(config: FinalsConfig) {
   }
 
   /**
+   * Check whether all 4 playoff_r2 matches for a tournament are complete —
+   * the readiness condition for Phase-2 POST that creates the Upper Bracket.
+   */
+  async function isPlayoffComplete(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    matchModel: (p: any) => any,
+    tournamentId: string,
+  ): Promise<boolean> {
+    const r2Matches = await matchModel(prisma).findMany({
+      where: { tournamentId, stage: 'playoff', round: 'playoff_r2' },
+      select: { completed: true },
+    });
+    return r2Matches.length === 4 && r2Matches.every((m: { completed: boolean }) => m.completed);
+  }
+
+  /**
+   * Handle POST with topN=24 — Top 16 bracket with Pre-Bracket Playoff (issue #454).
+   *
+   * Two-phase flow:
+   *   Phase 1: No playoff matches exist → create 8 playoff matches (stage='playoff')
+   *            from qualification positions 13-24. Return playoff structure.
+   *   Phase 2: All 4 playoff_r2 matches complete → build 16-player Upper Bracket
+   *            (stage='finals') using qual top 12 + 4 playoff winners for seeds 13-16.
+   *
+   * Intermediate state: Phase 2 call before playoff completes → 409 Conflict with
+   * a remaining-matches hint so the caller knows why the transition is blocked.
+   *
+   * @returns Response with created matches for the current phase
+   */
+  async function handleTop24Post(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    matchModel: (p: any) => any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    qualificationModel: (p: any) => any,
+    tournamentId: string,
+    finalsConfig: FinalsConfig,
+  ): Promise<NextResponse> {
+    const logger = createLogger(finalsConfig.loggerName);
+
+    try {
+      /* Fetch Top 24 qualifiers — needed for both phases (Phase 1 picks 13-24 as
+       * playoff seeds; Phase 2 picks 1-12 as direct Upper-Bracket seeds). */
+      const qualifications = await qualificationModel(prisma).findMany({
+        where: { tournamentId },
+        include: { player: true },
+        orderBy: finalsConfig.qualificationOrderBy,
+        take: 24,
+      });
+
+      if (qualifications.length < 24) {
+        return handleValidationError(
+          `Not enough players qualified. Need 24, found ${qualifications.length}`,
+          'qualifications',
+        );
+      }
+
+      const existingPlayoff = await matchModel(prisma).findMany({
+        where: { tournamentId, stage: 'playoff' },
+        orderBy: { matchNumber: 'asc' },
+      });
+
+      /* --- PHASE 1: Create playoff matches --- */
+      if (existingPlayoff.length === 0) {
+        const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+
+        /* Playoff-local seeds 1-12 map to qualification positions 13-24. */
+        const playoffSeededPlayers = qualifications
+          .slice(12, 24)
+          .map((q: { playerId: string; player: unknown }, index: number) => ({
+            seed: index + 1,
+            playerId: q.playerId,
+            player: q.player,
+          }));
+
+        const createdPlayoffMatches = [];
+        for (const bracketMatch of playoffStructure) {
+          const player1 = bracketMatch.player1Seed
+            ? playoffSeededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player1Seed)
+            : null;
+          const player2 = bracketMatch.player2Seed
+            ? playoffSeededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player2Seed)
+            : null;
+
+          /* Fallback player IDs satisfy the NOT NULL constraint on player1Id/player2Id
+           * for R2 matches whose player2 comes from an R1 winner (not known yet). */
+          const match = await matchModel(prisma).create({
+            data: {
+              tournamentId,
+              matchNumber: bracketMatch.matchNumber,
+              stage: 'playoff',
+              round: bracketMatch.round,
+              player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
+              player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
+              completed: false,
+            },
+            include: { player1: true, player2: true },
+          });
+
+          createdPlayoffMatches.push({
+            ...match,
+            hasPlayer1: !!player1,
+            hasPlayer2: !!player2,
+            player1Seed: bracketMatch.player1Seed,
+            player2Seed: bracketMatch.player2Seed,
+            advancesToUpperSeed: bracketMatch.advancesToUpperSeed,
+          });
+        }
+
+        return createSuccessResponse({
+          message: 'Playoff bracket created',
+          phase: 'playoff',
+          matches: createdPlayoffMatches,
+          playoffStructure,
+          /* Note: Upper Bracket seats 1-12 for qual top 12 are reserved; the
+           * finals bracket will be created in Phase 2 after playoff completes. */
+        }, 'Playoff bracket created', { status: 201 });
+      }
+
+      /* --- PHASE 2: Build Upper Bracket once playoff is complete --- */
+      const r2Matches = existingPlayoff.filter(
+        (m: { round?: string }) => m.round === 'playoff_r2',
+      );
+      const incompleteR2 = r2Matches.filter((m: { completed: boolean }) => !m.completed);
+
+      if (incompleteR2.length > 0) {
+        return createErrorResponse(
+          `Playoff not complete: ${incompleteR2.length} R2 match(es) remaining`,
+          409,
+          'PLAYOFF_INCOMPLETE',
+        );
+      }
+
+      /* Derive each playoff winner and map to its advancesToUpperSeed target. */
+      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+      const upperSeedToPlayer = new Map<number, { playerId: string; player: unknown }>();
+
+      for (const r2BracketMatch of playoffStructure.filter(m => m.round === 'playoff_r2')) {
+        const dbMatch = r2Matches.find(
+          (m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber,
+        );
+        if (!dbMatch || !r2BracketMatch.advancesToUpperSeed) continue;
+        const winnerId = dbMatch.score1 >= dbMatch.score2 ? dbMatch.player1Id : dbMatch.player2Id;
+        const winnerPlayer = dbMatch.player1Id === winnerId ? dbMatch.player1 : dbMatch.player2;
+        upperSeedToPlayer.set(r2BracketMatch.advancesToUpperSeed, {
+          playerId: winnerId,
+          player: winnerPlayer,
+        });
+      }
+
+      /* Build the 16 seeded players: 1-12 from qualification, 13-16 from playoff winners. */
+      const directPlayers = qualifications.slice(0, 12).map(
+        (q: { playerId: string; player: unknown }, index: number) => ({
+          seed: index + 1,
+          playerId: q.playerId,
+          player: q.player,
+        }),
+      );
+      const playoffWinnerSeeds = [13, 14, 15, 16].map((upperSeed) => {
+        const winner = upperSeedToPlayer.get(upperSeed);
+        if (!winner) {
+          throw new Error(`Playoff winner for Upper seed ${upperSeed} not resolved`);
+        }
+        return { seed: upperSeed, playerId: winner.playerId, player: winner.player };
+      });
+      const seededPlayers = [...directPlayers, ...playoffWinnerSeeds];
+
+      const bracketStructure = generateBracketStructure(16);
+
+      /* Clean slate on any previous finals for reset scenarios. */
+      await matchModel(prisma).deleteMany({
+        where: { tournamentId, stage: 'finals' },
+      });
+
+      const createdMatches = [];
+      for (const bracketMatch of bracketStructure) {
+        const player1 = bracketMatch.player1Seed
+          ? seededPlayers.find(p => p.seed === bracketMatch.player1Seed)
+          : null;
+        const player2 = bracketMatch.player2Seed
+          ? seededPlayers.find(p => p.seed === bracketMatch.player2Seed)
+          : null;
+
+        const match = await matchModel(prisma).create({
+          data: {
+            tournamentId,
+            matchNumber: bracketMatch.matchNumber,
+            stage: 'finals',
+            round: bracketMatch.round,
+            player1Id: player1?.playerId || seededPlayers[0].playerId,
+            player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
+            completed: false,
+          },
+          include: { player1: true, player2: true },
+        });
+
+        createdMatches.push({
+          ...match,
+          hasPlayer1: !!player1,
+          hasPlayer2: !!player2,
+          player1Seed: bracketMatch.player1Seed,
+          player2Seed: bracketMatch.player2Seed,
+        });
+      }
+
+      return createSuccessResponse({
+        message: 'Finals bracket created from playoff results',
+        phase: 'finals',
+        matches: createdMatches,
+        seededPlayers,
+        bracketStructure,
+      }, 'Finals bracket created', { status: 201 });
+    } catch (error) {
+      logger.error('Failed to create Top-24 finals', { error, tournamentId });
+      return createErrorResponse(finalsConfig.postErrorMessage, 500, 'INTERNAL_ERROR');
+    }
+  }
+
+  /**
    * PUT handler: Update a finals match result and advance players through the bracket.
    * Handles winner/loser advancement, grand final reset logic, and tournament completion.
    */
@@ -371,9 +619,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      /* Defensive: reject non-finals stage to prevent cross-stage bracket mutation.
-       * Qualification matches should never trigger bracket advancement logic. */
-      if (match.stage !== 'finals') {
+      /* Defensive: reject non-finals/non-playoff stage to prevent cross-stage
+       * bracket mutation. Qualification matches should never trigger bracket
+       * advancement logic; playoff matches use their own advancement path below. */
+      if (match.stage !== 'finals' && match.stage !== 'playoff') {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
@@ -408,6 +657,39 @@ export function createFinalsHandlers(config: FinalsConfig) {
         data: updateData,
         include: { player1: true, player2: true },
       });
+
+      /* --- Playoff advancement path (issue #454) ---
+       * Playoff matches are a separate stage; only playoff_r1 winners advance
+       * within the playoff (to playoff_r2 as player 2). playoff_r2 winners
+       * stay in the playoff stage — the Upper Bracket is materialised later
+       * via a Phase-2 POST that reads completed playoff results. */
+      if (match.stage === 'playoff') {
+        const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+        const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
+        const currentPlayoff = playoffStructure.find(b => b.matchNumber === matchNumber);
+
+        if (currentPlayoff?.winnerGoesTo) {
+          const position = currentPlayoff.position || 1;
+          await model(prisma).updateMany({
+            where: {
+              tournamentId,
+              stage: 'playoff',
+              matchNumber: currentPlayoff.winnerGoesTo,
+            },
+            data: position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
+          });
+        }
+
+        return createSuccessResponse({
+          match: updatedMatch,
+          winnerId,
+          loserId,
+          stage: 'playoff',
+          /* Signal whether all playoff_r2 matches are complete so clients can
+           * prompt the admin to trigger Phase-2 POST (finals bracket creation). */
+          playoffComplete: await isPlayoffComplete(model, tournamentId),
+        });
+      }
 
       /* Infer bracket size from total finals match count:
        * 8-player bracket = 17 matches, 16-player bracket = 31 matches.

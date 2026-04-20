@@ -19,6 +19,8 @@ export type BracketType = "winners" | "losers" | "grand_final";
 
 /** All possible round identifiers in a double elimination bracket */
 export type BracketRound =
+  | "playoff_r1"      // Pre-Bracket Playoff Round 1 — Top 24 → Top 16 barrage (4 matches)
+  | "playoff_r2"      // Pre-Bracket Playoff Round 2 — decider producing 4 Upper-Bracket entrants (4 matches)
   | "winners_qf"      // Winners Bracket Quarter-Finals (4 matches)
   | "winners_sf"      // Winners Bracket Semi-Finals (2 matches)
   | "winners_final"   // Winners Bracket Final (1 match)
@@ -47,4 +49,10 @@ export interface BracketMatch {
   loserGoesTo?: number;
   /** Display position within the receiving match (1 or 2) */
   position?: 1 | 2;
+  /**
+   * For playoff matches only: the Upper-Bracket seed (1-16) the winner receives
+   * when entering the 16-player double-elimination bracket. Only set on final
+   * playoff round matches (playoff_r2) whose winners advance to Upper Bracket.
+   */
+  advancesToUpperSeed?: number;
 }
