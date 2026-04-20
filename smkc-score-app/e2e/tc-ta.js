@@ -241,14 +241,23 @@ async function runTc805(adminPage) {
     }
 
     /* Unified TA setup dialog replaced the separate "Add Player" dialog;
-     * the trigger label toggles Setup↔Edit based on whether any roster rows exist. */
+     * the trigger label toggles Setup↔Edit based on whether any roster rows exist.
+     *
+     * After the refactor the candidate list uses Checkbox + Label flex rows
+     * (no role="row"), so rowFor/getByRole('row') never matches here. Scope
+     * to the dialog and match the `${nickname} (${name})` label — the toast's
+     * nickname-only text will not match this regex. */
     await adminPage.getByRole('button', {
       name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
     }).click();
-    await adminPage.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
-    // Use rowFor to scope to the table row, avoiding the toast notification
-    // which also contains the player nickname
-    await rowFor(p1.nickname).waitFor({ timeout: 10000 });
+    const setupDialog = adminPage.getByRole('dialog').filter({
+      hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
+    }).first();
+    await setupDialog.waitFor({ state: 'visible', timeout: 10000 });
+    await setupDialog.getByPlaceholder(/プレイヤーを検索|Search players/).fill(p1.nickname);
+    await setupDialog
+      .getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`))
+      .waitFor({ timeout: 10000 });
 
     const ok = removedFromApi && retainedOther;
     log('TC-805', ok ? 'PASS' : 'FAIL',
