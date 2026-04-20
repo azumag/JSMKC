@@ -99,17 +99,33 @@ export async function checkScoreReportAuth(
     } else if (session.user.userType === 'player') {
       /*
        * Direct player login - verify they own the player account AND are a
-       * participant in this match. Checks BOTH playerId (to verify the player
-       * record) AND userId (to verify the session owner is linked to that player).
+       * participant in this match. Two session shapes are supported:
+       *
+       * 1. Player-credentials (password) login: the Credentials provider
+       *    returns `{ id: player.id, playerId: player.id }` so session.user.id
+       *    and session.user.playerId are identical. There is no separate User
+       *    row and Player.userId is typically null.
+       * 2. Discord-linked player (OAuth): session.user.id is the User.id, and
+       *    Player.userId stores that same value — the userId comparison ties
+       *    the session back to the Player row.
+       *
+       * We accept either: if the session came from player-credentials
+       * (user.id === user.playerId), the playerId check is authoritative on
+       * its own. Otherwise we also require the Player.userId linkage, which
+       * is the protection the linkage verification PR added for OAuth
+       * sessions where `playerId` alone would be leakable.
        */
       const playerId = session.user.playerId;
       const userId = session.user.id;
+      const isCredentialSession = userId === playerId;
+      const passesLinkage = (matchPlayer: { userId: string | null } | null | undefined) =>
+        isCredentialSession || matchPlayer?.userId === userId;
       if (reportingPlayer === 1 && match.player1Id === playerId &&
-          match.player1?.userId === userId) {
+          passesLinkage(match.player1)) {
         isAuthorized = true;
       }
       if (reportingPlayer === 2 && match.player2Id === playerId &&
-          match.player2?.userId === userId) {
+          passesLinkage(match.player2)) {
         isAuthorized = true;
       }
     }

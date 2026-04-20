@@ -160,15 +160,15 @@ async function apiDeleteTournament(page, id) {
 }
 
 /* ───────── Snake-draft helpers ─────────
- * 28 players (or fewer) into 4 groups (A/B/C/D × 7) using boustrophedon
- * to keep top-seed clustering low. */
+ * 28 players (or fewer) into 2 groups (A/B × 14) using boustrophedon
+ * to keep top-seed clustering low. Product default is 2 groups. */
 
-const GROUP_LETTERS = ['A', 'B', 'C', 'D'];
+const GROUP_LETTERS = ['A', 'B'];
 
 function snakeDraft28(playerIds) {
   return playerIds.map((playerId, i) => {
-    const row = Math.floor(i / 4);
-    const col = row % 2 === 0 ? (i % 4) : (3 - (i % 4));
+    const row = Math.floor(i / 2);
+    const col = row % 2 === 0 ? (i % 2) : (1 - (i % 2));
     return { playerId, group: GROUP_LETTERS[col], seeding: i + 1 };
   });
 }
@@ -353,7 +353,7 @@ async function setupBm28PlayerFinals(adminPage, label, opts = {}) {
       const p = await uiCreatePlayer(adminPage, name, nickname);
       players.push({ id: p.id, name, nickname });
     }
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM ${label} ${stamp}`, opts);
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM ${label} ${stamp}`, opts);
     await setupBmQualViaUi(adminPage, tournamentId, players);
     return {
       tournamentId,
@@ -451,7 +451,7 @@ async function setupMr28PlayerFinals(adminPage, label, opts = {}) {
       const p = await uiCreatePlayer(adminPage, name, nickname);
       players.push({ id: p.id, name, nickname });
     }
-    tournamentId = await apiCreateTournament(adminPage, `E2E MR ${label} ${stamp}`, opts);
+    tournamentId = await uiCreateTournament(adminPage, `E2E MR ${label} ${stamp}`, opts);
     await setupMrQualViaUi(adminPage, tournamentId, players);
     return {
       tournamentId,
@@ -773,7 +773,7 @@ async function setupTa28PlayerQual(adminPage, label, opts = {}) {
       const p = await uiCreatePlayer(adminPage, name, nickname);
       players.push({ id: p.id, name, nickname });
     }
-    tournamentId = await apiCreateTournament(
+    tournamentId = await uiCreateTournament(
       adminPage,
       `E2E TA ${label} ${stamp}`,
       { dualReportEnabled: false, ...opts },
@@ -810,7 +810,7 @@ async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
       const p = await uiCreatePlayer(adminPage, name, nickname);
       players.push({ id: p.id, name, nickname });
     }
-    tournamentId = await apiCreateTournament(adminPage, `E2E GP ${label} ${stamp}`, opts);
+    tournamentId = await uiCreateTournament(adminPage, `E2E GP ${label} ${stamp}`, opts);
     await setupGpQualViaUi(adminPage, tournamentId, players);
     return {
       tournamentId,
@@ -878,6 +878,236 @@ async function uiCreatePlayer(page, name, nickname) {
   return { id, name, nickname, password };
 }
 
+/** Create a tournament via the /tournaments admin UI.
+ *  - Clicks "Create Tournament" → fills name/date/slug → optionally toggles
+ *    dualReport / taPlayerSelfEdit → submits.
+ *  - Observes POST /api/tournaments via waitForResponse to pick up the id.
+ *  Returns the new tournament id. */
+async function uiCreateTournament(page, name, opts = {}) {
+  const { dualReportEnabled = false, taPlayerSelfEdit, slug } = opts;
+  if (!page.url().includes('/tournaments')) {
+    await nav(page, '/tournaments');
+  } else {
+    /* Already on some /tournaments/... page — go back to the index so the
+     * "Create Tournament" button is present. */
+    await nav(page, '/tournaments');
+  }
+  const openButton = page.getByRole('button', { name: /^(Create Tournament|大会作成|トーナメント作成)$/ }).first();
+  await openButton.click();
+
+  const dialog = page.getByRole('dialog').filter({ has: page.locator('#name') }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+  await dialog.locator('#name').fill(name);
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  await dialog.locator('#date').fill(dateStr);
+  if (slug) await dialog.locator('#slug').fill(slug);
+
+  /* Default form state: dualReportEnabled=false, taPlayerSelfEdit=true. Only
+   * toggle if the requested value differs from the default to avoid double
+   * clicks that would re-flip the checkbox. */
+  if (dualReportEnabled) {
+    await dialog.locator('#dualReport').check();
+  }
+  if (taPlayerSelfEdit === false) {
+    await dialog.locator('#taPlayerSelfEdit').uncheck();
+  }
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes('/api/tournaments') &&
+    res.request().method() === 'POST', { timeout: 30000 });
+  await dialog.getByRole('button', { name: /^(Create Tournament|大会作成|トーナメント作成)$/ }).click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  if (response.status() !== 201) {
+    throw new Error(`UI tournament creation failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+  }
+  const id = body?.data?.id ?? null;
+  if (!id) throw new Error('UI tournament creation missing id');
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  return id;
+}
+
+/** Flip a draft tournament to active by clicking "Start Tournament" on
+ *  /tournaments/[id]. Idempotent: if the tournament is already active the
+ *  button isn't rendered and we simply return. */
+async function uiActivateTournament(page, tournamentId) {
+  await nav(page, `/tournaments/${tournamentId}`);
+  const startBtn = page.getByRole('button', { name: /^(Start Tournament|トーナメント開始)$/ });
+  /* If already active / completed the button isn't rendered. */
+  if ((await startBtn.count()) === 0) return;
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}`) &&
+    res.request().method() === 'PUT', { timeout: 30000 });
+  await startBtn.first().click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI tournament activation failed (${response.status()})`);
+  }
+  /* Wait for the status pill to update before returning so callers observing
+   * "status === active" see the transition. */
+  await page.waitForTimeout(500);
+}
+
+/** Click the TA "End Group Stage" / "予選を終了" button to flip qualification
+ *  into the frozen state. Required before Phase 1/2/3 can be promoted — the
+ *  Finals Phases card only renders for admins once qualification is frozen or
+ *  a phase has already started. Idempotent: if qualification is already
+ *  frozen the button shows "Unfreeze" instead and we return without clicking.
+ */
+async function uiFreezeTaQualification(page, tournamentId) {
+  await nav(page, `/tournaments/${tournamentId}/ta`);
+  const freezeBtn = page.getByRole('button', {
+    name: /^(End Group Stage \(Confirm Times\)|予選を終了（タイム確定）)$/,
+  });
+  /* If already frozen, the button shows the Unfreeze label instead — nothing
+   * to do. waitFor with a short timeout so an already-frozen tournament
+   * doesn't block the suite. */
+  if ((await freezeBtn.count()) === 0) return;
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}`) &&
+    res.request().method() === 'PUT', { timeout: 30000 });
+  await freezeBtn.first().click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI freeze qualification failed (${response.status()})`);
+  }
+  /* Wait for the page to re-render with the Finals Phases card. */
+  await page.waitForTimeout(1500);
+}
+
+/** Click the TA "Start Phase 1/2/3" button matching the requested action.
+ *  The /ta page shows three phase cards with their respective start buttons;
+ *  pre-conditions (entries seeded, prior phase completed) must already be met.
+ *  Accepts the same `action` strings as apiPromoteTaPhase (promote_phase1/2/3)
+ *  so existing call sites swap the api → ui prefix in-place. */
+async function uiPromoteTaPhase(page, tournamentId, action) {
+  const phaseMap = {
+    promote_phase1: /^(Start Phase 1|フェーズ1開始)$/,
+    promote_phase2: /^(Start Phase 2|フェーズ2開始)$/,
+    promote_phase3: /^(Start Phase 3|フェーズ3開始)$/,
+  };
+  const pattern = phaseMap[action];
+  if (!pattern) throw new Error(`uiPromoteTaPhase: unknown action ${action}`);
+
+  /* Always navigate so we see fresh page state — prior tests (e.g. TC-805's
+   * Setup dialog Save) may have left stale in-memory state that hides the
+   * Start Phase button until a reload. */
+  await nav(page, `/tournaments/${tournamentId}/ta`);
+  const button = page.getByRole('button', { name: pattern }).first();
+  await button.waitFor({ state: 'visible', timeout: 15000 });
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await button.click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI ${action} failed (${response.status()})`);
+  }
+  /* Promotion triggers a page-level state refresh (SWR/polling); let it settle
+   * before the next interaction. */
+  await page.waitForTimeout(1500);
+}
+
+/** Start a new round on the given TA phase page and return the roundNumber.
+ *  `phase` is 'phase1' | 'phase2' | 'phase3'. Navigates if not already on
+ *  the corresponding page. Phase 3 lives under /ta/finals. */
+function _phasePath(phase) {
+  if (phase === 'phase3') return 'finals';
+  return phase;
+}
+
+async function uiPhaseStartRound(page, tournamentId, phase) {
+  const path = _phasePath(phase);
+  const expectedUrl = `/tournaments/${tournamentId}/ta/${path}`;
+  if (!page.url().includes(expectedUrl)) {
+    await nav(page, expectedUrl);
+  }
+  /* Some pages default to the Standings tab; switch to Round Control first
+   * if the tab exists. */
+  const roundControlTab = page.getByRole('tab', { name: /^(Round Control|ラウンドコントロール|ラウンド管理)$/ });
+  if (await roundControlTab.count()) {
+    await roundControlTab.first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  const startBtn = page.getByRole('button', { name: /^(Start Round \d+|ラウンド\s*\d+\s*開始)$/ }).first();
+  await startBtn.waitFor({ state: 'visible', timeout: 15000 });
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await startBtn.click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  if (response.status() !== 200) {
+    throw new Error(`UI start_round ${phase} failed (${response.status()})`);
+  }
+  const roundNumber = body?.data?.roundNumber ?? null;
+  /* Let the Current Round tab render its inputs. */
+  await page.waitForTimeout(800);
+  return roundNumber;
+}
+
+/** Submit time results for the currently-open round.
+ *  `results` is an array of `{ nickname?, playerId?, timeMs }` entries — we fill
+ *  the input labelled with nickname when provided, otherwise fall back to the
+ *  Nth input in document order. Phase 1/2 use "Submit & Eliminate Slowest";
+ *  Phase 3 uses "Submit & Deduct Lives". */
+async function uiPhaseSubmitResults(page, tournamentId, phase, results) {
+  const submitPattern = phase === 'phase3'
+    ? /^(Submit & Deduct Lives|送信＆ライフ減算)$/
+    : /^(Submit & Eliminate Slowest|送信＆最遅者敗退)$/;
+
+  /* Switch to Current Round tab if it's distinct from Round Control. */
+  const currentTab = page.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
+  if (await currentTab.count()) {
+    await currentTab.first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  const timeInputs = page.locator('input[placeholder="M:SS.mm"]');
+  await timeInputs.first().waitFor({ state: 'visible', timeout: 15000 });
+
+  for (let i = 0; i < results.length; i++) {
+    const entry = results[i];
+    const timeStr = msToMSS(entry.timeMs);
+    /* Prefer row-specific targeting when the caller provides a nickname so we
+     * don't rely on input ordering, which changes as players are eliminated. */
+    if (entry.nickname) {
+      const row = page.getByRole('row').filter({ hasText: entry.nickname }).first();
+      const input = row.locator('input[placeholder="M:SS.mm"]').first();
+      if (await input.count()) {
+        await input.fill(timeStr);
+        continue;
+      }
+    }
+    await timeInputs.nth(i).fill(timeStr);
+  }
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await page.getByRole('button', { name: submitPattern }).first().click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI submit_results ${phase} failed (${response.status()})`);
+  }
+  await page.waitForTimeout(1500);
+}
+
+/** Format milliseconds as M:SS.mm for TA time inputs. */
+function msToMSS(ms) {
+  const totalCentiseconds = Math.round(ms / 10);
+  const minutes = Math.floor(totalCentiseconds / 6000);
+  const seconds = Math.floor((totalCentiseconds % 6000) / 100);
+  const centiseconds = totalCentiseconds % 100;
+  return `${minutes}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+}
+
 /** Remove all currently-selected players from the BM/MR/GP group setup dialog. */
 async function removeSelectedGroupPlayers(dialog) {
   for (let i = 0; i < 80; i++) {
@@ -918,8 +1148,9 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players) {
     await selectGroupPlayer(dialog, player);
   }
 
-  if (players.length >= 4) {
-    await dialog.getByRole('button', { name: /^4$/ }).click();
+  if (players.length >= 2) {
+    /* Product default is 2 groups; click the group-count chip labelled "2". */
+    await dialog.getByRole('button', { name: /^2$/ }).click();
     const seedingInputs = dialog.locator('input[type="number"]');
     for (let i = 0; i < players.length; i++) {
       await seedingInputs.nth(i).fill(String(i + 1));
@@ -1008,7 +1239,7 @@ const uiAddPlayersToTa = uiSetupTaPlayers;
  *  Caller is responsible for navigating to the mode page and switching to
  *  the Matches tab before the first call. */
 async function openNextMatchDialog(page) {
-  const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力)$/ });
+  const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
   const count = await enterButtons.count();
   if (count === 0) return false;
   const target = enterButtons.first();
@@ -1034,11 +1265,27 @@ async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) 
   await nav(page, `/tournaments/${tournamentId}/bm`);
   await openMatchesTab(page);
 
-  /* Safety cap: 4 groups × 21 matches + buffer. Prevents an infinite loop if
-   * the dialog close never flips the button state. */
-  for (let i = 0; i < 120; i++) {
-    const clicked = await openNextMatchDialog(page);
-    if (!clicked) return;
+  /* Safety cap: 2 groups × 91 matches (14-player round-robin) + buffer.
+   * Prevents an infinite loop if the dialog close never flips the button
+   * state. */
+  let lastButtonCount = Number.MAX_SAFE_INTEGER;
+  for (let i = 0; i < 300; i++) {
+    const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
+    const currentCount = await enterButtons.count();
+    if (currentCount === 0) return;
+
+    /* If the visible Enter Score count didn't drop after the previous save
+     * the UI is lagging — give the optimistic update a chance to settle
+     * before we try again, otherwise we end up re-scoring the same first
+     * match 120 times. */
+    if (i > 0 && currentCount >= lastButtonCount) {
+      await page.waitForTimeout(1000);
+    }
+    lastButtonCount = currentCount;
+
+    const target = enterButtons.first();
+    await target.scrollIntoViewIfNeeded().catch(() => {});
+    await target.click();
 
     const dialog = page.getByRole('dialog').filter({
       hasText: /enterMatchScore|試合スコア入力|Enter Match Score/,
@@ -1059,7 +1306,18 @@ async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) 
       throw new Error(`BM UI score save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
     }
     await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-    await page.waitForTimeout(300);
+    /* Wait for the Enter Score count to drop so the next iteration targets
+     * a genuinely different match. Bail out after 5s if the UI never
+     * refreshes — the iter cap is still the last line of defense. */
+    await page.waitForFunction(
+      ([prev]) => {
+        const buttons = Array.from(document.querySelectorAll('button'))
+          .filter((b) => /^(Enter Score|スコア入力|Enter Result|結果入力)$/.test(b.textContent?.trim() ?? ''));
+        return buttons.length < prev;
+      },
+      [currentCount],
+      { timeout: 5000 },
+    ).catch(() => {});
   }
   throw new Error('BM UI score entry exceeded iteration cap');
 }
@@ -1072,7 +1330,8 @@ async function uiPutAllMrQualScores(page, tournamentId) {
   await nav(page, `/tournaments/${tournamentId}/mr`);
   await openMatchesTab(page);
 
-  for (let i = 0; i < 120; i++) {
+  /* Safety cap: 2 groups × 91 matches + buffer. */
+  for (let i = 0; i < 300; i++) {
     const clicked = await openNextMatchDialog(page);
     if (!clicked) return;
 
@@ -1115,10 +1374,16 @@ async function uiPutAllMrQualScores(page, tournamentId) {
  *  initialized from match.cup on dialog open, so we only need to tick the
  *  manual checkbox and fill two point totals. */
 async function uiPutAllGpQualScores(page, tournamentId, points1 = 45, points2 = 0) {
-  await nav(page, `/tournaments/${tournamentId}/gp`);
-  await openMatchesTab(page);
+  /* Safety cap: 2 groups × 91 matches + buffer. */
+  for (let i = 0; i < 300; i++) {
+    /* Re-navigate every iteration: GP's server-side standings recalc bumps
+     * match versions across the group when any single match saves, so a
+     * client list that loaded at iteration 0 would carry stale version
+     * numbers and the next manual-score PUT returns 409 VERSION_CONFLICT.
+     * A fresh nav forces the page's useSWR to refetch match versions. */
+    await nav(page, `/tournaments/${tournamentId}/gp`);
+    await openMatchesTab(page);
 
-  for (let i = 0; i < 120; i++) {
     const clicked = await openNextMatchDialog(page);
     if (!clicked) return;
 
@@ -1138,7 +1403,12 @@ async function uiPutAllGpQualScores(page, tournamentId, points1 = 45, points2 = 
         url.includes(`/api/tournaments/${tournamentId}/gp`)) &&
         res.request().method() === 'PUT';
     }, { timeout: 30000 });
-    await dialog.getByRole('button', { name: /^(Save Result|結果保存|保存)$/ }).click();
+    /* When manual total-score is toggled the button flips to Save Score /
+     * スコア保存; without the toggle it's Save Result / 結果保存. Accept
+     * either so this helper works regardless of the dialog's current mode. */
+    await dialog.getByRole('button', {
+      name: /^(Save Result|結果保存|Save Score|スコア保存|保存)$/,
+    }).click();
     const response = await responsePromise;
     if (response.status() !== 200) {
       const body = await response.json().catch(() => ({}));
@@ -1217,6 +1487,11 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
 async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1 } = {}) {
+  /* Freshly created tournaments start in draft status. The setup dialog
+   * opens on draft pages but score PUTs require status='active' — without
+   * this activation the save click never fires a response and the test
+   * hangs on waitForResponse. Idempotent for already-active tournaments. */
+  await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
   await uiPutAllBmQualScores(adminPage, tournamentId, score1, score2);
 }
@@ -1224,6 +1499,7 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
 /** UI-driven MR qualification: group assignment + all match scores (3-1
  *  via per-race winner buttons). */
 async function setupMrQualViaUi(adminPage, tournamentId, players) {
+  await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
   await uiPutAllMrQualScores(adminPage, tournamentId);
 }
@@ -1232,6 +1508,7 @@ async function setupMrQualViaUi(adminPage, tournamentId, players) {
  *  dialog's Manual Total Score toggle (45-0 by default, matching the
  *  player1-wins-all-5-races outcome of makeRacesP1Wins). */
 async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0 } = {}) {
+  await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
   await uiPutAllGpQualScores(adminPage, tournamentId, points1, points2);
 }
@@ -1251,7 +1528,7 @@ async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = 
     throw new Error('setupTaQualViaUi: players must be a non-empty array');
   }
 
-  await apiActivateTournament(adminPage, tournamentId);
+  await uiActivateTournament(adminPage, tournamentId);
 
   /* Reset entries so re-running on a reused tournament lands on a clean slate.
    * The setup dialog itself diffs against the server state, but starting from
@@ -1348,7 +1625,7 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
 
       /* Activating an already-active tournament is a no-op PUT; calling
        * unconditionally avoids an extra GET round-trip. */
-      await apiActivateTournament(adminPage, tournamentId);
+      await uiActivateTournament(adminPage, tournamentId);
 
       /* Reset TA entries left behind by prior runs so the qualification stage
        * is a clean slate before re-adding the 28 seeded players.
@@ -1388,13 +1665,13 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
         nickname: nicknames[i],
       }));
 
-      tournamentId = await apiCreateTournament(
+      tournamentId = await uiCreateTournament(
         adminPage,
         `E2E All Modes ${label} ${stamp}`,
         { dualReportEnabled: false, ...tournamentOpts },
       );
       ownedTournamentId = tournamentId;
-      await apiActivateTournament(adminPage, tournamentId);
+      await uiActivateTournament(adminPage, tournamentId);
     }
 
     /* Build the {id, name, nickname} shape needed by the UI helpers from
@@ -1443,6 +1720,12 @@ module.exports = {
   apiDeleteTournament,
   /* UI helpers */
   uiCreatePlayer,
+  uiCreateTournament,
+  uiActivateTournament,
+  uiFreezeTaQualification,
+  uiPromoteTaPhase,
+  uiPhaseStartRound,
+  uiPhaseSubmitResults,
   uiAddPlayersToTa,
   uiSetupTaPlayers,
   setupModePlayersViaUi,

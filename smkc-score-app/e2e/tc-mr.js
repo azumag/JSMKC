@@ -31,8 +31,8 @@
  */
 const {
   makeResults, makeLog, nav,
-  apiCreatePlayer: createPlayer,
-  apiCreateTournament: createTournament,
+  uiCreatePlayer: createPlayer,
+  uiCreateTournament: createTournament,
   apiDeletePlayer: deletePlayer,
   apiDeleteTournament: deleteTournament,
   apiFetchMr,
@@ -82,17 +82,23 @@ async function prepareSharedMrPair(adminPage, { dualReport = false } = {}) {
   };
 }
 
-/** Seed the shared Normal tournament's MR qualification with all 28 shared
- *  players and complete every non-BYE match 3-1, so standings exist and the
- *  finals bracket can be generated. Mirrors `prepareSharedBmFinalsSetup`. */
+/* Primed-once flag so every finals test reuses the dedicated finals
+ * tournament's qualification state instead of re-seeding 84 matches. */
+let sharedMrFinalsReady = false;
+
+/** Seed the shared `finalsTournament` (separate from the pair-tests
+ *  normalTournament) with all 28 shared players and complete every non-BYE
+ *  match once. Subsequent calls are no-ops — finals tests regenerate the
+ *  bracket each run, which doesn't disturb qualification. */
 async function prepareSharedMrFinalsSetup(adminPage) {
   if (!sharedFixture) throw new Error('Shared MR fixture is not initialized');
 
   const players = sharedMrPlayers(28);
-  const tournamentId = sharedFixture.normalTournament.id;
-  /* Delegate to the unified UI qualification helper so this suite uses the
-   * same setup path as tc-all and the standalone setupMr28PlayerFinals. */
-  await setupMrQualViaUi(adminPage, tournamentId, players);
+  const tournamentId = sharedFixture.finalsTournament.id;
+  if (!sharedMrFinalsReady) {
+    await setupMrQualViaUi(adminPage, tournamentId, players);
+    sharedMrFinalsReady = true;
+  }
 
   return {
     tournamentId,
@@ -103,11 +109,11 @@ async function prepareSharedMrFinalsSetup(adminPage) {
 }
 
 /**
- * TC-601: MR qualification full flow with 28 shared players, 4 groups (A/B/C/D × 7)
+ * TC-601: MR qualification full flow with 28 shared players, 2 groups (A/B × 14)
  *
  * Verifies:
- * - 28 players distributed across 4 groups via the shared UI setup (snake-draft)
- * - All 84 non-BYE matches (7-player RR = 21 × 4 groups) scored via admin PUT
+ * - 28 players distributed across 2 groups via the shared UI setup (snake-draft)
+ * - All 182 non-BYE matches (14-player RR = 91 × 2 groups) scored via admin PUT
  * - Standings sorted by score desc → points desc per group
  * - Course assignment exists in match data (assignCoursesRandomly)
  */
@@ -122,8 +128,8 @@ async function runTc601(adminPage) {
     const matches = mrData.matches || [];
     const nonByeMatches = matches.filter((m) => !m.isBye);
 
-    // 7-player RR per group = 21 matches × 4 groups = 84 non-BYE matches
-    const hasExpectedMatches = nonByeMatches.length === 84;
+    // 14-player RR per group = 91 matches × 2 groups = 182 non-BYE matches
+    const hasExpectedMatches = nonByeMatches.length === 182;
 
     // Step 2: Input scores for all matches (valid MR: score1+score2=4)
     // Use varied scores: 3-1, 2-2, 4-0, 1-3 to test all valid combinations
@@ -974,6 +980,7 @@ if (require.main === module) {
         await sharedFixture.cleanup();
         sharedFixture = null;
       }
+      sharedMrFinalsReady = false;
     },
     tests: [
       { name: 'TC-602', fn: runTc602 },

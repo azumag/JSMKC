@@ -23,7 +23,7 @@
  */
 const {
   makeResults, makeLog, nav,
-  apiCreatePlayer, apiDeletePlayer,
+  uiCreatePlayer, apiDeletePlayer,
   apiFetchGp, apiPutGpQualScore,
   apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches,
   makeRacesP1Wins, makeRacesP2Wins,
@@ -67,14 +67,19 @@ async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
   };
 }
 
+/* Primed-once flag so every finals test reuses the dedicated finals
+ * tournament's qualification state instead of re-seeding 84 matches. */
+let sharedGpFinalsReady = false;
+
 async function prepareSharedGpFinalsSetup(adminPage) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
 
   const players = sharedGpPlayers(28);
-  const tournamentId = sharedFixture.normalTournament.id;
-  /* Delegate to the unified UI qualification helper so this suite uses the
-   * same setup path as tc-all and the standalone setupGp28PlayerFinals. */
-  await setupGpQualViaUi(adminPage, tournamentId, players);
+  const tournamentId = sharedFixture.finalsTournament.id;
+  if (!sharedGpFinalsReady) {
+    await setupGpQualViaUi(adminPage, tournamentId, players);
+    sharedGpFinalsReady = true;
+  }
 
   return {
     tournamentId,
@@ -91,20 +96,22 @@ async function runTc701(adminPage) {
     setup = await prepareSharedGpFinalsSetup(adminPage);
     const data = await apiFetchGp(adminPage, setup.tournamentId);
 
-    const groupCounts = { A: 0, B: 0, C: 0, D: 0 };
+    /* Product default: 2 groups × 14 players. Round-robin yields
+     * 14C2 = 91 matches/group → 182 matches total. */
+    const groupCounts = { A: 0, B: 0 };
     for (const q of (data.qualifications || [])) {
       if (q.group in groupCounts) groupCounts[q.group]++;
     }
-    const groupedOk = groupCounts.A === 7 && groupCounts.B === 7 && groupCounts.C === 7 && groupCounts.D === 7;
+    const groupedOk = groupCounts.A === 14 && groupCounts.B === 14;
     const matches = (data.matches || []).filter((m) => !m.isBye);
-    const matchesOk = matches.length === 84;
+    const matchesOk = matches.length === 182;
     const allCompleted = matches.every((m) => m.completed);
     const standingsOk = (data.qualifications || []).length >= 28;
 
     const ok = groupedOk && matchesOk && allCompleted && standingsOk;
     log('TC-701', ok ? 'PASS' : 'FAIL',
-      !groupedOk ? `groups: A=${groupCounts.A} B=${groupCounts.B} C=${groupCounts.C} D=${groupCounts.D}`
-      : !matchesOk ? `matches=${matches.length} expected=84`
+      !groupedOk ? `groups: A=${groupCounts.A} B=${groupCounts.B}`
+      : !matchesOk ? `matches=${matches.length} expected=182`
       : !allCompleted ? `not all completed`
       : !standingsOk ? `standings count=${(data.qualifications || []).length}`
       : '');
@@ -491,7 +498,7 @@ async function runTc709(adminPage) {
     if (!m1) throw new Error('Match 1 missing');
 
     const stamp = Date.now();
-    const challenger = await apiCreatePlayer(adminPage, 'E2E GP 709 Challenger', `e2e_gp709_ch_${stamp}`);
+    const challenger = await uiCreatePlayer(adminPage, 'E2E GP 709 Challenger', `e2e_gp709_ch_${stamp}`);
     extraChallengerId = challenger.id;
 
     const ctx = await loginPlayerBrowser(challenger.nickname, challenger.password);
@@ -536,6 +543,7 @@ if (require.main === module) {
         await sharedFixture.cleanup();
         sharedFixture = null;
       }
+      sharedGpFinalsReady = false;
     },
     tests: [
       { name: 'TC-702', fn: runTc702 },

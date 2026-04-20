@@ -24,11 +24,13 @@
  */
 const {
   makeResults, makeLog, nav,
-  apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
-  apiActivateTournament, apiAddTaEntries,
+  uiSetTaEntryTimes,
+  uiFreezeTaQualification,
+  uiPromoteTaPhase,
+  uiPhaseStartRound, uiPhaseSubmitResults,
   apiGetTtEntry, loginPlayerBrowser,
-  apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
-  setupTa28PlayerQual, apiSeedTtEntry, makeTaTimesForRank,
+  apiFetchTa, apiFetchTaPhase,
+  makeTaTimesForRank,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupTaEntriesFromShared } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -36,10 +38,20 @@ const { runSuite } = require('./lib/runner');
 const results = makeResults();
 const log = makeLog(results);
 let sharedFixture = null;
+/* Shared TA qualification state. Populated once in beforeAll via
+ * setupTaEntriesFromShared so TC-801/802/804/805 do not each re-clear and
+ * re-seed 28 players × 20 courses (≈140s per call). Subsequent phase-promoting
+ * tests (TC-804 → 806 → 807) chain on the same tournament. */
+let sharedTaTournamentId = null;
+let sharedTaEntries = [];
 
 function sharedTaPlayers(count) {
   if (!sharedFixture) throw new Error('Shared TA fixture is not initialized');
   return sharedFixture.players.slice(0, count);
+}
+
+function sharedTaEntryByNickname(nickname) {
+  return sharedTaEntries.find((e) => e.nickname === nickname) ?? null;
 }
 
 /* ───────── TC-801: 28-player full qualification ─────────
@@ -50,12 +62,9 @@ function sharedTaPlayers(count) {
  * intentionally not asserted here. */
 async function runTc801(adminPage) {
   try {
-    const players = sharedTaPlayers(28);
-    const { tournamentId } = await setupTaEntriesFromShared(
-      adminPage,
-      sharedFixture.normalTournament.id,
-      players,
-    );
+    /* Shared qualification already seeded in beforeAll — just validate. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
 
     const data = await apiFetchTa(adminPage, tournamentId);
     const entries = data.b?.data?.entries ?? [];
@@ -90,26 +99,42 @@ async function runTc802(adminPage) {
   const targetTimeMs = 83450;
 
   try {
+    /* Uses the already-seeded shared fixture entry for player[0]. Player
+     * submits a time via /ta/participant and we verify persistence against the
+     * TT entry API. Does not re-clear the roster — TC-804 still sees 28
+     * qualification entries. Participant edits only overwrite individual
+     * courses, so rank ordering may shift slightly but stays within bounds. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
     const [player] = sharedTaPlayers(1);
-    const { tournamentId, entries } = await setupTaEntriesFromShared(
-      adminPage,
-      sharedFixture.normalTournament.id,
-      [player],
-      { seedTimes: false },
-    );
-    const entryId = entries[0].entryId;
+    const sharedEntry = sharedTaEntryByNickname(player.nickname);
+    if (!sharedEntry) throw new Error(`Shared TA entry missing for ${player.nickname}`);
+    const entryId = sharedEntry.entryId;
 
     const ctx = await loginPlayerBrowser(player.nickname, player.password);
     playerBrowser = ctx.browser;
     await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
 
-    const firstTimeInput = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
-    await firstTimeInput.waitFor({ timeout: 15000 });
+    /* The participant page stacks partner card (if paired) above the self
+     * card. Both render their own 20 M:SS.mm inputs + a "Submit Times" button.
+     * Targeting by DOM order: self submit is always the LAST such button;
+     * self's MC1 input is the input immediately preceding the self submit
+     * in document order. When no partner is set the partner card is absent
+     * and both `.first()` and `.last()` refer to the single self widgets. */
+    const submitBtn = ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).last();
+    await submitBtn.waitFor({ timeout: 15000 });
+
+    const allTimeInputs = ctx.page.locator('input[placeholder="M:SS.mm"]');
+    const inputCount = await allTimeInputs.count();
+    /* Self cup inputs are the LAST 20 (partner has 20 first when paired, else
+     * there are only 20). The MC1 input is the first of the self block. */
+    const selfMC1Index = Math.max(0, inputCount - 20);
+    const firstTimeInput = allTimeInputs.nth(selfMC1Index);
     const inputDisabled = await firstTimeInput.isDisabled().catch(() => true);
     if (inputDisabled) throw new Error('TA participant time input is disabled before knockout');
 
     await firstTimeInput.fill(targetTime);
-    await ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).click();
+    await submitBtn.click();
 
     let persisted = false;
     let observed = '';
@@ -149,17 +174,29 @@ async function runTc802(adminPage) {
  * itself (it always re-runs setupTaEntriesFromShared beforehand). */
 async function runTc804(adminPage) {
   try {
-    const players = sharedTaPlayers(28);
-    const { tournamentId } = await setupTaEntriesFromShared(
-      adminPage,
-      sharedFixture.normalTournament.id,
-      players,
-    );
+    /* Promotes on the shared tournament so TC-806/807 can continue on the
+     * same phase chain without re-seeding qualifications. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
 
-    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
-    if (promote.s !== 200) {
-      throw new Error(`promote_phase1 returned ${promote.s}: ${JSON.stringify(promote.b).slice(0, 200)}`);
+    /* Diagnostic: confirm qualification ranks 17-24 still exist before the
+     * page looks for "Start Phase 1". If previous tests disturbed rank
+     * assignment the button never renders and the click times out. */
+    const preQual = await apiFetchTa(adminPage, tournamentId);
+    const preEntries = preQual.b?.data?.entries ?? [];
+    const phase1Ready = preEntries.some((e) => e.rank != null && e.rank >= 17 && e.rank <= 24);
+    if (!phase1Ready) {
+      const rankSummary = preEntries
+        .map((e) => `${e.player?.nickname ?? '?'}=${e.rank ?? 'null'}`)
+        .slice(0, 30)
+        .join(',');
+      throw new Error(`No rank 17-24 entries on shared tournament; ranks=${rankSummary}`);
     }
+
+    /* The Finals Phases card (with Start Phase buttons) only renders once
+     * qualification is frozen. Freeze first, then promote. */
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
 
     const phase1 = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
     const entries = phase1.b?.data?.entries ?? [];
@@ -187,13 +224,12 @@ async function runTc804(adminPage) {
  * Player candidate list for re-entry. Uses 2 shared players. */
 async function runTc805(adminPage) {
   try {
+    /* Operates on the shared 28-player qualification state. Picks two
+     * players, exercises the remove-from-qualification UX, then re-adds p1
+     * via the Setup dialog so downstream tests still see 28 entries. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
     const [p1, p2] = sharedTaPlayers(2);
-    const { tournamentId } = await setupTaEntriesFromShared(
-      adminPage,
-      sharedFixture.normalTournament.id,
-      [p1, p2],
-      { seedTimes: false },
-    );
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     await adminPage.getByRole('tab', { name: /タイム入力|Time Entry/ }).click();
@@ -259,6 +295,28 @@ async function runTc805(adminPage) {
       .getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`))
       .waitFor({ timeout: 10000 });
 
+    /* Re-check p1 and save so shared 28-player state is restored for the
+     * downstream phase-promotion chain (TC-804 onward). Without this, the
+     * qualification would stay at 27 entries and promote_phase1 would pull
+     * different source ranks. */
+    await setupDialog.getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`)).check();
+    await setupDialog.getByPlaceholder(/プレイヤーを検索|Search players/).fill('');
+    /* Seed input uses aria-label `${nickname} seeding` — restore the seeding
+     * slot that matches the original sharedTaEntry rank so rank 1..28 ordering
+     * remains consistent. */
+    const restoredEntry = sharedTaEntryByNickname(p1.nickname);
+    if (restoredEntry?.rank != null) {
+      await setupDialog.getByLabel(`${p1.nickname} seeding`).fill(String(restoredEntry.rank));
+    }
+    await setupDialog.getByRole('button', { name: /^(Save|保存)$/ }).click();
+    await setupDialog.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+    await adminPage.waitForTimeout(1000);
+
+    /* Re-seed p1's qualification times so rank 1..28 ordering persists for
+     * TC-804's phase-promote (which selects ranks 17-24). */
+    const { times: p1Times } = makeTaTimesForRank(restoredEntry?.rank ?? 1);
+    await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: p1.nickname }, p1Times);
+
     const ok = removedFromApi && retainedOther;
     log('TC-805', ok ? 'PASS' : 'FAIL',
       !removedFromApi ? 'removed player still exists in TA API'
@@ -279,19 +337,18 @@ async function runTc805(adminPage) {
  * TC-806 verifies the Phase 2 page (/ta/phase2) renders and shows 8 entries:
  * the 4 phase1 survivors plus the 4 qualifiers from ranks 13-16.
  *
- * Uses setupTa28PlayerQual (isolated per-test tournament): phase promotion
+ * Chains on the shared tournament after TC-804 promoted phase1. Phase promotion
  * writes phase-stage TT entries that freeze the qualification stage, which
  * would prevent the next test from resetting the shared tournament. */
 async function runTc806(adminPage) {
-  let setup = null;
   try {
-    setup = await setupTa28PlayerQual(adminPage, '806');
+    /* Continues from TC-804: shared tournament already has phase1 promoted.
+     * We validate phase1 = 8 entries, run the 4 elimination rounds, then
+     * promote phase2 on the same tournament. TC-807 continues from here. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
 
-    /* Promote phase1: ranks 17-24 move to phase1 stage */
-    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
-
-    /* Get phase1 entries to know player IDs for submitting results */
-    const phase1Before = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1');
+    const phase1Before = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
     const phase1Entries = phase1Before.b?.data?.entries ?? [];
     if (phase1Entries.length !== 8) {
       throw new Error(`Phase1 should have 8 entries, got ${phase1Entries.length}`);
@@ -299,51 +356,29 @@ async function runTc806(adminPage) {
 
     /* Run 4 elimination rounds in phase1 (8→4 players) */
     for (let round = 1; round <= 4; round++) {
-      /* Start a round */
-      const startRes = await adminPage.evaluate(async ([id]) => {
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'start_round', phase: 'phase1' }),
-        });
-        return r.json().catch(() => ({}));
-      }, [setup.tournamentId]);
-      if (!startRes.data?.roundNumber) throw new Error(`start_round phase1 round ${round} failed`);
+      await uiPhaseStartRound(adminPage, tournamentId, 'phase1');
 
       /* Submit results for only non-eliminated (active) phase1 players.
        * Times are based on rank: rank 17 (slowest of phase1) has highest time,
        * rank 24 (fastest of phase1) has lowest time. Lower time = safer from elimination.
        * After 4 rounds, players with ranks 17-20 survive (4 fastest of the 8). */
-      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1'))
+      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase1'))
         .b?.data?.entries ?? [];
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
-        playerId: e.playerId,
+        nickname: e.player?.nickname,
         /* Per-course single-round time (NOT qualification totalTime).
          * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
          * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
         timeMs: 60000 + (e.rank || 20) * 200,
-        isRetry: false,
       }));
-      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
-        const bodyStr = JSON.stringify({ action: 'submit_results', phase: 'phase1', roundNumber: rn, results: data });
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: bodyStr,
-        });
-        const text = await r.text().catch(() => 'PARSE_ERROR');
-        let body;
-        try { body = JSON.parse(text); } catch { body = { raw: text.substring(0, 500) }; }
-        return { s: r.status, b: body, debug: { rn, resultsCount: data.length, firstPlayerId: data[0]?.playerId } };
-      }, [setup.tournamentId, startRes.data.roundNumber, results]);
-      if (!submitRes.data && submitRes.s !== 200) throw new Error(`submit_results phase1 round ${round} failed: status=${submitRes.s}, error=${JSON.stringify(submitRes.b ?? 'empty').slice(0, 300)}, debug=${JSON.stringify(submitRes.debug)}`);
+      await uiPhaseSubmitResults(adminPage, tournamentId, 'phase1', results);
     }
 
-    /* Promote phase2: phase1 survivors (4) + ranks 13-16 (4) = 8 total */
-    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
+    /* Promote phase2 via UI: phase1 survivors (4) + ranks 13-16 (4) = 8 total */
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
 
-    const phase2 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase2');
+    const phase2 = await apiFetchTaPhase(adminPage, tournamentId, 'phase2');
     const entries = phase2.b?.data?.entries ?? [];
 
     const countOk = entries.length === 8;
@@ -355,8 +390,6 @@ async function runTc806(adminPage) {
       : '');
   } catch (err) {
     log('TC-806', 'FAIL', err instanceof Error ? err.message : 'TA 806 failed');
-  } finally {
-    if (setup) await setup.cleanup();
   }
 }
 
@@ -368,95 +401,33 @@ async function runTc806(adminPage) {
  * TC-807 verifies the Phase 3 page (/ta/finals) renders and shows 16 entries
  * with lives > 0 (not yet eliminated).
  *
- * Uses setupTa28PlayerQual (isolated per-test tournament) for the same
+ * Chains on the shared tournament after TC-806 completed phase1 + phase2.
  * phase-freeze reason as TC-806. */
 async function runTc807(adminPage) {
-  let setup = null;
   try {
-    setup = await setupTa28PlayerQual(adminPage, '807');
-
-    /* Promote phase1: ranks 17-24 move to phase1 stage */
-    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
-
-    /* Run 4 elimination rounds in phase1 (8→4 players) */
-    for (let round = 1; round <= 4; round++) {
-      const startRes = await adminPage.evaluate(async ([id]) => {
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'start_round', phase: 'phase1' }),
-        });
-        return r.json().catch(() => ({}));
-      }, [setup.tournamentId]);
-      if (!startRes.data?.roundNumber) throw new Error(`start_round phase1 round ${round} failed`);
-
-      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1'))
-        .b?.data?.entries ?? [];
-      const activeEntries = allEntries.filter((e) => !e.eliminated);
-      const results = activeEntries.map((e) => ({
-        playerId: e.playerId,
-        /* Per-course single-round time (NOT qualification totalTime).
-         * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
-         * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
-        timeMs: 60000 + (e.rank || 20) * 200,
-        isRetry: false,
-      }));
-      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
-        const bodyStr = JSON.stringify({ action: 'submit_results', phase: 'phase1', roundNumber: rn, results: data });
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: bodyStr,
-        });
-        const text = await r.text().catch(() => 'PARSE_ERROR');
-        let body;
-        try { body = JSON.parse(text); } catch { body = { raw: text.substring(0, 500) }; }
-        return { s: r.status, b: body, debug: { rn, resultsCount: data.length, firstPlayerId: data[0]?.playerId } };
-      }, [setup.tournamentId, startRes.data.roundNumber, results]);
-      if (!submitRes.data && submitRes.s !== 200) throw new Error(`submit_results phase1 round ${round} failed: status=${submitRes.s}, error=${JSON.stringify(submitRes.b ?? 'empty').slice(0, 300)}, debug=${JSON.stringify(submitRes.debug)}`);
-    }
-
-    /* Promote phase2: phase1 survivors (4) + qual ranks 13-16 (4) = 8 total */
-    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase2');
+    /* Continues from TC-806: phase1 completed + phase2 promoted on the shared
+     * tournament. Runs the 4 phase2 elimination rounds then promote_phase3. */
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
 
     /* Run 4 elimination rounds in phase2 (8→4 players) */
     for (let round = 1; round <= 4; round++) {
-      const startRes = await adminPage.evaluate(async ([id]) => {
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'start_round', phase: 'phase2' }),
-        });
-        return r.json().catch(() => ({}));
-      }, [setup.tournamentId]);
-      if (!startRes.data?.roundNumber) throw new Error(`start_round phase2 round ${round} failed`);
+      await uiPhaseStartRound(adminPage, tournamentId, 'phase2');
 
-      const allEntries = (await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase2'))
+      const allEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase2'))
         .b?.data?.entries ?? [];
       const activeEntries = allEntries.filter((e) => !e.eliminated);
       const results = activeEntries.map((e) => ({
-        playerId: e.playerId,
-        /* Per-course single-round time (NOT qualification totalTime).
-         * totalTime is cumulative across 20 qual courses (~1.2M ms) and would
-         * exceed the phases route's RETRY_PENALTY_MS cap (599990). */
+        nickname: e.player?.nickname,
         timeMs: 60000 + (e.rank || 20) * 200,
-        isRetry: false,
       }));
-      const submitRes = await adminPage.evaluate(async ([id, rn, data]) => {
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'submit_results', phase: 'phase2', roundNumber: rn, results: data }),
-        });
-        return r.json().catch(() => ({}));
-      }, [setup.tournamentId, startRes.data.roundNumber, results]);
-      if (!submitRes.data) throw new Error(`submit_results phase2 round ${round} failed`);
+      await uiPhaseSubmitResults(adminPage, tournamentId, 'phase2', results);
     }
 
-    /* Promote phase3: phase2 survivors (4) + qual ranks 1-12 (12) = 16 total */
-    await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase3');
+    /* Promote phase3 via UI: phase2 survivors (4) + qual ranks 1-12 (12) = 16 total */
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
 
-    const phase3 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase3');
+    const phase3 = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
     const entries = phase3.b?.data?.entries ?? [];
 
     const countOk = entries.length === 16;
@@ -468,103 +439,52 @@ async function runTc807(adminPage) {
       : '');
   } catch (err) {
     log('TC-807', 'FAIL', err instanceof Error ? err.message : 'TA 807 failed');
-  } finally {
-    if (setup) await setup.cleanup();
   }
 }
 
 /* ───────── TC-808: TA Finals champion banner on completion ─────────
- * Runs a minimal phase3 with 2 players only. After one round of phase3
- * (both submitting times), one will be eliminated (0 lives) leaving the
- * other as champion. Verifies champion banner shows on the TA Finals page.
+ * Chains on the shared tournament at phase3 (16 entries) after TC-807. Runs
+ * Phase 3 elimination rounds until only 1 champion remains, then verifies
+ * the champion banner appears on the TA Finals page.
  *
- * Keeps its own per-test tournament + players because this scenario requires
- * exactly 2 TA entries (the shared fixture has 28) and because phase promotion
- * freezes the stage — see TC-806 comment. */
+ * Phase 3 rules:
+ *   - 3 lives per player; bottom half per round loses 1 life.
+ *   - Active-count milestones 8 / 4 / 2 trigger a life reset to 3.
+ *
+ * From 16 actives the worst case to a 1-player champion is: 3 rounds per
+ * tier × 4 tiers (16→8→4→2→1) = 12 rounds. Each round submits times for
+ * currently-active phase3 entries, differentiated by rank so the same 8/4/2
+ * players keep ending up in the bottom half. */
 async function runTc808(adminPage) {
-  const playerIds = [];
-  const stamp = Date.now();
-  let tournamentId = null;
-
-  const cleanup = async () => {
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
-  };
-
   try {
-    /* Create just 2 players for minimal finals */
-    for (let i = 1; i <= 2; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E TA 808 P${i}`,
-        `e2e_ta808_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+
+    /* Run until either a champion is detected or we hit the worst-case round
+     * budget. Safety cap avoids infinite loops if the termination signal is
+     * missed (server race / UI refresh lag). */
+    let championShown = false;
+    let bodyText = '';
+    const maxRounds = 20;
+    for (let round = 1; round <= maxRounds; round++) {
+      const phase3 = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
+      const entries = phase3.b?.data?.entries ?? [];
+      const active = entries.filter((e) => !e.eliminated);
+      if (active.length <= 1) break;
+
+      await uiPhaseStartRound(adminPage, tournamentId, 'phase3');
+      const results = active.map((e) => ({
+        nickname: e.player?.nickname,
+        /* Worst-rank entries always slowest so the same bottom half keeps
+         * losing lives until eliminated. */
+        timeMs: 60000 + (e.rank || 20) * 200,
+      }));
+      await uiPhaseSubmitResults(adminPage, tournamentId, 'phase3', results);
     }
 
-    tournamentId = await apiCreateTournament(
-      adminPage,
-      `E2E TA 808 ${stamp}`,
-      { dualReportEnabled: false },
-    );
-    await apiActivateTournament(adminPage, tournamentId);
-
-    const add = await apiAddTaEntries(adminPage, tournamentId, {
-      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
-    });
-    if (add.s !== 201) throw new Error(`TA add failed (${add.s})`);
-
-    const entries = add.b?.data?.entries ?? [];
-    /* Seed entry 1 with best times (rank 1), entry 2 with worst (rank 2) */
-    const { times: times1, totalMs: totalMs1 } = makeTaTimesForRank(1);
-    const { times: times2, totalMs: totalMs2 } = makeTaTimesForRank(2);
-    await apiSeedTtEntry(adminPage, tournamentId, entries[0].id, times1, totalMs1, 1);
-    await apiSeedTtEntry(adminPage, tournamentId, entries[1].id, times2, totalMs2, 2);
-
-    /* Promote through all phases */
-    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
-    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
-    await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
-
-    /* Start a round, submit results: one player gets slower time, loses a life */
-    const phase3Before = await apiFetchTaPhase(adminPage, tournamentId, 'phase3');
-    const phase3Entries = phase3Before.b?.data?.entries ?? [];
-
-    /* Phase3 uses life-based elimination (3 lives per player, bottom half loses
-     * 1 life per round). With 2 players, the slower one is always in bottom half,
-     * so we need 3 rounds to eliminate them (3 lives → 0). */
-    for (let round = 1; round <= 3; round++) {
-      const startRes = await adminPage.evaluate(async ([id]) => {
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'start_round', phase: 'phase3' }),
-        });
-        return r.json().catch(() => ({}));
-      }, [tournamentId]);
-      if (!startRes.data?.roundNumber) throw new Error(`start_round phase3 round ${round} failed`);
-
-      /* Submit both players — entry[0] is faster (wins), entry[1] is slower (bottom half, loses a life) */
-      const submitRes = await adminPage.evaluate(async ([id, rn, entries_data]) => {
-        const results = [
-          { playerId: entries_data[0].playerId, timeMs: 60000, isRetry: false },
-          { playerId: entries_data[1].playerId, timeMs: 120000, isRetry: false },
-        ];
-        const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'submit_results', phase: 'phase3', roundNumber: rn, results }),
-        });
-        return r.json().catch(() => ({}));
-      }, [tournamentId, startRes.data.roundNumber, phase3Entries]);
-      if (!submitRes.data) throw new Error(`submit_results phase3 round ${round} failed`);
-    }
-
-    /* Navigate to TA Finals page */
     await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
-    const bodyText = await adminPage.locator('body').innerText();
-
-    const championShown = bodyText.includes('Champion') ||
+    bodyText = await adminPage.locator('body').innerText();
+    championShown = bodyText.includes('Champion') ||
       bodyText.includes('チャンピオン') ||
       bodyText.includes('優勝');
 
@@ -573,8 +493,6 @@ async function runTc808(adminPage) {
       : '');
   } catch (err) {
     log('TC-808', 'FAIL', err instanceof Error ? err.message : 'TA 808 failed');
-  } finally {
-    await cleanup();
   }
 }
 
@@ -589,18 +507,35 @@ if (require.main === module) {
     log,
     beforeAll: async (adminPage) => {
       sharedFixture = await createSharedE2eFixture(adminPage);
+      /* One-time shared qualification seed: 28 players → 20-course times with
+       * rank 1..28. TC-801/802/804/805 reuse this state; TC-804 promotes and
+       * TC-806/807 chain on the same tournament. */
+      const { tournamentId, entries } = await setupTaEntriesFromShared(
+        adminPage,
+        sharedFixture.normalTournament.id,
+        sharedFixture.players.slice(0, 28),
+        { seedTimes: true },
+      );
+      sharedTaTournamentId = tournamentId;
+      sharedTaEntries = entries;
     },
     afterAll: async () => {
       if (sharedFixture) {
         await sharedFixture.cleanup();
         sharedFixture = null;
       }
+      sharedTaTournamentId = null;
+      sharedTaEntries = [];
     },
+    /* Ordering note: TC-805 must run before TC-804 because phase1 promotion
+     * freezes the qualification stage and disables the Setup Players dialog.
+     * TC-804 → 806 → 807 chain on the same tournament. TC-808 is isolated
+     * (2-player minimal finals) and can run last. */
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-802', fn: runTc802 },
-      { name: 'TC-804', fn: runTc804 },
       { name: 'TC-805', fn: runTc805 },
+      { name: 'TC-804', fn: runTc804 },
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },

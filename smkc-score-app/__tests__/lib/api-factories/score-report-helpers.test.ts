@@ -89,8 +89,13 @@ describe('Score Report Helpers', () => {
       expect(result).toBe(true);
     });
 
-    it('should return true when session player matches player1Id', async () => {
-      const mockMatch = createMockMatch({ player1Id: 'player-123' });
+    it('authorizes OAuth-linked player when Player.userId matches session.user.id', async () => {
+      /* Discord-linked session: session.user.id is the User row id and the
+       * Player row stores that same id in player.userId. */
+      const mockMatch = createMockMatch({
+        player1Id: 'player-123',
+        player1: { userId: 'player-user' },
+      });
 
       mockAuth.mockResolvedValue({
         user: {
@@ -104,6 +109,54 @@ describe('Score Report Helpers', () => {
       const result = await checkScoreReportAuth(mockRequest, mockTournamentId, 1, mockMatch);
 
       expect(result).toBe(true);
+    });
+
+    it('authorizes credentials-only player when session.user.id equals session.user.playerId', async () => {
+      /* Credentials (password) login: authorize() returns `{ id: player.id,
+       * playerId: player.id }`, so session.user.id === session.user.playerId
+       * and Player.userId is typically null. Player.userId linkage is not
+       * required in this case because the player record is the session
+       * subject itself. */
+      const mockMatch = createMockMatch({
+        player1Id: 'player-123',
+        player1: { userId: null },
+      });
+
+      mockAuth.mockResolvedValue({
+        user: {
+          id: 'player-123',
+          playerId: 'player-123',
+          userType: 'player',
+          role: 'player',
+        },
+      });
+
+      const result = await checkScoreReportAuth(mockRequest, mockTournamentId, 1, mockMatch);
+
+      expect(result).toBe(true);
+    });
+
+    it('rejects OAuth session when Player.userId linkage is missing', async () => {
+      /* Leakage guard: session carries a playerId but the linked Player row
+       * is not tied to that session's user. Auth must fail so a leaked
+       * playerId cannot be used from an unrelated OAuth session. */
+      const mockMatch = createMockMatch({
+        player1Id: 'player-123',
+        player1: { userId: 'different-user' },
+      });
+
+      mockAuth.mockResolvedValue({
+        user: {
+          id: 'player-user',
+          playerId: 'player-123',
+          userType: 'player',
+          role: 'player',
+        },
+      });
+
+      const result = await checkScoreReportAuth(mockRequest, mockTournamentId, 1, mockMatch);
+
+      expect(result).toBe(false);
     });
 
     it('should return false when no session exists', async () => {

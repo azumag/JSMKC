@@ -1,7 +1,7 @@
 const {
-  apiCreateTournament,
   apiDeleteTournament,
   uiCreatePlayer,
+  uiCreateTournament,
   setupModePlayersViaUi,
   setupTaQualViaUi,
 } = require('./common');
@@ -109,7 +109,7 @@ async function ensureSharedTournament(page, name, opts) {
   }
 
   if (!tournament) {
-    const id = await apiCreateTournament(page, name, opts);
+    const id = await uiCreateTournament(page, name, opts);
     tournament = { id, name, ...opts };
   }
 
@@ -152,11 +152,22 @@ async function createSharedE2eFixture(page, suiteName) {
     'E2E Shared DualReport',
     { dualReportEnabled: true },
   );
+  /* Separate tournament dedicated to 28-player finals tests. Pair tests reset
+   * normalTournament to a 2-player configuration every run, so sharing a
+   * single tournament for both would force the expensive 28-player
+   * setupXxxQualViaUi to re-seed on every finals test. Keeping finals
+   * isolated lets beforeAll prepare it once and every finals test reuse. */
+  const finalsTournament = await ensureSharedTournament(
+    page,
+    'E2E Shared Finals',
+    { dualReportEnabled: false },
+  );
 
   return {
     players,
     normalTournament,
     dualTournament,
+    finalsTournament,
     /* Cleanup intentionally drops tournaments only. Shared e2e_shared_* players
      * persist across runs because ensureSharedPlayers is idempotent (matches by
      * nickname) and UI-based re-creation is slow. Full player teardown now lives
@@ -165,6 +176,7 @@ async function createSharedE2eFixture(page, suiteName) {
     cleanup: async () => {
       await apiDeleteTournament(page, normalTournament.id);
       await apiDeleteTournament(page, dualTournament.id);
+      await apiDeleteTournament(page, finalsTournament.id);
     },
   };
 }

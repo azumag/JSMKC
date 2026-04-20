@@ -13,8 +13,6 @@ const https = require('https');
 const {
   apiActivateTournament,
   apiUpdateTournament,
-  apiAddTaEntries,
-  apiSeedTtEntry,
   apiPromoteTaPhase,
   apiSetTaPartner,
   apiUpdateTaSeeding,
@@ -22,6 +20,16 @@ const {
   apiTaParticipantEditTime,
   installApiLogging,
   setupAllModes28PlayerQualification,
+  uiCreatePlayer,
+  uiCreateTournament,
+  uiActivateTournament,
+  uiPromoteTaPhase,
+  uiPhaseStartRound,
+  uiPhaseSubmitResults,
+  uiSetupTaPlayers,
+  uiSetTaEntryTimes,
+  setupModePlayersViaUi,
+  makeTaTimesForRank,
 } = require('./lib/common');
 const { createSharedE2eFixture } = require('./lib/fixtures');
 const {
@@ -334,17 +342,7 @@ async function main() {
   const tc201TournamentName = `E2E TC-201 ${Date.now()}`;
   let tc201TournamentId = null;
   try {
-    const tc201Create = await page.evaluate(async d => {
-      const r = await fetch('/api/tournaments', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, { name: tc201TournamentName, date: new Date().toISOString() });
-    tc201TournamentId = tc201Create.b?.data?.id ?? null;
-    if (tc201Create.s !== 201 || !tc201TournamentId) {
-      throw new Error(`Failed to create TC-201 tournament (${tc201Create.s})`);
-    }
+    tc201TournamentId = await uiCreateTournament(page, tc201TournamentName);
 
     // TC-201: Mode data loading
     let tc201 = true;
@@ -406,9 +404,10 @@ async function main() {
     const gpMatches = (sharedState.gp.b?.data?.matches ?? sharedState.gp.b?.matches ?? []).filter((m) => !m.isBye);
 
     const taOk = taEntries.length === 28 && taEntries.every((e) => e.totalTime != null && e.totalTime > 0);
-    const bmOk = bmMatches.length === 84 && bmMatches.every((m) => m.completed);
-    const mrOk = mrMatches.length === 84 && mrMatches.every((m) => m.completed);
-    const gpOk = gpMatches.length === 84 && gpMatches.every((m) => m.completed);
+    /* 2 groups × 14 players → 91 RR matches per group = 182 per mode. */
+    const bmOk = bmMatches.length === 182 && bmMatches.every((m) => m.completed);
+    const mrOk = mrMatches.length === 182 && mrMatches.every((m) => m.completed);
+    const gpOk = gpMatches.length === 182 && gpMatches.every((m) => m.completed);
 
     log('TC-401', taOk && bmOk && mrOk && gpOk ? 'PASS' : 'FAIL',
       !taOk ? `TA entries=${taEntries.length}`
@@ -492,6 +491,10 @@ async function main() {
   }, { name: 'E2E Test', nickname: nick, country: 'JP' });
   const pid = cr.b?.data?.player?.id;
   let playerTempPassword = cr.b?.data?.temporaryPassword ?? null;
+  /* Track the current displayed name for downstream UI-setup calls that match
+   * players by `${nickname} (${name})` in the TA setup dialog. TC-102 edits it
+   * to 'E2E Edited'; later TCs rely on that being the name-of-record. */
+  let playerName = 'E2E Test';
   log('TC-101', cr.s === 201 && cr.b?.data?.temporaryPassword ? 'PASS' : 'FAIL');
 
   // TC-102: Player edit
@@ -503,6 +506,7 @@ async function main() {
       });
       return { ok: r.ok };
     }, [`/api/players/${pid}`, nick]);
+    if (ed.ok) playerName = 'E2E Edited';
     log('TC-102', ed.ok ? 'PASS' : 'FAIL');
   } else { log('TC-102', 'SKIP'); }
 
@@ -584,67 +588,25 @@ async function main() {
     let gpPlayer2Id = null;
     try {
       const gpPlayer2Nick = `e2e_gp2_${Date.now()}`;
-      const gpPlayer2 = await page.evaluate(async d => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json() };
-      }, { name: 'E2E GP Opponent', nickname: gpPlayer2Nick, country: 'JP' });
-      gpPlayer2Id = gpPlayer2.b?.data?.player?.id ?? null;
-      if (gpPlayer2.s !== 201 || !gpPlayer2Id) {
-        throw new Error('Failed to create GP opponent player');
-      }
+      const gpPlayer2Name = 'E2E GP Opponent';
+      const gpPlayer2 = await uiCreatePlayer(page, gpPlayer2Name, gpPlayer2Nick);
+      gpPlayer2Id = gpPlayer2.id;
+      if (!gpPlayer2Id) throw new Error('Failed to create GP opponent player');
 
-      const gpTournament = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json() };
-      }, {
-        name: `E2E GP Score Entry ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      gpTournamentId = gpTournament.b?.data?.id ?? null;
-      if (gpTournament.s !== 201 || !gpTournamentId) {
+      gpTournamentId = await uiCreateTournament(page, `E2E GP Score Entry ${Date.now()}`, { dualReportEnabled: false });
+      if (!gpTournamentId) {
         throw new Error('Failed to create GP tournament');
       }
 
-      const activateTournament = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { ok: r.ok, s: r.status };
-      }, [`/api/tournaments/${gpTournamentId}`, { status: 'active' }]);
-      if (!activateTournament.ok) {
-        throw new Error(`Failed to activate GP tournament (${activateTournament.s})`);
-      }
+      await uiActivateTournament(page, gpTournamentId);
 
-      const gpSetup = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${gpTournamentId}/gp`,
-        {
-          players: [
-            { playerId: pid, group: 'A', seeding: 1 },
-            { playerId: gpPlayer2Id, group: 'A', seeding: 2 },
-          ],
-        },
+      /* Open the GP group setup dialog and select both players. 2-player mode
+       * leaves the default group count (1) intact; setupModePlayersViaUi only
+       * touches group count / seeding when there are ≥4 entries. */
+      await setupModePlayersViaUi(page, 'gp', gpTournamentId, [
+        { id: pid, name: playerName, nickname: nick },
+        { id: gpPlayer2Id, name: gpPlayer2Name, nickname: gpPlayer2Nick },
       ]);
-      if (gpSetup.s !== 201) {
-        throw new Error(`Failed to setup GP qualification (${gpSetup.s})`);
-      }
 
       playerBrowser = await chromium.launch({
         headless: false,
@@ -746,40 +708,20 @@ async function main() {
     let playerBrowser = null;
     let taTournamentId = null;
     try {
-      const taTournament = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json() };
-      }, {
-        name: `E2E TA Knockout Lock ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      taTournamentId = taTournament.b?.data?.id ?? null;
-      if (taTournament.s !== 201 || !taTournamentId) {
-        throw new Error('Failed to create TA tournament');
-      }
-      await apiActivateTournament(page, taTournamentId);
+      taTournamentId = await uiCreateTournament(page, `E2E TA Knockout Lock ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, taTournamentId);
 
-      const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId: pid });
-      const taEntryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
-      if (addTaEntry.s !== 201 || !taEntryId) {
-        throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
-      }
+      /* Add TA entry and seed 20-course times for rank 17 so promote_phase1
+       * (ranks 17–24) picks this entry up. Goes through the admin UI. */
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 17 },
+      ]);
+      const { times: rank17Times } = makeTaTimesForRank(17);
+      await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank17Times);
 
-      /* Seed rank 17 so promote_phase1 (ranks 17–24) picks this entry up. */
-      await apiSeedTtEntry(
-        page, taTournamentId, taEntryId,
-        { MC1: '1:00.00' }, 60000, 17
-      );
-
-      const promotePhase1 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
-      if (promotePhase1.s !== 200) {
-        throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
-      }
+      /* uiPromoteTaPhase throws on non-200 so no explicit status check is
+       * needed. */
+      await uiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
 
       playerBrowser = await chromium.launch({
         headless: false,
@@ -824,39 +766,18 @@ async function main() {
   if (pid) {
     let taTournamentId = null;
     try {
-      const taTournament = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json() };
-      }, {
-        name: `E2E TA Add Lock ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      taTournamentId = taTournament.b?.data?.id ?? null;
-      if (taTournament.s !== 201 || !taTournamentId) {
-        throw new Error('Failed to create TA tournament');
-      }
-      await apiActivateTournament(page, taTournamentId);
+      taTournamentId = await uiCreateTournament(page, `E2E TA Add Lock ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, taTournamentId);
 
-      const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId: pid });
-      const taEntryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
-      if (addTaEntry.s !== 201 || !taEntryId) {
-        throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
-      }
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 17 },
+      ]);
+      const { times: rank17TimesTc313 } = makeTaTimesForRank(17);
+      await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank17TimesTc313);
 
-      await apiSeedTtEntry(
-        page, taTournamentId, taEntryId,
-        { MC1: '1:00.00' }, 60000, 17
-      );
-
-      const promotePhase1 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
-      if (promotePhase1.s !== 200) {
-        throw new Error(`Failed to promote Phase 1 (${promotePhase1.s})`);
-      }
+      /* uiPromoteTaPhase throws on non-200 so no explicit status check is
+       * needed. */
+      await uiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
 
       await nav(page, `/tournaments/${taTournamentId}/ta`);
       /* Unified TA setup dialog trigger: "Setup Players" / "Edit Players" (plus JA). */
@@ -899,60 +820,26 @@ async function main() {
     let taTournamentId = null;
     let secondPlayerId = null;
     try {
-      const secondPlayer = await page.evaluate(async (nickname) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'E2E TA Finals Undo', nickname, country: 'JP' }),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, `e2e_ta_undo_${Date.now()}`);
-      secondPlayerId = secondPlayer.b?.data?.player?.id ?? null;
-      if (secondPlayer.s !== 201 || !secondPlayerId) {
-        throw new Error(`Failed to create second TA player (${secondPlayer.s})`);
-      }
+      const secondNick = `e2e_ta_undo_${Date.now()}`;
+      const secondPlayerName = 'E2E TA Finals Undo';
+      const secondPlayer = await uiCreatePlayer(page, secondPlayerName, secondNick);
+      secondPlayerId = secondPlayer.id;
 
-      const taTournament = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E TA Finals Undo ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      taTournamentId = taTournament.b?.data?.id ?? null;
-      if (taTournament.s !== 201 || !taTournamentId) {
-        throw new Error('Failed to create TA tournament');
-      }
-      await apiActivateTournament(page, taTournamentId);
+      taTournamentId = await uiCreateTournament(page, `E2E TA Finals Undo ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, taTournamentId);
 
-      const entryIds = [];
-      for (const playerId of [pid, secondPlayerId]) {
-        const addTaEntry = await apiAddTaEntries(page, taTournamentId, { playerId });
-        const entryId = addTaEntry.b?.data?.entries?.[0]?.id ?? null;
-        if (addTaEntry.s !== 201 || !entryId) {
-          throw new Error(`Failed to create TA qualification entry (${addTaEntry.s})`);
-        }
-        entryIds.push(entryId);
-      }
+      /* Add both TA entries via UI with seeding 1,2; then enter rank-1/rank-2
+       * 20-course times so Phase 3 promotion sees a deterministic ranking. */
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 1 },
+        { id: secondPlayerId, name: secondPlayerName, nickname: secondNick, seeding: 2 },
+      ]);
+      const { times: rank1Times } = makeTaTimesForRank(1);
+      const { times: rank2Times } = makeTaTimesForRank(2);
+      await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank1Times);
+      await uiSetTaEntryTimes(page, taTournamentId, { nickname: secondNick }, rank2Times);
 
-      for (const [index, entryId] of entryIds.entries()) {
-        await apiSeedTtEntry(
-          page, taTournamentId, entryId,
-          { MC1: index === 0 ? '1:00.00' : '1:01.00' },
-          index === 0 ? 60000 : 61000,
-          index + 1,
-        );
-      }
-
-      const promotePhase3 = await apiPromoteTaPhase(page, taTournamentId, 'promote_phase3');
-      if (promotePhase3.s !== 200) {
-        throw new Error(`Failed to promote Phase 3 (${promotePhase3.s})`);
-      }
+      await uiPromoteTaPhase(page, taTournamentId, 'promote_phase3');
 
       await nav(page, `/tournaments/${taTournamentId}/ta/finals`);
       const startRoundButton = page.getByRole('button', { name: /ラウンド 1 開始|Start Round 1/ });
@@ -1021,26 +908,19 @@ async function main() {
   if (pid) {
     let taTournamentId = null;
     try {
-      const created = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `E2E TA Seeding ${Date.now()}`, date: new Date().toISOString(), dualReportEnabled: false });
-      taTournamentId = created.b?.data?.id ?? null;
-      if (created.s !== 201 || !taTournamentId) throw new Error('Failed to create TA tournament');
-      await apiActivateTournament(page, taTournamentId);
+      taTournamentId = await uiCreateTournament(page, `E2E TA Seeding ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, taTournamentId);
 
-      const addResult = await apiAddTaEntries(page, taTournamentId, {
-        playerEntries: [{ playerId: pid, seeding: 3 }],
-      });
-      const entryId = addResult.b?.data?.entries?.[0]?.id ?? null;
-      const initialSeeding = addResult.b?.data?.entries?.[0]?.seeding;
-      if (addResult.s !== 201 || !entryId) {
-        throw new Error(`Failed to create TA entry with seeding (${addResult.s})`);
-      }
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 3 },
+      ]);
+      /* Fetch the created entry from the API so downstream seeding-update/clear
+       * assertions can target the entry by id. No write-side API here. */
+      const afterAdd = await apiFetchTa(page, taTournamentId);
+      const createdEntry = afterAdd.b?.data?.entries?.find((e) => e.playerId === pid) ?? null;
+      const entryId = createdEntry?.id ?? null;
+      const initialSeeding = createdEntry?.seeding;
+      if (!entryId) throw new Error('Failed to create TA entry with seeding');
       const step1 = initialSeeding === 3;
 
       const updateResult = await apiUpdateTaSeeding(page, taTournamentId, entryId, 7);
@@ -1074,41 +954,24 @@ async function main() {
     let partnerPlayerId = null;
     try {
       const partnerNick = `e2e_pair_${Date.now()}`;
-      const partnerResult = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E Pair Partner', nickname: partnerNick, country: 'JP' });
-      partnerPlayerId = partnerResult.b?.data?.player?.id ?? null;
-      const partnerPassword = partnerResult.b?.data?.temporaryPassword ?? null;
-      if (partnerResult.s !== 201 || !partnerPlayerId) {
-        throw new Error(`Failed to create partner player (${partnerResult.s})`);
+      const partnerName = 'E2E Pair Partner';
+      const partnerResult = await uiCreatePlayer(page, partnerName, partnerNick);
+      partnerPlayerId = partnerResult.id;
+      const partnerPassword = partnerResult.password;
+      if (!partnerPlayerId || !partnerPassword) {
+        throw new Error('Failed to create partner player');
       }
 
-      const created = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `E2E TA Pair ${Date.now()}`, date: new Date().toISOString(), dualReportEnabled: false });
-      taTournamentId = created.b?.data?.id ?? null;
-      if (created.s !== 201 || !taTournamentId) throw new Error('Failed to create TA tournament');
-      await apiActivateTournament(page, taTournamentId);
+      taTournamentId = await uiCreateTournament(page, `E2E TA Pair ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, taTournamentId);
 
-      const addBoth = await apiAddTaEntries(page, taTournamentId, {
-        playerEntries: [
-          { playerId: pid, seeding: 1 },
-          { playerId: partnerPlayerId, seeding: 2 },
-        ],
-      });
-      if (addBoth.s !== 201) throw new Error(`Failed to add players to TA (${addBoth.s})`);
-      const entry1 = addBoth.b?.data?.entries?.find(e => e.playerId === pid);
-      const entry2 = addBoth.b?.data?.entries?.find(e => e.playerId === partnerPlayerId);
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 1 },
+        { id: partnerPlayerId, name: partnerName, nickname: partnerNick, seeding: 2 },
+      ]);
+      const afterAddBoth = await apiFetchTa(page, taTournamentId);
+      const entry1 = afterAddBoth.b?.data?.entries?.find(e => e.playerId === pid);
+      const entry2 = afterAddBoth.b?.data?.entries?.find(e => e.playerId === partnerPlayerId);
       if (!entry1 || !entry2) throw new Error('Missing entries after add');
 
       const setPairResult = await apiSetTaPartner(page, taTournamentId, entry1.id, partnerPlayerId);
@@ -1173,42 +1036,24 @@ async function main() {
     let partnerPlayerId2 = null;
     try {
       const pNick = `e2e_selfed_${Date.now()}`;
-      const pResult = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E SelfEdit', nickname: pNick, country: 'JP' });
-      partnerPlayerId2 = pResult.b?.data?.player?.id ?? null;
+      const partner2Name = 'E2E SelfEdit';
+      const pResult = await uiCreatePlayer(page, partner2Name, pNick);
+      partnerPlayerId2 = pResult.id;
       if (!partnerPlayerId2) throw new Error('Failed to create partner');
 
-      const created = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E SelfEdit ${Date.now()}`,
-        date: new Date().toISOString(),
+      taTournamentId = await uiCreateTournament(page, `E2E SelfEdit ${Date.now()}`, {
         dualReportEnabled: false,
         taPlayerSelfEdit: false,
       });
-      taTournamentId = created.b?.data?.id ?? null;
-      if (!taTournamentId) throw new Error('Failed to create tournament');
-      await apiActivateTournament(page, taTournamentId);
+      await uiActivateTournament(page, taTournamentId);
 
-      const addResult = await apiAddTaEntries(page, taTournamentId, {
-        playerEntries: [
-          { playerId: pid, seeding: 1 },
-          { playerId: partnerPlayerId2, seeding: 2 },
-        ],
-      });
-      const entry1 = addResult.b?.data?.entries?.find(e => e.playerId === pid);
-      const entry2 = addResult.b?.data?.entries?.find(e => e.playerId === partnerPlayerId2);
+      await uiSetupTaPlayers(page, taTournamentId, [
+        { id: pid, name: playerName, nickname: nick, seeding: 1 },
+        { id: partnerPlayerId2, name: partner2Name, nickname: pNick, seeding: 2 },
+      ]);
+      const afterAddSelfEdit = await apiFetchTa(page, taTournamentId);
+      const entry1 = afterAddSelfEdit.b?.data?.entries?.find(e => e.playerId === pid);
+      const entry2 = afterAddSelfEdit.b?.data?.entries?.find(e => e.playerId === partnerPlayerId2);
       if (!entry1 || !entry2) throw new Error('Missing entries');
 
       await apiSetTaPartner(page, taTournamentId, entry1.id, partnerPlayerId2);
@@ -1290,24 +1135,13 @@ async function main() {
   {
     let tc315TournamentId = null;
     try {
-      // Create a temp tournament for this test
-      const t315 = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `TC-315-test-${Date.now()}`, date: new Date().toISOString() });
-      tc315TournamentId = t315.b?.data?.id ?? null;
+      // Create a temp tournament via admin UI
+      tc315TournamentId = await uiCreateTournament(page, `TC-315-test-${Date.now()}`);
 
       if (!tc315TournamentId) {
         log('TC-315', 'SKIP', 'Failed to create temp tournament');
       } else {
-        // Activate the tournament
-        await page.evaluate(async ([u, d]) => {
-          await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-        }, [`/api/tournaments/${tc315TournamentId}`, { status: 'active' }]);
+        await uiActivateTournament(page, tc315TournamentId);
 
         // Get 3 player IDs (odd count to force BYE match creation)
         const players315 = await page.evaluate(async () => {
@@ -1381,51 +1215,35 @@ async function main() {
   {
     let tc316TournamentId = null;
     try {
-      // Create temp tournament
-      const t316 = await page.evaluate(async d => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `TC-316-test-${Date.now()}`, date: new Date().toISOString() });
-      tc316TournamentId = t316.b?.data?.id ?? null;
+      // Create temp tournament via admin UI
+      tc316TournamentId = await uiCreateTournament(page, `TC-316-test-${Date.now()}`);
 
       if (!tc316TournamentId) {
         log('TC-316', 'SKIP', 'Failed to create temp tournament');
       } else {
-        // Activate tournament (must use PUT per API convention)
-        await page.evaluate(async ([u, d]) => {
-          await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-        }, [`/api/tournaments/${tc316TournamentId}`, { status: 'active' }]);
+        await uiActivateTournament(page, tc316TournamentId);
 
-        // Get 4 players
+        // Get 4 players (full objects — name+nickname needed by UI group setup)
         const players316 = await page.evaluate(async () => {
-          const r = await fetch('/api/players');
+          const r = await fetch('/api/players?limit=100');
           const j = await r.json();
-          return (j.data || []).slice(0, 4).map(p => p.id);
+          return (j.data || []).slice(0, 4);
         });
 
+        let bmSetupOk = false;
         if (players316.length < 4) {
           log('TC-316', 'SKIP', 'Not enough players');
         } else {
-          // Set up BM with 2 players in group A (minimal setup to get matches)
-          const setup316 = await page.evaluate(async ([u, d]) => {
-            const r = await fetch(u, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(d),
-            });
-            return { s: r.status };
-          }, [
-            `/api/tournaments/${tc316TournamentId}/bm`,
-            { players: players316.slice(0, 2).map(id => ({ playerId: id, group: 'A' })) },
-          ]);
-
-          if (setup316.s !== 201) {
-            log('TC-316', 'SKIP', `BM setup returned ${setup316.s}`);
-          } else {
+          try {
+            await setupModePlayersViaUi(page, 'bm', tc316TournamentId,
+              players316.slice(0, 2).map((p) => ({ id: p.id, name: p.name, nickname: p.nickname })));
+            bmSetupOk = true;
+          } catch (e) {
+            log('TC-316', 'SKIP', `BM UI setup failed: ${e.message?.slice(0, 100) ?? e}`);
+          }
+        }
+        if (bmSetupOk) {
+          {
             // Phase 1: Visit page — NO tie warning expected (mp=0 for all)
             await nav(page, `/tournaments/${tc316TournamentId}/bm`);
             const text1 = await vis(page);
@@ -1528,70 +1346,28 @@ async function main() {
     let tc321Player1Id = null;
     let tc321Player2Id = null;
     try {
-      // Create 2 temp players
-      const p1 = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E MatchAuth P1', nickname: `e2e_auth1_${Date.now()}`, country: 'JP' });
-      tc321Player1Id = p1.b?.data?.player?.id ?? null;
-
-      const p2 = await page.evaluate(async (d) => {
-        const r = await fetch('/api/players', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: 'E2E MatchAuth P2', nickname: `e2e_auth2_${Date.now()}`, country: 'JP' });
-      tc321Player2Id = p2.b?.data?.player?.id ?? null;
-
+      // Create 2 temp players via admin UI
+      const p1Nick = `e2e_auth1_${Date.now()}`;
+      const p2Nick = `e2e_auth2_${Date.now()}`;
+      const p1Name = 'E2E MatchAuth P1';
+      const p2Name = 'E2E MatchAuth P2';
+      const p1 = await uiCreatePlayer(page, p1Name, p1Nick);
+      tc321Player1Id = p1.id;
+      const p2 = await uiCreatePlayer(page, p2Name, p2Nick);
+      tc321Player2Id = p2.id;
       if (!tc321Player1Id || !tc321Player2Id) {
         throw new Error('Failed to create test players');
       }
 
-      // Create tournament
-      const t321 = await page.evaluate(async (d) => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, {
-        name: `E2E MatchView ${Date.now()}`,
-        date: new Date().toISOString(),
-        dualReportEnabled: false,
-      });
-      tc321TournamentId = t321.b?.data?.id ?? null;
-      if (!tc321TournamentId) throw new Error('Failed to create tournament');
+      // Create & activate tournament via admin UI
+      tc321TournamentId = await uiCreateTournament(page, `E2E MatchView ${Date.now()}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, tc321TournamentId);
 
-      // Activate
-      await page.evaluate(async ([u, d]) => {
-        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-      }, [`/api/tournaments/${tc321TournamentId}`, { status: 'active' }]);
-
-      // Set up BM with 2 players
-      const setup = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${tc321TournamentId}/bm`,
-        {
-          players: [
-            { playerId: tc321Player1Id, group: 'A' },
-            { playerId: tc321Player2Id, group: 'A' },
-          ],
-        },
+      // Set up BM with 2 players via the group setup dialog.
+      await setupModePlayersViaUi(page, 'bm', tc321TournamentId, [
+        { id: tc321Player1Id, name: p1Name, nickname: p1Nick },
+        { id: tc321Player2Id, name: p2Name, nickname: p2Nick },
       ]);
-      if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
 
       // Get a non-BYE match ID
       const bmData = await page.evaluate(async (u) => {
@@ -1647,53 +1423,25 @@ async function main() {
   {
     let tc323TournamentId = null;
     const tc323PlayerIds = [];
+    const tc323PlayerObjs = [];
     try {
       const stamp = Date.now();
 
-      // Create 3 players for a round-robin group
+      // Create 3 players via admin UI for a round-robin group
       for (let i = 1; i <= 3; i++) {
-        const p = await page.evaluate(async (d) => {
-          const r = await fetch('/api/players', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status, b: await r.json().catch(() => ({})) };
-        }, { name: `E2E Tie P${i}`, nickname: `e2e_tie${i}_${stamp}`, country: 'JP' });
-        const id = p.b?.data?.player?.id;
-        if (p.s !== 201 || !id) throw new Error(`Failed to create player ${i}`);
-        tc323PlayerIds.push(id);
+        const name = `E2E Tie P${i}`;
+        const nickname = `e2e_tie${i}_${stamp}`;
+        const p = await uiCreatePlayer(page, name, nickname);
+        tc323PlayerIds.push(p.id);
+        tc323PlayerObjs.push({ id: p.id, name, nickname });
       }
 
-      // Create & activate tournament
-      const tournament = await page.evaluate(async (d) => {
-        const r = await fetch('/api/tournaments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, { name: `E2E Tie Warn ${stamp}`, date: new Date().toISOString(), dualReportEnabled: false });
-      tc323TournamentId = tournament.b?.data?.id ?? null;
-      if (tournament.s !== 201 || !tc323TournamentId) throw new Error('Failed to create tournament');
+      // Create & activate tournament via admin UI
+      tc323TournamentId = await uiCreateTournament(page, `E2E Tie Warn ${stamp}`, { dualReportEnabled: false });
+      await uiActivateTournament(page, tc323TournamentId);
 
-      await page.evaluate(async ([u, d]) => {
-        await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-      }, [`/api/tournaments/${tc323TournamentId}`, { status: 'active' }]);
-
-      // Setup BM qualification with 3 players in group A
-      const setup = await page.evaluate(async ([u, d]) => {
-        const r = await fetch(u, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(d),
-        });
-        return { s: r.status, b: await r.json().catch(() => ({})) };
-      }, [
-        `/api/tournaments/${tc323TournamentId}/bm`,
-        { players: tc323PlayerIds.map((id, i) => ({ playerId: id, group: 'A', seeding: i + 1 })) },
-      ]);
-      if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+      // Setup BM qualification with 3 players in group A via the UI.
+      await setupModePlayersViaUi(page, 'bm', tc323TournamentId, tc323PlayerObjs);
 
       // Get matches and submit all non-BYE matches as 2-2 ties
       const bmData = await page.evaluate(async (u) => {
