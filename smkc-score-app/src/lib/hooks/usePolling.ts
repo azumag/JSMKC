@@ -92,6 +92,9 @@ function evictStaleEntries(): void {
  */
 function setCacheEntry(key: string, value: unknown): void {
   evictStaleEntries();
+  // Delete first to ensure the key is removed from its current position
+  // (Map preserves insertion order, so re-inserting moves key to end)
+  pollingCache.delete(key);
   pollingCache.set(key, { data: value, timestamp: Date.now() });
 }
 
