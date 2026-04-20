@@ -12,6 +12,7 @@ import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
 import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS, TOTAL_GP_RACES } from '@/lib/constants';
+import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -106,46 +107,49 @@ export const gpConfig: EventTypeConfig = {
   },
 
   updateMatch: async (prisma, data) => {
-    // §7.4 + §7.1: Validate submitted cup against pre-assigned cup.
-    // Fetch existing match to check if a cup was pre-assigned at setup time.
-    // Include tournamentId to prevent updating a match from a different tournament.
-    const existing = await prisma.gPMatch.findUnique({
-      where: { id: data.matchId, tournamentId: data.tournamentId },
-      select: { cup: true },
+    // Use optimistic locking to prevent race conditions between read and update.
+    // The read (cup check) and update must be atomic to avoid TOCTOU issues.
+    const match = await updateWithRetry(prisma, async (tx) => {
+      // §7.4 + §7.1: Validate submitted cup against pre-assigned cup.
+      const existing = await tx.gPMatch.findUnique({
+        where: { id: data.matchId, tournamentId: data.tournamentId },
+        select: { cup: true, version: true },
+      });
+      if (existing?.cup && !isValidCupChoice(existing.cup, data.cup!)) {
+        const allowed = CUP_SUBSTITUTIONS[existing.cup];
+        const hint = allowed
+          ? ` (allowed: "${existing.cup}" or "${allowed}")`
+          : '';
+        throw new CupMismatchError(
+          `Cup mismatch: assigned "${existing.cup}", submitted "${data.cup}"${hint}`
+        );
+      }
+
+      let totalPoints1 = 0;
+      let totalPoints2 = 0;
+
+      const racesWithPoints = data.races!.map((race) => {
+        const { points1, points2 } = calculateDriverPoints(race.position1, race.position2);
+        totalPoints1 += points1;
+        totalPoints2 += points2;
+        return { ...race, points1, points2 };
+      });
+
+      return tx.gPMatch.update({
+        where: { id: data.matchId, tournamentId: data.tournamentId, version: existing!.version },
+        data: {
+          cup: data.cup,
+          points1: totalPoints1,
+          points2: totalPoints2,
+          races: racesWithPoints,
+          completed: true,
+          version: { increment: 1 },
+        },
+        include: { player1: true, player2: true },
+      });
     });
-    if (existing?.cup && !isValidCupChoice(existing.cup, data.cup!)) {
-      const allowed = CUP_SUBSTITUTIONS[existing.cup];
-      const hint = allowed
-        ? ` (allowed: "${existing.cup}" or "${allowed}")`
-        : '';
-      throw new CupMismatchError(
-        `Cup mismatch: assigned "${existing.cup}", submitted "${data.cup}"${hint}`
-      );
-    }
 
-    let totalPoints1 = 0;
-    let totalPoints2 = 0;
-
-    const racesWithPoints = data.races!.map((race) => {
-      const { points1, points2 } = calculateDriverPoints(race.position1, race.position2);
-      totalPoints1 += points1;
-      totalPoints2 += points2;
-      return { ...race, points1, points2 };
-    });
-
-    const match = await prisma.gPMatch.update({
-      where: { id: data.matchId, tournamentId: data.tournamentId },
-      data: {
-        cup: data.cup,
-        points1: totalPoints1,
-        points2: totalPoints2,
-        races: racesWithPoints,
-        completed: true,
-      },
-      include: { player1: true, player2: true },
-    });
-
-    return { match, score1OrPoints1: totalPoints1, score2OrPoints2: totalPoints2 };
+    return { match, score1OrPoints1: match.points1, score2OrPoints2: match.points2 };
   },
 
   calculateMatchResult,

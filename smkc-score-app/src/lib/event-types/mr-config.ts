@@ -21,11 +21,17 @@ import { validateMatchRaceScores } from '@/lib/score-validation';
  *
  * In the 4-course format, the player with more wins takes the match.
  * A 2-2 tie is valid and recorded as a draw in standings.
- * 0-0 indicates the match has not started yet (also treated as tie/pending).
+ * 0-0 indicates a cleared/voided match — treated as no_contest so it does
+ * not affect standings (§4.1: a draw in the context of a 0-point round is
+ * a non-result, distinct from a regular 2-2 draw).
  */
 function calculateMatchResult(score1: number, score2: number): MatchResult {
+  // 0-0 is a cleared match — not a real result; skip in standings
+  if (score1 === 0 && score2 === 0) {
+    return { winner: null, result1: 'no_contest', result2: 'no_contest' };
+  }
   if (score1 === score2) {
-    // Covers 0-0 (not started), 1-1, 2-2 (draw), etc.
+    // Covers 1-1, 2-2 (draw), etc.
     return { winner: null, result1: 'tie', result2: 'tie' };
   }
   if (score1 > score2) {
@@ -104,6 +110,10 @@ export const mrConfig: EventTypeConfig = {
   aggregatePlayerStats: (matches, playerId, calcResult) => {
     const stats = { mp: 0, wins: 0, ties: 0, losses: 0, winRounds: 0, lossRounds: 0 };
     for (const m of matches) {
+      // Skip 0-0 matches: admin-cleared matches should not affect standings
+      const isClearedMatch = m.score1 === 0 && m.score2 === 0;
+      if (isClearedMatch) continue;
+
       stats.mp++;
       const isPlayer1 = m.player1Id === playerId;
       stats.winRounds += isPlayer1 ? m.score1 : m.score2;

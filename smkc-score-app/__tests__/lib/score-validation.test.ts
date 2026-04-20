@@ -376,8 +376,8 @@ describe('Score Validation Utilities', () => {
     });
 
     it('should reject scores that do not sum to 4 (incomplete match entry)', () => {
-      // 0-0 means no races entered
-      expect(validateMatchRaceScores(0, 0).isValid).toBe(false);
+      // 0-0 is now allowed as a cleared match (admin void, no_contest)
+      expect(validateMatchRaceScores(0, 0).isValid).toBe(true);
       // 3-0 would be valid range but sum ≠ 4 (old best-of-5 partial)
       expect(validateMatchRaceScores(3, 0).isValid).toBe(false);
       expect(validateMatchRaceScores(0, 3).isValid).toBe(false);
