@@ -12,7 +12,9 @@ const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'mRMatch',
   qualificationModel: 'mRQualification',
   loggerName: 'mr-finals-api',
-  qualificationOrderBy: [{ score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
+  /* `group: 'asc'` is first so that Top-24 → Top-16 Playoff (#454) can pick
+   * per-group Top-N deterministically. Within-group order: score → points → winRounds. */
+  qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
   getStyle: 'simple',
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },
   putAdditionalFields: ['rounds'],

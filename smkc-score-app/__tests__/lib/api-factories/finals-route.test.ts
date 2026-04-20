@@ -825,6 +825,126 @@ describe('Finals Route Factory', () => {
     });
   });
 
+  /* MR/GP parity coverage: the Top-24 Playoff flow is mode-agnostic thanks to
+   * the api-factory pattern, but each mode declares its own orderBy shape
+   * (BM: [group,score,points,winRounds], MR: same, GP: [group,points,score]).
+   * These tests exercise Phase 1 with each mode's orderBy to prove the factory
+   * contract holds regardless of the within-group tiebreaker key order. */
+  describe.each([
+    {
+      mode: 'MR',
+      matchModel: 'mRMatch',
+      qualificationModel: 'mRQualification',
+      loggerName: 'mr-finals-api',
+      orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
+    },
+    {
+      mode: 'GP',
+      matchModel: 'gPMatch',
+      qualificationModel: 'gPQualification',
+      loggerName: 'gp-finals-api',
+      /* GP ranks by driver points (score in DB semantics differs across modes). */
+      orderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
+    },
+  ])('POST Handler — Top 24 Playoff — $mode parity', (modeConfig) => {
+    const createMockModeQuals = (count = 24, groupCount = 2) => {
+      const perGroup = Math.ceil(count / groupCount);
+      const groupLetters = ['A', 'B', 'C', 'D'];
+      return Array.from({ length: count }, (_, i) => {
+        const groupIdx = Math.floor(i / perGroup);
+        return {
+          id: `qual-${i}`,
+          playerId: `player-${i}`,
+          group: groupLetters[Math.min(groupIdx, groupCount - 1)],
+          seeding: (i % perGroup) + 1,
+          player: { id: `player-${i}`, name: `Player ${i + 1}` },
+        };
+      });
+    };
+
+    it(`Phase 1: creates 8 playoff matches with ${modeConfig.mode}-shape orderBy`, async () => {
+      /* Prisma is mocked to ignore orderBy, so this test validates that the
+       * factory accepts each mode's config shape and produces the same
+       * per-group interleaved selection — i.e., the Top-24 feature is not
+       * coupled to BM-specific field names. */
+      (prisma[modeConfig.qualificationModel as keyof typeof prisma] as any).findMany.mockResolvedValue(
+        createMockModeQuals(24),
+      );
+      (prisma[modeConfig.matchModel as keyof typeof prisma] as any).findMany.mockResolvedValue([]);
+      (prisma[modeConfig.matchModel as keyof typeof prisma] as any).create.mockImplementation(
+        ({ data }: { data: { matchNumber: number; round: string } }) => ({
+          id: `playoff-${data.matchNumber}`,
+          ...data,
+          player1: { id: data.matchNumber },
+          player2: { id: data.matchNumber },
+        }),
+      );
+
+      const config = createMockConfig({
+        matchModel: modeConfig.matchModel,
+        qualificationModel: modeConfig.qualificationModel,
+        loggerName: modeConfig.loggerName,
+        qualificationOrderBy: modeConfig.orderBy,
+      });
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 24 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      const json = await response.json();
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.matches).toHaveLength(8);
+      /* Same per-group invariant as BM: top-6 of each group must NOT be in
+       * the playoff pool (they advance directly to the Upper Bracket). */
+      const createdPlayerIds = (prisma[modeConfig.matchModel as keyof typeof prisma] as any).create
+        .mock.calls.map((c: [{ data: { player1Id: string } }]) => c[0].data.player1Id);
+      const directAdvancers = [
+        'player-0', 'player-1', 'player-2', 'player-3', 'player-4', 'player-5',
+        'player-12', 'player-13', 'player-14', 'player-15', 'player-16', 'player-17',
+      ];
+      expect(createdPlayerIds.some((id: string) => directAdvancers.includes(id))).toBe(false);
+      /* Orderby is forwarded to prisma verbatim — proves the factory doesn't
+       * rewrite the caller's tiebreaker configuration. */
+      expect((prisma[modeConfig.qualificationModel as keyof typeof prisma] as any).findMany)
+        .toHaveBeenCalledWith(expect.objectContaining({ orderBy: modeConfig.orderBy }));
+    });
+
+    it(`returns 400 when group distribution is invalid (${modeConfig.mode})`, async () => {
+      /* Single-group 24 qualifiers cannot produce a 2/3/4-group barrage split.
+       * The factory must return 400 (not 500) with a meaningful message,
+       * identical behavior to BM. */
+      (prisma[modeConfig.qualificationModel as keyof typeof prisma] as any).findMany.mockResolvedValue(
+        createMockModeQuals(24, 1),
+      );
+      (prisma[modeConfig.matchModel as keyof typeof prisma] as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig({
+        matchModel: modeConfig.matchModel,
+        qualificationModel: modeConfig.qualificationModel,
+        loggerName: modeConfig.loggerName,
+        qualificationOrderBy: modeConfig.orderBy,
+      });
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 24 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      expect((prisma[modeConfig.matchModel as keyof typeof prisma] as any).create).not.toHaveBeenCalled();
+    });
+  });
+
   // ============================================================
   // PUT Handler Tests (15 cases)
   // ============================================================

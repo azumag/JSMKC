@@ -11,8 +11,10 @@ const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   loggerName: 'gp-finals-api',
-  // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
-  qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
+  /* `group: 'asc'` is first so that Top-24 → Top-16 Playoff (#454) can pick
+   * per-group Top-N deterministically. Within-group order: driver points
+   * (primary ranking per requirements.md §4.1) → match score. */
+  qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
   getErrorMessage: 'Failed to fetch grand prix finals data',
