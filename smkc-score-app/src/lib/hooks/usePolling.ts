@@ -36,6 +36,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { POLLING_INTERVAL } from '@/lib/constants';
 
+/** TTL for cached polling entries: 30 minutes */
+const POLLING_CACHE_TTL_MS = 30 * 60 * 1000;
+
+/** Maximum number of entries in the polling cache */
+const POLLING_CACHE_MAX_SIZE = 20;
+
+/** Cache entry with timestamp for TTL tracking */
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
 /**
  * Module-level LRU cache for persisting polling data across component
  * unmount/remount cycles. When a component using usePolling unmounts
@@ -50,34 +62,57 @@ import { POLLING_INTERVAL } from '@/lib/constants';
  * Max size is capped to prevent unbounded memory growth during long
  * sessions (e.g., admin browsing many tournaments). When the limit is
  * reached, the oldest entry is evicted (Map preserves insertion order).
+ * Entries also expire after POLLING_CACHE_TTL_MS (30 minutes).
  */
-const pollingCache = new Map<string, unknown>();
+const pollingCache = new Map<string, CacheEntry>();
 
 /**
- * Maximum number of entries in the polling cache.
- * 20 entries covers ~4 tournaments × 5 tabs each, which is a reasonable
- * working set for a single-user admin session.
+ * Evict expired entries and oldest entry if over capacity.
+ * Called on every setCacheEntry to keep cache bounded.
  */
-const POLLING_CACHE_MAX_SIZE = 20;
-
-/**
- * Set a value in the polling cache with LRU eviction.
- * If the key already exists, it is deleted and re-inserted to move it
- * to the end (most recently used). If the cache exceeds the max size,
- * the oldest entry (first in Map iteration order) is evicted.
- */
-function setCacheEntry(key: string, value: unknown): void {
-  // Delete first to re-insert at the end (LRU ordering)
-  pollingCache.delete(key);
-  pollingCache.set(key, value);
-
-  // Evict oldest entry if over capacity
-  if (pollingCache.size > POLLING_CACHE_MAX_SIZE) {
+function evictStaleEntries(): void {
+  const now = Date.now();
+  for (const [key, entry] of pollingCache.entries()) {
+    if (now - entry.timestamp > POLLING_CACHE_TTL_MS) {
+      pollingCache.delete(key);
+    }
+  }
+  while (pollingCache.size > POLLING_CACHE_MAX_SIZE) {
     const oldestKey = pollingCache.keys().next().value;
     if (oldestKey !== undefined) {
       pollingCache.delete(oldestKey);
     }
   }
+}
+
+/**
+ * Set a value in the polling cache with LRU eviction and TTL expiration.
+ * If the key already exists, it is deleted and re-inserted to move it
+ * to the end (most recently used). Expired entries are evicted on each call.
+ */
+function setCacheEntry(key: string, value: unknown): void {
+  evictStaleEntries();
+  // Delete first to ensure the key is removed from its current position
+  // (Map preserves insertion order, so re-inserting moves key to end)
+  pollingCache.delete(key);
+  pollingCache.set(key, { data: value, timestamp: Date.now() });
+}
+
+/**
+ * Get a cache entry if it exists and is not expired.
+ * Returns undefined if the entry is missing or expired.
+ */
+function getCacheEntry(key: string): unknown | undefined {
+  const entry = pollingCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp > POLLING_CACHE_TTL_MS) {
+    pollingCache.delete(key);
+    return undefined;
+  }
+  // Move to end (most recently used) on access
+  pollingCache.delete(key);
+  pollingCache.set(key, entry);
+  return entry.data;
 }
 
 /**
@@ -136,9 +171,7 @@ export function usePolling<T>(
   // Uses a lazy initializer (function form) so the cache lookup runs only
   // on the initial mount, not on every render.
   const [data, setData] = useState<T | null>(() =>
-    cacheKey && pollingCache.has(cacheKey)
-      ? (pollingCache.get(cacheKey) as T)
-      : null
+    cacheKey ? (getCacheEntry(cacheKey) as T) : null
   );
   const [error, setError] = useState<Error | null>(null);
   const [lastETag, setLastETag] = useState<string | null>(null);
