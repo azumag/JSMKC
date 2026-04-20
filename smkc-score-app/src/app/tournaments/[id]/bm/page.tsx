@@ -149,7 +149,8 @@ export default function BattleModePage({
   const fetchTournamentData = useCallback(async () => {
     const [bmResponse, playersResponse] = await Promise.all([
       fetchWithRetry(`/api/tournaments/${tournamentId}/bm`),
-      fetchWithRetry("/api/players"),
+      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
+      fetchWithRetry("/api/players?limit=100"),
     ]);
 
     if (!bmResponse.ok) {

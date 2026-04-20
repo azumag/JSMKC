@@ -152,7 +152,8 @@ export default function MatchRacePage({
   const fetchTournamentData = useCallback(async () => {
     const [mrResponse, playersResponse] = await Promise.all([
       fetchWithRetry(`/api/tournaments/${tournamentId}/mr`),
-      fetchWithRetry("/api/players"),
+      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
+      fetchWithRetry("/api/players?limit=100"),
     ]);
 
     if (!mrResponse.ok) {
