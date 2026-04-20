@@ -307,6 +307,12 @@ export async function POST(
           autoConfirmed: true,
         }, "Scores confirmed and match completed");
       } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          return createErrorResponse(
+            "This match was updated by another user. Please refresh and try again.",
+            409, "OPTIMISTIC_LOCK_ERROR", { requiresRefresh: true }
+          );
+        }
         return handleDatabaseError(error, "match completion");
       }
     }
