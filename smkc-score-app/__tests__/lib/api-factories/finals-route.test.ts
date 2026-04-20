@@ -604,14 +604,32 @@ describe('Finals Route Factory', () => {
      * Phase 2 (qual top-12 + 4 playoff winners). Each test exercises one
      * of those transitions or their guard rails. */
 
-    const createMockQualifications = (count = 24) =>
-      Array.from({ length: count }, (_, i) => ({
-        id: `qual-${i}`,
-        playerId: `player-${i}`,
-        group: 'A',
-        seeding: i + 1,
-        player: { id: `player-${i}`, name: `Player ${i + 1}` },
-      }));
+    /**
+     * Build mock qualifications split across groups (default 2 groups × 12 players).
+     * The returned array is ordered (group asc, within-group rank asc) — matching
+     * qualificationOrderBy = [{ group: 'asc' }, { score: 'desc' }, ...].
+     *
+     * Player ID mapping (2-group default):
+     *   group 'A' rank 1..12 → player-0..player-11
+     *   group 'B' rank 1..12 → player-12..player-23
+     * This makes "top-12 qualifiers" (player-0..player-11) span group A entirely,
+     * which matches the original absolute-ranking tests' intuition while satisfying
+     * the per-group split required by #454.
+     */
+    const createMockQualifications = (count = 24, groupCount = 2) => {
+      const perGroup = Math.ceil(count / groupCount);
+      const groupLetters = ['A', 'B', 'C', 'D'];
+      return Array.from({ length: count }, (_, i) => {
+        const groupIdx = Math.floor(i / perGroup);
+        return {
+          id: `qual-${i}`,
+          playerId: `player-${i}`,
+          group: groupLetters[Math.min(groupIdx, groupCount - 1)],
+          seeding: (i % perGroup) + 1,
+          player: { id: `player-${i}`, name: `Player ${i + 1}` },
+        };
+      });
+    };
 
     it('Phase 1: creates 8 playoff matches when no playoff exists yet', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
@@ -648,12 +666,19 @@ describe('Finals Route Factory', () => {
         (c: [{ data: { stage: string } }]) => c[0].data.stage,
       );
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
-      /* Playoff seeds 1-12 must map to qual positions 13-24 — i.e., the top
-       * 12 qualifiers are NOT in the playoff pool. */
+      /* Per issue #454 the barrage pool = each group's rank 7..12, interleaved.
+       * Top-6 of each group (A: player-0..5, B: player-12..17) must NOT appear
+       * as player1 in any playoff match — they advance directly to the Upper
+       * Bracket. Top 7-12 of each group (player-6..11, player-18..23) are the
+       * pool from which playoff player1Id values are drawn. */
       const createdPlayerIds = (prisma.bMMatch as any).create.mock.calls.map(
         (c: [{ data: { player1Id: string } }]) => c[0].data.player1Id,
       );
-      expect(createdPlayerIds.some((id: string) => ['player-0', 'player-11'].includes(id))).toBe(false);
+      const directAdvancers = [
+        'player-0', 'player-1', 'player-2', 'player-3', 'player-4', 'player-5',
+        'player-12', 'player-13', 'player-14', 'player-15', 'player-16', 'player-17',
+      ];
+      expect(createdPlayerIds.some((id: string) => directAdvancers.includes(id))).toBe(false);
     });
 
     it('returns 400 when fewer than 24 qualifiers exist', async () => {
@@ -790,9 +815,13 @@ describe('Finals Route Factory', () => {
       expect(seedMap.get(13)).toBe('player-15'); /* From playoff R2 match 6 */
       expect(seedMap.get(14)).toBe('player-14'); /* From playoff R2 match 7 */
       expect(seedMap.get(15)).toBe('player-13'); /* From playoff R2 match 8 */
-      /* Direct-advance qualifiers occupy seeds 1-12. */
+      /* Direct-advance qualifiers occupy seeds 1-12, interleaved by group rank (#454):
+       * seed 1 = A-rank-1 (player-0), seed 2 = B-rank-1 (player-12),
+       * seed 3 = A-rank-2 (player-1), ..., seed 12 = B-rank-6 (player-17). */
       expect(seedMap.get(1)).toBe('player-0');
-      expect(seedMap.get(12)).toBe('player-11');
+      expect(seedMap.get(2)).toBe('player-12');
+      expect(seedMap.get(11)).toBe('player-5');  /* A-rank-6 */
+      expect(seedMap.get(12)).toBe('player-17'); /* B-rank-6 */
     });
   });
 
