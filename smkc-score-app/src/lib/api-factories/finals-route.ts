@@ -729,6 +729,29 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
       const bracketSize = totalFinalsMatches > BRACKET_SIZE_THRESHOLD ? 16 : 8;
 
+      /* Warn when match count is in the ambiguous zone (17-20) where playoff
+       * stage may have added extra matches that make inference unreliable.
+       * This helps admins identify bracket routing anomalies. */
+      const EIGHT_PLAYER_EXPECTED = 17;
+      const SIXTEEN_PLAYER_EXPECTED = 31;
+      const isAmbiguousCount =
+        totalFinalsMatches > EIGHT_PLAYER_EXPECTED &&
+        totalFinalsMatches <= BRACKET_SIZE_THRESHOLD;
+      const isUnexpectedCount =
+        totalFinalsMatches !== EIGHT_PLAYER_EXPECTED &&
+        totalFinalsMatches !== SIXTEEN_PLAYER_EXPECTED;
+      if (isAmbiguousCount || isUnexpectedCount) {
+        logger.warn('Bracket size inference may be unreliable', {
+          tournamentId,
+          totalFinalsMatches,
+          inferredBracketSize: bracketSize,
+          expectedFor8Player: EIGHT_PLAYER_EXPECTED,
+          expectedFor16Player: SIXTEEN_PLAYER_EXPECTED,
+          isAmbiguous: isAmbiguousCount,
+          isUnexpected: isUnexpectedCount,
+        });
+      }
+
       /* Bracket progression: advance winner and loser to next matches */
       const bracketStructure = generateBracketStructure(bracketSize);
       const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
