@@ -770,5 +770,101 @@ describe('usePolling', () => {
       );
       expect(retainedResult.current.data).toEqual({ id: 20 });
     });
+
+    it('should return undefined for expired cache entries', async () => {
+      /*
+       * Test that getCacheEntry returns undefined for entries that have
+       * exceeded the TTL (POLLING_CACHE_TTL_MS = 30 minutes).
+       */
+      const mockData = { id: 1, name: 'expired-test' };
+      const mockFetch = jest.fn().mockResolvedValue(mockData);
+      const cacheKey = 'test/ttl-expired';
+
+      /* First mount: cache the data */
+      const { unmount } = await act(async () => {
+        return renderHook(() => usePolling(mockFetch, { cacheKey }));
+      });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      unmount();
+
+      /* Advance timers by more than TTL (30 minutes) */
+      act(() => {
+        jest.advanceTimersByTime(31 * 60 * 1000); // 31 minutes
+      });
+
+      /* Remount: should get null data because entry expired */
+      const { result } = renderHook(() =>
+        usePolling(jest.fn().mockResolvedValue(null), {
+          immediate: false,
+          cacheKey,
+        })
+      );
+
+      /* Expired entries return undefined from getCacheEntry,
+       * so data should be null */
+      expect(result.current.data).toBeNull();
+    });
+
+    it('should evict expired entries when cache exceeds max size', async () => {
+      /*
+       * Test that when cache exceeds max size (20), expired entries
+       * are evicted first before non-expired entries.
+       */
+      const mockData = { id: 1 };
+      const cacheKeyPrefix = 'test/ttl-size-';
+
+      /* Create 15 entries that will expire soon */
+      for (let i = 0; i < 15; i++) {
+        const { unmount } = await act(async () => {
+          return renderHook(() =>
+            usePolling(jest.fn().mockResolvedValue({ id: i }), {
+              cacheKey: `${cacheKeyPrefix}${i}`,
+            })
+          );
+        });
+        unmount();
+      }
+
+      /* Advance time past TTL for the first 15 entries */
+      act(() => {
+        jest.advanceTimersByTime(31 * 60 * 1000); // 31 minutes
+      });
+
+      /* Now add 10 more fresh entries - this should trigger eviction
+       * of the expired entries before the non-expired ones */
+      for (let i = 15; i < 25; i++) {
+        const { unmount } = await act(async () => {
+          return renderHook(() =>
+            usePolling(jest.fn().mockResolvedValue({ id: i }), {
+              cacheKey: `${cacheKeyPrefix}${i}`,
+            })
+          );
+        });
+        unmount();
+      }
+
+      /* First 5 expired entries (0-4) should have been evicted
+       * to make room, even though they were inserted first */
+      const { result: evictedResult } = renderHook(() =>
+        usePolling(jest.fn().mockResolvedValue(null), {
+          immediate: false,
+          cacheKey: `${cacheKeyPrefix}0`,
+        })
+      );
+      expect(evictedResult.current.data).toBeNull();
+
+      /* Later entries (15-24) should still be cached */
+      const { result: retainedResult } = renderHook(() =>
+        usePolling(jest.fn().mockResolvedValue(null), {
+          immediate: false,
+          cacheKey: `${cacheKeyPrefix}24`,
+        })
+      );
+      expect(retainedResult.current.data).toEqual({ id: 24 });
+    });
   });
 });
