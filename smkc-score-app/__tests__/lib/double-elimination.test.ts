@@ -25,6 +25,7 @@
 import { describe, it, expect } from '@jest/globals';
 import {
   generateBracketStructure,
+  generatePlayoffStructure,
   getNextMatchInfo,
   roundNames
 } from '@/lib/double-elimination';
@@ -375,7 +376,143 @@ describe('Double Elimination Bracket Structure', () => {
     });
   });
 
+  /**
+   * Pre-Bracket Playoff (a.k.a. "barrage") — Top 24 → Top 16.
+   *
+   * Resolves issue #454. 12 entrants from qualification positions 13-24
+   * compete in a single-elimination tournament whose 4 winners fill
+   * Upper-Bracket seeds 13-16. Top 4 playoff seeds receive a Round 1 BYE.
+   */
+  describe('generatePlayoffStructure', () => {
+    it('should generate 8 matches for 12 entrants (4 R1 + 4 R2, top 4 BYE)', () => {
+      const matches = generatePlayoffStructure(12);
+      expect(matches).toHaveLength(8);
+    });
+
+    it('should throw for unsupported entrant counts', () => {
+      expect(() => generatePlayoffStructure(0)).toThrow();
+      expect(() => generatePlayoffStructure(8)).toThrow();
+      expect(() => generatePlayoffStructure(16)).toThrow();
+    });
+
+    it('should split matches into playoff_r1 (4) and playoff_r2 (4)', () => {
+      const matches = generatePlayoffStructure(12);
+      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      expect(r1).toHaveLength(4);
+      expect(r2).toHaveLength(4);
+    });
+
+    it('should pair seeds 5-12 in R1 using standard bracket order (8v9, 5v12, 6v11, 7v10)', () => {
+      /* Standard bracket pairing for the lower 8 seeds guarantees seeds that
+       * meet at the same round are maximally separated in the overall bracket. */
+      const matches = generatePlayoffStructure(12);
+      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      /* Seeds are playoff-local (1-12). Seeds 1-4 BYE, 5-12 play R1. */
+      const pairings = r1.map(m => [m.player1Seed, m.player2Seed]);
+      expect(pairings).toEqual([
+        [8, 9],
+        [5, 12],
+        [6, 11],
+        [7, 10],
+      ]);
+    });
+
+    it('should set the BYE seeds (1-4) as player1 on R2 matches', () => {
+      const matches = generatePlayoffStructure(12);
+      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      /* R2 match order mirrors R1 feeder order so R1→R2 routing stays trivial.
+       * R2 M5: seed 1 BYE vs R1 M1 (8v9) winner
+       * R2 M6: seed 4 BYE vs R1 M2 (5v12) winner
+       * R2 M7: seed 3 BYE vs R1 M3 (6v11) winner
+       * R2 M8: seed 2 BYE vs R1 M4 (7v10) winner */
+      expect(r2[0].player1Seed).toBe(1);
+      expect(r2[1].player1Seed).toBe(4);
+      expect(r2[2].player1Seed).toBe(3);
+      expect(r2[3].player1Seed).toBe(2);
+      /* player2 on each R2 match is filled by an R1 winner, not a direct seed. */
+      r2.forEach(m => expect(m.player2Seed).toBeUndefined());
+    });
+
+    it('should route R1 winners to their corresponding R2 match at position 2', () => {
+      const matches = generatePlayoffStructure(12);
+      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      /* R1 matches 1-4 → R2 matches 5-8 respectively */
+      expect(r1[0].winnerGoesTo).toBe(5);
+      expect(r1[1].winnerGoesTo).toBe(6);
+      expect(r1[2].winnerGoesTo).toBe(7);
+      expect(r1[3].winnerGoesTo).toBe(8);
+      r1.forEach(m => expect(m.position).toBe(2));
+    });
+
+    it('should eliminate R1 losers (no loserGoesTo)', () => {
+      const matches = generatePlayoffStructure(12);
+      const r1 = matches.filter(m => m.round === 'playoff_r1');
+      /* Single-elimination: one loss eliminates. No drop-down destination. */
+      r1.forEach(m => expect(m.loserGoesTo).toBeUndefined());
+    });
+
+    it('should assign Upper-Bracket seeds 13-16 to R2 winners symmetrically', () => {
+      /* Each playoff-R2 winner fills a specific Upper-Bracket seed so the
+       * strongest playoff survivor (facing the lowest BYE seed) enters
+       * opposite #1 in the Upper Bracket — mirroring standard bracket balance.
+       *
+       * Upper R1 pairings are [1,16], [8,9], [5,12], [4,13], [3,14], [6,11], [7,10], [2,15].
+       * We assign upper seeds 13-16 to playoff R2 match winners so that:
+       *   - Playoff R2 M5 (featuring playoff seed 1) winner → Upper seed 16 (plays Upper #1)
+       *   - Playoff R2 M6 (featuring playoff seed 4) winner → Upper seed 13 (plays Upper #4)
+       *   - Playoff R2 M7 (featuring playoff seed 3) winner → Upper seed 14 (plays Upper #3)
+       *   - Playoff R2 M8 (featuring playoff seed 2) winner → Upper seed 15 (plays Upper #2)
+       */
+      const matches = generatePlayoffStructure(12);
+      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      expect(r2[0].advancesToUpperSeed).toBe(16);
+      expect(r2[1].advancesToUpperSeed).toBe(13);
+      expect(r2[2].advancesToUpperSeed).toBe(14);
+      expect(r2[3].advancesToUpperSeed).toBe(15);
+    });
+
+    it('should not route R2 winners via winnerGoesTo (handled at upper-bracket level)', () => {
+      const matches = generatePlayoffStructure(12);
+      const r2 = matches.filter(m => m.round === 'playoff_r2');
+      /* R2 is the terminal round for the playoff stage. Cross-stage routing to
+       * the Upper Bracket uses advancesToUpperSeed, not winnerGoesTo. */
+      r2.forEach(m => {
+        expect(m.winnerGoesTo).toBeUndefined();
+        expect(m.loserGoesTo).toBeUndefined();
+      });
+    });
+
+    it('should number matches 1-8 sequentially', () => {
+      const matches = generatePlayoffStructure(12);
+      expect(matches.map(m => m.matchNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    });
+  });
+
+  describe('getNextMatchInfo with playoff bracket', () => {
+    it('should route playoff R1 winner to R2 at position 2', () => {
+      const matches = generatePlayoffStructure(12);
+      const result = getNextMatchInfo(matches, 1, true);
+      expect(result).toEqual({ nextMatchNumber: 5, position: 2 });
+    });
+
+    it('should return null for playoff R1 loser (eliminated)', () => {
+      const matches = generatePlayoffStructure(12);
+      expect(getNextMatchInfo(matches, 1, false)).toBeNull();
+    });
+
+    it('should return null for playoff R2 winner (cross-stage advancement handled elsewhere)', () => {
+      const matches = generatePlayoffStructure(12);
+      expect(getNextMatchInfo(matches, 5, true)).toBeNull();
+    });
+  });
+
   describe('roundNames', () => {
+    it('should include playoff round names', () => {
+      expect(roundNames.playoff_r1).toBeDefined();
+      expect(roundNames.playoff_r2).toBeDefined();
+    });
+
     it('should export correct round display names', () => {
       expect(roundNames.winners_qf).toBe('Winners Quarter Final');
       expect(roundNames.winners_sf).toBe('Winners Semi Final');

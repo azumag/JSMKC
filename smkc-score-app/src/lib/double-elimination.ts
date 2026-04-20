@@ -374,6 +374,94 @@ function generate16PlayerBracket(): BracketMatch[] {
 }
 
 /**
+ * Generate the Pre-Bracket Playoff ("barrage") structure for 12 entrants.
+ *
+ * Resolves issue #454: Top 24 → Top 16. Qualification positions 13-24 enter
+ * a single-elimination playoff whose 4 winners fill Upper-Bracket seeds 13-16.
+ * Top 4 playoff seeds (qualification 13-16) receive a Round 1 BYE.
+ *
+ * Structure (8 matches total):
+ *   R1 (playoff_r1, 4 matches): Seeds 8v9, 5v12, 6v11, 7v10 — standard bracket pairing
+ *                               for the non-BYE seeds, maximally separating stronger seeds.
+ *   R2 (playoff_r2, 4 matches): BYE seeds 1-4 each face one R1 winner. Winners advance.
+ *
+ * Upper-Bracket seed assignment mirrors 16-player bracket balance so the
+ * strongest playoff survivor (faced the lowest BYE seed in R2) enters the
+ * Upper Bracket opposite Upper-seed 1 — the toughest path — preserving the
+ * competitive advantage of direct-advance qualifiers:
+ *   R2 match 5 (playoff seed 1) winner → Upper seed 16
+ *   R2 match 6 (playoff seed 4) winner → Upper seed 13
+ *   R2 match 7 (playoff seed 3) winner → Upper seed 14
+ *   R2 match 8 (playoff seed 2) winner → Upper seed 15
+ *
+ * Cross-stage advancement (playoff_r2 winner → Upper Bracket slot) is handled
+ * by the finals-route PUT handler, not by the generic getNextMatchInfo mechanism,
+ * because the target match lives in a different `stage` row.
+ *
+ * @param entrantCount - Number of playoff entrants (currently only 12 supported)
+ * @returns Array of BracketMatch objects defining the full playoff
+ * @throws Error if entrantCount is not 12
+ */
+export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
+  if (entrantCount !== 12) {
+    throw new Error("Only 12-entrant playoff is supported");
+  }
+
+  const matches: BracketMatch[] = [];
+
+  /* --- PLAYOFF ROUND 1 (Matches 1-4): 8 lower seeds pair up ---
+   * Standard single-elimination pairing for seeds 5-12: 8v9, 5v12, 6v11, 7v10.
+   * This order ensures R1 winners flow naturally into the R2 bracket positions
+   * held by BYE seeds 1, 4, 3, 2 respectively. */
+  const r1Pairs = [
+    [8, 9],
+    [5, 12],
+    [6, 11],
+    [7, 10],
+  ];
+  for (let i = 0; i < 4; i++) {
+    matches.push({
+      matchNumber: i + 1,
+      round: "playoff_r1",
+      bracket: "winners",
+      player1Seed: r1Pairs[i][0],
+      player2Seed: r1Pairs[i][1],
+      /* R1 winners enter R2 as player 2 (the BYE seed holds player 1). */
+      winnerGoesTo: 5 + i,
+      position: 2,
+      /* No loserGoesTo — single-elimination, losers are out. */
+    });
+  }
+
+  /* --- PLAYOFF ROUND 2 (Matches 5-8): BYE seeds meet R1 winners ---
+   * Each R2 match is a "decider": winner advances to the Upper Bracket.
+   * advancesToUpperSeed specifies which of seeds 13-16 the winner claims.
+   *
+   * The assignment inverts the playoff seed → upper seed relationship so the
+   * strongest playoff survivor faces Upper #1: see function-level comment. */
+  const byeSeedToUpperSeed: Array<{ byeSeed: number; upperSeed: number }> = [
+    { byeSeed: 1, upperSeed: 16 },
+    { byeSeed: 4, upperSeed: 13 },
+    { byeSeed: 3, upperSeed: 14 },
+    { byeSeed: 2, upperSeed: 15 },
+  ];
+  for (let i = 0; i < 4; i++) {
+    matches.push({
+      matchNumber: 5 + i,
+      round: "playoff_r2",
+      bracket: "winners",
+      player1Seed: byeSeedToUpperSeed[i].byeSeed,
+      /* player2Seed intentionally omitted — filled at runtime by R1 winner. */
+      advancesToUpperSeed: byeSeedToUpperSeed[i].upperSeed,
+      /* No winnerGoesTo/loserGoesTo — cross-stage advancement is handled by
+       * the finals route, and losers are eliminated. */
+    });
+  }
+
+  return matches;
+}
+
+/**
  * Determine where a player goes after a match result.
  *
  * Given a completed match and whether the player won or lost, returns
@@ -447,6 +535,8 @@ export function getNextMatchInfo(
  * Used in the tournament UI to label match phases clearly.
  */
 export const roundNames: Record<string, string> = {
+  playoff_r1: "Playoff Round 1",
+  playoff_r2: "Playoff Round 2",
   winners_r1: "Winners Round 1",
   winners_qf: "Winners Quarter Final",
   winners_sf: "Winners Semi Final",
