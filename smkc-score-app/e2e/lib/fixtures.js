@@ -1,5 +1,4 @@
 const {
-  apiCreatePlayer,
   apiCreateTournament,
   apiDeletePlayer,
   apiDeleteTournament,
@@ -8,8 +7,8 @@ const {
   apiSeedTtEntry,
   apiFetchTa,
   makeTaTimesForRank,
-  escapeRegex,
-  nav,
+  uiCreatePlayer,
+  setupModePlayersViaUi,
 } = require('./common');
 
 const SHARED_PLAYER_COUNT = 28;
@@ -87,7 +86,10 @@ async function ensureSharedPlayers(page, count = SHARED_PLAYER_COUNT) {
     let password = null;
 
     if (!player) {
-      const created = await apiCreatePlayer(page, sharedPlayerName(i), nickname);
+      /* Create via the /players admin UI so the fixture exercises the real
+       * admin flow; the password is scraped from the POST response that the
+       * UI itself fires, then the confirmation dialog is dismissed. */
+      const created = await uiCreatePlayer(page, sharedPlayerName(i), nickname);
       player = { id: created.id, name: sharedPlayerName(i), nickname };
       password = created.password;
     }
@@ -117,62 +119,6 @@ async function ensureSharedTournament(page, name, opts) {
   }
 
   return tournament;
-}
-
-async function removeSelectedGroupPlayers(dialog) {
-  for (let i = 0; i < 80; i++) {
-    const removeButtons = dialog.getByRole('button', { name: /Remove|削除/ });
-    const count = await removeButtons.count();
-    if (count === 0) return;
-    await removeButtons.first().click();
-  }
-  throw new Error('Too many selected players while clearing group setup dialog');
-}
-
-async function selectGroupPlayer(dialog, player) {
-  const search = dialog.getByPlaceholder(/Search players|プレイヤーを検索/);
-  await search.fill(player.nickname);
-  const label = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
-  await dialog.getByLabel(label).check();
-  await search.fill('');
-}
-
-async function setupModePlayersViaUi(page, mode, tournamentId, players) {
-  await nav(page, `/tournaments/${tournamentId}/${mode}`);
-  const trigger = page.getByRole('button', { name: /Setup Groups|Edit Groups|グループ設定|グループ編集/ });
-  await trigger.first().click();
-
-  const dialog = page.getByRole('dialog').first();
-  await dialog.waitFor({ state: 'visible', timeout: 15000 });
-  await removeSelectedGroupPlayers(dialog);
-
-  for (const player of players) {
-    await selectGroupPlayer(dialog, player);
-  }
-
-  if (players.length >= 4) {
-    await dialog.getByRole('button', { name: /^4$/ }).click();
-    const seedingInputs = dialog.locator('input[type="number"]');
-    for (let i = 0; i < players.length; i++) {
-      await seedingInputs.nth(i).fill(String(i + 1));
-    }
-    await dialog.getByRole('button', { name: /Distribute by Seed|シード順で振分け/ }).click();
-  }
-
-  const save = dialog.getByRole('button', {
-    name: /Create Groups & Matches|Update Groups|グループ＆試合作成|グループ更新/,
-  });
-  const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/${mode}`) &&
-    res.request().method() === 'POST',
-  );
-  await save.click();
-  const response = await responsePromise;
-  if (response.status() !== 201) {
-    throw new Error(`${mode.toUpperCase()} UI setup failed (${response.status()})`);
-  }
-  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(1000);
 }
 
 /**

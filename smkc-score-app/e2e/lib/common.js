@@ -869,6 +869,168 @@ async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
   }
 }
 
+/* ───────── UI-based admin helpers ─────────
+ * These drive the same flows as their apiXxx counterparts but go through the
+ * actual React UI (/players, /tournaments/[id]/ta, /tournaments/[id]/{bm,mr,gp}).
+ * Used by setupAllModes28PlayerQualification and the shared fixture so tc-all
+ * exercises the real admin UX instead of hitting REST directly. */
+
+/** Create a single player via the admin UI on /players.
+ *  - Clicks "Add Player" → fills name/nickname → submits.
+ *  - The POST /api/players is still the one the UI itself fires; we observe
+ *    it via waitForResponse to pick up the generated id and temporaryPassword.
+ *  - Dismisses the post-create "temporary password" dialog before returning. */
+async function uiCreatePlayer(page, name, nickname) {
+  if (!page.url().includes('/players')) {
+    await nav(page, '/players');
+  }
+  /* Header "Add Player" button (first occurrence). */
+  const openButton = page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
+  await openButton.click();
+
+  const formDialog = page.getByRole('dialog').filter({
+    has: page.locator('#nickname'),
+  }).first();
+  await formDialog.waitFor({ state: 'visible', timeout: 15000 });
+  await formDialog.locator('#name').fill(name);
+  await formDialog.locator('#nickname').fill(nickname);
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes('/api/players') &&
+    res.request().method() === 'POST', { timeout: 30000 });
+  const submitButton = formDialog.locator('button[type="submit"]').first();
+  await submitButton.click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  if (response.status() !== 201) {
+    throw new Error(`UI player creation failed for ${nickname} (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+  }
+  const id = body?.data?.player?.id ?? null;
+  const password = body?.data?.temporaryPassword ?? null;
+  if (!id) throw new Error(`UI player creation missing id for ${nickname}`);
+
+  /* Post-create temporary-password dialog. Dismiss via "I've Saved It". */
+  const passwordDialog = page.getByRole('dialog').filter({
+    hasText: /Temporary Password|一時パスワード/,
+  }).first();
+  try {
+    await passwordDialog.waitFor({ state: 'visible', timeout: 5000 });
+    await passwordDialog.getByRole('button', { name: /I've Saved It|保存しました/ }).click();
+    await passwordDialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  } catch {
+    /* Dialog may not appear if the form didn't flip into password state; ignore. */
+  }
+  return { id, name, nickname, password };
+}
+
+/** Remove all currently-selected players from the BM/MR/GP group setup dialog. */
+async function removeSelectedGroupPlayers(dialog) {
+  for (let i = 0; i < 80; i++) {
+    const removeButtons = dialog.getByRole('button', { name: /Remove|削除/ });
+    const count = await removeButtons.count();
+    if (count === 0) return;
+    await removeButtons.first().click();
+  }
+  throw new Error('Too many selected players while clearing group setup dialog');
+}
+
+/** Check a single player's checkbox in the group setup dialog via search-filter. */
+async function selectGroupPlayer(dialog, player) {
+  const search = dialog.getByPlaceholder(/Search players|プレイヤーを検索/);
+  await search.fill(player.nickname);
+  const label = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
+  await dialog.getByLabel(label).check();
+  await search.fill('');
+}
+
+/** UI-based group setup for BM/MR/GP.
+ *  - Opens the Setup Groups / Edit Groups dialog
+ *  - Clears any existing selection (so re-running on an already-configured
+ *    tournament is idempotent)
+ *  - Selects each provided player by nickname+name label
+ *  - Sets group count = 4, fills seeding 1..N, clicks Distribute by Seed
+ *  - Saves and waits for the POST response to return 201 */
+async function setupModePlayersViaUi(page, mode, tournamentId, players) {
+  await nav(page, `/tournaments/${tournamentId}/${mode}`);
+  const trigger = page.getByRole('button', { name: /Setup Groups|Edit Groups|グループ設定|グループ編集/ });
+  await trigger.first().click();
+
+  const dialog = page.getByRole('dialog').first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+  await removeSelectedGroupPlayers(dialog);
+
+  for (const player of players) {
+    await selectGroupPlayer(dialog, player);
+  }
+
+  if (players.length >= 4) {
+    await dialog.getByRole('button', { name: /^4$/ }).click();
+    const seedingInputs = dialog.locator('input[type="number"]');
+    for (let i = 0; i < players.length; i++) {
+      await seedingInputs.nth(i).fill(String(i + 1));
+    }
+    await dialog.getByRole('button', { name: /Distribute by Seed|シード順で振分け/ }).click();
+  }
+
+  const save = dialog.getByRole('button', {
+    name: /Create Groups & Matches|Update Groups|グループ＆試合作成|グループ更新/,
+  });
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/${mode}`) &&
+    res.request().method() === 'POST',
+  );
+  await save.click();
+  const response = await responsePromise;
+  if (response.status() !== 201) {
+    throw new Error(`${mode.toUpperCase()} UI setup failed (${response.status()})`);
+  }
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+}
+
+/** UI-based TA qualification entry addition.
+ *  - Navigates to /tournaments/[id]/ta
+ *  - Opens the "Add Player" dialog (admin-only)
+ *  - Per-player search-and-check so only the intended targets are selected
+ *    (the dialog loads every registered player, not just tournament entrants)
+ *  - Clicks "Add Selected Players" and waits for POST 201
+ *  The dialog has no seeding input; callers who need seeding must follow up
+ *  with apiUpdateTaSeeding per entry. */
+async function uiAddPlayersToTa(page, tournamentId, players) {
+  await nav(page, `/tournaments/${tournamentId}/ta`);
+  const trigger = page.getByRole('button', { name: /^(Add Player|プレイヤー追加)$/ }).first();
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog').filter({
+    hasText: /Add Players to Time Trial|タイムアタックにプレイヤー追加/,
+  }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+  /* Check each player individually via search+nickname label so we only
+   * select the intended players even if the global player pool has more. */
+  const search = dialog.getByPlaceholder(/Search players|プレイヤーを検索/);
+  for (const player of players) {
+    await search.fill(player.nickname);
+    await page.waitForTimeout(150);
+    const label = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
+    await dialog.getByLabel(label).check();
+  }
+  await search.fill('');
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta`) &&
+    res.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: /Add Selected Players|選択したプレイヤーを追加/ }).click();
+  const response = await responsePromise;
+  const body = await response.json().catch(() => ({}));
+  if (response.status() !== 201) {
+    throw new Error(`UI TA add players failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
+  }
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  return body;
+}
+
 /** Shared 28-player tournament setup for tc-all's integrated cross-mode flow.
  * Creates one tournament, registers the same 28 players in TA/BM/MR/GP, and
  * completes qualification data for every mode so overall ranking can be
@@ -937,16 +1099,25 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
     } else {
       playerIds = [];
       nicknames = [];
+      const ownedNames = [];
       for (let i = 1; i <= 28; i++) {
-        const p = await apiCreatePlayer(
-          adminPage,
-          `E2E ALL ${label} P${i}`,
-          `e2e_all${label}_${stamp}_${i}`,
-        );
+        const displayName = `E2E ALL ${label} P${i}`;
+        const nickname = `e2e_all${label}_${stamp}_${i}`;
+        /* UI-based creation mirrors real admin flow; falls back to API on
+         * navigation/session failure inside uiCreatePlayer itself. */
+        const p = await uiCreatePlayer(adminPage, displayName, nickname);
         playerIds.push(p.id);
         nicknames.push(p.nickname);
+        ownedNames.push(displayName);
         ownedPlayerIds.push(p.id);
       }
+      /* Stash names alongside ids so we can build the {id, name, nickname}
+       * shape the UI group-setup helper expects later. */
+      fixturePlayers = playerIds.map((id, i) => ({
+        id,
+        name: ownedNames[i],
+        nickname: nicknames[i],
+      }));
 
       tournamentId = await apiCreateTournament(
         adminPage,
@@ -957,28 +1128,43 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
       await apiActivateTournament(adminPage, tournamentId);
     }
 
-    const addTa = await apiAddTaEntries(adminPage, tournamentId, {
-      playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),
-    });
-    if (addTa.s !== 201) {
-      throw new Error(`TA shared setup failed (${addTa.s}): ${JSON.stringify(addTa.b).slice(0, 200)}`);
-    }
+    /* Build the {id, name, nickname} shape needed by the UI helpers from
+     * the fixture's full player records (or the owned list constructed
+     * above). Kept in `playerIds` order so downstream rank assignments line up. */
+    const uiPlayers = fixturePlayers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      nickname: p.nickname,
+    }));
 
-    const entries = addTa.b?.data?.entries ?? [];
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
+    /* ── TA entry addition via UI ───────────────────────────────────────── */
+    await uiAddPlayersToTa(adminPage, tournamentId, uiPlayers);
+
+    /* Re-fetch to pick up server-assigned entry ids; UI dialog has no
+     * seeding input, so we set seeding 1..28 via API per entry to preserve
+     * the ordering contract callers depend on (entryIds[i] ↔ rank i+1). */
+    const taAfter = await apiFetchTa(adminPage, tournamentId);
+    const addedEntries = taAfter.b?.data?.entries ?? [];
+    const entriesByPlayerId = new Map(addedEntries.map((e) => [e.playerId, e]));
+    for (let i = 0; i < playerIds.length; i++) {
+      const entry = entriesByPlayerId.get(playerIds[i]);
+      if (!entry) {
+        throw new Error(`TA entry missing for player ${playerIds[i]} after UI add`);
+      }
       const rank = i + 1;
+      /* Seeding is separate from rank; the UI bulk-add leaves seeding
+       * unset, so we assign 1..28 here to match prior API-only behavior. */
+      const seedRes = await apiUpdateTaSeeding(adminPage, tournamentId, entry.id, rank);
+      if (seedRes.s !== 200) {
+        throw new Error(`TA seeding update failed (${seedRes.s}) entry=${entry.id}`);
+      }
       const { times, totalMs } = makeTaTimesForRank(rank);
       await apiSeedTtEntry(adminPage, tournamentId, entry.id, times, totalMs, rank);
       entryIds.push(entry.id);
     }
 
-    const assignments = snakeDraft28(playerIds);
-
-    const bmSetup = await apiSetupBmGroup(adminPage, tournamentId, assignments);
-    if (bmSetup.s !== 201) {
-      throw new Error(`BM shared setup failed (${bmSetup.s}): ${JSON.stringify(bmSetup.b).slice(0, 200)}`);
-    }
+    /* ── BM/MR/GP group setup via UI ────────────────────────────────────── */
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, uiPlayers);
     const bmData = await apiFetchBm(adminPage, tournamentId);
     for (const match of (bmData.matches || []).filter((m) => !m.isBye && !m.completed)) {
       const res = await apiPutBmQualScore(adminPage, tournamentId, match.id, 3, 1);
@@ -987,10 +1173,7 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
       }
     }
 
-    const mrSetup = await apiSetupMrGroup(adminPage, tournamentId, assignments);
-    if (mrSetup.s !== 201) {
-      throw new Error(`MR shared setup failed (${mrSetup.s}): ${JSON.stringify(mrSetup.b).slice(0, 200)}`);
-    }
+    await setupModePlayersViaUi(adminPage, 'mr', tournamentId, uiPlayers);
     const mrData = await apiFetchMr(adminPage, tournamentId);
     for (const match of (mrData.matches || []).filter((m) => !m.isBye && !m.completed)) {
       const res = await apiPutMrQualScore(adminPage, tournamentId, match.id, 3, 1);
@@ -999,10 +1182,7 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
       }
     }
 
-    const gpSetup = await apiSetupGpGroup(adminPage, tournamentId, assignments);
-    if (gpSetup.s !== 201) {
-      throw new Error(`GP shared setup failed (${gpSetup.s}): ${JSON.stringify(gpSetup.b).slice(0, 200)}`);
-    }
+    await setupModePlayersViaUi(adminPage, 'gp', tournamentId, uiPlayers);
     const gpData = await apiFetchGp(adminPage, tournamentId);
     for (const match of (gpData.matches || []).filter((m) => !m.isBye && !m.completed)) {
       if (!match.cup) {
@@ -1038,6 +1218,10 @@ module.exports = {
   apiCreateTournament,
   apiDeletePlayer,
   apiDeleteTournament,
+  /* UI helpers */
+  uiCreatePlayer,
+  uiAddPlayersToTa,
+  setupModePlayersViaUi,
   /* draft */
   snakeDraft28,
   /* player browser */
