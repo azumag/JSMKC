@@ -24,6 +24,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   validateFinalsScores: validateBattleModeFinalScores,
   sanitizeBody: true,
   putRequiresAuth: true,
+  getRequiresAuth: true,
 });
 
 export { GET, PUT };
