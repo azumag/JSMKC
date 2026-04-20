@@ -347,7 +347,22 @@ export async function POST(
       p1p1 !== null && p1p2 !== null && p2p1 !== null && p2p2 !== null &&
       p1p1 === p2p1 && p1p2 === p2p2
     ) {
-      const racesToUse = updatedMatch.player1ReportedRaces || updatedMatch.player2ReportedRaces;
+      const p1Races = updatedMatch.player1ReportedRaces;
+      const p2Races = updatedMatch.player2ReportedRaces;
+
+      /* Check if race data also matches when both players have reported races */
+      if (p1Races != null && p2Races != null && JSON.stringify(p1Races) !== JSON.stringify(p2Races)) {
+        return createErrorResponse(
+          "Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.",
+          409, "RACE_DATA_MISMATCH", {
+            player1Races: p1Races,
+            player2Races: p2Races,
+            requiresRefresh: true
+          }
+        );
+      }
+
+      const racesToUse = p1Races || p2Races;
 
       try {
         const confirmedMatch = await updateWithRetry(prisma, async (tx) => {

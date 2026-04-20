@@ -360,6 +360,68 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       }, 'Score reported but mismatch detected - awaiting admin review');
     });
 
+    // Success case - Race data mismatch when scores match but races differ
+    it('should return 409 RACE_DATA_MISMATCH when scores match but race data differs', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+        player1ReportedPoints1: 45,
+        player1ReportedPoints2: 30,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+        player1ReportedRaces: [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+        ],
+        player2ReportedRaces: null,
+      };
+
+      const player2Races = [
+        { course: 'Mario Circuit 1', position1: 2, position2: 1 },
+        { course: 'Donut Plains 1', position1: 2, position2: 1 },
+        { course: 'Ghost Valley 1', position1: 2, position2: 1 },
+        { course: 'Bowser Castle 1', position1: 2, position2: 1 },
+        { course: 'Mario Circuit 2', position1: 2, position2: 1 },
+      ];
+
+      const updatedMatch = {
+        ...mockMatch,
+        player2ReportedPoints1: 45,
+        player2ReportedPoints2: 30,
+        player2ReportedRaces: player2Races,
+        version: 1,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce({ version: 0 }); // updateWithRetry callback: version check
+      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 2,
+        races: player2Races,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(409);
+      expect(result.data.error).toBe('Race data mismatch: both players reported the same score but different race details. Please refresh and reconfirm.');
+      expect(result.data.code).toBe('RACE_DATA_MISMATCH');
+      expect(result.data.details).toEqual({
+        player1Races: mockMatch.player1ReportedRaces,
+        player2Races: player2Races,
+        requiresRefresh: true,
+      });
+    });
+
     // Success case - Logs character usage when provided
     it('should log character usage when character is provided', async () => {
       const mockMatch = {
