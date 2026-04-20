@@ -1162,6 +1162,14 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
     await nav(page, `/tournaments/${tournamentId}/ta`);
   }
 
+  /* The /ta page defaults to the "standings" tab which has no Edit Times
+   * buttons — switch to the Time Entry tab first. Tabs radix updates
+   * aria-selected on click; repeated clicks are a safe no-op. */
+  const timesTab = page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ });
+  if (await timesTab.count()) {
+    await timesTab.first().click().catch(() => {});
+  }
+
   /* Each entry row has an "Edit Times" button; filter the row by nickname. */
   const row = page.getByRole('row').filter({ hasText: entry.nickname }).first();
   await row.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).click();
