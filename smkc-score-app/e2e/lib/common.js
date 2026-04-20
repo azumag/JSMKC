@@ -1188,8 +1188,12 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
     await inputs.nth(i).fill(value);
   }
 
+  /* The admin Edit Times dialog PUTs to /api/tournaments/[id]/ta with the
+   * entry id in the body (see handleSaveTimes in ta/page.tsx). The former
+   * matcher waited on /tt/entries/ which is only used by the single-entry
+   * detail route, and would never fire for this flow — tests timed out. */
   const responsePromise = page.waitForResponse((res) =>
-    res.url().includes(`/api/tournaments/${tournamentId}/tt/entries/`) &&
+    res.url().includes(`/api/tournaments/${tournamentId}/ta`) &&
     res.request().method() === 'PUT', { timeout: 30000 });
   await dialog.getByRole('button', { name: /^(Save Times|タイム保存|保存)$/ }).click();
   const response = await responsePromise;
