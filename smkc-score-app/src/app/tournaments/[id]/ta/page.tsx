@@ -253,7 +253,12 @@ export default function TimeAttackPage({
   const fetchTournamentData = useCallback(async () => {
     const [taResponse, playersResponse] = await Promise.all([
       fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-      fetchWithRetry("/api/players"),
+      /* limit=100 is the API's hard cap (src/lib/pagination.ts). The default of 50
+       * silently truncates the Setup Players search once the roster grows past
+       * that — newly-created players end up paginated out and can no longer be
+       * added from the dialog. Request the max in one hop; if a deployment
+       * ever needs >100, the dialog must switch to server-side search instead. */
+      fetchWithRetry("/api/players?limit=100"),
     ]);
 
     if (!taResponse.ok) {

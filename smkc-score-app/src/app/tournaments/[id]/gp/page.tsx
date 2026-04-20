@@ -177,7 +177,8 @@ export default function GrandPrixPage({
   const fetchTournamentData = useCallback(async () => {
     const [gpResponse, playersResponse] = await Promise.all([
       fetchWithRetry(`/api/tournaments/${tournamentId}/gp`),
-      fetchWithRetry("/api/players"),
+      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
+      fetchWithRetry("/api/players?limit=100"),
     ]);
 
     if (!gpResponse.ok) {
