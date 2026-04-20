@@ -361,9 +361,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }
       }
 
-      return NextResponse.json(
-        { success: true, data: { message: config.setupCompleteMessage, qualifications } },
-        { status: 201 },
+      return createSuccessResponse(
+        { message: config.setupCompleteMessage, qualifications },
+        config.setupCompleteMessage,
       );
     } catch (error) {
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
@@ -555,7 +555,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           adminId: session.user.id,
         });
 
-        return NextResponse.json({ qualification });
+        return createSuccessResponse({ qualification });
       }
 
       /* TV number assignment path (original behavior) */
@@ -587,7 +587,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         include: { player1: true, player2: true },
       });
 
-      return NextResponse.json({ match });
+      return createSuccessResponse({ match });
     } catch (error) {
       logger.error('Failed to update', { error, tournamentId });
       return createErrorResponse('Failed to update', 500, 'INTERNAL_ERROR');
