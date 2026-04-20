@@ -43,3 +43,32 @@ export function computeAutoPairs<T extends PairPlayer>(players: T[]): Array<[T, 
   }
   return pairs;
 }
+
+/**
+ * Apply snake-pair computation over setup-dialog entries and return an updated
+ * list with `partnerId` set for every entry that has a numeric seeding.
+ *
+ * Entries without a seeding keep their existing `partnerId` untouched so that
+ * manual assignments for unranked rows survive a seeding edit elsewhere.
+ */
+export interface SetupEntryLike {
+  playerId: string;
+  seeding?: number;
+  partnerId?: string | null;
+}
+
+export function applyAutoPairsToSetup<T extends SetupEntryLike>(entries: T[]): T[] {
+  const seeded = entries
+    .filter((e) => typeof e.seeding === "number")
+    .map((e) => ({ id: e.playerId, playerId: e.playerId, seeding: e.seeding ?? null }));
+  const partnerMap = new Map<string, string>();
+  for (const [a, b] of computeAutoPairs(seeded)) {
+    partnerMap.set(a.playerId, b.playerId);
+    partnerMap.set(b.playerId, a.playerId);
+  }
+  return entries.map((e) =>
+    typeof e.seeding === "number"
+      ? { ...e, partnerId: partnerMap.get(e.playerId) ?? null }
+      : e,
+  );
+}
