@@ -353,14 +353,20 @@ export async function POST(
       const p2Races = updatedMatch.player2ReportedRaces;
 
       /* Check if race data also matches when both players have reported races.
-       * If either player didn't report race data, skip validation (null means no race details). */
+       * If either player didn't report race data, skip validation (null means no race details).
+       * TypeScript: JsonValue is string | number | boolean | JsonObject | JsonArray,
+       * so we need to narrow to JsonArray before accessing .length/.every.
+       * Each race element is JsonObject with optional string/number fields. */
+      type RaceData = { course?: string; position1?: number; position2?: number };
+      const p1IsArray = Array.isArray(p1Races);
+      const p2IsArray = Array.isArray(p2Races);
       const racesMatch =
-        (p1Races == null || p2Races == null) ||
+        (!p1IsArray || !p2IsArray) ||
         (p1Races.length === p2Races.length &&
-          p1Races.every((race, i) =>
-            race.course === p2Races[i].course &&
-            race.position1 === p2Races[i].position1 &&
-            race.position2 === p2Races[i].position2
+          (p1Races as RaceData[]).every((race, i) =>
+            race.course === (p2Races[i] as RaceData).course &&
+            race.position1 === (p2Races[i] as RaceData).position1 &&
+            race.position2 === (p2Races[i] as RaceData).position2
           ));
       if (!racesMatch) {
         return createErrorResponse(
