@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const { installApiLogging, nav } = require('./common');
+const { createBrowserLaunchEnv, installApiLogging, nav } = require('./common');
 
 const DEFAULT_PROFILE_DIR = '/tmp/playwright-smkc-profile';
 const DEFAULT_TEST_TIMEOUT_MS = 10 * 60 * 1000;
@@ -216,6 +216,7 @@ module.exports = {
   DEFAULT_TEST_TIMEOUT_MS,
   DEFAULT_SUITE_TIMEOUT_MS,
   closeBrowser,
+  createBrowserLaunchEnv,
   createProgressWatchdog,
   envMs,
   exitAfterCleanup,
