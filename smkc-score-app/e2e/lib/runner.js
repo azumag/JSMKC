@@ -118,19 +118,52 @@ function recordFailure(results, log, tc, detail) {
   log(tc, 'FAIL', detail);
 }
 
-async function runSuite({ suiteName, results, log, tests }) {
+function filterTests(tests) {
+  const raw = process.env.E2E_TESTS || process.env.E2E_TEST || '';
+  const names = raw
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  if (names.length === 0) return tests;
+
+  const selected = new Set(names);
+  const filtered = tests.filter((test) => selected.has(test.name));
+  if (filtered.length === 0) {
+    throw new Error(`No tests matched ${names.join(', ')}`);
+  }
+  console.log(`[E2E] filtered tests: ${filtered.map((test) => test.name).join(', ')}`);
+  return filtered;
+}
+
+async function runSuite({ suiteName, results, log, tests, beforeAll = null, afterAll = null }) {
   const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
   const testTimeoutMs = envMs('E2E_TEST_TIMEOUT_MS', DEFAULT_TEST_TIMEOUT_MS);
   let browser = null;
-  const progress = createProgressWatchdog(suiteName, undefined, () => closeBrowser(browser));
+  let page = null;
+  let afterAllRan = false;
+
+  const runAfterAll = async () => {
+    if (afterAllRan) return;
+    afterAllRan = true;
+    if (afterAll && page) await afterAll(page);
+  };
+
+  const cleanupSuite = async () => {
+    await runAfterAll();
+    await closeBrowser(browser);
+  };
+
+  const progress = createProgressWatchdog(suiteName, undefined, cleanupSuite);
   let forcedFailure = false;
 
   const suiteTimer = setTimeout(() => {
     console.error(`[${suiteName}] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
-    exitAfterCleanup(124, () => closeBrowser(browser));
+    exitAfterCleanup(124, cleanupSuite);
   }, suiteTimeoutMs);
 
   try {
+    const runnableTests = filterTests(tests);
     const profileDir = process.env.E2E_PROFILE_DIR || DEFAULT_PROFILE_DIR;
     const headless = process.env.E2E_HEADLESS === '1';
     browser = await chromium.launchPersistentContext(profileDir, {
@@ -138,14 +171,19 @@ async function runSuite({ suiteName, results, log, tests }) {
       viewport: { width: 1280, height: 720 },
     });
     installApiLogging(browser, suiteName);
-    const page = browser.pages()[0] || await browser.newPage();
+    page = browser.pages()[0] || await browser.newPage();
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
 
     progress.reset('initial navigation');
     await nav(page, '/');
 
-    for (const test of tests) {
+    if (beforeAll) {
+      progress.reset('beforeAll');
+      await beforeAll(page);
+    }
+
+    for (const test of runnableTests) {
       const timeoutMs = test.timeoutMs || testTimeoutMs;
       const started = Date.now();
       progress.reset(test.name);
@@ -167,7 +205,7 @@ async function runSuite({ suiteName, results, log, tests }) {
   } finally {
     clearTimeout(suiteTimer);
     progress.stop();
-    await closeBrowser(browser);
+    await cleanupSuite();
     const summary = summarizeResults(suiteName, results);
     process.exit(forcedFailure || summary.failed > 0 ? 1 : 0);
   }

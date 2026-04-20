@@ -23,6 +23,7 @@ const {
   installApiLogging,
   setupAllModes28PlayerQualification,
 } = require('./lib/common');
+const { createSharedE2eFixture } = require('./lib/fixtures');
 const {
   closeBrowser,
   createBrowserLaunchEnv,
@@ -129,22 +130,18 @@ async function main() {
   }, suiteTimeoutMs);
   progressWatchdog = createProgressWatchdog('tc-all', undefined, () => closeBrowser(browser));
 
-  const sharedPlayerIds = [];
-  let sharedTournamentId = null;
-  let sharedPage = null;
+  /* tc-all now reuses the shared E2E fixture (same as tc-bm/tc-mr/tc-gp/tc-ta)
+   * so the 28 reusable players + "E2E Shared Normal" tournament are created
+   * exactly once across the whole suite. The fixture's own cleanup tears
+   * everything down idempotently; we just call it from both the happy-path
+   * pre-child-spawn point and the outer `finally`. */
+  let sharedFixture = null;
 
   const cleanupSharedResources = async () => {
-    if (!sharedPage) return;
-    const tournamentId = sharedTournamentId;
-    const playerIds = sharedPlayerIds.splice(0);
-    sharedTournamentId = null;
-
-    if (tournamentId) {
-      await deleteTournament(sharedPage, tournamentId).catch(() => {});
-    }
-    for (const playerId of playerIds) {
-      await deletePlayer(sharedPage, playerId).catch(() => {});
-    }
+    if (!sharedFixture) return;
+    const fixture = sharedFixture;
+    sharedFixture = null;
+    await fixture.cleanup().catch(() => {});
   };
 
   try {
@@ -159,21 +156,22 @@ async function main() {
     );
     installApiLogging(browser, 'tc-all');
     const page = browser.pages()[0] || await browser.newPage();
-    sharedPage = page;
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
 
   /* ===== Create the dedicated cross-mode test tournament used by TID-dependent tests =====
    * One activated tournament owns the same 28 players across TA/BM/MR/GP. All
    * four qualification datasets are completed up front so page checks and
-   * overall ranking calculations exercise the integrated tournament shape. */
+   * overall ranking calculations exercise the integrated tournament shape.
+   * The shared fixture is created FIRST so the 28 e2e_shared_* players and
+   * the "E2E Shared Normal" tournament exist idempotently, then handed to
+   * setupAllModes28PlayerQualification to wire TA/BM/MR/GP on top of them. */
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   {
-    const sharedSetup = await setupAllModes28PlayerQualification(page, 'tcall');
-    sharedTournamentId = sharedSetup.tournamentId;
-    sharedPlayerIds.push(...sharedSetup.playerIds);
-    TID = sharedTournamentId;
-    console.log(`[tc-all] shared all-mode tournament ready: ${TID} (${sharedPlayerIds.length} players)`);
+    sharedFixture = await createSharedE2eFixture(page);
+    const sharedSetup = await setupAllModes28PlayerQualification(page, 'tcall', { fixture: sharedFixture });
+    TID = sharedSetup.tournamentId;
+    console.log(`[tc-all] shared all-mode tournament ready: ${TID} (${sharedSetup.playerIds.length} players, shared fixture)`);
   }
 
   // ===== Public page tests (work regardless of login state) =====

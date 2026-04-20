@@ -872,36 +872,90 @@ async function setupGp28PlayerFinals(adminPage, label, opts = {}) {
 /** Shared 28-player tournament setup for tc-all's integrated cross-mode flow.
  * Creates one tournament, registers the same 28 players in TA/BM/MR/GP, and
  * completes qualification data for every mode so overall ranking can be
- * calculated from real multi-mode results. */
+ * calculated from real multi-mode results.
+ *
+ * When `opts.fixture` is supplied (a value returned from
+ * `createSharedE2eFixture`), this helper REUSES the fixture's shared 28
+ * players + `normalTournament` instead of creating fresh ones. The returned
+ * `cleanup` is a no-op in that case — the shared fixture owns lifecycle.
+ * Any existing TA qualification entries on the shared tournament are deleted
+ * before re-adding so the tournament is a clean slate across reruns.
+ *
+ * When `opts.fixture` is NOT supplied, legacy behavior is preserved: fresh
+ * players + tournament are created with a timestamp suffix so this helper
+ * remains safe for any non-tc-all callers. */
 async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
+  const { fixture, ...tournamentOpts } = opts;
+  const useSharedFixture = Boolean(fixture);
+
   const stamp = Date.now();
-  const playerIds = [];
-  const nicknames = [];
+  let playerIds;
+  let nicknames;
+  let fixturePlayers = null;
   const entryIds = [];
   let tournamentId = null;
+  /* Only tracks resources this helper itself created — when using a fixture,
+   * cleanup is a no-op because the fixture owns the shared resources. */
+  let ownedTournamentId = null;
+  const ownedPlayerIds = [];
 
   const cleanup = async () => {
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
+    if (useSharedFixture) return; // fixture owner cleans up
+    await apiDeleteTournament(adminPage, ownedTournamentId);
+    for (const id of ownedPlayerIds) await apiDeletePlayer(adminPage, id);
   };
 
   try {
-    for (let i = 1; i <= 28; i++) {
-      const p = await apiCreatePlayer(
-        adminPage,
-        `E2E ALL ${label} P${i}`,
-        `e2e_all${label}_${stamp}_${i}`,
-      );
-      playerIds.push(p.id);
-      nicknames.push(p.nickname);
-    }
+    if (useSharedFixture) {
+      fixturePlayers = fixture.players.slice(0, 28);
+      if (fixturePlayers.length < 28) {
+        throw new Error(`Shared fixture must expose >=28 players (got ${fixturePlayers.length})`);
+      }
+      playerIds = fixturePlayers.map((p) => p.id);
+      nicknames = fixturePlayers.map((p) => p.nickname);
+      tournamentId = fixture.normalTournament.id;
 
-    tournamentId = await apiCreateTournament(
-      adminPage,
-      `E2E All Modes ${label} ${stamp}`,
-      { dualReportEnabled: false, ...opts },
-    );
-    await apiActivateTournament(adminPage, tournamentId);
+      /* Activating an already-active tournament is a no-op PUT; calling
+       * unconditionally avoids an extra GET round-trip. */
+      await apiActivateTournament(adminPage, tournamentId);
+
+      /* Reset TA entries left behind by prior runs so the qualification stage
+       * is a clean slate before re-adding the 28 seeded players.
+       * Mirrors the pattern used by setupTaEntriesFromShared in fixtures.js. */
+      const existing = await apiFetchTa(adminPage, tournamentId);
+      const existingEntries = existing.b?.data?.entries ?? [];
+      for (const entry of existingEntries) {
+        const url = `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`;
+        const res = await adminPage.evaluate(async (u) => {
+          const r = await fetch(u, { method: 'DELETE' });
+          return { s: r.status, ok: r.ok };
+        }, url);
+        if (!res.ok && res.s !== 404) {
+          throw new Error(`Failed to delete TA entry ${entry.id} (${res.s})`);
+        }
+      }
+    } else {
+      playerIds = [];
+      nicknames = [];
+      for (let i = 1; i <= 28; i++) {
+        const p = await apiCreatePlayer(
+          adminPage,
+          `E2E ALL ${label} P${i}`,
+          `e2e_all${label}_${stamp}_${i}`,
+        );
+        playerIds.push(p.id);
+        nicknames.push(p.nickname);
+        ownedPlayerIds.push(p.id);
+      }
+
+      tournamentId = await apiCreateTournament(
+        adminPage,
+        `E2E All Modes ${label} ${stamp}`,
+        { dualReportEnabled: false, ...tournamentOpts },
+      );
+      ownedTournamentId = tournamentId;
+      await apiActivateTournament(adminPage, tournamentId);
+    }
 
     const addTa = await apiAddTaEntries(adminPage, tournamentId, {
       playerEntries: playerIds.map((playerId, i) => ({ playerId, seeding: i + 1 })),

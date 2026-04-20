@@ -14,6 +14,11 @@
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
  *   - Admin Discord OAuth session must already be established in that profile.
+ *   - TC-801/802/804/805 reuse the shared 28-player / normal-tournament fixture
+ *     and reset the TA qualification state before each run via
+ *     setupTaEntriesFromShared. TC-806/807/808 still provision isolated
+ *     tournaments because phase promotion freezes the qualification stage —
+ *     reusing the shared tournament would leak state into later runs.
  *
  * Run: node e2e/tc-ta.js  (from smkc-score-app/)
  */
@@ -25,22 +30,34 @@ const {
   apiFetchTa, apiFetchTaPhase, apiPromoteTaPhase,
   setupTa28PlayerQual, apiSeedTtEntry, makeTaTimesForRank,
 } = require('./lib/common');
+const { createSharedE2eFixture, setupTaEntriesFromShared } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
+let sharedFixture = null;
+
+function sharedTaPlayers(count) {
+  if (!sharedFixture) throw new Error('Shared TA fixture is not initialized');
+  return sharedFixture.players.slice(0, count);
+}
 
 /* ───────── TC-801: 28-player full qualification ─────────
- * The setup helper seeds 20-course times + totalTime + rank for all 28
+ * setupTaEntriesFromShared seeds 20-course times + totalTime + rank for all 28
  * players via the admin /tt/entries PUT. We verify the persisted state:
  * 28 entries, all with totalTime and a rank, ranks cover 1..28. Scoring
  * (qualificationPoints) is computed by a separate finalize flow and is
  * intentionally not asserted here. */
 async function runTc801(adminPage) {
-  let setup = null;
   try {
-    setup = await setupTa28PlayerQual(adminPage, '801');
-    const data = await apiFetchTa(adminPage, setup.tournamentId);
+    const players = sharedTaPlayers(28);
+    const { tournamentId } = await setupTaEntriesFromShared(
+      adminPage,
+      sharedFixture.normalTournament.id,
+      players,
+    );
+
+    const data = await apiFetchTa(adminPage, tournamentId);
     const entries = data.b?.data?.entries ?? [];
 
     const countOk = entries.length === 28;
@@ -58,49 +75,29 @@ async function runTc801(adminPage) {
       : '');
   } catch (err) {
     log('TC-801', 'FAIL', err instanceof Error ? err.message : 'TA 801 failed');
-  } finally {
-    if (setup) await setup.cleanup();
   }
 }
 
 /* ───────── TC-802: Player login + TA participant time entry ─────────
  * Verifies a player can sign in, open /ta/participant, submit a qualification
- * time from the UI, and the value persists in the TT entry API. */
+ * time from the UI, and the value persists in the TT entry API.
+ *
+ * Uses a single shared player (no time-seeding — the UI is the source of
+ * truth for this test). */
 async function runTc802(adminPage) {
-  let player = null;
-  let tournamentId = null;
-  let entryId = null;
   let playerBrowser = null;
-  const stamp = Date.now();
   const targetTime = '1:23.45';
   const targetTimeMs = 83450;
 
-  const cleanup = async () => {
-    if (playerBrowser) await playerBrowser.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    await apiDeletePlayer(adminPage, player?.id);
-  };
-
   try {
-    player = await apiCreatePlayer(
+    const [player] = sharedTaPlayers(1);
+    const { tournamentId, entries } = await setupTaEntriesFromShared(
       adminPage,
-      'E2E TA 802 Player',
-      `e2e_ta802_${stamp}`,
+      sharedFixture.normalTournament.id,
+      [player],
+      { seedTimes: false },
     );
-    tournamentId = await apiCreateTournament(
-      adminPage,
-      `E2E TA 802 ${stamp}`,
-      { dualReportEnabled: false },
-    );
-    await apiActivateTournament(adminPage, tournamentId);
-
-    const add = await apiAddTaEntries(adminPage, tournamentId, {
-      playerEntries: [{ playerId: player.id, seeding: 1 }],
-    });
-    entryId = add.b?.data?.entries?.[0]?.id ?? null;
-    if (add.s !== 201 || !entryId) {
-      throw new Error(`TA add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
-    }
+    const entryId = entries[0].entryId;
 
     const ctx = await loginPlayerBrowser(player.nickname, player.password);
     playerBrowser = ctx.browser;
@@ -138,25 +135,33 @@ async function runTc802(adminPage) {
   } catch (err) {
     log('TC-802', 'FAIL', err instanceof Error ? err.message : 'TA 802 failed');
   } finally {
-    await cleanup();
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
   }
 }
 
 /* ───────── TC-804: Promote to Phase 1 ─────────
  * After promote_phase1, ranks 17-24 should move to stage='phase1'.
  * The qualification stage still contains 28 entries (promotion clones, it
- * doesn't remove), so we check phase1 count = 8 via the phase API. */
+ * doesn't remove), so we check phase1 count = 8 via the phase API.
+ *
+ * Phase state persists on the shared tournament until the next test wipes
+ * qualification, so TC-805 must not assume a pristine qualification stage
+ * itself (it always re-runs setupTaEntriesFromShared beforehand). */
 async function runTc804(adminPage) {
-  let setup = null;
   try {
-    setup = await setupTa28PlayerQual(adminPage, '804');
+    const players = sharedTaPlayers(28);
+    const { tournamentId } = await setupTaEntriesFromShared(
+      adminPage,
+      sharedFixture.normalTournament.id,
+      players,
+    );
 
-    const promote = await apiPromoteTaPhase(adminPage, setup.tournamentId, 'promote_phase1');
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
     if (promote.s !== 200) {
       throw new Error(`promote_phase1 returned ${promote.s}: ${JSON.stringify(promote.b).slice(0, 200)}`);
     }
 
-    const phase1 = await apiFetchTaPhase(adminPage, setup.tournamentId, 'phase1');
+    const phase1 = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
     const entries = phase1.b?.data?.entries ?? [];
     const countOk = entries.length === 8;
     /* The 8 phase1 entries must correspond to qual ranks 17-24. */
@@ -173,42 +178,22 @@ async function runTc804(adminPage) {
       : '');
   } catch (err) {
     log('TC-804', 'FAIL', err instanceof Error ? err.message : 'TA 804 failed');
-  } finally {
-    if (setup) await setup.cleanup();
   }
 }
 
 /* ───────── TC-805: Remove a mistaken TA qualification player via UI ─────────
  * The admin can remove a qualification entry, cancel safely, then confirm. The
  * player master record remains available and the player returns to the Add
- * Player candidate list for re-entry. */
+ * Player candidate list for re-entry. Uses 2 shared players. */
 async function runTc805(adminPage) {
-  const playerIds = [];
-  const stamp = Date.now();
-  let tournamentId = null;
-
-  const cleanup = async () => {
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
-  };
-
   try {
-    const p1 = await apiCreatePlayer(adminPage, `E2E TA 805 P1`, `e2e_ta805_${stamp}_1`);
-    const p2 = await apiCreatePlayer(adminPage, `E2E TA 805 P2`, `e2e_ta805_${stamp}_2`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E TA 805 ${stamp}`, { dualReportEnabled: false });
-    await apiActivateTournament(adminPage, tournamentId);
-
-    const add = await apiAddTaEntries(adminPage, tournamentId, {
-      playerEntries: [
-        { playerId: p1.id, seeding: 1 },
-        { playerId: p2.id, seeding: 2 },
-      ],
-    });
-    if (add.s !== 201) {
-      throw new Error(`TA add failed (${add.s}): ${JSON.stringify(add.b).slice(0, 200)}`);
-    }
+    const [p1, p2] = sharedTaPlayers(2);
+    const { tournamentId } = await setupTaEntriesFromShared(
+      adminPage,
+      sharedFixture.normalTournament.id,
+      [p1, p2],
+      { seedTimes: false },
+    );
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     await adminPage.getByRole('tab', { name: /タイム入力|Time Entry/ }).click();
@@ -268,8 +253,6 @@ async function runTc805(adminPage) {
       : '');
   } catch (err) {
     log('TC-805', 'FAIL', err instanceof Error ? err.message : 'TA 805 failed');
-  } finally {
-    await cleanup();
   }
 }
 
@@ -281,7 +264,11 @@ async function runTc805(adminPage) {
  * is eliminated. 8 players → 4 survivors after 4 rounds.
  *
  * TC-806 verifies the Phase 2 page (/ta/phase2) renders and shows 8 entries:
- * the 4 phase1 survivors plus the 4 qualifiers from ranks 13-16. */
+ * the 4 phase1 survivors plus the 4 qualifiers from ranks 13-16.
+ *
+ * Uses setupTa28PlayerQual (isolated per-test tournament): phase promotion
+ * writes phase-stage TT entries that freeze the qualification stage, which
+ * would prevent the next test from resetting the shared tournament. */
 async function runTc806(adminPage) {
   let setup = null;
   try {
@@ -366,7 +353,10 @@ async function runTc806(adminPage) {
  * then promote phase3 to get phase2 survivors (4) + qual ranks 1-12 (12) = 16.
  *
  * TC-807 verifies the Phase 3 page (/ta/finals) renders and shows 16 entries
- * with lives > 0 (not yet eliminated). */
+ * with lives > 0 (not yet eliminated).
+ *
+ * Uses setupTa28PlayerQual (isolated per-test tournament) for the same
+ * phase-freeze reason as TC-806. */
 async function runTc807(adminPage) {
   let setup = null;
   try {
@@ -473,7 +463,11 @@ async function runTc807(adminPage) {
 /* ───────── TC-808: TA Finals champion banner on completion ─────────
  * Runs a minimal phase3 with 2 players only. After one round of phase3
  * (both submitting times), one will be eliminated (0 lives) leaving the
- * other as champion. Verifies champion banner shows on the TA Finals page. */
+ * other as champion. Verifies champion banner shows on the TA Finals page.
+ *
+ * Keeps its own per-test tournament + players because this scenario requires
+ * exactly 2 TA entries (the shared fixture has 28) and because phase promotion
+ * freezes the stage — see TC-806 comment. */
 async function runTc808(adminPage) {
   const playerIds = [];
   const stamp = Date.now();
@@ -571,11 +565,24 @@ async function runTc808(adminPage) {
   }
 }
 
+module.exports = {
+  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808,
+};
+
 if (require.main === module) {
   runSuite({
     suiteName: 'TA',
     results,
     log,
+    beforeAll: async (adminPage) => {
+      sharedFixture = await createSharedE2eFixture(adminPage);
+    },
+    afterAll: async () => {
+      if (sharedFixture) {
+        await sharedFixture.cleanup();
+        sharedFixture = null;
+      }
+    },
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-802', fn: runTc802 },

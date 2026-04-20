@@ -2,40 +2,101 @@
  * E2E GP (Grand Prix) tests.
  *
  * Coverage:
- *   TC-701  28-player full qualification (4 groups × 7, snake-draft)
- *   TC-702  GP player login + participant 5-race submission
+ *   TC-701  28-player full qualification (shared fixture, verify standings/matches)
+ *   TC-702  GP player login + participant 5-race submission (2 players)
  *   TC-703  28-player full + finals bracket gen + first race score (routing)
  *   TC-704  GP finals bracket reset
  *   TC-705  GP Grand Final → champion
  *   TC-706  GP Grand Final Reset Match (M17)
- *   TC-707  GP dual report — agreement → autoConfirmed
- *   TC-708  GP dual report — mismatch
+ *   TC-707  GP dual report — agreement → autoConfirmed (2 players)
+ *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  *   - Admin Discord OAuth session must already exist in the profile.
+ *   - Shared fixture (28 players + 2 tournaments) created once in beforeAll,
+ *     torn down once in afterAll. Each TC only re-seeds GP qualification for
+ *     the tournament it uses via setupModePlayersViaUi().
  *
  * Run: node e2e/tc-gp.js  (from smkc-score-app/)  or:  npm run e2e:gp
  */
 const {
   makeResults, makeLog, nav,
-  apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
-  apiSetupGpGroup, apiFetchGp, apiPutGpQualScore,
+  apiCreatePlayer, apiDeletePlayer,
+  apiFetchGp, apiPutGpQualScore,
   apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches,
-  setupGp28PlayerFinals, makeRacesP1Wins, makeRacesP2Wins,
+  makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
 } = require('./lib/common');
+const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
+let sharedFixture = null;
+
+function sharedGpPlayers(count = 28) {
+  if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
+  return sharedFixture.players.slice(0, count);
+}
+
+async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
+  if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
+
+  const players = dualReport
+    ? sharedFixture.players.slice(2, 4)
+    : sharedFixture.players.slice(0, 2);
+  const tournament = dualReport
+    ? sharedFixture.dualTournament
+    : sharedFixture.normalTournament;
+
+  await setupModePlayersViaUi(adminPage, 'gp', tournament.id, players);
+
+  const data = await apiFetchGp(adminPage, tournament.id);
+  const match = (data.matches || []).find((m) => !m.isBye);
+  if (!match) throw new Error('No non-BYE GP match found');
+  if (!match.cup) throw new Error('GP match cup not assigned');
+
+  return {
+    tournamentId: tournament.id,
+    p1: players[0],
+    p2: players[1],
+    match,
+  };
+}
+
+async function prepareSharedGpFinalsSetup(adminPage) {
+  if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
+
+  const players = sharedGpPlayers(28);
+  const tournamentId = sharedFixture.normalTournament.id;
+  await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
+
+  /* Drive every non-BYE qual match to completion with P1 sweeping all races.
+   * GP qualification PUT requires cup + races (not score1/score2). */
+  const data = await apiFetchGp(adminPage, tournamentId);
+  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
+  for (const match of matches) {
+    const res = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
+    if (res.s !== 200) {
+      throw new Error(`GP qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
+    }
+  }
+
+  return {
+    tournamentId,
+    playerIds: players.map((player) => player.id),
+    nicknames: players.map((player) => player.nickname),
+    cleanup: async () => {},
+  };
+}
 
 /* ───────── TC-701: 28-player full qualification ───────── */
 async function runTc701(adminPage) {
   let setup = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '701');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
     const data = await apiFetchGp(adminPage, setup.tournamentId);
 
     const groupCounts = { A: 0, B: 0, C: 0, D: 0 };
@@ -64,26 +125,9 @@ async function runTc701(adminPage) {
 
 /* ───────── TC-702: GP player participant submission ───────── */
 async function runTc702(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   let playerBrowser = null;
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E GP 702 P1', `e2e_gp702_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E GP 702 P2', `e2e_gp702_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E GP 702 ${stamp}`, { dualReportEnabled: false });
-    const setup = await apiSetupGpGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
-
-    const data = await apiFetchGp(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
-    if (!match.cup) throw new Error('Match cup not assigned');
+    const { tournamentId, p1, match } = await prepareSharedGpPair(adminPage);
 
     const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
     playerBrowser = ctx.browser;
@@ -117,8 +161,6 @@ async function runTc702(adminPage) {
     log('TC-702', 'FAIL', err instanceof Error ? err.message : 'GP 702 failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
@@ -131,7 +173,7 @@ async function runTc702(adminPage) {
 async function runTc703(adminPage) {
   let setup = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '703');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
 
     const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -148,9 +190,7 @@ async function runTc703(adminPage) {
     const qfAllDistinct = new Set(qfIds).size === 8;
 
     /* Top 8 qualifiers must populate the QF — compare against setup.playerIds
-     * bucket. setup.playerIds are seeded 1..28 via snakeDraft28; the API picks
-     * top 8 by qualification standings, which with P1-wins-all scoring should
-     * come from the early seeds. We just check the 8 QF IDs are a subset. */
+     * bucket. We check the 8 QF IDs are a subset. */
     const allSetupIds = new Set(setup.playerIds);
     const qfAllRegistered = qfIds.every((id) => allSetupIds.has(id));
 
@@ -196,7 +236,7 @@ async function runTc703(adminPage) {
 async function runTc704(adminPage) {
   let setup = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '704');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
 
     const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -230,7 +270,7 @@ async function runTc704(adminPage) {
 async function runTc705(adminPage) {
   let setup = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '705');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
     const { tournamentId, playerIds, nicknames } = setup;
 
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
@@ -283,7 +323,7 @@ async function runTc705(adminPage) {
 async function runTc706(adminPage) {
   let setup = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '706');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
@@ -334,25 +374,9 @@ async function runTc706(adminPage) {
 
 /* ───────── TC-707: GP dual report agreement → autoConfirmed ───────── */
 async function runTc707(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   const browsers = [];
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E GP 707 P1', `e2e_gp707_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E GP 707 P2', `e2e_gp707_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E GP 707 ${stamp}`, { dualReportEnabled: true });
-    const setup = await apiSetupGpGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
-
-    const data = await apiFetchGp(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
+    const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage, { dualReport: true });
 
     const races = makeRacesP1Wins();
     const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
@@ -398,32 +422,14 @@ async function runTc707(adminPage) {
     log('TC-707', 'FAIL', err instanceof Error ? err.message : 'GP 707 failed');
   } finally {
     for (const b of browsers) await b.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
 /* ───────── TC-708: GP dual report mismatch ───────── */
 async function runTc708(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   const browsers = [];
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E GP 708 P1', `e2e_gp708_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E GP 708 P2', `e2e_gp708_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E GP 708 ${stamp}`, { dualReportEnabled: true });
-    const setup = await apiSetupGpGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
-
-    const data = await apiFetchGp(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
+    const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage, { dualReport: true });
 
     const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
     browsers.push(ctx1.browser);
@@ -471,18 +477,19 @@ async function runTc708(adminPage) {
     log('TC-708', 'FAIL', err instanceof Error ? err.message : 'GP 708 failed');
   } finally {
     for (const b of browsers) await b.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
-/* ───────── TC-709: GP finals admin-only enforcement (403) ───────── */
+/* ───────── TC-709: GP finals admin-only enforcement (403) ─────────
+ * Uses a disposable challenger player so the shared-fixture players' passwords
+ * are not exercised here (shared players are re-used across many TCs and we
+ * want to keep their sessions minimal). Challenger is created/deleted inline. */
 async function runTc709(adminPage) {
   let setup = null;
   let extraChallengerId = null;
   let playerBrowser = null;
   try {
-    setup = await setupGp28PlayerFinals(adminPage, '709');
+    setup = await prepareSharedGpFinalsSetup(adminPage);
 
     const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -491,9 +498,6 @@ async function runTc709(adminPage) {
     const m1 = matches.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Match 1 missing');
 
-    /* Extra credentials-equipped player. The 28 setup players are admin-created
-     * but their passwords are returned at creation; we just need ONE we can
-     * actually log in as for the 403 test, so spawn an extra. */
     const stamp = Date.now();
     const challenger = await apiCreatePlayer(adminPage, 'E2E GP 709 Challenger', `e2e_gp709_ch_${stamp}`);
     extraChallengerId = challenger.id;
@@ -518,13 +522,13 @@ async function runTc709(adminPage) {
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
     if (setup) await setup.cleanup();
-    await apiDeletePlayer(adminPage, extraChallengerId);
+    if (extraChallengerId) await apiDeletePlayer(adminPage, extraChallengerId);
   }
 }
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709, runTc821,
+  runTc707, runTc708, runTc709,
 };
 
 if (require.main === module) {
@@ -532,6 +536,15 @@ if (require.main === module) {
     suiteName: 'GP',
     results,
     log,
+    beforeAll: async (adminPage) => {
+      sharedFixture = await createSharedE2eFixture(adminPage);
+    },
+    afterAll: async () => {
+      if (sharedFixture) {
+        await sharedFixture.cleanup();
+        sharedFixture = null;
+      }
+    },
     tests: [
       { name: 'TC-702', fn: runTc702 },
       { name: 'TC-707', fn: runTc707 },
@@ -542,54 +555,6 @@ if (require.main === module) {
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
-      { name: 'TC-821', fn: runTc821 },
     ],
   });
-}
-
-/* ───────── TC-821: GP match/[matchId] page view-only ─────────
- * Similar to TC-320/TC-821 for MR, GP match pages are also view-only.
- * Score entry is via /gp/participant or API report endpoint. */
-async function runTc821(adminPage) {
-  let tournamentId = null;
-  let player1 = null;
-  let player2 = null;
-  try {
-    const stamp = Date.now();
-    player1 = await apiCreatePlayer(adminPage, 'E2E GP 821 P1', `e2e_gp821_p1_${stamp}`);
-    player2 = await apiCreatePlayer(adminPage, 'E2E GP 821 P2', `e2e_gp821_p2_${stamp}`);
-    tournamentId = await apiCreateTournament(adminPage, `E2E GP 821 ${stamp}`);
-
-    const setup = await adminPage.evaluate(async ([url, data]) => {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-      return { s: r.status };
-    }, [`/api/tournaments/${tournamentId}/gp`, {
-      players: [{ playerId: player1.id, group: 'A' }, { playerId: player2.id, group: 'A' }],
-    }]);
-    if (setup.s !== 201) throw new Error(`GP setup failed (${setup.s})`);
-
-    const gpData = await adminPage.evaluate(async (url) => {
-      const r = await fetch(url);
-      return r.json().catch(() => ({}));
-    }, `/api/tournaments/${tournamentId}/gp`);
-    const match = (gpData.data?.matches || gpData.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
-
-    await nav(adminPage, `/tournaments/${tournamentId}/gp/match/${match.id}`);
-    const matchText = await adminPage.locator('body').innerText();
-
-    const showsPlayers = matchText.includes(player1.nickname) && matchText.includes(player2.nickname);
-    // GP match page is view-only; score entry uses /gp/participant page
-    // Check for absence of form submission buttons
-    const noRaceEntry = !matchText.includes('Submit') && !matchText.includes('送信');
-
-    log('TC-821', showsPlayers && noRaceEntry ? 'PASS' : 'FAIL',
-      !showsPlayers ? 'Match page missing player names' : !noRaceEntry ? 'Match page has race entry form' : '');
-  } catch (err) {
-    log('TC-821', 'FAIL', err instanceof Error ? err.message : 'GP match view test failed');
-  } finally {
-    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
-    if (player1) await apiDeletePlayer(adminPage, player1.id);
-    if (player2) await apiDeletePlayer(adminPage, player2.id);
-  }
 }

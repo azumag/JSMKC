@@ -29,37 +29,75 @@
  */
 const {
   makeResults, makeLog, nav, escapeRegex,
-  apiCreatePlayer, apiCreateTournament, apiDeletePlayer, apiDeleteTournament,
-  apiSetupBmGroup, apiFetchBm, apiPutBmQualScore,
+  apiFetchBm, apiPutBmQualScore,
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
-  setupBm28PlayerFinals, loginPlayerBrowser,
+  loginPlayerBrowser,
 } = require('./lib/common');
+const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
 const log = makeLog(results);
+let sharedFixture = null;
+
+function sharedBmPlayers(count = 28) {
+  if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
+  return sharedFixture.players.slice(0, count);
+}
+
+async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
+  if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
+
+  const players = dualReport
+    ? sharedFixture.players.slice(2, 4)
+    : sharedFixture.players.slice(0, 2);
+  const tournament = dualReport
+    ? sharedFixture.dualTournament
+    : sharedFixture.normalTournament;
+
+  await setupModePlayersViaUi(adminPage, 'bm', tournament.id, players);
+
+  const data = await apiFetchBm(adminPage, tournament.id);
+  const match = (data.matches || []).find((m) => !m.isBye);
+  if (!match) throw new Error('No non-BYE BM match found');
+
+  return {
+    tournamentId: tournament.id,
+    p1: players[0],
+    p2: players[1],
+    match,
+  };
+}
+
+async function prepareSharedBmFinalsSetup(adminPage) {
+  if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
+
+  const players = sharedBmPlayers(28);
+  const tournamentId = sharedFixture.normalTournament.id;
+  await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
+
+  const data = await apiFetchBm(adminPage, tournamentId);
+  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
+  for (const match of matches) {
+    const res = await apiPutBmQualScore(adminPage, tournamentId, match.id, 3, 1);
+    if (res.s !== 200) {
+      throw new Error(`BM qual put failed (${res.s}) match=${match.id}: ${JSON.stringify(res.b).slice(0, 200)}`);
+    }
+  }
+
+  return {
+    tournamentId,
+    playerIds: players.map((player) => player.id),
+    nicknames: players.map((player) => player.nickname),
+    cleanup: async () => {},
+  };
+}
 
 /* ───────── TC-501: BM participant single-match submission (UI) ───────── */
 async function runTc501(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   let playerBrowser = null;
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 501 P1', `e2e_bm501_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 501 P2', `e2e_bm501_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM 501 ${stamp}`, { dualReportEnabled: false });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const initial = await apiFetchBm(adminPage, tournamentId);
-    const match = (initial.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match found');
+    const { tournamentId, p1, match } = await prepareSharedBmPair(adminPage);
 
     const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
     playerBrowser = ctx.browser;
@@ -85,33 +123,15 @@ async function runTc501(adminPage) {
     log('TC-501', 'FAIL', err instanceof Error ? err.message : 'BM 501 failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
 /* ───────── TC-502: BM participant draw 2-2 (UI) ─────────
  * Per §4.1, 2-2 is a valid score (each player scores 1 draw point). */
 async function runTc502(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   let playerBrowser = null;
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 502 P1', `e2e_bm502_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 502 P2', `e2e_bm502_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM 502 ${stamp}`, { dualReportEnabled: false });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const initial = await apiFetchBm(adminPage, tournamentId);
-    const match = (initial.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match found');
+    const { tournamentId, p1, match } = await prepareSharedBmPair(adminPage);
 
     const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
     playerBrowser = ctx.browser;
@@ -141,8 +161,6 @@ async function runTc502(adminPage) {
     log('TC-502', 'FAIL', err instanceof Error ? err.message : 'BM 502 failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
@@ -150,39 +168,15 @@ async function runTc502(adminPage) {
  * Submit 3-1, then use the "Correct Score" UI to flip to 2-2 and confirm
  * the change persists via admin-side API fetch. */
 async function runTc322(adminPage) {
-  let tournamentId = null;
-  let player1Id = null;
-  let player2Id = null;
   let playerBrowser = null;
 
   try {
-    const stamp = Date.now();
-    const player1Nick = `e2e_bmc1_${stamp}`;
-    const player2Nick = `e2e_bmc2_${stamp}`;
-
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM Correct P1', player1Nick);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM Correct P2', player2Nick);
-    player1Id = p1.id;
-    player2Id = p2.id;
-    const playerPassword = p1.password;
-    if (!playerPassword) throw new Error('No temp password for player 1');
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM Correction ${stamp}`,
-      { dualReportEnabled: false });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: player1Id, group: 'A' },
-      { playerId: player2Id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const initialBm = await apiFetchBm(adminPage, tournamentId);
-    const match = (initialBm.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE BM match found');
+    const { tournamentId, p1, match } = await prepareSharedBmPair(adminPage);
 
     const p1Label = match.player1.nickname;
     const p2Label = match.player2.nickname;
 
-    const ctx = await loginPlayerBrowser(player1Nick, playerPassword);
+    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
     playerBrowser = ctx.browser;
     const playerPage = ctx.page;
     await nav(playerPage, `/tournaments/${tournamentId}/bm/participant`);
@@ -224,9 +218,6 @@ async function runTc322(adminPage) {
     log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    await apiDeletePlayer(adminPage, player1Id);
-    await apiDeletePlayer(adminPage, player2Id);
   }
 }
 
@@ -236,7 +227,7 @@ async function runTc322(adminPage) {
 async function runTc503(adminPage) {
   let setup = null;
   try {
-    setup = await setupBm28PlayerFinals(adminPage, '503');
+    setup = await prepareSharedBmFinalsSetup(adminPage);
 
     const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -282,7 +273,7 @@ async function runTc503(adminPage) {
 async function runTc504(adminPage) {
   let setup = null;
   try {
-    setup = await setupBm28PlayerFinals(adminPage, '504');
+    setup = await prepareSharedBmFinalsSetup(adminPage);
 
     const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -319,7 +310,7 @@ async function runTc504(adminPage) {
 async function runTc510(adminPage) {
   let setup = null;
   try {
-    setup = await setupBm28PlayerFinals(adminPage, '510');
+    setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
     const phase1 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
@@ -409,7 +400,7 @@ async function runTc510(adminPage) {
 async function runTc505(adminPage) {
   let setup = null;
   try {
-    setup = await setupBm28PlayerFinals(adminPage, '505');
+    setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId, playerIds, nicknames } = setup;
 
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
@@ -454,7 +445,7 @@ async function runTc505(adminPage) {
 async function runTc506(adminPage) {
   let setup = null;
   try {
-    setup = await setupBm28PlayerFinals(adminPage, '506');
+    setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
@@ -506,25 +497,9 @@ async function runTc506(adminPage) {
 
 /* ───────── TC-507: BM dual report — agreement → autoConfirmed ───────── */
 async function runTc507(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   const browsers = [];
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 507 P1', `e2e_bm507_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 507 P2', `e2e_bm507_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM 507 ${stamp}`, { dualReportEnabled: true });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const data = await apiFetchBm(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
+    const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
     /* P1 reports 3-1 → response should include waitingFor=player2 */
     const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
@@ -582,8 +557,6 @@ async function runTc507(adminPage) {
     log('TC-507', 'FAIL', err instanceof Error ? err.message : 'BM 507 failed');
   } finally {
     for (const b of browsers) await b.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
@@ -591,25 +564,9 @@ async function runTc507(adminPage) {
  * P1 reports 3-1, P2 reports 1-3 → mismatch flag, match stays incomplete.
  * Admin then resolves via PUT /api/tournaments/:id/bm. */
 async function runTc508(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   const browsers = [];
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 508 P1', `e2e_bm508_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 508 P2', `e2e_bm508_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM 508 ${stamp}`, { dualReportEnabled: true });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const data = await apiFetchBm(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
+    const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
     const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
     browsers.push(ctx1.browser);
@@ -661,8 +618,6 @@ async function runTc508(adminPage) {
     log('TC-508', 'FAIL', err instanceof Error ? err.message : 'BM 508 failed');
   } finally {
     for (const b of browsers) await b.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
@@ -670,25 +625,9 @@ async function runTc508(adminPage) {
  * After P1 reports, P2 visiting /bm/participant should see P1's submission
  * in a "Previous Reports" / "過去の報告" / "既に報告" section. */
 async function runTc509(adminPage) {
-  let tournamentId = null;
-  const playerIds = [];
   const browsers = [];
   try {
-    const stamp = Date.now();
-    const p1 = await apiCreatePlayer(adminPage, 'E2E BM 509 P1', `e2e_bm509_p1_${stamp}`);
-    const p2 = await apiCreatePlayer(adminPage, 'E2E BM 509 P2', `e2e_bm509_p2_${stamp}`);
-    playerIds.push(p1.id, p2.id);
-
-    tournamentId = await apiCreateTournament(adminPage, `E2E BM 509 ${stamp}`, { dualReportEnabled: true });
-    const setup = await apiSetupBmGroup(adminPage, tournamentId, [
-      { playerId: p1.id, group: 'A' },
-      { playerId: p2.id, group: 'A' },
-    ]);
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const data = await apiFetchBm(adminPage, tournamentId);
-    const match = (data.matches || []).find((m) => !m.isBye);
-    if (!match) throw new Error('No non-BYE match');
+    const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
     /* P1 reports first */
     const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
@@ -725,8 +664,6 @@ async function runTc509(adminPage) {
     log('TC-509', 'FAIL', err instanceof Error ? err.message : 'BM 509 failed');
   } finally {
     for (const b of browsers) await b.close().catch(() => {});
-    await apiDeleteTournament(adminPage, tournamentId);
-    for (const id of playerIds) await apiDeletePlayer(adminPage, id);
   }
 }
 
@@ -740,6 +677,15 @@ if (require.main === module) {
     suiteName: 'BM',
     results,
     log,
+    beforeAll: async (adminPage) => {
+      sharedFixture = await createSharedE2eFixture(adminPage);
+    },
+    afterAll: async () => {
+      if (sharedFixture) {
+        await sharedFixture.cleanup();
+        sharedFixture = null;
+      }
+    },
     tests: [
       { name: 'TC-501', fn: runTc501 },
       { name: 'TC-502', fn: runTc502 },
