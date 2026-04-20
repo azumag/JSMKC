@@ -118,6 +118,11 @@ export async function POST(
       return handleAuthError('Unauthorized: Not authorized for this match');
     }
 
+    /* Validate character selection before any processing (including completed-match corrections) */
+    if (!validateCharacter(character)) {
+      return handleValidationError("Invalid character", "character");
+    }
+
     /*
      * Correction path: let a participant fix a GP score after the match has
      * already been confirmed. Keep the match completed, update the final score
@@ -206,11 +211,6 @@ export async function POST(
         }
         return handleDatabaseError(error, "score correction");
       }
-    }
-
-    /* Validate character selection */
-    if (!validateCharacter(character)) {
-      return handleValidationError("Invalid character", "character");
     }
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
