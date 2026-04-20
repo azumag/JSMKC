@@ -235,12 +235,9 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
-      (prisma.gPMatch.create as jest.Mock).mockImplementation((data) => ({
-        id: `m${data.data.matchNumber}`,
-        ...data.data,
-        player1: mockQualifications[data.data.player1Id - 1]?.player || mockQualifications[0].player,
-        player2: mockQualifications[data.data.player2Id - 1]?.player || mockQualifications[1].player,
-      }));
+      // Issue #420: bracket inserted in one createMany then re-fetched.
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: mockBracket.length });
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
       const params = Promise.resolve({ id: 't1' });
@@ -255,7 +252,9 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         bracketStructure: mockBracket,
       });
       expect(prisma.gPMatch.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1', stage: 'finals' } });
-      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(mockBracket.length);
+      // All bracket matches inserted in a single createMany call carrying all matchNumbers.
+      expect(prisma.gPMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(mockBracket.length);
     });
 
     // Validation error case - Returns 400 when topN is not 8
@@ -313,7 +312,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
       (generateBracketStructure as jest.Mock).mockReturnValue([]);
-      (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: 0 });
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', {});
       const params = Promise.resolve({ id: 't1' });

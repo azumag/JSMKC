@@ -272,52 +272,78 @@ export async function POST(
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
 
-    const createdEntries = [];
+    /*
+     * Bulk player registration (issue #420). The previous implementation issued
+     * one findUnique + one create per player, so registering 16 players cost
+     * 32 sequential round-trips. Now we do a single findMany to detect
+     * existing entries, a single createMany to insert the new ones, and a
+     * single findMany to recover the inserted rows for the response payload.
+     * Audit logs are still written one-per-entry in parallel because they need
+     * the per-row id; that's acceptable since the create itself is the
+     * dominant cost the user perceives.
+     */
+    let createdEntries: Awaited<ReturnType<typeof prisma.tTEntry.findMany>> = [];
 
-    for (const pid of playerIds) {
-      // Check for existing entry to prevent duplicates (idempotency)
-      const existing = await prisma.tTEntry.findUnique({
+    if (playerIds.length > 0) {
+      const existingEntries = await prisma.tTEntry.findMany({
         where: {
-          tournamentId_playerId_stage: {
-            tournamentId,
-            playerId: pid,
-            stage: "qualification",
-          },
+          tournamentId,
+          stage: "qualification",
+          playerId: { in: playerIds },
         },
+        select: { playerId: true },
       });
+      const existingPlayerIds = new Set(existingEntries.map((e) => e.playerId));
+      const newPlayerIds = playerIds.filter((pid) => !existingPlayerIds.has(pid));
 
-      if (!existing) {
-        // Create qualification entry with empty times and optional seeding
-        const entry = await prisma.tTEntry.create({
-          data: {
+      if (newPlayerIds.length > 0) {
+        await prisma.tTEntry.createMany({
+          data: newPlayerIds.map((pid) => ({
             tournamentId,
             playerId: pid,
             stage: "qualification",
+            // Empty times object — typed as InputJsonValue at runtime via Prisma
             times: {},
             seeding: seedingMap.get(pid) ?? null,
+          })),
+        });
+
+        createdEntries = await prisma.tTEntry.findMany({
+          where: {
+            tournamentId,
+            stage: "qualification",
+            playerId: { in: newPlayerIds },
           },
           include: { player: true },
         });
-        createdEntries.push(entry);
 
-        // Audit log for accountability (non-critical, failure is logged)
+        // Audit logs in parallel. createAuditLog never throws (it catches
+        // and logs its own errors internally — see audit-log.ts), so wrap
+        // the whole batch in a defensive try/catch instead of per-promise.
         try {
-          await createAuditLog({
-            userId: authResult.session!.user.id!,
-            ipAddress,
-            userAgent,
-            action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-            targetId: entry.id,
-            targetType: "TTEntry",
-            details: {
-              tournamentId,
-              playerId: pid,
-              playerNickname: entry.player.nickname,
-            },
-          });
+          await Promise.all(
+            createdEntries.map((entry) =>
+              createAuditLog({
+                userId: authResult.session!.user.id!,
+                ipAddress,
+                userAgent,
+                action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+                targetId: entry.id,
+                targetType: "TTEntry",
+                details: {
+                  tournamentId,
+                  playerId: entry.playerId,
+                  playerNickname: (entry as typeof entry & { player: { nickname: string } }).player.nickname,
+                },
+              }),
+            ),
+          );
         } catch (logError) {
-          // Audit log failure is non-critical but should be logged for security tracking
-          logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId: entry?.id, action: 'CREATE_TA_ENTRY' });
+          logger.warn("Failed to create audit log", {
+            error: logError,
+            tournamentId,
+            action: "CREATE_TA_ENTRY",
+          });
         }
       }
     }

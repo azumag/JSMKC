@@ -149,17 +149,21 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       ];
       const _mockQualifications = [{ id: 'q1', tournamentId: 't1', playerId: 'p1', group: 'A' }];
 
-      (prisma.mRQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      // Issue #420: setup now uses createMany + a findMany re-fetch.
+      (prisma.mRQualification.createMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }, { id: 'q2' }]);
+      (prisma.mRMatch.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ message: 'Match race setup complete', qualifications: expect.any(Array) });
+      expect(result.data).toEqual({ success: true, data: { message: 'Match race setup complete', qualifications: expect.any(Array) } });
       expect(result.status).toBe(201);
-      expect(prisma.mRQualification.create).toHaveBeenCalledTimes(2);
-      expect(prisma.mRMatch.create).toHaveBeenCalledTimes(1);
+      expect(prisma.mRQualification.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.mRQualification.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
+      expect(prisma.mRMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.mRMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(1);
     });
 
     // Success case - Handles multiple groups correctly
@@ -174,15 +178,18 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         { playerId: 'p4', group: 'B' },
       ];
 
-      (prisma.mRQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.mRMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.mRQualification.createMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (prisma.mRMatch.createMany as jest.Mock).mockResolvedValue({ count: 2 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      expect(prisma.mRMatch.create).toHaveBeenCalledTimes(2);
+      // Two groups → one createMany call carrying both groups' matches.
+      expect(prisma.mRMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.mRMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
     });
 
     // Authorization failure case - Returns 403 when user is not authenticated

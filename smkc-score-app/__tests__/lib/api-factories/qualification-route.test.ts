@@ -202,8 +202,14 @@ describe('Qualification Route Factory', () => {
     it('should create round-robin matches from players array', async () => {
       const players = createMockPlayers();
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      /*
+       * Issue #420: qualification + match creation switched to createMany.
+       * Tests now assert one createMany call per model, with the data array
+       * matching the expected count and shape.
+       */
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 4 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([{ id: 'qual-1' }]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 2 });
 
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
@@ -220,22 +226,30 @@ describe('Qualification Route Factory', () => {
 
       // Group A: player-1 vs player-2 (1 match via circle method)
       // Group B: player-3 vs player-4 (1 match via circle method)
-      // Total: 4 qualification records + 2 matches
-      expect((prisma.bMQualification as any).create).toHaveBeenCalledTimes(4);
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(2);
-
-      // Verify match generation includes round-robin fields (roundNumber, player1Side, etc.)
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          tournamentId: 'tournament-123',
-          matchNumber: 1,
-          stage: 'qualification',
-          roundNumber: 1,
-          isBye: false,
-          player1Side: 1,
-          player2Side: 2,
-        }),
+      // Total: 4 qualification records (1 createMany call) + 2 matches (1 createMany call)
+      expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.bMQualification as any).createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ tournamentId: 'tournament-123', playerId: 'player-1', group: 'A' }),
+          expect.objectContaining({ tournamentId: 'tournament-123', playerId: 'player-4', group: 'B' }),
+        ]),
       });
+      const qualCall = (prisma.bMQualification as any).createMany.mock.calls[0][0];
+      expect(qualCall.data).toHaveLength(4);
+
+      expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
+      const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(matchCall.data).toHaveLength(2);
+      // Verify match generation includes round-robin fields (roundNumber, player1Side, etc.)
+      expect(matchCall.data[0]).toEqual(expect.objectContaining({
+        tournamentId: 'tournament-123',
+        matchNumber: 1,
+        stage: 'qualification',
+        roundNumber: 1,
+        isBye: false,
+        player1Side: 1,
+        player2Side: 2,
+      }));
     });
 
     it('should handle multiple groups and generate round-robin matches within each', async () => {
@@ -247,8 +261,9 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-5', group: 'B', seeding: 2 }, // Group B: 2 players, 1 match (4v5)
       ];
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 5 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 7 });
 
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
@@ -264,15 +279,17 @@ describe('Qualification Route Factory', () => {
       expect(response.status).toBe(201);
       // Group A: 3 players (odd) → BREAK added → 3 days × 2 matches = 6 (3 real + 3 bye)
       // Group B: 2 players → 1 day × 1 match = 1
-      // Total: 6 + 1 = 7
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(7);
+      // Total: 6 + 1 = 7 matches inserted in a single createMany call
+      const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(matchCall.data).toHaveLength(7);
     });
 
     it('should create audit log when auditAction is configured', async () => {
       const players = createMockPlayers();
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 4 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 2 });
       mockAuth.mockResolvedValue({
         user: {
           id: 'user-1',
@@ -366,8 +383,9 @@ describe('Qualification Route Factory', () => {
     it('should log warning when audit log creation fails (non-critical)', async () => {
       const players = createMockPlayers();
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 4 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 2 });
       mockAuth.mockResolvedValue({
         user: {
           id: 'user-1',
@@ -400,8 +418,9 @@ describe('Qualification Route Factory', () => {
     it('should apply sanitizeInput to request body', async () => {
       const players = createMockPlayers();
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 4 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 2 });
       mockSanitizeInput.mockImplementation((input) => {
         if (typeof input === 'string') {
           return input.replace(/<script>/g, '');
@@ -437,8 +456,9 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-3', group: 'A' }, // Odd group → BREAK added → 3 BYE matches generated
       ];
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 3 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 6 });
       /*
        * findMany is called once per BYE recipient to fetch their completed matches.
        * Return a BYE match for each player (simplified - same data for all 3 calls).
@@ -484,8 +504,9 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-1', group: 'A', seeding: 1 }, // seeding 1 listed second
       ];
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 2 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
@@ -497,13 +518,12 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // player-1 (seeding:1) must be player1 even though player-2 was listed first.
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          matchNumber: 1,
-          player1Id: 'player-1',
-          player2Id: 'player-2',
-        }),
-      });
+      const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(matchCall.data[0]).toEqual(expect.objectContaining({
+        matchNumber: 1,
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      }));
     });
 
     // Course assignment tests (§10.5)
@@ -520,13 +540,13 @@ describe('Qualification Route Factory', () => {
       ];
 
       (prisma.mRQualification as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findMany: jest.fn().mockResolvedValue([]),
       };
       (prisma.mRMatch as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
       };
@@ -546,13 +566,11 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // Each match must have assignedCourses: array of 4 course abbreviations
-      expect((prisma.mRMatch as any).create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          assignedCourses: expect.arrayContaining([expect.any(String)]),
-        }),
-      });
-      const createCall = (prisma.mRMatch as any).create.mock.calls[0];
-      expect(createCall[0].data.assignedCourses).toHaveLength(4);
+      const createCall = (prisma.mRMatch as any).createMany.mock.calls[0];
+      expect(createCall[0].data[0]).toEqual(expect.objectContaining({
+        assignedCourses: expect.arrayContaining([expect.any(String)]),
+      }));
+      expect(createCall[0].data[0].assignedCourses).toHaveLength(4);
     });
 
     // Cup assignment tests (§7.4)
@@ -571,13 +589,13 @@ describe('Qualification Route Factory', () => {
       const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
 
       (prisma.gPQualification as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findMany: jest.fn().mockResolvedValue([]),
       };
       (prisma.gPMatch as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
       };
@@ -598,9 +616,9 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // Each match must have a cup field with a valid cup name
-      const createCall = (prisma.gPMatch as any).create.mock.calls[0];
-      expect(createCall[0].data.cup).toBeDefined();
-      expect(cupList).toContain(createCall[0].data.cup);
+      const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
+      expect(createCall[0].data[0].cup).toBeDefined();
+      expect(cupList).toContain(createCall[0].data[0].cup);
     });
 
     it('should cycle cups via modulo when there are more matches than cups', async () => {
@@ -617,13 +635,13 @@ describe('Qualification Route Factory', () => {
       const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
 
       (prisma.gPQualification as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'qual-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 3 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findMany: jest.fn().mockResolvedValue([]),
       };
       (prisma.gPMatch as any) = {
-        create: jest.fn().mockResolvedValue({ id: 'match-1' }),
+        createMany: jest.fn().mockResolvedValue({ count: 6 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([
           { id: 'bye-1', player1Id: 'player-1', player2Id: '__BREAK__', score1: 45, score2: 0, completed: true, isBye: true },
@@ -646,17 +664,20 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // 3 players (odd) → BREAK added → 4 participants → 3 days × 2 matches = 6 matches
-      const createCalls = (prisma.gPMatch as any).create.mock.calls;
-      expect(createCalls.length).toBe(6);
+      const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
+      expect(createCall[0].data.length).toBe(6);
 
-      // All cups must be from cupList and all 4 cups must appear at least once
-      const assignedCups = createCalls.map((c: any) => c[0].data.cup);
-      assignedCups.forEach((cup: string) => {
+      // BYE matches are auto-completed and skip cup assignment, so only real
+      // matches carry a cup. Filter out the byes before asserting cup coverage.
+      const realMatchCups = createCall[0].data
+        .filter((m: any) => !m.isBye)
+        .map((m: any) => m.cup);
+      realMatchCups.forEach((cup: string) => {
         expect(cupList).toContain(cup);
       });
-      // With 6 matches and 4 cups, all 4 cups appear (4 unique + 2 wrapping)
-      const uniqueCups = new Set(assignedCups);
-      expect(uniqueCups.size).toBe(4);
+      // With 3 real matches drawn from 4 shuffled cups, all should be unique.
+      const uniqueCups = new Set(realMatchCups);
+      expect(uniqueCups.size).toBe(realMatchCups.length);
     });
 
     it('should NOT assign cup when assignCupRandomly is not set (BM/MR)', async () => {
@@ -669,8 +690,9 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-2', group: 'A', seeding: 2 },
       ];
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 2 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 1 });
 
       // Default BM config has no assignCupRandomly
       const config = createMockConfig();
@@ -683,8 +705,8 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // No cup for BM matches
-      const createCall = (prisma.bMMatch as any).create.mock.calls[0];
-      expect(createCall[0].data.cup).toBeUndefined();
+      const createCall = (prisma.bMMatch as any).createMany.mock.calls[0];
+      expect(createCall[0].data[0].cup).toBeUndefined();
     });
 
     it('should NOT assign courses when assignCoursesRandomly is false (BM/GP)', async () => {
@@ -697,8 +719,9 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-2', group: 'A', seeding: 2 },
       ];
 
-      (prisma.bMQualification as any).create.mockResolvedValue({ id: 'qual-1' });
-      (prisma.bMMatch as any).create.mockResolvedValue({ id: 'match-1' });
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 2 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 1 });
 
       // Default BM config has no assignCoursesRandomly
       const config = createMockConfig();
@@ -711,8 +734,8 @@ describe('Qualification Route Factory', () => {
       await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       // No assignedCourses for BM matches
-      const createCall = (prisma.bMMatch as any).create.mock.calls[0];
-      expect(createCall[0].data.assignedCourses).toBeUndefined();
+      const createCall = (prisma.bMMatch as any).createMany.mock.calls[0];
+      expect(createCall[0].data[0].assignedCourses).toBeUndefined();
     });
 
     it('should succeed on re-setup when qualifications already exist (group edit)', async () => {
@@ -730,9 +753,10 @@ describe('Qualification Route Factory', () => {
         { playerId: 'player-2', group: 'A', seeding: 2 },
       ];
 
-      (prisma.mRQualification as any).create.mockResolvedValue({ id: 'new-qual' });
+      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 2 });
+      (prisma.mRQualification as any).findMany.mockResolvedValue([]);
       (prisma.mRQualification as any).deleteMany.mockResolvedValue({ count: 2 });
-      (prisma.mRMatch as any).create.mockResolvedValue({ id: 'new-match' });
+      (prisma.mRMatch as any).createMany.mockResolvedValue({ count: 1 });
       (prisma.mRMatch as any).deleteMany.mockResolvedValue({ count: 1 });
 
       const config = createMockConfig({
@@ -761,9 +785,9 @@ describe('Qualification Route Factory', () => {
       });
       /* Verify delete-before-create order via mock invocation timing */
       const qualDeleteOrder = (prisma.mRQualification as any).deleteMany.mock.invocationCallOrder[0];
-      const qualCreateOrder = (prisma.mRQualification as any).create.mock.invocationCallOrder[0];
+      const qualCreateOrder = (prisma.mRQualification as any).createMany.mock.invocationCallOrder[0];
       const matchDeleteOrder = (prisma.mRMatch as any).deleteMany.mock.invocationCallOrder[0];
-      const matchCreateOrder = (prisma.mRMatch as any).create.mock.invocationCallOrder[0];
+      const matchCreateOrder = (prisma.mRMatch as any).createMany.mock.invocationCallOrder[0];
       expect(qualDeleteOrder).toBeLessThan(qualCreateOrder);
       expect(matchDeleteOrder).toBeLessThan(matchCreateOrder);
     });

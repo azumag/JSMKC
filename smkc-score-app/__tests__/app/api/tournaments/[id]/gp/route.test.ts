@@ -58,10 +58,12 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
     /* Reset all prisma model mocks to ensure no queued mockResolvedValueOnce values leak between tests */
     (prisma.gPQualification.findMany as jest.Mock).mockReset();
     (prisma.gPQualification.create as jest.Mock).mockReset();
+    (prisma.gPQualification.createMany as jest.Mock).mockReset();
     (prisma.gPQualification.deleteMany as jest.Mock).mockReset();
     (prisma.gPQualification.updateMany as jest.Mock).mockReset();
     (prisma.gPMatch.findMany as jest.Mock).mockReset();
     (prisma.gPMatch.create as jest.Mock).mockReset();
+    (prisma.gPMatch.createMany as jest.Mock).mockReset();
     (prisma.gPMatch.deleteMany as jest.Mock).mockReset();
     (prisma.gPMatch.update as jest.Mock).mockReset();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
@@ -152,19 +154,23 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         { playerId: 'p2', group: 'A', seeding: 2 },
       ];
 
-      (prisma.gPQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      // Issue #420: setup uses createMany + a findMany re-fetch.
+      (prisma.gPQualification.createMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }, { id: 'q2' }]);
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ message: 'Grand prix setup complete', qualifications: expect.any(Array) });
+      expect(result.data).toEqual({ success: true, data: { message: 'Grand prix setup complete', qualifications: expect.any(Array) } });
       expect(result.status).toBe(201);
       expect(prisma.gPQualification.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1' } });
       expect(prisma.gPMatch.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1', stage: 'qualification' } });
-      expect(prisma.gPQualification.create).toHaveBeenCalledTimes(2);
-      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(1);
+      expect(prisma.gPQualification.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.gPQualification.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
+      expect(prisma.gPMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(1);
     });
 
     // Success case - Handles multiple groups correctly
@@ -179,15 +185,18 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         { playerId: 'p4', group: 'B' },
       ];
 
-      (prisma.gPQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.gPQualification.createMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: 2 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp', { players: mockPlayers });
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(2);
+      // Two groups → one createMany call carrying both groups' matches.
+      expect(prisma.gPMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
     });
 
     // Authorization failure case - Returns 403 when user is not authenticated
@@ -298,8 +307,9 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         { playerId: 'p3', group: 'A' },
       ];
 
-      (prisma.gPQualification.create as jest.Mock).mockResolvedValue({ id: 'q1' });
-      (prisma.gPMatch.create as jest.Mock).mockResolvedValue({ id: 'm1' });
+      (prisma.gPQualification.createMany as jest.Mock).mockResolvedValue({ count: 3 });
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: 6 });
       // BYE stat recalculation: each BYE recipient's completed matches are fetched
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -309,7 +319,9 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      expect(prisma.gPMatch.create).toHaveBeenCalledTimes(6);
+      // 3 players (odd) → BREAK added → 6 matches inserted in a single createMany call
+      expect(prisma.gPMatch.createMany).toHaveBeenCalledTimes(1);
+      expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(6);
     });
   });
 
