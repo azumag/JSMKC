@@ -291,7 +291,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         matches: createdMatches,
         seededPlayers,
         bracketStructure,
-      }, 'Finals bracket created');
+      }, 'Finals bracket created', { status: 201 });
     } catch (error) {
       logger.error('Failed to create finals', { error, tournamentId });
       return createErrorResponse(config.postErrorMessage, 500, 'INTERNAL_ERROR');

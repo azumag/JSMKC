@@ -364,6 +364,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return createSuccessResponse(
         { message: config.setupCompleteMessage, qualifications },
         config.setupCompleteMessage,
+        { status: 201 }
       );
     } catch (error) {
       logger.error(`Failed to setup ${config.eventDisplayName}`, { error, tournamentId });
