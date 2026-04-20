@@ -325,25 +325,20 @@ export async function POST(
            * Uses explicit field names (score1/score2) to ensure correct mapping
            * to the MRMatch schema. MR matches store final scores in score1/score2,
            * while GP matches use points1/points2 for driver points.
+           *
+           * Use result.version directly to avoid a race where concurrent
+           * auto-confirm from the other player increments the version between
+           * our findUnique and update, causing an unnecessary OptimisticLockError.
            */
           const completedMatch = await updateWithRetry(prisma, async (tx) => {
-            const currentMatch = await tx.mRMatch.findUnique({
-              where: { id: matchId },
-              select: { version: true }
-            });
-
-            if (!currentMatch) {
-              throw new Error("Match not found");
-            }
-
             const finalResult = await tx.mRMatch.update({
-              where: { id: matchId, version: currentMatch.version },
+              where: { id: matchId, version: result.version },
               data: { score1: p1Score1, score2: p1Score2, rounds: racesToUse || [], completed: true, version: { increment: 1 } },
               include: { player1: true, player2: true },
             });
 
             if (!finalResult) {
-              throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+              throw new OptimisticLockError('Match was updated by another user', result.version);
             }
 
             return finalResult;

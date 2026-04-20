@@ -382,24 +382,20 @@ export async function POST(
       const racesToUse = p1Races || p2Races;
 
       try {
+        /*
+         * Use updatedMatch.version directly to avoid a race where concurrent
+         * auto-confirm from the other player increments the version between
+         * our findUnique and update, causing an unnecessary OptimisticLockError.
+         */
         const confirmedMatch = await updateWithRetry(prisma, async (tx) => {
-          const currentMatch = await tx.gPMatch.findUnique({
-            where: { id: matchId },
-            select: { version: true }
-          });
-
-          if (!currentMatch) {
-            throw new Error("Match not found");
-          }
-
           const finalResult = await tx.gPMatch.update({
-            where: { id: matchId, version: currentMatch.version },
+            where: { id: matchId, version: updatedMatch.version },
             data: { points1: p1p1, points2: p1p2, races: racesToUse || [], completed: true, version: { increment: 1 } },
             include: { player1: true, player2: true },
           });
 
           if (!finalResult) {
-            throw new OptimisticLockError('Match was updated by another user', currentMatch.version);
+            throw new OptimisticLockError('Match was updated by another user', updatedMatch.version);
           }
 
           return finalResult;
