@@ -35,8 +35,8 @@ import { createLogger } from '@/lib/logger';
 export interface AuthCheckMatch {
   player1Id: string;
   player2Id: string;
-  player1: { userId: string } | null;
-  player2: { userId: string } | null;
+  player1: { userId: string | null } | null;
+  player2: { userId: string | null } | null;
 }
 
 /**
