@@ -82,11 +82,6 @@ export function createStandingsHandlers(config: StandingsConfig) {
     { params }: { params: Promise<{ id: string }> },
   ) {
     const logger = createLogger(config.loggerName);
-    const session = await auth();
-
-    if (!session?.user || session.user.role !== 'admin') {
-      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
-    }
 
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
