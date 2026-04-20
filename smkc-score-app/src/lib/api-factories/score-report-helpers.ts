@@ -30,10 +30,13 @@ import { createLogger } from '@/lib/logger';
 
 /**
  * Minimal match shape required by the authorization check.
+ * Includes userId for player-to-user linkage verification.
  */
 export interface AuthCheckMatch {
   player1Id: string;
   player2Id: string;
+  player1: { userId: string } | null;
+  player2: { userId: string } | null;
 }
 
 /**
@@ -94,12 +97,19 @@ export async function checkScoreReportAuth(
       /* Admins have unrestricted access to report scores */
       isAuthorized = true;
     } else if (session.user.userType === 'player') {
-      /* Direct player login - verify they are a participant in this match */
+      /*
+       * Direct player login - verify they own the player account AND are a
+       * participant in this match. Checks BOTH playerId (to verify the player
+       * record) AND userId (to verify the session owner is linked to that player).
+       */
       const playerId = session.user.playerId;
-      if (reportingPlayer === 1 && match.player1Id === playerId) {
+      const userId = session.user.id;
+      if (reportingPlayer === 1 && match.player1Id === playerId &&
+          match.player1?.userId === userId) {
         isAuthorized = true;
       }
-      if (reportingPlayer === 2 && match.player2Id === playerId) {
+      if (reportingPlayer === 2 && match.player2Id === playerId &&
+          match.player2?.userId === userId) {
         isAuthorized = true;
       }
     }
