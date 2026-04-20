@@ -66,6 +66,8 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
  * Submit a GP match score report from a participant.
  * Processes race-by-race positions into driver points and
  * stores the report. Auto-confirms when both players agree.
+ *
+ * Authentication: admin or player (for their own reports).
  */
 export async function POST(
   request: NextRequest,

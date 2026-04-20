@@ -112,6 +112,9 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
   /**
    * PUT handler: Update match score with optimistic locking.
    * Requires version number for conflict detection.
+   *
+   * Authentication: admin only. Players should use the score report endpoint
+   * to submit their own match results.
    */
   async function PUT(
     request: NextRequest,
