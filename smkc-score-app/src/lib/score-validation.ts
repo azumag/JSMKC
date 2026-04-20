@@ -175,9 +175,11 @@ export function validateMatchRaceScores(score1: number, score2: number): ScoreVa
       error: `Match race score must be an integer between 0 and ${TOTAL_MR_RACES}`,
     };
   }
+  // 0-0 is a cleared match (admin void), not a validation error
+  const isClearedMatch = score1 === 0 && score2 === 0;
   // Sum check: all 4 races must be accounted for. A sum ≠ 4 indicates missing
-  // race results or a data entry error.
-  if (score1 + score2 !== TOTAL_MR_RACES) {
+  // race results or a data entry error. 0-0 is exempt as a cleared match.
+  if (!isClearedMatch && score1 + score2 !== TOTAL_MR_RACES) {
     return {
       isValid: false,
       error: `Scores must total exactly ${TOTAL_MR_RACES} races (got ${score1 + score2})`,
