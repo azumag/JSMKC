@@ -27,7 +27,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * during live tournament operation.
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -294,8 +294,14 @@ export default function TimeAttackPage({
    * Derive display data directly from polling response.
    * Avoids redundant local state and provides instant display from cache.
    */
-  const entries: TTEntry[] = pollData?.entries ?? [];
-  const allPlayers: Player[] = pollData?.allPlayers ?? [];
+  const entries: TTEntry[] = useMemo(
+    () => pollData?.entries ?? [],
+    [pollData?.entries],
+  );
+  const allPlayers: Player[] = useMemo(
+    () => pollData?.allPlayers ?? [],
+    [pollData?.allPlayers],
+  );
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
@@ -313,11 +319,13 @@ export default function TimeAttackPage({
   const openSetupDialog = useCallback(() => {
     const qualEntries = entries.filter((e) => e.stage === "qualification");
     setSetupEntries(
-      qualEntries.map((e) => ({
-        playerId: e.playerId,
-        seeding: e.seeding ?? undefined,
-        partnerId: e.partnerId ?? null,
-      })),
+      qualEntries
+        .map((e) => ({
+          playerId: e.playerId,
+          seeding: e.seeding ?? undefined,
+          partnerId: e.partnerId ?? null,
+        }))
+        .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity)),
     );
     setSaveError(null);
     setPlayerSearchQuery("");
@@ -929,114 +937,97 @@ export default function TimeAttackPage({
                           </p>
                         ) : (
                           <div className="divide-y">
-                            {/*
-                             * Render in seeding-asc order (unranked last) so autoPair
-                             * preview aligns with the computeAutoPairs algorithm.
-                             */}
-                            {[...setupEntries]
-                              .sort((a, b) => (a.seeding ?? Infinity) - (b.seeding ?? Infinity))
-                              .map((s) => {
-                                const player = allPlayers.find((p) => p.id === s.playerId);
-                                const partnerPlayer = s.partnerId
-                                  ? allPlayers.find((p) => p.id === s.partnerId)
-                                  : null;
-                                return (
-                                  <div
-                                    key={s.playerId}
-                                    className="flex items-center gap-2 px-3 py-2"
-                                  >
-                                    <Input
-                                      type="number"
-                                      min={1}
-                                      placeholder="#"
-                                      value={s.seeding ?? ""}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        const parsed = parseInt(val, 10);
-                                        const seeding =
-                                          val && !Number.isNaN(parsed) && parsed >= 1
-                                            ? parsed
-                                            : undefined;
-                                        /* Recompute snake pairs immediately so the partner
-                                         * column reflects §3.1 as soon as seedings change. */
-                                        setSetupEntries((prev) =>
-                                          applyAutoPairsToSetup(
-                                            prev.map((p) =>
-                                              p.playerId === s.playerId ? { ...p, seeding } : p,
-                                            ),
+                            {setupEntries.map((s) => {
+                              const player = allPlayers.find((p) => p.id === s.playerId);
+                              return (
+                                <div
+                                  key={s.playerId}
+                                  className="flex items-center gap-2 px-3 py-2"
+                                >
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    placeholder="#"
+                                    value={s.seeding ?? ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const parsed = parseInt(val, 10);
+                                      const seeding =
+                                        val && !Number.isNaN(parsed) && parsed >= 1
+                                          ? parsed
+                                          : undefined;
+                                      /* Recompute snake pairs immediately so the partner
+                                       * column reflects §3.1 as soon as seedings change. */
+                                      setSetupEntries((prev) =>
+                                        applyAutoPairsToSetup(
+                                          prev.map((p) =>
+                                            p.playerId === s.playerId ? { ...p, seeding } : p,
                                           ),
-                                        );
-                                      }}
-                                      className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
-                                      aria-label={`${player?.nickname ?? s.playerId} seeding`}
-                                    />
-                                    <span className="flex-1 text-sm truncate">
-                                      {player?.nickname ?? `ID: ${s.playerId.slice(0, 8)}`}
-                                    </span>
-                                    <select
-                                      className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9"
-                                      value={s.partnerId ?? ""}
-                                      onChange={(ev) => {
-                                        const val = ev.target.value || null;
-                                        /* Maintain reciprocal partner links within the dialog
-                                         * state so the UI mirrors the server's bidirectional
-                                         * storage (A↔B). */
-                                        setSetupEntries((prev) => {
-                                          const oldPartner = s.partnerId ?? null;
-                                          const next = prev.map((p) => {
-                                            if (p.playerId === s.playerId) {
-                                              return { ...p, partnerId: val };
-                                            }
-                                            if (oldPartner && p.playerId === oldPartner) {
-                                              return { ...p, partnerId: null };
-                                            }
-                                            if (val && p.playerId === val) {
-                                              /* Also clear the new partner's prior link */
-                                              return { ...p, partnerId: s.playerId };
-                                            }
-                                            return p;
-                                          });
-                                          return next;
+                                        ),
+                                      );
+                                    }}
+                                    className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
+                                    aria-label={`${player?.nickname ?? s.playerId} seeding`}
+                                  />
+                                  <span className="flex-1 text-sm truncate">
+                                    {player?.nickname ?? `ID: ${s.playerId.slice(0, 8)}`}
+                                  </span>
+                                  <select
+                                    className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9"
+                                    value={s.partnerId ?? ""}
+                                    onChange={(ev) => {
+                                      const val = ev.target.value || null;
+                                      /* Maintain reciprocal partner links within the dialog
+                                       * state so the UI mirrors the server's bidirectional
+                                       * storage (A↔B). */
+                                      setSetupEntries((prev) => {
+                                        const oldPartner = s.partnerId ?? null;
+                                        const next = prev.map((p) => {
+                                          if (p.playerId === s.playerId) {
+                                            return { ...p, partnerId: val };
+                                          }
+                                          if (oldPartner && p.playerId === oldPartner) {
+                                            return { ...p, partnerId: null };
+                                          }
+                                          if (val && p.playerId === val) {
+                                            /* Also clear the new partner's prior link */
+                                            return { ...p, partnerId: s.playerId };
+                                          }
+                                          return p;
                                         });
-                                      }}
-                                      aria-label={`${player?.nickname ?? s.playerId} partner`}
-                                    >
-                                      <option value="">{t("noPair")}</option>
-                                      {setupEntries
-                                        .filter((e) => e.playerId !== s.playerId)
-                                        .map((e) => {
-                                          const ep = allPlayers.find((p) => p.id === e.playerId);
-                                          return (
-                                            <option key={e.playerId} value={e.playerId}>
-                                              {ep?.nickname ?? e.playerId}
-                                              {typeof e.seeding === "number" ? ` (#${e.seeding})` : ""}
-                                            </option>
-                                          );
-                                        })}
-                                    </select>
-                                    {partnerPlayer && (
-                                      <span
-                                        className="text-xs text-muted-foreground truncate max-w-[6rem] hidden lg:inline"
-                                        title={partnerPlayer.nickname}
-                                      >
-                                        ↔ {partnerPlayer.nickname}
-                                      </span>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        setSetupEntries((prev) =>
-                                          prev.filter((p) => p.playerId !== s.playerId),
-                                        )
-                                      }
-                                      className="min-h-[44px] md:min-h-[32px]"
-                                    >
-                                      {tc("remove")}
-                                    </Button>
-                                  </div>
-                                );
-                              })}
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label={`${player?.nickname ?? s.playerId} partner`}
+                                  >
+                                    <option value="">{t("noPair")}</option>
+                                    {setupEntries
+                                      .filter((e) => e.playerId !== s.playerId)
+                                      .map((e) => {
+                                        const ep = allPlayers.find((p) => p.id === e.playerId);
+                                        return (
+                                          <option key={e.playerId} value={e.playerId}>
+                                            {ep?.nickname ?? e.playerId}
+                                            {typeof e.seeding === "number" ? ` (#${e.seeding})` : ""}
+                                          </option>
+                                        );
+                                      })}
+                                  </select>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setSetupEntries((prev) =>
+                                        prev.filter((p) => p.playerId !== s.playerId),
+                                      )
+                                    }
+                                    className="min-h-[44px] md:min-h-[32px]"
+                                  >
+                                    {tc("remove")}
+                                  </Button>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
