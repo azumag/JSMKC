@@ -11,6 +11,7 @@
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
     "e2e:all": "node e2e/tc-all.js",
+    "e2e:cleanup": "node e2e/cleanup.js",
     "e2e:bm": "node e2e/tc-bm.js",
     "e2e:mr": "node e2e/tc-mr.js",
     "e2e:gp": "node e2e/tc-gp.js",
