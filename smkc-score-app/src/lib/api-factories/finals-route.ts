@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
+import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -396,18 +397,40 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const logger = createLogger(finalsConfig.loggerName);
 
     try {
-      /* Fetch Top 24 qualifiers — needed for both phases (Phase 1 picks 13-24 as
-       * playoff seeds; Phase 2 picks 1-12 as direct Upper-Bracket seeds). */
+      /* Fetch ALL qualifiers (not just Top 24). Per issue #454 the direct/barrage
+       * split is per-group (each group contributes perGroup=12/G direct and perGroup
+       * barrage players), so we need every group's full ranking to pick Top-1..2*perGroup
+       * from each. Caller's qualificationOrderBy is expected to put `group` first
+       * (BM: [{ group: 'asc' }, { score: 'desc' }, ...]); within-group ordering by
+       * score/points is preserved via stable insertion-order bucketing in
+       * selectFinalsEntrantsByGroup. */
       const qualifications = await qualificationModel(prisma).findMany({
         where: { tournamentId },
         include: { player: true },
         orderBy: finalsConfig.qualificationOrderBy,
-        take: 24,
       });
 
       if (qualifications.length < 24) {
         return handleValidationError(
           `Not enough players qualified. Need 24, found ${qualifications.length}`,
+          'qualifications',
+        );
+      }
+
+      /* Per-group Top-N selection with interleaved seed assignment (#454).
+       * Phase 1 and Phase 2 both re-derive the split; this relies on qualifications
+       * being frozen between the two calls. If scores are edited after Phase 1
+       * creates playoff rows, the Phase-2 direct/barrage computation can diverge
+       * from what Phase 1 used — acceptable since the admin workflow freezes
+       * qualification before finals. */
+      let selection: ReturnType<typeof selectFinalsEntrantsByGroup>;
+      try {
+        selection = selectFinalsEntrantsByGroup(
+          qualifications as Array<{ playerId: string; player: unknown; group: string }>,
+        );
+      } catch (err) {
+        return handleValidationError(
+          err instanceof Error ? err.message : 'Invalid group distribution',
           'qualifications',
         );
       }
@@ -421,14 +444,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       if (existingPlayoff.length === 0) {
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
 
-        /* Playoff-local seeds 1-12 map to qualification positions 13-24. */
-        const playoffSeededPlayers = qualifications
-          .slice(12, 24)
-          .map((q: { playerId: string; player: unknown }, index: number) => ({
-            seed: index + 1,
-            playerId: q.playerId,
-            player: q.player,
-          }));
+        /* Playoff-local seeds 1-12 are the barrage entrants, interleaved by group. */
+        const playoffSeededPlayers = selection.barrage.map((q, index) => ({
+          seed: index + 1,
+          playerId: q.playerId,
+          player: q.player,
+        }));
 
         const createdPlayoffMatches = [];
         for (const bracketMatch of playoffStructure) {
@@ -505,14 +526,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
       }
 
-      /* Build the 16 seeded players: 1-12 from qualification, 13-16 from playoff winners. */
-      const directPlayers = qualifications.slice(0, 12).map(
-        (q: { playerId: string; player: unknown }, index: number) => ({
-          seed: index + 1,
-          playerId: q.playerId,
-          player: q.player,
-        }),
-      );
+      /* Build the 16 seeded players: 1-12 from per-group direct advancers
+       * (interleaved by group rank, #454), 13-16 from playoff winners. */
+      const directPlayers = selection.direct.map((q, index) => ({
+        seed: index + 1,
+        playerId: q.playerId,
+        player: q.player,
+      }));
       const playoffWinnerSeeds = [13, 14, 15, 16].map((upperSeed) => {
         const winner = upperSeedToPlayer.get(upperSeed);
         if (!winner) {
