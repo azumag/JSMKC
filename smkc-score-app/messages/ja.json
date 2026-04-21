@@ -105,7 +105,9 @@
     "qualificationConfirmed": "予選確定済み",
     "qualificationConfirmedDesc": "スコアはロックされています。編集するにはロック解除してください。",
     "confirmQualificationDialog": "予選を確定しますか？全プレイヤー・管理者のスコア編集がロックされます。",
-    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。"
+    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。",
+    "startPlayoff": "バラッジ開始 (Top 24)",
+    "goToFinalsTop16": "通常決勝へ (Top 16)"
   },
   "home": {
     "tagline": "SMKC スコア管理",

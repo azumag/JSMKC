@@ -518,13 +518,33 @@ export default function GrandPrixPage({
           {/* Link to finals page (only shown when ALL qualification matches are completed) */}
           {qualifications.length > 0 &&
            matches.length > 0 &&
-           matches.every((m) => m.completed) && (
-            <Button asChild>
-              <Link href={`/tournaments/${tournamentId}/gp/finals`}>
-                {tc('goToFinals')}
-              </Link>
-            </Button>
-          )}
+           matches.every((m) => m.completed) && (() => {
+             const needsPlayoff = qualifications.length > 16;
+             if (needsPlayoff) {
+               return (
+                 <div className="flex gap-2">
+                   <Button asChild>
+                     <Link href={`/tournaments/${tournamentId}/gp/finals`}>
+                       {tc('startPlayoff')}
+                     </Link>
+                   </Button>
+                   <Button variant="outline" asChild>
+                     <Link href={`/tournaments/${tournamentId}/gp/finals`}>
+                       {tc('goToFinalsTop16')}
+                     </Link>
+                   </Button>
+                 </div>
+               );
+             }
+             return (
+               <Button asChild>
+                 <Link href={`/tournaments/${tournamentId}/gp/finals`}>
+                   {tc('goToFinals')}
+                 </Link>
+               </Button>
+             );
+           })()
+          }
           {/* Admin-only group setup/edit dialog (shared component) */}
           {isAdmin && <GroupSetupDialog
             mode="gp"

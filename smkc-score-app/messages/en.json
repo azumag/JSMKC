@@ -105,7 +105,9 @@
     "qualificationConfirmed": "Qualification Confirmed",
     "qualificationConfirmedDesc": "Scores are locked. Unlock to allow edits.",
     "confirmQualificationDialog": "Are you sure you want to confirm qualification? Score editing will be locked for all players and admins.",
-    "qualificationLocked": "Qualification results are confirmed. Score editing is locked."
+    "qualificationLocked": "Qualification results are confirmed. Score editing is locked.",
+    "startPlayoff": "Start Playoff (Top 24)",
+    "goToFinalsTop16": "Go to Finals (Top 16)"
   },
   "home": {
     "tagline": "SMKC Score Management",
