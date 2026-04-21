@@ -34,6 +34,9 @@ jest.mock('@/lib/auth');
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/error-handling');
 jest.mock('@/lib/logger');
+jest.mock('@/lib/tournament-identifier', () => ({
+  resolveTournamentId: jest.fn(async (identifier: string) => identifier),
+}));
 /* Mock qualification-confirmed-check: the factory now checks if qualification is
  * locked before allowing score edits. Return null (= not locked) by default. */
 jest.mock('@/lib/qualification-confirmed-check', () => ({
@@ -56,6 +59,7 @@ jest.mock('@/lib/api-factories/score-report-helpers', () => ({
 
 import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { recalculatePlayerStats } from '@/lib/api-factories/score-report-helpers';
 import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
@@ -64,6 +68,7 @@ import prisma from '@/lib/prisma';
 describe('Match Detail Route Factory', () => {
   let mockAuth: jest.MockedFunction<typeof auth>;
   let mockSanitizeInput: jest.MockedFunction<typeof sanitizeInput>;
+  let mockResolveTournamentId: jest.MockedFunction<typeof resolveTournamentId>;
   let mockCreateSuccessResponse: jest.MockedFunction<typeof createSuccessResponse>;
   let mockCreateErrorResponse: jest.MockedFunction<typeof createErrorResponse>;
   let mockHandleValidationError: jest.MockedFunction<typeof handleValidationError>;
@@ -96,6 +101,7 @@ describe('Match Detail Route Factory', () => {
     // Setup mocks
     mockAuth = auth as jest.MockedFunction<typeof auth>;
     mockSanitizeInput = sanitizeInput as jest.MockedFunction<typeof sanitizeInput>;
+    mockResolveTournamentId = resolveTournamentId as jest.MockedFunction<typeof resolveTournamentId>;
     mockCreateSuccessResponse = createSuccessResponse as jest.MockedFunction<typeof createSuccessResponse>;
     mockCreateErrorResponse = createErrorResponse as jest.MockedFunction<typeof createErrorResponse>;
     mockHandleValidationError = handleValidationError as jest.MockedFunction<typeof handleValidationError>;
@@ -109,6 +115,7 @@ describe('Match Detail Route Factory', () => {
 
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     mockSanitizeInput.mockImplementation((input) => input);
+    mockResolveTournamentId.mockImplementation(async (identifier) => identifier);
 
     // Default success responses
     mockCreateSuccessResponse.mockReturnValue({
@@ -147,9 +154,26 @@ describe('Match Detail Route Factory', () => {
 
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect((prisma.bMMatch as any).findUnique).toHaveBeenCalledWith({
-        where: { id: 'match-123', tournamentId: 'tournament-1' },
+        where: { id: 'match-123' },
         include: { player1: true, player2: true },
       });
+      expect(mockResolveTournamentId).toHaveBeenCalledWith('tournament-1');
+    });
+
+    it('should resolve slug identifiers before fetching the match', async () => {
+      const mockMatch = createMockMatch({ tournamentId: 'resolved-tournament-1' });
+      mockResolveTournamentId.mockResolvedValue('resolved-tournament-1');
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+
+      const request = new NextRequest('http://localhost:3000');
+      await GET(request, {
+        params: Promise.resolve({ id: 'bm-spring-cup', matchId: 'match-123' }),
+      });
+
+      expect(mockResolveTournamentId).toHaveBeenCalledWith('bm-spring-cup');
+      expect(mockCreateSuccessResponse).toHaveBeenCalledWith(mockMatch);
     });
 
     it('should return 404 via createErrorResponse when match not found', async () => {

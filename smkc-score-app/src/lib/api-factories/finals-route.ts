@@ -188,6 +188,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
+          phase: playoffMatches.length > 0 ? 'playoff' : 'finals',
         });
       }
 
@@ -493,8 +494,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createSuccessResponse({
           message: 'Playoff bracket created',
           phase: 'playoff',
-          matches: createdPlayoffMatches,
+          playoffMatches: createdPlayoffMatches,
           playoffStructure,
+          playoffSeededPlayers,
           /* Note: Upper Bracket seats 1-12 for qual top 12 are reserved; the
            * finals bracket will be created in Phase 2 after playoff completes. */
         }, 'Playoff bracket created', { status: 201 });

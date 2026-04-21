@@ -13,6 +13,9 @@
 // @ts-nocheck
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/tournament-identifier', () => ({
+  resolveTournamentId: jest.fn(async (identifier: string) => identifier),
+}));
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateGPMatchScore: jest.fn(),
@@ -38,6 +41,7 @@ jest.mock('@/lib/sanitize', () => ({
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { GET, PUT } from '@/app/api/tournaments/[id]/gp/match/[matchId]/route';
 import { updateGPMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 
@@ -60,6 +64,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
   beforeEach(() => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    (resolveTournamentId as jest.Mock).mockImplementation(async (identifier: string) => identifier);
   });
 
   describe('GET - Fetch single grand prix match', () => {
@@ -86,7 +91,7 @@ describe('GP Match API Route - /api/tournaments/[id]/gp/match/[matchId]', () => 
       expect(result).toEqual({ data: mockMatch, status: 200 });
       expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect(prisma.gPMatch.findUnique).toHaveBeenCalledWith({
-        where: { id: 'm1', tournamentId: 't1' },
+        where: { id: 'm1' },
         include: { player1: true, player2: true },
       });
     });

@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { POLLING_INTERVAL, BM_FINALS_TARGET_WINS } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -166,8 +167,16 @@ export default function BattleModeFinals({
   /* UI state */
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  /** Bracket size: 8 (top 8) or 16 (top 12 + 4 from preliminary, §4.2) */
-  const [bracketSize, setBracketSize] = useState<8 | 16>(8);
+  /** Bracket size: 8 (top 8), 16 (top 16), or 24 (top 12 + playoff, §4.2 issue #454) */
+  const [bracketSize, setBracketSize] = useState<8 | 16 | 24>(8);
+  /** Playoff phase state: 'playoff' while scoring barrage, 'finals' for upper bracket */
+  const [phase, setPhase] = useState<'playoff' | 'finals' | undefined>(undefined);
+  /** Playoff matches (stage='playoff') during barrage phase */
+  const [playoffMatches, setPlayoffMatches] = useState<BMMatch[]>([]);
+  const [playoffStructure, setPlayoffStructure] = useState<BracketMatch[]>([]);
+  const [playoffSeededPlayers, setPlayoffSeededPlayers] = useState<SeededPlayer[]>([]);
+  /** Whether all playoff_r2 matches are complete (triggers "Create Upper Bracket" button) */
+  const [playoffComplete, setPlayoffComplete] = useState(false);
 
   /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
@@ -191,14 +200,24 @@ export default function BattleModeFinals({
     const json = await response.json();
     const data = unwrapApiData<{
       matches?: BMMatch[];
+      playoffMatches?: BMMatch[];
       bracketStructure?: BracketMatch[];
+      playoffStructure?: BracketMatch[];
       roundNames?: Record<string, string>;
+      phase?: 'playoff' | 'finals';
+      seededPlayers?: SeededPlayer[];
+      playoffSeededPlayers?: SeededPlayer[];
     }>(json);
 
     return {
       matches: data.matches || [],
+      playoffMatches: data.playoffMatches || [],
       bracketStructure: data.bracketStructure || [],
+      playoffStructure: data.playoffStructure || [],
       roundNames: data.roundNames || {},
+      phase: data.phase,
+      seededPlayers: data.seededPlayers || [],
+      playoffSeededPlayers: data.playoffSeededPlayers || [],
     };
   }, [tournamentId]);
 
@@ -213,6 +232,11 @@ export default function BattleModeFinals({
       setMatches(pollData.matches);
       setBracketStructure(pollData.bracketStructure);
       setRoundNames(pollData.roundNames);
+      setSeededPlayers(pollData.seededPlayers);
+      setPlayoffMatches(pollData.playoffMatches);
+      setPlayoffStructure(pollData.playoffStructure);
+      setPlayoffSeededPlayers(pollData.playoffSeededPlayers);
+      setPhase(pollData.phase);
       setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);
@@ -224,8 +248,8 @@ export default function BattleModeFinals({
 
   /**
    * Generate or regenerate the finals bracket.
-   * Creates an 8-player double-elimination bracket from qualification standings.
-   * Uses a loading overlay since bracket generation can take a moment.
+   * For Top 24 (bracketSize=24), Phase 1 creates the playoff bracket.
+   * Phase 2 is triggered by handleCreateUpperBracket after playoff completes.
    */
   const handleCreateBracket = async () => {
     setCreating(true);
@@ -240,12 +264,32 @@ export default function BattleModeFinals({
         const json = await response.json();
         const data = unwrapApiData<{
           matches?: BMMatch[];
+          playoffMatches?: BMMatch[];
           bracketStructure?: BracketMatch[];
+          playoffStructure?: BracketMatch[];
           seededPlayers?: SeededPlayer[];
+          playoffSeededPlayers?: SeededPlayer[];
+          phase?: 'playoff' | 'finals';
         }>(json);
-        setMatches(data.matches || []);
-        setBracketStructure(data.bracketStructure || []);
-        setSeededPlayers(data.seededPlayers || []);
+
+        if (data.phase === 'playoff') {
+          // Phase 1: Top 24 → playoff bracket created
+          setPhase('playoff');
+          setPlayoffMatches(data.playoffMatches || []);
+          setPlayoffStructure(data.playoffStructure || []);
+          setPlayoffSeededPlayers(data.playoffSeededPlayers || []);
+          setMatches([]);
+          setBracketStructure([]);
+          setPlayoffComplete(false);
+        } else {
+          // Top 8 or 16: standard bracket creation
+          setPhase('finals');
+          setMatches(data.matches || []);
+          setBracketStructure(data.bracketStructure || []);
+          setSeededPlayers(data.seededPlayers || []);
+          setPlayoffMatches([]);
+          setPlayoffStructure([]);
+        }
         setChampion(null);
         refetch();
       } else {
@@ -253,9 +297,50 @@ export default function BattleModeFinals({
         alert(error.error || tFinals('failedCreateBracket'));
       }
     } catch (err) {
-      /* Log the error with structured metadata for debugging */
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error("Failed to create bracket:", metadata);
+      alert(tFinals('failedCreateBracket'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  /**
+   * Create the upper bracket after all playoff_r2 matches are complete.
+   * Called when playoffComplete=true and admin clicks "Create Upper Bracket".
+   * This is the Phase 2 POST for the Top 24 flow.
+   */
+  const handleCreateUpperBracket = async () => {
+    setCreating(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topN: 24 }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const data = unwrapApiData<{
+          matches?: BMMatch[];
+          bracketStructure?: BracketMatch[];
+          seededPlayers?: SeededPlayer[];
+          phase?: 'playoff' | 'finals';
+        }>(json);
+        setPhase('finals');
+        setPlayoffMatches([]);
+        setPlayoffStructure([]);
+        setMatches(data.matches || []);
+        setBracketStructure(data.bracketStructure || []);
+        setSeededPlayers(data.seededPlayers || []);
+        refetch();
+      } else {
+        const error = await response.json();
+        alert(error.error || tFinals('failedCreateBracket'));
+      }
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error("Failed to create upper bracket:", metadata);
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -290,10 +375,17 @@ export default function BattleModeFinals({
 
       if (response.ok) {
         const json = await response.json();
-        const data = unwrapApiData<{ isComplete?: boolean; champion?: string }>(json);
+        const data = unwrapApiData<{
+          isComplete?: boolean;
+          champion?: string;
+          playoffComplete?: boolean;
+        }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
+        if (data.playoffComplete !== undefined) {
+          setPlayoffComplete(data.playoffComplete);
+        }
         refetch();
 
         /* Check if the tournament is complete and set champion */
@@ -359,7 +451,7 @@ export default function BattleModeFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && (matches.length === 0 ? (
+          {isAdmin && (matches.length === 0 && phase !== 'playoff' ? (
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button disabled={creating} aria-label="Generate finals bracket">
@@ -373,7 +465,7 @@ export default function BattleModeFinals({
                     {tFinals('generateConfirmDesc')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                {/* §4.2: Bracket size selection — 8 (standard) or 16 (with preliminary) */}
+                {/* §4.2 / issue #454: Bracket size selection — 8, 16, or 24 (Top 12 + playoff) */}
                 <div className="flex gap-2 justify-center py-2">
                   <Button
                     size="sm"
@@ -388,6 +480,13 @@ export default function BattleModeFinals({
                     onClick={() => setBracketSize(16)}
                   >
                     Top 16
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={bracketSize === 24 ? "default" : "outline"}
+                    onClick={() => setBracketSize(24)}
+                  >
+                    Top 24
                   </Button>
                 </div>
                 <AlertDialogFooter>
@@ -455,8 +554,47 @@ export default function BattleModeFinals({
         </div>
       )}
 
-      {/* Main content: empty state with instructions or bracket visualization */}
-      {matches.length === 0 ? (
+      {/* Playoff progress badges — shown during playoff phase */}
+      {phase === 'playoff' && (
+        <div className="flex items-center gap-4">
+          <Badge variant="outline" className="text-sm border-blue-500/50 text-blue-500">
+            Playoff Phase
+          </Badge>
+          <Badge variant="outline" className="text-sm">
+            {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
+          </Badge>
+          {playoffComplete && (
+            <Badge className="bg-green-500">Playoff Complete!</Badge>
+          )}
+        </div>
+      )}
+
+      {/* Main content: playoff bracket, empty state, or bracket visualization */}
+      {phase === 'playoff' ? (
+        <>
+          <PlayoffBracket
+            playoffMatches={playoffMatches}
+            playoffStructure={playoffStructure}
+            roundNames={roundNames}
+            seededPlayers={playoffSeededPlayers}
+            onMatchClick={isAdmin ? openScoreDialog : undefined}
+            targetWins={BM_FINALS_TARGET_WINS}
+          />
+          {/* "Create Upper Bracket" button — shown only when all playoff_r2 matches are complete */}
+          {playoffComplete && isAdmin && (
+            <Card className="border-green-500/50 bg-green-500/10">
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-muted-foreground mb-3">
+                  All playoff matches complete! Create the upper bracket to continue.
+                </p>
+                <Button onClick={handleCreateUpperBracket}>
+                  Create Upper Bracket
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : matches.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>{tFinals('noBracketYet')}</CardTitle>

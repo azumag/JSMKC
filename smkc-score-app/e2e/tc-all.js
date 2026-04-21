@@ -32,6 +32,7 @@ const {
   uiSetTaEntryTimes,
   setupModePlayersViaUi,
   makeTaTimesForRank,
+  resolveAllTies,
 } = require('./lib/common');
 const { createSharedE2eFixture } = require('./lib/fixtures');
 const {
@@ -1548,30 +1549,10 @@ async function main() {
         await page.locator('text=Tied ranks detected').count();
       const hasBannerBefore = bannerBefore > 0;
 
-      // Get qualifications to find tied player IDs for rankOverride
-      const qualData = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        const j = await r.json().catch(() => ({}));
-        return j.data || j;
-      }, `/api/tournaments/${tc323TournamentId}/bm`);
-      const quals = (qualData.qualifications || []).filter(q => q.group === 'A');
-
-      // Set rankOverride on N-1 (= 2) of the 3 tied players to resolve the tie
-      // In a 3-way tie, setting 2 distinct overrides makes the last position unambiguous
-      for (let i = 0; i < quals.length - 1; i++) {
-        const patch = await page.evaluate(async ([u, d]) => {
-          const r = await fetch(u, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d),
-          });
-          return { s: r.status };
-        }, [
-          `/api/tournaments/${tc323TournamentId}/bm`,
-          { qualificationId: quals[i].id, rankOverride: i + 1 },
-        ]);
-        if (patch.s !== 200) throw new Error(`Failed to set rankOverride for qual ${i} (${patch.s})`);
-      }
+      // Resolve ties using the shared helper so qualification seeding clears
+      // the same warning banner the admin page uses. This avoids duplicating
+      // tie-resolution logic between e2e tests and finals:prepare scripts.
+      await resolveAllTies(page, tc323TournamentId, 'bm');
 
       // Reload and check that the banner disappeared
       await nav(page, `/tournaments/${tc323TournamentId}/bm`);

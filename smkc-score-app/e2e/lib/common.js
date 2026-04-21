@@ -1327,6 +1327,92 @@ async function openNextMatchDialog(page) {
   return true;
 }
 
+/** Iterates every qualification group on the given mode's standings tab and
+ *  resolves any unresolved ties by setting rankOverride on N-1 of the N tied
+ *  players (leaving exactly one free slot — the tie is resolved when only one
+ *  player per tied rank remains without an override).
+ *
+ *  Call this after score entry when randomize=true is in use — random scores
+ *  can easily produce ties within groups, which would block finals generation. */
+async function resolveAllTies(page, tournamentId, mode) {
+  const MODES_WITH_STANDINGS_ROUTE = { bm: 'bm', mr: 'mr', gp: 'gp' };
+  if (!MODES_WITH_STANDINGS_ROUTE[mode]) return;
+  const compareQualification = mode === 'gp'
+    ? (a, b) => b.points - a.points || b.score - a.score
+    : (a, b) => b.score - a.score || b.points - a.points;
+
+  const apiPath = `/api/tournaments/${tournamentId}/${mode}`;
+  /* Fetch full qualification data to build a playerId→qualId lookup per group. */
+  const data = await page.evaluate(async (u) => {
+    const r = await fetch(u, { cache: 'no-store' });
+    return r.json().catch(() => ({}));
+  }, apiPath);
+  const qualifications = data.b?.data?.qualifications || data.data?.qualifications || [];
+  /* Build playerId→qualId map per group */
+  const playerIdToQualId = new Map();
+  for (const q of qualifications) {
+    playerIdToQualId.set(`${q.group}:${q.playerId}`, q.id);
+  }
+  const qualByGroup = qualifications.reduce((acc, q) => {
+    if (!acc[q.group]) acc[q.group] = [];
+    acc[q.group].push(q);
+    return acc;
+  }, {});
+
+  for (const group of Object.keys(qualByGroup)) {
+    const groupQualifications = qualByGroup[group] ?? [];
+    const sorted = [...groupQualifications].sort(compareQualification);
+
+    // Mirror the page-side computeTieAwareRanks/findUnresolvedTies logic so
+    // finals seeding clears the same warning banner the admin page uses.
+    const rankGroups = new Map();
+    let previous = null;
+    let currentAutoRank = 1;
+    for (let i = 0; i < sorted.length; i++) {
+      const entry = sorted[i];
+      if (previous && compareQualification(previous, entry) !== 0) {
+        currentAutoRank = i + 1;
+      }
+      if (!rankGroups.has(currentAutoRank)) rankGroups.set(currentAutoRank, []);
+      rankGroups.get(currentAutoRank).push(entry);
+      previous = entry;
+    }
+
+    for (const [autoRank, tiedQualifications] of rankGroups.entries()) {
+      if (tiedQualifications.length <= 1) continue;
+      if (!tiedQualifications.some((qualification) => (qualification.mp ?? 0) > 0)) continue;
+
+      const setOverrides = tiedQualifications
+        .map((qualification) => qualification.rankOverride)
+        .filter((value) => value != null);
+      const distinctOverrides = new Set(setOverrides).size;
+      const noDuplicateOverrides = distinctOverrides === setOverrides.length;
+      const alreadyResolved = noDuplicateOverrides && distinctOverrides >= tiedQualifications.length - 1;
+      if (alreadyResolved) continue;
+
+      for (let i = 0; i < tiedQualifications.length - 1; i++) {
+        const qualification = tiedQualifications[i];
+        const qualId = playerIdToQualId.get(`${group}:${qualification.playerId}`);
+        if (!qualId) {
+          console.warn(`[resolveAllTies] no qualification found for playerId ${qualification.playerId} in group ${group}`);
+          continue;
+        }
+        const patch = await page.evaluate(async ([u, d]) => {
+          const r = await fetch(u, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          return { s: r.status };
+        }, [apiPath, { qualificationId: qualId, rankOverride: autoRank + i }]);
+        if (patch.s !== 200) {
+          console.warn(`[resolveAllTies] PATCH rankOverride failed for qual ${qualId} (${patch.s})`);
+        }
+      }
+    }
+  }
+}
+
 /** Switch to the "Matches" tab on a mode page. No-op if already active. */
 async function openMatchesTab(page) {
   const matchesTab = page.getByRole('tab', { name: /^(Matches|試合一覧)$/ });
@@ -1338,9 +1424,12 @@ async function openMatchesTab(page) {
 
 /** UI-based BM qualification score entry for EVERY open match of the given
  *  tournament. Iterates the Matches tab and, for each remaining "Enter Score"
- *  button, opens the score dialog and submits `score1`-`score2` (defaults to
- *  3-1, matching the prior API setup and satisfying the sum=4 constraint). */
-async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) {
+ *  button, opens the score dialog and submits `score1`-`score2`. Defaults to
+ *  random scores (one of [3-1, 2-2, 1-3]) to intentionally produce ties so
+ *  the standings tie-resolution flow gets exercised. Pass a fixed { score1, score2 }
+ *  when deterministic (non-tie) output is needed. */
+async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
+  const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
   await nav(page, `/tournaments/${tournamentId}/bm`);
   await openMatchesTab(page);
 
@@ -1361,6 +1450,20 @@ async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) 
       await page.waitForTimeout(1000);
     }
     lastButtonCount = currentCount;
+
+    /* Randomise the result to produce varied standings that actually trigger
+     * ties (with deterministic 3-1 every match, all players in a group have
+     * identical score+points → full tied group, breaking qualification). */
+    let score1, score2;
+    if (randomize) {
+      const choices = [[3, 1], [2, 2], [1, 3]];
+      const pick = choices[Math.floor(Math.random() * choices.length)];
+      score1 = pick[0];
+      score2 = pick[1];
+    } else {
+      score1 = fixedS1 ?? 3;
+      score2 = fixedS2 ?? 1;
+    }
 
     const target = enterButtons.first();
     await target.scrollIntoViewIfNeeded().catch(() => {});
@@ -1578,31 +1681,81 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
-async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1 } = {}) {
+async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {}) {
   /* Freshly created tournaments start in draft status. The setup dialog
    * opens on draft pages but score PUTs require status='active' — without
    * this activation the save click never fires a response and the test
    * hangs on waitForResponse. Idempotent for already-active tournaments. */
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
-  await uiPutAllBmQualScores(adminPage, tournamentId, score1, score2);
+  await uiPutAllBmQualScores(adminPage, tournamentId, { score1, score2, randomize });
+
+  if (resolveTies) {
+    await resolveAllTies(adminPage, tournamentId, 'bm');
+  }
 }
 
 /** UI-driven MR qualification: group assignment + all match scores (3-1
  *  via per-race winner buttons). */
-async function setupMrQualViaUi(adminPage, tournamentId, players) {
+async function setupMrQualViaUi(adminPage, tournamentId, players, { resolveTies = true } = {}) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
   await uiPutAllMrQualScores(adminPage, tournamentId);
+  if (resolveTies) {
+    await resolveAllTies(adminPage, tournamentId, 'mr');
+  }
 }
 
 /** UI-driven GP qualification: group assignment + all match scores via the
  *  dialog's Manual Total Score toggle (45-0 by default, matching the
  *  player1-wins-all-5-races outcome of makeRacesP1Wins). */
-async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0 } = {}) {
+async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0, resolveTies = true } = {}) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
   await uiPutAllGpQualScores(adminPage, tournamentId, points1, points2);
+  if (resolveTies) {
+    await resolveAllTies(adminPage, tournamentId, 'gp');
+  }
+}
+
+/** TA has no rankOverride flow, so qualification setup avoids ties by seeding
+ *  strictly-increasing total times. Wait until the server reflects a unique
+ *  1..N ranking for the seeded player set so downstream phase tests see the
+ *  same deterministic order the setup intended. */
+async function ensureTaQualificationRanksSettled(adminPage, tournamentId, players, entries) {
+  const expectedPlayerIds = new Set(players.map((player) => player.id));
+  const expectedRanks = Array.from({ length: players.length }, (_, i) => i + 1).join(',');
+  const deadline = Date.now() + 30000;
+  let lastSummary = 'no data';
+
+  while (Date.now() < deadline) {
+    const current = await apiFetchTa(adminPage, tournamentId);
+    const currentEntries = current.b?.data?.entries ?? [];
+    const relevantEntries = currentEntries.filter((entry) => expectedPlayerIds.has(entry.playerId));
+    const ranks = relevantEntries
+      .map((entry) => entry.rank)
+      .filter((rank) => rank != null)
+      .sort((a, b) => a - b);
+    lastSummary = relevantEntries
+      .map((entry) => `${entry.player?.nickname ?? entry.playerId}:${entry.rank ?? 'null'}`)
+      .join(',');
+
+    const ranksOk = relevantEntries.length === players.length &&
+      ranks.length === players.length &&
+      ranks.join(',') === expectedRanks;
+    if (ranksOk) {
+      const rankByPlayerId = new Map(relevantEntries.map((entry) => [entry.playerId, entry.rank]));
+      for (const entry of entries) {
+        entry.rank = rankByPlayerId.get(entry.playerId) ?? entry.rank;
+      }
+      return;
+    }
+    await adminPage.waitForTimeout(1000);
+  }
+
+  throw new Error(
+    `TA qualification ranks did not settle to 1..${players.length} within timeout: ${lastSummary}`
+  );
 }
 
 /** UI-driven TA qualification: entry addition + times entry.
@@ -1664,6 +1817,7 @@ async function setupTaQualViaUi(adminPage, tournamentId, players, { seedTimes = 
       const { times } = makeTaTimesForRank(e.rank);
       await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: e.nickname }, times);
     }
+    await ensureTaQualificationRanksSettled(adminPage, tournamentId, players, entries);
   }
 
   return { tournamentId, entries };
@@ -1832,6 +1986,7 @@ module.exports = {
   setupMrQualViaUi,
   setupGpQualViaUi,
   setupTaQualViaUi,
+  resolveAllTies,
   /* draft */
   snakeDraft28,
   /* player browser */

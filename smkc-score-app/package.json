@@ -17,6 +17,7 @@
     "e2e:gp": "node e2e/tc-gp.js",
     "e2e:ta": "node e2e/tc-ta.js",
     "finals:prepare": "node scripts/create-finals-ready-tournament.js",
+    "finals:reapply-ranks": "node scripts/reapply-rank-overrides.js",
     "build:cf": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare dev",
     "deploy": "npm run build:cf && wrangler deploy"

@@ -19,6 +19,9 @@
 // @ts-nocheck
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/tournament-identifier', () => ({
+  resolveTournamentId: jest.fn(async (identifier: string) => identifier),
+}));
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateMRMatchScore: jest.fn(),
@@ -59,6 +62,7 @@ jest.mock('@/lib/request-utils', () => ({
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { updateMRMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/mr/match/[matchId]/route';
 
@@ -82,6 +86,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
   beforeEach(() => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    (resolveTournamentId as jest.Mock).mockImplementation(async (identifier: string) => identifier);
     // Stage-aware validation: factory calls findUnique({select:{stage:true}}) before validating.
     (prisma.mRMatch as any).findUnique = jest.fn().mockResolvedValue({ stage: 'qualification' });
   });
@@ -110,7 +115,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(result).toEqual({ data: mockMatch, status: 200 });
       expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect(prisma.mRMatch.findUnique).toHaveBeenCalledWith({
-        where: { id: 'm1', tournamentId: 't1' },
+        where: { id: 'm1' },
         include: { player1: true, player2: true },
       });
     });

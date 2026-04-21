@@ -23,6 +23,9 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/tournament-identifier', () => ({
+  resolveTournamentId: jest.fn(async (identifier: string) => identifier),
+}));
 
 jest.mock('@/lib/optimistic-locking', () => ({
   updateBMMatchScore: jest.fn(),
@@ -47,6 +50,7 @@ jest.mock('@/lib/sanitize', () => ({
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { updateBMMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
 import { GET, PUT } from '@/app/api/tournaments/[id]/bm/match/[matchId]/route';
 
@@ -68,6 +72,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     jest.clearAllMocks();
     // Mock auth to return admin user by default for PUT tests
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+    (resolveTournamentId as jest.Mock).mockImplementation(async (identifier: string) => identifier);
   });
 
   describe('GET - Retrieve a single battle mode match', () => {
@@ -75,6 +80,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should return match with player1 and player2 details', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         matchNumber: 1,
         stage: 'qualification',
         player1Id: 'p1',
@@ -98,7 +104,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         status: 200
       });
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
-        where: { id: 'm1', tournamentId: 't1' },
+        where: { id: 'm1' },
         include: {
           player1: true,
           player2: true,
@@ -110,6 +116,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should return match with null scores when match is not completed', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         matchNumber: 1,
         stage: 'qualification',
         player1Id: 'p1',
@@ -176,6 +183,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should return match with all available fields including player reported scores', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         matchNumber: 1,
         stage: 'qualification',
         player1Id: 'p1',
@@ -235,6 +243,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should update match score and return updated match with version', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         player1Id: 'p1',
         player2Id: 'p2',
         score1: 3,
@@ -285,6 +294,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should update match score with completed flag', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         player1Id: 'p1',
         player2Id: 'p2',
         score1: 3,
@@ -323,6 +333,7 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
     it('should update match score with rounds data', async () => {
       const mockMatch = {
         id: 'm1',
+        tournamentId: 't1',
         player1Id: 'p1',
         player2Id: 'p2',
         score1: 3,

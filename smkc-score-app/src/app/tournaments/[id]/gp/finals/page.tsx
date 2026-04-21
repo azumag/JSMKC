@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -155,7 +156,12 @@ export default function GrandPrixFinals({
   const [roundNames, setRoundNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [bracketSize, setBracketSize] = useState<8 | 16>(8);
+  const [bracketSize, setBracketSize] = useState<8 | 16 | 24>(8);
+  const [phase, setPhase] = useState<'playoff' | 'finals' | undefined>(undefined);
+  const [playoffMatches, setPlayoffMatches] = useState<GPMatch[]>([]);
+  const [playoffStructure, setPlayoffStructure] = useState<BracketMatch[]>([]);
+  const [playoffSeededPlayers, setPlayoffSeededPlayers] = useState<SeededPlayer[]>([]);
+  const [playoffComplete, setPlayoffComplete] = useState(false);
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
@@ -173,14 +179,24 @@ export default function GrandPrixFinals({
     const data = unwrapApiData<{
       matches?: GPMatch[];
       data?: GPMatch[];
+      playoffMatches?: GPMatch[];
       bracketStructure?: BracketMatch[];
+      playoffStructure?: BracketMatch[];
       roundNames?: Record<string, string>;
+      phase?: 'playoff' | 'finals';
+      seededPlayers?: SeededPlayer[];
+      playoffSeededPlayers?: SeededPlayer[];
     }>(json);
 
     return {
       matches: data.matches || data.data || [],
+      playoffMatches: data.playoffMatches || [],
       bracketStructure: data.bracketStructure || [],
+      playoffStructure: data.playoffStructure || [],
       roundNames: data.roundNames || {},
+      phase: data.phase,
+      seededPlayers: data.seededPlayers || [],
+      playoffSeededPlayers: data.playoffSeededPlayers || [],
     };
   }, [tournamentId]);
 
@@ -194,7 +210,12 @@ export default function GrandPrixFinals({
     if (pollData) {
       setMatches(pollData.matches);
       setBracketStructure(pollData.bracketStructure);
+      setSeededPlayers(pollData.seededPlayers);
       setRoundNames(pollData.roundNames);
+      setPlayoffMatches(pollData.playoffMatches);
+      setPlayoffStructure(pollData.playoffStructure);
+      setPlayoffSeededPlayers(pollData.playoffSeededPlayers);
+      setPhase(pollData.phase);
       setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);
@@ -205,8 +226,7 @@ export default function GrandPrixFinals({
 
   /**
    * Generate a new double elimination bracket from the top 8 qualifiers.
-   * This creates all 17 match positions (4 WB QF + 2 WB SF + 1 WB Final +
-   * 4 LB R1 + 2 LB R2 + 2 LB R3 + 1 LB Final + 1 GF + 1 GF Reset = 17).
+   * For Top 24, Phase 1 creates the playoff bracket.
    */
   const handleCreateBracket = async () => {
     setCreating(true);
@@ -221,12 +241,30 @@ export default function GrandPrixFinals({
         const json = await response.json();
         const data = unwrapApiData<{
           matches?: GPMatch[];
+          playoffMatches?: GPMatch[];
           bracketStructure?: BracketMatch[];
+          playoffStructure?: BracketMatch[];
           seededPlayers?: SeededPlayer[];
+          playoffSeededPlayers?: SeededPlayer[];
+          phase?: 'playoff' | 'finals';
         }>(json);
-        setMatches(data.matches || []);
-        setBracketStructure(data.bracketStructure || []);
-        setSeededPlayers(data.seededPlayers || []);
+
+        if (data.phase === 'playoff') {
+          setPhase('playoff');
+          setPlayoffMatches(data.playoffMatches || []);
+          setPlayoffStructure(data.playoffStructure || []);
+          setPlayoffSeededPlayers(data.playoffSeededPlayers || []);
+          setMatches([]);
+          setBracketStructure([]);
+          setPlayoffComplete(false);
+        } else {
+          setPhase('finals');
+          setMatches(data.matches || []);
+          setBracketStructure(data.bracketStructure || []);
+          setSeededPlayers(data.seededPlayers || []);
+          setPlayoffMatches([]);
+          setPlayoffStructure([]);
+        }
         setChampion(null);
         refetch();
       } else {
@@ -235,6 +273,42 @@ export default function GrandPrixFinals({
       }
     } catch (err) {
       logger.error("Failed to create bracket:", { error: err, tournamentId });
+      alert(tFinals('failedCreateBracket'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateUpperBracket = async () => {
+    setCreating(true);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topN: 24 }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const data = unwrapApiData<{
+          matches?: GPMatch[];
+          bracketStructure?: BracketMatch[];
+          seededPlayers?: SeededPlayer[];
+          phase?: 'playoff' | 'finals';
+        }>(json);
+        setPhase('finals');
+        setPlayoffMatches([]);
+        setPlayoffStructure([]);
+        setMatches(data.matches || []);
+        setBracketStructure(data.bracketStructure || []);
+        setSeededPlayers(data.seededPlayers || []);
+        refetch();
+      } else {
+        const error = await response.json();
+        alert(error.error || tFinals('failedCreateBracket'));
+      }
+    } catch (err) {
+      logger.error("Failed to create upper bracket:", { error: err, tournamentId });
       alert(tFinals('failedCreateBracket'));
     } finally {
       setCreating(false);
@@ -269,10 +343,13 @@ export default function GrandPrixFinals({
 
       if (response.ok) {
         const json = await response.json();
-        const data = unwrapApiData<{ isComplete?: boolean; champion?: string }>(json);
+        const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ score1: 0, score2: 0 });
+        if (data.playoffComplete !== undefined) {
+          setPlayoffComplete(data.playoffComplete);
+        }
         refetch();
 
         /* Check if tournament is complete and display champion */
@@ -333,11 +410,10 @@ export default function GrandPrixFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && (matches.length === 0 ? (
+          {isAdmin && (matches.length === 0 && phase !== 'playoff' ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
-                  {/* i18n: Generate bracket button with creating state */}
                   {creating ? tFinals('creating') : tFinals('generateBracket')}
                 </Button>
               </AlertDialogTrigger>
@@ -351,6 +427,7 @@ export default function GrandPrixFinals({
                 <div className="flex gap-2 justify-center py-2">
                   <Button size="sm" variant={bracketSize === 8 ? "default" : "outline"} onClick={() => setBracketSize(8)}>Top 8</Button>
                   <Button size="sm" variant={bracketSize === 16 ? "default" : "outline"} onClick={() => setBracketSize(16)}>Top 16</Button>
+                  <Button size="sm" variant={bracketSize === 24 ? "default" : "outline"} onClick={() => setBracketSize(24)}>Top 24</Button>
                 </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
@@ -407,20 +484,45 @@ export default function GrandPrixFinals({
         </Card>
       )}
 
-      {/* Progress indicator */}
-      {matches.length > 0 && (
+      {/* Playoff progress badges */}
+      {phase === 'playoff' && (
         <div className="flex items-center gap-4">
-          <Badge variant="outline" className="text-sm">
-            {tFinals('progressMatches', { completed: completedMatches, total: totalMatches })}
+          <Badge variant="outline" className="text-sm border-blue-500/50 text-blue-500">
+            Playoff Phase
           </Badge>
-          {completedMatches === totalMatches && totalMatches > 0 && (
-            <Badge className="bg-green-500">{tFinals('tournamentComplete')}</Badge>
+          <Badge variant="outline" className="text-sm">
+            {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
+          </Badge>
+          {playoffComplete && (
+            <Badge className="bg-green-500">Playoff Complete!</Badge>
           )}
         </div>
       )}
 
-      {/* Empty state with bracket format explanation */}
-      {matches.length === 0 ? (
+      {/* Main content: playoff, empty state, or bracket */}
+      {phase === 'playoff' ? (
+        <>
+          <PlayoffBracket
+            playoffMatches={playoffMatches}
+            playoffStructure={playoffStructure}
+            roundNames={roundNames}
+            seededPlayers={playoffSeededPlayers}
+            onMatchClick={isAdmin ? openScoreDialog : undefined}
+          />
+          {playoffComplete && isAdmin && (
+            <Card className="border-green-500/50 bg-green-500/10">
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-muted-foreground mb-3">
+                  All playoff matches complete! Create the upper bracket to continue.
+                </p>
+                <Button onClick={handleCreateUpperBracket}>
+                  Create Upper Bracket
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : matches.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>{tFinals('noBracketYet')}</CardTitle>

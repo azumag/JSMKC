@@ -8,6 +8,7 @@
  *   TC-508  BM dual report — mismatch (2 players)
  *   TC-509  BM dual report — previousReports panel (2 players)
  *   TC-322  BM participant correction (UI, 2 players)
+ *   TC-511  BM slug URL list → match detail page
  *   TC-503  28-player full qualification + finals bracket gen + first-to-5 routing
  *   TC-504  28-player full + finals bracket reset
  *   TC-505  28-player full + Grand Final → champion
@@ -33,6 +34,11 @@ const {
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
   loginPlayerBrowser,
   setupBmQualViaUi,
+  apiDeletePlayer,
+  apiDeleteTournament,
+  uiActivateTournament,
+  uiCreatePlayer,
+  uiCreateTournament,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -229,6 +235,76 @@ async function runTc322(adminPage) {
     log('TC-322', 'FAIL', err instanceof Error ? err.message : 'BM correction flow failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/* ───────── TC-511: BM slug URL list → match detail page ─────────
+ * Reproduces the reported bug: when the tournament is opened via slug,
+ * the match detail page must still load the qualification match. */
+async function runTc511(adminPage) {
+  let tournamentId = null;
+  let player1Id = null;
+  let player2Id = null;
+
+  try {
+    const stamp = Date.now();
+    const slug = `e2e-bm-match-slug-${stamp}`;
+    const player1 = await uiCreatePlayer(
+      adminPage,
+      `E2E BM Slug P1 ${stamp}`,
+      `e2e_bm_slug_p1_${stamp}`,
+    );
+    const player2 = await uiCreatePlayer(
+      adminPage,
+      `E2E BM Slug P2 ${stamp}`,
+      `e2e_bm_slug_p2_${stamp}`,
+    );
+    player1Id = player1.id;
+    player2Id = player2.id;
+
+    tournamentId = await uiCreateTournament(
+      adminPage,
+      `E2E BM Slug ${stamp}`,
+      { dualReportEnabled: false, slug },
+    );
+    await uiActivateTournament(adminPage, tournamentId);
+
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
+      { id: player1.id, name: `E2E BM Slug P1 ${stamp}`, nickname: player1.nickname },
+      { id: player2.id, name: `E2E BM Slug P2 ${stamp}`, nickname: player2.nickname },
+    ]);
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const match = (bmData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE BM match found');
+
+    await nav(adminPage, `/tournaments/${slug}/bm`);
+    await adminPage.getByRole('tab', { name: /試合一覧|Matches/ }).click();
+    await adminPage.locator(`a[href="/tournaments/${slug}/bm/match/${match.id}"]`).first().click();
+    await adminPage.waitForURL(
+      (url) => url.pathname === `/tournaments/${slug}/bm/match/${match.id}`,
+      { timeout: 15000 },
+    );
+    await adminPage.waitForTimeout(2000);
+
+    const pageText = await adminPage.locator('body').innerText();
+    const showsPlayers =
+      pageText.includes(match.player1.nickname) &&
+      pageText.includes(match.player2.nickname);
+    const notFoundShown =
+      pageText.includes('試合が見つかりません') ||
+      pageText.includes('Match not found');
+
+    log('TC-511', showsPlayers && !notFoundShown ? 'PASS' : 'FAIL',
+      !showsPlayers ? 'Match detail did not render both player nicknames from slug URL'
+      : notFoundShown ? 'Slug-based match detail showed not-found state'
+      : '');
+  } catch (err) {
+    log('TC-511', 'FAIL', err instanceof Error ? err.message : 'BM slug match detail test failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    if (player1Id) await apiDeletePlayer(adminPage, player1Id);
+    if (player2Id) await apiDeletePlayer(adminPage, player2Id);
   }
 }
 
@@ -715,6 +791,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-508', fn: runTc508 },
       { name: 'TC-509', fn: runTc509 },
       { name: 'TC-322', fn: runTc322 },
+      { name: 'TC-511', fn: runTc511 },
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
@@ -725,7 +802,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506,
+  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511,
   runTc507, runTc508, runTc509,
   getSuite,
   results,

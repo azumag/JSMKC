@@ -55,7 +55,6 @@ function printUsage() {
     '  --modes <csv>            Modes to prepare. Default: bm,mr,gp',
     '  --top-n <8|16>           Finals bracket size for BM/MR/GP. Default: 8',
     '  --no-generate-finals     Leave BM/MR/GP at qualification-complete state',
-    '  --keep-on-fail           Do not delete created data when setup fails',
     '  --profile-dir <dir>      Playwright profile with admin session',
     '  --base-url <url>         Target app URL. Default: https://smkc.bluemoon.works',
     '  --headless               Run Chromium headless',
@@ -75,7 +74,6 @@ function parseArgs(argv) {
     modes: DEFAULT_MODES.slice(),
     topN: 8,
     generateFinals: true,
-    keepOnFail: false,
     profileDir: DEFAULT_PROFILE_DIR,
     headless: process.env.E2E_HEADLESS === '1',
     help: false,
@@ -94,10 +92,6 @@ function parseArgs(argv) {
     }
     if (arg === '--no-generate-finals') {
       options.generateFinals = false;
-      continue;
-    }
-    if (arg === '--keep-on-fail') {
-      options.keepOnFail = true;
       continue;
     }
 
@@ -441,7 +435,7 @@ async function main() {
     return 0;
   } catch (error) {
     console.error('[finals-ready] failed:', error instanceof Error ? error.stack || error.message : error);
-    if (!options.keepOnFail && browser) {
+    if (browser) {
       try {
         const page = browser.pages()[0];
         if (page) {

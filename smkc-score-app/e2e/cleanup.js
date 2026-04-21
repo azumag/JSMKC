@@ -5,9 +5,9 @@
  * app API using the existing admin session stored in E2E_PROFILE_DIR.
  *
  * Deletes:
- * - tournaments named "E2E ..." plus tc-all legacy temp names TC-315-test-* and
- *   TC-316-test-*
- * - players whose nickname starts with "e2e_"
+ * - tournaments named "E2E ..." or "Finals Ready ..." plus tc-all legacy temp
+ *   names TC-315-test-* and TC-316-test-*
+ * - players whose nickname starts with "e2e_" or "finals_ready_"
  *
  * Run:
  *   npm run e2e:cleanup
@@ -19,8 +19,8 @@ const { closeBrowser, envMs, formatDuration } = require('./lib/runner');
 
 const PROFILE_DIR = process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile';
 const PAGE_LIMIT = 100;
-const TOURNAMENT_NAME_RE = /^(E2E\b|TC-315-test-|TC-316-test-)/i;
-const PLAYER_NICKNAME_RE = /^e2e_/i;
+const TOURNAMENT_NAME_RE = /^(E2E\b|Finals Ready\b|TC-315-test-|TC-316-test-)/i;
+const PLAYER_NICKNAME_RE = /^(e2e_|finals_ready_)/i;
 
 function parseArgs(argv) {
   const args = new Set(argv.slice(2));

@@ -751,7 +751,7 @@ export default function BattleModePage({
 
       {/* Score Entry Dialog - Admin interface for entering/editing match scores */}
       <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t('enterMatchScore')}</DialogTitle>
             <DialogDescription>

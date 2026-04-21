@@ -4,9 +4,9 @@
  * Mirrors tc-bm.js's shared-fixture pattern. A single set of 28 shared
  * players (`e2e_shared_01..28`) and two shared tournaments (`E2E Shared
  * Normal`, `E2E Shared DualReport`) are created once in `beforeAll` and
- * reused by every TC. Each TC calls `setupModePlayersViaUi(page, 'mr',
- * tournamentId, players)` to (re)seed the MR qualification for that
- * tournament with the subset of shared players it needs.
+ * reused by every TC. Finals/28-player flows go through
+ * `setupMrQualViaUi(...)` so qualification scoring and tie resolution use
+ * the same shared path as the production finals-prep tooling.
  *
  *  TC-601  28-player qualification full flow + standings + course assignment
  *  TC-602  MR participant score entry (UI, 2 players)
@@ -118,15 +118,16 @@ async function prepareSharedMrFinalsSetup(adminPage) {
  *
  * Verifies:
  * - 28 players distributed across 2 groups via the shared UI setup (snake-draft)
- * - All 182 non-BYE matches (14-player RR = 91 × 2 groups) scored via admin PUT
+ * - All 182 non-BYE matches (14-player RR = 91 × 2 groups) completed
  * - Standings sorted by score desc → points desc per group
  * - Course assignment exists in match data (assignCoursesRandomly)
+ * - Qualification tie resolution runs through the shared helper path
  */
 async function runTc601(adminPage) {
   try {
     const players = sharedMrPlayers(28);
     const tournamentId = sharedFixture.normalTournament.id;
-    await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
+    await setupMrQualViaUi(adminPage, tournamentId, players);
 
     // Step 1: Fetch matches and verify structure
     const mrData = await apiFetchMr(adminPage, tournamentId);
@@ -135,30 +136,16 @@ async function runTc601(adminPage) {
 
     // 14-player RR per group = 91 matches × 2 groups = 182 non-BYE matches
     const hasExpectedMatches = nonByeMatches.length === 182;
+    const allScoresOk = nonByeMatches.every((match) => match.completed);
 
-    // Step 2: Input scores for all matches (valid MR: score1+score2=4)
-    // Use varied scores: 3-1, 2-2, 4-0, 1-3 to test all valid combinations
-    const scorePatterns = [[3, 1], [2, 2], [4, 0], [1, 3], [3, 1], [2, 2]];
-    let allScoresOk = true;
-
-    for (let i = 0; i < nonByeMatches.length; i++) {
-      const m = nonByeMatches[i];
-      const [s1, s2] = scorePatterns[i % scorePatterns.length];
-      const scoreRes = await apiPutMrQualScore(adminPage, tournamentId, m.id, s1, s2);
-      if (scoreRes.s !== 200) {
-        allScoresOk = false;
-        break;
-      }
-    }
-
-    // Step 3: Verify standings page renders
+    // Step 2: Verify standings page renders
     await nav(adminPage, `/tournaments/${tournamentId}/mr`);
     const pageText = await adminPage.locator('main').innerText().catch(() => '');
     const hasStandings = pageText.length > 50 &&
       !pageText.includes('Failed to fetch') &&
       !pageText.includes('エラーが発生しました');
 
-    // Step 4: Verify standings via API — sorted by score desc, points desc per group
+    // Step 3: Verify standings via API — sorted by score desc, points desc per group
     const standings = await adminPage.evaluate(async (url) => {
       const r = await fetch(url);
       return r.json().catch(() => ({}));
@@ -182,15 +169,15 @@ async function runTc601(adminPage) {
       }
     }
 
-    // Step 5: Verify courses are assigned (MR-specific: assignCoursesRandomly)
+    // Step 4: Verify courses are assigned (MR-specific: assignCoursesRandomly)
     const postScoreData = await apiFetchMr(adminPage, tournamentId);
     const postScoreMatches = postScoreData.matches || [];
     const hasCourses = postScoreMatches.some((m) => m.rounds && m.rounds.length > 0);
 
     const allPassed = hasExpectedMatches && allScoresOk && hasStandings && standingsSorted;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
-      !hasExpectedMatches ? `Expected 84 non-bye matches, got ${nonByeMatches.length}`
-      : !allScoresOk ? 'Some score inputs failed'
+      !hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
+      : !allScoresOk ? 'Some qualification matches are still incomplete'
       : !hasStandings ? 'Standings page did not render properly'
       : !standingsSorted ? 'Standings not sorted correctly'
       : !hasCourses ? 'No course data found in matches (assignCoursesRandomly not working)'

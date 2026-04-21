@@ -25,6 +25,7 @@ import { createLogger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { recalculatePlayerStats, type RecalculateStatsConfig } from './score-report-helpers';
 
 /**
@@ -106,7 +107,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     request: NextRequest,
     { params }: { params: Promise<{ id: string; matchId: string }> },
   ) {
-    const { matchId } = await params;
+    const { id: identifier, matchId } = await params;
 
     /* Optional auth check for GET endpoint */
     if (config.getRequiresAuth) {
@@ -117,13 +118,13 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     }
 
     try {
-      const { id: tournamentId } = await params;
+      const tournamentId = await resolveTournamentId(identifier);
       const match = await model(prisma).findUnique({
-        where: { id: matchId, tournamentId },
+        where: { id: matchId },
         include: { player1: true, player2: true },
       });
 
-      if (!match) {
+      if (!match || ('tournamentId' in match && match.tournamentId && match.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
 
@@ -161,9 +162,10 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       return handleRateLimitError(rateResult.retryAfter);
     }
 
-    const { matchId } = await params;
+    const { id: identifier, matchId } = await params;
 
     try {
+      const tournamentId = await resolveTournamentId(identifier);
       let body = await request.json();
 
       if (config.sanitizeBody) {
@@ -193,6 +195,9 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         where: { id: matchId },
         select: { stage: true, tournamentId: true },
       });
+      if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
+        return createErrorResponse('Match not found', 404, 'NOT_FOUND');
+      }
       if (matchMeta?.stage === 'qualification') {
         const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId);
         if (lockError) return lockError;
