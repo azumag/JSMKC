@@ -466,7 +466,7 @@ export default function BattleModeFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && (matches.length === 0 && phase !== 'playoff' ? (
+          {isAdmin && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button disabled={creating} aria-label="Generate finals bracket">
