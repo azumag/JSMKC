@@ -451,6 +451,7 @@
     "resetConfirmDesc": "既存の決勝試合をすべて削除し、新しいブラケットを作成します。この操作は元に戻せません。",
     "reset": "リセット",
     "generatingBracket": "ブラケットを生成中...しばらくお待ちください。",
+    "failedGenerateBracket": "ブラケットの生成に失敗しました",
     "failedCreateBracket": "ブラケットの作成に失敗しました",
     "failedUpdateScore": "スコアの更新に失敗しました",
     "failedUpdateMatch": "試合の更新に失敗しました",

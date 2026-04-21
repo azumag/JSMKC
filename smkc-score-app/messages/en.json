@@ -107,6 +107,7 @@
     "confirmQualificationDialog": "Are you sure you want to confirm qualification? Score editing will be locked for all players and admins.",
     "qualificationLocked": "Qualification results are confirmed. Score editing is locked.",
     "startPlayoff": "Start Playoff (Top 24)",
+    "generateFinalsBracket": "Generate Finals Bracket",
     "goToFinalsTop16": "Go to Finals (Top 16)"
   },
   "home": {
@@ -452,6 +453,7 @@
     "resetConfirmDesc": "This will delete all existing finals matches and create a new bracket. This action cannot be undone.",
     "reset": "Reset",
     "generatingBracket": "Generating bracket... Please wait.",
+    "failedGenerateBracket": "Failed to generate bracket",
     "failedCreateBracket": "Failed to create bracket",
     "failedUpdateScore": "Failed to update score",
     "failedUpdateMatch": "Failed to update match",
