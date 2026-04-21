@@ -886,7 +886,10 @@ describe('Finals Route Factory', () => {
         { id: 'p-r2-7', matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'x', player2Id: 'y' },
         { id: 'p-r2-8', matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: false, score1: 0, score2: 0, player1Id: 'x', player2Id: 'y' },
       ];
-      (prisma.bMMatch as any).findMany.mockResolvedValue(incompletePlayoff);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'finals') return Promise.resolve([]);
+        return Promise.resolve(incompletePlayoff);
+      });
 
       const config = createMockConfig();
       const { POST } = createFinalsHandlers(config);
@@ -936,7 +939,10 @@ describe('Finals Route Factory', () => {
         { id: 'p-r2-7', matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-14', player2Id: 'player-22', player1: { id: 'player-14' }, player2: { id: 'player-22' } },
         { id: 'p-r2-8', matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'player-13', player2Id: 'player-23', player1: { id: 'player-13' }, player2: { id: 'player-23' } },
       ];
-      (prisma.bMMatch as any).findMany.mockResolvedValue(playoffRows);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'finals') return Promise.resolve([]);
+        return Promise.resolve(playoffRows);
+      });
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
       (prisma.bMMatch as any).create.mockImplementation(
         ({ data }: { data: { matchNumber: number; round: string; stage: string } }) => ({

@@ -517,9 +517,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId, stage: 'playoff' },
         orderBy: { matchNumber: 'asc' },
       });
+      const existingFinals = await matchModel(prisma).findMany({
+        where: { tournamentId, stage: 'finals' },
+      });
 
-      /* --- PHASE 1: Create playoff matches --- */
-      if (existingPlayoff.length === 0) {
+      /* --- PHASE 1: Create playoff matches ---
+       * If finals already exist this is a reset: wipe both stages and
+       * rebuild from scratch so barrage scores are cleared as well. */
+      const isReset = existingFinals.length > 0;
+      if (existingPlayoff.length === 0 || isReset) {
+        if (isReset) {
+          await matchModel(prisma).deleteMany({
+            where: { tournamentId, stage: 'playoff' },
+          });
+          await matchModel(prisma).deleteMany({
+            where: { tournamentId, stage: 'finals' },
+          });
+        }
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
 
         /* Playoff-local seeds 1-12 are the barrage entrants, interleaved by group. */
