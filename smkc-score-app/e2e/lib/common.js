@@ -1688,15 +1688,6 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
    * hangs on waitForResponse. Idempotent for already-active tournaments. */
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
-
-  /* Defensive reset: qualificationConfirmed must be false for score entry.
-   * If a prior run or concurrent test left it true, unlock before entering
-   * scores so the loop doesn't hit 403 QUALIFICATION_CONFIRMED. */
-  const resetRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
-  if (resetRes.s !== 200) {
-    throw new Error(`BM setup failed to reset qualificationConfirmed (${resetRes.s})`);
-  }
-
   await uiPutAllBmQualScores(adminPage, tournamentId, { score1, score2, randomize });
 
   if (resolveTies) {
@@ -1709,15 +1700,6 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
 async function setupMrQualViaUi(adminPage, tournamentId, players, { resolveTies = true } = {}) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
-
-  /* Defensive reset: qualificationConfirmed must be false for score entry.
-   * If a prior run or concurrent test left it true, unlock before entering
-   * scores so the loop doesn't hit 403 QUALIFICATION_CONFIRMED. */
-  const resetRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
-  if (resetRes.s !== 200) {
-    throw new Error(`MR setup failed to reset qualificationConfirmed (${resetRes.s})`);
-  }
-
   await uiPutAllMrQualScores(adminPage, tournamentId);
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'mr');
@@ -1730,15 +1712,6 @@ async function setupMrQualViaUi(adminPage, tournamentId, players, { resolveTies 
 async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0, resolveTies = true } = {}) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
-
-  /* Defensive reset: qualificationConfirmed must be false for score entry.
-   * If a prior run or concurrent test left it true, unlock before entering
-   * scores so the loop doesn't hit 403 QUALIFICATION_CONFIRMED. */
-  const resetRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
-  if (resetRes.s !== 200) {
-    throw new Error(`GP setup failed to reset qualificationConfirmed (${resetRes.s})`);
-  }
-
   await uiPutAllGpQualScores(adminPage, tournamentId, points1, points2);
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'gp');

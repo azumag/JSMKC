@@ -109,6 +109,68 @@ export function createFinalsHandlers(config: FinalsConfig) {
     }
 
     try {
+      /* Shared playoff data for all GET styles.
+       * Playoff matches live in a distinct `stage='playoff'` row (issue #454).
+       * When present, we also regenerate the bracket structure and reconstruct
+       * seed-to-player mappings so the frontend can render the bracket without
+       * relying on state from a previous POST response. */
+      const playoffMatches = await model(prisma).findMany({
+        where: { tournamentId, stage: 'playoff' },
+        include: { player1: true, player2: true },
+        orderBy: { matchNumber: 'asc' },
+      });
+
+      const playoffStructure = playoffMatches.length > 0
+        ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
+        : [];
+
+      /* Reconstruct playoff seeded players from DB match data + structure.
+       * R1 matches carry player1Seed (5-12) and player2Seed;
+       * R2 matches carry player1Seed for BYE seeds (1-4).
+       * player2Seed is null for R2 (opponent comes from R1 winner),
+       * so we only map seeds from structure-defined positions. */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const playoffSeededPlayers: any[] = [];
+      if (playoffMatches.length > 0) {
+        const seedMap = new Map<number, { playerId: string; player: unknown }>();
+        for (const bracketMatch of playoffStructure) {
+          const dbMatch = playoffMatches.find(
+            (m: { matchNumber: number }) => m.matchNumber === bracketMatch.matchNumber,
+          );
+          if (!dbMatch) continue;
+          if (bracketMatch.player1Seed != null) {
+            seedMap.set(bracketMatch.player1Seed, {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              playerId: (dbMatch as any).player1Id,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              player: (dbMatch as any).player1,
+            });
+          }
+          if (bracketMatch.player2Seed != null) {
+            seedMap.set(bracketMatch.player2Seed, {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              playerId: (dbMatch as any).player2Id,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              player: (dbMatch as any).player2,
+            });
+          }
+        }
+        for (const [seed, data] of [...seedMap.entries()].sort((a, b) => a[0] - b[0])) {
+          playoffSeededPlayers.push({ seed, ...data });
+        }
+      }
+
+      /* Compute playoff completion flag from DB data so the frontend
+       * can show "Create Upper Bracket" even after a page refresh. */
+      const playoffR2Matches = playoffMatches.filter(
+        (m: { round?: string }) => m.round === 'playoff_r2',
+      );
+      const playoffComplete = playoffR2Matches.length === 4
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        && playoffR2Matches.every((m: any) => m.completed);
+
+      const phase = playoffMatches.length > 0 ? 'playoff' as const : 'finals' as const;
+
       if (config.getStyle === 'paginated') {
         const { searchParams } = new URL(request.url);
         const page = Number(searchParams.get('page')) || 1;
@@ -140,7 +202,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
-          phase: 'finals',
+          phase,
+          playoffMatches,
+          playoffStructure,
+          playoffSeededPlayers,
+          playoffComplete,
         });
       }
 
@@ -168,15 +234,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
           (m: { round?: string }) => m.round?.startsWith('grand_final') || false,
         );
 
-        /* Pre-Bracket Playoff (issue #454) lives in a distinct `stage='playoff'`
-         * row and must be fetched separately. Empty array when the tournament
-         * uses the standard Top-8/Top-16 flow. */
-        const playoffMatches = await model(prisma).findMany({
-          where: { tournamentId, stage: 'playoff' },
-          include: { player1: true, player2: true },
-          orderBy: { matchNumber: 'asc' },
-        });
-
         return createSuccessResponse({
           matches,
           winnersMatches,
@@ -186,7 +243,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
-          phase: playoffMatches.length > 0 ? 'playoff' : 'finals',
+          playoffStructure,
+          playoffSeededPlayers,
+          playoffComplete,
+          phase,
         });
       }
 
@@ -196,6 +256,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure,
         bracketSize,
         roundNames,
+        phase,
+        playoffMatches,
+        playoffStructure,
+        playoffSeededPlayers,
+        playoffComplete,
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });

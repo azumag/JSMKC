@@ -23,6 +23,7 @@ jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/double-elimination', () => ({
   generateBracketStructure: jest.fn(),
+  generatePlayoffStructure: jest.fn(() => []),
   roundNames: {
     winners_qf: 'Winners Quarter Finals',
     winners_sf: 'Winners Semi Finals',
@@ -117,6 +118,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
+      /* Playoff findMany query must return empty array for non-playoff tests */
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
       const params = Promise.resolve({ id: 't1' });
@@ -128,6 +131,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         bracketSize: expect.any(Number),
         roundNames,
         phase: 'finals',
+        playoffMatches: [],
+        playoffStructure: [],
+        playoffSeededPlayers: [],
+        playoffComplete: false,
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(
@@ -148,6 +155,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
       (generateBracketStructure as jest.Mock).mockReturnValue([]);
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
       const params = Promise.resolve({ id: 't1' });

@@ -194,6 +194,7 @@ export default function GrandPrixFinals({
       phase?: 'playoff' | 'finals';
       seededPlayers?: SeededPlayer[];
       playoffSeededPlayers?: SeededPlayer[];
+      playoffComplete?: boolean;
     }>(json);
 
     return {
@@ -205,6 +206,7 @@ export default function GrandPrixFinals({
       phase: data.phase,
       seededPlayers: data.seededPlayers || [],
       playoffSeededPlayers: data.playoffSeededPlayers || [],
+      playoffComplete: data.playoffComplete ?? false,
     };
   }, [tournamentId]);
 
@@ -224,6 +226,9 @@ export default function GrandPrixFinals({
       setPlayoffStructure(pollData.playoffStructure);
       setPlayoffSeededPlayers(pollData.playoffSeededPlayers);
       setPhase(pollData.phase);
+      if (pollData.playoffComplete !== undefined) {
+        setPlayoffComplete(pollData.playoffComplete);
+      }
       setChampion(getCompletedChampion(pollData.matches));
     }
   }, [pollData]);

@@ -131,6 +131,16 @@ describe('Finals Route Factory', () => {
     // Default 8-player bracket count (17 matches: 17 <= 20 → bracketSize=8)
     (prisma.bMMatch as any).count.mockResolvedValue(17);
 
+    /* Default findMany mock: returns empty array for playoff-stage queries
+     * and an empty array for finals-stage queries. Individual tests override
+     * with mockResolvedValue or mockImplementation as needed. This default
+     * ensures the new shared playoff query (stage='playoff') always resolves
+     * without throwing, even for tests that only care about the finals path. */
+    (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+      if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
     // Helper to create complete 17-match bracket structure
     // Note: matchNumber 17 is skipped in 8-player bracket, reset is at 18
     const createFullBracketStructure = () => {
@@ -279,7 +289,10 @@ describe('Finals Route Factory', () => {
         createMockMatch({ round: 'grand_final' }),
       ];
 
-      (prisma.bMMatch as any).findMany.mockResolvedValue(mockMatches);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve(mockMatches);
+      });
 
       const config = createMockConfig({ getStyle: 'grouped' });
       const { GET } = createFinalsHandlers(config);
@@ -298,6 +311,12 @@ describe('Finals Route Factory', () => {
       expect(json.data.bracketStructure).toBeDefined();
       expect(json.data.roundNames).toEqual(roundNames);
       expect(json.data.bracketSize).toBe(8);
+      /* No playoff matches → empty arrays, phase='finals', playoffComplete=false */
+      expect(json.data.playoffMatches).toEqual([]);
+      expect(json.data.playoffStructure).toEqual([]);
+      expect(json.data.playoffSeededPlayers).toEqual([]);
+      expect(json.data.phase).toBe('finals');
+      expect(json.data.playoffComplete).toBe(false);
     });
 
     it('should infer 16-player bracket when matches > 20 (grouped)', async () => {
@@ -305,7 +324,10 @@ describe('Finals Route Factory', () => {
       const mockMatches = Array.from({ length: 31 }, (_, i) =>
         createMockMatch({ matchNumber: i + 1 })
       );
-      (prisma.bMMatch as any).findMany.mockResolvedValue(mockMatches);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve(mockMatches);
+      });
 
       const config = createMockConfig({ getStyle: 'grouped' });
       const { GET } = createFinalsHandlers(config);
@@ -323,7 +345,10 @@ describe('Finals Route Factory', () => {
 
     it('should return simple response when getStyle is simple', async () => {
       const mockMatches = [createMockMatch()];
-      (prisma.bMMatch as any).findMany.mockResolvedValue(mockMatches);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve(mockMatches);
+      });
 
       const config = createMockConfig({ getStyle: 'simple' });
       const { GET } = createFinalsHandlers(config);
@@ -342,6 +367,8 @@ describe('Finals Route Factory', () => {
       expect(json.data.losersMatches).toBeUndefined();
       expect(json.data.grandFinalMatches).toBeUndefined();
       expect(json.data.bracketSize).toBe(8);
+      expect(json.data.phase).toBe('finals');
+      expect(json.data.playoffComplete).toBe(false);
     });
 
     it('should return empty bracketStructure when matches array is empty', async () => {
@@ -384,7 +411,10 @@ describe('Finals Route Factory', () => {
     });
 
     it('should parse tournamentId from params correctly', async () => {
-      (prisma.bMMatch as any).findMany.mockResolvedValue([createMockMatch()]);
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve([createMockMatch()]);
+      });
 
       const config = createMockConfig({ getStyle: 'simple' });
       const { GET } = createFinalsHandlers(config);
@@ -394,11 +424,13 @@ describe('Finals Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-999' }),
       });
 
-      expect((prisma.bMMatch as any).findMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tournament-999', stage: 'finals' },
-        include: { player1: true, player2: true },
-        orderBy: { matchNumber: 'asc' },
-      });
+      expect(response.status).toBe(200);
+      /* The handler now makes two findMany calls: first for playoff stage,
+       * then for finals stage. Verify both use the correct tournamentId. */
+      const calls = (prisma.bMMatch as any).findMany.mock.calls;
+      for (const call of calls) {
+        expect(call[0].where.tournamentId).toBe('tournament-999');
+      }
     });
 
     it('should include config.getErrorMessage in error response', async () => {
@@ -416,6 +448,112 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(500);
       const json = await response.json();
       expect(json.error).toBe('Failed to fetch BM finals');
+    });
+
+    it('should include playoff data in grouped GET response when playoff matches exist', async () => {
+      const mockFinalsMatches = [createMockMatch({ round: 'winners_qf' })];
+      /* 4 completed R2 playoff matches to satisfy playoffComplete=true */
+      const mockPlayoffMatches = [
+        createMockMatch({ matchNumber: 1, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 2, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 3, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 4, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: true }),
+      ];
+
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
+        return Promise.resolve(mockFinalsMatches);
+      });
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffStructure).toBeDefined();
+      expect(json.data.playoffStructure.length).toBe(8);
+      expect(json.data.playoffSeededPlayers).toBeDefined();
+      expect(json.data.playoffSeededPlayers.length).toBeGreaterThan(0);
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.playoffComplete).toBe(true);
+    });
+
+    it('should include playoff data in paginated GET response when playoff matches exist', async () => {
+      const mockPlayoffMatches = [
+        createMockMatch({ matchNumber: 1, round: 'playoff_r1', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 2, round: 'playoff_r1', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 3, round: 'playoff_r1', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 4, round: 'playoff_r1', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: false }),
+      ];
+
+      (prisma.bMMatch as any).findMany.mockResolvedValue(mockPlayoffMatches);
+      mockPaginate.mockResolvedValue({
+        data: [createMockMatch()],
+        meta: { total: 17, page: 1, limit: 50, totalPages: 1 },
+      });
+
+      const config = createMockConfig({ getStyle: 'paginated' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffStructure).toBeDefined();
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.playoffComplete).toBe(false);
+    });
+
+    it('should include playoff data in simple GET response when playoff matches exist', async () => {
+      const mockFinalsMatches = [createMockMatch()];
+      const mockPlayoffMatches = [
+        createMockMatch({ matchNumber: 1, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 2, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 3, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 4, round: 'playoff_r1', stage: 'playoff', completed: true }),
+        createMockMatch({ matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: false }),
+        createMockMatch({ matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: false }),
+      ];
+
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
+        return Promise.resolve(mockFinalsMatches);
+      });
+
+      const config = createMockConfig({ getStyle: 'simple' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
+      expect(json.data.playoffStructure).toBeDefined();
+      expect(json.data.phase).toBe('playoff');
+      expect(json.data.playoffComplete).toBe(false);
     });
   });
 

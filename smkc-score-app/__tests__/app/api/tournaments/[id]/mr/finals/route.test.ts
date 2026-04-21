@@ -33,6 +33,7 @@
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/double-elimination', () => ({
   generateBracketStructure: jest.fn(() => []),
+  generatePlayoffStructure: jest.fn(() => []),
   roundNames: ['Quarter Finals', 'Semi Finals', 'Finals'],
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
@@ -103,7 +104,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         { id: 'm1', matchNumber: 1, stage: 'finals', round: 'winners_qf', player1: { id: 'p1' }, player2: { id: 'p8' } },
       ];
 
-      (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue(mockMatches);
+      (prisma.mRMatch.findMany as jest.Mock).mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        return Promise.resolve(mockMatches);
+      });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
       const params = Promise.resolve({ id: 't1' });
@@ -114,13 +118,13 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         bracketStructure: expect.any(Array),
         bracketSize: expect.any(Number),
         roundNames: ['Quarter Finals', 'Semi Finals', 'Finals'],
+        phase: 'finals',
+        playoffMatches: [],
+        playoffStructure: [],
+        playoffSeededPlayers: [],
+        playoffComplete: false,
       });
       expect(result.status).toBe(200);
-      expect(prisma.mRMatch.findMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', stage: 'finals' },
-        include: { player1: true, player2: true },
-        orderBy: { matchNumber: 'asc' },
-      });
     });
 
     // Success case - Returns empty bracket when no matches exist
