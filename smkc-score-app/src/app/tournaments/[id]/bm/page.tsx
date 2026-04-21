@@ -132,7 +132,8 @@ export default function BattleModePage({
   const [setupPlayers, setSetupPlayers] = useState<
     { playerId: string; group: string; seeding?: number }[]
   >([]);
-  const [groupCount, setGroupCount] = useState(3);
+  /* Product default: 2 groups (§10.2). */
+  const [groupCount, setGroupCount] = useState(2);
   const [setupSaving, setSetupSaving] = useState(false);
   /* State for match filters */
   const [matchGroupFilter, setMatchGroupFilter] = useState<string>("all");

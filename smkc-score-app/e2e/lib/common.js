@@ -1148,9 +1148,16 @@ async function setupModePlayersViaUi(page, mode, tournamentId, players) {
     await selectGroupPlayer(dialog, player);
   }
 
-  if (players.length >= 2) {
-    /* Product default is 2 groups; click the group-count chip labelled "2". */
-    await dialog.getByRole('button', { name: /^2$/ }).click();
+  /* Force product-default group count of 2 regardless of dialog-inferred
+   * state. Safe for every player count because distribute is gated below. */
+  await dialog.getByRole('button', { name: /^2$/ }).click();
+
+  if (players.length >= 4) {
+    /* Only distribute by seed when we have ≥4 players (≥2 per group), so
+     * round-robin actually produces matches. Pair tests (2 players) rely on
+     * the dialog default: both players land in availableGroups[0]='A' via
+     * selectGroupPlayer, giving exactly one RR match. Distributing with
+     * 2 players would split A/B and leave no intra-group match. */
     const seedingInputs = dialog.locator('input[type="number"]');
     for (let i = 0; i < players.length; i++) {
       await seedingInputs.nth(i).fill(String(i + 1));
@@ -1331,9 +1338,25 @@ async function uiPutAllMrQualScores(page, tournamentId) {
   await openMatchesTab(page);
 
   /* Safety cap: 2 groups × 91 matches + buffer. */
+  let lastButtonCount = Number.MAX_SAFE_INTEGER;
   for (let i = 0; i < 300; i++) {
-    const clicked = await openNextMatchDialog(page);
-    if (!clicked) return;
+    const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
+    const currentCount = await enterButtons.count();
+    if (currentCount === 0) return;
+
+    /* If the visible Enter Score count didn't drop after the previous save,
+     * the UI is still optimistically showing the just-completed match — give
+     * the revalidation a beat before clicking again, otherwise we score the
+     * same match twice and trigger 409 VERSION_CONFLICT. Mirrors the BM
+     * helper's lag-mitigation pattern. */
+    if (i > 0 && currentCount >= lastButtonCount) {
+      await page.waitForTimeout(1000);
+    }
+    lastButtonCount = currentCount;
+
+    const target = enterButtons.first();
+    await target.scrollIntoViewIfNeeded().catch(() => {});
+    await target.click();
 
     const dialog = page.getByRole('dialog').filter({
       hasText: /enterMatchResult|試合結果|Enter Match Result/,
