@@ -87,7 +87,10 @@ describe('Matches Polling Route Factory', () => {
 
     expect(response.status).toBe(200);
     const json = await response.json();
-    expect(json).toEqual(mockResult);
+    /* createSuccessResponse wraps the paginate result; match array lives
+     * at json.data.data because paginate's own .data nests inside the
+     * factory's response body. */
+    expect(json.data).toEqual(mockResult);
   });
 
   // Query params: Parses page and limit from URL search params

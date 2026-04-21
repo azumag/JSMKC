@@ -119,6 +119,15 @@ describe('Finals Route Factory', () => {
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     mockSanitizeInput.mockImplementation((input) => input);
 
+    /* The GET and POST handlers now short-circuit with 404 when the
+     * tournament lookup returns null. Provide a default stub so every
+     * test that does not explicitly set this otherwise gets a valid
+     * tournament; individual "tournament not found" tests override. */
+    (prisma.tournament as any).findUnique.mockResolvedValue({
+      id: 'tournament-123',
+      name: 'Test Tournament',
+    });
+
     // Default 8-player bracket count (17 matches: 17 <= 20 → bracketSize=8)
     (prisma.bMMatch as any).count.mockResolvedValue(17);
 
@@ -197,9 +206,12 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.data).toEqual([createMockMatch()]);
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
+      /* createSuccessResponse wraps the paginate payload; the matches array
+       * lives at json.data.data because paginate's own result already has a
+       * .data field that sits inside the factory's createSuccessResponse. */
+      expect(json.data.data).toEqual([createMockMatch()]);
+      expect(json.data.bracketStructure).toBeDefined();
+      expect(json.data.roundNames).toEqual(roundNames);
       expect(mockPaginate).toHaveBeenCalledWith(
         expect.objectContaining({
           findMany: expect.any(Function),
@@ -207,7 +219,7 @@ describe('Finals Route Factory', () => {
         }),
         { tournamentId: 'tournament-123', stage: 'finals' },
         { matchNumber: 'asc' },
-        { page: 1, limit: 50 }
+        expect.objectContaining({ page: 1, limit: 50 })
       );
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
     });
@@ -229,7 +241,7 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(200);
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
       const json = await response.json();
-      expect(json.bracketSize).toBe(16);
+      expect(json.data.bracketSize).toBe(16);
     });
 
     it('should default to 8-player bracket when total is 0 (paginated)', async () => {
@@ -247,9 +259,13 @@ describe('Finals Route Factory', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(mockGenerateBracketStructure).toHaveBeenCalledWith(8);
+      /* The factory skips generateBracketStructure when the matches array
+       * is empty (returns an empty bracketStructure directly), so we assert
+       * the default bracketSize and an empty structure instead. */
+      expect(mockGenerateBracketStructure).not.toHaveBeenCalled();
       const json = await response.json();
-      expect(json.bracketSize).toBe(8);
+      expect(json.data.bracketSize).toBe(8);
+      expect(json.data.bracketStructure).toEqual([]);
     });
 
     it('should return grouped response when getStyle is grouped', async () => {
@@ -275,13 +291,13 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual(mockMatches);
-      expect(json.winnersMatches).toHaveLength(3); // winners_qf, winners_sf, winners_final
-      expect(json.losersMatches).toHaveLength(3); // losers_r1, losers_sf, losers_final
-      expect(json.grandFinalMatches).toHaveLength(1); // grand_final
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
-      expect(json.bracketSize).toBe(8);
+      expect(json.data.matches).toEqual(mockMatches);
+      expect(json.data.winnersMatches).toHaveLength(3); // winners_qf, winners_sf, winners_final
+      expect(json.data.losersMatches).toHaveLength(3); // losers_r1, losers_sf, losers_final
+      expect(json.data.grandFinalMatches).toHaveLength(1); // grand_final
+      expect(json.data.bracketStructure).toBeDefined();
+      expect(json.data.roundNames).toEqual(roundNames);
+      expect(json.data.bracketSize).toBe(8);
     });
 
     it('should infer 16-player bracket when matches > 20 (grouped)', async () => {
@@ -302,7 +318,7 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(200);
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
       const json = await response.json();
-      expect(json.bracketSize).toBe(16);
+      expect(json.data.bracketSize).toBe(16);
     });
 
     it('should return simple response when getStyle is simple', async () => {
@@ -319,13 +335,13 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual(mockMatches);
-      expect(json.bracketStructure).toBeDefined();
-      expect(json.roundNames).toEqual(roundNames);
-      expect(json.winnersMatches).toBeUndefined();
-      expect(json.losersMatches).toBeUndefined();
-      expect(json.grandFinalMatches).toBeUndefined();
-      expect(json.bracketSize).toBe(8);
+      expect(json.data.matches).toEqual(mockMatches);
+      expect(json.data.bracketStructure).toBeDefined();
+      expect(json.data.roundNames).toEqual(roundNames);
+      expect(json.data.winnersMatches).toBeUndefined();
+      expect(json.data.losersMatches).toBeUndefined();
+      expect(json.data.grandFinalMatches).toBeUndefined();
+      expect(json.data.bracketSize).toBe(8);
     });
 
     it('should return empty bracketStructure when matches array is empty', async () => {
@@ -341,9 +357,9 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.matches).toEqual([]);
-      expect(json.bracketStructure).toEqual([]);
-      expect(json.bracketSize).toBe(8);
+      expect(json.data.matches).toEqual([]);
+      expect(json.data.bracketStructure).toEqual([]);
+      expect(json.data.bracketSize).toBe(8);
     });
 
     it('should return 500 on database error', async () => {
@@ -862,8 +878,8 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.winnerId).toBe('player-1');
-      expect(json.loserId).toBe('player-2');
+      expect(json.data.winnerId).toBe('player-1');
+      expect(json.data.loserId).toBe('player-2');
     });
 
     it('should set player2 as winner when score2 >= 3', async () => {
@@ -894,8 +910,8 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.winnerId).toBe('player-2');
-      expect(json.loserId).toBe('player-1');
+      expect(json.data.winnerId).toBe('player-2');
+      expect(json.data.loserId).toBe('player-1');
     });
 
     it('should advance winner to next match when winnerGoesTo is set', async () => {
@@ -966,9 +982,17 @@ describe('Finals Route Factory', () => {
 
     it('should infer 16-player bracket from totalFinalsMatches count in PUT', async () => {
       // 16-player bracket has 31 matches (31 > 20 threshold)
+      /* Provide a valid match row so the PUT handler proceeds into the
+       * bracket-size inference path; returning null here would trigger an
+       * early 404 before count() is consulted. */
       (prisma.bMMatch as any).count.mockResolvedValue(31);
-      (prisma.bMMatch as any).findUnique.mockResolvedValue(null);
-      (prisma.bMMatch as any).update.mockResolvedValue(null);
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(createMockMatch({
+        matchNumber: 1,
+        player1Id: 'player-1',
+        player2Id: 'player-2',
+      }));
+      (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(null);
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
@@ -1087,8 +1111,8 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.isComplete).toBe(true);
-      expect(json.champion).toBe('player-1');
+      expect(json.data.isComplete).toBe(true);
+      expect(json.data.champion).toBe('player-1');
     });
 
     it('should set tournament complete when grand_final_reset is completed', async () => {
@@ -1115,8 +1139,8 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.isComplete).toBe(true);
-      expect(json.champion).toBe('player-1');
+      expect(json.data.isComplete).toBe(true);
+      expect(json.data.champion).toBe('player-1');
     });
 
     it('should return 400 when score1 < 3 and score2 < 3', async () => {
@@ -1261,9 +1285,9 @@ describe('Finals Route Factory', () => {
       });
 
       const json = await response.json();
-      expect(json.match).toBeDefined();
-      expect(json.winnerId).toBeUndefined();
-      expect(json.loserId).toBeUndefined();
+      expect(json.data.match).toBeDefined();
+      expect(json.data.winnerId).toBeUndefined();
+      expect(json.data.loserId).toBeUndefined();
     });
 
     it('should handle when nextWinnerMatch is not found', async () => {

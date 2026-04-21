@@ -47,6 +47,12 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
+/* PATCH's rank-override branch calls standings-cache.invalidate after a
+ * successful update; without this mock, requiring the module inside the
+ * handler crashes the request → 500. */
+jest.mock('@/lib/standings-cache', () => ({
+  invalidate: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
@@ -1187,6 +1193,10 @@ describe('Qualification Route Factory', () => {
         player1: { id: 'p1', nickname: 'Alice' },
         player2: { id: 'p2', nickname: 'Bob' },
       };
+      /* PATCH now short-circuits with 404 when the match doesn't belong to
+       * the tournament (IDOR prevention via findFirst). Provide a stub so
+       * the update path runs. */
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(mockMatch);
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -1202,7 +1212,7 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.match).toEqual(mockMatch);
+      expect(json.data.match).toEqual(mockMatch);
 
       /* Verify tournamentId is included in the where clause (IDOR prevention) */
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
@@ -1216,6 +1226,7 @@ describe('Qualification Route Factory', () => {
       mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
 
       const mockMatch = { id: 'match-1', tvNumber: null };
+      (prisma.bMMatch as any).findFirst.mockResolvedValue({ id: 'match-1', tvNumber: 5 });
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -1296,7 +1307,7 @@ describe('Qualification Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.qualification).toEqual(mockQual);
+      expect(json.data.qualification).toEqual(mockQual);
 
       /* Verify IDOR-safe where clause and audit fields are written */
       expect((prisma.bMQualification as any).update).toHaveBeenCalledWith({
