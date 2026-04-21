@@ -190,7 +190,15 @@ function getChromiumArgs() {
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
     '--disable-renderer-backgrounding',
+    '--disable-extensions',
+    '--disable-component-extensions-with-background-pages',
     '--disable-features=IsolateOrigins,site-per-process',
+    /* Increase the renderer V8 heap limit so the long 182-match BM
+     * qualification loop (and the preceding TA/MR work) does not OOM-kill
+     * the Chromium renderer on macOS persistent contexts.  4096 MB gives
+     * plenty of headroom for the React SPA’s heap growth between page
+     * refreshes while still staying within typical CI runner limits. */
+    '--js-flags=--max-old-space-size=4096',
   ];
 }
 
@@ -1467,9 +1475,12 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
      * long 182-match qualification loop.  MR/GP already re-navigate every
      * iteration; BM keeps the same page alive, which can exhaust memory on
      * persistent-context Chromium and cause "Target page, context or browser
-     * has been closed" (issue #517).  Refresh every 50 matches (~4 refreshes
-     * for a full 28-player RR). */
-    if (i > 0 && i % 50 === 0) {
+     * has been closed" (issue #517).  The previous 50-match interval proved
+     * insufficient — reducing to 20 matches (~9 refreshes per full RR)
+     * forces the React SPA to discard its DOM + JS heap more frequently,
+     * giving the V8 GC a chance to reclaim leaked renderer memory before
+     * the process is OOM-killed by the OS. */
+    if (i > 0 && i % 20 === 0) {
       await nav(page, `/tournaments/${tournamentId}/bm`);
       await openMatchesTab(page);
     }
@@ -1524,6 +1535,11 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
       throw new Error(`BM UI score save failed (${response.status()}): ${JSON.stringify(body).slice(0, 200)}`);
     }
     await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    /* Brief settle time lets React finish re-rendering the match list and
+     * gives the renderer a breathing room between dialogs.  MR/GP both use
+     * 300 ms after close; BM was missing this, which may have contributed to
+     * renderer stress under the rapid 182-match dialog open/click/close loop. */
+    await page.waitForTimeout(300);
     /* Wait for the Enter Score count to drop so the next iteration targets
      * a genuinely different match. Bail out after 5s if the UI never
      * refreshes — the iter cap is still the last line of defense. */

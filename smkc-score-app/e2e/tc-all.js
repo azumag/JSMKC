@@ -195,6 +195,19 @@ async function main() {
    * setupAllModes28PlayerQualification to wire TA/BM/MR/GP on top of them. */
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   sharedFixture = await createSharedE2eFixture(page);
+  /* Capture JS errors / console warnings that precede a renderer crash so
+   * we can distinguish an app-side exception from an OOM kill.  These
+   * listeners are intentionally added BEFORE the long setupAllModes phase
+   * (issue #517). */
+  const setupJsErrors = [];
+  const setupConsoleWarnings = [];
+  page.on('pageerror', (e) => setupJsErrors.push(e.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' || msg.type() === 'warning') {
+      setupConsoleWarnings.push(`[${msg.type()}] ${msg.text()}`);
+    }
+  });
+
   /* setupAllModes is a best-effort, expensive cross-mode seed used only by
    * TC-401/TC-402 (overall ranking verification). TA+BM+MR+GP qualifications
    * together drive ~90 min of UI-only API work with no log() calls, so we
@@ -211,7 +224,13 @@ async function main() {
   } catch (err) {
     setupAllModesError = err instanceof Error ? err.message : String(err);
     TID = sharedFixture.normalTournament.id;
-    console.error(`[tc-all] setupAllModes failed (${setupAllModesError.slice(0, 160)}); TC-401/TC-402 will be recorded as FAIL and the run will continue against ${TID}.`);
+    const jsHint = setupJsErrors.length > 0
+      ? ` JS errors: ${setupJsErrors.slice(0, 3).join('; ')}`
+      : '';
+    const consoleHint = setupConsoleWarnings.length > 0
+      ? ` Console warnings: ${setupConsoleWarnings.slice(0, 3).join('; ')}`
+      : '';
+    console.error(`[tc-all] setupAllModes failed (${setupAllModesError.slice(0, 160)}); TC-401/TC-402 will be recorded as FAIL and the run will continue against ${TID}.${jsHint}${consoleHint}`);
   } finally {
     /* Re-arm the watchdog; subsequent log() calls will reset it per-TC. */
     progressWatchdog.reset('post-setupAllModes');
