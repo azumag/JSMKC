@@ -62,6 +62,7 @@ export const gpConfig: EventTypeConfig = {
   eventTypeCode: 'gp',
   qualificationModel: 'gPQualification',
   matchModel: 'gPMatch',
+  matchScoreFields: { p1: 'points1', p2: 'points2' },
   loggerName: 'gp-api',
   eventDisplayName: 'grand prix',
   // Per requirements.md §4.1: GP uses driver points as primary ranking criterion

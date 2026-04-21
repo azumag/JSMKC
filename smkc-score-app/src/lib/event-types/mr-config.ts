@@ -44,6 +44,7 @@ export const mrConfig: EventTypeConfig = {
   eventTypeCode: 'mr',
   qualificationModel: 'mRQualification',
   matchModel: 'mRMatch',
+  matchScoreFields: { p1: 'score1', p2: 'score2' },
   loggerName: 'mr-api',
   eventDisplayName: 'match race',
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],

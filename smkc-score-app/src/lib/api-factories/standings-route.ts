@@ -21,6 +21,7 @@ import { paginate } from '@/lib/pagination';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse } from '@/lib/error-handling';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { computeQualificationRanks } from '@/lib/server-ranking';
 
 /**
  * Configuration for a standings route handler.
@@ -160,64 +161,37 @@ export function createStandingsHandlers(config: StandingsConfig) {
         await set(tournamentId, 'qualification', qualifications, etag);
 
         /*
-         * Pre-compute tie-aware ranks (standard competition / 1224 ranking).
-         * Two entries share a rank when all their orderBy field values are equal.
-         * Inject the computed rank as `_rank` on each record before transforming so
-         * that transform functions can use `q._rank` instead of (errorprone) `index + 1`.
-         *
-         * Uses an imperative loop (not Array.map) so that the previous entry's rank
-         * is available when computing the current entry's rank.
+         * Compute server-side ranks (1224 + H2H + rankOverride) using the shared
+         * helper so that both standings and qualification routes produce identical
+         * _rank values.
          */
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ranked: any[] = [];
-        for (let i = 0; i < qualifications.length; i++) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const q = qualifications[i] as any;
-          if (i === 0) {
-            ranked.push({ ...q, _rank: 1 });
-          } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const prev = qualifications[i - 1] as any;
-            const isTied = (config.orderBy ?? []).every((ob) => {
-              const field = Object.keys(ob)[0];
-              return q[field] === prev[field];
-            });
-            ranked.push({ ...q, _rank: isTied ? ranked[i - 1]._rank : i + 1 });
-          }
-        }
-
-        /*
-         * H2H tiebreaker: re-sort tied groups by direct match results (requirements §4.1 step 3).
-         * Only runs when matchModel is configured. Players tied after points + wins/losses
-         * are re-sorted by how many H2H matches they won within the tied group.
-         * Players from different groups (who never played each other) stay tied → admin resolves via sudden death.
-         */
+        let allH2hMatches: any[] = [];
         if (config.matchModel) {
           const scoreFields = config.matchScoreFields ?? { p1: 'score1', p2: 'score2' };
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mModel = (p: any) => p[config.matchModel!];
 
-          /* Group entries by _rank to find tied sets */
-          const rankGroups = new Map<number, typeof ranked>();
-          for (const entry of ranked) {
-            const g = rankGroups.get(entry._rank) ?? [];
-            g.push(entry);
-            rankGroups.set(entry._rank, g);
+          /* Quick preview to find tied players without full H2H processing */
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const preview: any[] = [];
+          for (let i = 0; i < qualifications.length; i++) {
+            const q = qualifications[i] as any;
+            if (i === 0) preview.push({ ...q, _rank: 1 });
+            else {
+              const prev = qualifications[i - 1] as any;
+              const isTied = (config.orderBy ?? []).every((ob) => {
+                const field = Object.keys(ob)[0];
+                return q[field] === prev[field];
+              });
+              preview.push({ ...q, _rank: isTied ? preview[i - 1]._rank : i + 1 });
+            }
           }
 
-          /*
-           * Batch H2H query: fetch ALL completed qualification matches between
-           * ALL tied players in a single query, then filter in-memory per group.
-           * This eliminates the N+1 problem where each tied group issued its own
-           * database query (10 groups = 10 round-trips × ~40ms = ~400ms overhead).
-           */
-          const tiedPlayerIds = Array.from(rankGroups.values())
-            .filter((g) => g.length >= 2)
-            .flat()
+          const tiedPlayerIds = preview
+            .filter((e, i, arr) => arr.some((other, j) => j !== i && other._rank === e._rank))
             .map((e: { playerId: string }) => e.playerId);
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let allH2hMatches: any[] = [];
           if (tiedPlayerIds.length >= 2) {
             allH2hMatches = await mModel(prisma).findMany({
               where: {
@@ -236,80 +210,14 @@ export function createStandingsHandlers(config: StandingsConfig) {
               },
             });
           }
-
-          const resolved: typeof ranked = [];
-          for (const [rank, group] of [...rankGroups.entries()].sort(([a], [b]) => a - b)) {
-            if (group.length < 2) {
-              resolved.push(...group);
-              continue;
-            }
-
-            /*
-             * Filter pre-fetched matches to only those between players in this tied group.
-             * Cross-group players won't have matches against each other, so their H2H wins = 0
-             * and they remain tied (requiring admin sudden-death to resolve per §4.1 step 4).
-             */
-            const playerIds = group.map((e: { playerId: string }) => e.playerId);
-            const playerIdSet = new Set(playerIds);
-            const h2hMatches = allH2hMatches.filter(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (m: any) => playerIdSet.has(m.player1Id) && playerIdSet.has(m.player2Id),
-            );
-
-            /* Tally H2H wins; draws (s1 === s2) award no win to either player */
-            const h2hWins = new Map<string, number>(playerIds.map((id) => [id, 0]));
-            for (const m of h2hMatches) {
-              const s1: number = m[scoreFields.p1];
-              const s2: number = m[scoreFields.p2];
-              if (s1 > s2) h2hWins.set(m.player1Id, (h2hWins.get(m.player1Id) ?? 0) + 1);
-              else if (s2 > s1) h2hWins.set(m.player2Id, (h2hWins.get(m.player2Id) ?? 0) + 1);
-            }
-
-            /* Sort by H2H wins desc; preserve original order on equal wins (stable JS sort) */
-            const sortedGroup = [...group].sort(
-              (a, b) => (h2hWins.get(b.playerId) ?? 0) - (h2hWins.get(a.playerId) ?? 0),
-            );
-
-            /* Re-assign _rank within the group using 1224 competition ranking */
-            let subRank = rank;
-            for (let i = 0; i < sortedGroup.length; i++) {
-              if (i > 0) {
-                const prevWins = h2hWins.get(sortedGroup[i - 1].playerId) ?? 0;
-                const curWins = h2hWins.get(sortedGroup[i].playerId) ?? 0;
-                if (curWins !== prevWins) subRank = rank + i;
-              }
-              resolved.push({ ...sortedGroup[i], _rank: subRank });
-            }
-          }
-
-          ranked.splice(0, ranked.length, ...resolved);
         }
 
-        /*
-         * Apply rankOverride: if a qualification entry has a manual rank set by an admin,
-         * replace the computed _rank with the override value and mark _rankOverridden=true.
-         * Override takes precedence over H2H tiebreaker (admins have final authority).
-         * Re-sort by effective rank so the response is in display order.
-         *
-         * This is applied last (after H2H) so that manual overrides always win,
-         * regardless of what the automatic tiebreaker would compute.
-         */
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const withOverrides = ranked.map((entry: any) =>
-          entry.rankOverride != null
-            ? { ...entry, _rank: entry.rankOverride, _rankOverridden: true }
-            : entry,
+        const withOverrides = computeQualificationRanks(
+          qualifications,
+          config.orderBy ?? [],
+          allH2hMatches,
+          { matchScoreFields: config.matchScoreFields },
         );
-        /*
-         * Sort by effective rank ascending. When two entries have the same rank
-         * (e.g. an overridden entry lands at the same rank as an auto-computed entry),
-         * place overridden entries first to express admin authority.
-         */
-        withOverrides.sort((a: { _rank: number; _rankOverridden?: boolean }, b: { _rank: number; _rankOverridden?: boolean }) => {
-          if (a._rank !== b._rank) return a._rank - b._rank;
-          // Overridden entries win ties (true > false → bOverridden - aOverridden puts b first if b is overridden)
-          return (b._rankOverridden ? 1 : 0) - (a._rankOverridden ? 1 : 0);
-        });
 
         const transformed = config.transformQualification
           ? withOverrides.map(config.transformQualification)

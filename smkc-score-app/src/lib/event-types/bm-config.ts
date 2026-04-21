@@ -38,6 +38,7 @@ export const bmConfig: EventTypeConfig = {
   eventTypeCode: 'bm',
   qualificationModel: 'bMQualification',
   matchModel: 'bMMatch',
+  matchScoreFields: { p1: 'score1', p2: 'score2' },
   loggerName: 'bm-api',
   eventDisplayName: 'battle mode',
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],

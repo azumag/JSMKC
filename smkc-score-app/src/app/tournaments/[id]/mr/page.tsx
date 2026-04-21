@@ -145,6 +145,7 @@ export default function MatchRacePage({
   /* Product default: 2 groups (§10.2). */
   const [groupCount, setGroupCount] = useState(2);
   const [setupSaving, setSetupSaving] = useState(false);
+  const [startingPlayoff, setStartingPlayoff] = useState(false);
 
   /**
    * Fetch MR data and player list concurrently.
@@ -438,15 +439,30 @@ export default function MatchRacePage({
              const needsPlayoff = qualifications.length > 16;
              if (needsPlayoff) {
                return (
-                 <div className="flex gap-2">
-                   <Button
-                     onClick={() => {
-                       sessionStorage.setItem('mr_finals_topN', '24');
-                       window.location.href = `/tournaments/${tournamentId}/mr/finals`;
-                     }}
-                   >
-                     {tc('startPlayoff')}
-                   </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={startingPlayoff}
+                      onClick={async () => {
+                        setStartingPlayoff(true);
+                        try {
+                          const res = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ topN: 24 }),
+                          });
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            alert(err.error || tc('failedStartPlayoff'));
+                            return;
+                          }
+                          window.location.href = `/tournaments/${tournamentId}/mr/finals`;
+                        } finally {
+                          setStartingPlayoff(false);
+                        }
+                      }}
+                    >
+                      {startingPlayoff ? tc('startingPlayoff') : tc('startPlayoff')}
+                    </Button>
                    <Button variant="outline" asChild>
                      <Link href={`/tournaments/${tournamentId}/mr/finals`}>
                        {tc('goToFinalsTop16')}

@@ -614,9 +614,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const bracketStructure = generateBracketStructure(16);
 
-      /* Clean slate on any previous finals for reset scenarios. */
+      /* Clean slate on any previous finals for reset scenarios.
+       * Also remove the playoff stage rows so the GET handler returns
+       * phase='finals' and the UI renders the Upper Bracket, not the
+       * PlayoffBracket (issue #454 follow-up). */
       await matchModel(prisma).deleteMany({
         where: { tournamentId, stage: 'finals' },
+      });
+      await matchModel(prisma).deleteMany({
+        where: { tournamentId, stage: 'playoff' },
       });
 
       const createdMatches = [];

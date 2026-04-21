@@ -142,6 +142,8 @@ export default function BattleModePage({
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  /* Loading state for the "Start Playoff" button */
+  const [startingPlayoff, setStartingPlayoff] = useState(false);
 
   /**
    * Fetch both BM qualification data and all players in parallel.
@@ -389,15 +391,30 @@ export default function BattleModePage({
              const needsPlayoff = qualifications.length > 16;
              if (needsPlayoff) {
                return (
-                 <div className="flex gap-2">
-                   <Button
-                     onClick={() => {
-                       sessionStorage.setItem('bm_finals_topN', '24');
-                       window.location.href = `/tournaments/${tournamentId}/bm/finals`;
-                     }}
-                   >
-                     {tc('startPlayoff')}
-                   </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={startingPlayoff}
+                      onClick={async () => {
+                        setStartingPlayoff(true);
+                        try {
+                          const res = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ topN: 24 }),
+                          });
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            alert(err.error || tc('failedStartPlayoff'));
+                            return;
+                          }
+                          window.location.href = `/tournaments/${tournamentId}/bm/finals`;
+                        } finally {
+                          setStartingPlayoff(false);
+                        }
+                      }}
+                    >
+                      {startingPlayoff ? tc('startingPlayoff') : tc('startPlayoff')}
+                    </Button>
                    <Button variant="outline" asChild>
                      <Link href={`/tournaments/${tournamentId}/bm/finals`}>
                        {tc('goToFinalsTop16')}

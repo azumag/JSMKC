@@ -46,6 +46,13 @@ export interface EventTypeConfig {
   /** Prisma model name for match records (e.g., 'bMMatch') */
   matchModel: string;
 
+  /**
+   * Score field names on the match model used to determine H2H winner.
+   * Defaults to { p1: 'score1', p2: 'score2' } (BM/MR convention).
+   * Set to { p1: 'points1', p2: 'points2' } for GP.
+   */
+  matchScoreFields?: { p1: string; p2: string };
+
   /** Logger instance name for structured logging */
   loggerName: string;
   /** Human-readable event name for error messages (e.g., 'battle mode') */

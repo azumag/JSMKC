@@ -14,6 +14,8 @@
 export interface RankableEntry {
   id: string;
   rankOverride: number | null;
+  /** Server-computed rank (from qualification API). When present, client skips recomputation. */
+  _rank?: number;
 }
 
 export type EntryWithAutoRank<T extends RankableEntry> = T & {
@@ -36,26 +38,36 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
-  // Step 1: Sort by mode-specific criteria to establish natural order
-  const sorted = [...entries].sort(compareFn);
-
-  // Step 2: Assign 1224 competition ranks using an imperative loop so we can
-  // access the previous entry's _autoRank without TDZ issues (can't reference
-  // the result array inside its own Array.map initializer).
-  // Two consecutive entries are tied when compareFn returns 0 (equal on all criteria).
-  // Tied entries share the previous rank; the next non-tied entry gets its 1-based index.
   const withAutoRank: EntryWithAutoRank<T>[] = [];
-  for (let i = 0; i < sorted.length; i++) {
-    let autoRank: number;
-    if (i === 0) {
-      autoRank = 1;
-    } else {
-      const isTied = compareFn(sorted[i - 1], sorted[i]) === 0;
-      autoRank = isTied
-        ? withAutoRank[i - 1]._autoRank // share the same rank as the previous tied entry
-        : i + 1; // 1-based index (skips over tied positions)
+  // When the server has already computed _rank (includes H2H + 1224 + override),
+  // trust it instead of re-computing on the client.  This eliminates mismatches
+  // where the server resolves ties via H2H but the client would recreate them.
+  const hasServerRank = entries.length > 0 && entries[0]._rank != null;
+
+  if (hasServerRank) {
+    for (const entry of entries) {
+      withAutoRank.push({ ...entry, _autoRank: entry._rank! });
     }
-    withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
+  } else {
+    // Fallback: client-side computation for legacy paths without server _rank.
+    // Step 1: Sort by mode-specific criteria to establish natural order
+    const sorted = [...entries].sort(compareFn);
+
+    // Step 2: Assign 1224 competition ranks using an imperative loop so we can
+    // access the previous entry's _autoRank without TDZ issues.
+    // Two consecutive entries are tied when compareFn returns 0.
+    for (let i = 0; i < sorted.length; i++) {
+      let autoRank: number;
+      if (i === 0) {
+        autoRank = 1;
+      } else {
+        const isTied = compareFn(sorted[i - 1], sorted[i]) === 0;
+        autoRank = isTied
+          ? withAutoRank[i - 1]._autoRank // share the same rank as the previous tied entry
+          : i + 1; // 1-based index (skips over tied positions)
+      }
+      withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
+    }
   }
 
   // Step 3: Re-sort by effective rank so the row order on screen reflects
@@ -75,42 +87,31 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 /**
  * Find the set of entry IDs involved in unresolved ties.
  *
- * A tie group of N members is "resolved" when at least N-1 members have
- * distinct (non-duplicate) rankOverride values — the last remaining member's
- * position is then unambiguous. A group is "unresolved" if fewer than N-1
- * distinct overrides exist, or if any override values are duplicated.
+ * A tie is defined as two or more entries sharing the same **effective rank**
+ * (rankOverride ?? _autoRank).  This detects:
+ *   • Raw score ties where no overrides have been set
+ *   • Duplicate rankOverride values
+ *   • An override that collides with another entry's _autoRank
+ *   • An override that collides with a different entry's override
  *
  * Returns a Set<id> for O(1) membership testing in render loops.
  */
 export function findUnresolvedTies<T extends RankableEntry & { _autoRank: number }>(
   entries: T[]
 ): Set<string> {
-  // Group entries by _autoRank to find tied sets
-  const rankGroups = new Map<number, T[]>();
+  // Group entries by effective rank to detect any collision
+  const effectiveRankGroups = new Map<number, T[]>();
   for (const entry of entries) {
-    const group = rankGroups.get(entry._autoRank) ?? [];
+    const effectiveRank = entry.rankOverride ?? entry._autoRank;
+    const group = effectiveRankGroups.get(effectiveRank) ?? [];
     group.push(entry);
-    rankGroups.set(entry._autoRank, group);
+    effectiveRankGroups.set(effectiveRank, group);
   }
 
   const tiedIds = new Set<string>();
-  for (const group of rankGroups.values()) {
-    // Only a group with 2+ entries can be a tie
-    if (group.length < 2) continue;
-    // A tie group of N members is resolved when N-1 members have distinct
-    // overrides — the last remaining member's position is then unambiguous.
-    // This matches real-world admin workflow: setting one override in a 2-way
-    // tie fully determines both positions.
-    // Duplicate override values (e.g., two members both set to rank 1) still
-    // count as unresolved because the ordering remains ambiguous.
-    const setOverrides = group
-      .map((e) => e.rankOverride)
-      .filter((v): v is number => v != null);
-    const distinctOverrides = new Set(setOverrides).size;
-    // All set overrides must be unique (no duplicates) AND at least N-1 distinct
-    const noDuplicates = distinctOverrides === setOverrides.length;
-    const resolved = noDuplicates && distinctOverrides >= group.length - 1;
-    if (!resolved) {
+  for (const group of effectiveRankGroups.values()) {
+    // Any group with 2+ members sharing the same effective rank is unresolved
+    if (group.length >= 2) {
       for (const entry of group) {
         tiedIds.add(entry.id);
       }

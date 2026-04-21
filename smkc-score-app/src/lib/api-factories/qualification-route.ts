@@ -23,6 +23,7 @@ import { CupMismatchError } from '@/lib/event-types/gp-config';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { invalidate } from '@/lib/standings-cache';
+import { computeQualificationRanks } from '@/lib/server-ranking';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -117,9 +118,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }),
       ]);
 
+      /* Compute server-side _rank (1224 + H2H + rankOverride) for client consistency */
+      const rankedQualifications = computeQualificationRanks(
+        qualifications,
+        config.qualificationOrderBy ?? [],
+        matches,
+        { matchScoreFields: config.matchScoreFields },
+      );
+
       /* Wrap in standard success response format for API consistency (#274) */
       return createSuccessResponse({
-        qualifications,
+        qualifications: rankedQualifications,
         matches,
         qualificationConfirmed: tournament?.qualificationConfirmed ?? false,
       });

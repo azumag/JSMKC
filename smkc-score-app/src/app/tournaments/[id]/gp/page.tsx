@@ -162,6 +162,7 @@ export default function GrandPrixPage({
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualPoints1, setManualPoints1] = useState("");
   const [manualPoints2, setManualPoints2] = useState("");
+  const [startingPlayoff, setStartingPlayoff] = useState(false);
 
   /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
@@ -522,15 +523,30 @@ export default function GrandPrixPage({
              const needsPlayoff = qualifications.length > 16;
              if (needsPlayoff) {
                return (
-                 <div className="flex gap-2">
-                   <Button
-                     onClick={() => {
-                       sessionStorage.setItem('gp_finals_topN', '24');
-                       window.location.href = `/tournaments/${tournamentId}/gp/finals`;
-                     }}
-                   >
-                     {tc('startPlayoff')}
-                   </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={startingPlayoff}
+                      onClick={async () => {
+                        setStartingPlayoff(true);
+                        try {
+                          const res = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ topN: 24 }),
+                          });
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            alert(err.error || tc('failedStartPlayoff'));
+                            return;
+                          }
+                          window.location.href = `/tournaments/${tournamentId}/gp/finals`;
+                        } finally {
+                          setStartingPlayoff(false);
+                        }
+                      }}
+                    >
+                      {startingPlayoff ? tc('startingPlayoff') : tc('startPlayoff')}
+                    </Button>
                    <Button variant="outline" asChild>
                      <Link href={`/tournaments/${tournamentId}/gp/finals`}>
                        {tc('goToFinalsTop16')}
