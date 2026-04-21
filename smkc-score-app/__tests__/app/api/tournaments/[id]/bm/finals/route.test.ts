@@ -36,11 +36,17 @@ jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), check
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn() }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+/* Mock qualification-confirmed-check: finals-route gates POST/PUT before the
+ * handler runs. Return null (= not locked) so the test can reach the logic. */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/finals/route';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -73,8 +79,22 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    jsonMock.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
+    /* finals-route GET + POST hit prisma.tournament.findUnique as a defensive
+     * existence check. Provide a non-null default so the early 404 branch is
+     * bypassed for the happy-path tests. */
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    /* PUT bracket-advancement path calls model.count/findFirst/createMany.
+     * Patch them onto the auto-mock with safe defaults. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bmMatch = prisma.bMMatch as any;
+    if (!bmMatch.count) bmMatch.count = jest.fn();
+    if (!bmMatch.findFirst) bmMatch.findFirst = jest.fn();
+    if (!bmMatch.createMany) bmMatch.createMany = jest.fn();
+    bmMatch.count.mockResolvedValue(17);
+    bmMatch.findFirst.mockResolvedValue(null);
+    bmMatch.createMany.mockResolvedValue({ count: 0 });
   });
 
   describe('GET - Fetch finals tournament data', () => {
@@ -225,7 +245,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: true },
-        orderBy: [{ score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
+        orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
         take: 8,
       });
       expect(prisma.bMMatch.deleteMany).toHaveBeenCalledWith({
@@ -262,7 +282,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Only 8-player and 16-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
+      expect(result.data).toEqual({ success: false, error: 'Only 8-player, 16-player, or 24-player (Top-16 + playoff) brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
       expect(result.status).toBe(400);
       expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
     });

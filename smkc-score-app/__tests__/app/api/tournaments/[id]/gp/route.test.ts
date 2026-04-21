@@ -67,6 +67,10 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
     (prisma.gPMatch.createMany as jest.Mock).mockReset();
     (prisma.gPMatch.deleteMany as jest.Mock).mockReset();
     (prisma.gPMatch.update as jest.Mock).mockReset();
+    /* GP updateMatch uses optimistic locking: it reads existing cup+version via findUnique
+     * before updating. Return a sane default so PUT tests don't hit a null-deref. */
+    (prisma.gPMatch.findUnique as jest.Mock).mockReset();
+    (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue({ cup: null, version: 1 });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
@@ -90,7 +94,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await GET(request, { params });
 
       /* qualificationConfirmed is now included in the GET response */
-      expect(result.data).toEqual({ success: true, data: { qualifications: _mockQualifications, matches: mockMatches, qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: _mockQualifications, matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -113,7 +117,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [], qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: [], matches: [], qualificationConfirmed: false });
       expect(result.status).toBe(200);
     });
 
@@ -163,7 +167,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { message: 'Grand prix setup complete', qualifications: expect.any(Array) } });
+      expect(result.data).toEqual({ message: 'Grand prix setup complete', qualifications: expect.any(Array) });
       expect(result.status).toBe(201);
       expect(prisma.gPQualification.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1' } });
       expect(prisma.gPMatch.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1', stage: 'qualification' } });
@@ -415,7 +419,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(result.data).toEqual({ match: mockMatch, result1: 'win', result2: 'loss' });
       expect(result.status).toBe(200);
       expect(prisma.gPMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1', version: 1 },
         data: expect.objectContaining({
           cup: 'Mushroom Cup',
           points1: 42,

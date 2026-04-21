@@ -31,9 +31,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET } from '@/app/api/tournaments/[id]/gp/standings/route';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
-
-const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
-const jsonMock = NextResponseMock.NextResponse.json;
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 class MockNextRequest {
   private _headers: Map<string, string>;
@@ -58,11 +56,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    jsonMock.mockImplementation((data: any, options?: any) => ({
-      data,
-      status: options?.status || 200,
-      headers: options?.headers || {},
-    }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (generateETag as jest.Mock).mockReturnValue('etag-123');
   });
 

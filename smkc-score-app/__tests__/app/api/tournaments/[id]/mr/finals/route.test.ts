@@ -38,6 +38,11 @@ jest.mock('@/lib/double-elimination', () => ({
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
+/* Mock qualification-confirmed-check: the finals-route factory gates POST/PUT
+ * on this before it can reach the match logic. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -72,6 +77,20 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
+    /* finals-route GET hits prisma.tournament.findUnique defensively — provide
+     * a non-null default so the existence-check doesn't short-circuit to 404. */
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    /* PUT handler now calls model.count() to infer bracket size + findFirst() /
+     * updateMany() / createMany() for bracket advancement. The auto-mock lacks
+     * those members for mRMatch, so patch them in with safe defaults here. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mrMatch = prisma.mRMatch as any;
+    if (!mrMatch.count) mrMatch.count = jest.fn();
+    if (!mrMatch.findFirst) mrMatch.findFirst = jest.fn();
+    if (!mrMatch.createMany) mrMatch.createMany = jest.fn();
+    mrMatch.count.mockResolvedValue(17);
+    mrMatch.findFirst.mockResolvedValue(null);
+    mrMatch.createMany.mockResolvedValue({ count: 0 });
     (generateBracketStructure as jest.Mock).mockReturnValue([
       { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
     ]);
@@ -93,6 +112,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       expect(result.data).toEqual({
         matches: mockMatches,
         bracketStructure: expect.any(Array),
+        bracketSize: expect.any(Number),
         roundNames: ['Quarter Finals', 'Semi Finals', 'Finals'],
       });
       expect(result.status).toBe(200);
@@ -219,7 +239,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Only 8-player and 16-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
+      expect(result.data).toEqual({ success: false, error: 'Only 8-player, 16-player, or 24-player (Top-16 + playoff) brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
       expect(result.status).toBe(400);
     });
 

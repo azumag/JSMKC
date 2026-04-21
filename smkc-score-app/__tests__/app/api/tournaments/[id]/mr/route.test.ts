@@ -84,7 +84,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const result = await GET(request, { params });
 
       /* qualificationConfirmed is now included in the GET response */
-      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -107,7 +107,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [], qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: [], matches: [], qualificationConfirmed: false });
       expect(result.status).toBe(200);
     });
 
@@ -158,7 +158,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { message: 'Match race setup complete', qualifications: expect.any(Array) } });
+      expect(result.data).toEqual({ message: 'Match race setup complete', qualifications: expect.any(Array) });
       expect(result.status).toBe(201);
       expect(prisma.mRQualification.createMany).toHaveBeenCalledTimes(1);
       expect((prisma.mRQualification.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(2);
@@ -340,7 +340,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(result.data).toEqual({ match: mockMatch, result1: 'win', result2: 'loss' });
       expect(result.status).toBe(200);
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
         include: { player1: true, player2: true },
       });
@@ -393,7 +393,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const _result = await PUT(request, { params });
 
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: validRounds, completed: true },
         include: { player1: true, player2: true },
       });

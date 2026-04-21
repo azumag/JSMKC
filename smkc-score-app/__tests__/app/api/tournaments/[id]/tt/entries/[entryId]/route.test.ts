@@ -145,7 +145,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data).toEqual({ success: true, data: mockEntry });
       expect(result.status).toBe(200);
       expect(prisma.tTEntry.findUnique).toHaveBeenCalledWith({
-        where: { id: 'e1' },
+        where: { id: 'e1', tournamentId: 't1' },
         include: {
           player: true,
           tournament: true,
@@ -174,7 +174,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch time trial entry' });
       expect(result.status).toBe(500);
       /* Logger is called before handleDatabaseError, so both are invoked */
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch entry', { error: expect.any(Error), entryId: 'e1' });
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch entry', { error: expect.any(Error), entryId: 'e1', tournamentId: 't1' });
     });
 
     it('should handle invalid entry ID gracefully', async () => {
@@ -585,6 +585,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       await PUT(request, { params });
 
+      /* The post-update re-fetch uses `where: { id }` without tournamentId
+       * (see route.ts line ~198). IDOR is already enforced by the earlier
+       * freeze-check / auth-check reads. */
       expect(prisma.tTEntry.findUnique).toHaveBeenCalledWith({
         where: { id: 'e1' },
         include: {

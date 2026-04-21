@@ -110,7 +110,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(result).toEqual({ data: mockMatch, status: 200 });
       expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect(prisma.mRMatch.findUnique).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         include: { player1: true, player2: true },
       });
     });

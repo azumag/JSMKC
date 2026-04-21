@@ -91,11 +91,16 @@ function evictStaleEntries(): void {
  * to the end (most recently used). Expired entries are evicted on each call.
  */
 function setCacheEntry(key: string, value: unknown): void {
-  evictStaleEntries();
   // Delete first to ensure the key is removed from its current position
   // (Map preserves insertion order, so re-inserting moves key to end)
   pollingCache.delete(key);
   pollingCache.set(key, { data: value, timestamp: Date.now() });
+  /* Evict AFTER inserting so the new entry actually contributes to the
+   * size check. Running eviction before the insert would leave the cache
+   * at MAX + 1 whenever adding the 21st key: pre-eviction size is 20
+   * (not > 20), no removal happens, then the insert pushes size to 21.
+   */
+  evictStaleEntries();
 }
 
 /**
@@ -170,9 +175,14 @@ export function usePolling<T>(
   // State for the fetched data, errors, and ETag tracking.
   // Uses a lazy initializer (function form) so the cache lookup runs only
   // on the initial mount, not on every render.
-  const [data, setData] = useState<T | null>(() =>
-    cacheKey ? (getCacheEntry(cacheKey) as T) : null
-  );
+  const [data, setData] = useState<T | null>(() => {
+    /* Normalize cache miss (undefined) to null so callers can rely on
+     * data === null before the first fetch regardless of whether a
+     * cacheKey is configured. */
+    if (!cacheKey) return null;
+    const cached = getCacheEntry(cacheKey) as T | undefined;
+    return cached ?? null;
+  });
   const [error, setError] = useState<Error | null>(null);
   const [lastETag, setLastETag] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

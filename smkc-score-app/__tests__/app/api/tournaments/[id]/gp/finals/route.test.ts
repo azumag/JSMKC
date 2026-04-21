@@ -41,6 +41,11 @@ jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 jest.mock('@/lib/sanitize', () => ({
   sanitizeInput: jest.fn((input: unknown) => input),
 }));
+/* Mock qualification-confirmed-check: finals-route gates POST/PUT before the
+ * handler runs. Return null (= not locked). */
+jest.mock('@/lib/qualification-confirmed-check', () => ({
+  checkQualificationConfirmed: jest.fn().mockResolvedValue(null),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -48,6 +53,7 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
 import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 const jsonMock = NextResponseMock.NextResponse.json;
@@ -76,8 +82,19 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
-    jsonMock.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (createLogger as jest.Mock).mockReturnValue(logger);
+    /* finals-route defensive tournament existence check */
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 't1' });
+    /* Patch in missing gPMatch members used by PUT bracket advancement. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gpMatch = prisma.gPMatch as any;
+    if (!gpMatch.count) gpMatch.count = jest.fn();
+    if (!gpMatch.findFirst) gpMatch.findFirst = jest.fn();
+    if (!gpMatch.createMany) gpMatch.createMany = jest.fn();
+    gpMatch.count.mockResolvedValue(17);
+    gpMatch.findFirst.mockResolvedValue(null);
+    gpMatch.createMany.mockResolvedValue({ count: 0 });
   });
 
   afterEach(() => {
@@ -95,7 +112,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       ];
       const mockPaginatedResult = {
         data: mockMatches,
-        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+        meta: { page: 1, limit: 50, total: 1, totalPages: 1 },
       };
 
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
@@ -108,6 +125,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.data).toEqual({
         ...mockPaginatedResult,
         bracketStructure: mockBracket,
+        bracketSize: expect.any(Number),
         roundNames,
       });
       expect(result.status).toBe(200);
@@ -115,7 +133,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1', stage: 'finals' },
         { matchNumber: 'asc' },
-        { page: 1, limit: 50 }
+        { page: 1, limit: 50, include: { player1: true, player2: true } }
       );
       expect(generateBracketStructure).toHaveBeenCalledWith(8);
     });
@@ -124,7 +142,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
     it('should return empty bracket when no matches exist', async () => {
       const mockPaginatedResult = {
         data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+        meta: { page: 1, limit: 50, total: 0, totalPages: 0 },
       };
 
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
@@ -142,7 +160,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
     it('should use custom page and limit parameters when provided', async () => {
       const mockPaginatedResult = {
         data: [],
-        pagination: { page: 2, limit: 20, total: 0, totalPages: 0 },
+        meta: { page: 2, limit: 20, total: 0, totalPages: 0 },
       };
 
       (paginate as jest.Mock).mockResolvedValue(mockPaginatedResult);
@@ -157,7 +175,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         expect.any(Object),
         expect.any(Object),
         expect.any(Object),
-        { page: 2, limit: 20 }
+        { page: 2, limit: 20, include: { player1: true, player2: true } }
       );
     });
 
@@ -263,7 +281,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Only 8-player and 16-player brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
+      expect(result.data).toEqual({ success: false, error: 'Only 8-player, 16-player, or 24-player (Top-16 + playoff) brackets are supported', code: 'VALIDATION_ERROR', details: { field: 'topN' } });
       expect(result.status).toBe(400);
     });
 

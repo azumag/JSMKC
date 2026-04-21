@@ -109,10 +109,9 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({
-        message: 'Match created successfully',
-        match: mockMatch,
-      });
+      /* message lives on the envelope (createSuccessResponse 2nd arg) and is
+       * dropped when the helper unwraps body.data. Only `match` remains. */
+      expect(result.data).toEqual({ match: mockMatch });
       expect(result.status).toBe(201);
       expect(prisma.mRMatch.create).toHaveBeenCalledWith({
         data: {
