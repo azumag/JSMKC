@@ -448,6 +448,8 @@
     "generateConfirmTitle": "Generate Finals Bracket?",
     "generateConfirmDesc": "This will create a double elimination bracket using top 8 players from qualification round. Make sure all qualification matches are completed.",
     "generate": "Generate",
+    "upperBracket": "Upper Bracket",
+    "playoffBracket": "Playoff",
     "resetConfirmTitle": "Reset Finals Bracket?",
     "resetConfirmDesc": "This will delete all existing finals matches and create a new bracket. This action cannot be undone.",
     "reset": "Reset",

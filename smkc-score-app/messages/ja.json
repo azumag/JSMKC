@@ -447,6 +447,8 @@
     "generateConfirmTitle": "決勝ブラケットを生成しますか？",
     "generateConfirmDesc": "予選上位8名からダブルエリミネーションブラケットを作成します。予選の全試合が完了していることを確認してください。",
     "generate": "生成",
+    "upperBracket": "アッパーブラケット",
+    "playoffBracket": "プレーオフ",
     "resetConfirmTitle": "決勝ブラケットをリセットしますか？",
     "resetConfirmDesc": "既存の決勝試合をすべて削除し、新しいブラケットを作成します。この操作は元に戻せません。",
     "reset": "リセット",
