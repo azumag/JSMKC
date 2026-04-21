@@ -134,11 +134,12 @@ function getStatus(url) {
 
 async function main() {
   let browser = null;
-  /* 240m default: tc-all now runs its own inline tests AND the BM/MR/GP/TA
-   * suites in-process (no more child processes). BM alone is ~28m and GP's
-   * finals flow adds another ~20m, so the old 90m cap would cut off before TA
-   * even started. Override with E2E_ALL_SUITE_TIMEOUT_MS if tuning is needed. */
-  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 240 * 60 * 1000));
+  /* 360m default: setupAllModes alone burns ~90m (TA + BM + MR re-nav + GP
+   * re-nav). Inline TCs add ~15m. Each mode suite (BM/MR/GP/TA) drives its
+   * own 28-player finals setup which adds another 30-50m per suite. A 240m
+   * cap consistently cut off mid-MR-finals on production. Override with
+   * E2E_ALL_SUITE_TIMEOUT_MS when tuning. */
+  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 360 * 60 * 1000));
   const suiteTimer = setTimeout(() => {
     console.error(`[tc-all] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
     exitAfterCleanup(124, () => closeBrowser(browser));

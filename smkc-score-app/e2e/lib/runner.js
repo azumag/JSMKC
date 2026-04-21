@@ -155,7 +155,17 @@ async function runSuiteInBrowser({
 }) {
   if (!page) throw new Error('runSuiteInBrowser requires an open page');
   const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
-  const testTimeoutMs = envMs('E2E_TEST_TIMEOUT_MS', DEFAULT_TEST_TIMEOUT_MS);
+  /* In-process composition: a single 28-player finals "first" test (e.g.
+   * TC-604, TC-503, TC-703) consumes ~40 min just to UI-seed 182 matches
+   * before any assertion runs. The standalone runSuite path inherited the
+   * same default but also a child-process budget (E2E_CHILD_TIMEOUT_MS=40m
+   * historically), and the suite-level progress watchdog was 10 min — both
+   * fired before TC-604 could log. Inside runSuiteInBrowser we widen the
+   * default test timeout to 60 min (heavy-finals headroom) and the
+   * watchdog to 45 min so beforeAll + the first finals setup can finish
+   * before either trips. Per-test `timeoutMs` overrides still win. */
+  const testTimeoutMs = envMs('E2E_TEST_TIMEOUT_MS', 60 * 60 * 1000);
+  const progressTimeoutMs = envMs('E2E_PROGRESS_TIMEOUT_MS', 45 * 60 * 1000);
   let afterAllRan = false;
   const runAfterAll = async () => {
     if (afterAllRan) return;
@@ -163,7 +173,7 @@ async function runSuiteInBrowser({
     if (afterAll) await afterAll(page);
   };
 
-  const progress = createProgressWatchdog(suiteName, undefined, runAfterAll);
+  const progress = createProgressWatchdog(suiteName, progressTimeoutMs, runAfterAll);
   let forcedFailure = false;
 
   /* Soft timeout: log + break, don't kill the process — the parent
