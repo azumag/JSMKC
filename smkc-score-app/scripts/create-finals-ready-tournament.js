@@ -234,10 +234,25 @@ async function fetchSessionStatus(page) {
   });
 }
 
+async function fetchAuthSession(page) {
+  return page.evaluate(async () => {
+    const res = await fetch('/api/auth/session');
+    return { status: res.status, body: await res.json().catch(() => null) };
+  });
+}
+
 async function ensureAdminSession(page, profileDir) {
-  const session = await fetchSessionStatus(page);
-  const data = session.body?.data || {};
-  if (session.status !== 200 || data.authenticated !== true || data.role !== 'admin') {
+  const statusRes = await fetchSessionStatus(page);
+  const statusData = statusRes.body?.data || {};
+  const authSession = await fetchAuthSession(page);
+  const sessionUser = authSession.body?.user || {};
+
+  if (
+    statusRes.status !== 200 ||
+    statusData.authenticated !== true ||
+    authSession.status !== 200 ||
+    sessionUser.role !== 'admin'
+  ) {
     throw new Error(
       `Admin session was not confirmed in ${profileDir}. ` +
       'Log in with the Playwright profile first, then rerun this script.',

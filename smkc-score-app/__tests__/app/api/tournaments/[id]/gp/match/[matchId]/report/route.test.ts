@@ -524,13 +524,19 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(handleValidationError).toHaveBeenCalledWith('Invalid character', 'character');
     });
 
-    // Validation error case - Returns 400 when match is already completed
-    // Completed check runs before auth/logging to avoid unnecessary DB calls
-    /* TODO: product behaviour changed — completed matches now trigger the
-     * "Score correction saved" path (returns 200 + corrected: true) rather
-     * than rejecting with 400. Needs product-side review: is the old test
-     * name still the spec, or is correction-on-completed the new intent? */
-    it.skip('should return 400 when match is already completed', async () => {
+    /*
+     * Spec confirmed 2026-04-21: completed matches are NOT rejected. They
+     * enter the "score correction" path — the original admin confirmation
+     * stays intact but the participant can re-submit a corrected score,
+     * which overwrites points1/points2 and re-runs qualification recalc.
+     * BM and MR report routes implement the same correction path, so the
+     * behavior is cross-mode by design (not a GP-only quirk).
+     *
+     * The older spec (400 + "Match already completed") was removed when
+     * the correction path was introduced; this test now pins the current
+     * contract so future refactors can't silently drop it.
+     */
+    it('should enter correction path and save updated score when match is already completed', async () => {
       const mockMatch = {
         id: 'm1',
         player1Id: 'p1',
@@ -540,14 +546,25 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         completed: true,
       };
 
-      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      const correctedMatch = {
+        ...mockMatch,
+        points1: 45,
+        points2: 30,
+        completed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+        version: 2,
+      };
 
-      /* Pass a full-shape valid races array so we clear the races/cup checks
-       * and reach the completed-match guard — validation order changed so
-       * completed is no longer the earliest failure. */
+      (prisma.gPMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce({ version: 1 }); // updateWithRetry callback: version check
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(correctedMatch);
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
-        cup: 'Mushroom Cup',
         races: [
           { course: 'Mario Circuit 1', position1: 1, position2: 2 },
           { course: 'Donut Plains 1', position1: 1, position2: 2 },
@@ -560,12 +577,19 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const result = await POST(request, { params });
 
       expect(result).toEqual({
-        data: { error: 'Match already completed', field: 'matchStatus' },
-        status: 400
+        data: { match: correctedMatch, corrected: true },
+        message: 'Score correction saved',
+        status: 200,
       });
-      expect(handleValidationError).toHaveBeenCalledWith('Match already completed', 'matchStatus');
-      // No score entry log should be created since completed check is early
-      expect(prisma.scoreEntryLog.create).not.toHaveBeenCalled();
+      expect(createSuccessResponse).toHaveBeenCalledWith(
+        { match: correctedMatch, corrected: true },
+        'Score correction saved'
+      );
+      expect(handleValidationError).not.toHaveBeenCalled();
+      /* Both players' qualification stats must be recalculated after a
+       * correction — the route calls recalculatePlayerStats twice, each
+       * call fires an updateMany under the hood. */
+      expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
     });
 
     // Error case - Returns 500 when database operation fails

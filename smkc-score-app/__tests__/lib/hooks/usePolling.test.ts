@@ -809,53 +809,61 @@ describe('usePolling', () => {
       expect(result.current.data).toBeNull();
     });
 
-    /* TODO: investigate why this test times out with fake timers even after
-     * the setCacheEntry eviction order fix. The 25 `await act(...)` rounds
-     * appear to stall on a pending microtask/setTimeout that fake timers
-     * don't flush here. Logic-level coverage for this behavior is already
-     * exercised by the preceding LRU test ("should evict oldest entries
-     * when cache exceeds max size (LRU)"). Re-enable once the test-side
-     * timer stall is diagnosed. */
-    it.skip('should evict expired entries when cache exceeds max size', async () => {
+    it('should evict expired entries when cache exceeds max size', async () => {
       /*
        * Test that when cache exceeds max size (20), expired entries
        * are evicted first before non-expired entries.
+       *
+       * Implementation note: we advance the wall clock with
+       * `jest.setSystemTime` rather than `jest.advanceTimersByTime`.
+       * Advancing timers 31 real minutes would synchronously flush tens
+       * of thousands of pending poll setTimeouts scheduled by unmounted
+       * hooks (each hook schedules a re-poll via setTimeout before its
+       * cleanup runs), causing the test to stall. Moving the clock
+       * forward instead lets `getCacheEntry`'s `Date.now() - entry.timestamp`
+       * check see the entries as expired without firing timers.
        */
-      const mockData = { id: 1 };
       const cacheKeyPrefix = 'test/ttl-size-';
+      const baseTime = Date.now();
+      const hooks: { unmount: () => void }[] = [];
 
-      /* Create 15 entries that will expire soon */
+      /* Create 15 entries that will expire soon. Mirrors the LRU test's
+       * act-wrapped renderHook pattern, which flushes the fetchFn promise
+       * and cache write before proceeding. */
       for (let i = 0; i < 15; i++) {
+        const mockFetch = jest.fn().mockResolvedValue({ id: i });
         const { unmount } = await act(async () => {
           return renderHook(() =>
-            usePolling(jest.fn().mockResolvedValue({ id: i }), {
-              cacheKey: `${cacheKeyPrefix}${i}`,
-            })
+            usePolling(mockFetch, { cacheKey: `${cacheKeyPrefix}${i}` })
           );
         });
-        unmount();
+        hooks.push({ unmount });
       }
 
-      /* Advance time past TTL for the first 15 entries */
-      act(() => {
-        jest.advanceTimersByTime(31 * 60 * 1000); // 31 minutes
-      });
+      /* Move wall clock past TTL for the first 15 entries without
+       * firing any pending polling setTimeouts — `advanceTimersByTime`
+       * would fire every 3s poll for 31 minutes across 15 hooks. */
+      jest.setSystemTime(baseTime + 31 * 60 * 1000);
 
-      /* Now add 10 more fresh entries - this should trigger eviction
-       * of the expired entries before the non-expired ones */
+      /* Now add 10 more fresh entries — this should trigger eviction
+       * of the expired entries before the non-expired ones. */
       for (let i = 15; i < 25; i++) {
+        const mockFetch = jest.fn().mockResolvedValue({ id: i });
         const { unmount } = await act(async () => {
           return renderHook(() =>
-            usePolling(jest.fn().mockResolvedValue({ id: i }), {
-              cacheKey: `${cacheKeyPrefix}${i}`,
-            })
+            usePolling(mockFetch, { cacheKey: `${cacheKeyPrefix}${i}` })
           );
         });
-        unmount();
+        hooks.push({ unmount });
       }
 
-      /* First 5 expired entries (0-4) should have been evicted
-       * to make room, even though they were inserted first */
+      /* Unmount all before asserting against the module cache. */
+      hooks.forEach((h) => h.unmount());
+
+      /* The first expired entries (0-4) should have been evicted
+       * to make room for the fresh ones (15-24), even though LRU order
+       * would normally preserve insertion sequence — expired entries
+       * are removed first by evictStaleEntries(). */
       const { result: evictedResult } = renderHook(() =>
         usePolling(jest.fn().mockResolvedValue(null), {
           immediate: false,
@@ -864,7 +872,7 @@ describe('usePolling', () => {
       );
       expect(evictedResult.current.data).toBeNull();
 
-      /* Later entries (15-24) should still be cached */
+      /* Later entries (15-24) should still be cached. */
       const { result: retainedResult } = renderHook(() =>
         usePolling(jest.fn().mockResolvedValue(null), {
           immediate: false,
