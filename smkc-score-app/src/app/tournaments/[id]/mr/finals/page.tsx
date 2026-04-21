@@ -167,6 +167,14 @@ export default function MatchRaceFinals({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [bracketSize, setBracketSize] = useState<8 | 16 | 24>(8);
+  /** Apply topN from sessionStorage if set by qualification page */
+  useEffect(() => {
+    const stored = sessionStorage.getItem('mr_finals_topN');
+    if (stored === '24' || stored === '16') {
+      setBracketSize(parseInt(stored) as 8 | 16 | 24);
+    }
+    sessionStorage.removeItem('mr_finals_topN');
+  }, []);
   const [phase, setPhase] = useState<'playoff' | 'finals' | undefined>(undefined);
   const [playoffMatches, setPlayoffMatches] = useState<MRMatch[]>([]);
   const [playoffStructure, setPlayoffStructure] = useState<BracketMatch[]>([]);

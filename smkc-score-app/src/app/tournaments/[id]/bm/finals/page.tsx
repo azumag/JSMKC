@@ -169,6 +169,14 @@ export default function BattleModeFinals({
   const [creating, setCreating] = useState(false);
   /** Bracket size: 8 (top 8), 16 (top 16), or 24 (top 12 + playoff, §4.2 issue #454) */
   const [bracketSize, setBracketSize] = useState<8 | 16 | 24>(8);
+  /** Apply topN from sessionStorage if set by qualification page */
+  useEffect(() => {
+    const stored = sessionStorage.getItem('bm_finals_topN');
+    if (stored === '24' || stored === '16') {
+      setBracketSize(parseInt(stored) as 8 | 16 | 24);
+    }
+    sessionStorage.removeItem('bm_finals_topN');
+  }, []);
   /** Playoff phase state: 'playoff' while scoring barrage, 'finals' for upper bracket */
   const [phase, setPhase] = useState<'playoff' | 'finals' | undefined>(undefined);
   /** Playoff matches (stage='playoff') during barrage phase */

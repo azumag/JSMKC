@@ -390,10 +390,13 @@ export default function BattleModePage({
              if (needsPlayoff) {
                return (
                  <div className="flex gap-2">
-                   <Button asChild>
-                     <Link href={`/tournaments/${tournamentId}/bm/finals`}>
-                       {tc('startPlayoff')}
-                     </Link>
+                   <Button
+                     onClick={() => {
+                       sessionStorage.setItem('bm_finals_topN', '24');
+                       window.location.href = `/tournaments/${tournamentId}/bm/finals`;
+                     }}
+                   >
+                     {tc('startPlayoff')}
                    </Button>
                    <Button variant="outline" asChild>
                      <Link href={`/tournaments/${tournamentId}/bm/finals`}>
