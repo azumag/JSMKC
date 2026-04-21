@@ -136,47 +136,46 @@ function filterTests(tests) {
   return filtered;
 }
 
-async function runSuite({ suiteName, results, log, tests, beforeAll = null, afterAll = null }) {
+/**
+ * Run a suite using an already-open browser/page. Does NOT launch or close the
+ * browser and does NOT call process.exit, so it can be composed by tc-all to
+ * run multiple suites back-to-back inside a single Playwright profile session.
+ *
+ * Returns { failed, summary } where `failed` is true if any test failed or a
+ * fatal error was raised.
+ */
+async function runSuiteInBrowser({
+  suiteName,
+  page,
+  results,
+  log,
+  tests,
+  beforeAll = null,
+  afterAll = null,
+}) {
+  if (!page) throw new Error('runSuiteInBrowser requires an open page');
   const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
   const testTimeoutMs = envMs('E2E_TEST_TIMEOUT_MS', DEFAULT_TEST_TIMEOUT_MS);
-  let browser = null;
-  let page = null;
   let afterAllRan = false;
-
   const runAfterAll = async () => {
     if (afterAllRan) return;
     afterAllRan = true;
-    if (afterAll && page) await afterAll(page);
+    if (afterAll) await afterAll(page);
   };
 
-  const cleanupSuite = async () => {
-    await runAfterAll();
-    await closeBrowser(browser);
-  };
-
-  const progress = createProgressWatchdog(suiteName, undefined, cleanupSuite);
+  const progress = createProgressWatchdog(suiteName, undefined, runAfterAll);
   let forcedFailure = false;
 
+  /* Soft timeout: log + break, don't kill the process — the parent
+   * orchestrator owns global exit. */
+  let softTimeoutFired = false;
   const suiteTimer = setTimeout(() => {
-    console.error(`[${suiteName}] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
-    exitAfterCleanup(124, cleanupSuite);
+    softTimeoutFired = true;
+    console.error(`[${suiteName}] suite timed out after ${formatDuration(suiteTimeoutMs)} — aborting remaining tests`);
   }, suiteTimeoutMs);
 
   try {
     const runnableTests = filterTests(tests);
-    const profileDir = process.env.E2E_PROFILE_DIR || DEFAULT_PROFILE_DIR;
-    const headless = process.env.E2E_HEADLESS === '1';
-    browser = await chromium.launchPersistentContext(profileDir, {
-      headless,
-      viewport: { width: 1280, height: 720 },
-    });
-    installApiLogging(browser, suiteName);
-    page = browser.pages()[0] || await browser.newPage();
-    page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
-    page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
-
-    progress.reset('initial navigation');
-    await nav(page, '/');
 
     if (beforeAll) {
       progress.reset('beforeAll');
@@ -184,6 +183,11 @@ async function runSuite({ suiteName, results, log, tests, beforeAll = null, afte
     }
 
     for (const test of runnableTests) {
+      if (softTimeoutFired) {
+        recordFailure(results, log, test.name, `Skipped — ${suiteName} suite timeout exceeded`);
+        forcedFailure = true;
+        continue;
+      }
       const timeoutMs = test.timeoutMs || testTimeoutMs;
       const started = Date.now();
       progress.reset(test.name);
@@ -205,9 +209,54 @@ async function runSuite({ suiteName, results, log, tests, beforeAll = null, afte
   } finally {
     clearTimeout(suiteTimer);
     progress.stop();
-    await cleanupSuite();
-    const summary = summarizeResults(suiteName, results);
-    process.exit(forcedFailure || summary.failed > 0 ? 1 : 0);
+    await runAfterAll().catch((err) => {
+      console.error(`[${suiteName}] afterAll failed:`, err instanceof Error ? err.message : err);
+    });
+  }
+  const summary = summarizeResults(suiteName, results);
+  return { failed: forcedFailure || summary.failed > 0, summary };
+}
+
+async function runSuite({ suiteName, results, log, tests, beforeAll = null, afterAll = null }) {
+  const suiteTimeoutMs = envMs('E2E_SUITE_TIMEOUT_MS', DEFAULT_SUITE_TIMEOUT_MS);
+  let browser = null;
+  let page = null;
+
+  /* runSuiteInBrowser always invokes afterAll inside its own finally block,
+   * so runSuite only needs to own the browser lifecycle + outer hard timeout. */
+  const cleanupBrowser = () => closeBrowser(browser);
+
+  let forcedFailure = false;
+  const hardSuiteTimer = setTimeout(() => {
+    console.error(`[${suiteName}] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
+    exitAfterCleanup(124, cleanupBrowser);
+  }, suiteTimeoutMs);
+
+  try {
+    const profileDir = process.env.E2E_PROFILE_DIR || DEFAULT_PROFILE_DIR;
+    const headless = process.env.E2E_HEADLESS === '1';
+    browser = await chromium.launchPersistentContext(profileDir, {
+      headless,
+      viewport: { width: 1280, height: 720 },
+    });
+    installApiLogging(browser, suiteName);
+    page = browser.pages()[0] || await browser.newPage();
+    page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
+    page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
+
+    await nav(page, '/');
+
+    const { failed } = await runSuiteInBrowser({
+      suiteName, page, results, log, tests, beforeAll, afterAll,
+    });
+    forcedFailure = failed;
+  } catch (err) {
+    forcedFailure = true;
+    console.error(`[${suiteName}] fatal error:`, err instanceof Error ? err.stack || err.message : err);
+  } finally {
+    clearTimeout(hardSuiteTimer);
+    await cleanupBrowser();
+    process.exit(forcedFailure ? 1 : 0);
   }
 }
 
@@ -222,6 +271,7 @@ module.exports = {
   exitAfterCleanup,
   formatDuration,
   runSuite,
+  runSuiteInBrowser,
   summarizeResults,
   withTimeout,
 };

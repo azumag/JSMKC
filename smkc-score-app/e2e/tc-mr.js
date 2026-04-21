@@ -960,26 +960,21 @@ async function runTc822(adminPage) {
   log('TC-822', 'SKIP', 'feature not implemented (no scoresConfirmed column on MRMatch)');
 }
 
-// Export individual test functions for integration into tc-all.js
-module.exports = {
-  runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
-  runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822,
-};
-
-// Standalone execution
-if (require.main === module) {
-  runSuite({
+/* See tc-bm.js::getSuite for the shared-fixture composition contract. */
+function getSuite({ sharedFixture: externalFixture = null } = {}) {
+  const ownsFixture = !externalFixture;
+  return {
     suiteName: 'MR',
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
     },
     afterAll: async () => {
-      if (sharedFixture) {
+      if (ownsFixture && sharedFixture) {
         await sharedFixture.cleanup();
-        sharedFixture = null;
       }
+      sharedFixture = null;
       sharedMrFinalsReady = false;
     },
     tests: [
@@ -998,5 +993,16 @@ if (require.main === module) {
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-822', fn: runTc822 },
     ],
-  });
+  };
+}
+
+module.exports = {
+  runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
+  runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822,
+  getSuite,
+  results,
+};
+
+if (require.main === module) {
+  runSuite(getSuite());
 }

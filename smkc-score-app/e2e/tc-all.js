@@ -39,7 +39,12 @@ const {
   envMs,
   exitAfterCleanup,
   formatDuration,
+  runSuiteInBrowser,
 } = require('./lib/runner');
+const bmModule = require('./tc-bm');
+const mrModule = require('./tc-mr');
+const gpModule = require('./tc-gp');
+const taModule = require('./tc-ta');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 /* TID is set at runtime from a dedicated test tournament we create in main().
@@ -129,14 +134,21 @@ function getStatus(url) {
 
 async function main() {
   let browser = null;
-  /* 90m default: BM alone runs ~28m, so 60m easily cuts off cleanup even on a
-   * fully-passing run. Override with E2E_ALL_SUITE_TIMEOUT_MS if needed. */
-  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 90 * 60 * 1000));
+  /* 240m default: tc-all now runs its own inline tests AND the BM/MR/GP/TA
+   * suites in-process (no more child processes). BM alone is ~28m and GP's
+   * finals flow adds another ~20m, so the old 90m cap would cut off before TA
+   * even started. Override with E2E_ALL_SUITE_TIMEOUT_MS if tuning is needed. */
+  const suiteTimeoutMs = envMs('E2E_ALL_SUITE_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 240 * 60 * 1000));
   const suiteTimer = setTimeout(() => {
     console.error(`[tc-all] suite timed out after ${formatDuration(suiteTimeoutMs)}`);
     exitAfterCleanup(124, () => closeBrowser(browser));
   }, suiteTimeoutMs);
-  progressWatchdog = createProgressWatchdog('tc-all', undefined, () => closeBrowser(browser));
+  /* setupAllModes28PlayerQualification wires TA + BM + MR + GP qualifications
+   * for the 28-player tournament back-to-back; on production this consistently
+   * runs 15–25 min of API-driven work with no log() calls, which would trip
+   * the default 10 min progress watchdog. Bump to 30 min by default — the
+   * existing E2E_PROGRESS_TIMEOUT_MS env override still wins when set. */
+  progressWatchdog = createProgressWatchdog('tc-all', envMs('E2E_PROGRESS_TIMEOUT_MS', 30 * 60 * 1000), () => closeBrowser(browser));
 
   /* tc-all now reuses the shared E2E fixture (same as tc-bm/tc-mr/tc-gp/tc-ta)
    * so the 28 reusable players + "E2E Shared Normal" tournament are created
@@ -1533,53 +1545,41 @@ async function main() {
     }
   }
 
-  // ===== Optional mode-specific child-process suites =====
-  // tc-bm.js / tc-mr.js / tc-gp.js each spawn their own Playwright browser, so we
-  // must close the persistent profile here first to release the lock. Run them
-  // sequentially (not in parallel) for the same reason.
-  //
-  // Use spawnSync + stdio: 'inherit' (instead of execSync which buffers and
-  // truncates at 1MB by default). The 28-player full workflows produce too
-  // much console output to safely buffer; inheriting stdio also gives the
-  // operator real-time visibility instead of waiting for the child to finish.
-  // We rely on the child's exit code (non-zero ⇒ failure) for pass/fail
-  // tracking, since the buffered "FAIL:" string parser can't see inherited output.
-  const { spawnSync } = require('child_process');
-  const projectRoot = __dirname.replace(/\/e2e$/, '');
-  await cleanupSharedResources();
-  await closeBrowser(browser);
-  browser = null;
-
-  function runChildScript(label, script) {
-    const timeoutMs = envMs('E2E_CHILD_TIMEOUT_MS', 40 * 60 * 1000);
-    console.log(`\n========== Running ${label} (${script}) ==========`);
-    const result = spawnSync(process.execPath, [script], {
-      cwd: projectRoot,
-      env: { ...process.env, E2E_BASE_URL: BASE },
-      timeout: timeoutMs,
-      killSignal: 'SIGTERM',
-      stdio: 'inherit',
-    });
-    if (result.error) {
-      console.error(`[${label}] spawn error after ${formatDuration(timeoutMs)}:`, result.error.message);
-      return true;
-    }
-    return result.status !== 0;
-  }
-
-  /* Child scripts inherit stdio but do not call tc-all's log(), so the
-   * parent's progress watchdog would otherwise fire after 10m of "silence".
-   * Each child script owns its own watchdog — safe to stop the parent's here. */
+  // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
+  // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
+  // through spawnSync, which meant `node e2e/tc-all.js` silently skipped
+  // per-mode coverage by default and forced a second browser launch + a
+  // duplicate shared-fixture bootstrap for every run. The tc-*.js modules now
+  // expose `getSuite({ sharedFixture })`, so we compose them here using the
+  // same browser/page and the same shared fixture that tc-all already created.
+  // This is the single integration point — there is no longer a child-process
+  // path and no duplicated setup.
   if (progressWatchdog) {
+    /* Per-suite watchdogs reset on every test; suppress the parent's to avoid
+     * a double firing at the exact same timeout. */
     progressWatchdog.stop();
     progressWatchdog = null;
   }
 
-  const runFocusedSuites = process.env.E2E_RUN_FOCUSED_SUITES === '1';
-  const bmFailed = runFocusedSuites ? runChildScript('BM Tests', 'e2e/tc-bm.js') : false;
-  const mrFailed = runFocusedSuites ? runChildScript('MR Tests', 'e2e/tc-mr.js') : false;
-  const gpFailed = runFocusedSuites ? runChildScript('GP Tests', 'e2e/tc-gp.js') : false;
-  const taFailed = runFocusedSuites ? runChildScript('TA Tests', 'e2e/tc-ta.js') : false;
+  const suites = [
+    { label: 'BM Tests', mod: bmModule },
+    { label: 'MR Tests', mod: mrModule },
+    { label: 'GP Tests', mod: gpModule },
+    { label: 'TA Tests', mod: taModule },
+  ];
+
+  const suiteFailures = {};
+  for (const { label, mod } of suites) {
+    console.log(`\n========== Running ${label} (in-process) ==========`);
+    const spec = mod.getSuite({ sharedFixture });
+    try {
+      const { failed } = await runSuiteInBrowser({ ...spec, page });
+      suiteFailures[spec.suiteName] = failed;
+    } catch (err) {
+      console.error(`[${label}] runSuiteInBrowser threw:`, err instanceof Error ? err.stack || err.message : err);
+      suiteFailures[spec.suiteName] = true;
+    }
+  }
 
   // ===== Summary =====
   console.log('\n========== SUMMARY (tc-all.js inline tests) ==========');
@@ -1588,15 +1588,12 @@ async function main() {
   const sk = results.filter(r => r.s === 'SKIP').length;
   console.log(`PASS: ${p} | FAIL: ${f} | SKIP: ${sk} | Total: ${results.length}`);
   if (f > 0) results.filter(r => r.s === 'FAIL').forEach(r => console.log(`  ❌ [${r.tc}] ${r.d}`));
-  if (bmFailed) console.log('  ⚠️  BM tests (tc-bm.js) had failures — see output above');
-  if (mrFailed) console.log('  ⚠️  MR tests (tc-mr.js) had failures — see output above');
-  if (gpFailed) console.log('  ⚠️  GP tests (tc-gp.js) had failures — see output above');
-  if (taFailed) console.log('  ⚠️  TA tests (tc-ta.js) had failures — see output above');
-  if (!runFocusedSuites) {
-    console.log('  ℹ️  Focused mode suites skipped (set E2E_RUN_FOCUSED_SUITES=1 to run tc-bm/tc-mr/tc-gp/tc-ta)');
+  for (const name of Object.keys(suiteFailures)) {
+    if (suiteFailures[name]) console.log(`  ⚠️  ${name} suite had failures — see output above`);
   }
 
-    return (f > 0 || bmFailed || mrFailed || gpFailed || taFailed) ? 1 : 0;
+    const anySuiteFailed = Object.values(suiteFailures).some(Boolean);
+    return (f > 0 || anySuiteFailed) ? 1 : 0;
   } finally {
     // Clean up the shared test tournament + players before closing the browser.
     await cleanupSharedResources();

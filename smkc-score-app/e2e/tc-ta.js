@@ -496,20 +496,18 @@ async function runTc808(adminPage) {
   }
 }
 
-module.exports = {
-  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808,
-};
-
-if (require.main === module) {
-  runSuite({
+/* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
+ * an additional qualification seed step that must run inside beforeAll
+ * regardless of whether the fixture is external, since TC-801 reads the
+ * module-level sharedTaEntries. */
+function getSuite({ sharedFixture: externalFixture = null } = {}) {
+  const ownsFixture = !externalFixture;
+  return {
     suiteName: 'TA',
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = await createSharedE2eFixture(adminPage);
-      /* One-time shared qualification seed: 28 players → 20-course times with
-       * rank 1..28. TC-801/802/804/805 reuse this state; TC-804 promotes and
-       * TC-806/807 chain on the same tournament. */
+      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
       const { tournamentId, entries } = await setupTaEntriesFromShared(
         adminPage,
         sharedFixture.normalTournament.id,
@@ -520,10 +518,10 @@ if (require.main === module) {
       sharedTaEntries = entries;
     },
     afterAll: async () => {
-      if (sharedFixture) {
+      if (ownsFixture && sharedFixture) {
         await sharedFixture.cleanup();
-        sharedFixture = null;
       }
+      sharedFixture = null;
       sharedTaTournamentId = null;
       sharedTaEntries = [];
     },
@@ -540,5 +538,15 @@ if (require.main === module) {
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
     ],
-  });
+  };
+}
+
+module.exports = {
+  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808,
+  getSuite,
+  results,
+};
+
+if (require.main === module) {
+  runSuite(getSuite());
 }

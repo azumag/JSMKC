@@ -525,24 +525,21 @@ async function runTc709(adminPage) {
   }
 }
 
-module.exports = {
-  runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709,
-};
-
-if (require.main === module) {
-  runSuite({
+/* See tc-bm.js::getSuite for the shared-fixture composition contract. */
+function getSuite({ sharedFixture: externalFixture = null } = {}) {
+  const ownsFixture = !externalFixture;
+  return {
     suiteName: 'GP',
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
     },
     afterAll: async () => {
-      if (sharedFixture) {
+      if (ownsFixture && sharedFixture) {
         await sharedFixture.cleanup();
-        sharedFixture = null;
       }
+      sharedFixture = null;
       sharedGpFinalsReady = false;
     },
     tests: [
@@ -556,5 +553,16 @@ if (require.main === module) {
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
     ],
-  });
+  };
+}
+
+module.exports = {
+  runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
+  runTc707, runTc708, runTc709,
+  getSuite,
+  results,
+};
+
+if (require.main === module) {
+  runSuite(getSuite());
 }

@@ -680,24 +680,27 @@ async function runTc509(adminPage) {
   }
 }
 
-module.exports = {
-  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506,
-  runTc507, runTc508, runTc509,
-};
-
-if (require.main === module) {
-  runSuite({
+/**
+ * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
+ * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
+ * the lifecycle. In standalone mode we create and tear down the fixture
+ * ourselves. This is the single source of truth for BM test ordering; the
+ * standalone `require.main === module` block below and tc-all both consume it.
+ */
+function getSuite({ sharedFixture: externalFixture = null } = {}) {
+  const ownsFixture = !externalFixture;
+  return {
     suiteName: 'BM',
     results,
     log,
     beforeAll: async (adminPage) => {
-      sharedFixture = await createSharedE2eFixture(adminPage);
+      sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
     },
     afterAll: async () => {
-      if (sharedFixture) {
+      if (ownsFixture && sharedFixture) {
         await sharedFixture.cleanup();
-        sharedFixture = null;
       }
+      sharedFixture = null;
       sharedBmFinalsReady = false;
     },
     tests: [
@@ -713,5 +716,16 @@ if (require.main === module) {
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
-  });
+  };
+}
+
+module.exports = {
+  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506,
+  runTc507, runTc508, runTc509,
+  getSuite,
+  results,
+};
+
+if (require.main === module) {
+  runSuite(getSuite());
 }
