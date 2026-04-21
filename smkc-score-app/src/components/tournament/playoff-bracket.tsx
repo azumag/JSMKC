@@ -75,14 +75,16 @@ function PlayoffMatchCard({
   bracketMatch,
   seededPlayers,
   onClick,
-  isTBD,
+  isPlayer1TBD,
+  isPlayer2TBD,
   targetWins,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   onClick?: () => void;
-  isTBD: boolean;
+  isPlayer1TBD: boolean;
+  isPlayer2TBD: boolean;
   targetWins: number;
 }) {
   const seededPlayer1 = bracketMatch.player1Seed
@@ -133,8 +135,8 @@ function PlayoffMatchCard({
               [{bracketMatch.player1Seed}]
             </span>
           )}
-          <span className={isTBD ? "text-muted-foreground" : ""}>
-            {isTBD ? "TBD" : player1?.nickname || "TBD"}
+          <span className={isPlayer1TBD ? "text-muted-foreground" : ""}>
+            {isPlayer1TBD ? "TBD" : player1?.nickname || "TBD"}
           </span>
         </span>
         <span className="font-mono">
@@ -155,8 +157,8 @@ function PlayoffMatchCard({
               [{bracketMatch.player2Seed}]
             </span>
           )}
-          <span className={isTBD ? "text-muted-foreground" : ""}>
-            {isTBD ? "TBD" : player2?.nickname || "TBD"}
+          <span className={isPlayer2TBD ? "text-muted-foreground" : ""}>
+            {isPlayer2TBD ? "TBD" : player2?.nickname || "TBD"}
           </span>
         </span>
         <span className="font-mono">
@@ -192,23 +194,36 @@ export function PlayoffBracket({
   const getBracketMatch = (matchNumber: number) =>
     playoffStructure.find((b) => b.matchNumber === matchNumber);
 
-  const isTBD = (matchNumber: number) => {
+  const isTBD = (matchNumber: number, playerPosition: 1 | 2) => {
     const match = getMatch(matchNumber);
     if (!match) return true;
     const bracketMatch = getBracketMatch(matchNumber);
-    /* Both seeds explicitly assigned AND identical player IDs → placeholder.
-     * This handles initial creation where both players map to the same fallback
-     * ID before real opponents are known. */
+
+    if (playerPosition === 1) {
+      /* Player1 is TBD only when both seeds are explicitly assigned AND the
+       * two player IDs are identical (placeholder match before real setup).
+       * BYE seeds (player1Seed only, e.g. R2) are never TBD — the player is
+       * already determined at bracket creation time. */
+      if (
+        bracketMatch?.player1Seed != null &&
+        bracketMatch?.player2Seed != null
+      ) {
+        return !match.completed && match.player1Id === match.player2Id;
+      }
+      return false;
+    }
+
+    /* Player2 is TBD when player2Seed is null (R1 winner not yet known,
+     * e.g. R2 matches before R1 completes). Also TBD for placeholder
+     * matches where both seeds are assigned but IDs are identical. */
+    if (bracketMatch?.player2Seed == null) {
+      return !match.completed;
+    }
     if (
       bracketMatch?.player1Seed != null &&
       bracketMatch?.player2Seed != null
     ) {
       return !match.completed && match.player1Id === match.player2Id;
-    }
-    /* R2 match: player2Seed is null (opponent comes from R1 winner).
-     * Until the match is completed, player2 is unknown → show as TBD. */
-    if (bracketMatch?.player2Seed == null) {
-      return !match.completed;
     }
     return false;
   };
@@ -250,7 +265,8 @@ export function PlayoffBracket({
                     const match = getMatch(b.matchNumber);
                     if (match && onMatchClick) onMatchClick(match);
                   }}
-                  isTBD={isTBD(b.matchNumber)}
+                  isPlayer1TBD={isTBD(b.matchNumber, 1)}
+                  isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   targetWins={targetWins}
                 />
               ))}
@@ -273,7 +289,8 @@ export function PlayoffBracket({
                     const match = getMatch(b.matchNumber);
                     if (match && onMatchClick) onMatchClick(match);
                   }}
-                  isTBD={isTBD(b.matchNumber)}
+                  isPlayer1TBD={isTBD(b.matchNumber, 1)}
+                  isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   targetWins={targetWins}
                 />
               ))}
