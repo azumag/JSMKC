@@ -214,10 +214,10 @@ export function PlayoffBracket({
     }
 
     /* Player2 is TBD when player2Seed is null (R1 winner not yet known,
-     * e.g. R2 matches before R1 completes). Also TBD for placeholder
-     * matches where both seeds are assigned but IDs are identical. */
+     * e.g. R2 matches before R1 completes). Once the R1 winner is routed
+     * (player2Id is set and differs from player1Id), it is no longer TBD. */
     if (bracketMatch?.player2Seed == null) {
-      return !match.completed;
+      return !match.completed && match.player1Id === match.player2Id;
     }
     if (
       bracketMatch?.player1Seed != null &&

@@ -253,9 +253,12 @@ export default function MatchRaceFinals({
     }
   }, [pollData]);
 
+  /* Derive loading from polling: only show skeleton on the very first fetch
+   * (when we have no data yet). After that keep content visible even while
+   * refetching so the bracket does not flash in/out. */
   useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+    setLoading(pollLoading && !pollData);
+  }, [pollLoading, pollData]);
 
   /**
    * Generate the finals bracket from top 8 qualification results.

@@ -233,9 +233,12 @@ export default function GrandPrixFinals({
     }
   }, [pollData]);
 
+  /* Derive loading from polling: only show skeleton on the very first fetch
+   * (when we have no data yet). After that keep content visible even while
+   * refetching so the bracket does not flash in/out. */
   useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+    setLoading(pollLoading && !pollData);
+  }, [pollLoading, pollData]);
 
   /**
    * Generate a new double elimination bracket from the top 8 qualifiers.
