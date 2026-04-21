@@ -113,16 +113,17 @@ describe("computeTieAwareRanks", () => {
     expect(computeTieAwareRanks([], bmCompareFn)).toEqual([]);
   });
 
-  it("trusts server-provided _rank instead of recomputing via compareFn", () => {
-    // Even though scores differ, the server says _rank=1 for both (H2H tiebreaker
-    // or admin override pre-applied).  Client should respect _rank.
+  it("ignores server-provided _rank and recomputes client-side group-local ranks", () => {
+    // Server _rank is global (across all groups) so it must not be reused for
+    // per-group standings. Client always recomputes ranks via compareFn.
     const entries: Entry[] = [
       { id: "a", score: 10, points: 3, rankOverride: null, _rank: 1 },
       { id: "b", score: 8, points: 2, rankOverride: null, _rank: 1 },
       { id: "c", score: 6, points: 1, rankOverride: null, _rank: 3 },
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
-    expect(result.map((e) => e._autoRank)).toEqual([1, 1, 3]);
+    // Different scores → no tie; ranks are 1, 2, 3 (not the server _rank values)
+    expect(result.map((e) => e._autoRank)).toEqual([1, 2, 3]);
   });
 });
 

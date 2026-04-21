@@ -234,8 +234,8 @@ export default function GrandPrixFinals({
   }, [pollData]);
 
   useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+    setLoading(pollLoading && !pollData);
+  }, [pollLoading, pollData]);
 
   /**
    * Generate a new double elimination bracket from the top 8 qualifiers.

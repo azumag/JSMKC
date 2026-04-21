@@ -254,10 +254,12 @@ export default function BattleModeFinals({
     }
   }, [pollData]);
 
-  /* Sync loading state with polling status */
+  /* Derive loading from polling: only show skeleton on the very first fetch
+   * (when we have no data yet). After that keep content visible even while
+   * refetching so the bracket does not flash in/out. */
   useEffect(() => {
-    setLoading(pollLoading);
-  }, [pollLoading]);
+    setLoading(pollLoading && !pollData);
+  }, [pollLoading, pollData]);
 
   /**
    * Generate or regenerate the finals bracket.

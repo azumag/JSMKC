@@ -38,39 +38,27 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 ): EntryWithAutoRank<T>[] {
   if (entries.length === 0) return [];
 
+  /* Always compute client-side ranks for group-local standings.
+   * Server _rank is computed globally (across all groups) so it cannot be
+   * reused for per-group standings — group B's #1 would appear as rank 8+
+   * instead of rank 1 within their own group. */
+  const sorted = [...entries].sort(compareFn);
+
   const withAutoRank: EntryWithAutoRank<T>[] = [];
-  // When the server has already computed _rank (includes H2H + 1224 + override),
-  // trust it instead of re-computing on the client.  This eliminates mismatches
-  // where the server resolves ties via H2H but the client would recreate them.
-  const hasServerRank = entries.length > 0 && entries[0]._rank != null;
-
-  if (hasServerRank) {
-    for (const entry of entries) {
-      withAutoRank.push({ ...entry, _autoRank: entry._rank! });
+  for (let i = 0; i < sorted.length; i++) {
+    let autoRank: number;
+    if (i === 0) {
+      autoRank = 1;
+    } else {
+      const isTied = compareFn(sorted[i - 1], sorted[i]) === 0;
+      autoRank = isTied
+        ? withAutoRank[i - 1]._autoRank // share the same rank as the previous tied entry
+        : i + 1; // 1-based index (skips over tied positions)
     }
-  } else {
-    // Fallback: client-side computation for legacy paths without server _rank.
-    // Step 1: Sort by mode-specific criteria to establish natural order
-    const sorted = [...entries].sort(compareFn);
-
-    // Step 2: Assign 1224 competition ranks using an imperative loop so we can
-    // access the previous entry's _autoRank without TDZ issues.
-    // Two consecutive entries are tied when compareFn returns 0.
-    for (let i = 0; i < sorted.length; i++) {
-      let autoRank: number;
-      if (i === 0) {
-        autoRank = 1;
-      } else {
-        const isTied = compareFn(sorted[i - 1], sorted[i]) === 0;
-        autoRank = isTied
-          ? withAutoRank[i - 1]._autoRank // share the same rank as the previous tied entry
-          : i + 1; // 1-based index (skips over tied positions)
-      }
-      withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
-    }
+    withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
   }
 
-  // Step 3: Re-sort by effective rank so the row order on screen reflects
+  // Re-sort by effective rank so the row order on screen reflects
   // admin overrides. When two entries have the same effective rank,
   // overridden entries sort first (admin authority over auto-rank).
   return [...withAutoRank].sort((a, b) => {
