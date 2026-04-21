@@ -410,14 +410,19 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
   const matches: BracketMatch[] = [];
 
   /* --- PLAYOFF ROUND 1 (Matches 1-4): 8 lower seeds pair up ---
-   * Standard single-elimination pairing for seeds 5-12: 8v9, 5v12, 6v11, 7v10.
-   * This order ensures R1 winners flow naturally into the R2 bracket positions
-   * held by BYE seeds 1, 4, 3, 2 respectively. */
+   * Cross-group pairing for 2-group qualification (A7-12, B7-12):
+   *   M1: A12(seed11) vs B11(seed10) → winner faces A7(seed1) in R2
+   *   M2: A10(seed7)  vs B9(seed6)   → winner faces B8(seed4) in R2
+   *   M3: A9(seed5)   vs B10(seed8)  → winner faces A8(seed3) in R2
+   *   M4: A11(seed9)  vs B12(seed12) → winner faces B7(seed2) in R2
+   *
+   *   seed 1   2   3   4   5   6    7    8    9   10   11   12
+   */
   const r1Pairs = [
-    [8, 9],
-    [5, 12],
-    [6, 11],
-    [7, 10],
+    [11, 10], // A12 vs B11
+    [7, 6],   // A10 vs B9
+    [5, 8],   // A9 vs B10
+    [9, 12],  // A11 vs B12
   ];
   for (let i = 0; i < 4; i++) {
     matches.push({

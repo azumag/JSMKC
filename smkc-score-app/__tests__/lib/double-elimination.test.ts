@@ -403,33 +403,33 @@ describe('Double Elimination Bracket Structure', () => {
       expect(r2).toHaveLength(4);
     });
 
-    it('should pair seeds 5-12 in R1 using standard bracket order (8v9, 5v12, 6v11, 7v10)', () => {
-      /* Standard bracket pairing for the lower 8 seeds guarantees seeds that
-       * meet at the same round are maximally separated in the overall bracket. */
+    it('should pair cross-group seeds in R1 (A12vB11, A10vB9, A9vB10, A11vB12)', () => {
+      /* Cross-group pairing for 2-group qualification.
+       * barrage[] = [A7,B7,A8,B8,A9,B9,A10,B10,A11,B11,A12,B12]
+       *             seed 1, 2, 3, 4, 5, 6,  7,  8,  9, 10, 11, 12 */
       const matches = generatePlayoffStructure(12);
       const r1 = matches.filter(m => m.round === 'playoff_r1');
-      /* Seeds are playoff-local (1-12). Seeds 1-4 BYE, 5-12 play R1. */
       const pairings = r1.map(m => [m.player1Seed, m.player2Seed]);
       expect(pairings).toEqual([
-        [8, 9],
-        [5, 12],
-        [6, 11],
-        [7, 10],
+        [11, 10], // A12 vs B11
+        [7, 6],   // A10 vs B9
+        [5, 8],   // A9 vs B10
+        [9, 12],  // A11 vs B12
       ]);
     });
 
     it('should set the BYE seeds (1-4) as player1 on R2 matches', () => {
       const matches = generatePlayoffStructure(12);
       const r2 = matches.filter(m => m.round === 'playoff_r2');
-      /* R2 match order mirrors R1 feeder order so R1→R2 routing stays trivial.
-       * R2 M5: seed 1 BYE vs R1 M1 (8v9) winner
-       * R2 M6: seed 4 BYE vs R1 M2 (5v12) winner
-       * R2 M7: seed 3 BYE vs R1 M3 (6v11) winner
-       * R2 M8: seed 2 BYE vs R1 M4 (7v10) winner */
-      expect(r2[0].player1Seed).toBe(1);
-      expect(r2[1].player1Seed).toBe(4);
-      expect(r2[2].player1Seed).toBe(3);
-      expect(r2[3].player1Seed).toBe(2);
+      /* R2 match order mirrors R1 feeder order.
+       * R2 M5: seed 1 (A7)  vs R1 M1 (A12 vs B11) winner
+       * R2 M6: seed 4 (B8)  vs R1 M2 (A10 vs B9) winner
+       * R2 M7: seed 3 (A8)  vs R1 M3 (A9 vs B10) winner
+       * R2 M8: seed 2 (B7)  vs R1 M4 (A11 vs B12) winner */
+      expect(r2[0].player1Seed).toBe(1); // A7
+      expect(r2[1].player1Seed).toBe(4); // B8
+      expect(r2[2].player1Seed).toBe(3); // A8
+      expect(r2[3].player1Seed).toBe(2); // B7
       /* player2 on each R2 match is filled by an R1 winner, not a direct seed. */
       r2.forEach(m => expect(m.player2Seed).toBeUndefined());
     });
