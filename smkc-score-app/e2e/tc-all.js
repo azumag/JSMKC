@@ -17,12 +17,14 @@ const {
   apiSetTaPartner,
   apiUpdateTaSeeding,
   apiFetchTa,
+  apiSeedTtEntry,
   apiTaParticipantEditTime,
   installApiLogging,
   setupAllModes28PlayerQualification,
   uiCreatePlayer,
   uiCreateTournament,
   uiActivateTournament,
+  uiFreezeTaQualification,
   uiPromoteTaPhase,
   uiPhaseStartRound,
   uiPhaseSubmitResults,
@@ -755,8 +757,20 @@ async function main() {
       await uiSetupTaPlayers(page, taTournamentId, [
         { id: pid, name: playerName, nickname: nick, seeding: 17 },
       ]);
-      const { times: rank17Times } = makeTaTimesForRank(17);
+      const { times: rank17Times, totalMs: rank17Total } = makeTaTimesForRank(17);
       await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank17Times);
+
+      /* The Finals Phases card (Start Phase 1/2/3 buttons) is gated on
+       * frozenStages.includes("qualification") in src/app/tournaments/[id]/ta/page.tsx:1064.
+       * Then phase1HasPlayers requires an entry with rank 17–24, but with a
+       * single player the server-derived rank is 1. Stamp rank=17 directly
+       * via the admin /tt/entries PUT (mirrors the original test pattern in
+       * commit cd1ca74) before freezing, so promote_phase1 can succeed. */
+      const taData312 = await apiFetchTa(page, taTournamentId);
+      const taEntry312 = (taData312.b?.data?.entries ?? []).find((e) => e.playerId === pid);
+      if (!taEntry312) throw new Error(`No TA entry found for player ${pid}`);
+      await apiSeedTtEntry(page, taTournamentId, taEntry312.id, rank17Times, rank17Total, 17);
+      await uiFreezeTaQualification(page, taTournamentId);
 
       /* uiPromoteTaPhase throws on non-200 so no explicit status check is
        * needed. */
@@ -811,8 +825,15 @@ async function main() {
       await uiSetupTaPlayers(page, taTournamentId, [
         { id: pid, name: playerName, nickname: nick, seeding: 17 },
       ]);
-      const { times: rank17TimesTc313 } = makeTaTimesForRank(17);
+      const { times: rank17TimesTc313, totalMs: rank17TotalTc313 } = makeTaTimesForRank(17);
       await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank17TimesTc313);
+
+      /* See TC-312 above for why we stamp rank=17 + freeze before promotion. */
+      const taData313 = await apiFetchTa(page, taTournamentId);
+      const taEntry313 = (taData313.b?.data?.entries ?? []).find((e) => e.playerId === pid);
+      if (!taEntry313) throw new Error(`No TA entry found for player ${pid}`);
+      await apiSeedTtEntry(page, taTournamentId, taEntry313.id, rank17TimesTc313, rank17TotalTc313, 17);
+      await uiFreezeTaQualification(page, taTournamentId);
 
       /* uiPromoteTaPhase throws on non-200 so no explicit status check is
        * needed. */
@@ -877,6 +898,13 @@ async function main() {
       const { times: rank2Times } = makeTaTimesForRank(2);
       await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank1Times);
       await uiSetTaEntryTimes(page, taTournamentId, { nickname: secondNick }, rank2Times);
+
+      /* The Finals Phases card is gated on frozenStages.includes("qualification"); freeze
+       * the qualification stage so the Start Phase 3 button can render. With
+       * 2 players at ranks 1 and 2, phase2HasPlayers is false so the phase3
+       * promotion button (condition: phase2 done OR no phase2 players)
+       * unlocks immediately. */
+      await uiFreezeTaQualification(page, taTournamentId);
 
       await uiPromoteTaPhase(page, taTournamentId, 'promote_phase3');
 
