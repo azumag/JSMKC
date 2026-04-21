@@ -468,6 +468,8 @@ describe('Finals Route Factory', () => {
         if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
         return Promise.resolve(mockFinalsMatches);
       });
+      /* No finals matches exist → phase should be 'playoff' */
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
 
       const config = createMockConfig({ getStyle: 'grouped' });
       const { GET } = createFinalsHandlers(config);
@@ -501,6 +503,8 @@ describe('Finals Route Factory', () => {
       ];
 
       (prisma.bMMatch as any).findMany.mockResolvedValue(mockPlayoffMatches);
+      /* No finals matches exist → phase should be 'playoff' */
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
       mockPaginate.mockResolvedValue({
         data: [createMockMatch()],
         meta: { total: 17, page: 1, limit: 50, totalPages: 1 },
@@ -539,6 +543,8 @@ describe('Finals Route Factory', () => {
         if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
         return Promise.resolve(mockFinalsMatches);
       });
+      /* Finals matches exist → phase should be 'finals' */
+      (prisma.bMMatch as any).count.mockResolvedValue(17);
 
       const config = createMockConfig({ getStyle: 'simple' });
       const { GET } = createFinalsHandlers(config);
@@ -552,7 +558,7 @@ describe('Finals Route Factory', () => {
       const json = await response.json();
       expect(json.data.playoffMatches).toEqual(mockPlayoffMatches);
       expect(json.data.playoffStructure).toBeDefined();
-      expect(json.data.phase).toBe('playoff');
+      expect(json.data.phase).toBe('finals');
       expect(json.data.playoffComplete).toBe(false);
     });
   });

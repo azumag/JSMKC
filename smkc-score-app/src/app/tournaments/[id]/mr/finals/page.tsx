@@ -50,6 +50,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -577,7 +578,50 @@ export default function MatchRaceFinals({
       )}
 
       {/* Main content: playoff, empty state, or bracket */}
-      {phase === 'playoff' ? (
+      {matches.length === 0 && playoffMatches.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
+            <CardDescription>{tFinals('generateBracketDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">{tFinals('bracketExplanation')}</p>
+            <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
+              <li><strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}</li>
+              <li><strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}</li>
+              <li><strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}</li>
+              <li><strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}</li>
+              <li><strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}</li>
+              <li><strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}</li>
+            </ul>
+          </CardContent>
+        </Card>
+      ) : playoffMatches.length > 0 && matches.length > 0 ? (
+        <Tabs defaultValue="finals" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
+            <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="finals">
+            <DoubleEliminationBracket
+              matches={matches}
+              bracketStructure={bracketStructure}
+              roundNames={roundNames}
+              seededPlayers={seededPlayers}
+              onMatchClick={isAdmin ? openMatchDialog : undefined}
+            />
+          </TabsContent>
+          <TabsContent value="playoff">
+            <PlayoffBracket
+              playoffMatches={playoffMatches}
+              playoffStructure={playoffStructure}
+              roundNames={roundNames}
+              seededPlayers={playoffSeededPlayers}
+              onMatchClick={isAdmin ? openMatchDialog : undefined}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : playoffMatches.length > 0 ? (
         <>
           <PlayoffBracket
             playoffMatches={playoffMatches}
@@ -589,54 +633,13 @@ export default function MatchRaceFinals({
           {playoffComplete && isAdmin && (
             <Card className="border-green-500/50 bg-green-500/10">
               <CardContent className="py-4 text-center">
-                <p className="text-sm text-muted-foreground mb-3">
-                  All playoff matches complete! Create the upper bracket to continue.
-                </p>
-                <Button onClick={handleCreateUpperBracket}>
-                  Create Upper Bracket
-                </Button>
+                <p className="text-sm text-muted-foreground mb-3">All playoff matches complete! Create the upper bracket to continue.</p>
+                <Button onClick={handleCreateUpperBracket}>Create Upper Bracket</Button>
               </CardContent>
             </Card>
           )}
         </>
-      ) : matches.length === 0 ? (
-        <Card>
-          <CardHeader>
-            {/* i18n: Empty state with bracket generation instructions */}
-            <CardTitle>{tFinals('noBracketYet')}</CardTitle>
-            <CardDescription>
-              {tFinals('generateBracketDesc')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* i18n: Bracket format explanation with MR-specific 5-race rules */}
-            <p className="text-muted-foreground">
-              {tFinals('bracketExplanation')}
-            </p>
-            <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
-              <li>
-                <strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}
-              </li>
-              <li>
-                <strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}
-              </li>
-              <li>
-                <strong>{tFinals('resetMatch')}</strong> {tFinals('resetMatchDesc')}
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
       ) : (
-        /* Visual bracket display component */
         <DoubleEliminationBracket
           matches={matches}
           bracketStructure={bracketStructure}

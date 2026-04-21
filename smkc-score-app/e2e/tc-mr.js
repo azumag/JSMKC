@@ -87,19 +87,21 @@ async function prepareSharedMrPair(adminPage, { dualReport = false } = {}) {
   };
 }
 
-/* Primed-once flag so every finals test reuses the dedicated finals
- * tournament's qualification state instead of re-seeding 84 matches. */
+/* Primed-once flag so every finals test reuses the shared normal
+ * tournament's qualification state instead of re-seeding 182 matches. */
 let sharedMrFinalsReady = false;
 
-/** Seed the shared `finalsTournament` (separate from the pair-tests
- *  normalTournament) with all 28 shared players and complete every non-BYE
- *  match once. Subsequent calls are no-ops — finals tests regenerate the
- *  bracket each run, which doesn't disturb qualification. */
+/** Ensure the shared `normalTournament` carries a complete 28-player MR
+ *  qualification. In the tc-all flow this is already done by
+ *  setupAllModes28PlayerQualification, so the first call here is a no-op.
+ *  In standalone mode the helper seeds the qualification from scratch.
+ *  Finals tests regenerate the bracket each run, which doesn't disturb
+ *  qualification. */
 async function prepareSharedMrFinalsSetup(adminPage) {
   if (!sharedFixture) throw new Error('Shared MR fixture is not initialized');
 
   const players = sharedMrPlayers(28);
-  const tournamentId = sharedFixture.finalsTournament.id;
+  const tournamentId = sharedFixture.normalTournament.id;
   if (!sharedMrFinalsReady) {
     await setupMrQualViaUi(adminPage, tournamentId, players);
     sharedMrFinalsReady = true;

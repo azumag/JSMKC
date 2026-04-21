@@ -169,7 +169,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         && playoffR2Matches.every((m: any) => m.completed);
 
-      const phase = playoffMatches.length > 0 ? 'playoff' as const : 'finals' as const;
+      /* Phase priority: when both playoff and finals exist (Phase-2 has run),
+       * default to 'finals' so the UI lands on the Upper Bracket first.
+       * The client can still switch to the playoff tab via the archived
+       * playoffMatches returned below. */
+      const hasFinals = await model(prisma).count({
+        where: { tournamentId, stage: 'finals' },
+      });
+      const phase = hasFinals > 0 ? 'finals' as const
+        : playoffMatches.length > 0 ? 'playoff' as const
+        : 'finals' as const;
 
       if (config.getStyle === 'paginated') {
         const { searchParams } = new URL(request.url);
@@ -615,14 +624,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const bracketStructure = generateBracketStructure(16);
 
       /* Clean slate on any previous finals for reset scenarios.
-       * Also remove the playoff stage rows so the GET handler returns
-       * phase='finals' and the UI renders the Upper Bracket, not the
-       * PlayoffBracket (issue #454 follow-up). */
+       * Keep playoff stage rows intact so the admin can still view the
+       * playoff (barrage) results after the Upper Bracket is created.
+       * The UI switches via a tab instead of relying on phase deletion. */
       await matchModel(prisma).deleteMany({
         where: { tournamentId, stage: 'finals' },
-      });
-      await matchModel(prisma).deleteMany({
-        where: { tournamentId, stage: 'playoff' },
       });
 
       const createdMatches = [];

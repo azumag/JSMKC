@@ -59,6 +59,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { POLLING_INTERVAL, BM_FINALS_TARGET_WINS } from "@/lib/constants";
@@ -585,31 +586,7 @@ export default function BattleModeFinals({
       )}
 
       {/* Main content: playoff bracket, empty state, or bracket visualization */}
-      {phase === 'playoff' ? (
-        <>
-          <PlayoffBracket
-            playoffMatches={playoffMatches}
-            playoffStructure={playoffStructure}
-            roundNames={roundNames}
-            seededPlayers={playoffSeededPlayers}
-            onMatchClick={isAdmin ? openScoreDialog : undefined}
-            targetWins={BM_FINALS_TARGET_WINS}
-          />
-          {/* "Create Upper Bracket" button — shown only when all playoff_r2 matches are complete */}
-          {playoffComplete && isAdmin && (
-            <Card className="border-green-500/50 bg-green-500/10">
-              <CardContent className="py-4 text-center">
-                <p className="text-sm text-muted-foreground mb-3">
-                  All playoff matches complete! Create the upper bracket to continue.
-                </p>
-                <Button onClick={handleCreateUpperBracket}>
-                  Create Upper Bracket
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      ) : matches.length === 0 ? (
+      {matches.length === 0 && playoffMatches.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>{tFinals('noBracketYet')}</CardTitle>
@@ -637,8 +614,61 @@ export default function BattleModeFinals({
             </ul>
           </CardContent>
         </Card>
+      ) : playoffMatches.length > 0 && matches.length > 0 ? (
+        /* Both playoff and finals exist — show tabs so the admin can review
+         * the playoff (barrage) results after the Upper Bracket is created. */
+        <Tabs defaultValue="finals" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
+            <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="finals">
+            <DoubleEliminationBracket
+              matches={matches}
+              bracketStructure={bracketStructure}
+              roundNames={roundNames}
+              seededPlayers={seededPlayers}
+              targetWins={BM_FINALS_TARGET_WINS}
+              onMatchClick={isAdmin ? openScoreDialog : undefined}
+            />
+          </TabsContent>
+          <TabsContent value="playoff">
+            <PlayoffBracket
+              playoffMatches={playoffMatches}
+              playoffStructure={playoffStructure}
+              roundNames={roundNames}
+              seededPlayers={playoffSeededPlayers}
+              onMatchClick={isAdmin ? openScoreDialog : undefined}
+              targetWins={BM_FINALS_TARGET_WINS}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : playoffMatches.length > 0 ? (
+        /* Playoff only (Phase 1) */
+        <>
+          <PlayoffBracket
+            playoffMatches={playoffMatches}
+            playoffStructure={playoffStructure}
+            roundNames={roundNames}
+            seededPlayers={playoffSeededPlayers}
+            onMatchClick={isAdmin ? openScoreDialog : undefined}
+            targetWins={BM_FINALS_TARGET_WINS}
+          />
+          {playoffComplete && isAdmin && (
+            <Card className="border-green-500/50 bg-green-500/10">
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-muted-foreground mb-3">
+                  All playoff matches complete! Create the upper bracket to continue.
+                </p>
+                <Button onClick={handleCreateUpperBracket}>
+                  Create Upper Bracket
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
       ) : (
-        /* Render the full double-elimination bracket visualization */
+        /* Finals only */
         <DoubleEliminationBracket
           matches={matches}
           bracketStructure={bracketStructure}

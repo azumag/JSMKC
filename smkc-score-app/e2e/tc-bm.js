@@ -81,22 +81,26 @@ async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
   };
 }
 
-/* Tracks whether the finals tournament has been primed by beforeAll. Once
- * primed we skip the expensive re-setup on every finals test — qualification
- * stays fully scored on the dedicated `finalsTournament` so prepareSharedBmFinalsSetup
- * becomes an almost-instant state lookup. */
+/* Tracks whether the normal tournament has been primed for BM finals tests.
+ * Once primed we skip the expensive re-setup on every finals test —
+ * qualification stays fully scored on the shared `normalTournament` so
+ * prepareSharedBmFinalsSetup becomes an almost-instant state lookup.
+ * When running inside tc-all the 28-player qualification is already seeded
+ * by setupAllModes28PlayerQualification, so the first call here is a no-op. */
 let sharedBmFinalsReady = false;
 
 async function prepareSharedBmFinalsSetup(adminPage) {
   if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
 
   const players = sharedBmPlayers(28);
-  const tournamentId = sharedFixture.finalsTournament.id;
-  /* On the first call in a suite, seed the finals tournament once via the
-   * unified UI qualification helper. Subsequent finals tests reuse the primed
-   * state. Finals-bracket mutations (generate/reset/grand-final) happen on
-   * top of this fixture — individual tests must clean up any bracket they
-   * generated to avoid leaking state into later tests. */
+  const tournamentId = sharedFixture.normalTournament.id;
+  /* On the first call in a suite, ensure the normal tournament carries a
+   * complete 28-player BM qualification. In the tc-all flow this is already
+   * done by setupAllModes28PlayerQualification, so the helper exits
+   * immediately (idempotent). In standalone mode the helper seeds the
+   * qualification from scratch. Finals-bracket mutations (generate/reset/
+   * grand-final) happen on top of this fixture — individual tests must clean
+   * up any bracket they generated to avoid leaking state into later tests. */
   if (!sharedBmFinalsReady) {
     await setupBmQualViaUi(adminPage, tournamentId, players);
     sharedBmFinalsReady = true;
@@ -411,7 +415,7 @@ async function runTc510(adminPage) {
     const r2 = state.playoffMatches.filter((m) => m.round === 'playoff_r2');
     /* Phase 1 only mandates that 8 playoff matches (4 R1 + 4 R2) exist after
      * the call. The previous assertion also required state.matches (finals
-     * stage) to be empty, but the shared finalsTournament may already carry
+     * stage) to be empty, but the shared normalTournament may already carry
      * a stage='finals' bracket from an earlier test (TC-503/TC-504). The
      * Phase 1 handler deliberately leaves that bracket untouched — Phase 2
      * will wipe + regenerate the finals bracket once all playoff_r2 matches

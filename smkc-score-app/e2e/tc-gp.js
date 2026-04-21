@@ -72,15 +72,19 @@ async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
   };
 }
 
-/* Primed-once flag so every finals test reuses the dedicated finals
- * tournament's qualification state instead of re-seeding 84 matches. */
+/* Primed-once flag so every finals test reuses the shared normal
+ * tournament's qualification state instead of re-seeding 182 matches. */
 let sharedGpFinalsReady = false;
 
+/** Ensure the shared `normalTournament` carries a complete 28-player GP
+ *  qualification. In the tc-all flow this is already done by
+ *  setupAllModes28PlayerQualification, so the first call here is a no-op.
+ *  In standalone mode the helper seeds the qualification from scratch. */
 async function prepareSharedGpFinalsSetup(adminPage) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
 
   const players = sharedGpPlayers(28);
-  const tournamentId = sharedFixture.finalsTournament.id;
+  const tournamentId = sharedFixture.normalTournament.id;
   if (!sharedGpFinalsReady) {
     await setupGpQualViaUi(adminPage, tournamentId, players);
     sharedGpFinalsReady = true;
