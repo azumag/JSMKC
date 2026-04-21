@@ -12,6 +12,9 @@ import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-rout
 import { updateMRMatchScore } from '@/lib/optimistic-locking';
 import { validateMatchRaceScores } from '@/lib/score-validation';
 
+/* recalcStatsConfig mirrors MR_RECALC_CONFIG in the dual-report route so
+ * admin single-match PUT edits keep mRQualification wins/losses/round
+ * differential in sync — same motivation as the GP route (see TC-402). */
 const { GET, PUT } = createMatchDetailHandlers({
   matchModel: 'mRMatch',
   loggerName: 'mr-match-api',
@@ -23,6 +26,14 @@ const { GET, PUT } = createMatchDetailHandlers({
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: true,
+  recalcStatsConfig: {
+    matchModel: 'mRMatch',
+    qualificationModel: 'mRQualification',
+    scoreFields: { p1: 'score1', p2: 'score2' },
+    determineResult: (myScore, oppScore) =>
+      myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie',
+    useRoundDifferential: true,
+  },
 });
 
 export { GET, PUT };

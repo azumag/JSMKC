@@ -25,6 +25,7 @@ import { createLogger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { recalculatePlayerStats, type RecalculateStatsConfig } from './score-report-helpers';
 
 /**
  * Configuration for the match detail route factory.
@@ -73,6 +74,16 @@ export interface MatchDetailConfig {
    * BM finals use best-of-9 (max score = 5) which differs from qualification (max 4, sum = 4).
    */
   validateFinalsScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
+  /**
+   * Optional qualification-stats recalculation config. When provided, a
+   * successful qualification-stage PUT also refreshes the per-player
+   * qualification record (wins/ties/losses/points) for both players in the
+   * updated match. Without this hook, admin score corrections for single
+   * matches leave the qualification table stale, which then propagates into
+   * standings and overall-ranking calculations (#TC-402: GP manual-total
+   * admin edits left all gPQualification rows at 0).
+   */
+  recalcStatsConfig?: RecalculateStatsConfig;
 }
 
 /**
@@ -220,6 +231,36 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         where: { id: matchId },
         include: { player1: true, player2: true },
       });
+
+      /* Mirror the qualification-route PUT flow: after a successful
+       * qualification-stage match update, refresh both players' aggregated
+       * stats so standings, H2H tiebreakers, and overall-ranking stay in
+       * sync. Skipped for finals matches (no qualification record exists)
+       * and when no recalc config is supplied. */
+      if (
+        config.recalcStatsConfig &&
+        updatedMatch &&
+        matchMeta?.stage === 'qualification'
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const um = updatedMatch as any;
+        try {
+          await recalculatePlayerStats(config.recalcStatsConfig, matchMeta.tournamentId, um.player1Id);
+          if (um.player2Id) {
+            await recalculatePlayerStats(config.recalcStatsConfig, matchMeta.tournamentId, um.player2Id);
+          }
+        } catch (recalcErr) {
+          logger.error('Failed to recalculate qualification stats after match update', {
+            error: recalcErr,
+            matchId,
+            player1Id: um.player1Id,
+            player2Id: um.player2Id,
+          });
+          /* Don't fail the PUT just because the recalc hiccuped — the match
+           * update already committed. Log and move on; a subsequent score
+           * edit or a POST /overall-ranking will reconcile. */
+        }
+      }
 
       return createSuccessResponse({
         match: updatedMatch,

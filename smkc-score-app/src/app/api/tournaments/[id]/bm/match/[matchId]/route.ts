@@ -13,6 +13,9 @@ import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-rout
 import { updateBMMatchScore } from '@/lib/optimistic-locking';
 import { validateBattleModeScores, validateBattleModeFinalScores } from '@/lib/score-validation';
 
+/* recalcStatsConfig mirrors BM_RECALC_CONFIG in the dual-report route so
+ * admin single-match PUT edits keep bMQualification wins/losses/round
+ * differential in sync — same motivation as the GP route (see TC-402). */
 const { GET, PUT } = createMatchDetailHandlers({
   matchModel: 'bMMatch',
   loggerName: 'bm-match-api',
@@ -25,6 +28,14 @@ const { GET, PUT } = createMatchDetailHandlers({
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: true,
+  recalcStatsConfig: {
+    matchModel: 'bMMatch',
+    qualificationModel: 'bMQualification',
+    scoreFields: { p1: 'score1', p2: 'score2' },
+    determineResult: (myScore, oppScore) =>
+      myScore > oppScore ? 'win' : myScore < oppScore ? 'loss' : 'tie',
+    useRoundDifferential: true,
+  },
 });
 
 export { GET, PUT };
