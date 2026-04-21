@@ -107,7 +107,11 @@
     "confirmQualificationDialog": "予選を確定しますか？全プレイヤー・管理者のスコア編集がロックされます。",
     "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。",
     "startPlayoff": "バラッジ開始 (Top 24)",
-    "goToFinalsTop16": "通常決勝へ (Top 16)"
+    "goToFinalsTop16": "通常決勝へ (Top 16)",
+    "resetBracket": "ブラケットリセット",
+    "resettingBracket": "リセット中...",
+    "resetBracketConfirm": "ブラケットをリセットしますか？既存の決勝・プレーオフデータがすべて削除されます。",
+    "failedResetBracket": "ブラケットのリセットに失敗しました"
   },
   "home": {
     "tagline": "SMKC スコア管理",

@@ -144,6 +144,7 @@ export default function BattleModePage({
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   /* Loading state for bracket generation buttons */
   const [generatingBracket, setGeneratingBracket] = useState(false);
+  const [resettingBracket, setResettingBracket] = useState(false);
   /* Whether a finals or playoff bracket already exists on the server */
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
@@ -407,6 +408,35 @@ export default function BattleModePage({
               onClick={handleToggleQualificationConfirmed}
             >
               {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
+            </Button>
+          )}
+
+          {/* Admin-only bracket reset — visible only when a bracket exists */}
+          {isAdmin && finalsExists === true && (
+            <Button
+              variant="destructive"
+              disabled={resettingBracket}
+              onClick={async () => {
+                if (!confirm(tc('resetBracketConfirm'))) return;
+                setResettingBracket(true);
+                try {
+                  const res = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset: true }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.error || tc('failedResetBracket'));
+                    return;
+                  }
+                  setFinalsExists(false);
+                } finally {
+                  setResettingBracket(false);
+                }
+              }}
+            >
+              {resettingBracket ? tc('resettingBracket') : tc('resetBracket')}
             </Button>
           )}
 

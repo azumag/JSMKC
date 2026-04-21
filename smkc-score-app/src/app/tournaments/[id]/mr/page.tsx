@@ -146,6 +146,7 @@ export default function MatchRacePage({
   const [groupCount, setGroupCount] = useState(2);
   const [setupSaving, setSetupSaving] = useState(false);
   const [generatingBracket, setGeneratingBracket] = useState(false);
+  const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
   /**
@@ -454,6 +455,35 @@ export default function MatchRacePage({
               onClick={handleToggleQualificationConfirmed}
             >
               {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
+            </Button>
+          )}
+
+          {/* Admin-only bracket reset — visible only when a bracket exists */}
+          {isAdmin && finalsExists === true && (
+            <Button
+              variant="destructive"
+              disabled={resettingBracket}
+              onClick={async () => {
+                if (!confirm(tc('resetBracketConfirm'))) return;
+                setResettingBracket(true);
+                try {
+                  const res = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset: true }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.error || tc('failedResetBracket'));
+                    return;
+                  }
+                  setFinalsExists(false);
+                } finally {
+                  setResettingBracket(false);
+                }
+              }}
+            >
+              {resettingBracket ? tc('resettingBracket') : tc('resetBracket')}
             </Button>
           )}
 

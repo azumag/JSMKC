@@ -312,7 +312,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
     try {
       /* Defense-in-depth: always sanitize user input */
       const body = sanitizeInput(await request.json());
-      const { topN = 8 } = body;
+      const { topN = 8, reset = false } = body;
+
+      /* Hard reset: delete both playoff and finals rows so the admin can
+       * start over from qualification. Triggered by a dedicated reset button
+       * on the qualification page. */
+      if (reset) {
+        await model(prisma).deleteMany({
+          where: { tournamentId, stage: { in: ['playoff', 'finals'] } },
+        });
+        return createSuccessResponse({
+          message: 'Bracket reset',
+          phase: 'finals',
+        }, 'Bracket reset');
+      }
 
       /* Supported bracket sizes:
        *   8  → 8-player double elimination

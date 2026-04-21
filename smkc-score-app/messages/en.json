@@ -107,7 +107,11 @@
     "confirmQualificationDialog": "Are you sure you want to confirm qualification? Score editing will be locked for all players and admins.",
     "qualificationLocked": "Qualification results are confirmed. Score editing is locked.",
     "startPlayoff": "Start Playoff (Top 24)",
-    "goToFinalsTop16": "Go to Finals (Top 16)"
+    "goToFinalsTop16": "Go to Finals (Top 16)",
+    "resetBracket": "Reset Bracket",
+    "resettingBracket": "Resetting...",
+    "resetBracketConfirm": "Reset bracket? All existing finals and playoff data will be deleted.",
+    "failedResetBracket": "Failed to reset bracket"
   },
   "home": {
     "tagline": "SMKC Score Management",
