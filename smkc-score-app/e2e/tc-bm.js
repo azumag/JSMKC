@@ -34,7 +34,7 @@ const {
   loginPlayerBrowser,
   setupBmQualViaUi,
 } = require('./lib/common');
-const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
+const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -44,6 +44,11 @@ let sharedFixture = null;
 function sharedBmPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
   return sharedFixture.players.slice(0, count);
+}
+
+async function loginSharedPlayer(adminPage, player) {
+  await ensurePlayerPassword(adminPage, player);
+  return loginPlayerBrowser(player.nickname, player.password);
 }
 
 async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
@@ -105,7 +110,7 @@ async function runTc501(adminPage) {
   try {
     const { tournamentId, p1, match } = await prepareSharedBmPair(adminPage);
 
-    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     await nav(ctx.page, `/tournaments/${tournamentId}/bm/participant`);
 
@@ -139,7 +144,7 @@ async function runTc502(adminPage) {
   try {
     const { tournamentId, p1, match } = await prepareSharedBmPair(adminPage);
 
-    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     await nav(ctx.page, `/tournaments/${tournamentId}/bm/participant`);
 
@@ -182,7 +187,7 @@ async function runTc322(adminPage) {
     const p1Label = match.player1.nickname;
     const p2Label = match.player2.nickname;
 
-    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     const playerPage = ctx.page;
     await nav(playerPage, `/tournaments/${tournamentId}/bm/participant`);
@@ -515,7 +520,7 @@ async function runTc507(adminPage) {
     const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
     /* P1 reports 3-1 → response should include waitingFor=player2 */
-    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     const r1 = await ctx1.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
@@ -538,7 +543,7 @@ async function runTc507(adminPage) {
       midMatch.player1ReportedScore2 === 1;
 
     /* P2 reports identical 3-1 → autoConfirmed */
-    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     const r2 = await ctx2.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
@@ -581,7 +586,7 @@ async function runTc508(adminPage) {
   try {
     const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
-    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     await ctx1.page.evaluate(async ([u, body]) => {
       await fetch(u, {
@@ -594,7 +599,7 @@ async function runTc508(adminPage) {
       { reportingPlayer: 1, score1: 3, score2: 1 },
     ]);
 
-    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     /* P2 disagrees: 1-3 instead of 3-1 → mismatch */
     const r2 = await ctx2.page.evaluate(async ([u, body]) => {
@@ -643,7 +648,7 @@ async function runTc509(adminPage) {
     const { tournamentId, p1, p2, match } = await prepareSharedBmPair(adminPage, { dualReport: true });
 
     /* P1 reports first */
-    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     await ctx1.page.evaluate(async ([u, body]) => {
       await fetch(u, {
@@ -657,7 +662,7 @@ async function runTc509(adminPage) {
     ]);
 
     /* P2 opens participant page and should see P1's report. */
-    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     await nav(ctx2.page, `/tournaments/${tournamentId}/bm/participant`);
     const pageText = await ctx2.page.locator('body').innerText();

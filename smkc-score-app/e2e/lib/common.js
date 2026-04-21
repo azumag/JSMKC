@@ -1099,6 +1099,78 @@ async function uiPhaseSubmitResults(page, tournamentId, phase, results) {
   await page.waitForTimeout(1500);
 }
 
+/** Cancel the currently-open round for a TA phase from the UI.
+ *  The round must exist but have no submitted results yet. */
+async function uiPhaseCancelRound(page, tournamentId, phase) {
+  const path = _phasePath(phase);
+  const expectedUrl = `/tournaments/${tournamentId}/ta/${path}`;
+  if (!page.url().includes(expectedUrl)) {
+    await nav(page, expectedUrl);
+  }
+
+  const currentTab = page.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
+  if (await currentTab.count()) {
+    await currentTab.first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  const cancelBtn = page.getByRole('button', { name: /^(Cancel Round|ラウンドキャンセル)$/ }).first();
+  await cancelBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await cancelBtn.click();
+
+  const dialog = page.getByRole('dialog').filter({
+    hasText: /^(?:.|\n)*(Cancel Round\?|ラウンドをキャンセルしますか？)/,
+  }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await dialog.getByRole('button', { name: /^(Yes, Cancel Round|はい、キャンセル)$/ }).click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI cancel_round ${phase} failed (${response.status()})`);
+  }
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+}
+
+/** Undo the most recently-submitted round for a TA phase from the UI.
+ *  The phase must have at least one completed round and no open round. */
+async function uiPhaseUndoRound(page, tournamentId, phase) {
+  const path = _phasePath(phase);
+  const expectedUrl = `/tournaments/${tournamentId}/ta/${path}`;
+  if (!page.url().includes(expectedUrl)) {
+    await nav(page, expectedUrl);
+  }
+
+  const roundControlTab = page.getByRole('tab', { name: /^(Round Control|ラウンドコントロール|ラウンド管理)$/ });
+  if (await roundControlTab.count()) {
+    await roundControlTab.first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  const undoBtn = page.getByRole('button', { name: /^(Undo Last Round|直前ラウンドを取り消す)$/ }).first();
+  await undoBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await undoBtn.click();
+
+  const dialog = page.getByRole('dialog').filter({
+    hasText: /^(?:.|\n)*(Undo Last Round\?|直前ラウンドを取り消しますか？)/,
+  }).first();
+  await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+  const responsePromise = page.waitForResponse((res) =>
+    res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+    res.request().method() === 'POST', { timeout: 60000 });
+  await dialog.getByRole('button', { name: /^(Yes, Undo Round|はい、取り消す)$/ }).click();
+  const response = await responsePromise;
+  if (response.status() !== 200) {
+    throw new Error(`UI undo_round ${phase} failed (${response.status()})`);
+  }
+  await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+}
+
 /** Format milliseconds as M:SS.mm for TA time inputs. */
 function msToMSS(ms) {
   const totalCentiseconds = Math.round(ms / 10);
@@ -1746,6 +1818,8 @@ module.exports = {
   uiPromoteTaPhase,
   uiPhaseStartRound,
   uiPhaseSubmitResults,
+  uiPhaseCancelRound,
+  uiPhaseUndoRound,
   uiAddPlayersToTa,
   uiSetupTaPlayers,
   setupModePlayersViaUi,

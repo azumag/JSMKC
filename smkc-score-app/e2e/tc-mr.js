@@ -43,7 +43,7 @@ const {
   loginPlayerBrowser,
   setupMrQualViaUi,
 } = require('./lib/common');
-const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
+const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -53,6 +53,11 @@ let sharedFixture = null;
 function sharedMrPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared MR fixture is not initialized');
   return sharedFixture.players.slice(0, count);
+}
+
+async function loginSharedPlayer(adminPage, player) {
+  await ensurePlayerPassword(adminPage, player);
+  return loginPlayerBrowser(player.nickname, player.password);
 }
 
 /** Seed the shared Normal (or DualReport) tournament's MR qualification with
@@ -206,7 +211,7 @@ async function runTc602(adminPage) {
   try {
     const { tournamentId, p1, match } = await prepareSharedMrPair(adminPage);
 
-    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     const playerPage = ctx.page;
 
@@ -670,7 +675,7 @@ async function runTc610(adminPage) {
 
     // Login as one of the shared players (non-admin)
     const player = sharedFixture.players[0];
-    const ctx = await loginPlayerBrowser(player.nickname, player.password);
+    const ctx = await loginSharedPlayer(adminPage, player);
     playerBrowser = ctx.browser;
     const playerPage = ctx.page;
 

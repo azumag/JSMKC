@@ -30,7 +30,7 @@ const {
   loginPlayerBrowser,
   setupGpQualViaUi,
 } = require('./lib/common');
-const { createSharedE2eFixture, setupModePlayersViaUi } = require('./lib/fixtures');
+const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -40,6 +40,11 @@ let sharedFixture = null;
 function sharedGpPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
   return sharedFixture.players.slice(0, count);
+}
+
+async function loginSharedPlayer(adminPage, player) {
+  await ensurePlayerPassword(adminPage, player);
+  return loginPlayerBrowser(player.nickname, player.password);
 }
 
 async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
@@ -128,7 +133,7 @@ async function runTc702(adminPage) {
   try {
     const { tournamentId, p1, match } = await prepareSharedGpPair(adminPage);
 
-    const ctx = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
     /* Submit 5 race positions via API from the player browser session. */
     const reportRes = await ctx.page.evaluate(async ([u, body]) => {
@@ -378,7 +383,7 @@ async function runTc707(adminPage) {
     const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage, { dualReport: true });
 
     const races = makeRacesP1Wins();
-    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     const r1 = await ctx1.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
@@ -392,7 +397,7 @@ async function runTc707(adminPage) {
     const r1WaitingForP2 = r1.s === 200 &&
       (r1.b?.data?.waitingFor === 'player2' || r1.b?.waitingFor === 'player2');
 
-    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     const r2 = await ctx2.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
@@ -430,7 +435,7 @@ async function runTc708(adminPage) {
   try {
     const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage, { dualReport: true });
 
-    const ctx1 = await loginPlayerBrowser(p1.nickname, p1.password);
+    const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     await ctx1.page.evaluate(async ([u, body]) => {
       await fetch(u, {
@@ -441,7 +446,7 @@ async function runTc708(adminPage) {
     }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
         { reportingPlayer: 1, races: makeRacesP1Wins() }]);
 
-    const ctx2 = await loginPlayerBrowser(p2.nickname, p2.password);
+    const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
     /* P2 reports flipped (P2 wins) → mismatch */
     const r2 = await ctx2.page.evaluate(async ([u, body]) => {

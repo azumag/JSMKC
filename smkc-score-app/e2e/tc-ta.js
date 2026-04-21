@@ -7,6 +7,9 @@
  *   TC-802  Player login + TA participant time entry persists.
  *   TC-804  Promote to Phase 1 — ranks 17-24 (8 players) move to phase1 stage.
  *   TC-805  Remove a mistaken TA qualification player via UI.
+ *   TC-809  Cancel an open Phase 1 round and restore the course/round state.
+ *   TC-810  Undo the last submitted Phase 1 round and reopen it for re-entry.
+ *   TC-811  Frozen qualification blocks player-side time re-edits.
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
  *   TC-807  Phase 3 page renders and shows correct entries (8 players).
  *   TC-808  TA Finals page renders with champion banner on completion.
@@ -14,11 +17,11 @@
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
  *   - Admin Discord OAuth session must already be established in that profile.
- *   - TC-801/802/804/805 reuse the shared 28-player / normal-tournament fixture
- *     and reset the TA qualification state before each run via
- *     setupTaEntriesFromShared. TC-806/807/808 still provision isolated
- *     tournaments because phase promotion freezes the qualification stage —
- *     reusing the shared tournament would leak state into later runs.
+ *   - TC-801/802/804/805/806/807/808 reuse the shared 28-player /
+ *     normal-tournament fixture and reset the TA qualification state in
+ *     beforeAll via setupTaEntriesFromShared.
+ *   - TC-809/810/811 provision isolated tournaments because their round/freeze
+ *     mutations should not interfere with the shared phase-promotion chain.
  *
  * Run: node e2e/tc-ta.js  (from smkc-score-app/)
  */
@@ -27,12 +30,13 @@ const {
   uiSetTaEntryTimes,
   uiFreezeTaQualification,
   uiPromoteTaPhase,
-  uiPhaseStartRound, uiPhaseSubmitResults,
-  apiGetTtEntry, loginPlayerBrowser,
+  uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
+  uiCreateTournament,
+  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiTaParticipantEditTime, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase,
   makeTaTimesForRank,
 } = require('./lib/common');
-const { createSharedE2eFixture, setupTaEntriesFromShared } = require('./lib/fixtures');
+const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -45,13 +49,59 @@ let sharedFixture = null;
 let sharedTaTournamentId = null;
 let sharedTaEntries = [];
 
+function selectedTestNames() {
+  const raw = process.env.E2E_TESTS || process.env.E2E_TEST || '';
+  return raw
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
 function sharedTaPlayers(count) {
   if (!sharedFixture) throw new Error('Shared TA fixture is not initialized');
   return sharedFixture.players.slice(0, count);
 }
 
+async function loginSharedPlayer(adminPage, player) {
+  await ensurePlayerPassword(adminPage, player);
+  return loginPlayerBrowser(player.nickname, player.password);
+}
+
 function sharedTaEntryByNickname(nickname) {
   return sharedTaEntries.find((e) => e.nickname === nickname) ?? null;
+}
+
+async function createIsolatedTaQualification(adminPage, label, players, { seedTimes = false } = {}) {
+  const tournamentId = await uiCreateTournament(
+    adminPage,
+    `E2E TA ${label} ${Date.now()}`,
+    { dualReportEnabled: false },
+  );
+
+  try {
+    const { entries } = await setupTaEntriesFromShared(adminPage, tournamentId, players, { seedTimes });
+    return {
+      tournamentId,
+      entries,
+      cleanup: async () => {
+        await apiDeleteTournament(adminPage, tournamentId);
+      },
+    };
+  } catch (err) {
+    await apiDeleteTournament(adminPage, tournamentId).catch(() => {});
+    throw err;
+  }
+}
+
+async function seedTaQualificationRanks(adminPage, tournamentId, entries, startRank) {
+  const seeded = [];
+  for (let i = 0; i < entries.length; i++) {
+    const rank = startRank + i;
+    const { times, totalMs } = makeTaTimesForRank(rank);
+    await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, rank);
+    seeded.push({ ...entries[i], rank, times, totalMs });
+  }
+  return seeded;
 }
 
 /* ───────── TC-801: 28-player full qualification ─────────
@@ -111,7 +161,7 @@ async function runTc802(adminPage) {
     if (!sharedEntry) throw new Error(`Shared TA entry missing for ${player.nickname}`);
     const entryId = sharedEntry.entryId;
 
-    const ctx = await loginPlayerBrowser(player.nickname, player.password);
+    const ctx = await loginSharedPlayer(adminPage, player);
     playerBrowser = ctx.browser;
     await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
 
@@ -327,6 +377,154 @@ async function runTc805(adminPage) {
   }
 }
 
+/* ───────── TC-809: Cancel an open Phase 1 round ─────────
+ * Uses an isolated tournament with 8 seeded qualification entries that are
+ * force-ranked 17..24 via the TT entry API so Phase 1 promotion is possible
+ * without provisioning the full shared 28-player field. */
+async function runTc809(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Cancel Round', sharedTaPlayers(8), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 17);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    const startedRoundNumber = await uiPhaseStartRound(adminPage, tournamentId, 'phase1');
+    const phaseAfterStart = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const roundsAfterStart = phaseAfterStart.b?.data?.rounds ?? [];
+    const openRoundExists = roundsAfterStart.some((round) =>
+      round.roundNumber === startedRoundNumber && Array.isArray(round.results) && round.results.length === 0);
+
+    await uiPhaseCancelRound(adminPage, tournamentId, 'phase1');
+
+    const phaseAfterCancel = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const roundsAfterCancel = phaseAfterCancel.b?.data?.rounds ?? [];
+    const entriesAfterCancel = phaseAfterCancel.b?.data?.entries ?? [];
+    const roundDeleted = roundsAfterCancel.length === 0;
+    const allPlayersRestored = entriesAfterCancel.length === 8 && entriesAfterCancel.every((entry) => !entry.eliminated);
+
+    log('TC-809', openRoundExists && roundDeleted && allPlayersRestored ? 'PASS' : 'FAIL',
+      !openRoundExists ? 'phase1 round did not open before cancel'
+      : !roundDeleted ? `rounds still exist after cancel (${roundsAfterCancel.length})`
+      : !allPlayersRestored ? 'phase1 entries were not fully restored after cancel'
+      : '');
+  } catch (err) {
+    log('TC-809', 'FAIL', err instanceof Error ? err.message : 'TA 809 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
+/* ───────── TC-810: Undo the last submitted Phase 1 round ─────────
+ * Submits one elimination round, then uses the UI undo flow to restore the
+ * same round for re-entry. */
+async function runTc810(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Undo Round', sharedTaPlayers(8), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 17);
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+
+    const roundNumber = await uiPhaseStartRound(adminPage, tournamentId, 'phase1');
+    const activeEntries = (await apiFetchTaPhase(adminPage, tournamentId, 'phase1')).b?.data?.entries ?? [];
+    const results = activeEntries
+      .filter((entry) => !entry.eliminated)
+      .map((entry) => ({
+        nickname: entry.player?.nickname,
+        timeMs: 60000 + (entry.rank || 20) * 200,
+      }));
+    await uiPhaseSubmitResults(adminPage, tournamentId, 'phase1', results);
+
+    const phaseAfterSubmit = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const submittedRounds = phaseAfterSubmit.b?.data?.rounds ?? [];
+    const eliminatedAfterSubmit = (phaseAfterSubmit.b?.data?.entries ?? []).filter((entry) => entry.eliminated);
+    const submitPersisted = submittedRounds.some((round) =>
+      round.roundNumber === roundNumber && Array.isArray(round.results) && round.results.length === results.length);
+
+    await uiPhaseUndoRound(adminPage, tournamentId, 'phase1');
+    const currentRoundTab = adminPage.getByRole('tab', { name: /^(Current Round|現在のラウンド)$/ });
+    if (await currentRoundTab.count()) {
+      await currentRoundTab.first().click().catch(() => {});
+      await adminPage.waitForTimeout(300);
+    }
+
+    const phaseAfterUndo = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const roundsAfterUndo = phaseAfterUndo.b?.data?.rounds ?? [];
+    const entriesAfterUndo = phaseAfterUndo.b?.data?.entries ?? [];
+    const reopenedRound = roundsAfterUndo.find((round) => round.roundNumber === roundNumber);
+    const roundCleared = Array.isArray(reopenedRound?.results) && reopenedRound.results.length === 0;
+    const eliminationsRestored = entriesAfterUndo.length === 8 && entriesAfterUndo.every((entry) => !entry.eliminated);
+    const inputCount = await adminPage.locator('input[placeholder="M:SS.mm"]').count();
+    const cancelVisible = await adminPage.getByRole('button', { name: /^(Cancel Round|ラウンドキャンセル)$/ }).count()
+      .then((count) => count > 0);
+
+    log('TC-810', submitPersisted && eliminatedAfterSubmit.length === 1 && roundCleared && eliminationsRestored && inputCount >= 8 && cancelVisible ? 'PASS' : 'FAIL',
+      !submitPersisted ? 'phase1 results were not persisted before undo'
+      : eliminatedAfterSubmit.length !== 1 ? `expected 1 eliminated player before undo, got ${eliminatedAfterSubmit.length}`
+      : !roundCleared ? 'last round results were not cleared by undo'
+      : !eliminationsRestored ? 'eliminated players were not restored by undo'
+      : inputCount < 8 ? `reopened round inputs missing after undo (${inputCount})`
+      : !cancelVisible ? 'cancel round button not restored after undo'
+      : '');
+  } catch (err) {
+    log('TC-810', 'FAIL', err instanceof Error ? err.message : 'TA 810 failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
+/* ───────── TC-811: Frozen qualification blocks player re-edits ─────────
+ * Unlike TC-312 in tc-all (knockout-start lock), this verifies the admin
+ * qualification freeze alone disables participant-side edits and the PUT
+ * endpoint rejects the write. */
+async function runTc811(adminPage) {
+  let setup = null;
+  let playerBrowser = null;
+  try {
+    const [player] = sharedTaPlayers(1);
+    setup = await createIsolatedTaQualification(adminPage, 'Frozen Qualification Lock', [player], { seedTimes: false });
+    const { tournamentId } = setup;
+    const [entry] = await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+
+    const ctx = await loginSharedPlayer(adminPage, player);
+    playerBrowser = ctx.browser;
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
+
+    const submitBtn = ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).last();
+    const firstTimeInput = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
+    const editableBeforeFreeze = !(await firstTimeInput.isDisabled().catch(() => true)) &&
+      !(await submitBtn.isDisabled().catch(() => true));
+
+    await uiFreezeTaQualification(adminPage, tournamentId);
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta/participant`);
+
+    const frozenText = await ctx.page.locator('body').innerText();
+    const frozenWarningVisible = frozenText.includes('このステージは凍結されています。タイムの編集はできません。') ||
+      frozenText.includes('This stage is frozen. Time edits are not allowed.');
+    const inputDisabled = await firstTimeInput.isDisabled().catch(() => false);
+    const submitDisabled = await submitBtn.isDisabled().catch(() => false);
+    const apiEditAfterFreeze = await apiTaParticipantEditTime(
+      ctx.page, tournamentId, entry.entryId, 'MC1', '1:11.11'
+    );
+
+    log('TC-811', editableBeforeFreeze && frozenWarningVisible && inputDisabled && submitDisabled && apiEditAfterFreeze.s === 403 ? 'PASS' : 'FAIL',
+      !editableBeforeFreeze ? 'participant inputs were already disabled before freeze'
+      : !frozenWarningVisible ? 'frozen qualification warning not shown to player'
+      : !inputDisabled ? 'time input still enabled after qualification freeze'
+      : !submitDisabled ? 'submit button still enabled after qualification freeze'
+      : apiEditAfterFreeze.s !== 403 ? `player PUT after freeze returned ${apiEditAfterFreeze.s}`
+      : '');
+  } catch (err) {
+    log('TC-811', 'FAIL', err instanceof Error ? err.message : 'TA 811 failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    if (setup) await setup.cleanup().catch(() => {});
+  }
+}
+
 /* ───────── TC-806: Phase 2 page renders with correct entries ─────────
  * After promoting phase1 and completing 4 elimination rounds (so only 4
  * survivors remain), promote phase2 to move those survivors + ranks 13-16.
@@ -499,7 +697,9 @@ async function runTc808(adminPage) {
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
- * module-level sharedTaEntries. */
+ * module-level sharedTaEntries. Shared-state tests are TC-801/802/804/805/806/
+ * 807/808; TC-809/810/811 provision isolated tournaments and only reuse the
+ * shared player accounts. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
   return {
@@ -508,14 +708,21 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     log,
     beforeAll: async (adminPage) => {
       sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
-      const { tournamentId, entries } = await setupTaEntriesFromShared(
-        adminPage,
-        sharedFixture.normalTournament.id,
-        sharedFixture.players.slice(0, 28),
-        { seedTimes: true },
-      );
-      sharedTaTournamentId = tournamentId;
-      sharedTaEntries = entries;
+      const selected = new Set(selectedTestNames());
+      const needsSharedTaSeed = selected.size === 0 || [
+        'TC-801', 'TC-802', 'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808',
+      ].some((name) => selected.has(name));
+
+      if (needsSharedTaSeed) {
+        const { tournamentId, entries } = await setupTaEntriesFromShared(
+          adminPage,
+          sharedFixture.normalTournament.id,
+          sharedFixture.players.slice(0, 28),
+          { seedTimes: true },
+        );
+        sharedTaTournamentId = tournamentId;
+        sharedTaEntries = entries;
+      }
     },
     afterAll: async () => {
       if (ownsFixture && sharedFixture) {
@@ -527,12 +734,15 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     },
     /* Ordering note: TC-805 must run before TC-804 because phase1 promotion
      * freezes the qualification stage and disables the Setup Players dialog.
-     * TC-804 → 806 → 807 chain on the same tournament. TC-808 is isolated
-     * (2-player minimal finals) and can run last. */
+     * TC-804 → 806 → 807 → 808 chain on the same tournament. TC-809/810/811
+     * use isolated tournaments, so they can run before the shared phase chain. */
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-802', fn: runTc802 },
       { name: 'TC-805', fn: runTc805 },
+      { name: 'TC-809', fn: runTc809 },
+      { name: 'TC-810', fn: runTc810 },
+      { name: 'TC-811', fn: runTc811 },
       { name: 'TC-804', fn: runTc804 },
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
@@ -542,7 +752,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808,
+  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   getSuite,
   results,
 };

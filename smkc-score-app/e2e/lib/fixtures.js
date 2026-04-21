@@ -89,14 +89,24 @@ async function ensureSharedPlayers(page, count = SHARED_PLAYER_COUNT) {
       password = created.password;
     }
 
-    if (!password) {
-      password = await resetPlayerPassword(page, player.id);
-    }
-
     players.push({ id: player.id, name: player.name || sharedPlayerName(i), nickname, password });
   }
 
   return players;
+}
+
+async function ensurePlayerPassword(page, player) {
+  if (!player) {
+    throw new Error('ensurePlayerPassword requires a player');
+  }
+
+  if (player.password) {
+    return player.password;
+  }
+
+  const password = await resetPlayerPassword(page, player.id);
+  player.password = password;
+  return password;
 }
 
 async function ensureSharedTournament(page, name, opts) {
@@ -185,4 +195,5 @@ module.exports = {
   createSharedE2eFixture,
   setupModePlayersViaUi,
   setupTaEntriesFromShared,
+  ensurePlayerPassword,
 };
