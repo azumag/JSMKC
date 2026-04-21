@@ -83,6 +83,15 @@ export function createStandingsHandlers(config: StandingsConfig) {
   ) {
     const logger = createLogger(config.loggerName);
 
+    /* Admin-only access. Mirrors the explicit gate in the TA standings route
+     * (src/app/api/tournaments/[id]/ta/standings/route.ts:49-53) — the
+     * factory previously documented "Admin role required" without enforcing
+     * it, leaving BM/MR/GP standings publicly readable. */
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+    }
+
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
 
