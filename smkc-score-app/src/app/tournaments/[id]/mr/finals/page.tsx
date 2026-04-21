@@ -254,8 +254,8 @@ export default function MatchRaceFinals({
   }, [pollData]);
 
   useEffect(() => {
-    setLoading(pollLoading && !pollData);
-  }, [pollLoading, pollData]);
+    setLoading(pollLoading);
+  }, [pollLoading]);
 
   /**
    * Generate the finals bracket from top 8 qualification results.

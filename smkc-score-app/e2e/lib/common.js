@@ -173,6 +173,27 @@ function snakeDraft28(playerIds) {
   });
 }
 
+/* ───────── Chromium stability args ───────── */
+/**
+ * Returns standard Chromium CLI flags that reduce renderer crashes and memory
+ * pressure during long-running E2E suites (especially the 182-match BM
+ * qualification loop).  Added to every chromium.launch / launchPersistentContext
+ * call so the behaviour is uniform across tc-all, individual mode suites,
+ * player-login browsers, and cleanup.
+ */
+function getChromiumArgs() {
+  return [
+    '--disable-crash-reporter',
+    '--disable-crashpad',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-features=IsolateOrigins,site-per-process',
+  ];
+}
+
 /* ───────── Browser launch environment setup ───────── */
 /**
  * Create isolated browser environment with crashpad disabled.
@@ -201,7 +222,7 @@ function createBrowserLaunchEnv() {
 async function loginPlayerBrowser(nickname, password) {
   const browser = await chromium.launch({
     headless: false,
-    args: ['--disable-crash-reporter', '--disable-crashpad'],
+    args: getChromiumArgs(),
     env: createBrowserLaunchEnv(),
   });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -1442,6 +1463,17 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
    * state. */
   let lastButtonCount = Number.MAX_SAFE_INTEGER;
   for (let i = 0; i < 300; i++) {
+    /* Periodic full re-navigation prevents renderer memory bloat during the
+     * long 182-match qualification loop.  MR/GP already re-navigate every
+     * iteration; BM keeps the same page alive, which can exhaust memory on
+     * persistent-context Chromium and cause "Target page, context or browser
+     * has been closed" (issue #517).  Refresh every 50 matches (~4 refreshes
+     * for a full 28-player RR). */
+    if (i > 0 && i % 50 === 0) {
+      await nav(page, `/tournaments/${tournamentId}/bm`);
+      await openMatchesTab(page);
+    }
+
     const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
     const currentCount = await enterButtons.count();
     if (currentCount === 0) return;
@@ -2043,4 +2075,5 @@ module.exports = {
   makeTaTimesForRank,
   setupTa28PlayerQual,
   setupAllModes28PlayerQualification,
+  getChromiumArgs,
 };

@@ -44,6 +44,7 @@ const {
   formatDuration,
   runSuiteInBrowser,
 } = require('./lib/runner');
+const { getChromiumArgs } = require('./lib/common');
 const bmModule = require('./tc-bm');
 const mrModule = require('./tc-mr');
 const gpModule = require('./tc-gp');
@@ -177,7 +178,7 @@ async function main() {
         headless: process.env.E2E_HEADLESS === '1',
         viewport: { width: 1280, height: 720 },
         env: createBrowserLaunchEnv(),
-        args: ['--disable-crash-reporter', '--disable-crashpad'],
+        args: getChromiumArgs(),
       },
     );
     installApiLogging(browser, 'tc-all');
@@ -579,7 +580,7 @@ async function main() {
       playerBrowser = await chromium.launch({
         headless: false,
         env: createBrowserLaunchEnv(),
-        args: ['--disable-crash-reporter', '--disable-crashpad'],
+        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -653,7 +654,7 @@ async function main() {
       playerBrowser = await chromium.launch({
         headless: false,
         env: createBrowserLaunchEnv(),
-        args: ['--disable-crash-reporter', '--disable-crashpad'],
+        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -780,7 +781,7 @@ async function main() {
       playerBrowser = await chromium.launch({
         headless: false,
         env: createBrowserLaunchEnv(),
-        args: ['--disable-crash-reporter', '--disable-crashpad'],
+        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -1059,7 +1060,7 @@ async function main() {
         partnerBrowser = await chromium.launch({
           headless: false,
           env: createBrowserLaunchEnv(),
-          args: ['--disable-crash-reporter', '--disable-crashpad'],
+          args: getChromiumArgs(),
         });
         const partnerCtx = await partnerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
         const partnerPage = await partnerCtx.newPage();

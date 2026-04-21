@@ -196,15 +196,19 @@ export function PlayoffBracket({
     const match = getMatch(matchNumber);
     if (!match) return true;
     const bracketMatch = getBracketMatch(matchNumber);
-    /* Only mark as TBD when both seeds are explicitly assigned AND the two
-     * player IDs are identical (placeholder match where opponent not yet known).
-     * R2 matches have player2Seed=null (opponent comes from R1 winner), so
-     * even if player1Id===player2Id (fallback value) they should NOT be TBD. */
+    /* Both seeds explicitly assigned AND identical player IDs → placeholder.
+     * This handles initial creation where both players map to the same fallback
+     * ID before real opponents are known. */
     if (
       bracketMatch?.player1Seed != null &&
       bracketMatch?.player2Seed != null
     ) {
       return !match.completed && match.player1Id === match.player2Id;
+    }
+    /* R2 match: player2Seed is null (opponent comes from R1 winner).
+     * Until the match is completed, player2 is unknown → show as TBD. */
+    if (bracketMatch?.player2Seed == null) {
+      return !match.completed;
     }
     return false;
   };
