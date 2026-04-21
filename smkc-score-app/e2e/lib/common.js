@@ -1334,25 +1334,22 @@ async function uiPutAllBmQualScores(page, tournamentId, score1 = 3, score2 = 1) 
  *  winner buttons. Produces 3-1 by default: player1 wins first 3 races,
  *  player2 wins the 4th. */
 async function uiPutAllMrQualScores(page, tournamentId) {
-  await nav(page, `/tournaments/${tournamentId}/mr`);
-  await openMatchesTab(page);
-
   /* Safety cap: 2 groups × 91 matches + buffer. */
-  let lastButtonCount = Number.MAX_SAFE_INTEGER;
   for (let i = 0; i < 300; i++) {
+    /* Re-navigate every iteration for the same reason the GP helper does:
+     * the MR list loaded at iteration 0 holds match version numbers that go
+     * stale after each successful save (the server bumps versions across
+     * the group on standings recalc). The old in-place loop would hit 409
+     * VERSION_CONFLICT after the first couple of saves and then hang on
+     * waitForResponse because the Save button became a no-op client-side.
+     * A fresh nav forces useSWR to refetch and keeps the loop walking
+     * match-by-match until the list is empty. */
+    await nav(page, `/tournaments/${tournamentId}/mr`);
+    await openMatchesTab(page);
+
     const enterButtons = page.getByRole('button', { name: /^(Enter Score|スコア入力|Enter Result|結果入力)$/ });
     const currentCount = await enterButtons.count();
     if (currentCount === 0) return;
-
-    /* If the visible Enter Score count didn't drop after the previous save,
-     * the UI is still optimistically showing the just-completed match — give
-     * the revalidation a beat before clicking again, otherwise we score the
-     * same match twice and trigger 409 VERSION_CONFLICT. Mirrors the BM
-     * helper's lag-mitigation pattern. */
-    if (i > 0 && currentCount >= lastButtonCount) {
-      await page.waitForTimeout(1000);
-    }
-    lastButtonCount = currentCount;
 
     const target = enterButtons.first();
     await target.scrollIntoViewIfNeeded().catch(() => {});

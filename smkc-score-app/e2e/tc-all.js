@@ -187,11 +187,24 @@ async function main() {
    * the "E2E Shared Normal" tournament exist idempotently, then handed to
    * setupAllModes28PlayerQualification to wire TA/BM/MR/GP on top of them. */
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-  {
-    sharedFixture = await createSharedE2eFixture(page);
+  sharedFixture = await createSharedE2eFixture(page);
+  /* setupAllModes is a best-effort, expensive cross-mode seed used only by
+   * TC-401/TC-402 (overall ranking verification). When any of the four
+   * UI-driven qualification helpers hits a flaky UI race (a known failure
+   * mode of uiPutAllMrQualScores on the 3rd match), we flag TC-401/TC-402
+   * for failure and keep the rest of the suite running — the mode-specific
+   * suites below do their own fresh setup and should not inherit this
+   * partial state. Falling back to TID = normalTournament.id lets the public
+   * page / navigation tests still render against a real tournament. */
+  let setupAllModesError = null;
+  try {
     const sharedSetup = await setupAllModes28PlayerQualification(page, 'tcall', { fixture: sharedFixture });
     TID = sharedSetup.tournamentId;
     console.log(`[tc-all] shared all-mode tournament ready: ${TID} (${sharedSetup.playerIds.length} players, shared fixture)`);
+  } catch (err) {
+    setupAllModesError = err instanceof Error ? err.message : String(err);
+    TID = sharedFixture.normalTournament.id;
+    console.error(`[tc-all] setupAllModes failed (${setupAllModesError.slice(0, 160)}); TC-401/TC-402 will be recorded as FAIL and the run will continue against ${TID}.`);
   }
 
   // ===== Public page tests (work regardless of login state) =====
@@ -397,6 +410,9 @@ async function main() {
   log('TC-203', (t.includes('Overall') || t.includes('総合')) ? 'PASS' : 'FAIL');
 
   // TC-401: Shared all-mode tournament has completed qualification data in TA/BM/MR/GP
+  if (setupAllModesError) {
+    log('TC-401', 'FAIL', `setupAllModes failed: ${setupAllModesError.slice(0, 160)}`);
+  } else {
   try {
     const sharedState = await page.evaluate(async (id) => {
       const fetchJson = async (path) => {
@@ -430,9 +446,13 @@ async function main() {
   } catch (err) {
     log('TC-401', 'FAIL', err instanceof Error ? err.message : 'Shared all-mode verification failed');
   }
+  }
 
   // TC-402: Overall ranking calculation + persisted display for the shared all-mode tournament
   let topOverallRanking = null;
+  if (setupAllModesError) {
+    log('TC-402', 'FAIL', `setupAllModes failed: ${setupAllModesError.slice(0, 160)}`);
+  } else {
   try {
     const calc = await page.evaluate(async (u) => {
       const r = await fetch(u, { method: 'POST' });
@@ -490,6 +510,7 @@ async function main() {
       : '');
   } catch (err) {
     log('TC-402', 'FAIL', err instanceof Error ? err.message : 'Overall ranking calculation/display failed');
+  }
   }
 
   // TC-101: Player add (via API, cleanup after)
