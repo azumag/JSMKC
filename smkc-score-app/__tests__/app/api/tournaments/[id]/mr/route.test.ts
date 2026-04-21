@@ -35,6 +35,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
+import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 const _rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -61,8 +62,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: unknown, options?: { status?: number }) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
   });
 

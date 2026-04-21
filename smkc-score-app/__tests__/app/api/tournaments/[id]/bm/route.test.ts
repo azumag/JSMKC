@@ -40,6 +40,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
+import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 const requestUtilsMock = jest.requireMock('@/lib/request-utils') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -71,7 +72,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    NextResponseMock.NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     requestUtilsMock.getServerSideIdentifier.mockResolvedValue('test-ip');
     /* Reset Prisma mock implementations to prevent cross-test contamination */
     (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
@@ -103,9 +104,10 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      /* createSuccessResponse wraps data in { success: true, data: ... } (#274).
+      /* The shared NextResponse mock unwraps createSuccessResponse bodies so
+       * `result.data` is the unwrapped payload (see __tests__/helpers/next-response-mock.ts).
        * qualificationConfirmed is now included in the GET response. */
-      expect(result.data).toEqual({ success: true, data: { qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
@@ -128,7 +130,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { qualifications: [], matches: [], qualificationConfirmed: false } });
+      expect(result.data).toEqual({ qualifications: [], matches: [], qualificationConfirmed: false });
       expect(result.status).toBe(200);
     });
 
@@ -178,7 +180,10 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await POST(request, { params });
 
-      expect(result.data).toEqual({ success: true, data: { message: 'Battle mode setup complete', qualifications: expect.any(Array) } });
+      /* After the shared helper unwraps createSuccessResponse, result.data
+       * is the raw payload (which the qualification-route factory happens
+       * to include `message` in as well, alongside the envelope message). */
+      expect(result.data).toEqual({ message: 'Battle mode setup complete', qualifications: expect.any(Array) });
       expect(result.status).toBe(201);
       expect(prisma.bMQualification.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1' } });
       expect(prisma.bMMatch.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 't1', stage: 'qualification' } });
@@ -391,7 +396,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(result.data).toEqual({ match: mockMatch, result1: 'win', result2: 'loss' });
       expect(result.status).toBe(200);
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
         include: { player1: true, player2: true },
       });
@@ -421,7 +426,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(result.status).toBe(200);
       expect(result.data).toEqual({ match: mockMatch, result1: 'tie', result2: 'tie' });
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 2, score2: 2, rounds: null, completed: true },
         include: { player1: true, player2: true },
       });
@@ -435,7 +440,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       // validateBattleModeScores rejects 2+1=3 (must equal TOTAL_BM_ROUNDS=4)
       expect(result.status).toBe(400);
-      expect(result.data).toEqual({ success: false, error: 'Scores must total exactly 4 rounds (got 3)', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
+      expect(result.data).toEqual({ success: false, error: 'Scores must total 4 for a normal match, or be 0-0 to clear a match', code: 'VALIDATION_ERROR', details: { field: 'scores' } });
       expect(prisma.bMMatch.update).not.toHaveBeenCalled();
     });
 
@@ -458,7 +463,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       const _result = await PUT(request, { params });
 
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
+        where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
         include: { player1: true, player2: true },
       });

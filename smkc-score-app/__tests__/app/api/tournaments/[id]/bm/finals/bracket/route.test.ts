@@ -41,6 +41,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimination';
 import { GET, POST } from '@/app/api/tournaments/[id]/bm/finals/bracket/route';
+import { configureNextResponseMock } from '../../../../../../../helpers/next-response-mock';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -69,8 +70,7 @@ describe('BM Finals Bracket API Route - /api/tournaments/[id]/bm/finals/bracket'
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
   });
 

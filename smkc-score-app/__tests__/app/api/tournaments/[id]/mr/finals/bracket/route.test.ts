@@ -45,6 +45,7 @@ import { createLogger } from '@/lib/logger';
 import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimination';
 import { createAuditLog } from '@/lib/audit-log';
 import { GET, POST } from '@/app/api/tournaments/[id]/mr/finals/bracket/route';
+import { configureNextResponseMock } from '../../../../../../../helpers/next-response-mock';
 
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
@@ -69,8 +70,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
   describe('GET - Fetch bracket data', () => {

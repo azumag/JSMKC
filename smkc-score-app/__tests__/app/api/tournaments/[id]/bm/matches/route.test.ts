@@ -30,6 +30,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { paginate } from '@/lib/pagination';
 import { GET } from '@/app/api/tournaments/[id]/bm/matches/route';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -50,8 +51,7 @@ describe('BM Matches API Route - /api/tournaments/[id]/bm/matches', () => {
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     // Default: authenticated admin session for most tests
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
   describe('GET - Fetch battle mode matches with session authentication', () => {

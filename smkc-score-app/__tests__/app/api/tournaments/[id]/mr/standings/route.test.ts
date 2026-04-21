@@ -39,6 +39,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { GET } from '@/app/api/tournaments/[id]/mr/standings/route';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -62,13 +63,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    // Default status to 200 when no options provided, and spread options otherwise
-    NextResponse.json.mockImplementation((data: unknown, options?: Record<string, unknown>) => ({
-      data,
-      status: 200,
-      ...options,
-    }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
   describe('GET - Fetch MR standings with caching', () => {

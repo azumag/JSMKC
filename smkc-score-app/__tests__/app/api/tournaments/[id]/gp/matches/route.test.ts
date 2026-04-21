@@ -26,6 +26,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET } from '@/app/api/tournaments/[id]/gp/matches/route';
 import { paginate } from '@/lib/pagination';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
@@ -46,8 +47,7 @@ describe('GP Matches API Route - /api/tournaments/[id]/gp/matches', () => {
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     // Default: authenticated admin session for most tests
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
   describe('GET - Fetch grand prix matches with session authentication', () => {

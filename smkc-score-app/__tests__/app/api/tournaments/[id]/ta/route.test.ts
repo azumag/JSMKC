@@ -126,6 +126,7 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import * as taRoute from '@/app/api/tournaments/[id]/ta/route';
+import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 // Access mocks via requireMock to get references to the same mock functions
 // that the route module uses (per CLAUDE.md mock pattern)
@@ -151,10 +152,7 @@ describe('/api/tournaments/[id]/ta', () => {
     jest.clearAllMocks();
     // Mock NextResponse.json to return a response-like object (matching BM/MR/GP test patterns)
     // This ensures auth guard responses are truthy and properly trigger early returns.
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({
-      data,
-      status: options?.status || 200,
-    }));
+    configureNextResponseMock(NextResponse);
     // Restore default mock return values after clearAllMocks resets them
     rateLimitMock.rateLimit.mockImplementation(() => Promise.resolve({ success: true }));
     rateLimitMock.getClientIdentifier.mockReturnValue('127.0.0.1');

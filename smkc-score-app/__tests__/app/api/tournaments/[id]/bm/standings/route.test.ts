@@ -34,6 +34,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
 import { GET } from '@/app/api/tournaments/[id]/bm/standings/route';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _NextResponseMock = jest.requireMock('next/server') as any;
@@ -61,8 +62,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200, headers: options?.headers }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
   });
 
   describe('GET - Fetch BM standings with caching', () => {
@@ -343,11 +343,14 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       expect(qualifications[1].rank).toBe(2);
 
       // Verify H2H match query was made
+      /* isBye: false filters out BYE pseudo-matches so the H2H tiebreaker
+       * only counts real head-to-head results. */
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: {
           tournamentId: 't1',
           stage: 'qualification',
           completed: true,
+          isBye: false,
           player1Id: { in: ['p1', 'p2'] },
           player2Id: { in: ['p1', 'p2'] },
         },

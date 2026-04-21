@@ -37,6 +37,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { createAuditLog } from '@/lib/audit-log';
 import { POST } from '@/app/api/tournaments/[id]/mr/finals/matches/route';
+import { configureNextResponseMock } from '../../../../../../../helpers/next-response-mock';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
@@ -67,8 +68,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
   });
 

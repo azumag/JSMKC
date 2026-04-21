@@ -44,6 +44,7 @@ import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { generateBracketStructure } from '@/lib/double-elimination';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
+import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
@@ -69,8 +70,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
     jest.clearAllMocks();
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     sanitizeMock.sanitizeInput.mockImplementation((data) => data);
     (generateBracketStructure as jest.Mock).mockReturnValue([
       { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },

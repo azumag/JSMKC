@@ -30,6 +30,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/route';
+import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -67,8 +68,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
     (prisma.gPMatch.deleteMany as jest.Mock).mockReset();
     (prisma.gPMatch.update as jest.Mock).mockReset();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
   });
 

@@ -36,6 +36,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { POST } from '@/app/api/tournaments/[id]/bm/finals/matches/route';
+import { configureNextResponseMock } from '../../../../../../../helpers/next-response-mock';
 
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
@@ -68,8 +69,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
   beforeEach(() => {
     jest.clearAllMocks();
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
-    const { NextResponse } = jest.requireMock('next/server');
-    NextResponse.json.mockImplementation((data: any, options?: any) => ({ data, status: options?.status || 200 }));
+    configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     rateLimitMock.getServerSideIdentifier.mockResolvedValue('test-ip');
     /* Reset Prisma mock implementations to prevent cross-test contamination
        (clearAllMocks does NOT clear mockRejectedValue/mockResolvedValue) */
