@@ -47,9 +47,16 @@ jest.mock('@/lib/rate-limit', () => ({
 jest.mock('@/lib/request-utils', () => ({
   getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
 }));
+/* Mock score-report-helpers: recalcStatsConfig invokes recalculatePlayerStats
+ * after a successful qualification-stage PUT. Tests assert the mock's call
+ * history to verify the hook is wired correctly. */
+jest.mock('@/lib/api-factories/score-report-helpers', () => ({
+  recalculatePlayerStats: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
+import { recalculatePlayerStats } from '@/lib/api-factories/score-report-helpers';
 import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
@@ -140,7 +147,7 @@ describe('Match Detail Route Factory', () => {
 
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect((prisma.bMMatch as any).findUnique).toHaveBeenCalledWith({
-        where: { id: 'match-123' },
+        where: { id: 'match-123', tournamentId: 'tournament-1' },
         include: { player1: true, player2: true },
       });
     });
@@ -479,6 +486,139 @@ describe('Match Detail Route Factory', () => {
       });
 
       expect(mockCreateErrorResponse).toHaveBeenCalledWith('Forbidden', 403, 'FORBIDDEN');
+    });
+  });
+
+  // ============================================================
+  // recalcStatsConfig Hook Tests (TC-402 regression coverage)
+  //
+  // Ensures that when a qualification-stage match PUT succeeds and the
+  // route was wired with recalcStatsConfig, recalculatePlayerStats is
+  // invoked once per player so the per-mode qualification aggregate
+  // stays in sync with match state. Without this hook, GP's manual-
+  // total admin score path left gPQualification rows at 0 across the
+  // whole tournament, dropping GP qualification points to 0 for every
+  // player in overall ranking.
+  // ============================================================
+
+  describe('PUT Handler — recalcStatsConfig hook', () => {
+    const recalcConfig = {
+      matchModel: 'bMMatch',
+      qualificationModel: 'bMQualification',
+      scoreFields: { p1: 'score1', p2: 'score2' },
+      determineResult: (a: number, b: number) =>
+        (a > b ? 'win' : a < b ? 'loss' : 'tie') as 'win' | 'loss' | 'tie',
+      useRoundDifferential: true,
+    };
+    const qualificationMatch = {
+      ...createMockMatch({ version: 2, score1: 3, score2: 1 }),
+      stage: 'qualification',
+      tournamentId: 'tournament-1',
+      player1Id: 'player-1',
+      player2Id: 'player-2',
+    };
+    const finalsMatch = { ...qualificationMatch, stage: 'finals' };
+    const mockRequestBody = {
+      score1: 3,
+      score2: 1,
+      completed: true,
+      version: 1,
+      rounds: [],
+    };
+    const mockRecalc = recalculatePlayerStats as jest.MockedFunction<
+      typeof recalculatePlayerStats
+    >;
+
+    it('invokes recalculatePlayerStats for both players on qualification-stage PUT', async () => {
+      /* Two findUnique calls: (1) stage lookup before updateMatchScore,
+       * (2) updated match re-fetch after. Mock both with the same shape. */
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
+
+      const config = {
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
+        recalcStatsConfig: recalcConfig,
+      };
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockRecalc).toHaveBeenCalledTimes(2);
+      expect(mockRecalc).toHaveBeenNthCalledWith(1, recalcConfig, 'tournament-1', 'player-1');
+      expect(mockRecalc).toHaveBeenNthCalledWith(2, recalcConfig, 'tournament-1', 'player-2');
+    });
+
+    it('does not invoke recalculatePlayerStats when recalcStatsConfig is omitted', async () => {
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
+
+      const config = {
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
+      };
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockRecalc).not.toHaveBeenCalled();
+    });
+
+    it('does not invoke recalculatePlayerStats for finals-stage matches', async () => {
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(finalsMatch);
+
+      const config = {
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
+        recalcStatsConfig: recalcConfig,
+      };
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockRecalc).not.toHaveBeenCalled();
+    });
+
+    it('still returns success when recalculatePlayerStats throws (logged, non-fatal)', async () => {
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
+      mockRecalc.mockRejectedValueOnce(new Error('recalc failed'));
+
+      const config = {
+        ...baseConfig,
+        updateMatchScore: jest.fn().mockResolvedValue({ version: 2 }),
+        recalcStatsConfig: recalcConfig,
+      };
+      const { PUT } = createMatchDetailHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(mockRequestBody),
+      });
+      await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockCreateSuccessResponse).toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to recalculate qualification stats'),
+        expect.objectContaining({ matchId: 'match-123' }),
+      );
     });
   });
 });

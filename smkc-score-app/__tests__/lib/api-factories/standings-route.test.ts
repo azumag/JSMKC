@@ -127,7 +127,7 @@ describe('Standings Route Factory', () => {
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json._cached).toBe(true);
+      expect(json.data._cached).toBe(true);
       // Should not call paginate since cache was used
       expect(paginate).not.toHaveBeenCalled();
     });
@@ -274,7 +274,7 @@ describe('Standings Route Factory', () => {
       const json = await response.json();
       // Factory injects _rank before calling transform; both records have distinct scores
       expect(transform).toHaveBeenCalledTimes(2);
-      expect(json.qualifications).toEqual([
+      expect(json.data.qualifications).toEqual([
         { ...mockQualifications[0], _rank: 1, transformed: true },
         { ...mockQualifications[1], _rank: 2, transformed: true },
       ]);
@@ -298,9 +298,9 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p1 and p2 are tied → both rank 1; p3 is at position 3 (standard 1224 ranking)
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[1]._rank).toBe(1);
-      expect(json.qualifications[2]._rank).toBe(3);
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[1]._rank).toBe(1);
+      expect(json.data.qualifications[2]._rank).toBe(3);
     });
 
     // No transform: Returns raw qualifications when transform not provided
@@ -316,7 +316,7 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // Without transform, factory returns ranked objects (with injected _rank field)
-      expect(json.qualifications).toEqual([
+      expect(json.data.qualifications).toEqual([
         { ...mockQualifications[0], _rank: 1 },
         { ...mockQualifications[1], _rank: 2 },
       ]);
@@ -360,10 +360,10 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p1 has 1 H2H win → rank 1; p2 has 0 → rank 2 (tie broken)
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[0].playerId).toBe('p1');
-      expect(json.qualifications[1]._rank).toBe(2);
-      expect(json.qualifications[1].playerId).toBe('p2');
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[0].playerId).toBe('p1');
+      expect(json.data.qualifications[1]._rank).toBe(2);
+      expect(json.data.qualifications[1].playerId).toBe('p2');
     });
 
     it('should keep players tied when H2H result is also tied (no mutual wins)', async () => {
@@ -389,8 +389,8 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // Both remain at rank 1 (still tied, requires sudden death)
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[1]._rank).toBe(1);
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[1]._rank).toBe(1);
     });
 
     it('should use custom matchScoreFields for GP (points1/points2)', async () => {
@@ -420,10 +420,10 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p2 won H2H → p2 rank 1, p1 rank 2
-      expect(json.qualifications[0].playerId).toBe('p2');
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[1].playerId).toBe('p1');
-      expect(json.qualifications[1]._rank).toBe(2);
+      expect(json.data.qualifications[0].playerId).toBe('p2');
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[1].playerId).toBe('p1');
+      expect(json.data.qualifications[1]._rank).toBe(2);
     });
 
     it('should not affect non-tied entries', async () => {
@@ -452,9 +452,9 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p1 stays at rank 1; p2 → rank 2; p3 → rank 3
-      expect(json.qualifications[0]).toMatchObject({ playerId: 'p1', _rank: 1 });
-      expect(json.qualifications[1]).toMatchObject({ playerId: 'p2', _rank: 2 });
-      expect(json.qualifications[2]).toMatchObject({ playerId: 'p3', _rank: 3 });
+      expect(json.data.qualifications[0]).toMatchObject({ playerId: 'p1', _rank: 1 });
+      expect(json.data.qualifications[1]).toMatchObject({ playerId: 'p2', _rank: 2 });
+      expect(json.data.qualifications[2]).toMatchObject({ playerId: 'p3', _rank: 3 });
     });
   });
 
@@ -488,12 +488,12 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p2's rankOverride=1 wins over p1's rankOverride=2
-      expect(json.qualifications[0].playerId).toBe('p2');
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[0]._rankOverridden).toBe(true);
-      expect(json.qualifications[1].playerId).toBe('p1');
-      expect(json.qualifications[1]._rank).toBe(2);
-      expect(json.qualifications[1]._rankOverridden).toBe(true);
+      expect(json.data.qualifications[0].playerId).toBe('p2');
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[0]._rankOverridden).toBe(true);
+      expect(json.data.qualifications[1].playerId).toBe('p1');
+      expect(json.data.qualifications[1]._rank).toBe(2);
+      expect(json.data.qualifications[1]._rankOverridden).toBe(true);
     });
 
     it('should not set _rankOverridden when rankOverride is null', async () => {
@@ -511,9 +511,9 @@ describe('Standings Route Factory', () => {
       );
 
       const json = await response.json();
-      expect(json.qualifications[0]._rankOverridden).toBeUndefined();
+      expect(json.data.qualifications[0]._rankOverridden).toBeUndefined();
       // Auto-computed rank is used
-      expect(json.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[0]._rank).toBe(1);
     });
 
     it('should prioritize rankOverride over H2H result', async () => {
@@ -545,9 +545,9 @@ describe('Standings Route Factory', () => {
 
       const json = await response.json();
       // p2's rankOverride=1 beats H2H result for p1
-      expect(json.qualifications[0].playerId).toBe('p2');
-      expect(json.qualifications[0]._rank).toBe(1);
-      expect(json.qualifications[0]._rankOverridden).toBe(true);
+      expect(json.data.qualifications[0].playerId).toBe('p2');
+      expect(json.data.qualifications[0]._rank).toBe(1);
+      expect(json.data.qualifications[0]._rankOverridden).toBe(true);
     });
   });
 
