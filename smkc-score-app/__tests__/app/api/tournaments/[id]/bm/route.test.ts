@@ -107,7 +107,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       /* The shared NextResponse mock unwraps createSuccessResponse bodies so
        * `result.data` is the unwrapped payload (see __tests__/helpers/next-response-mock.ts).
        * qualificationConfirmed is now included in the GET response. */
-      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false });
+      expect(result.data).toEqual({ qualifications: [{ ...mockQualifications[0], _rank: 1 }], matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },

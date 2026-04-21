@@ -139,7 +139,10 @@ describe('Qualification Route Factory', () => {
       const json = await response.json();
       /* Response now uses createSuccessResponse wrapper (#274) */
       expect(json.success).toBe(true);
-      expect(json.data.qualifications).toEqual(mockQualifications);
+      expect(json.data.qualifications).toEqual([
+        { ...mockQualifications[0], _rank: 1 },
+        { ...mockQualifications[1], _rank: 2 },
+      ]);
       expect(json.data.matches).toEqual(mockMatches);
       expect((prisma.bMQualification as any).findMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123' },

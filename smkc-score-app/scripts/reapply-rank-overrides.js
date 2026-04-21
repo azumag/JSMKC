@@ -190,40 +190,35 @@ function summarizeUnresolvedTies(mode, qualifications) {
     const sorted = [...entries].sort((a, b) => compareQualification(mode, a, b));
     let previous = null;
     let autoRank = 1;
-    const rankGroups = new Map();
+    // Group by effective rank (rankOverride ?? autoRank) so that collisions
+    // across different original autoRanks are also detected.
+    const effectiveRankGroups = new Map();
 
     for (let i = 0; i < sorted.length; i++) {
       const entry = sorted[i];
       if (previous && compareQualification(mode, previous, entry) !== 0) {
         autoRank = i + 1;
       }
-      if (!rankGroups.has(autoRank)) rankGroups.set(autoRank, []);
-      rankGroups.get(autoRank).push(entry);
+      const effectiveRank = entry.rankOverride ?? autoRank;
+      if (!effectiveRankGroups.has(effectiveRank)) effectiveRankGroups.set(effectiveRank, []);
+      effectiveRankGroups.get(effectiveRank).push(entry);
       previous = entry;
     }
 
-    for (const [rank, tiedQualifications] of rankGroups.entries()) {
+    for (const [rank, tiedQualifications] of effectiveRankGroups.entries()) {
       if (tiedQualifications.length <= 1) continue;
       if (!tiedQualifications.some((qualification) => (qualification.mp ?? 0) > 0)) continue;
 
-      const setOverrides = tiedQualifications
-        .map((qualification) => qualification.rankOverride)
-        .filter((value) => value != null);
-      const distinctOverrides = new Set(setOverrides).size;
-      const noDuplicateOverrides = distinctOverrides === setOverrides.length;
-      const resolved = noDuplicateOverrides && distinctOverrides >= tiedQualifications.length - 1;
-      if (!resolved) {
-        unresolved.push({
-          group,
-          rank,
-          players: tiedQualifications.map((qualification) => ({
-            nickname: qualification.player?.nickname,
-            rankOverride: qualification.rankOverride,
-            score: qualification.score,
-            points: qualification.points,
-          })),
-        });
-      }
+      unresolved.push({
+        group,
+        rank,
+        players: tiedQualifications.map((qualification) => ({
+          nickname: qualification.player?.nickname,
+          rankOverride: qualification.rankOverride,
+          score: qualification.score,
+          points: qualification.points,
+        })),
+      });
     }
   }
 

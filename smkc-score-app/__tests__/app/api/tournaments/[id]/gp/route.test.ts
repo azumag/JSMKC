@@ -94,7 +94,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await GET(request, { params });
 
       /* qualificationConfirmed is now included in the GET response */
-      expect(result.data).toEqual({ qualifications: _mockQualifications, matches: mockMatches, qualificationConfirmed: false });
+      expect(result.data).toEqual({ qualifications: [{ ..._mockQualifications[0], _rank: 1 }], matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },

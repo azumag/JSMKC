@@ -89,8 +89,10 @@ export function computeQualificationRanks(
     const h2hMatches = matches.filter(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (m: any) =>
-        m.completed === true &&
-        m.isBye !== true &&
+        // standings-route.ts uses Prisma select without completed/isBye fields,
+        // so treat undefined as "include this match" (caller already filtered).
+        (m.completed === undefined || m.completed === true) &&
+        (m.isBye === undefined || m.isBye !== true) &&
         playerIdSet.has(m.player1Id) &&
         playerIdSet.has(m.player2Id),
     );

@@ -84,7 +84,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const result = await GET(request, { params });
 
       /* qualificationConfirmed is now included in the GET response */
-      expect(result.data).toEqual({ qualifications: mockQualifications, matches: mockMatches, qualificationConfirmed: false });
+      expect(result.data).toEqual({ qualifications: [{ ...mockQualifications[0], _rank: 1 }], matches: mockMatches, qualificationConfirmed: false });
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },

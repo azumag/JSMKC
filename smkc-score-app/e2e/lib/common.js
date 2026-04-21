@@ -1390,7 +1390,11 @@ async function resolveAllTies(page, tournamentId, mode) {
       const alreadyResolved = noDuplicateOverrides && distinctOverrides >= tiedQualifications.length - 1;
       if (alreadyResolved) continue;
 
-      for (let i = 0; i < tiedQualifications.length - 1; i++) {
+      // Assign a distinct rankOverride to EVERY member of the tied group so
+      // that no two players share the same effective rank.  Previously we only
+      // set N-1 overrides, leaving the last player at the original autoRank
+      // which collided with the first override (autoRank + 0).
+      for (let i = 0; i < tiedQualifications.length; i++) {
         const qualification = tiedQualifications[i];
         const qualId = playerIdToQualId.get(`${group}:${qualification.playerId}`);
         if (!qualId) {

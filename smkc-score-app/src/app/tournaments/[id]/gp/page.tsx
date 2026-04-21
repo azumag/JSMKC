@@ -19,7 +19,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * - Navigation to finals bracket
  */
 
-import { useState, useCallback, use } from "react";
+import { useState, useCallback, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -162,7 +162,8 @@ export default function GrandPrixPage({
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualPoints1, setManualPoints1] = useState("");
   const [manualPoints2, setManualPoints2] = useState("");
-  const [startingPlayoff, setStartingPlayoff] = useState(false);
+  const [generatingBracket, setGeneratingBracket] = useState(false);
+  const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
   /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
@@ -222,6 +223,30 @@ export default function GrandPrixPage({
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   /* Whether qualification scores are locked by admin confirmation */
   const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
+
+  /**
+   * On mount, check whether a finals or playoff bracket already exists
+   * so the qualification page can show "View Tournament" instead of
+   * "Generate Bracket" when the admin returns after creation.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    async function checkFinals() {
+      try {
+        const res = await fetch(`/api/tournaments/${tournamentId}/gp/finals`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const data = json.data ?? json;
+        const hasFinals = (data.matches?.length ?? 0) > 0;
+        const hasPlayoff = (data.playoffMatches?.length ?? 0) > 0;
+        if (!cancelled) setFinalsExists(hasFinals || hasPlayoff);
+      } catch {
+        // Silently ignore — the button will default to "Generate" on error
+      }
+    }
+    checkFinals();
+    return () => { cancelled = true; };
+  }, [tournamentId]);
 
   /* Shared handlers for rank override and TV assignment */
   const { handleRankOverrideSave, handleTvAssign } =
@@ -516,54 +541,52 @@ export default function GrandPrixPage({
             </Button>
           )}
 
-          {/* Link to finals page (only shown when ALL qualification matches are completed) */}
+          {/* Finals / Playoff bracket action button.
+           *  - If bracket already exists: shows "View Tournament" link.
+           *  - Otherwise: generates bracket (Top-24 playoff or Top-16 finals)
+           *    and then switches to the link state. */
+          }
           {qualifications.length > 0 &&
            matches.length > 0 &&
-           matches.every((m) => m.completed) && (() => {
-             const needsPlayoff = qualifications.length > 16;
-             if (needsPlayoff) {
-               return (
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={startingPlayoff}
-                      onClick={async () => {
-                        setStartingPlayoff(true);
-                        try {
-                          const res = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ topN: 24 }),
-                          });
-                          if (!res.ok) {
-                            const err = await res.json().catch(() => ({}));
-                            alert(err.error || tc('failedStartPlayoff'));
-                            return;
-                          }
-                          window.location.href = `/tournaments/${tournamentId}/gp/finals`;
-                        } finally {
-                          setStartingPlayoff(false);
-                        }
-                      }}
-                    >
-                      {startingPlayoff ? tc('startingPlayoff') : tc('startPlayoff')}
-                    </Button>
-                   <Button variant="outline" asChild>
-                     <Link href={`/tournaments/${tournamentId}/gp/finals`}>
-                       {tc('goToFinalsTop16')}
-                     </Link>
-                   </Button>
-                 </div>
-               );
-             }
-             return (
-               <Button asChild>
+           matches.every((m) => m.completed) && (
+             finalsExists === true ? (
+               <Button variant="outline" asChild>
                  <Link href={`/tournaments/${tournamentId}/gp/finals`}>
-                   {tc('goToFinals')}
+                   {tc('viewTournament')}
                  </Link>
                </Button>
-             );
-           })()
-          }
+             ) : (
+               <Button
+                 disabled={generatingBracket || finalsExists === undefined}
+                 onClick={async () => {
+                   setGeneratingBracket(true);
+                   try {
+                     const needsPlayoff = qualifications.length > 16;
+                     const topN = needsPlayoff ? 24 : 16;
+                     const res = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ topN }),
+                     });
+                     if (!res.ok) {
+                       const err = await res.json().catch(() => ({}));
+                       alert(err.error || tc('failedGenerateBracket'));
+                       return;
+                     }
+                     setFinalsExists(true);
+                   } finally {
+                     setGeneratingBracket(false);
+                   }
+                 }}
+               >
+                 {generatingBracket
+                   ? tc('generatingBracket')
+                   : qualifications.length > 16
+                     ? tc('startPlayoff')
+                     : tc('generateFinalsBracket')}
+               </Button>
+             )
+           )}
           {/* Admin-only group setup/edit dialog (shared component) */}
           {isAdmin && <GroupSetupDialog
             mode="gp"
