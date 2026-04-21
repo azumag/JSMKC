@@ -127,6 +127,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         bracketStructure: mockBracket,
         bracketSize: expect.any(Number),
         roundNames,
+        phase: 'finals',
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(

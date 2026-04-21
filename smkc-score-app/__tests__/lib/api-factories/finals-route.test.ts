@@ -674,7 +674,7 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(201);
       const json = await response.json();
       expect(json.data.phase).toBe('playoff');
-      expect(json.data.matches).toHaveLength(8);
+      expect(json.data.playoffMatches).toHaveLength(8);
       /* Verifies 8 matches were created with stage='playoff' — the key
        * distinction from Top-8/Top-16 paths which write stage='finals'. */
       expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(8);

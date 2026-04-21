@@ -140,6 +140,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
+          phase: 'finals',
         });
       }
 
@@ -150,9 +151,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      /* Infer bracket size from match count:
-       * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
-       * Use count > 20 as threshold to distinguish. */
       const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD ? 16 : 8;
 
       const bracketStructure = matches.length > 0
