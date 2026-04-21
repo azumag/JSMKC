@@ -144,11 +144,13 @@ async function main() {
     exitAfterCleanup(124, () => closeBrowser(browser));
   }, suiteTimeoutMs);
   /* setupAllModes28PlayerQualification wires TA + BM + MR + GP qualifications
-   * for the 28-player tournament back-to-back; on production this consistently
-   * runs 15–25 min of API-driven work with no log() calls, which would trip
-   * the default 10 min progress watchdog. Bump to 30 min by default — the
-   * existing E2E_PROGRESS_TIMEOUT_MS env override still wins when set. */
-  progressWatchdog = createProgressWatchdog('tc-all', envMs('E2E_PROGRESS_TIMEOUT_MS', 30 * 60 * 1000), () => closeBrowser(browser));
+   * for the 28-player tournament back-to-back; each mode is a full 28-player
+   * round-robin (182 matches). BM runs without re-nav (~7 min) but MR/GP both
+   * re-navigate every iteration to sidestep stale match versions, so each of
+   * them consumes ~40 min of pure UI work with no log() calls. A 30 min
+   * watchdog would fire mid-MR. Default to 90 min; the
+   * E2E_PROGRESS_TIMEOUT_MS env override still wins when set. */
+  progressWatchdog = createProgressWatchdog('tc-all', envMs('E2E_PROGRESS_TIMEOUT_MS', 90 * 60 * 1000), () => closeBrowser(browser));
 
   /* tc-all now reuses the shared E2E fixture (same as tc-bm/tc-mr/tc-gp/tc-ta)
    * so the 28 reusable players + "E2E Shared Normal" tournament are created
@@ -189,14 +191,14 @@ async function main() {
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   sharedFixture = await createSharedE2eFixture(page);
   /* setupAllModes is a best-effort, expensive cross-mode seed used only by
-   * TC-401/TC-402 (overall ranking verification). When any of the four
-   * UI-driven qualification helpers hits a flaky UI race (a known failure
-   * mode of uiPutAllMrQualScores on the 3rd match), we flag TC-401/TC-402
-   * for failure and keep the rest of the suite running — the mode-specific
-   * suites below do their own fresh setup and should not inherit this
-   * partial state. Falling back to TID = normalTournament.id lets the public
-   * page / navigation tests still render against a real tournament. */
+   * TC-401/TC-402 (overall ranking verification). TA+BM+MR+GP qualifications
+   * together drive ~90 min of UI-only API work with no log() calls, so we
+   * pause the progress watchdog for the duration and rely on the suite-level
+   * hard timeout for protection. On any failure we flag TC-401/TC-402 and
+   * keep the rest of the suite running — the mode-specific suites below do
+   * their own fresh setup and should not inherit this partial state. */
   let setupAllModesError = null;
+  progressWatchdog.stop();
   try {
     const sharedSetup = await setupAllModes28PlayerQualification(page, 'tcall', { fixture: sharedFixture });
     TID = sharedSetup.tournamentId;
@@ -205,6 +207,9 @@ async function main() {
     setupAllModesError = err instanceof Error ? err.message : String(err);
     TID = sharedFixture.normalTournament.id;
     console.error(`[tc-all] setupAllModes failed (${setupAllModesError.slice(0, 160)}); TC-401/TC-402 will be recorded as FAIL and the run will continue against ${TID}.`);
+  } finally {
+    /* Re-arm the watchdog; subsequent log() calls will reset it per-TC. */
+    progressWatchdog.reset('post-setupAllModes');
   }
 
   // ===== Public page tests (work regardless of login state) =====
