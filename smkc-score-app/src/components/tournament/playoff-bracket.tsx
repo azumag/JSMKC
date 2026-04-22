@@ -33,6 +33,7 @@ interface BMMatch {
   player2Id: string;
   score1: number;
   score2: number;
+  cup?: string | null;
   completed: boolean;
   player1: Player;
   player2: Player;
@@ -121,6 +122,11 @@ function PlayoffMatchCard({
       <div className="text-xs text-muted-foreground mb-1">
         M{bracketMatch.matchNumber}
       </div>
+      {match?.cup && (
+        <div className="mb-1 text-[11px] text-blue-600">
+          {match.cup} Cup
+        </div>
+      )}
 
       {/* Player 1 row */}
       <div
