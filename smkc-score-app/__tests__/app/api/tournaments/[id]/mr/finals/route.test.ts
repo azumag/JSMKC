@@ -431,6 +431,27 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       expect(result.status).toBe(400);
     });
 
+    it('should return 400 when a score exceeds the configured target wins', async () => {
+      const mockMatch = {
+        id: 'm1',
+        round: 'grand_final',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 10, score2: 7 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 9)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.status).toBe(400);
+    });
+
     // Validation error case - Returns 400 when required fields missing
     it('should return 400 when required fields are missing', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', {});

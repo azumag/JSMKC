@@ -192,6 +192,9 @@ export default function MatchRaceFinals({
   const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
   const [champion, setChampion] = useState<Player | null>(null);
   const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
+  const hasExactMatchWinner = (player1Wins: number, player2Wins: number) =>
+    (player1Wins === selectedMatchTargetWins && player2Wins < selectedMatchTargetWins)
+    || (player2Wins === selectedMatchTargetWins && player1Wins < selectedMatchTargetWins);
 
   /**
    * Fetch finals bracket data including matches,
@@ -393,7 +396,7 @@ export default function MatchRaceFinals({
     const winnerCount = playedRounds.filter(r => r.winner === 1).length;
     const loserCount = playedRounds.filter(r => r.winner === 2).length;
 
-    if (winnerCount < selectedMatchTargetWins && loserCount < selectedMatchTargetWins) {
+    if (!hasExactMatchWinner(winnerCount, loserCount)) {
       alert(tCommon('matchMustHaveWinner'));
       return;
     }
@@ -745,10 +748,10 @@ export default function MatchRaceFinals({
             {/* i18n: Save result button */}
             <Button
               onClick={handleMatchSubmit}
-              disabled={
-                rounds.filter(r => r.winner === 1).length < selectedMatchTargetWins &&
-                rounds.filter(r => r.winner === 2).length < selectedMatchTargetWins
-              }
+              disabled={!hasExactMatchWinner(
+                rounds.filter(r => r.winner === 1).length,
+                rounds.filter(r => r.winner === 2).length,
+              )}
             >
               {tCommon('saveResult')}
             </Button>
