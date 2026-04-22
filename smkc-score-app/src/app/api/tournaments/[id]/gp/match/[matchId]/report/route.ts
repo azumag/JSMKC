@@ -31,7 +31,8 @@ import {
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
-import { getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
+import { COURSE_INFO, getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
+import { isValidCupChoice } from "@/lib/event-types/gp-config";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -58,6 +59,23 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
     myPoints > oppPoints ? 'win' : myPoints < oppPoints ? 'loss' : 'tie',
   useRoundDifferential: false,
 };
+
+function validateSubmittedCup(
+  assignedCup: string | null | undefined,
+  races: Array<{ course: string }>
+) {
+  const submittedCups = [...new Set(
+    races
+      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
+      .filter((cup): cup is string => Boolean(cup))
+  )];
+
+  if (submittedCups.length !== 1 || !isValidCupChoice(assignedCup ?? null, submittedCups[0])) {
+    return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+  }
+
+  return null;
+}
 
 
 /**
@@ -148,6 +166,9 @@ export async function POST(
         }
       }
 
+      const cupValidationError = validateSubmittedCup(match.cup, races);
+      if (cupValidationError) return cupValidationError;
+
       /* Process races: convert finishing positions to driver points (same as normal flow) */
       let totalPoints1 = 0;
       let totalPoints2 = 0;
@@ -233,6 +254,9 @@ export async function POST(
         );
       }
     }
+
+    const cupValidationError = validateSubmittedCup(match.cup, races);
+    if (cupValidationError) return cupValidationError;
 
     /* Process races: convert finishing positions to driver points */
     let totalPoints1 = 0;
