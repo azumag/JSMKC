@@ -92,6 +92,30 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
   });
 
   describe('GET - Fetch single match', () => {
+    it('should allow unauthenticated users to fetch a public match', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        stage: 'qualification',
+        score1: 3,
+        score2: 1,
+        completed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (auth as jest.Mock).mockResolvedValue(null);
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1');
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await GET(request, { params });
+
+      expect(result).toEqual({ data: mockMatch, status: 200 });
+      expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
+    });
+
     // Success case - Returns match with player details
     it('should return match with player details for valid matchId', async () => {
       const mockMatch = {

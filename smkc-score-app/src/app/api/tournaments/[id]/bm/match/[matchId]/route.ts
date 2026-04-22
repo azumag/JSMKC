@@ -27,7 +27,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   validateFinalsScores: validateBattleModeFinalScores,
   sanitizeBody: true,
   putRequiresAuth: true,
-  getRequiresAuth: true,
+  getRequiresAuth: false,
   recalcStatsConfig: {
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',
