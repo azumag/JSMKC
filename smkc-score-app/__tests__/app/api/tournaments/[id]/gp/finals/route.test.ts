@@ -612,6 +612,62 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(400);
     });
 
+    it('should return 400 when tied GP points use a non-match sudden-death winner', async () => {
+      const mockMatch = {
+        id: 'm1',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 2, score2: 2, suddenDeathWinnerId: 'p3' },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Sudden-death winner must be one of the match players',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'suddenDeathWinnerId' },
+      });
+      expect(result.status).toBe(400);
+    });
+
+    it('should return 400 when GP finals scores are not integers', async () => {
+      const mockMatch = {
+        id: 'm1',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 2.5, score2: 2 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Driver points must be non-negative integers',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'score' },
+      });
+      expect(result.status).toBe(400);
+    });
+
     it('should accept tied GP points when a sudden-death winner is provided', async () => {
       const mockMatch = {
         id: 'm1',
