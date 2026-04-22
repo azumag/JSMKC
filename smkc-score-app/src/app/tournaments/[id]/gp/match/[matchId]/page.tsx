@@ -424,9 +424,31 @@ export default function GPMatchPage({
                           <span className="text-sm font-medium w-20">
                             {tMatch('raceN', { n: index + 1 })}
                           </span>
-                          <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                            {race.course ? getCourseName(race.course) : "—"}
-                          </span>
+                          {activeCup ? (
+                            <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                              {race.course ? getCourseName(race.course) : "—"}
+                            </span>
+                          ) : (
+                            <Select
+                              value={race.course}
+                              onValueChange={(value) => {
+                                const newRaces = [...races];
+                                newRaces[index].course = value as CourseAbbr;
+                                setRaces(newRaces);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder={tCommon('selectCourse')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COURSE_INFO.map((course) => (
+                                  <SelectItem key={course.abbr} value={course.abbr}>
+                                    {course.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="space-y-1">
