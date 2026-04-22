@@ -8,7 +8,13 @@
  * e.g., three players at rank 2 → all get _autoRank=2, next player gets _autoRank=5.
  */
 
-import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "../../src/lib/ranking-utils";
+import {
+  buildPlayoffRankAssignments,
+  collectPlayoffGroups,
+  computeTieAwareRanks,
+  filterActiveTiedIds,
+  findUnresolvedTies,
+} from "../../src/lib/ranking-utils";
 
 // Minimal entry type matching what the pages use
 interface Entry {
@@ -340,5 +346,52 @@ describe("filterActiveTiedIds", () => {
     // findUnresolvedTies sees a tie, but filterActiveTiedIds suppresses it
     expect(tiedIds.size).toBe(3);
     expect(activeTiedIds.size).toBe(0);
+  });
+});
+
+describe("collectPlayoffGroups", () => {
+  it("returns no groups when there are no active ties", () => {
+    const entries = [
+      { id: "a", _autoRank: 1, rankOverride: null },
+      { id: "b", _autoRank: 2, rankOverride: null },
+    ];
+    expect(collectPlayoffGroups(entries, new Set()).length).toBe(0);
+  });
+
+  it("returns the full original tie block for an unresolved tie", () => {
+    const entries = [
+      { id: "a", _autoRank: 1, rankOverride: null },
+      { id: "b", _autoRank: 1, rankOverride: null },
+      { id: "c", _autoRank: 3, rankOverride: null },
+    ];
+    const groups = collectPlayoffGroups(entries, new Set(["a", "b"]));
+    expect(groups).toHaveLength(1);
+    expect(groups[0].map((entry) => entry.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps partially-resolved ties together in one playoff group", () => {
+    const entries = [
+      { id: "a", _autoRank: 1, rankOverride: 1 },
+      { id: "b", _autoRank: 1, rankOverride: 2 },
+      { id: "c", _autoRank: 1, rankOverride: null },
+    ];
+    const groups = collectPlayoffGroups(entries, new Set(["a", "c"]));
+    expect(groups).toHaveLength(1);
+    expect(groups[0].map((entry) => entry.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("buildPlayoffRankAssignments", () => {
+  it("assigns sequential rank overrides from the shared auto rank", () => {
+    const assignments = buildPlayoffRankAssignments([
+      { id: "b", _autoRank: 4, rankOverride: null },
+      { id: "a", _autoRank: 4, rankOverride: null },
+      { id: "c", _autoRank: 4, rankOverride: null },
+    ]);
+    expect(assignments).toEqual([
+      { id: "b", rankOverride: 4 },
+      { id: "a", rankOverride: 5 },
+      { id: "c", rankOverride: 6 },
+    ]);
   });
 });

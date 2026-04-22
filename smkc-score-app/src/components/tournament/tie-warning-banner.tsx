@@ -4,7 +4,7 @@
  * Displays a yellow warning banner when unresolved tied ranks exist in a
  * qualification standings group (BM/MR/GP).
  *
- * Admins see a prompt to use the rank override pencil to resolve ties.
+ * Admins see a prompt to record the sudden-death playoff result.
  * Non-admins see a notice that resolution is pending.
  *
  * Only renders when hasTies is true; returns null otherwise to allow
