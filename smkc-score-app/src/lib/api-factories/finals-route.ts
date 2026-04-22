@@ -27,7 +27,6 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
-import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 
 /**
  * Bracket size inference thresholds.
@@ -211,6 +210,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
+          qualificationConfirmed: tournament.qualificationConfirmed ?? false,
           phase,
           playoffMatches,
           playoffStructure,
@@ -252,6 +252,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
+          qualificationConfirmed: tournament.qualificationConfirmed ?? false,
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,
@@ -265,6 +266,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure,
         bracketSize,
         roundNames,
+        qualificationConfirmed: tournament.qualificationConfirmed ?? false,
         phase,
         playoffMatches,
         playoffStructure,
@@ -304,10 +306,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
-
-    /* Block finals operations when qualification results are confirmed */
-    const lockError = await checkQualificationConfirmed(prisma, tournamentId);
-    if (lockError) return lockError;
 
     try {
       /* Defense-in-depth: always sanitize user input */
@@ -729,10 +727,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     const { id } = await params;
     const tournamentId = await resolveTournamentId(id);
-
-    /* Block finals edits when qualification results are confirmed */
-    const lockError = await checkQualificationConfirmed(prisma, tournamentId);
-    if (lockError) return lockError;
 
     try {
       /* Defense-in-depth: always sanitize user input */

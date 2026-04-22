@@ -211,6 +211,7 @@ export default function MatchRaceFinals({
       bracketStructure?: BracketMatch[];
       playoffStructure?: BracketMatch[];
       roundNames?: Record<string, string>;
+      qualificationConfirmed?: boolean;
       phase?: 'playoff' | 'finals';
       seededPlayers?: SeededPlayer[];
       playoffSeededPlayers?: SeededPlayer[];
@@ -223,6 +224,7 @@ export default function MatchRaceFinals({
       bracketStructure: data.bracketStructure || [],
       playoffStructure: data.playoffStructure || [],
       roundNames: data.roundNames || {},
+      qualificationConfirmed: data.qualificationConfirmed ?? false,
       phase: data.phase,
       seededPlayers: data.seededPlayers || [],
       playoffSeededPlayers: data.playoffSeededPlayers || [],
@@ -454,6 +456,7 @@ export default function MatchRaceFinals({
   /* Track tournament progress */
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
+  const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
 
   /* Loading skeleton */
   if (loading) {
@@ -487,7 +490,7 @@ export default function MatchRaceFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket: admin-only */}
-          {isAdmin && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating} aria-label="Generate finals bracket">
