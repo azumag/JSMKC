@@ -40,6 +40,7 @@ const {
   apiGenerateMrFinals: generateMrFinalsBracket,
   apiSetMrFinalsScore: setMrFinalsScore,
   apiFetchMrFinalsMatches: fetchMrFinalsMatches,
+  apiFetchMrFinalsState,
   loginPlayerBrowser,
   setupMrQualViaUi,
 } = require('./lib/common');
@@ -944,6 +945,147 @@ async function runTc820(adminPage) {
   }
 }
 
+/* ───────── TC-615: MR Top-24 Playoff UI Flow ─────────
+ * Validates the full Top-24 → Top-16 playoff UI path for MR:
+ * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
+ * 2. Clicking it stores topN=24 in sessionStorage
+ * 3. Finals page renders PlayoffBracket with M1..M8
+ * 4. Scoring all playoff_r2 matches sets playoffComplete=true
+ * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
+async function runTc615(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    // Navigate to qualification page
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+
+    // The qualification page should show "Start Playoff (Top 24)" for 28 players
+    const startPlayoffBtn = adminPage.getByRole('button', {
+      name: /Start Playoff|バラッジ開始/,
+    });
+    const hasStartPlayoff = await startPlayoffBtn.count() > 0;
+
+    // Clear any stale sessionStorage
+    await adminPage.evaluate(() => sessionStorage.removeItem('mr_finals_topN'));
+
+    if (hasStartPlayoff) {
+      await startPlayoffBtn.click();
+      await adminPage.waitForTimeout(3000);
+    } else {
+      throw new Error('Start Playoff button not found on MR qualification page');
+    }
+
+    // Verify sessionStorage was set by the qualification page
+    const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('mr_finals_topN'));
+
+    // Navigate to finals page — it should read sessionStorage and land on playoff phase
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+
+    const finalsText = await adminPage.locator('body').innerText();
+    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)') || finalsText.includes('Playoff');
+    const hasM1 = finalsText.includes('M1');
+
+    // Score all playoff_r1 matches (M1..M4) — MR targetWins defaults to 3
+    for (let mn = 1; mn <= 4; mn++) {
+      const state = await apiFetchMrFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R1 M${mn} missing`);
+      const res = await apiSetMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
+    }
+
+    // Score all playoff_r2 matches (M5..M8)
+    for (let mn = 5; mn <= 8; mn++) {
+      const state = await apiFetchMrFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R2 M${mn} missing`);
+      const res = await apiSetMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
+    }
+
+    const finalState = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const playoffComplete = finalState.playoffComplete === true;
+
+    // Trigger Phase 2 (Upper Bracket creation) via API
+    const phase2 = await apiGenerateMrFinals(adminPage, tournamentId, 24);
+    const phase2Ok = phase2.s === 201 && phase2.b?.data?.phase === 'finals';
+
+    // Re-navigate to finals page and verify finals phase is shown
+    await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    const postPhase2Text = await adminPage.locator('body').innerText();
+    const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
+
+    const ok = hasStartPlayoff && storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    log('TC-615', ok ? 'PASS' : 'FAIL',
+      !hasStartPlayoff ? 'Start Playoff button missing'
+      : storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
+      : !hasPlayoffLabel ? 'Playoff label missing on finals page'
+      : !hasM1 ? 'M1 missing on playoff bracket'
+      : !playoffComplete ? 'playoffComplete not true'
+      : !phase2Ok ? `Phase 2 failed (${phase2.s})`
+      : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
+      : '');
+  } catch (err) {
+    log('TC-615', 'FAIL', err instanceof Error ? err.message : 'MR 615 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-616: MR qualification page finals-exists state + reset ─────────
+ * After a finals bracket is created, returning to the qualification page
+ * should show "View Tournament" instead of "Generate Bracket", and an admin
+ * "Reset Bracket" button. Resetting restores the "Generate Finals Bracket" state. */
+async function runTc616(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    // Generate an 8-player finals bracket
+    const gen = await apiGenerateMrFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    // Go back to qualification page
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+
+    const qualText = await adminPage.locator('body').innerText();
+    const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
+    const hasResetBracket = qualText.includes('Reset Bracket') || qualText.includes('ブラケットリセット');
+
+    // Click Reset Bracket
+    const resetBtn = adminPage.getByRole('button', {
+      name: /Reset Bracket|ブラケットリセット/,
+    });
+    const resetVisible = await resetBtn.count() > 0;
+    if (resetVisible) {
+      adminPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await resetBtn.click();
+      await adminPage.waitForTimeout(3000);
+    }
+
+    // After reset, the qualification page should show the generate button again
+    const postResetText = await adminPage.locator('body').innerText();
+    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成');
+
+    const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
+    log('TC-616', ok ? 'PASS' : 'FAIL',
+      !hasViewTournament ? 'View Tournament button missing after bracket creation'
+      : !hasResetBracket ? 'Reset Bracket button missing'
+      : !resetVisible ? 'Reset Bracket not found as button element'
+      : !hasGenerateButton ? 'Generate Finals Bracket button not restored after reset'
+      : '');
+  } catch (err) {
+    log('TC-616', 'FAIL', err instanceof Error ? err.message : 'MR 616 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-822: MR scoresConfirmed → subsequent PUT blocked ─────────
  * SKIPPED — feature not implemented. MRMatch has no `scoresConfirmed` column
  * and qualification-route.ts only blocks edits when the whole qualification
@@ -986,6 +1128,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-612', fn: runTc612 },
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-822', fn: runTc822 },
+      { name: 'TC-615', fn: runTc615 },
+      { name: 'TC-616', fn: runTc616 },
     ],
   };
 }
@@ -993,6 +1137,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822,
+  runTc615, runTc616,
   getSuite,
   results,
 };

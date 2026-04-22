@@ -1175,6 +1175,38 @@ async function main() {
     }
   } else { log('TC-319', 'SKIP'); }
 
+  // TC-518: TV Assignment up to 4
+  try {
+    await nav(page, `/tournaments/${TID}/bm`);
+    const tvSelect = page.locator('select.w-14').first();
+    const hasSelect = await tvSelect.count() > 0;
+    let options = [];
+    let optionsOk = false;
+    let assignOk = false;
+    if (hasSelect) {
+      options = await tvSelect.evaluateAll((sel) => Array.from(sel[0].options).map((o) => o.value));
+      optionsOk = ['1', '2', '3', '4'].every((v) => options.includes(v));
+      // Assign TV 4 to the first match
+      await tvSelect.selectOption('4');
+      await page.waitForTimeout(1000);
+      // Verify via API that the assignment persisted
+      const bmData = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        return r.json().catch(() => ({}));
+      }, `/api/tournaments/${TID}/bm`);
+      const matches = bmData.data?.matches || bmData.matches || [];
+      const firstMatchWithTv = matches.find((m) => m.tvNumber === 4);
+      assignOk = !!firstMatchWithTv;
+    }
+    log('TC-518', hasSelect && optionsOk && assignOk ? 'PASS' : 'FAIL',
+      !hasSelect ? 'No TV select found on BM qualification page'
+      : !optionsOk ? `TV options missing 1-4 (got ${options.join(',')})`
+      : !assignOk ? 'TV 4 assignment did not persist'
+      : '');
+  } catch (err) {
+    log('TC-518', 'FAIL', err instanceof Error ? err.message : 'TV assignment test failed');
+  }
+
   // TC-104: Player delete
   if (pid) {
     const dr = await page.evaluate(async u => {

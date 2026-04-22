@@ -394,6 +394,131 @@ async function runTc504(adminPage) {
   }
 }
 
+/* ───────── TC-515: BM Top-24 Playoff UI Flow ─────────
+ * Validates the full Top-24 → Top-16 playoff UI path:
+ * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
+ * 2. Clicking it stores topN=24 in sessionStorage
+ * 3. Finals page renders PlayoffBracket with M1..M8
+ * 4. Scoring all playoff_r2 matches sets playoffComplete=true
+ * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
+async function runTc515(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
+
+    const startPlayoffBtn = adminPage.getByRole('button', {
+      name: /Start Playoff|バラッジ開始/,
+    });
+    const hasStartPlayoff = await startPlayoffBtn.count() > 0;
+
+    await adminPage.evaluate(() => sessionStorage.removeItem('bm_finals_topN'));
+
+    if (hasStartPlayoff) {
+      await startPlayoffBtn.click();
+      await adminPage.waitForTimeout(3000);
+    } else {
+      throw new Error('Start Playoff button not found on BM qualification page');
+    }
+
+    const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('bm_finals_topN'));
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+
+    const finalsText = await adminPage.locator('body').innerText();
+    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)') || finalsText.includes('Playoff');
+    const hasM1 = finalsText.includes('M1');
+
+    for (let mn = 1; mn <= 4; mn++) {
+      const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R1 M${mn} missing`);
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
+    }
+
+    for (let mn = 5; mn <= 8; mn++) {
+      const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R2 M${mn} missing`);
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
+    }
+
+    const finalState = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const playoffComplete = finalState.playoffComplete === true;
+
+    const phase2 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    const phase2Ok = phase2.s === 201 && phase2.b?.data?.phase === 'finals';
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+    const postPhase2Text = await adminPage.locator('body').innerText();
+    const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
+
+    const ok = hasStartPlayoff && storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    log('TC-515', ok ? 'PASS' : 'FAIL',
+      !hasStartPlayoff ? 'Start Playoff button missing'
+      : storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
+      : !hasPlayoffLabel ? 'Playoff label missing on finals page'
+      : !hasM1 ? 'M1 missing on playoff bracket'
+      : !playoffComplete ? 'playoffComplete not true'
+      : !phase2Ok ? `Phase 2 failed (${phase2.s})`
+      : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
+      : '');
+  } catch (err) {
+    log('TC-515', 'FAIL', err instanceof Error ? err.message : 'BM 515 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-516: BM qualification page finals-exists state + reset ───────── */
+async function runTc516(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
+
+    const qualText = await adminPage.locator('body').innerText();
+    const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
+    const hasResetBracket = qualText.includes('Reset Bracket') || qualText.includes('ブラケットリセット');
+
+    const resetBtn = adminPage.getByRole('button', {
+      name: /Reset Bracket|ブラケットリセット/,
+    });
+    const resetVisible = await resetBtn.count() > 0;
+    if (resetVisible) {
+      adminPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await resetBtn.click();
+      await adminPage.waitForTimeout(3000);
+    }
+
+    const postResetText = await adminPage.locator('body').innerText();
+    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成');
+
+    const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
+    log('TC-516', ok ? 'PASS' : 'FAIL',
+      !hasViewTournament ? 'View Tournament button missing after bracket creation'
+      : !hasResetBracket ? 'Reset Bracket button missing'
+      : !resetVisible ? 'Reset Bracket not found as button element'
+      : !hasGenerateButton ? 'Generate Finals Bracket button not restored after reset'
+      : '');
+  } catch (err) {
+    log('TC-516', 'FAIL', err instanceof Error ? err.message : 'BM 516 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-510: BM Top-24 pre-bracket playoff → Top-16 finals ─────────
  * Validates issue #454: topN=24 first creates an 8-match playoff, blocks
  * Phase 2 while R2 remains incomplete, then creates a 31-match 16-player
@@ -799,6 +924,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
+      { name: 'TC-515', fn: runTc515 },
+      { name: 'TC-516', fn: runTc516 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -807,7 +934,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511,
-  runTc507, runTc508, runTc509,
+  runTc507, runTc508, runTc509, runTc515, runTc516,
   getSuite,
   results,
 };

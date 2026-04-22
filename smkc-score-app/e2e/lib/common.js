@@ -454,13 +454,50 @@ async function apiSetMrFinalsScore(page, tournamentId, matchId, score1, score2) 
 }
 
 async function apiFetchMrFinalsMatches(page, tournamentId) {
+  const state = await apiFetchMrFinalsState(page, tournamentId);
+  return state.matches;
+}
+
+async function apiFetchMrFinalsState(page, tournamentId) {
   const json = await page.evaluate(async (u) => {
     const r = await fetch(`${u}?ts=${Date.now()}`, { cache: 'no-store' });
     return r.json().catch(() => ({}));
   }, `/api/tournaments/${tournamentId}/mr/finals`);
-  /* Unwrap createSuccessResponse: json.data = { matches, bracketStructure, roundNames } */
-  const matches = json.data?.matches || json.matches || [];
-  return matches.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+  /* Unwrap createSuccessResponse: json.data = { matches, bracketStructure, roundNames, playoffMatches, phase, playoffComplete } */
+  const wrapped = json.data;
+  const matches = wrapped?.matches || json.matches || [];
+  return {
+    raw: json,
+    matches: matches.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || [])
+      .slice()
+      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    phase: wrapped?.phase,
+    playoffComplete: wrapped?.playoffComplete ?? false,
+    bracketSize: wrapped?.bracketSize,
+  };
+}
+
+async function apiFetchGpFinalsState(page, tournamentId) {
+  const json = await page.evaluate(async (u) => {
+    const r = await fetch(`${u}?page=1&limit=50&ts=${Date.now()}`, { cache: 'no-store' });
+    return r.json().catch(() => ({}));
+  }, `/api/tournaments/${tournamentId}/gp/finals`);
+  /* GP uses 'paginated' GET style: json.data = { data: [...matches], meta: {...}, playoffMatches, phase, playoffComplete } */
+  const wrapped = json.data;
+  const raw = (wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped))
+    ? (wrapped.data || [])
+    : (Array.isArray(wrapped) ? wrapped : []);
+  return {
+    raw: json,
+    matches: raw.slice().sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    playoffMatches: (wrapped?.playoffMatches || [])
+      .slice()
+      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
+    phase: wrapped?.phase,
+    playoffComplete: wrapped?.playoffComplete ?? false,
+    bracketSize: wrapped?.bracketSize,
+  };
 }
 
 async function setupMr28PlayerFinals(adminPage, label, opts = {}) {
@@ -2123,6 +2160,7 @@ module.exports = {
   apiGenerateMrFinals,
   apiSetMrFinalsScore,
   apiFetchMrFinalsMatches,
+  apiFetchMrFinalsState,
   setupMr28PlayerFinals,
   /* GP */
   makeRacesP1Wins,
@@ -2133,6 +2171,7 @@ module.exports = {
   apiSetGpFinalsScore,
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
+  apiFetchGpFinalsState,
   setupGp28PlayerFinals,
   /* TA */
   TA_COURSES,

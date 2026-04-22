@@ -25,7 +25,7 @@ const {
   makeResults, makeLog, nav,
   uiCreatePlayer, apiDeletePlayer,
   apiFetchGp, apiPutGpQualScore,
-  apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches,
+  apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
   makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
   setupGpQualViaUi,
@@ -534,6 +534,131 @@ async function runTc709(adminPage) {
   }
 }
 
+/* ───────── TC-715: GP Top-24 Playoff UI Flow ─────────
+ * Validates the full Top-24 → Top-16 playoff UI path for GP:
+ * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
+ * 2. Clicking it stores topN=24 in sessionStorage
+ * 3. Finals page renders PlayoffBracket with M1..M8
+ * 4. Scoring all playoff_r2 matches sets playoffComplete=true
+ * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
+async function runTc715(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp`);
+
+    const startPlayoffBtn = adminPage.getByRole('button', {
+      name: /Start Playoff|バラッジ開始/,
+    });
+    const hasStartPlayoff = await startPlayoffBtn.count() > 0;
+
+    await adminPage.evaluate(() => sessionStorage.removeItem('gp_finals_topN'));
+
+    if (hasStartPlayoff) {
+      await startPlayoffBtn.click();
+      await adminPage.waitForTimeout(3000);
+    } else {
+      throw new Error('Start Playoff button not found on GP qualification page');
+    }
+
+    const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('gp_finals_topN'));
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
+
+    const finalsText = await adminPage.locator('body').innerText();
+    const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)') || finalsText.includes('Playoff');
+    const hasM1 = finalsText.includes('M1');
+
+    for (let mn = 1; mn <= 4; mn++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R1 M${mn} missing`);
+      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
+    }
+
+    for (let mn = 5; mn <= 8; mn++) {
+      const state = await apiFetchGpFinalsState(adminPage, tournamentId);
+      const match = state.playoffMatches.find((m) => m.matchNumber === mn);
+      if (!match) throw new Error(`Playoff R2 M${mn} missing`);
+      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
+    }
+
+    const finalState = await apiFetchGpFinalsState(adminPage, tournamentId);
+    const playoffComplete = finalState.playoffComplete === true;
+
+    const phase2 = await apiGenerateGpFinals(adminPage, tournamentId, 24);
+    const phase2Ok = phase2.s === 201 && phase2.b?.data?.phase === 'finals';
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
+    const postPhase2Text = await adminPage.locator('body').innerText();
+    const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
+
+    const ok = hasStartPlayoff && storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    log('TC-715', ok ? 'PASS' : 'FAIL',
+      !hasStartPlayoff ? 'Start Playoff button missing'
+      : storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
+      : !hasPlayoffLabel ? 'Playoff label missing on finals page'
+      : !hasM1 ? 'M1 missing on playoff bracket'
+      : !playoffComplete ? 'playoffComplete not true'
+      : !phase2Ok ? `Phase 2 failed (${phase2.s})`
+      : !hasFinalsPhase ? 'Finals phase not shown after Upper Bracket creation'
+      : '');
+  } catch (err) {
+    log('TC-715', 'FAIL', err instanceof Error ? err.message : 'GP 715 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-716: GP qualification page finals-exists state + reset ───────── */
+async function runTc716(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp`);
+
+    const qualText = await adminPage.locator('body').innerText();
+    const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
+    const hasResetBracket = qualText.includes('Reset Bracket') || qualText.includes('ブラケットリセット');
+
+    const resetBtn = adminPage.getByRole('button', {
+      name: /Reset Bracket|ブラケットリセット/,
+    });
+    const resetVisible = await resetBtn.count() > 0;
+    if (resetVisible) {
+      adminPage.once('dialog', async (dialog) => {
+        await dialog.accept();
+      });
+      await resetBtn.click();
+      await adminPage.waitForTimeout(3000);
+    }
+
+    const postResetText = await adminPage.locator('body').innerText();
+    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成');
+
+    const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
+    log('TC-716', ok ? 'PASS' : 'FAIL',
+      !hasViewTournament ? 'View Tournament button missing after bracket creation'
+      : !hasResetBracket ? 'Reset Bracket button missing'
+      : !resetVisible ? 'Reset Bracket not found as button element'
+      : !hasGenerateButton ? 'Generate Finals Bracket button not restored after reset'
+      : '');
+  } catch (err) {
+    log('TC-716', 'FAIL', err instanceof Error ? err.message : 'GP 716 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -561,13 +686,15 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
+      { name: 'TC-715', fn: runTc715 },
+      { name: 'TC-716', fn: runTc716 },
     ],
   };
 }
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709,
+  runTc707, runTc708, runTc709, runTc715, runTc716,
   getSuite,
   results,
 };
