@@ -231,7 +231,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
           ? config.validateFinalsScoresWithMatch
             ? () => config.validateFinalsScoresWithMatch!(val1, val2, matchForStage)
             : config.validateFinalsScores
-              ? () => config.validateFinalsScores!(val1, val2)
+              ? () => config.validateFinalsScores!(val1, val2, matchForStage)
               : null
           : config.validateScores
             ? () => config.validateScores!(val1, val2)
