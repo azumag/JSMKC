@@ -222,6 +222,7 @@ describe('Finals Route Factory', () => {
       expect(json.data.data).toEqual([createMockMatch()]);
       expect(json.data.bracketStructure).toBeDefined();
       expect(json.data.roundNames).toEqual(roundNames);
+      expect(json.data.qualificationConfirmed).toBe(false);
       expect(mockPaginate).toHaveBeenCalledWith(
         expect.objectContaining({
           findMany: expect.any(Function),
@@ -649,6 +650,32 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
       const call = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(call.data).toHaveLength(17);
+    });
+
+    it('should still create bracket after qualification is confirmed', async () => {
+      (prisma.tournament as any).findUnique.mockResolvedValue({
+        id: 'tournament-123',
+        name: 'Test Tournament',
+        qualificationConfirmed: true,
+      });
+      (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
+      (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 8 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
     });
 
     it('should return 400 when topN is not 8', async () => {

@@ -203,6 +203,22 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
       });
     });
 
+    it('should reject tvNumber greater than 4', async () => {
+      const mockAuth = { user: { id: 'admin1', role: 'admin' } };
+      (auth as jest.Mock).mockResolvedValue(mockAuth);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals/matches', {
+        player1Id: UUID_P1,
+        player2Id: UUID_P2,
+        tvNumber: 5,
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(400);
+      expect(prisma.bMMatch.create).not.toHaveBeenCalled();
+    });
+
     // Success case - Increments match number based on existing matches
     it('should calculate match number based on existing matches', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };

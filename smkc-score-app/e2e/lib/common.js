@@ -1455,6 +1455,36 @@ async function openMatchesTab(page) {
   }
 }
 
+function pickRandomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function pickRandomBmScore() {
+  return pickRandomItem([
+    { score1: 3, score2: 1 },
+    { score1: 2, score2: 2 },
+    { score1: 1, score2: 3 },
+  ]);
+}
+
+function pickRandomMrScoreProfile() {
+  return pickRandomItem([
+    { score1: 3, score2: 1, p1Wins: [1, 2, 4] },
+    { score1: 2, score2: 2, p1Wins: [1, 3] },
+    { score1: 1, score2: 3, p1Wins: [2] },
+  ]);
+}
+
+function pickRandomGpPoints() {
+  return pickRandomItem([
+    { points1: 45, points2: 0 },
+    { points1: 33, points2: 12 },
+    { points1: 24, points2: 21 },
+    { points1: 12, points2: 33 },
+    { points1: 0, points2: 45 },
+  ]);
+}
+
 /** UI-based BM qualification score entry for EVERY open match of the given
  *  tournament. Iterates the Matches tab and, for each remaining "Enter Score"
  *  button, opens the score dialog and submits `score1`-`score2`. Defaults to
@@ -1503,10 +1533,9 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
      * identical score+points → full tied group, breaking qualification). */
     let score1, score2;
     if (randomize) {
-      const choices = [[3, 1], [2, 2], [1, 3]];
-      const pick = choices[Math.floor(Math.random() * choices.length)];
-      score1 = pick[0];
-      score2 = pick[1];
+      const pick = pickRandomBmScore();
+      score1 = pick.score1;
+      score2 = pick.score2;
     } else {
       score1 = fixedS1 ?? 3;
       score2 = fixedS2 ?? 1;
@@ -1558,9 +1587,11 @@ async function uiPutAllBmQualScores(page, tournamentId, opts = {}) {
 
 /** UI-based MR qualification score entry. Each MR qualification match has
  *  pre-assigned courses (set at group-setup time), so we only need to click
- *  winner buttons. Produces 3-1 by default: player1 wins first 3 races,
- *  player2 wins the 4th. */
-async function uiPutAllMrQualScores(page, tournamentId) {
+ *  winner buttons. Defaults to randomised 3-1 / 2-2 / 1-3 outcomes so MR
+ *  qualification exercises tie handling the same way BM does; pass
+ *  randomize=false with fixed scores when deterministic output is needed. */
+async function uiPutAllMrQualScores(page, tournamentId, opts = {}) {
+  const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
   /* Safety cap: 2 groups × 91 matches + buffer. */
   for (let i = 0; i < 300; i++) {
     /* Re-navigate every iteration for the same reason the GP helper does:
@@ -1595,11 +1626,24 @@ async function uiPutAllMrQualScores(page, tournamentId) {
     if (btnCount < 8) {
       throw new Error(`MR dialog has only ${btnCount} winner buttons (expected 8)`);
     }
-    /* Race 1/2/3 → player1 wins; Race 4 → player2 wins. */
-    await winnerButtons.nth(0).click();
-    await winnerButtons.nth(2).click();
-    await winnerButtons.nth(4).click();
-    await winnerButtons.nth(7).click();
+
+    const outcome = randomize
+      ? pickRandomMrScoreProfile()
+      : (() => {
+        const score1 = fixedS1 ?? 3;
+        const score2 = fixedS2 ?? 1;
+        if (score1 + score2 !== 4) {
+          throw new Error(`MR fixed score must sum to 4 races, got ${score1}-${score2}`);
+        }
+        const p1Wins = Array.from({ length: score1 }, (_, idx) => idx + 1);
+        return { score1, score2, p1Wins };
+      })();
+
+    for (let race = 1; race <= 4; race++) {
+      const player1Wins = outcome.p1Wins.includes(race);
+      const buttonIndex = (race - 1) * 2 + (player1Wins ? 0 : 1);
+      await winnerButtons.nth(buttonIndex).click();
+    }
 
     const responsePromise = page.waitForResponse((res) =>
       res.url().includes(`/api/tournaments/${tournamentId}/mr`) &&
@@ -1619,8 +1663,11 @@ async function uiPutAllMrQualScores(page, tournamentId) {
 /** UI-based GP qualification score entry using the dialog's "Manual Total
  *  Score" toggle to bypass the per-race position entry. selectedCup is auto-
  *  initialized from match.cup on dialog open, so we only need to tick the
- *  manual checkbox and fill two point totals. */
-async function uiPutAllGpQualScores(page, tournamentId, points1 = 45, points2 = 0) {
+ *  manual checkbox and fill two point totals. Defaults to randomised score
+ *  profiles so qualification standings are less uniform, but callers can
+ *  still force fixed totals when needed. */
+async function uiPutAllGpQualScores(page, tournamentId, opts = {}) {
+  const { points1: fixedP1, points2: fixedP2, randomize = true } = opts;
   /* Safety cap: 2 groups × 91 matches + buffer. */
   for (let i = 0; i < 300; i++) {
     /* Re-navigate every iteration: GP's server-side standings recalc bumps
@@ -1638,6 +1685,10 @@ async function uiPutAllGpQualScores(page, tournamentId, points1 = 45, points2 = 
       hasText: /enterMatchResult|試合結果|Enter Match Result/,
     }).first();
     await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const { points1, points2 } = randomize
+      ? pickRandomGpPoints()
+      : { points1: fixedP1 ?? 45, points2: fixedP2 ?? 0 };
 
     /* Toggle manual-total-score; the id is stable. */
     await dialog.locator('#gp-manual-score').check();
@@ -1749,10 +1800,15 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
 
 /** UI-driven MR qualification: group assignment + all match scores (3-1
  *  via per-race winner buttons). */
-async function setupMrQualViaUi(adminPage, tournamentId, players, { resolveTies = true } = {}) {
+async function setupMrQualViaUi(
+  adminPage,
+  tournamentId,
+  players,
+  { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {},
+) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
-  await uiPutAllMrQualScores(adminPage, tournamentId);
+  await uiPutAllMrQualScores(adminPage, tournamentId, { score1, score2, randomize });
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'mr');
   }
@@ -1761,10 +1817,15 @@ async function setupMrQualViaUi(adminPage, tournamentId, players, { resolveTies 
 /** UI-driven GP qualification: group assignment + all match scores via the
  *  dialog's Manual Total Score toggle (45-0 by default, matching the
  *  player1-wins-all-5-races outcome of makeRacesP1Wins). */
-async function setupGpQualViaUi(adminPage, tournamentId, players, { points1 = 45, points2 = 0, resolveTies = true } = {}) {
+async function setupGpQualViaUi(
+  adminPage,
+  tournamentId,
+  players,
+  { points1 = 45, points2 = 0, randomize = true, resolveTies = true } = {},
+) {
   await uiActivateTournament(adminPage, tournamentId);
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
-  await uiPutAllGpQualScores(adminPage, tournamentId, points1, points2);
+  await uiPutAllGpQualScores(adminPage, tournamentId, { points1, points2, randomize });
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'gp');
   }

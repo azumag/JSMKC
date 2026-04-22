@@ -54,6 +54,7 @@
     "saving": "保存中...",
     "confirmDeletePlayer": "このプレイヤーを削除してもよろしいですか？",
     "confirmDeleteTournament": "このトーナメントを削除してもよろしいですか？",
+    "viewTournament": "トーナメントを見る",
     "confirmRemovePlayer": "このプレイヤーを除外してもよろしいですか？",
     "addAtLeastOnePlayer": "少なくとも1人のプレイヤーを追加してください",
     "player1": "プレイヤー1",

@@ -183,6 +183,10 @@ export const DRIVER_POINTS = [0, 9, 6, 3, 1, 0, 0, 0, 0] as const;
 /** GP UI/API position options for normal race finishes. */
 export const GP_POSITION_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
+/** Broadcast TV numbers that can be assigned to a match. */
+export const TV_NUMBER_OPTIONS = [1, 2, 3, 4] as const;
+export const MAX_TV_NUMBER = TV_NUMBER_OPTIONS[TV_NUMBER_OPTIONS.length - 1];
+
 /**
  * Convert a finishing position (1-8) to driver points.
  * Returns 0 for legacy position 0 and any invalid/out-of-range values.

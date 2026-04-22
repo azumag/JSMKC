@@ -192,6 +192,7 @@ export default function GrandPrixFinals({
       bracketStructure?: BracketMatch[];
       playoffStructure?: BracketMatch[];
       roundNames?: Record<string, string>;
+      qualificationConfirmed?: boolean;
       phase?: 'playoff' | 'finals';
       seededPlayers?: SeededPlayer[];
       playoffSeededPlayers?: SeededPlayer[];
@@ -204,6 +205,7 @@ export default function GrandPrixFinals({
       bracketStructure: data.bracketStructure || [],
       playoffStructure: data.playoffStructure || [],
       roundNames: data.roundNames || {},
+      qualificationConfirmed: data.qualificationConfirmed ?? false,
       phase: data.phase,
       seededPlayers: data.seededPlayers || [],
       playoffSeededPlayers: data.playoffSeededPlayers || [],
@@ -395,6 +397,7 @@ export default function GrandPrixFinals({
 
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
+  const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
 
   if (loading) {
     return (
@@ -427,7 +430,7 @@ export default function GrandPrixFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>

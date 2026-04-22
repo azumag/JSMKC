@@ -59,13 +59,14 @@ import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
@@ -201,6 +202,12 @@ export default function BattleModePage({
   const allPlayers: Player[] = pollData?.allPlayers ?? [];
   /* Whether qualification scores are locked by admin confirmation */
   const qualificationConfirmed: boolean = pollData?.qualificationConfirmed ?? false;
+  const canCreateFinals = canCreateFinalsFromQualification({
+    qualificationConfirmed,
+    qualificationCount: qualifications.length,
+    matchCount: matches.length,
+    allMatchesCompleted: matches.every((m) => m.completed),
+  });
 
   /**
    * On mount, check whether a finals or playoff bracket already exists
@@ -445,47 +452,43 @@ export default function BattleModePage({
            *  - Otherwise: generates bracket (Top-24 playoff or Top-16 finals)
            *    and then switches to the link state. */
           }
-          {qualifications.length > 0 &&
-           matches.length > 0 &&
-           matches.every((m) => m.completed) && (
-             finalsExists === true ? (
-               <Button variant="outline" asChild>
-                 <Link href={`/tournaments/${tournamentId}/bm/finals`}>
-                   {tc('viewTournament')}
-                 </Link>
-               </Button>
-             ) : (
-               <Button
-                 disabled={generatingBracket || finalsExists === undefined}
-                 onClick={async () => {
-                   setGeneratingBracket(true);
-                   try {
-                     const needsPlayoff = qualifications.length > 16;
-                     const topN = needsPlayoff ? 24 : 16;
-                     const res = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
-                       method: 'POST',
-                       headers: { 'Content-Type': 'application/json' },
-                       body: JSON.stringify({ topN }),
-                     });
-                     if (!res.ok) {
-                       const err = await res.json().catch(() => ({}));
-                       alert(err.error || tc('failedGenerateBracket'));
-                       return;
-                     }
-                     setFinalsExists(true);
-                   } finally {
-                     setGeneratingBracket(false);
-                   }
-                 }}
-               >
-                 {generatingBracket
-                   ? tc('generatingBracket')
-                   : qualifications.length > 16
-                     ? tc('startPlayoff')
-                     : tc('generateFinalsBracket')}
-               </Button>
-             )
-           )}
+          {finalsExists === true ? (
+            <Button variant="outline" asChild>
+              <Link href={`/tournaments/${tournamentId}/bm/finals`}>
+                {tc('viewTournament')}
+              </Link>
+            </Button>
+          ) : canCreateFinals ? (
+            <Button
+              disabled={generatingBracket || finalsExists === undefined}
+              onClick={async () => {
+                setGeneratingBracket(true);
+                try {
+                  const needsPlayoff = qualifications.length > 16;
+                  const topN = needsPlayoff ? 24 : 16;
+                  const res = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topN }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.error || tc('failedGenerateBracket'));
+                    return;
+                  }
+                  setFinalsExists(true);
+                } finally {
+                  setGeneratingBracket(false);
+                }
+              }}
+            >
+              {generatingBracket
+                ? tc('generatingBracket')
+                : qualifications.length > 16
+                  ? tc('startPlayoff')
+                  : tc('generateFinalsBracket')}
+            </Button>
+          ) : null}
 
           {/* Admin-only group setup/edit dialog (uses shared GroupSetupDialog component) */}
           {isAdmin && (
@@ -796,8 +799,11 @@ export default function BattleModePage({
                                         }}
                                       >
                                         <option value="">-</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
+                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                          <option key={tvNumber} value={tvNumber}>
+                                            {tvNumber}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       match.tvNumber ? `${match.tvNumber}` : "-"

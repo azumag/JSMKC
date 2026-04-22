@@ -66,15 +66,11 @@ function validateSubmittedCup(
 ) {
   const submittedCups = [...new Set(
     races
-      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
+      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course || course.name === race.course)?.cup)
       .filter((cup): cup is string => Boolean(cup))
   )];
 
-  if (submittedCups.length !== 1 || !isValidCupChoice(assignedCup ?? null, submittedCups[0])) {
-    return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
-  }
-
-  return null;
+  return submittedCups.length === 1 && isValidCupChoice(assignedCup, submittedCups[0]);
 }
 
 
@@ -141,6 +137,13 @@ export async function POST(
       return handleValidationError("Invalid character", "character");
     }
 
+    if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
+      return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
+    }
+    if (!validateSubmittedCup(match.cup, races)) {
+      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+    }
+
     /*
      * Correction path: let a participant fix a GP score after the match has
      * already been confirmed. Keep the match completed, update the final score
@@ -148,9 +151,6 @@ export async function POST(
      */
     if (match.completed) {
       /* Validate GP race positions are in legal range (0-8) before processing */
-      if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
-        return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
-      }
       for (let i = 0; i < races.length; i++) {
         const race = races[i] as { position1: number; position2: number; course: string };
         const pos1Result = validateGPRacePosition(race.position1);
@@ -237,9 +237,6 @@ export async function POST(
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
 
     /* Validate GP race positions are in legal range (0-8) before processing */
-    if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
-      return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
-    }
     for (let i = 0; i < races.length; i++) {
       const race = races[i] as { position1: number; position2: number; course: string };
       const pos1Result = validateGPRacePosition(race.position1);

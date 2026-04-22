@@ -88,6 +88,7 @@ interface MRMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
@@ -137,6 +138,27 @@ function getCompletedChampion(matches: MRMatch[]): Player | null {
 interface Round {
   course: CourseAbbr | "";
   winner: number | null;
+}
+
+function buildInitialRounds(match: MRMatch): Round[] {
+  if (match.rounds && match.rounds.length === 5) {
+    return match.rounds as Round[];
+  }
+
+  if (Array.isArray(match.assignedCourses) && match.assignedCourses.length === 5) {
+    return match.assignedCourses.map((course) => ({
+      course: course as CourseAbbr,
+      winner: null,
+    }));
+  }
+
+  return [
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+  ];
 }
 
 export default function MatchRaceFinals({
@@ -211,6 +233,7 @@ export default function MatchRaceFinals({
       bracketStructure?: BracketMatch[];
       playoffStructure?: BracketMatch[];
       roundNames?: Record<string, string>;
+      qualificationConfirmed?: boolean;
       phase?: 'playoff' | 'finals';
       seededPlayers?: SeededPlayer[];
       playoffSeededPlayers?: SeededPlayer[];
@@ -223,6 +246,7 @@ export default function MatchRaceFinals({
       bracketStructure: data.bracketStructure || [],
       playoffStructure: data.playoffStructure || [],
       roundNames: data.roundNames || {},
+      qualificationConfirmed: data.qualificationConfirmed ?? false,
       phase: data.phase,
       seededPlayers: data.seededPlayers || [],
       playoffSeededPlayers: data.playoffSeededPlayers || [],
@@ -359,17 +383,7 @@ export default function MatchRaceFinals({
    */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === 5) {
-      setRounds(match.rounds as Round[]);
-    } else {
-      setRounds([
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-      ]);
-    }
+    setRounds(buildInitialRounds(match));
     setIsMatchDialogOpen(true);
   };
 
@@ -454,6 +468,7 @@ export default function MatchRaceFinals({
   /* Track tournament progress */
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
+  const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
 
   /* Loading skeleton */
   if (loading) {
@@ -487,7 +502,7 @@ export default function MatchRaceFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket: admin-only */}
-          {isAdmin && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating} aria-label="Generate finals bracket">

@@ -22,6 +22,7 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { MAX_TV_NUMBER } from '@/lib/constants';
 
 /**
  * Zod schema for validating match creation requests.
@@ -33,7 +34,7 @@ const CreateMatchSchema = z.object({
   player2Id: z.string().min(1),
   player1Side: z.number().int().min(1).max(2).optional().default(1),
   player2Side: z.number().int().min(1).max(2).optional().default(2),
-  tvNumber: z.number().int().optional(),
+  tvNumber: z.number().int().min(1).max(MAX_TV_NUMBER).optional(),
   bracket: z.enum(['winners', 'losers', 'grand_final']).default('winners'),
   bracketPosition: z.string().optional(),
   isGrandFinal: z.boolean().default(false),
