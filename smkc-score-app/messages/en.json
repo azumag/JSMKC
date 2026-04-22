@@ -112,6 +112,7 @@
     "resetBracket": "Reset Bracket",
     "resettingBracket": "Resetting...",
     "resetBracketConfirm": "Reset bracket? All existing finals and playoff data will be deleted.",
+    "generateFinalsBracket": "Generate Finals Bracket",
     "failedResetBracket": "Failed to reset bracket"
   },
   "home": {
