@@ -73,6 +73,16 @@ interface GPMatch {
   player1ReportedPoints2?: number;
   player2ReportedPoints1?: number;
   player2ReportedPoints2?: number;
+  player1ReportedRaces?: {
+    course: string;
+    position1: number;
+    position2: number;
+  }[];
+  player2ReportedRaces?: {
+    course: string;
+    position1: number;
+    position2: number;
+  }[];
 }
 
 interface Tournament {
@@ -167,7 +177,23 @@ export default function GPMatchPage({
   }, [pollLoading]);
 
   useEffect(() => {
-    if (!activeCup) return;
+    if (!match) return;
+
+    if (!activeCup) {
+      const existingRaces =
+        match.races ??
+        (selectedPlayer === 1 ? match.player1ReportedRaces : selectedPlayer === 2 ? match.player2ReportedRaces : undefined);
+
+      if (existingRaces && existingRaces.length === TOTAL_GP_RACES) {
+        setRaces(existingRaces.map((race) => ({
+          course: race.course as CourseAbbr,
+          position1: race.position1,
+          position2: race.position2,
+        })));
+      }
+      return;
+    }
+
     setRaces((prev) => {
       const cupCourses = COURSE_INFO.filter((course) => course.cup === activeCup).map((course) => course.abbr);
       if (cupCourses.length !== TOTAL_GP_RACES) return prev;
@@ -177,7 +203,7 @@ export default function GPMatchPage({
         position2: prev[index]?.position2 ?? null,
       }));
     });
-  }, [activeCup]);
+  }, [activeCup, match, selectedPlayer]);
 
   /**
    * Submit the race results for the selected player.

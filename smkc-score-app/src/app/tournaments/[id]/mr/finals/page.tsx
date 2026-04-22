@@ -140,21 +140,31 @@ function createEmptyRounds(count: number): Round[] {
 }
 
 function buildInitialRounds(match: MRMatch): Round[] {
+  const maxRounds = getMrFinalsMaxRounds(match);
+
   if (match.rounds && match.rounds.length > 0) {
-    return match.rounds.map((round) => ({
+    const existingRounds = match.rounds.map((round) => ({
       course: (round.course as CourseAbbr) ?? "",
       winner: round.winner,
     }));
+    return [
+      ...existingRounds,
+      ...createEmptyRounds(Math.max(0, maxRounds - existingRounds.length)),
+    ];
   }
 
   if (Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0) {
-    return match.assignedCourses.map((course) => ({
+    const assignedRounds = match.assignedCourses.map((course) => ({
       course: course as CourseAbbr,
       winner: null,
     }));
+    return [
+      ...assignedRounds,
+      ...createEmptyRounds(Math.max(0, maxRounds - assignedRounds.length)),
+    ];
   }
 
-  return createEmptyRounds(getMrFinalsMaxRounds(match));
+  return createEmptyRounds(maxRounds);
 }
 
 export default function MatchRaceFinals({
