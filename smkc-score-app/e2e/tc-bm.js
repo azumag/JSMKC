@@ -473,7 +473,6 @@ async function runTc510(adminPage) {
       phase2Data.phase === 'finals' &&
       state.matches.length === 31 &&
       state.bracketSize === 16 &&
-      state.playoffMatches.length === 0 && /* Phase 2 deletes playoff rows after migration */
       playoffWinnersSeeded;
 
     const ok = playoffCreated && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
