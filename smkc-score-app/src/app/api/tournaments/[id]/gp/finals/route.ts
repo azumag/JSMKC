@@ -21,6 +21,42 @@ const { GET, POST, PUT } = createFinalsHandlers({
   postErrorMessage: 'Failed to create grand prix finals bracket',
   postRequiresAuth: true,
   putRequiresAuth: true,
+  resolveMatchResult: (match, score1, score2, body) => {
+    if (![score1, score2].every((score) => Number.isInteger(score) && score >= 0)) {
+      return { error: 'Driver points must be non-negative integers', field: 'score' };
+    }
+
+    if (score1 !== score2) {
+      return {
+        winnerId: score1 > score2 ? match.player1Id as string : match.player2Id as string,
+        loserId: score1 > score2 ? match.player2Id as string : match.player1Id as string,
+        updateData: { suddenDeathWinnerId: null },
+      };
+    }
+
+    const suddenDeathWinnerId = body.suddenDeathWinnerId;
+    if (typeof suddenDeathWinnerId !== 'string' || suddenDeathWinnerId.length === 0) {
+      return {
+        error: 'Tied GP finals scores require a sudden-death winner',
+        field: 'suddenDeathWinnerId',
+      };
+    }
+
+    if (suddenDeathWinnerId !== match.player1Id && suddenDeathWinnerId !== match.player2Id) {
+      return {
+        error: 'Sudden-death winner must be one of the match players',
+        field: 'suddenDeathWinnerId',
+      };
+    }
+
+    return {
+      winnerId: suddenDeathWinnerId,
+      loserId: suddenDeathWinnerId === match.player1Id
+        ? match.player2Id as string
+        : match.player1Id as string,
+      updateData: { suddenDeathWinnerId },
+    };
+  },
 });
 
 export { GET, POST, PUT };
