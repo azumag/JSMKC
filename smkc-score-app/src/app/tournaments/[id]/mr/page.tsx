@@ -57,7 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_MR_RACES, TV_NUMBER_OPTIONS, type CourseAbbr } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
@@ -800,8 +800,11 @@ export default function MatchRacePage({
                                         }}
                                       >
                                         <option value="">-</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
+                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                          <option key={tvNumber} value={tvNumber}>
+                                            {tvNumber}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       match.tvNumber ? `${match.tvNumber}` : "-"

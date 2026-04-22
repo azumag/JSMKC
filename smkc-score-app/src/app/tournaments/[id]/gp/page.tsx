@@ -62,7 +62,7 @@ import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -890,8 +890,11 @@ export default function GrandPrixPage({
                                         }}
                                       >
                                         <option value="">-</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
+                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                          <option key={tvNumber} value={tvNumber}>
+                                            {tvNumber}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       match.tvNumber ? `${match.tvNumber}` : "-"

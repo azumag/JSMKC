@@ -29,7 +29,7 @@ import {
   getByeMatchData,
   BREAK_PLAYER_ID,
 } from '@/lib/round-robin';
-import { COURSES, TOTAL_MR_RACES } from '@/lib/constants';
+import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 
 /**
  * Shuffle an array using the Fisher-Yates algorithm.
@@ -600,10 +600,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return handleValidationError('matchId is required', 'matchId');
       }
 
-      /* tvNumber must be a positive integer or null (to remove assignment) */
+      /* tvNumber must be between 1 and the supported TV count, or null to clear it. */
       if (tvNumber !== null && tvNumber !== undefined &&
-          (typeof tvNumber !== 'number' || tvNumber < 1 || !Number.isInteger(tvNumber))) {
-        return handleValidationError('tvNumber must be a positive integer or null', 'tvNumber');
+          (typeof tvNumber !== 'number' || tvNumber < 1 || tvNumber > MAX_TV_NUMBER || !Number.isInteger(tvNumber))) {
+        return handleValidationError(`tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`, 'tvNumber');
       }
 
       /*

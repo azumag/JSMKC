@@ -1160,7 +1160,7 @@ describe('Qualification Route Factory', () => {
       expect(json.error).toBe('matchId is required');
     });
 
-    it('should return 400 when tvNumber is invalid (negative, fractional)', async () => {
+    it('should return 400 when tvNumber is invalid (negative, fractional, too large)', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
 
       const config = createMockConfig();
@@ -1180,6 +1180,16 @@ describe('Qualification Route Factory', () => {
       request = new NextRequest('http://localhost:3000', {
         method: 'PATCH',
         body: JSON.stringify({ matchId: 'match-1', tvNumber: 1.5 }),
+      });
+      response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      expect(response.status).toBe(400);
+
+      /* Larger than supported TV count */
+      request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 5 }),
       });
       response = await PATCH(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
@@ -1221,6 +1231,37 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: 'match-1', tournamentId: 'tournament-123' },
         data: { tvNumber: 2 },
+        include: { player1: true, player2: true },
+      });
+    });
+
+    it('should allow assigning TV number 4', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+
+      const mockMatch = {
+        id: 'match-1',
+        tvNumber: 4,
+        player1: { id: 'p1', nickname: 'Alice' },
+        player2: { id: 'p2', nickname: 'Bob' },
+      };
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(mockMatch);
+      (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
+
+      const config = createMockConfig();
+      const { PATCH } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 4 }),
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
+        where: { id: 'match-1', tournamentId: 'tournament-123' },
+        data: { tvNumber: 4 },
         include: { player1: true, player2: true },
       });
     });
