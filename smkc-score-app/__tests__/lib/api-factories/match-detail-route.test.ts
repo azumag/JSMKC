@@ -362,7 +362,7 @@ describe('Match Detail Route Factory', () => {
       const mockRequestBody = { score1: 5, score2: 2, completed: true, version: 1, rounds: [] };
 
       // Stage = finals → validateFinalsScores is used instead of validateScores
-      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals' });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals', round: 'winners_sf' });
 
       const config = {
         ...baseConfig,
@@ -382,7 +382,10 @@ describe('Match Detail Route Factory', () => {
       });
 
       expect(config.validateScores).not.toHaveBeenCalled();
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(5, 2);
+      expect(config.validateFinalsScores).toHaveBeenCalledWith(5, 2, {
+        round: 'winners_sf',
+        stage: 'finals',
+      });
     });
 
     it('should prefer validateFinalsScoresWithMatch for finals matches', async () => {
@@ -424,7 +427,7 @@ describe('Match Detail Route Factory', () => {
     it('should return 400 when validateFinalsScores rejects (finals match)', async () => {
       const mockRequestBody = { score1: 4, score2: 3, completed: true, version: 1, rounds: [] };
 
-      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals' });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ stage: 'finals', round: 'winners_sf' });
 
       const config = {
         ...baseConfig,
@@ -443,7 +446,10 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(config.validateFinalsScores).toHaveBeenCalledWith(4, 3);
+      expect(config.validateFinalsScores).toHaveBeenCalledWith(4, 3, {
+        round: 'winners_sf',
+        stage: 'finals',
+      });
       expect(config.validateScores).not.toHaveBeenCalled();
       expect(mockHandleValidationError).toHaveBeenCalledWith('One player must reach 5 wins', 'scores');
       expect(config.updateMatchScore).not.toHaveBeenCalled();
