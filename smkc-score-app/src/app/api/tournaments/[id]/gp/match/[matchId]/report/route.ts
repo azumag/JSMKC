@@ -31,7 +31,8 @@ import {
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
-import { getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
+import { COURSE_INFO, getDriverPoints, TOTAL_GP_RACES } from "@/lib/constants";
+import { isValidCupChoice } from "@/lib/event-types/gp-config";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -232,6 +233,15 @@ export async function POST(
           "position",
         );
       }
+    }
+
+    const submittedCups = [...new Set(
+      races
+        .map((race: { course: string }) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
+        .filter((cup): cup is string => Boolean(cup))
+    )];
+    if (submittedCups.length !== 1 || !isValidCupChoice(match.cup, submittedCups[0])) {
+      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
     }
 
     /* Process races: convert finishing positions to driver points */

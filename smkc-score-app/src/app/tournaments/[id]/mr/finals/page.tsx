@@ -59,16 +59,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -83,11 +77,13 @@ interface MRMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
   score2: number;
   completed: boolean;
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
@@ -139,6 +135,28 @@ interface Round {
   winner: number | null;
 }
 
+function createEmptyRounds(count: number): Round[] {
+  return Array.from({ length: count }, () => ({ course: "", winner: null }));
+}
+
+function buildInitialRounds(match: MRMatch): Round[] {
+  if (match.rounds && match.rounds.length > 0) {
+    return match.rounds.map((round) => ({
+      course: (round.course as CourseAbbr) ?? "",
+      winner: round.winner,
+    }));
+  }
+
+  if (Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0) {
+    return match.assignedCourses.map((course) => ({
+      course: course as CourseAbbr,
+      winner: null,
+    }));
+  }
+
+  return createEmptyRounds(getMrFinalsMaxRounds(match));
+}
+
 export default function MatchRaceFinals({
   params,
 }: {
@@ -183,15 +201,9 @@ export default function MatchRaceFinals({
   const [playoffComplete, setPlayoffComplete] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
-  /* Initialize 5 empty rounds for match result dialog */
-  const [rounds, setRounds] = useState<Round[]>([
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-  ]);
+  const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
   const [champion, setChampion] = useState<Player | null>(null);
+  const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
 
   /**
    * Fetch finals bracket data including matches,
@@ -359,17 +371,7 @@ export default function MatchRaceFinals({
    */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === 5) {
-      setRounds(match.rounds as Round[]);
-    } else {
-      setRounds([
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-      ]);
-    }
+    setRounds(buildInitialRounds(match));
     setIsMatchDialogOpen(true);
   };
 
@@ -381,9 +383,7 @@ export default function MatchRaceFinals({
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Validate 5 unique courses */
-    const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
-    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
+    if (rounds.some((round) => round.course === "")) {
       alert(tCommon('select5UniqueCourses'));
       return;
     }
@@ -392,7 +392,10 @@ export default function MatchRaceFinals({
     const winnerCount = rounds.filter(r => r.winner === 1).length;
     const loserCount = rounds.filter(r => r.winner === 2).length;
 
-    if (winnerCount < 3 && loserCount < 3) {
+    if (
+      (winnerCount !== selectedMatchTargetWins || loserCount >= selectedMatchTargetWins) &&
+      (loserCount !== selectedMatchTargetWins || winnerCount >= selectedMatchTargetWins)
+    ) {
       alert(tCommon('matchMustHaveWinner'));
       return;
     }
@@ -414,13 +417,7 @@ export default function MatchRaceFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setRounds([
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-        ]);
+        setRounds(createEmptyRounds(getMrFinalsMaxRounds()));
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -686,25 +683,11 @@ export default function MatchRaceFinals({
                     {/* i18n: Race number label */}
                     <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
                     <TableCell>
-                      <Select
-                        value={round.course}
-                        onValueChange={(value) => {
-                          const newRounds = [...rounds];
-                          newRounds[index].course = value as CourseAbbr;
-                          setRounds(newRounds);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={tCommon('selectCourse')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COURSE_INFO.map((course) => (
-                            <SelectItem key={course.abbr} value={course.abbr}>
-                              {course.name} ({course.cup})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                        {round.course
+                          ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
+                          : "—"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
@@ -750,8 +733,14 @@ export default function MatchRaceFinals({
             <Button
               onClick={handleMatchSubmit}
               disabled={
-                rounds.filter(r => r.winner === 1).length < 3 &&
-                rounds.filter(r => r.winner === 2).length < 3
+                (
+                  rounds.filter(r => r.winner === 1).length !== selectedMatchTargetWins ||
+                  rounds.filter(r => r.winner === 2).length >= selectedMatchTargetWins
+                ) &&
+                (
+                  rounds.filter(r => r.winner === 2).length !== selectedMatchTargetWins ||
+                  rounds.filter(r => r.winner === 1).length >= selectedMatchTargetWins
+                )
               }
             >
               {tCommon('saveResult')}

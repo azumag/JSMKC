@@ -166,6 +166,19 @@ export default function GPMatchPage({
     setLoading(pollLoading);
   }, [pollLoading]);
 
+  useEffect(() => {
+    if (!activeCup) return;
+    setRaces((prev) => {
+      const cupCourses = COURSE_INFO.filter((course) => course.cup === activeCup).map((course) => course.abbr);
+      if (cupCourses.length !== TOTAL_GP_RACES) return prev;
+      return cupCourses.map((course, index) => ({
+        course,
+        position1: prev[index]?.position1 ?? null,
+        position2: prev[index]?.position2 ?? null,
+      }));
+    });
+  }, [activeCup]);
+
   /**
    * Submit the race results for the selected player.
    * Validates that 5 unique courses are selected and all positions are filled.
@@ -301,8 +314,6 @@ export default function GPMatchPage({
                         const sub = CUP_SUBSTITUTIONS[match.cup!];
                         const next = activeCup === match.cup ? (sub ?? null) : (match.cup ?? null);
                         setActiveCup(next);
-                        /* Clear course selections when switching cups since courses differ */
-                        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr | "", position1: null, position2: null })));
                       }}
                     >
                       {activeCup === match.cup
@@ -387,29 +398,9 @@ export default function GPMatchPage({
                           <span className="text-sm font-medium w-20">
                             {tMatch('raceN', { n: index + 1 })}
                           </span>
-                          <Select
-                            value={race.course}
-                            onValueChange={(value) => {
-                              const newRaces = [...races];
-                              newRaces[index].course = value as CourseAbbr;
-                              setRaces(newRaces);
-                            }}
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder={tCommon('selectCourse')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {/* §7.4 + §7.1: Filter courses by active cup (may be a substitute) */}
-                              {(activeCup
-                                ? COURSE_INFO.filter((c) => c.cup === activeCup)
-                                : COURSE_INFO
-                              ).map((course) => (
-                                <SelectItem key={course.abbr} value={course.abbr}>
-                                  {course.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                            {race.course ? getCourseName(race.course) : "—"}
+                          </span>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="space-y-1">
