@@ -20,7 +20,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
-import { getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
+import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -840,9 +840,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      const targetWins = config.targetWins ?? 3;
-      const player1ReachedTarget = score1 >= targetWins;
-      const player2ReachedTarget = score2 >= targetWins;
+      const targetWins = config.assignMrCoursesByRound
+        ? getMrFinalsTargetWins({ round: match.round, stage: match.stage })
+        : config.targetWins ?? 3;
+      const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
+      const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
 
       if (player1ReachedTarget === player2ReachedTarget) {
         return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
