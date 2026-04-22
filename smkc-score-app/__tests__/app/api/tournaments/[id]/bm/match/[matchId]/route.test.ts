@@ -76,6 +76,35 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
   });
 
   describe('GET - Retrieve a single battle mode match', () => {
+    it('should allow unauthenticated users to fetch a public match', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        stage: 'qualification',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        score1: 3,
+        score2: 1,
+        completed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (auth as jest.Mock).mockResolvedValue(null);
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest();
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await GET(request, { params });
+
+      expect(result).toEqual({
+        data: mockMatch,
+        message: undefined,
+        status: 200
+      });
+    });
+
     // Success case - Returns match with player details when match exists
     it('should return match with player1 and player2 details', async () => {
       const mockMatch = {
