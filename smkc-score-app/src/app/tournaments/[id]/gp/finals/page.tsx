@@ -128,8 +128,8 @@ function getCompletedChampion(matches: GPMatch[]): Player | null {
   if (reset) return getMatchWinner(reset);
 
   const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
-  if (!grandFinal || getGpScore(grandFinal, 1) <= getGpScore(grandFinal, 2)) return null;
-  return grandFinal.player1;
+  if (!grandFinal) return null;
+  return getMatchWinner(grandFinal);
 }
 
 export default function GrandPrixFinals({
@@ -655,7 +655,7 @@ export default function GrandPrixFinals({
                 />
               </div>
             </div>
-            {scoreForm.score1 === scoreForm.score2 && (
+            {scoreForm.score1 + scoreForm.score2 > 0 && scoreForm.score1 === scoreForm.score2 && (
               <div className="space-y-2">
                 <Label>{tFinals('suddenDeathWinner')}</Label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -683,6 +683,7 @@ export default function GrandPrixFinals({
               </div>
             )}
             <p className={`text-sm text-center ${
+              scoreForm.score1 + scoreForm.score2 > 0 &&
               scoreForm.score1 === scoreForm.score2 &&
               !scoreForm.suddenDeathWinnerId
                 ? 'text-yellow-600' : 'invisible'
