@@ -32,6 +32,7 @@ const {
   makeResults, makeLog, nav, escapeRegex,
   apiFetchBm, apiPutBmQualScore,
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
+  apiUpdateTournament,
   loginPlayerBrowser,
   setupBmQualViaUi,
   apiDeletePlayer,
@@ -407,6 +408,26 @@ async function runTc515(adminPage) {
     setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    /* The "Generate Bracket" / "Start Playoff" button is gated by
+     * canCreateFinalsFromQualification which requires qualificationConfirmed.
+     * Confirm qualification first so the button appears. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
+    /* Previous tests (TC-510) may have left a bracket behind. Reset it so
+     * the qualification page shows "Start Playoff" instead of "View Tournament". */
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`Bracket reset failed (${resetRes.s})`);
+    }
+
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
 
     /* Wait for finalsExists to be determined so the button text leaves the
@@ -488,6 +509,12 @@ async function runTc516(adminPage) {
     setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    /* Confirm qualification so the bracket action button is visible.
+     * Without this, canCreateFinalsFromQualification returns false and
+     * the button is hidden both before and after reset. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
@@ -517,14 +544,16 @@ async function runTc516(adminPage) {
     }
 
     const postResetText = await adminPage.locator('body').innerText();
-    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket');
+    /* With 28 players (>16), after reset the button shows "Start Playoff"
+     * rather than "Generate Finals Bracket" because qualifications.length > 16. */
+    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket') || postResetText.includes('Start Playoff') || postResetText.includes('バラッジ開始');
 
     const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
     log('TC-516', ok ? 'PASS' : 'FAIL',
       !hasViewTournament ? 'View Tournament button missing after bracket creation'
       : !hasResetBracket ? 'Reset Bracket button missing'
       : !resetVisible ? 'Reset Bracket not found as button element'
-      : !hasGenerateButton ? 'Generate Finals Bracket button not restored after reset'
+      : !hasGenerateButton ? 'Generate/Start Playoff button not restored after reset'
       : '');
   } catch (err) {
     log('TC-516', 'FAIL', err instanceof Error ? err.message : 'BM 516 failed');
@@ -950,6 +979,7 @@ module.exports = {
   runTc507, runTc508, runTc509, runTc515, runTc516,
   getSuite,
   results,
+  setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
 };
 
 if (require.main === module) {

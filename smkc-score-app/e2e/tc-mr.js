@@ -41,6 +41,7 @@ const {
   apiSetMrFinalsScore: setMrFinalsScore,
   apiFetchMrFinalsMatches: fetchMrFinalsMatches,
   apiFetchMrFinalsState,
+  apiUpdateTournament,
   loginPlayerBrowser,
   setupMrQualViaUi,
 } = require('./lib/common');
@@ -958,6 +959,24 @@ async function runTc615(adminPage) {
     setup = await prepareSharedMrFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    /* The bracket action button requires qualificationConfirmed. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
+    /* Previous tests may have left a bracket behind. Reset it so
+     * the qualification page shows "Start Playoff" instead of "View Tournament". */
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/mr/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`Bracket reset failed (${resetRes.s})`);
+    }
+
     // Navigate to qualification page
     await nav(adminPage, `/tournaments/${tournamentId}/mr`);
 
@@ -1051,6 +1070,10 @@ async function runTc616(adminPage) {
     setup = await prepareSharedMrFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    /* Confirm qualification so the bracket action button is visible. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
     // Generate an 8-player finals bracket
     const gen = await apiGenerateMrFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -1082,16 +1105,17 @@ async function runTc616(adminPage) {
       await adminPage.waitForTimeout(3000);
     }
 
-    // After reset, the qualification page should show the generate button again
+    /* After reset, with 28 players (>16), the button shows "Start Playoff"
+     * rather than "Generate Finals Bracket". */
     const postResetText = await adminPage.locator('body').innerText();
-    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket');
+    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket') || postResetText.includes('Start Playoff') || postResetText.includes('バラッジ開始');
 
     const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
     log('TC-616', ok ? 'PASS' : 'FAIL',
       !hasViewTournament ? 'View Tournament button missing after bracket creation'
       : !hasResetBracket ? 'Reset Bracket button missing'
       : !resetVisible ? 'Reset Bracket not found as button element'
-      : !hasGenerateButton ? 'Generate Finals Bracket button not restored after reset'
+      : !hasGenerateButton ? 'Generate/Start Playoff button not restored after reset'
       : '');
   } catch (err) {
     log('TC-616', 'FAIL', err instanceof Error ? err.message : 'MR 616 failed');
