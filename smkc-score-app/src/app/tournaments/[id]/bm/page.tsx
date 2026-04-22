@@ -59,7 +59,7 @@ import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
 import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { extractArrayData } from "@/lib/api-response";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
@@ -799,8 +799,11 @@ export default function BattleModePage({
                                         }}
                                       >
                                         <option value="">-</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
+                                        {TV_NUMBER_OPTIONS.map((tvNumber) => (
+                                          <option key={tvNumber} value={tvNumber}>
+                                            {tvNumber}
+                                          </option>
+                                        ))}
                                       </select>
                                     ) : (
                                       match.tvNumber ? `${match.tvNumber}` : "-"
