@@ -217,17 +217,16 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         if (lockError) return lockError;
       }
 
-      /* Stage-aware score validation: qualification and finals have different rules.
-       * BM qualification: 4 rounds, sum=4, max=4; BM finals: best-of-9, max=5.
+      /* Stage-aware score validation: qualification and bracket matches have different rules.
+       * BM qualification: 4 rounds, sum=4, max=4; BM playoff/finals: first-to-N.
        * Only fetch stage when a separate finals validator exists; otherwise use
        * the single validateScores for all stages (avoids an extra DB read). */
       if (config.validateFinalsScores || config.validateFinalsScoresWithMatch) {
         /* Reuse matchMeta already fetched above to avoid extra DB read */
         const matchForStage = matchMeta;
-        // All bracket matches (including grand final / reset) use stage='finals';
-        // the `round` field distinguishes bracket position. Default to qualification.
-        const isFinalsMatch = matchForStage?.stage === 'finals';
-        const validator = isFinalsMatch
+        // Bracket matches use finals-style validation for both playoff and finals stages.
+        const isBracketMatch = matchForStage?.stage === 'finals' || matchForStage?.stage === 'playoff';
+        const validator = isBracketMatch
           ? config.validateFinalsScoresWithMatch
             ? () => config.validateFinalsScoresWithMatch!(val1, val2, matchForStage)
             : config.validateFinalsScores
