@@ -24,14 +24,6 @@ jest.mock('@/lib/request-utils', () => ({
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({
-  COURSE_INFO: [
-    { abbr: 'MC1', cup: 'Mushroom' },
-    { abbr: 'DP1', cup: 'Mushroom' },
-    { abbr: 'GV1', cup: 'Mushroom' },
-    { abbr: 'BC1', cup: 'Mushroom' },
-    { abbr: 'MC2', cup: 'Mushroom' },
-    { abbr: 'CI1', cup: 'Flower' },
-  ],
   SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
   DRIVER_POINTS: [0, 9, 6, 3, 1, 0, 0, 0, 0],
   COURSE_INFO: [
