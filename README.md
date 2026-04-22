@@ -20,3 +20,5 @@ JSMKC2026 およびそれ以降の大会での使用を想定
 - **Authentication**: NextAuth v5
 - **Database**: Prisma
 - **Testing**: Jest, Testing Library
+
+test
