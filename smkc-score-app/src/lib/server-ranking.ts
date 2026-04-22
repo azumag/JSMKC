@@ -12,34 +12,16 @@ export interface ComputeRanksOptions {
   matchScoreFields?: { p1: string; p2: string };
 }
 
-/**
- * Assign `_rank` and `_rankOverridden` to qualification records.
- *
- * The input array must already be sorted according to `orderBy` (this is
- * guaranteed when the array comes from a Prisma `findMany({ orderBy })` query).
- *
- * @param qualifications - Already sorted qualification records (player included).
- * @param orderBy        - Prisma order-by array used to determine tiedness.
- * @param matches        - Completed qualification matches (non-bye) for H2H.
- * @param options        - Optional score field mapping for H2H winner detection.
- * @returns              - New array with `_rank` / `_rankOverridden` injected,
- *                         sorted by effective rank ascending.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function computeQualificationRanks(
+function assignRanksForPartition(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   qualifications: any[],
   orderBy: Array<Partial<Record<string, 'asc' | 'desc'>>>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   matches: any[],
-  options: ComputeRanksOptions = {},
+  options: ComputeRanksOptions,
 ): any[] {
   if (qualifications.length === 0) return [];
 
-  /*
-   * 1. Assign 1224 competition ranks.
-   * Two entries share a rank when all their orderBy field values are equal.
-   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ranked: any[] = [];
   for (let i = 0; i < qualifications.length; i++) {
@@ -140,9 +122,6 @@ export function computeQualificationRanks(
     ranked.splice(0, ranked.length, ...resolved);
   }
 
-  /*
-   * 3. Apply rankOverride and sort by effective rank.
-   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const withOverrides = ranked.map((entry: any) =>
     entry.rankOverride != null
@@ -161,4 +140,59 @@ export function computeQualificationRanks(
   );
 
   return withOverrides;
+}
+
+/**
+ * Assign `_rank` and `_rankOverridden` to qualification records.
+ *
+ * The input array must already be sorted according to `orderBy` (this is
+ * guaranteed when the array comes from a Prisma `findMany({ orderBy })` query).
+ *
+ * When `group` is the leading sort field, ranks are computed independently for
+ * each group so Group B starts from rank 1 rather than continuing after Group A.
+ *
+ * @param qualifications - Already sorted qualification records (player included).
+ * @param orderBy        - Prisma order-by array used to determine tiedness.
+ * @param matches        - Completed qualification matches (non-bye) for H2H.
+ * @param options        - Optional score field mapping for H2H winner detection.
+ * @returns              - New array with `_rank` / `_rankOverridden` injected.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function computeQualificationRanks(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  qualifications: any[],
+  orderBy: Array<Partial<Record<string, 'asc' | 'desc'>>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  matches: any[],
+  options: ComputeRanksOptions = {},
+): any[] {
+  if (qualifications.length === 0) return [];
+
+  const firstOrderField = Object.keys(orderBy[0] ?? {})[0];
+  if (firstOrderField === 'group') {
+    const rankingOrder = orderBy.slice(1);
+    const partitions = new Map<string, typeof qualifications>();
+
+    for (const qualification of qualifications) {
+      const group = qualification.group ?? '';
+      const groupEntries = partitions.get(group) ?? [];
+      groupEntries.push(qualification);
+      partitions.set(group, groupEntries);
+    }
+
+    const rankedByGroup: any[] = [];
+    for (const groupEntries of partitions.values()) {
+      const groupPlayerIds = new Set(groupEntries.map((entry) => entry.playerId));
+      const groupMatches = matches.filter(
+        (match) => groupPlayerIds.has(match.player1Id) && groupPlayerIds.has(match.player2Id),
+      );
+      rankedByGroup.push(
+        ...assignRanksForPartition(groupEntries, rankingOrder, groupMatches, options),
+      );
+    }
+
+    return rankedByGroup;
+  }
+
+  return assignRanksForPartition(qualifications, orderBy, matches, options);
 }

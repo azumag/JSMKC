@@ -94,4 +94,26 @@ describe("computeQualificationRanks", () => {
     expect(result[0].playerId).toBe("a"); // overridden first
     expect(result[1].playerId).toBe("b");
   });
+
+  it("restarts ranks when group is the leading sort field", () => {
+    const quals = [
+      { playerId: "a1", group: "A", score: 10, points: 3, rankOverride: null },
+      { playerId: "a2", group: "A", score: 8, points: 2, rankOverride: null },
+      { playerId: "b1", group: "B", score: 11, points: 4, rankOverride: null },
+      { playerId: "b2", group: "B", score: 7, points: 1, rankOverride: null },
+    ];
+
+    const result = computeQualificationRanks(
+      quals,
+      [{ group: "asc" }, { score: "desc" }, { points: "desc" }],
+      [],
+    );
+
+    expect(result.map((q) => [q.playerId, q._rank])).toEqual([
+      ["a1", 1],
+      ["a2", 2],
+      ["b1", 1],
+      ["b2", 2],
+    ]);
+  });
 });
