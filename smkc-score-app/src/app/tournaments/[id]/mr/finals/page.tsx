@@ -59,6 +59,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
@@ -165,6 +172,10 @@ function buildInitialRounds(match: MRMatch): Round[] {
   }
 
   return createEmptyRounds(maxRounds);
+}
+
+function hasFixedAssignedCourses(match: MRMatch | null): boolean {
+  return Boolean(match && Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0);
 }
 
 export default function MatchRaceFinals({
@@ -396,6 +407,12 @@ export default function MatchRaceFinals({
     if (!selectedMatch) return;
 
     if (rounds.some((round) => round.course === "")) {
+      alert(tCommon('select5UniqueCourses'));
+      return;
+    }
+
+    const usedCourses = rounds.map((round) => round.course).filter((course) => course !== "");
+    if (new Set(usedCourses).size !== usedCourses.length) {
       alert(tCommon('select5UniqueCourses'));
       return;
     }
@@ -696,11 +713,33 @@ export default function MatchRaceFinals({
                     {/* i18n: Race number label */}
                     <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
                     <TableCell>
-                      <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                        {round.course
-                          ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
-                          : "—"}
-                      </span>
+                      {hasFixedAssignedCourses(selectedMatch) ? (
+                        <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                          {round.course
+                            ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
+                            : "—"}
+                        </span>
+                      ) : (
+                        <Select
+                          value={round.course}
+                          onValueChange={(value) => {
+                            const newRounds = [...rounds];
+                            newRounds[index].course = value as CourseAbbr;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={tCommon('selectCourse')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COURSE_INFO.map((course) => (
+                              <SelectItem key={course.abbr} value={course.abbr}>
+                                {course.name} ({course.cup})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
