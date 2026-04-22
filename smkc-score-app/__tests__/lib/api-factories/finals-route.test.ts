@@ -1344,6 +1344,28 @@ describe('Finals Route Factory', () => {
       expect(json.error).toBe('Match must have a winner (first to 3)');
     });
 
+    it('should return 400 when losing score also reaches or exceeds target wins', async () => {
+      const requestBody = createMockRequestBody({ score1: 9, score2: 10 });
+      const mockMatch = createMockMatch({ round: 'grand_final' });
+
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+
+      const config = createMockConfig({ getTargetWins: () => 9 });
+      const { PUT } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Match must have a winner (first to 9)');
+    });
+
     it('should return 404 when matchId not found', async () => {
       const requestBody = createMockRequestBody();
 
