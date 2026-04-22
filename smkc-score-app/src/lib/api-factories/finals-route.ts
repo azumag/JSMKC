@@ -801,7 +801,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         [config.putScoreFields.dbField1]: score1,
         [config.putScoreFields.dbField2]: score2,
         completed: true,
-        ...(resolution.updateData ?? {}),
+        ...((resolution as { updateData?: Record<string, unknown> }).updateData ?? {}),
       };
 
       if (config.putAdditionalFields) {
