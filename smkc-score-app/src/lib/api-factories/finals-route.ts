@@ -762,8 +762,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       const targetWins = config.getTargetWins?.(match) ?? config.targetWins ?? 3;
-      const player1ReachedTarget = score1 === targetWins;
-      const player2ReachedTarget = score2 === targetWins;
+      const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
+      const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
 
       if (player1ReachedTarget === player2ReachedTarget) {
         return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
