@@ -352,6 +352,7 @@ model GPMatch {
   points1      Int        @default(0) // Driver points for player 1
   points2      Int        @default(0) // Driver points for player 2
   completed    Boolean    @default(false)
+  suddenDeathWinnerId String? // Tied cup resolved by a one-race sudden-death playoff
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
 
   // Player-reported scores (for participant score entry)

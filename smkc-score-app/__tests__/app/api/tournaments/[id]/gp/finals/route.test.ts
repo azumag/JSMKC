@@ -13,8 +13,8 @@
  *   validation for exactly 8 players, and bracket structure generation.
  * - PUT: Updating finals match scores with winner/loser advancement,
  *   grand final logic (winners bracket player wins outright, losers bracket
- *   player triggers reset match), grand final reset completion, best-of-5
- *   validation, and loser bracket placement.
+ *   player triggers reset match), grand final reset completion, tied-score
+ *   sudden-death validation, and loser bracket placement.
  */
 // @ts-nocheck
 
@@ -586,8 +586,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(404);
     });
 
-    // Validation error case - Returns 400 when match has no winner (best of 5)
-    it('should return 400 when match has no winner (best of 5)', async () => {
+    // Validation error case - Returns 400 when tied GP points omit sudden-death winner
+    it('should return 400 when tied GP points omit sudden-death winner', async () => {
       const mockMatch = {
         id: 'm1',
         stage: 'finals',
@@ -603,9 +603,56 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      /* Error message updated: finals-route.ts now uses dynamic "first to N" format */
-      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 3)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Tied GP finals scores require a sudden-death winner',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'suddenDeathWinnerId' },
+      });
       expect(result.status).toBe(400);
+    });
+
+    it('should accept tied GP points when a sudden-death winner is provided', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 16,
+        round: 'grand_final',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({
+        ...mockMatch,
+        points1: 28,
+        points2: 28,
+        suddenDeathWinnerId: 'p2',
+        completed: true,
+      });
+      (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 28, score2: 28, suddenDeathWinnerId: 'p2' },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'm1' },
+        data: expect.objectContaining({
+          points1: 28,
+          points2: 28,
+          suddenDeathWinnerId: 'p2',
+          completed: true,
+        }),
+      }));
+      expect(result.data.data.winnerId).toBe('p2');
     });
 
     // Error case - Returns 500 when database operation fails
