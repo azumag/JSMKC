@@ -249,6 +249,15 @@ export async function POST(
       }
     }
 
+    const submittedCups = [...new Set(
+      races
+        .map((race: { course: string }) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
+        .filter((cup): cup is string => Boolean(cup))
+    )];
+    if (submittedCups.length !== 1 || !isValidCupChoice(match.cup, submittedCups[0])) {
+      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+    }
+
     /* Process races: convert finishing positions to driver points */
     let totalPoints1 = 0;
     let totalPoints2 = 0;
