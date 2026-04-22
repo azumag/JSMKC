@@ -74,7 +74,11 @@ export interface MatchDetailConfig {
    * If omitted, no validation is performed on finals scores.
    * BM finals use best-of-9 (max score = 5) which differs from qualification (max 4, sum = 4).
    */
-  validateFinalsScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
+  validateFinalsScores?: (
+    val1: number,
+    val2: number,
+    context?: { round?: string | null; stage?: string | null }
+  ) => { isValid: boolean; error?: string };
   /**
    * Optional qualification-stats recalculation config. When provided, a
    * successful qualification-stage PUT also refreshes the per-player
@@ -193,7 +197,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * by the stage-aware validation below so there's no wasted DB call. */
       const matchMeta = await model(prisma).findUnique({
         where: { id: matchId },
-        select: { stage: true, tournamentId: true },
+        select: { stage: true, round: true, tournamentId: true },
       });
       if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
@@ -215,7 +219,12 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         const isFinalsMatch = matchForStage?.stage === 'finals';
         const validator = isFinalsMatch ? config.validateFinalsScores : config.validateScores;
         if (validator) {
-          const scoreValidation = validator(val1, val2);
+          const scoreValidation = isFinalsMatch
+            ? config.validateFinalsScores!(val1, val2, {
+              round: matchForStage?.round,
+              stage: matchForStage?.stage,
+            })
+            : config.validateScores!(val1, val2);
           if (!scoreValidation.isValid) {
             return handleValidationError(scoreValidation.error ?? 'Invalid scores', 'scores');
           }

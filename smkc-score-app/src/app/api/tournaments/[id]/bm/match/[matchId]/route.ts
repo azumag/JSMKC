@@ -12,6 +12,31 @@
 import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-route';
 import { updateBMMatchScore } from '@/lib/optimistic-locking';
 import { validateBattleModeScores, validateBattleModeFinalScores } from '@/lib/score-validation';
+import { getBmFinalsTargetWins, type FinalsTargetContext } from '@/lib/finals-target-wins';
+
+function validateBattleModeFinalScoresForContext(
+  score1: number,
+  score2: number,
+  context?: FinalsTargetContext,
+) {
+  const targetWins = getBmFinalsTargetWins(context);
+
+  if (![score1, score2].every((score) => Number.isInteger(score) && score >= 0)) {
+    return { isValid: false, error: 'Scores must be non-negative integers' };
+  }
+
+  if (targetWins === 5) {
+    return validateBattleModeFinalScores(score1, score2);
+  }
+
+  const player1Wins = score1 === targetWins && score2 < targetWins;
+  const player2Wins = score2 === targetWins && score1 < targetWins;
+  if (!player1Wins && !player2Wins) {
+    return { isValid: false, error: `One player must reach exactly ${targetWins} wins` };
+  }
+
+  return { isValid: true };
+}
 
 /* recalcStatsConfig mirrors BM_RECALC_CONFIG in the dual-report route so
  * admin single-match PUT edits keep bMQualification wins/losses/round
@@ -24,7 +49,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   updateMatchScore: (prisma, matchId, version, val1, val2, completed, detail) =>
     updateBMMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   validateScores: validateBattleModeScores,
-  validateFinalsScores: validateBattleModeFinalScores,
+  validateFinalsScores: validateBattleModeFinalScoresForContext,
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: true,
