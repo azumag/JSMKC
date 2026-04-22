@@ -34,6 +34,7 @@ interface BMMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -65,7 +66,7 @@ interface DoubleEliminationBracketProps {
   /** Optional seeded player data for displaying seed numbers */
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   /** Number of wins required to highlight a completed match winner. */
-  targetWins?: number;
+  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }
 
 /**
@@ -85,14 +86,14 @@ function MatchCard({
   seededPlayers,
   onClick,
   isTBD,
-  targetWins,
+  getTargetWins,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   onClick?: () => void;
   isTBD: boolean;
-  targetWins: number;
+  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }) {
   /* Look up seeded players for displaying seed numbers in first-round matches */
   const seededPlayer1 = bracketMatch.player1Seed
@@ -106,8 +107,9 @@ function MatchCard({
   const player1: Player | undefined = match?.player1 || seededPlayer1;
   const player2: Player | undefined = match?.player2 || seededPlayer2;
 
-  const isWinner1 = match?.completed && match.score1 >= targetWins;
-  const isWinner2 = match?.completed && match.score2 >= targetWins;
+  const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
+  const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
+  const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
   /*
    * Determine if this match should show "TBD" for players.
@@ -251,7 +253,7 @@ export function DoubleEliminationBracket({
   bracketStructure,
   onMatchClick,
   seededPlayers,
-  targetWins = 3,
+  getTargetWins,
 }: DoubleEliminationBracketProps) {
   /** Look up a match by its bracket match number */
   const getMatch = (matchNumber: number) =>
@@ -328,7 +330,7 @@ export function DoubleEliminationBracket({
                       if (match && onMatchClick) onMatchClick(match);
                     }}
                     isTBD={isTBD(b.matchNumber)}
-                    targetWins={targetWins}
+                    getTargetWins={getTargetWins}
                   />
                 ))}
               </div>
@@ -352,7 +354,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -375,7 +377,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -396,7 +398,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -427,7 +429,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -450,7 +452,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -473,7 +475,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -497,7 +499,7 @@ export function DoubleEliminationBracket({
                       if (match && onMatchClick) onMatchClick(match);
                     }}
                     isTBD={isTBD(b.matchNumber)}
-                    targetWins={targetWins}
+                    getTargetWins={getTargetWins}
                   />
                 ))}
               </div>
@@ -521,7 +523,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -542,7 +544,7 @@ export function DoubleEliminationBracket({
                     if (match && onMatchClick) onMatchClick(match);
                   }}
                   isTBD={isTBD(b.matchNumber)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -571,7 +573,7 @@ export function DoubleEliminationBracket({
                   if (match && onMatchClick) onMatchClick(match);
                 }}
                 isTBD={isTBD(b.matchNumber)}
-                targetWins={targetWins}
+                getTargetWins={getTargetWins}
               />
             ))}
           </div>
@@ -596,7 +598,7 @@ export function DoubleEliminationBracket({
                   if (match && onMatchClick) onMatchClick(match);
                 }}
                 isTBD={isTBD(b.matchNumber)}
-                targetWins={targetWins}
+                getTargetWins={getTargetWins}
               />
             ))}
           </div>

@@ -463,6 +463,9 @@
     "failedUpdateMatch": "試合の更新に失敗しました",
     "fiveRaces": "5レース：",
     "fiveRacesDesc": "各試合は5つの異なるコースで構成",
+    "mrEnteredRacesDesc": "実際に行ったレース分だけコースを入力してください。",
+    "mrFtByRound": "ラウンド別FT：",
+    "mrFtByRoundDesc": "プレーオフは FT3/4、序盤ブラケットは FT5、準決勝帯は FT7、決勝帯は FT9 です。",
     "firstTo3": "3勝先取：",
     "firstTo3Desc": "先に3勝したプレイヤーが勝利"
   },
