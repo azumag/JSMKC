@@ -54,6 +54,7 @@
     "saving": "Saving...",
     "confirmDeletePlayer": "Are you sure you want to delete this player?",
     "confirmDeleteTournament": "Are you sure you want to delete this tournament?",
+    "viewTournament": "View Tournament",
     "confirmRemovePlayer": "Are you sure you want to remove this player?",
     "addAtLeastOnePlayer": "Please add at least one player",
     "player1": "Player 1",
