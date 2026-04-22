@@ -26,6 +26,18 @@ jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({
   SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
   DRIVER_POINTS: [0, 9, 6, 3, 1, 0, 0, 0, 0],
+  COURSE_INFO: [
+    { abbr: 'MC1', name: 'Mario Circuit 1', cup: 'Mushroom' },
+    { abbr: 'DP1', name: 'Donut Plains 1', cup: 'Mushroom' },
+    { abbr: 'GV1', name: 'Ghost Valley 1', cup: 'Mushroom' },
+    { abbr: 'BC1', name: 'Bowser Castle 1', cup: 'Mushroom' },
+    { abbr: 'MC2', name: 'Mario Circuit 2', cup: 'Mushroom' },
+    { abbr: 'CI1', name: 'Choco Island 1', cup: 'Flower' },
+    { abbr: 'GV2', name: 'Ghost Valley 2', cup: 'Flower' },
+    { abbr: 'DP2', name: 'Donut Plains 2', cup: 'Flower' },
+    { abbr: 'BC2', name: 'Bowser Castle 2', cup: 'Flower' },
+    { abbr: 'MC3', name: 'Mario Circuit 3', cup: 'Flower' },
+  ],
   TOTAL_GP_RACES: 5,
   getDriverPoints: (pos: number) => [0, 9, 6, 3, 1, 0, 0, 0, 0][pos] ?? 0,
 }));
@@ -544,6 +556,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         player1: { userId: null },
         player2: { userId: null },
         completed: true,
+        cup: 'Mushroom',
       };
 
       const correctedMatch = {
@@ -590,6 +603,46 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
        * correction — the route calls recalculatePlayerStats twice, each
        * call fires an updateMany under the hood. */
       expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reject correction races that do not match the assigned cup', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: true,
+        cup: 'Mushroom',
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [
+          { course: 'Choco Island 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 2', position1: 1, position2: 2 },
+          { course: 'Donut Plains 2', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 2', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 3', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: {
+          error: 'Submitted races do not match the assigned cup for this match',
+          field: 'races',
+        },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Submitted races do not match the assigned cup for this match',
+        'races'
+      );
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
     // Error case - Returns 500 when database operation fails
