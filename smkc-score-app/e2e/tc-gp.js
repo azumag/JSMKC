@@ -534,6 +534,53 @@ async function runTc709(adminPage) {
   }
 }
 
+/* ───────── TC-710: GP cup mismatch rejection on correction ─────────
+ * Validates #534: when a completed GP match has an assigned cup, a
+ * participant correction with courses from a different cup is rejected. */
+async function runTc710(adminPage) {
+  let playerBrowser = null;
+  try {
+    const { tournamentId, p1, match } = await prepareSharedGpPair(adminPage);
+
+    /* Complete the match first via admin PUT so it enters correction territory. */
+    const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
+    if (adminPut.s !== 200) throw new Error(`Admin PUT failed (${adminPut.s})`);
+
+    /* Attempt correction with Flower cup courses when match is Mushroom. */
+    const ctx = await loginSharedPlayer(adminPage, p1);
+    playerBrowser = ctx.browser;
+    const wrongCupRaces = [
+      { course: 'Choco Island 1', position1: 1, position2: 2 },
+      { course: 'Ghost Valley 2', position1: 1, position2: 2 },
+      { course: 'Donut Plains 2', position1: 1, position2: 2 },
+      { course: 'Bowser Castle 2', position1: 1, position2: 2 },
+      { course: 'Mario Circuit 3', position1: 1, position2: 2 },
+    ];
+    const correction = await ctx.page.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
+      { reportingPlayer: 1, races: wrongCupRaces },
+    ]);
+
+    const rejected = correction.s === 400 &&
+      (correction.b?.data?.error || correction.b?.error || '')
+        .includes('do not match the assigned cup');
+
+    log('TC-710', rejected ? 'PASS' : 'FAIL',
+      !rejected ? `expected 400 cup-mismatch, got ${correction.s} ${JSON.stringify(correction.b)}` : '');
+  } catch (err) {
+    log('TC-710', 'FAIL', err instanceof Error ? err.message : 'GP 710 failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -561,13 +608,14 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
+      { name: 'TC-710', fn: runTc710 },
     ],
   };
 }
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709,
+  runTc707, runTc708, runTc709, runTc710,
   getSuite,
   results,
 };

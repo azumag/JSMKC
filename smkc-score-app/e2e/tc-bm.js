@@ -312,6 +312,65 @@ async function runTc511(adminPage) {
   }
 }
 
+/* ───────── TC-512: TV assignment up to 4 ─────────
+ * Validates #529: tvNumber=4 is accepted, tvNumber=5 is rejected. */
+async function runTc512(adminPage) {
+  let tournamentId = null;
+  let player1Id = null;
+  let player2Id = null;
+  try {
+    const stamp = Date.now();
+    const player1 = await uiCreatePlayer(adminPage, `E2E TV P1 ${stamp}`, `e2e_tv_p1_${stamp}`);
+    const player2 = await uiCreatePlayer(adminPage, `E2E TV P2 ${stamp}`, `e2e_tv_p2_${stamp}`);
+    player1Id = player1.id;
+    player2Id = player2.id;
+
+    tournamentId = await uiCreateTournament(adminPage, `E2E TV ${stamp}`);
+    await uiActivateTournament(adminPage, tournamentId);
+
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
+      { id: player1.id, name: player1.name, nickname: player1.nickname },
+      { id: player2.id, name: player2.name, nickname: player2.nickname },
+    ]);
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const match = bmData.matches.find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match found');
+
+    const assign4 = await adminPage.evaluate(async ([tid, mid]) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: mid, tvNumber: 4 }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [tournamentId, match.id]);
+    const tv4Ok = assign4.s === 200 && assign4.b?.data?.match?.tvNumber === 4;
+
+    const assign5 = await adminPage.evaluate(async ([tid, mid]) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: mid, tvNumber: 5 }),
+      });
+      return { s: r.status };
+    }, [tournamentId, match.id]);
+    const tv5Rejected = assign5.s === 400;
+
+    const ok = tv4Ok && tv5Rejected;
+    log('TC-512', ok ? 'PASS' : 'FAIL',
+      !tv4Ok ? `TV=4 assignment failed (${assign4.s})`
+      : !tv5Rejected ? `TV=5 was not rejected (${assign5.s})`
+      : '');
+  } catch (err) {
+    log('TC-512', 'FAIL', err instanceof Error ? err.message : 'TV assignment test failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    if (player1Id) await apiDeletePlayer(adminPage, player1Id);
+    if (player2Id) await apiDeletePlayer(adminPage, player2Id);
+  }
+}
+
 /* ───────── TC-503: 28-player full + finals bracket gen + first-to-5 routing ─────────
  * Validates: 84 quals succeed, top-8 bracket (17 matches), first-to-5 rejection
  * of 3-0, 5-0 acceptance with M1 winner→M5 / loser→M8 routing. */
@@ -795,6 +854,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-509', fn: runTc509 },
       { name: 'TC-322', fn: runTc322 },
       { name: 'TC-511', fn: runTc511 },
+      { name: 'TC-512', fn: runTc512 },
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
@@ -805,7 +865,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511,
+  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512,
   runTc507, runTc508, runTc509,
   getSuite,
   results,
