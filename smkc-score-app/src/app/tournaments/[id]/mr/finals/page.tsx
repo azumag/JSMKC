@@ -88,6 +88,7 @@ interface MRMatch {
   score1: number;
   score2: number;
   completed: boolean;
+  assignedCourses?: string[];
   rounds?: { course: string; winner: number }[];
   player1: Player;
   player2: Player;
@@ -137,6 +138,27 @@ function getCompletedChampion(matches: MRMatch[]): Player | null {
 interface Round {
   course: CourseAbbr | "";
   winner: number | null;
+}
+
+function buildInitialRounds(match: MRMatch): Round[] {
+  if (match.rounds && match.rounds.length === 5) {
+    return match.rounds as Round[];
+  }
+
+  if (Array.isArray(match.assignedCourses) && match.assignedCourses.length === 5) {
+    return match.assignedCourses.map((course) => ({
+      course: course as CourseAbbr,
+      winner: null,
+    }));
+  }
+
+  return [
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+    { course: "", winner: null },
+  ];
 }
 
 export default function MatchRaceFinals({
@@ -361,17 +383,7 @@ export default function MatchRaceFinals({
    */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === 5) {
-      setRounds(match.rounds as Round[]);
-    } else {
-      setRounds([
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-      ]);
-    }
+    setRounds(buildInitialRounds(match));
     setIsMatchDialogOpen(true);
   };
 
