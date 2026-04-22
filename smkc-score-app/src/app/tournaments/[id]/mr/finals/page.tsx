@@ -773,6 +773,18 @@ export default function MatchRaceFinals({
                         <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
                           {selectedMatch?.player2.nickname}
                         </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto"
+                          onClick={() => {
+                            const newRounds = [...rounds];
+                            newRounds[index] = { course: "", winner: null };
+                            setRounds(newRounds);
+                          }}
+                        >
+                          {tCommon('clearScores')}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
