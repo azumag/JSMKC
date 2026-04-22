@@ -52,7 +52,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
-import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
+import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
@@ -348,6 +348,43 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       // Source returns 201 for successful resource creation (POST)
       expect(result.status).toBe(201);
+    });
+
+    it('should assign the same cup to every playoff match in a round', async () => {
+      const mockQualifications = Array.from({ length: 24 }, (_, index) => ({
+        id: `q${index + 1}`,
+        playerId: `p${index + 1}`,
+        group: index < 12 ? 'A' : 'B',
+        score: 24 - index,
+        points: (24 - index) * 3,
+        player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+      }));
+      const playoffStructure = [
+        { matchNumber: 1, round: 'playoff_r1', player1Seed: 1, player2Seed: 8 },
+        { matchNumber: 2, round: 'playoff_r1', player1Seed: 4, player2Seed: 5 },
+        { matchNumber: 5, round: 'playoff_r2', player1Seed: 1, player2Seed: null, advancesToUpperSeed: 16 },
+      ];
+
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      (prisma.gPMatch.create as jest.Mock).mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({
+        id: `m${data.matchNumber}`,
+        ...data,
+        player1: { id: data.player1Id },
+        player2: { id: data.player2Id },
+      }));
+      (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 24 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(201);
+      const createCalls = (prisma.gPMatch.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
+      expect(createCalls[0].cup).toBe(createCalls[1].cup);
+      expect(createCalls[0].cup).not.toBe(createCalls[2].cup);
     });
   });
 

@@ -148,33 +148,34 @@ function createEmptyRounds(count: number): Round[] {
 
 function buildInitialRounds(match: MRMatch): Round[] {
   const maxRounds = getMrFinalsMaxRounds(match);
-  const existingRounds = Array.isArray(match.rounds) ? match.rounds : [];
-  if (existingRounds.length > 0) {
+
+  if (match.rounds && match.rounds.length > 0) {
+    const existingRounds = match.rounds.map((round) => ({
+      course: (round.course as CourseAbbr) ?? "",
+      winner: round.winner,
+    }));
     return [
-      ...existingRounds.slice(0, maxRounds).map((round) => ({
-        course: typeof round?.course === "string" ? (round.course as CourseAbbr | "") : "",
-        winner: round?.winner === 1 || round?.winner === 2 ? round.winner : null,
-      })),
-      ...createEmptyRounds(Math.max(maxRounds - existingRounds.length, 0)),
+      ...existingRounds,
+      ...createEmptyRounds(Math.max(0, maxRounds - existingRounds.length)),
     ];
   }
 
-  const assignedCourses = Array.isArray(match.assignedCourses) ? match.assignedCourses : [];
-  if (assignedCourses.length > 0) {
+  if (Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0) {
+    const assignedRounds = match.assignedCourses.map((course) => ({
+      course: course as CourseAbbr,
+      winner: null,
+    }));
     return [
-      ...assignedCourses.slice(0, maxRounds).map((course) => ({
-        course: course as CourseAbbr,
-        winner: null,
-      })),
-      ...createEmptyRounds(Math.max(maxRounds - assignedCourses.length, 0)),
+      ...assignedRounds,
+      ...createEmptyRounds(Math.max(0, maxRounds - assignedRounds.length)),
     ];
   }
 
   return createEmptyRounds(maxRounds);
 }
 
-function countWins(rounds: Round[], side: 1 | 2): number {
-  return rounds.filter((round) => round.winner === side).length;
+function hasFixedAssignedCourses(match: MRMatch | null): boolean {
+  return Boolean(match && Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0);
 }
 
 export default function MatchRaceFinals({
@@ -224,9 +225,6 @@ export default function MatchRaceFinals({
   const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
   const [champion, setChampion] = useState<Player | null>(null);
   const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
-  const hasExactMatchWinner = (player1Wins: number, player2Wins: number) =>
-    (player1Wins === selectedMatchTargetWins && player2Wins < selectedMatchTargetWins)
-    || (player2Wins === selectedMatchTargetWins && player1Wins < selectedMatchTargetWins);
 
   /**
    * Fetch finals bracket data including matches,
@@ -408,24 +406,25 @@ export default function MatchRaceFinals({
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    const playedRounds = rounds.filter((round) => round.course !== "" || round.winner !== null);
-    const hasPartialRound = playedRounds.some((round) => round.course === "" || round.winner === null);
-    if (hasPartialRound) {
-      alert('Complete every entered race before saving.');
+    if (rounds.some((round) => round.course === "")) {
+      alert(tCommon('select5UniqueCourses'));
       return;
     }
 
-    const usedCourses = playedRounds.map((round) => round.course).filter((course): course is CourseAbbr => course !== "");
-    if (usedCourses.length !== playedRounds.length || new Set(usedCourses).size !== usedCourses.length) {
+    const usedCourses = rounds.map((round) => round.course).filter((course) => course !== "");
+    if (new Set(usedCourses).size !== usedCourses.length) {
       alert(tCommon('select5UniqueCourses'));
       return;
     }
 
     /* Count wins and validate a winner */
-    const winnerCount = countWins(playedRounds, 1);
-    const loserCount = countWins(playedRounds, 2);
+    const winnerCount = rounds.filter(r => r.winner === 1).length;
+    const loserCount = rounds.filter(r => r.winner === 2).length;
 
-    if (!hasExactMatchWinner(winnerCount, loserCount)) {
+    if (
+      (winnerCount !== selectedMatchTargetWins || loserCount >= selectedMatchTargetWins) &&
+      (loserCount !== selectedMatchTargetWins || winnerCount >= selectedMatchTargetWins)
+    ) {
       alert(tCommon('matchMustHaveWinner'));
       return;
     }
@@ -438,7 +437,7 @@ export default function MatchRaceFinals({
           matchId: selectedMatch.id,
           score1: winnerCount,
           score2: loserCount,
-          rounds: playedRounds,
+          rounds,
         }),
       });
 
@@ -478,7 +477,11 @@ export default function MatchRaceFinals({
     }
   };
 
+  /* Track tournament progress */
+  const completedMatches = matches.filter((m) => m.completed).length;
+  const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
+
   /* Loading skeleton */
   if (loading) {
     return (
@@ -611,8 +614,8 @@ export default function MatchRaceFinals({
           <CardContent>
             <p className="text-muted-foreground">{tFinals('bracketExplanation')}</p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
-              <li><strong>{tFinals('fiveRaces')}</strong> {tFinals('mrEnteredRacesDesc')}</li>
-              <li><strong>{tFinals('mrFtByRound')}</strong> {tFinals('mrFtByRoundDesc')}</li>
+              <li><strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}</li>
+              <li><strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}</li>
               <li><strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}</li>
               <li><strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}</li>
               <li><strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}</li>
@@ -632,7 +635,6 @@ export default function MatchRaceFinals({
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
-              getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
             />
           </TabsContent>
@@ -642,7 +644,6 @@ export default function MatchRaceFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
-              getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
             />
           </TabsContent>
@@ -654,7 +655,6 @@ export default function MatchRaceFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
-            getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             onMatchClick={isAdmin ? openMatchDialog : undefined}
           />
           {playoffComplete && isAdmin && (
@@ -672,7 +672,6 @@ export default function MatchRaceFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openMatchDialog : undefined}
         />
       )}
@@ -694,7 +693,6 @@ export default function MatchRaceFinals({
                       {roundNames[selectedMatch.round] || selectedMatch.round}
                     </span>
                   )}
-                  <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
                 </>
               )}
             </DialogDescription>
@@ -715,25 +713,33 @@ export default function MatchRaceFinals({
                     {/* i18n: Race number label */}
                     <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
                     <TableCell>
-                      <Select
-                        value={round.course}
-                        onValueChange={(value) => {
-                          const newRounds = [...rounds];
-                          newRounds[index].course = value as CourseAbbr;
-                          setRounds(newRounds);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={tCommon('selectCourse')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COURSE_INFO.map((course) => (
-                            <SelectItem key={course.abbr} value={course.abbr}>
-                              {course.name} ({course.cup})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {hasFixedAssignedCourses(selectedMatch) ? (
+                        <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                          {round.course
+                            ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
+                            : "—"}
+                        </span>
+                      ) : (
+                        <Select
+                          value={round.course}
+                          onValueChange={(value) => {
+                            const newRounds = [...rounds];
+                            newRounds[index].course = value as CourseAbbr;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={tCommon('selectCourse')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COURSE_INFO.map((course) => (
+                              <SelectItem key={course.abbr} value={course.abbr}>
+                                {course.name} ({course.cup})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
@@ -767,18 +773,6 @@ export default function MatchRaceFinals({
                         <span className="min-w-0 max-w-28 truncate text-sm" title={selectedMatch?.player2.nickname}>
                           {selectedMatch?.player2.nickname}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="ml-auto"
-                          onClick={() => {
-                            const newRounds = [...rounds];
-                            newRounds[index] = { course: "", winner: null };
-                            setRounds(newRounds);
-                          }}
-                        >
-                          {tCommon('clearScores')}
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -790,10 +784,16 @@ export default function MatchRaceFinals({
             {/* i18n: Save result button */}
             <Button
               onClick={handleMatchSubmit}
-              disabled={!hasExactMatchWinner(
-                countWins(rounds, 1),
-                countWins(rounds, 2),
-              )}
+              disabled={
+                (
+                  rounds.filter(r => r.winner === 1).length !== selectedMatchTargetWins ||
+                  rounds.filter(r => r.winner === 2).length >= selectedMatchTargetWins
+                ) &&
+                (
+                  rounds.filter(r => r.winner === 2).length !== selectedMatchTargetWins ||
+                  rounds.filter(r => r.winner === 1).length >= selectedMatchTargetWins
+                )
+              }
             >
               {tCommon('saveResult')}
             </Button>

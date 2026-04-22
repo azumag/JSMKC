@@ -24,6 +24,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   postErrorMessage: 'Failed to create finals bracket',
   postRequiresAuth: true,
   putRequiresAuth: true,
+  assignMrCoursesByRound: true,
 });
 
 export { GET, POST, PUT };

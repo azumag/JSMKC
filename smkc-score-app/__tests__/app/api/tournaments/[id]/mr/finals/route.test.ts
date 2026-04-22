@@ -48,7 +48,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { generateBracketStructure } from '@/lib/double-elimination';
+import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/finals/route';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
@@ -280,6 +280,45 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       expect(result.data).toEqual({ success: false, error: 'Failed to create finals bracket', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to create finals', { error: expect.any(Error), tournamentId: 't1' });
+    });
+
+    it('should assign the same courses to every playoff match in a round', async () => {
+      const mockQualifications = Array.from({ length: 24 }, (_, index) => ({
+        id: `q${index + 1}`,
+        playerId: `p${index + 1}`,
+        group: index < 12 ? 'A' : 'B',
+        score: 24 - index,
+        points: (24 - index) * 2,
+        winRounds: (24 - index) * 3,
+        player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+      }));
+      const playoffStructure = [
+        { matchNumber: 1, round: 'playoff_r1', player1Seed: 1, player2Seed: 8 },
+        { matchNumber: 2, round: 'playoff_r1', player1Seed: 4, player2Seed: 5 },
+        { matchNumber: 5, round: 'playoff_r2', player1Seed: 1, player2Seed: null, advancesToUpperSeed: 16 },
+      ];
+
+      (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.mRMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      (prisma.mRMatch.create as jest.Mock).mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({
+        id: `m${data.matchNumber}`,
+        ...data,
+        player1: { id: data.player1Id },
+        player2: { id: data.player2Id },
+      }));
+      (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 24 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(201);
+      const createCalls = (prisma.mRMatch.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
+      expect(createCalls[0].assignedCourses).toEqual(createCalls[1].assignedCourses);
+      expect(createCalls[0].assignedCourses).toHaveLength(5);
+      expect(createCalls[2].assignedCourses).toHaveLength(7);
     });
   });
 

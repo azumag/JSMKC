@@ -20,7 +20,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * - Real-time polling at the standard interval
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,16 @@ interface GPMatch {
   player1ReportedPoints2?: number;
   player2ReportedPoints1?: number;
   player2ReportedPoints2?: number;
+  player1ReportedRaces?: {
+    course: string;
+    position1: number;
+    position2: number;
+  }[];
+  player2ReportedRaces?: {
+    course: string;
+    position1: number;
+    position2: number;
+  }[];
 }
 
 interface Tournament {
@@ -121,6 +131,7 @@ export default function GPMatchPage({
    * Initialized from match.cup, togglable when a substitute exists.
    */
   const [activeCup, setActiveCup] = useState<string | null>(null);
+  const initializedCupRef = useRef<string | null>(null);
 
   /** Fetch match and tournament data in parallel */
   const fetchMatchData = useCallback(async () => {
@@ -167,6 +178,43 @@ export default function GPMatchPage({
   useEffect(() => {
     setLoading(pollLoading);
   }, [pollLoading]);
+
+  useEffect(() => {
+    if (!match) return;
+
+    const existingRaces =
+      match.races ??
+      (selectedPlayer === 1 ? match.player1ReportedRaces : selectedPlayer === 2 ? match.player2ReportedRaces : undefined);
+
+    if (!activeCup) {
+      initializedCupRef.current = null;
+      if (existingRaces && existingRaces.length === TOTAL_GP_RACES) {
+        setRaces(existingRaces.map((race) => ({
+          course: race.course as CourseAbbr,
+          position1: race.position1,
+          position2: race.position2,
+        })));
+      }
+      return;
+    }
+
+    setRaces((prev) => {
+      const cupCourses = COURSE_INFO.filter((course) => course.cup === activeCup).map((course) => course.abbr);
+      if (cupCourses.length !== TOTAL_GP_RACES) return prev;
+      const previousCup = initializedCupRef.current;
+      const shouldHydrateExistingCup =
+        previousCup === null &&
+        existingRaces?.length === TOTAL_GP_RACES &&
+        existingRaces.every((race, index) => race.course === cupCourses[index]);
+      initializedCupRef.current = activeCup;
+
+      return cupCourses.map((course, index) => ({
+        course,
+        position1: shouldHydrateExistingCup ? existingRaces[index].position1 : previousCup === activeCup ? (prev[index]?.position1 ?? null) : null,
+        position2: shouldHydrateExistingCup ? existingRaces[index].position2 : previousCup === activeCup ? (prev[index]?.position2 ?? null) : null,
+      }));
+    });
+  }, [activeCup, match, selectedPlayer]);
 
   /**
    * Submit the race results for the selected player.
@@ -310,8 +358,6 @@ export default function GPMatchPage({
                         const sub = CUP_SUBSTITUTIONS[match.cup!];
                         const next = activeCup === match.cup ? (sub ?? null) : (match.cup ?? null);
                         setActiveCup(next);
-                        /* Clear course selections when switching cups since courses differ */
-                        setRaces(Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr | "", position1: null, position2: null })));
                       }}
                     >
                       {activeCup === match.cup
@@ -404,29 +450,31 @@ export default function GPMatchPage({
                           <span className="text-sm font-medium w-20">
                             {tMatch('raceN', { n: index + 1 })}
                           </span>
-                          <Select
-                            value={race.course}
-                            onValueChange={(value) => {
-                              const newRaces = [...races];
-                              newRaces[index].course = value as CourseAbbr;
-                              setRaces(newRaces);
-                            }}
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder={tCommon('selectCourse')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {/* §7.4 + §7.1: Filter courses by active cup (may be a substitute) */}
-                              {(activeCup
-                                ? COURSE_INFO.filter((c) => c.cup === activeCup)
-                                : COURSE_INFO
-                              ).map((course) => (
-                                <SelectItem key={course.abbr} value={course.abbr}>
-                                  {course.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {activeCup ? (
+                            <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                              {race.course ? getCourseName(race.course) : "—"}
+                            </span>
+                          ) : (
+                            <Select
+                              value={race.course}
+                              onValueChange={(value) => {
+                                const newRaces = [...races];
+                                newRaces[index].course = value as CourseAbbr;
+                                setRaces(newRaces);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder={tCommon('selectCourse')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COURSE_INFO.map((course) => (
+                                  <SelectItem key={course.abbr} value={course.abbr}>
+                                    {course.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="space-y-1">
