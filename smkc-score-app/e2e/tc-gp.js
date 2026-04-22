@@ -546,16 +546,26 @@ async function runTc710(adminPage) {
     const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
     if (adminPut.s !== 200) throw new Error(`Admin PUT failed (${adminPut.s})`);
 
-    /* Attempt correction with Flower cup courses when match is Mushroom. */
+    /* Attempt correction with courses from a different cup than assigned. */
     const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
-    const wrongCupRaces = [
-      { course: 'Choco Island 1', position1: 1, position2: 2 },
-      { course: 'Ghost Valley 2', position1: 1, position2: 2 },
-      { course: 'Donut Plains 2', position1: 1, position2: 2 },
-      { course: 'Bowser Castle 2', position1: 1, position2: 2 },
-      { course: 'Mario Circuit 3', position1: 1, position2: 2 },
-    ];
+    const assignedCup = match.cup;
+    const wrongCup = assignedCup === 'Mushroom' ? 'Flower' : 'Mushroom';
+    const wrongCupRaces = wrongCup === 'Flower'
+      ? [
+          { course: 'Choco Island 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 2', position1: 1, position2: 2 },
+          { course: 'Donut Plains 2', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 2', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 3', position1: 1, position2: 2 },
+        ]
+      : [
+          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
+          { course: 'Donut Plains 1', position1: 1, position2: 2 },
+          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
+          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
+          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+        ];
     const correction = await ctx.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
         method: 'POST',
