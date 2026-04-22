@@ -6,6 +6,7 @@
  */
 
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
+import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 
 const { GET, POST, PUT } = createFinalsHandlers({
   matchModel: 'gPMatch',
@@ -17,6 +18,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
+  getTargetWins: getGpFinalsTargetWins,
   getErrorMessage: 'Failed to fetch grand prix finals data',
   postErrorMessage: 'Failed to create grand prix finals bracket',
   postRequiresAuth: true,

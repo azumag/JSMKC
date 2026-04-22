@@ -69,6 +69,7 @@ import {
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -83,6 +84,7 @@ interface MRMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -139,6 +141,10 @@ interface Round {
   winner: number | null;
 }
 
+function createEmptyRounds(count: number): Round[] {
+  return Array.from({ length: count }, () => ({ course: "", winner: null }));
+}
+
 export default function MatchRaceFinals({
   params,
 }: {
@@ -183,15 +189,9 @@ export default function MatchRaceFinals({
   const [playoffComplete, setPlayoffComplete] = useState(false);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
-  /* Initialize 5 empty rounds for match result dialog */
-  const [rounds, setRounds] = useState<Round[]>([
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-    { course: "", winner: null },
-  ]);
+  const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
   const [champion, setChampion] = useState<Player | null>(null);
+  const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
 
   /**
    * Fetch finals bracket data including matches,
@@ -359,17 +359,12 @@ export default function MatchRaceFinals({
    */
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
-    if (match.rounds && match.rounds.length === 5) {
-      setRounds(match.rounds as Round[]);
-    } else {
-      setRounds([
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-        { course: "", winner: null },
-      ]);
-    }
+    const maxRounds = getMrFinalsMaxRounds(match);
+    const existingRounds = (match.rounds as Round[] | undefined) ?? [];
+    setRounds([
+      ...existingRounds,
+      ...createEmptyRounds(Math.max(maxRounds - existingRounds.length, 0)),
+    ]);
     setIsMatchDialogOpen(true);
   };
 
@@ -381,18 +376,24 @@ export default function MatchRaceFinals({
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Validate 5 unique courses */
-    const usedCourses = rounds.map(r => r.course).filter(c => c !== "");
-    if (usedCourses.length !== 5 || new Set(usedCourses).size !== 5) {
+    const playedRounds = rounds.filter((round) => round.course !== "" || round.winner !== null);
+    const hasPartialRound = playedRounds.some((round) => round.course === "" || round.winner === null);
+    if (hasPartialRound) {
+      alert('Complete every entered race before saving.');
+      return;
+    }
+
+    const usedCourses = playedRounds.map((round) => round.course).filter((course): course is CourseAbbr => course !== "");
+    if (usedCourses.length !== playedRounds.length || new Set(usedCourses).size !== usedCourses.length) {
       alert(tCommon('select5UniqueCourses'));
       return;
     }
 
     /* Count wins and validate a winner */
-    const winnerCount = rounds.filter(r => r.winner === 1).length;
-    const loserCount = rounds.filter(r => r.winner === 2).length;
+    const winnerCount = playedRounds.filter(r => r.winner === 1).length;
+    const loserCount = playedRounds.filter(r => r.winner === 2).length;
 
-    if (winnerCount < 3 && loserCount < 3) {
+    if (winnerCount < selectedMatchTargetWins && loserCount < selectedMatchTargetWins) {
       alert(tCommon('matchMustHaveWinner'));
       return;
     }
@@ -405,7 +406,7 @@ export default function MatchRaceFinals({
           matchId: selectedMatch.id,
           score1: winnerCount,
           score2: loserCount,
-          rounds,
+          rounds: playedRounds,
         }),
       });
 
@@ -414,13 +415,7 @@ export default function MatchRaceFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
-        setRounds([
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-          { course: "", winner: null },
-        ]);
+        setRounds(createEmptyRounds(getMrFinalsMaxRounds()));
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -450,10 +445,6 @@ export default function MatchRaceFinals({
       alert(tFinals('failedUpdateMatch'));
     }
   };
-
-  /* Track tournament progress */
-  const completedMatches = matches.filter((m) => m.completed).length;
-  const totalMatches = matches.length;
 
   /* Loading skeleton */
   if (loading) {
@@ -587,8 +578,8 @@ export default function MatchRaceFinals({
           <CardContent>
             <p className="text-muted-foreground">{tFinals('bracketExplanation')}</p>
             <ul className="list-disc list-inside mt-4 space-y-2 text-sm text-muted-foreground">
-              <li><strong>{tFinals('fiveRaces')}</strong> {tFinals('fiveRacesDesc')}</li>
-              <li><strong>{tFinals('firstTo3')}</strong> {tFinals('firstTo3Desc')}</li>
+              <li><strong>{tFinals('fiveRaces')}</strong> Select courses only for the races you actually played.</li>
+              <li><strong>FT by round</strong> Playoff FT3/4, early bracket FT5, semis FT7, finals FT9.</li>
               <li><strong>{tFinals('winnersBracket')}</strong> {tFinals('winnersBracketDesc')}</li>
               <li><strong>{tFinals('losersBracket')}</strong> {tFinals('losersBracketDesc')}</li>
               <li><strong>{tFinals('grandFinal')}</strong> {tFinals('grandFinalDesc')}</li>
@@ -608,6 +599,7 @@ export default function MatchRaceFinals({
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
+              getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
             />
           </TabsContent>
@@ -617,6 +609,7 @@ export default function MatchRaceFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
+              getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
             />
           </TabsContent>
@@ -628,6 +621,7 @@ export default function MatchRaceFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
+            getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             onMatchClick={isAdmin ? openMatchDialog : undefined}
           />
           {playoffComplete && isAdmin && (
@@ -645,6 +639,7 @@ export default function MatchRaceFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          getTargetWins={(match, bracketMatch) => getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openMatchDialog : undefined}
         />
       )}
@@ -666,6 +661,7 @@ export default function MatchRaceFinals({
                       {roundNames[selectedMatch.round] || selectedMatch.round}
                     </span>
                   )}
+                  <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
                 </>
               )}
             </DialogDescription>
@@ -750,8 +746,8 @@ export default function MatchRaceFinals({
             <Button
               onClick={handleMatchSubmit}
               disabled={
-                rounds.filter(r => r.winner === 1).length < 3 &&
-                rounds.filter(r => r.winner === 2).length < 3
+                rounds.filter(r => r.winner === 1).length < selectedMatchTargetWins &&
+                rounds.filter(r => r.winner === 2).length < selectedMatchTargetWins
               }
             >
               {tCommon('saveResult')}

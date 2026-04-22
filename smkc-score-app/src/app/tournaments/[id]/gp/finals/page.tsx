@@ -56,6 +56,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
 import { POLLING_INTERVAL } from "@/lib/constants";
+import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -70,6 +71,7 @@ interface GPMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -175,6 +177,7 @@ export default function GrandPrixFinals({
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
   const [champion, setChampion] = useState<Player | null>(null);
+  const selectedMatchTargetWins = selectedMatch ? getGpFinalsTargetWins(selectedMatch) : getGpFinalsTargetWins();
 
   /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {
@@ -393,9 +396,6 @@ export default function GrandPrixFinals({
     }
   };
 
-  const completedMatches = matches.filter((m) => m.completed).length;
-  const totalMatches = matches.length;
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -545,6 +545,7 @@ export default function GrandPrixFinals({
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
+              getTargetWins={(match, bracketMatch) => getGpFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
             />
           </TabsContent>
@@ -554,6 +555,7 @@ export default function GrandPrixFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
+              getTargetWins={(match, bracketMatch) => getGpFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
             />
           </TabsContent>
@@ -565,6 +567,7 @@ export default function GrandPrixFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
+            getTargetWins={(match, bracketMatch) => getGpFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             onMatchClick={isAdmin ? openScoreDialog : undefined}
           />
           {playoffComplete && isAdmin && (
@@ -582,6 +585,7 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          getTargetWins={(match, bracketMatch) => getGpFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openScoreDialog : undefined}
         />
       )}
@@ -602,12 +606,13 @@ export default function GrandPrixFinals({
                       {roundNames[selectedMatch.round] || selectedMatch.round}
                     </span>
                   )}
+                  <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Score input: best of 5 (first to 3 wins) */}
+            {/* Score input: FT varies by round/stage. */}
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 sm:gap-4">
               <div className="min-w-0 text-center">
                 <Label className="block truncate" title={selectedMatch?.player1.nickname}>
@@ -616,7 +621,7 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={4}
+                  max={selectedMatchTargetWins}
                   value={scoreForm.score1}
                   onChange={(e) =>
                     setScoreForm({
@@ -635,7 +640,7 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={4}
+                  max={selectedMatchTargetWins}
                   value={scoreForm.score2}
                   onChange={(e) =>
                     setScoreForm({
@@ -651,8 +656,8 @@ export default function GrandPrixFinals({
                Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < 3 &&
-              scoreForm.score2 < 3
+              scoreForm.score1 < selectedMatchTargetWins &&
+              scoreForm.score2 < selectedMatchTargetWins
                 ? 'text-yellow-600' : 'invisible'
             }`}>
               {tFinals('matchNeedWinner')}
@@ -661,7 +666,7 @@ export default function GrandPrixFinals({
           <DialogFooter>
             <Button
               onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
+              disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}
             >
               {tCommon('saveScore')}
             </Button>

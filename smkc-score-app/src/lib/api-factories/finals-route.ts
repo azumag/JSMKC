@@ -66,6 +66,8 @@ export interface FinalsConfig {
   putAdditionalFields?: string[];
   /** Number of wins required to complete a finals match. Defaults to 3. */
   targetWins?: number;
+  /** Resolve number of wins required for a specific match. */
+  getTargetWins?: (match: { round?: string | null; stage?: string | null }) => number;
   /** Error message returned when GET fails */
   getErrorMessage: string;
   /** Error message returned when POST fails */
@@ -759,7 +761,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      const targetWins = config.targetWins ?? 3;
+      const targetWins = config.getTargetWins?.(match) ?? config.targetWins ?? 3;
       const player1ReachedTarget = score1 >= targetWins;
       const player2ReachedTarget = score2 >= targetWins;
 
