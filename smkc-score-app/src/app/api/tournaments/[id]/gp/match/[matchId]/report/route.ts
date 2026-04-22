@@ -166,6 +166,10 @@ export async function POST(
         }
       }
 
+      if (!validateSubmittedCup(match.cup, races)) {
+        return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+      }
+
       /* Process races: convert finishing positions to driver points (same as normal flow) */
       let totalPoints1 = 0;
       let totalPoints2 = 0;
@@ -247,6 +251,10 @@ export async function POST(
           "position",
         );
       }
+    }
+
+    if (!validateSubmittedCup(match.cup, races)) {
+      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
     }
 
     /* Process races: convert finishing positions to driver points */
