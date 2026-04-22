@@ -321,13 +321,13 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         player2: { id: 'p8', name: 'Player 8' },
       };
 
-      const mockUpdatedMatch = { ...mockMatch, score1: 3, score2: 1, completed: true };
+      const mockUpdatedMatch = { ...mockMatch, score1: 5, score2: 2, completed: true };
 
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 5, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -355,7 +355,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      const mockUpdatedMatch = { ...mockMatch, score1: 3, score2: 1, completed: true };
+      const mockUpdatedMatch = { ...mockMatch, score1: 9, score2: 7, completed: true };
 
       /* Override bracket structure to include the grand final match at matchNumber 15 */
       (generateBracketStructure as jest.Mock).mockReturnValue([
@@ -366,7 +366,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm16', round: 'grand_final_reset' });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 9, score2: 7 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -427,7 +427,28 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const result = await PUT(request, { params });
 
       /* Error message updated: finals-route.ts now uses dynamic "first to N" format */
-      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 3)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 5)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.status).toBe(400);
+    });
+
+    it('should return 400 when a score exceeds the configured target wins', async () => {
+      const mockMatch = {
+        id: 'm1',
+        round: 'grand_final',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 10, score2: 7 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 9)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
       expect(result.status).toBe(400);
     });
 
@@ -467,7 +488,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         player2: { id: 'p8' },
       };
 
-      const mockUpdatedMatch = { ...mockMatch, score1: 3, score2: 1, completed: true };
+      const mockUpdatedMatch = { ...mockMatch, score1: 5, score2: 2, completed: true };
 
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
@@ -475,7 +496,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         .mockResolvedValueOnce({ id: 'm5' })
         .mockResolvedValueOnce({ id: 'm9' });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm1', score1: 5, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -496,18 +517,41 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         player2: { id: 'p2' },
       };
 
-      const mockUpdatedMatch = { ...mockMatch, score1: 1, score2: 3, completed: true };
+      const mockUpdatedMatch = { ...mockMatch, score1: 7, score2: 9, completed: true };
       const mockResetMatch = { id: 'm16', round: 'grand_final_reset' };
 
       (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
       (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue(mockResetMatch);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm15', score1: 1, score2: 3 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm15', score1: 7, score2: 9 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
+    });
+
+    it('should allow MR playoff round 2 results to finish at first to 4', async () => {
+      const mockMatch = {
+        id: 'm5',
+        matchNumber: 5,
+        round: 'playoff_r2',
+        stage: 'playoff',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, score1: 4, score2: 2, completed: true });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { matchId: 'm5', score1: 4, score2: 2 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.stage).toBe('playoff');
     });
   });
 });

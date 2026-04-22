@@ -522,7 +522,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       (prisma.bMMatch.findFirst as jest.Mock)
         .mockResolvedValueOnce(mockResetMatch); // grand_final_reset round lookup
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 1, score2: 5 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 1, score2: 7 });
       const params = Promise.resolve({ id: 't1' });
       const _result = await PUT(request, { params });
 
@@ -552,7 +552,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       (prisma.bMMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, completed: true });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 5, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm16', score1: 7, score2: 1 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -579,7 +579,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       (prisma.bMMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, completed: true });
       (prisma.bMMatch.findFirst as jest.Mock).mockResolvedValue(null);
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm17', score1: 5, score2: 2 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm17', score1: 7, score2: 2 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
@@ -658,6 +658,30 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 5)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
       expect(result.status).toBe(400);
+    });
+
+    it('should allow BM playoff round 1 results to finish at first to 3', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        stage: 'playoff',
+        round: 'playoff_r1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.bMMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.bMMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, score1: 3, score2: 2, completed: true });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals', { matchId: 'm1', score1: 3, score2: 2 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.stage).toBe('playoff');
+      expect(result.data.winnerId).toBe('p1');
     });
 
     // Not found case - Returns 404 when match not found

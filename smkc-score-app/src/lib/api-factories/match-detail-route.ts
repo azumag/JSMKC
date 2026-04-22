@@ -74,7 +74,21 @@ export interface MatchDetailConfig {
    * If omitted, no validation is performed on finals scores.
    * BM finals use best-of-9 (max score = 5) which differs from qualification (max 4, sum = 4).
    */
-  validateFinalsScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
+  validateFinalsScores?: (
+    val1: number,
+    val2: number,
+    context?: { round?: string | null; stage?: string | null }
+  ) => { isValid: boolean; error?: string };
+  /**
+   * Optional finals validator that needs match context such as the bracket round.
+   * When provided, it takes precedence over validateFinalsScores for finals-stage
+   * matches so routes can enforce round-specific target wins.
+   */
+  validateFinalsScoresWithMatch?: (
+    val1: number,
+    val2: number,
+    match: { stage?: string | null; round?: string | null },
+  ) => { isValid: boolean; error?: string };
   /**
    * Optional qualification-stats recalculation config. When provided, a
    * successful qualification-stage PUT also refreshes the per-player
@@ -193,7 +207,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
        * by the stage-aware validation below so there's no wasted DB call. */
       const matchMeta = await model(prisma).findUnique({
         where: { id: matchId },
-        select: { stage: true, tournamentId: true },
+        select: { stage: true, round: true, tournamentId: true },
       });
       if (!matchMeta || (matchMeta.tournamentId && matchMeta.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
@@ -203,19 +217,26 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         if (lockError) return lockError;
       }
 
-      /* Stage-aware score validation: qualification and finals have different rules.
-       * BM qualification: 4 rounds, sum=4, max=4; BM finals: best-of-9, max=5.
+      /* Stage-aware score validation: qualification and bracket matches have different rules.
+       * BM qualification: 4 rounds, sum=4, max=4; BM playoff/finals: first-to-N.
        * Only fetch stage when a separate finals validator exists; otherwise use
        * the single validateScores for all stages (avoids an extra DB read). */
-      if (config.validateFinalsScores) {
+      if (config.validateFinalsScores || config.validateFinalsScoresWithMatch) {
         /* Reuse matchMeta already fetched above to avoid extra DB read */
         const matchForStage = matchMeta;
-        // All bracket matches (including grand final / reset) use stage='finals';
-        // the `round` field distinguishes bracket position. Default to qualification.
-        const isFinalsMatch = matchForStage?.stage === 'finals';
-        const validator = isFinalsMatch ? config.validateFinalsScores : config.validateScores;
+        // Bracket matches use finals-style validation for both playoff and finals stages.
+        const isBracketMatch = matchForStage?.stage === 'finals' || matchForStage?.stage === 'playoff';
+        const validator = isBracketMatch
+          ? config.validateFinalsScoresWithMatch
+            ? () => config.validateFinalsScoresWithMatch!(val1, val2, matchForStage)
+            : config.validateFinalsScores
+              ? () => config.validateFinalsScores!(val1, val2, matchForStage)
+              : null
+          : config.validateScores
+            ? () => config.validateScores!(val1, val2)
+            : null;
         if (validator) {
-          const scoreValidation = validator(val1, val2);
+          const scoreValidation = validator();
           if (!scoreValidation.isValid) {
             return handleValidationError(scoreValidation.error ?? 'Invalid scores', 'scores');
           }

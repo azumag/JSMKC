@@ -604,8 +604,33 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await PUT(request, { params });
 
       /* Error message updated: finals-route.ts now uses dynamic "first to N" format */
-      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 3)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 2)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
       expect(result.status).toBe(400);
+    });
+
+    it('should allow GP playoff round 1 results to finish at first to 1', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        round: 'playoff_r1',
+        stage: 'playoff',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 1, points2: 0, completed: true });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 1, score2: 0 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.stage).toBe('playoff');
+      expect(result.data.winnerId).toBe('p1');
     });
 
     // Error case - Returns 500 when database operation fails

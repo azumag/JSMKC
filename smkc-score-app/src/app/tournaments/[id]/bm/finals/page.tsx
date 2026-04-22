@@ -62,7 +62,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { POLLING_INTERVAL, BM_FINALS_TARGET_WINS } from "@/lib/constants";
+import { POLLING_INTERVAL } from "@/lib/constants";
+import { getBmFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -83,6 +84,7 @@ interface BMMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -191,6 +193,7 @@ export default function BattleModeFinals({
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
   const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
@@ -631,7 +634,7 @@ export default function BattleModeFinals({
               bracketStructure={bracketStructure}
               roundNames={roundNames}
               seededPlayers={seededPlayers}
-              targetWins={BM_FINALS_TARGET_WINS}
+              getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
             />
           </TabsContent>
@@ -642,7 +645,7 @@ export default function BattleModeFinals({
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
-              targetWins={BM_FINALS_TARGET_WINS}
+              getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             />
           </TabsContent>
         </Tabs>
@@ -655,7 +658,7 @@ export default function BattleModeFinals({
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
             onMatchClick={isAdmin ? openScoreDialog : undefined}
-            targetWins={BM_FINALS_TARGET_WINS}
+            getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
           />
           {playoffComplete && isAdmin && (
             <Card className="border-green-500/50 bg-green-500/10">
@@ -677,7 +680,7 @@ export default function BattleModeFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          targetWins={BM_FINALS_TARGET_WINS}
+          getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openScoreDialog : undefined}
         />
       )}
@@ -707,6 +710,7 @@ export default function BattleModeFinals({
                       {roundNames[selectedMatch.round] || selectedMatch.round}
                     </span>
                   )}
+                  <span className="block text-xs mt-1">FT{selectedMatchTargetWins}</span>
                 </>
               )}
             </DialogDescription>
@@ -722,7 +726,7 @@ export default function BattleModeFinals({
                    id={`score1-${selectedMatch?.id}`}
                    type="number"
                    min={0}
-                   max={BM_FINALS_TARGET_WINS}
+                   max={selectedMatchTargetWins}
                    value={scoreForm.score1}
                    onChange={(e) =>
                      setScoreForm({
@@ -744,7 +748,7 @@ export default function BattleModeFinals({
                    id={`score2-${selectedMatch?.id}`}
                    type="number"
                    min={0}
-                   max={BM_FINALS_TARGET_WINS}
+                   max={selectedMatchTargetWins}
                    value={scoreForm.score2}
                    onChange={(e) =>
                      setScoreForm({
@@ -773,8 +777,8 @@ export default function BattleModeFinals({
                Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < BM_FINALS_TARGET_WINS &&
-              scoreForm.score2 < BM_FINALS_TARGET_WINS
+              scoreForm.score1 < selectedMatchTargetWins &&
+              scoreForm.score2 < selectedMatchTargetWins
                 ? 'text-yellow-600' : 'invisible'
             }`}>
               {tFinals('matchNeedWinner')}
@@ -784,7 +788,7 @@ export default function BattleModeFinals({
             {/* Submit button disabled until a valid winner score is entered (first to 5) */}
             <Button
               onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < BM_FINALS_TARGET_WINS && scoreForm.score2 < BM_FINALS_TARGET_WINS}
+              disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}
             >
               {tCommon('saveScore')}
             </Button>

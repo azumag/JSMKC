@@ -317,6 +317,66 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(updateMRMatchScore).not.toHaveBeenCalled();
     });
 
+    it('should accept finals single-match updates that reach the round target', async () => {
+      const mockUpdatedMatch = {
+        id: 'm1',
+        round: 'winners_sf',
+        stage: 'finals',
+        score1: 7,
+        score2: 5,
+        completed: true,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'finals', round: 'winners_sf', tournamentId: 't1' })
+        .mockResolvedValueOnce(mockUpdatedMatch);
+      (updateMRMatchScore as jest.Mock).mockResolvedValue({ version: 2 });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 7,
+        score2: 5,
+        completed: true,
+        rounds: [],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toEqual({
+        data: { match: mockUpdatedMatch, version: 2 },
+        status: 200,
+      });
+      expect(updateMRMatchScore).toHaveBeenCalledWith(
+        prisma, 'm1', 1, 7, 5, true, []
+      );
+    });
+
+    it('should reject finals single-match updates below the round target', async () => {
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValueOnce({
+        stage: 'finals',
+        round: 'winners_sf',
+        tournamentId: 't1',
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', {
+        score1: 5,
+        score2: 3,
+        completed: true,
+        rounds: [],
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await PUT(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'One player must reach exactly 7 wins', field: 'scores' },
+        status: 400,
+      });
+      expect(updateMRMatchScore).not.toHaveBeenCalled();
+    });
+
     // Validation error case - Rejects negative MR score
     it('should return 400 when score is negative', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/match/m1', { score1: -1, score2: 4, version: 1 });
