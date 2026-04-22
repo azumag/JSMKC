@@ -24,6 +24,14 @@ jest.mock('@/lib/request-utils', () => ({
 }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/constants', () => ({
+  COURSE_INFO: [
+    { abbr: 'MC1', cup: 'Mushroom' },
+    { abbr: 'DP1', cup: 'Mushroom' },
+    { abbr: 'GV1', cup: 'Mushroom' },
+    { abbr: 'BC1', cup: 'Mushroom' },
+    { abbr: 'MC2', cup: 'Mushroom' },
+    { abbr: 'CI1', cup: 'Flower' },
+  ],
   SMK_CHARACTERS: ['mario', 'luigi', 'peach', 'toad', 'yoshi', 'bowser', 'donkey_kong', 'koopa'],
   DRIVER_POINTS: [0, 9, 6, 3, 1, 0, 0, 0, 0],
   TOTAL_GP_RACES: 5,
@@ -149,11 +157,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
         races: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -199,11 +207,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 2,
         races: [
-          { course: 'Mario Circuit 1', position1: 2, position2: 1 },
-          { course: 'Donut Plains 1', position1: 2, position2: 1 },
-          { course: 'Ghost Valley 1', position1: 2, position2: 1 },
-          { course: 'Bowser Castle 1', position1: 2, position2: 1 },
-          { course: 'Mario Circuit 2', position1: 2, position2: 1 },
+          { course: 'MC1', position1: 2, position2: 1 },
+          { course: 'DP1', position1: 2, position2: 1 },
+          { course: 'GV1', position1: 2, position2: 1 },
+          { course: 'BC1', position1: 2, position2: 1 },
+          { course: 'MC2', position1: 2, position2: 1 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -266,11 +274,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 2,
         races: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -321,11 +329,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       };
 
       const races = [
-        { course: 'Mario Circuit 1', position1: 2, position2: 1 },
-        { course: 'Donut Plains 1', position1: 3, position2: 2 },
-        { course: 'Ghost Valley 1', position1: 2, position2: 1 },
-        { course: 'Bowser Castle 1', position1: 3, position2: 1 },
-        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+        { course: 'MC1', position1: 2, position2: 1 },
+        { course: 'DP1', position1: 3, position2: 2 },
+        { course: 'GV1', position1: 2, position2: 1 },
+        { course: 'BC1', position1: 3, position2: 1 },
+        { course: 'MC2', position1: 1, position2: 2 },
       ];
 
       /* Explicitly mock each findUnique call in sequence */
@@ -374,21 +382,21 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         player2ReportedPoints1: null,
         player2ReportedPoints2: null,
         player1ReportedRaces: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
         player2ReportedRaces: null,
       };
 
       const player2Races = [
-        { course: 'Mario Circuit 1', position1: 2, position2: 1 },
-        { course: 'Donut Plains 1', position1: 2, position2: 1 },
-        { course: 'Ghost Valley 1', position1: 2, position2: 1 },
-        { course: 'Bowser Castle 1', position1: 2, position2: 1 },
-        { course: 'Mario Circuit 2', position1: 2, position2: 1 },
+        { course: 'MC1', position1: 2, position2: 1 },
+        { course: 'DP1', position1: 2, position2: 1 },
+        { course: 'GV1', position1: 2, position2: 1 },
+        { course: 'BC1', position1: 2, position2: 1 },
+        { course: 'MC2', position1: 2, position2: 1 },
       ];
 
       const updatedMatch = {
@@ -446,11 +454,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       };
 
       const races = [
-        { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-        { course: 'Donut Plains 1', position1: 1, position2: 2 },
-        { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-        { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+        { course: 'MC1', position1: 1, position2: 2 },
+        { course: 'DP1', position1: 1, position2: 2 },
+        { course: 'GV1', position1: 1, position2: 2 },
+        { course: 'BC1', position1: 1, position2: 2 },
+        { course: 'MC2', position1: 1, position2: 2 },
       ];
 
       (prisma.gPMatch.findUnique as jest.Mock)
@@ -541,6 +549,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         id: 'm1',
         player1Id: 'p1',
         player2Id: 'p2',
+        cup: 'Mushroom',
         player1: { userId: null },
         player2: { userId: null },
         completed: true,
@@ -566,11 +575,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
         races: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -590,6 +599,43 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
        * correction — the route calls recalculatePlayerStats twice, each
        * call fires an updateMany under the hood. */
       expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reject completed-match corrections that change the assigned cup', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        cup: 'Mushroom',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: true,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Submitted races do not match the assigned cup for this match', field: 'races' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Submitted races do not match the assigned cup for this match',
+        'races'
+      );
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
     // Error case - Returns 500 when database operation fails
@@ -643,11 +689,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
         races: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -691,11 +737,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         reportingPlayer: 1,
         character: 'mario',
         races: [
-          { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-          { course: 'Donut Plains 1', position1: 1, position2: 2 },
-          { course: 'Ghost Valley 1', position1: 1, position2: 2 },
-          { course: 'Bowser Castle 1', position1: 1, position2: 2 },
-          { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP1', position1: 1, position2: 2 },
+          { course: 'GV1', position1: 1, position2: 2 },
+          { course: 'BC1', position1: 1, position2: 2 },
+          { course: 'MC2', position1: 1, position2: 2 },
         ],
       });
       const params = Promise.resolve({ id: 't1', matchId: 'm1' });
@@ -739,11 +785,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       };
 
       const races = [
-        { course: 'Mario Circuit 1', position1: 1, position2: 2 },
-        { course: 'Donut Plains 1', position1: 1, position2: 3 },
-        { course: 'Ghost Valley 1', position1: 2, position2: 1 },
-        { course: 'Bowser Castle 1', position1: 2, position2: 4 },
-        { course: 'Mario Circuit 2', position1: 1, position2: 2 },
+        { course: 'MC1', position1: 1, position2: 2 },
+        { course: 'DP1', position1: 1, position2: 3 },
+        { course: 'GV1', position1: 2, position2: 1 },
+        { course: 'BC1', position1: 2, position2: 4 },
+        { course: 'MC2', position1: 1, position2: 2 },
       ];
 
       (prisma.gPMatch.findUnique as jest.Mock)
@@ -793,11 +839,11 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       };
 
       const races = [
-        { course: 'Mario Circuit 1', position1: 8, position2: 4 },
-        { course: 'Donut Plains 1', position1: 5, position2: 2 },
-        { course: 'Ghost Valley 1', position1: 1, position2: 7 },
-        { course: 'Bowser Castle 1', position1: 6, position2: 1 },
-        { course: 'Mario Circuit 2', position1: 2, position2: 8 },
+        { course: 'MC1', position1: 8, position2: 4 },
+        { course: 'DP1', position1: 5, position2: 2 },
+        { course: 'GV1', position1: 1, position2: 7 },
+        { course: 'BC1', position1: 6, position2: 1 },
+        { course: 'MC2', position1: 2, position2: 8 },
       ];
 
       (prisma.gPMatch.findUnique as jest.Mock)

@@ -50,6 +50,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -683,11 +690,30 @@ export default function MatchRaceFinals({
                     {/* i18n: Race number label */}
                     <TableCell className="font-medium">{tCommon('race')} {index + 1}</TableCell>
                     <TableCell>
-                      <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                        {round.course
-                          ? `${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`
-                          : "—"}
-                      </span>
+                      {round.course ? (
+                        <span className="block rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                          {`${COURSE_INFO.find((course) => course.abbr === round.course)?.name || round.course} (${COURSE_INFO.find((course) => course.abbr === round.course)?.cup || ""})`}
+                        </span>
+                      ) : (
+                        <Select
+                          onValueChange={(value) => {
+                            const newRounds = [...rounds];
+                            newRounds[index].course = value as CourseAbbr;
+                            setRounds(newRounds);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={tCommon('selectCourse')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COURSE_INFO.map((course) => (
+                              <SelectItem key={`${index}-${course.abbr}`} value={course.abbr}>
+                                {course.name} ({course.cup})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">

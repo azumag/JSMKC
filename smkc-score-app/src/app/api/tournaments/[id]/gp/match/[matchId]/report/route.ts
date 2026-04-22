@@ -60,6 +60,23 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
   useRoundDifferential: false,
 };
 
+function validateSubmittedCup(
+  assignedCup: string | null | undefined,
+  races: Array<{ course: string }>
+) {
+  const submittedCups = [...new Set(
+    races
+      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
+      .filter((cup): cup is string => Boolean(cup))
+  )];
+
+  if (submittedCups.length !== 1 || !isValidCupChoice(assignedCup ?? null, submittedCups[0])) {
+    return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+  }
+
+  return null;
+}
+
 
 /**
  * POST /api/tournaments/[id]/gp/match/[matchId]/report
@@ -149,6 +166,9 @@ export async function POST(
         }
       }
 
+      const cupValidationError = validateSubmittedCup(match.cup, races);
+      if (cupValidationError) return cupValidationError;
+
       /* Process races: convert finishing positions to driver points (same as normal flow) */
       let totalPoints1 = 0;
       let totalPoints2 = 0;
@@ -235,14 +255,8 @@ export async function POST(
       }
     }
 
-    const submittedCups = [...new Set(
-      races
-        .map((race: { course: string }) => COURSE_INFO.find((course) => course.abbr === race.course)?.cup)
-        .filter((cup): cup is string => Boolean(cup))
-    )];
-    if (submittedCups.length !== 1 || !isValidCupChoice(match.cup, submittedCups[0])) {
-      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
-    }
+    const cupValidationError = validateSubmittedCup(match.cup, races);
+    if (cupValidationError) return cupValidationError;
 
     /* Process races: convert finishing positions to driver points */
     let totalPoints1 = 0;

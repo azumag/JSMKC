@@ -159,6 +159,19 @@ export default function GPMatchPage({
       if (pollData.match.cup && activeCup === null) {
         setActiveCup(pollData.match.cup);
       }
+      if (!pollData.match.cup && Array.isArray(pollData.match.races) && pollData.match.races.length === TOTAL_GP_RACES) {
+        setRaces((prev) => {
+          const hasUserInput = prev.some(
+            (race) => race.course !== "" || race.position1 !== null || race.position2 !== null
+          );
+          if (hasUserInput) return prev;
+          return pollData.match.races!.map((race) => ({
+            course: (race.course as CourseAbbr) || "",
+            position1: race.position1 ?? null,
+            position2: race.position2 ?? null,
+          }));
+        });
+      }
     }
   }, [pollData, activeCup]);
 
@@ -398,9 +411,31 @@ export default function GPMatchPage({
                           <span className="text-sm font-medium w-20">
                             {tMatch('raceN', { n: index + 1 })}
                           </span>
-                          <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                            {race.course ? getCourseName(race.course) : "—"}
-                          </span>
+                          {activeCup ? (
+                            <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                              {race.course ? getCourseName(race.course) : "—"}
+                            </span>
+                          ) : (
+                            <Select
+                              value={race.course || undefined}
+                              onValueChange={(value) => {
+                                const newRaces = [...races];
+                                newRaces[index].course = value as CourseAbbr;
+                                setRaces(newRaces);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder={tCommon('selectCourse')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COURSE_INFO.map((course) => (
+                                  <SelectItem key={`${index}-${course.abbr}`} value={course.abbr}>
+                                    {course.name} ({course.cup})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="space-y-1">
