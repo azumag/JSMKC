@@ -60,17 +60,32 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
   useRoundDifferential: false,
 };
 
-function validateSubmittedCup(
-  assignedCup: string | null | undefined,
-  races: Array<{ course: string }>
-) {
-  const submittedCups = [...new Set(
-    races
-      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course || course.name === race.course)?.cup)
-      .filter((cup): cup is string => Boolean(cup))
-  )];
+function getSubmittedCup(
+  races: Array<{ course: string }>,
+): string | null {
+  if (races.length !== TOTAL_GP_RACES) return null;
 
-  return submittedCups.length === 1 && isValidCupChoice(assignedCup, submittedCups[0]);
+  const submittedCourses = races.map((race) =>
+    COURSE_INFO.find((course) => course.abbr === race.course)
+  );
+  if (submittedCourses.some((course) => !course)) return null;
+
+  const cups = [...new Set(submittedCourses.map((course) => course!.cup))];
+  if (cups.length !== 1) return null;
+
+  const cupCourses = COURSE_INFO
+    .filter((course) => course.cup === cups[0])
+    .map((course) => course.abbr);
+  const submittedCourseAbbrs = submittedCourses.map((course) => course!.abbr);
+
+  if (
+    new Set(submittedCourseAbbrs).size !== TOTAL_GP_RACES ||
+    submittedCourseAbbrs.some((course) => !cupCourses.includes(course))
+  ) {
+    return null;
+  }
+
+  return cups[0];
 }
 
 
@@ -166,8 +181,10 @@ export async function POST(
         }
       }
 
-      const cupValidationError = validateSubmittedCup(match.cup, races);
-      if (cupValidationError) return cupValidationError;
+      const submittedCup = getSubmittedCup(races);
+      if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
+        return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+      }
 
       /* Process races: convert finishing positions to driver points (same as normal flow) */
       let totalPoints1 = 0;
@@ -252,8 +269,10 @@ export async function POST(
       }
     }
 
-    const cupValidationError = validateSubmittedCup(match.cup, races);
-    if (cupValidationError) return cupValidationError;
+    const submittedCup = getSubmittedCup(races);
+    if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
+      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
+    }
 
     /* Process races: convert finishing positions to driver points */
     let totalPoints1 = 0;
