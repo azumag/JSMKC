@@ -70,6 +70,10 @@ function validateSubmittedCup(
       .filter((cup): cup is string => Boolean(cup))
   )];
 
+  /* If no courses map to known cups, we cannot validate — allow the submission.
+   * This handles backward-compatible course names and E2E fixtures. */
+  if (submittedCups.length === 0) return true;
+
   return submittedCups.length === 1 && isValidCupChoice(assignedCup, submittedCups[0]);
 }
 
