@@ -21,6 +21,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   postErrorMessage: 'Failed to create grand prix finals bracket',
   postRequiresAuth: true,
   putRequiresAuth: true,
+  assignGpCupByRound: true,
 });
 
 export { GET, POST, PUT };
