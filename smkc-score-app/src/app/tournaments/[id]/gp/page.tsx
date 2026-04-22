@@ -58,9 +58,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
-import { computeTieAwareRanks, findUnresolvedTies, filterActiveTiedIds } from "@/lib/ranking-utils";
+import {
+  buildPlayoffRankAssignments,
+  collectPlayoffGroups,
+  computeTieAwareRanks,
+  filterActiveTiedIds,
+  findUnresolvedTies,
+} from "@/lib/ranking-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
@@ -257,7 +264,7 @@ export default function GrandPrixPage({
   }, [tournamentId]);
 
   /* Shared handlers for rank override and TV assignment */
-  const { handleRankOverrideSave, handleTvAssign } =
+  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign } =
     useQualificationActions({ tournamentId, mode: "gp", refetch });
 
   /**
@@ -684,9 +691,31 @@ export default function GrandPrixPage({
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
                       // Suppress trivial 0-0 ties: only flag players who have actually played.
                       const activeTiedIds = filterActiveTiedIds(tiedIds, groupEntries);
+                      const playoffGroups = collectPlayoffGroups(byEffectiveRank, activeTiedIds).map((entries) => ({
+                        id: `${group}-${entries[0]?._autoRank ?? 0}`,
+                        rank: entries[0]?._autoRank ?? 0,
+                        players: entries.map((entry) => ({
+                          id: entry.id,
+                          nickname: entry.player.nickname,
+                          _autoRank: entry._autoRank,
+                          rankOverride: entry.rankOverride,
+                        })),
+                      }));
                       return (
                         <>
                           <TieWarningBanner hasTies={activeTiedIds.size > 0} isAdmin={!!isAdmin} />
+                          <QualificationPlayoffManager
+                            groups={playoffGroups}
+                            isAdmin={!!isAdmin}
+                            onSave={async (entries) =>
+                              handleBulkRankOverrideSave(
+                                buildPlayoffRankAssignments(entries).map((entry) => ({
+                                  qualificationId: entry.id,
+                                  rankOverride: entry.rankOverride,
+                                })),
+                              )
+                            }
+                          />
                           <Table>
                             <TableHeader>
                               <TableRow>

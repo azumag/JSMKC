@@ -22,6 +22,11 @@ export type EntryWithAutoRank<T extends RankableEntry> = T & {
   _autoRank: number;
 };
 
+export interface RankAssignment {
+  id: string;
+  rankOverride: number;
+}
+
 /**
  * Assign 1224 competition ranks to entries, then sort by effective rank.
  *
@@ -140,4 +145,50 @@ export function filterActiveTiedIds(
 ): Set<string> {
   const mpById = new Map(entries.map((e) => [e.id, e.mp]));
   return new Set([...tiedIds].filter((id) => (mpById.get(id) ?? 0) > 0));
+}
+
+/**
+ * Collect unresolved playoff groups from an already-ranked standings slice.
+ *
+ * Groups are keyed by `_autoRank`, not effective rank, so a partially-resolved
+ * 3-way tie still opens as one playoff group containing all three original
+ * contenders. This lets the admin record the final sudden-death order in one
+ * place and re-apply a full sequential rank block.
+ */
+export function collectPlayoffGroups<T extends RankableEntry & { _autoRank: number }>(
+  entries: T[],
+  activeTiedIds: Set<string>
+): T[][] {
+  if (entries.length === 0 || activeTiedIds.size === 0) return [];
+
+  const groups = new Map<number, T[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry._autoRank) ?? [];
+    group.push(entry);
+    groups.set(entry._autoRank, group);
+  }
+
+  return [...groups.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, group]) => group)
+    .filter((group) => group.length > 1 && group.some((entry) => activeTiedIds.has(entry.id)));
+}
+
+/**
+ * Convert a playoff finishing order into concrete rankOverride writes.
+ *
+ * The first player receives the original shared `_autoRank`, the second player
+ * receives `_autoRank + 1`, and so on, yielding a fully-resolved 1-2-3 style
+ * ordering for that tie block.
+ */
+export function buildPlayoffRankAssignments<T extends RankableEntry & { _autoRank: number }>(
+  entries: T[]
+): RankAssignment[] {
+  if (entries.length === 0) return [];
+
+  const baseRank = Math.min(...entries.map((entry) => entry._autoRank));
+  return entries.map((entry, index) => ({
+    id: entry.id,
+    rankOverride: baseRank + index,
+  }));
 }

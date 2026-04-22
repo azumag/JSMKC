@@ -17,6 +17,11 @@ interface UseQualificationActionsOptions {
   refetch: () => void;
 }
 
+interface RankOverrideUpdate {
+  qualificationId: string;
+  rankOverride: number | null;
+}
+
 /**
  * Returns shared action handlers for rank override and TV assignment.
  * These functions are identical across BM/MR/GP qualification pages.
@@ -48,6 +53,33 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   }, [tournamentId, mode, refetch, logger]);
 
   /**
+   * Save multiple rank overrides as one admin action.
+   * Used by the sudden-death playoff dialog so a full tie block can be
+   * resolved without reloading the page after every single PATCH.
+   */
+  const handleBulkRankOverrideSave = useCallback(async (updates: RankOverrideUpdate[]) => {
+    try {
+      for (const update of updates) {
+        const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(update),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          alert(err.error || 'Failed to update rank');
+          return false;
+        }
+      }
+      refetch();
+      return true;
+    } catch (err) {
+      logger.error("Failed to update ranks:", { error: err, tournamentId });
+      return false;
+    }
+  }, [tournamentId, mode, refetch, logger]);
+
+  /**
    * Handle TV number assignment for a match.
    * Calls the PATCH endpoint to update the match's broadcast TV assignment.
    */
@@ -64,5 +96,5 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     }
   }, [tournamentId, mode, refetch, logger]);
 
-  return { handleRankOverrideSave, handleTvAssign };
+  return { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign };
 }
