@@ -129,6 +129,10 @@ function getCompletedChampion(matches: GPMatch[]): Player | null {
   return grandFinal.player1;
 }
 
+function hasValidGpFinalsWinner(score1: number, score2: number): boolean {
+  return (score1 === 3 && score2 < 3) || (score2 === 3 && score1 < 3);
+}
+
 export default function GrandPrixFinals({
   params,
 }: {
@@ -398,6 +402,7 @@ export default function GrandPrixFinals({
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
+  const scoreHasWinner = hasValidGpFinalsWinner(scoreForm.score1, scoreForm.score2);
 
   if (loading) {
     return (
@@ -619,7 +624,7 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={4}
+                  max={3}
                   value={scoreForm.score1}
                   onChange={(e) =>
                     setScoreForm({
@@ -638,7 +643,7 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={4}
+                  max={3}
                   value={scoreForm.score2}
                   onChange={(e) =>
                     setScoreForm({
@@ -654,8 +659,7 @@ export default function GrandPrixFinals({
                Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 < 3 &&
-              scoreForm.score2 < 3
+              !scoreHasWinner
                 ? 'text-yellow-600' : 'invisible'
             }`}>
               {tFinals('matchNeedWinner')}
@@ -664,7 +668,7 @@ export default function GrandPrixFinals({
           <DialogFooter>
             <Button
               onClick={handleScoreSubmit}
-              disabled={scoreForm.score1 < 3 && scoreForm.score2 < 3}
+              disabled={!scoreHasWinner}
             >
               {tCommon('saveScore')}
             </Button>

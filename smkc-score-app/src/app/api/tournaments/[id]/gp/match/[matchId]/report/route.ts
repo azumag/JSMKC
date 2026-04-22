@@ -80,12 +80,20 @@ function getSubmittedCup(
 
   if (
     new Set(submittedCourseAbbrs).size !== TOTAL_GP_RACES ||
-    submittedCourseAbbrs.some((course) => !cupCourses.includes(course))
+    submittedCourseAbbrs.some((course, index) => course !== cupCourses[index])
   ) {
     return null;
   }
 
   return cups[0];
+}
+
+function validateSubmittedCup(
+  assignedCup: string | null | undefined,
+  races: Array<{ course: string }>,
+): boolean {
+  const submittedCup = getSubmittedCup(races);
+  return !!submittedCup && isValidCupChoice(assignedCup, submittedCup);
 }
 
 
