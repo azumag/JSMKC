@@ -74,7 +74,11 @@ export interface MatchDetailConfig {
    * If omitted, no validation is performed on finals scores.
    * BM finals use best-of-9 (max score = 5) which differs from qualification (max 4, sum = 4).
    */
-  validateFinalsScores?: (val1: number, val2: number) => { isValid: boolean; error?: string };
+  validateFinalsScores?: (
+    val1: number,
+    val2: number,
+    context?: { round?: string | null; stage?: string | null }
+  ) => { isValid: boolean; error?: string };
   /**
    * Optional finals validator that needs match context such as the bracket round.
    * When provided, it takes precedence over validateFinalsScores for finals-stage
