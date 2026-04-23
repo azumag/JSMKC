@@ -113,11 +113,14 @@ function MatchCard({
 
   /*
    * Determine if this match should show "TBD" for players.
-   * First-round matches (winners_qf, losers_r1) always show actual players.
-   * Later rounds show TBD until players are determined from previous results.
+   * Winners first-round matches (winners_qf, winners_r1) always have real
+   * players from direct seeding. losers_r1 is populated from winners-side
+   * losers so its players are unknown until those matches complete — issue
+   * #574: immediately after bracket generation both slots were filled with
+   * seed 1 as a placeholder and it needs to render as TBD.
    */
   const isFirstRound =
-    bracketMatch.round === "winners_r1" || bracketMatch.round === "winners_qf" || bracketMatch.round === "losers_r1";
+    bracketMatch.round === "winners_r1" || bracketMatch.round === "winners_qf";
   const showTBD = !isFirstRound && isTBD;
 
   return (
