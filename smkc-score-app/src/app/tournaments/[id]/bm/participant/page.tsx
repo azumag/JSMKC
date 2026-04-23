@@ -205,6 +205,7 @@ export default function BattleModeParticipantPage({
       noPendingKey="noPendingBM"
       sessionStatus={ctx.sessionStatus}
       hasAccess={ctx.hasAccess}
+      isAdminBlocked={ctx.isAdminBlocked}
       loading={ctx.loading}
       tournament={ctx.tournament}
       session={ctx.session}

@@ -21,6 +21,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { createLogger } from "@/lib/logger";
 import { POLLING_INTERVAL } from "@/lib/constants";
+import { getParticipantScoreEntryAccessState } from "@/lib/participant-score-entry-access";
 
 /** Shared player type across all participant pages */
 export interface ParticipantPlayer {
@@ -64,6 +65,7 @@ export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
   sessionStatus: string;
   playerId: string | undefined;
   hasAccess: boolean;
+  isAdminBlocked: boolean;
   /* Data */
   tournament: ParticipantTournament | null;
   matches: TMatch[];
@@ -96,9 +98,13 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   /* Session & auth */
   const { data: session, status: sessionStatus } = useSession();
   const playerId = session?.user?.playerId;
-  const isPlayer = session?.user?.userType === "player";
-  const isAdmin = session?.user?.role === "admin";
-  const hasAccess = isPlayer || isAdmin;
+  const accessState = getParticipantScoreEntryAccessState({
+    sessionStatus,
+    userType: session?.user?.userType,
+    role: session?.user?.role,
+  });
+  const hasAccess = accessState === "player";
+  const isAdminBlocked = accessState === "admin-blocked";
 
   /* Core state */
   const [tournament, setTournament] = useState<ParticipantTournament | null>(null);
@@ -252,6 +258,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     sessionStatus,
     playerId,
     hasAccess,
+    isAdminBlocked,
     tournament,
     matches,
     setMatches,

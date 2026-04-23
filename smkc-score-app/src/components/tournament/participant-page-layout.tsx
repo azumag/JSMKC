@@ -38,6 +38,7 @@ interface ParticipantPageLayoutProps<TMatch extends BaseMatch> {
   /* Data from useParticipantMatches */
   sessionStatus: string;
   hasAccess: boolean;
+  isAdminBlocked: boolean;
   loading: boolean;
   tournament: ParticipantTournament | null;
   session: { user?: { nickname?: string; name?: string | null } } | null;
@@ -63,6 +64,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
   noPendingKey,
   sessionStatus,
   hasAccess,
+  isAdminBlocked,
   loading,
   tournament,
   session,
@@ -87,6 +89,26 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
           <div className="h-12 w-12 mx-auto mb-4 animate-pulse rounded-full bg-muted" />
           <p className="text-lg">{tPart("loadingTournament")}</p>
         </div>
+      </div>
+    );
+  }
+
+  /* Not logged in — show login prompt */
+  if (isAdminBlocked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle>{tPart("adminScoreEntryUnavailable")}</CardTitle>
+            <CardDescription>{tPart("adminScoreEntryUnavailableDesc")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button asChild className="w-full">
+              <Link href={`/tournaments/${tournamentId}/${mode}`}>{tPart("openAdminModePage")}</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
