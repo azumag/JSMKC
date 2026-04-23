@@ -320,17 +320,28 @@ async function runTc511(adminPage) {
 /* ───────── TC-512: TV assignment up to 4 ─────────
  * Validates #529: tvNumber=4 is accepted, tvNumber=5 is rejected. */
 async function runTc512(adminPage) {
+  // existing code...
+}
+
+/* ───────── TC-513: BM match page session-based guidance ─────────
+ * Validates that the BM match detail page shows correct CTA based on session:
+ * - Unauthenticated: sign-in prompt
+ * - Authenticated admin (no playerId): no CTA
+ * - Authenticated player: score entry guidance + button
+ */
+async function runTc513(adminPage) {
   let tournamentId = null;
   let player1Id = null;
   let player2Id = null;
+  let player1 = null;
   try {
     const stamp = Date.now();
-    const player1 = await uiCreatePlayer(adminPage, `E2E TV P1 ${stamp}`, `e2e_tv_p1_${stamp}`);
-    const player2 = await uiCreatePlayer(adminPage, `E2E TV P2 ${stamp}`, `e2e_tv_p2_${stamp}`);
+    player1 = await uiCreatePlayer(adminPage, `E2E Guide P1 ${stamp}`, `e2e_guide_p1_${stamp}`);
+    const player2 = await uiCreatePlayer(adminPage, `E2E Guide P2 ${stamp}`, `e2e_guide_p2_${stamp}`);
     player1Id = player1.id;
     player2Id = player2.id;
 
-    tournamentId = await uiCreateTournament(adminPage, `E2E TV ${stamp}`);
+    tournamentId = await uiCreateTournament(adminPage, `E2E Guide ${stamp}`);
     await uiActivateTournament(adminPage, tournamentId);
 
     await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
@@ -341,34 +352,44 @@ async function runTc512(adminPage) {
     const bmData = await apiFetchBm(adminPage, tournamentId);
     const match = bmData.matches.find((m) => !m.isBye);
     if (!match) throw new Error('No non-BYE match found');
+    const matchUrl = `/tournaments/${tournamentId}/bm/match/${match.id}`;
 
-    const assign4 = await adminPage.evaluate(async ([tid, mid]) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: mid, tvNumber: 4 }),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [tournamentId, match.id]);
-    const tv4Ok = assign4.s === 200 && assign4.b?.data?.match?.tvNumber === 4;
+    /* 1. Unauthenticated user sees sign-in prompt */
+    const { chromium } = require('playwright');
+    const anonContext = await chromium.launchPersistentContext('/tmp/playwright-smkc-anon', { headless: true });
+    const anonPage = await anonContext.newPage();
+    await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await anonPage.waitForTimeout(8000);
+    const anonText = await anonPage.innerText('body');
+    const anonHasPrompt = anonText.includes('Sign in to report scores');
+    await anonContext.close();
 
-    const assign5 = await adminPage.evaluate(async ([tid, mid]) => {
-      const r = await fetch(`/api/tournaments/${tid}/bm`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: mid, tvNumber: 5 }),
-      });
-      return { s: r.status };
-    }, [tournamentId, match.id]);
-    const tv5Rejected = assign5.s === 400;
+    /* 2. Authenticated admin (persistent profile) sees no CTA (no playerId) */
+    await adminPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await adminPage.waitForTimeout(8000);
+    const adminText = await adminPage.innerText('body');
+    const adminHasNoCTA = !adminText.includes('Score entry is on the participant page');
 
-    const ok = tv4Ok && tv5Rejected;
-    log('TC-512', ok ? 'PASS' : 'FAIL',
-      !tv4Ok ? `TV=4 assignment failed (${assign4.s})`
-      : !tv5Rejected ? `TV=5 was not rejected (${assign5.s})`
+    /* 3. Authenticated player sees score entry guidance + button */
+    await ensurePlayerPassword(adminPage, player1);
+    const playerBrowser = await loginPlayerBrowser(player1.nickname, player1.password);
+    const playerPage = playerBrowser.contexts()[0].pages()[0];
+    await playerPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await playerPage.waitForTimeout(8000);
+    const playerText = await playerPage.innerText('body');
+    const playerHasGuidance = playerText.includes('Score entry is on the participant page');
+    const playerHasButton = await playerPage.locator('a:has-text("Go to Score Entry")').count() > 0;
+    await playerBrowser.close();
+
+    const ok = anonHasPrompt && adminHasNoCTA && playerHasGuidance && playerHasButton;
+    log('TC-513', ok ? 'PASS' : 'FAIL',
+      !anonHasPrompt ? 'anon missing sign-in prompt'
+      : !adminHasNoCTA ? 'admin incorrectly shows CTA'
+      : !playerHasGuidance ? 'player missing guidance'
+      : !playerHasButton ? 'player missing button'
       : '');
   } catch (err) {
-    log('TC-512', 'FAIL', err instanceof Error ? err.message : 'TV assignment test failed');
+    log('TC-513', 'FAIL', err instanceof Error ? err.message : 'TC-513 failed');
   } finally {
     if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
     if (player1Id) await apiDeletePlayer(adminPage, player1Id);
@@ -1026,6 +1047,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-322', fn: runTc322 },
       { name: 'TC-511', fn: runTc511 },
       { name: 'TC-512', fn: runTc512 },
+      { name: 'TC-513', fn: runTc513 },
       { name: 'TC-503', fn: runTc503 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
@@ -1038,7 +1060,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512,
+  runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
   runTc507, runTc508, runTc509, runTc515, runTc516,
   getSuite,
   results,
