@@ -880,9 +880,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         loserId = resolved.loserId;
         resolvedUpdateData = resolved.updateData ?? {};
       } else {
-        const targetWins = config.assignMrCoursesByRound
-          ? getMrFinalsTargetWins({ round: match.round, stage: match.stage })
-          : config.targetWins ?? 3;
+        const targetWins = config.getTargetWins?.(match) ?? config.targetWins ?? 3;
         const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
         const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
 

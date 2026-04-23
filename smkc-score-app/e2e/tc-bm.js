@@ -497,6 +497,12 @@ async function runTc515(adminPage) {
       name: /Start Playoff|バラッジ開始/,
     });
     await startPlayoffBtn.waitFor({ state: 'visible', timeout: 15000 });
+    /* The button may be disabled while finalsExists is loading.
+     * Wait for it to become enabled before clicking. */
+    await adminPage.waitForFunction(() => {
+      const btn = document.querySelector('button');
+      return btn && !btn.disabled && (btn.innerText.includes('Start Playoff') || btn.innerText.includes('バラッジ開始'));
+    }, null, { timeout: 15000 });
     await startPlayoffBtn.click();
     /* The qualification page button directly calls POST /bm/finals;
      * give the async fetch time to complete before moving on. */
@@ -512,7 +518,7 @@ async function runTc515(adminPage) {
       const state = await apiFetchBmFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 M${mn} missing`);
-      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 3, 0);
       if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
     }
 
@@ -520,7 +526,7 @@ async function runTc515(adminPage) {
       const state = await apiFetchBmFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R2 M${mn} missing`);
-      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 4, 0);
       if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
     }
 
@@ -649,7 +655,7 @@ async function runTc510(adminPage) {
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 match ${mn} missing`);
       const winnerId = match.player1Id;
-      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 3, 0);
       if (score.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${score.s})`);
       state = await apiFetchBmFinalsState(adminPage, tournamentId);
       const target = state.playoffMatches.find((m) => m.matchNumber === mn + 4);
@@ -669,7 +675,7 @@ async function runTc510(adminPage) {
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R2 match ${mn} missing`);
       r2WinnersByUpperSeed.set(upperSeedByR2Match.get(mn), match.player1Id);
-      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const score = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 4, 0);
       if (score.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${score.s})`);
       playoffCompleteSignal = score.b?.data?.playoffComplete === true;
     }
@@ -723,7 +729,8 @@ async function runTc505(adminPage) {
       if (!match || !match.player1Id || !match.player2Id) {
         throw new Error(`Match ${mn} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
       }
-      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const targetWins = match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, targetWins, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
@@ -762,21 +769,23 @@ async function runTc506(adminPage) {
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* M1..M15: player1 wins 5-0 */
+    /* M1..M15: player1 wins with round-appropriate target. */
     for (let mn = 1; mn <= 15; mn++) {
       const matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
-      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, 5, 0);
+      const targetWins = match.round === 'winners_qf' || match.round === 'losers_r1' || match.round === 'losers_r2' ? 5 : 7;
+      const res = await apiSetBmFinalsScore(adminPage, tournamentId, match.id, targetWins, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
-    /* M16: P2 (L-side champion) wins 0-5 → triggers M17 */
+    /* M16: P2 (L-side champion) wins 0-targetWins → triggers M17 */
     let matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
     const m16 = matches.find((m) => m.matchNumber === 16);
     if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
     const expectedResetChampionId = m16.player2Id;
-    const m16Res = await apiSetBmFinalsScore(adminPage, tournamentId, m16.id, 0, 5);
+    const m16Target = m16.round === 'grand_final' ? 7 : 5;
+    const m16Res = await apiSetBmFinalsScore(adminPage, tournamentId, m16.id, 0, m16Target);
     if (m16Res.s !== 200) throw new Error(`M16 put failed (${m16Res.s})`);
 
     matches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
@@ -786,9 +795,10 @@ async function runTc506(adminPage) {
 
     /* Play M17. The L-side champion's slot may be P1 or P2 depending on routing. */
     const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
+    const m17Target = m17.round === 'grand_final_reset' ? 7 : 5;
     const m17Res = await apiSetBmFinalsScore(adminPage, tournamentId, m17.id,
-      m17ScoreP1Wins ? 5 : 0,
-      m17ScoreP1Wins ? 0 : 5);
+      m17ScoreP1Wins ? m17Target : 0,
+      m17ScoreP1Wins ? 0 : m17Target);
     if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
 
     const finalMatches = await apiFetchBmFinalsMatches(adminPage, tournamentId);
