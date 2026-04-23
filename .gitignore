@@ -6,4 +6,6 @@ node_modules/
 STATE.md
 IMPL.md
 REVIEW.md
-ARCH.md.opencode/
+ARCH.md
+.opencode/
+.codex/
