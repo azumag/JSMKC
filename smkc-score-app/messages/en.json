@@ -476,6 +476,9 @@
     "failedUpdateMatch": "Failed to update match",
     "fiveRaces": "5 Races:",
     "fiveRacesDesc": "Each match consists of 5 unique courses",
+    "mrEnteredRacesDesc": "Select courses only for the races you actually played.",
+    "mrFtByRound": "FT by round:",
+    "mrFtByRoundDesc": "Playoff FT3/4, early bracket FT5, semis FT7, finals FT9.",
     "firstTo3": "First to 3:",
     "firstTo3Desc": "First player to win 3 races wins the match"
   },

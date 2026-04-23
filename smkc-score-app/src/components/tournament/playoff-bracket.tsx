@@ -29,6 +29,7 @@ interface BMMatch {
   id: string;
   matchNumber: number;
   round: string | null;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -61,8 +62,8 @@ interface PlayoffBracketProps {
   onMatchClick?: (match: BMMatch) => void;
   /** Seeded player data for displaying seed numbers */
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
-  /** Number of wins required to highlight a completed match winner (BM finals: 5) */
-  targetWins?: number;
+  /** Number of wins required to highlight a completed match winner */
+  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }
 
 /**
@@ -77,7 +78,7 @@ function PlayoffMatchCard({
   onClick,
   isPlayer1TBD,
   isPlayer2TBD,
-  targetWins,
+  getTargetWins,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
@@ -85,7 +86,7 @@ function PlayoffMatchCard({
   onClick?: () => void;
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;
-  targetWins: number;
+  getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }) {
   const seededPlayer1 = bracketMatch.player1Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
@@ -97,8 +98,9 @@ function PlayoffMatchCard({
   const player1: Player | undefined = match?.player1 || seededPlayer1;
   const player2: Player | undefined = match?.player2 || seededPlayer2;
 
-  const isWinner1 = match?.completed && match.score1 >= targetWins;
-  const isWinner2 = match?.completed && match.score2 >= targetWins;
+  const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
+  const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
+  const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
   return (
     <div
@@ -186,7 +188,7 @@ export function PlayoffBracket({
   roundNames,
   onMatchClick,
   seededPlayers,
-  targetWins = 5,
+  getTargetWins,
 }: PlayoffBracketProps) {
   const getMatch = (matchNumber: number) =>
     playoffMatches.find((m) => m.matchNumber === matchNumber);
@@ -267,7 +269,7 @@ export function PlayoffBracket({
                   }}
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
@@ -291,7 +293,7 @@ export function PlayoffBracket({
                   }}
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
-                  targetWins={targetWins}
+                  getTargetWins={getTargetWins}
                 />
               ))}
             </div>
