@@ -434,6 +434,17 @@
   6. クリーンアップ
 - **期待結果**: BM match ページは admin に対して view-only（スコア入力は /bm/participant を使用）
 
+## TC-513: BM match ページのセッション別ガイダンス
+- **URL**: /tournaments/[temp-id]/bm/match/[matchId]
+- **authRequired**: varies
+- **背景**: commit 05b0625 — admin が共有マッチページを開いた時に CTA が表示されていなかった問題を修正。admin 専用のガイダンス分岐を追加
+- **手順**:
+  1. 未認証ユーザーでマッチページを開く → "Sign in to report scores" プロンプトが表示されることを確認
+  2. 管理者セッションでマッチページを開く → "Admins can view this shared page..." ガイダンスと「スコア入力ページを開く」ボタンが表示されることを確認
+  3. プレイヤーセッションでマッチページを開く → "Score entry is on the participant page" ガイダンスと「Go to Score Entry」ボタンが表示されることを確認
+  4. クリーンアップ
+- **期待結果**: 未認証/管理者/プレイヤーそれぞれに適切なガイダンスが表示される
+
 ## BM フルワークフロー設計方針
 - **予選プレイヤー数**: 28名（4グループ × 7名、7はオッドのため各グループに BYE が混在）
 - **予選試合数**: 7名RR = 21試合 × 4グループ = **84試合**（API一括投入）
@@ -509,6 +520,31 @@
   8. `seededPlayers` の seed 13〜16 が `playoff_r2` 勝者4名で埋まることを確認
   9. クリーンアップ
 - **期待結果**: Top-24 生成はバラージ完了まで Upper Bracket を作らず、完了後に正しい16名決勝ブラケットを生成する
+
+## TC-517: BM 決勝スコアダイアログが実際の targetWins を表示する
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: commit c8f77ab — 決勝スコア入力ダイアログの警告が hard-coded "first to 5" だった問題を修正。各マッチの targetWins を動的に表示
+- **手順**:
+  1. 28名予選完了状態のトーナメントで Top-24 ブラケット生成（playoff_r1 = FT3, playoff_r2 = FT4）
+  2. `/bm/finals` を開き、playoff_r1 のマッチカード（M1）をクリックしてダイアログを開く
+  3. スコアを 1-1 と入力し、警告メッセージに "FT3" / "3勝先取" が含まれることを確認
+  4. ダイアログを閉じ、playoff_r2 のマッチカード（M5）をクリック
+  5. スコアを 1-1 と入力し、警告メッセージに "FT4" / "4勝先取" が含まれることを確認
+  6. クリーンアップ
+- **期待結果**: ダイアログの警告がマッチのラウンドに応じた targetWins を正しく表示する
+
+## TC-519: ブラケット生成直後の losers_r1 が TBD を表示する
+- **URL**: /tournaments/[temp-id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: commit 9ad4013 / issue #574 — ブラケット生成直後、DB スキーマの非 null 制約により未確定スロットに seed 1 プレイヤーが placeholder として埋められ、losers_r1 に実在プレイヤー名が表示されていた。winners-side の結果が確定するまで TBD と表示すべき
+- **手順**:
+  1. 28名予選完了状態のトーナメントで Top-8 ブラケット生成
+  2. `/bm/finals` を開く
+  3. losers_r1 のマッチカード（M8, M9）を確認
+  4. 両カードの両プレイヤーが "TBD" と表示されていることを確認
+  5. クリーンアップ
+- **期待結果**: winners-side の試合が完了する前、losers_r1 はプレイヤー名ではなく TBD を表示する
 
 ## TC-505: BM Grand Final → チャンピオン決定（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals

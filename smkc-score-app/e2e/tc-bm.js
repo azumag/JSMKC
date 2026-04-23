@@ -364,11 +364,17 @@ async function runTc513(adminPage) {
     const anonHasPrompt = anonText.includes('Sign in to report scores');
     await anonContext.close();
 
-    /* 2. Authenticated admin (persistent profile) sees no CTA (no playerId) */
+    /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
+     * (commit 05b0625: separate admin branch linking to /bm page). */
     await adminPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
     await adminPage.waitForTimeout(8000);
     const adminText = await adminPage.innerText('body');
-    const adminHasNoCTA = !adminText.includes('Score entry is on the participant page');
+    const adminHasGuidance =
+      adminText.includes('Admins can view this shared page') ||
+      adminText.includes('管理者はこの共有ページを閲覧できます');
+    const adminHasButton =
+      adminText.includes('Open score entry page') ||
+      adminText.includes('スコア入力ページを開く');
 
     /* 3. Authenticated player sees score entry guidance + button */
     await ensurePlayerPassword(adminPage, player1);
@@ -381,10 +387,11 @@ async function runTc513(adminPage) {
     const playerHasButton = await playerPage.locator('a:has-text("Go to Score Entry")').count() > 0;
     await playerBrowser.close();
 
-    const ok = anonHasPrompt && adminHasNoCTA && playerHasGuidance && playerHasButton;
+    const ok = anonHasPrompt && adminHasGuidance && adminHasButton && playerHasGuidance && playerHasButton;
     log('TC-513', ok ? 'PASS' : 'FAIL',
       !anonHasPrompt ? 'anon missing sign-in prompt'
-      : !adminHasNoCTA ? 'admin incorrectly shows CTA'
+      : !adminHasGuidance ? 'admin missing guidance text'
+      : !adminHasButton ? 'admin missing score-entry link button'
       : !playerHasGuidance ? 'player missing guidance'
       : !playerHasButton ? 'player missing button'
       : '');
@@ -1015,6 +1022,126 @@ async function runTc509(adminPage) {
   }
 }
 
+/* ───────── TC-517: BM finals score dialog shows actual target wins ─────────
+ * Validates commit c8f77ab: the score dialog warning interpolates the per-match
+ * targetWins instead of hard-coding "first to 5". Playoff rounds use FT3/FT4. */
+async function runTc517(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    /* Generate Top-24 playoff so we have playoff_r1 (FT3) and playoff_r2 (FT4). */
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (gen.s !== 201) throw new Error(`Playoff gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+
+    /* Click on a playoff_r1 match card (M1) to open the score dialog. */
+    const m1Card = adminPage.locator('[role="button"]').filter({ hasText: /M1/ }).first();
+    await m1Card.waitFor({ state: 'visible', timeout: 10000 });
+    await m1Card.click();
+    await adminPage.waitForTimeout(1000);
+
+    /* Enter partial scores (1-1) to trigger the need-winner warning. */
+    const score1Input = adminPage.locator('input[aria-label*="score"]').first();
+    if (await score1Input.count() > 0) {
+      await score1Input.fill('1');
+    }
+    const score2Input = adminPage.locator('input[aria-label*="score"]').nth(1);
+    if (await score2Input.count() > 0) {
+      await score2Input.fill('1');
+    }
+    await adminPage.waitForTimeout(500);
+
+    const dialogText = await adminPage.locator('[role="dialog"]').innerText().catch(() => '');
+    const r1ShowsTarget = dialogText.includes('FT3') || dialogText.includes('3勝先取');
+
+    /* Close dialog and open a playoff_r2 match (M5). */
+    await adminPage.keyboard.press('Escape');
+    await adminPage.waitForTimeout(500);
+
+    const m5Card = adminPage.locator('[role="button"]').filter({ hasText: /M5/ }).first();
+    await m5Card.waitFor({ state: 'visible', timeout: 10000 });
+    await m5Card.click();
+    await adminPage.waitForTimeout(1000);
+
+    const score1Input2 = adminPage.locator('input[aria-label*="score"]').first();
+    if (await score1Input2.count() > 0) {
+      await score1Input2.fill('1');
+    }
+    const score2Input2 = adminPage.locator('input[aria-label*="score"]').nth(1);
+    if (await score2Input2.count() > 0) {
+      await score2Input2.fill('1');
+    }
+    await adminPage.waitForTimeout(500);
+
+    const dialogText2 = await adminPage.locator('[role="dialog"]').innerText().catch(() => '');
+    const r2ShowsTarget = dialogText2.includes('FT4') || dialogText2.includes('4勝先取');
+
+    await adminPage.keyboard.press('Escape');
+
+    log('TC-517', r1ShowsTarget && r2ShowsTarget ? 'PASS' : 'FAIL',
+      !r1ShowsTarget ? 'Playoff R1 dialog missing FT3 target-wins indicator'
+      : !r2ShowsTarget ? 'Playoff R2 dialog missing FT4 target-wins indicator'
+      : '');
+  } catch (err) {
+    log('TC-517', 'FAIL', err instanceof Error ? err.message : 'BM 517 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-519: Bracket losers_r1 renders TBD after generation ─────────
+ * Validates commit 9ad4013: immediately after bracket generation losers_r1
+ * matches must show "TBD" rather than a placeholder player (issue #574). */
+async function runTc519(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    /* Generate a standard Top-8 finals bracket (no playoff). */
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
+
+    /* Losers R1 matches are M8 and M9 in the 8-player bracket.
+     * Both players should show "TBD" because no winners-side matches
+     * have completed yet to populate the loser slots. */
+    const bodyText = await adminPage.locator('body').innerText();
+
+    /* Find the losers bracket section — look for the "Losers Bracket" heading
+     * or the match cards M8/M9. We verify TBD appears near M8/M9 context. */
+    const m8Card = adminPage.locator('[role="button"]').filter({ hasText: /M8/ }).first();
+    const m9Card = adminPage.locator('[role="button"]').filter({ hasText: /M9/ }).first();
+    const hasM8 = await m8Card.count() > 0;
+    const hasM9 = await m9Card.count() > 0;
+
+    /* TBD should be rendered as player names in the losers_r1 cards.
+     * The card text contains the match number and both player rows. */
+    let m8Text = '';
+    let m9Text = '';
+    if (hasM8) m8Text = await m8Card.innerText();
+    if (hasM9) m9Text = await m9Card.innerText();
+
+    const m8Tbd = m8Text.split('TBD').length - 1 >= 2; /* both players TBD */
+    const m9Tbd = m9Text.split('TBD').length - 1 >= 2;
+
+    log('TC-519', hasM8 && hasM9 && m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
+      !hasM8 ? 'M8 card not found in bracket'
+      : !hasM9 ? 'M9 card not found in bracket'
+      : !m8Tbd ? `M8 does not show both players as TBD (text: ${m8Text.slice(0, 120)})`
+      : !m9Tbd ? `M9 does not show both players as TBD (text: ${m9Text.slice(0, 120)})`
+      : '');
+  } catch (err) {
+    log('TC-519', 'FAIL', err instanceof Error ? err.message : 'BM 519 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1053,6 +1180,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-515', fn: runTc515 },
       { name: 'TC-516', fn: runTc516 },
+      { name: 'TC-517', fn: runTc517 },
+      { name: 'TC-519', fn: runTc519 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1061,7 +1190,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
