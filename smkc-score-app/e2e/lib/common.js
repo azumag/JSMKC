@@ -539,22 +539,25 @@ async function setupMr28PlayerFinals(adminPage, label, opts = {}) {
 
 const TOTAL_GP_RACES = 5;
 
-/** P1 finishes 1st in every race (driver pts 9 × 5 = 45), P2 finishes 5th (0 × 5 = 0). */
-function makeRacesP1Wins() {
-  const races = [];
-  for (let i = 0; i < TOTAL_GP_RACES; i++) {
-    races.push({ course: `course${i + 1}`, position1: 1, position2: 5 });
-  }
-  return races;
+/** GP cup to courses mapping (in fixed SMK sequence). */
+const GP_CUP_COURSES = {
+  Mushroom: ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'],
+  Flower: ['CI1', 'GV2', 'DP2', 'BC2', 'MC3'],
+  Star: ['KB1', 'CI2', 'VL1', 'BC3', 'MC4'],
+  Special: ['DP3', 'KB2', 'GV3', 'VL2', 'RR'],
+};
+
+/** P1 finishes 1st in every race (driver pts 9 × 5 = 45), P2 finishes 5th (0 × 5 = 0).
+ *  Uses the specified cup's courses in fixed order. Defaults to Mushroom. */
+function makeRacesP1Wins(cup = 'Mushroom') {
+  const courses = GP_CUP_COURSES[cup] || GP_CUP_COURSES.Mushroom;
+  return courses.map((course) => ({ course, position1: 1, position2: 5 }));
 }
 
 /** P2 wins instead — used for mismatch test. */
-function makeRacesP2Wins() {
-  const races = [];
-  for (let i = 0; i < TOTAL_GP_RACES; i++) {
-    races.push({ course: `course${i + 1}`, position1: 5, position2: 1 });
-  }
-  return races;
+function makeRacesP2Wins(cup = 'Mushroom') {
+  const courses = GP_CUP_COURSES[cup] || GP_CUP_COURSES.Mushroom;
+  return courses.map((course) => ({ course, position1: 5, position2: 1 }));
 }
 
 async function apiSetupGpGroup(page, tournamentId, players) {

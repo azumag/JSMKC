@@ -150,7 +150,7 @@ async function runTc702(adminPage) {
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, [
       `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-      { reportingPlayer: 1, races: makeRacesP1Wins() },
+      { reportingPlayer: 1, races: makeRacesP1Wins(match.cup) },
     ]);
 
     /* dualReportEnabled=false → autoConfirmed on first report. */
@@ -387,7 +387,7 @@ async function runTc707(adminPage) {
   try {
     const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage, { dualReport: true });
 
-    const races = makeRacesP1Wins();
+    const races = makeRacesP1Wins(match.cup);
     const ctx1 = await loginSharedPlayer(adminPage, p1);
     browsers.push(ctx1.browser);
     const r1 = await ctx1.page.evaluate(async ([u, body]) => {
@@ -449,7 +449,7 @@ async function runTc708(adminPage) {
         body: JSON.stringify(body),
       });
     }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 1, races: makeRacesP1Wins() }]);
+        { reportingPlayer: 1, races: makeRacesP1Wins(match.cup) }]);
 
     const ctx2 = await loginSharedPlayer(adminPage, p2);
     browsers.push(ctx2.browser);
@@ -462,7 +462,7 @@ async function runTc708(adminPage) {
       });
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-        { reportingPlayer: 2, races: makeRacesP2Wins() }]);
+        { reportingPlayer: 2, races: makeRacesP2Wins(match.cup) }]);
     const mismatchFlag = r2.s === 200 &&
       (r2.b?.data?.mismatch === true || r2.b?.mismatch === true);
 
@@ -471,7 +471,7 @@ async function runTc708(adminPage) {
     const stillIncomplete = midMatch?.completed === false;
 
     /* Admin resolves with PUT (qualification PUT requires cup + races) */
-    const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
+    const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins(match.cup));
     const finalData = await apiFetchGp(adminPage, tournamentId);
     const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
     const adminConfirmed = adminPut.s === 200 && finalMatch?.completed === true;
@@ -707,7 +707,7 @@ async function runTc710(adminPage) {
     const { tournamentId, p1, match } = await prepareSharedGpPair(adminPage);
 
     /* Complete the match first via admin PUT so it enters correction territory. */
-    const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins());
+    const adminPut = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, makeRacesP1Wins(match.cup));
     if (adminPut.s !== 200) throw new Error(`Admin PUT failed (${adminPut.s})`);
 
     /* Attempt correction with courses from a cup that is neither the assigned
