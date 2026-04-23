@@ -45,6 +45,17 @@ const BRACKET_SIZE_THRESHOLD = 20;
  */
 const PLAYOFF_ENTRANT_COUNT = 12;
 
+interface FinalsMatchResult {
+  winnerId: string;
+  loserId: string;
+  updateData?: Record<string, unknown>;
+}
+
+interface FinalsMatchResultError {
+  error: string;
+  field?: string;
+}
+
 function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
@@ -129,6 +140,13 @@ export interface FinalsConfig {
   assignMrCoursesByRound?: boolean;
   /** Whether finals/playoff matches should receive shared GP cup assignments */
   assignGpCupByRound?: boolean;
+  /** Optional custom winner/loser resolution for event-specific score rules. */
+  resolveMatchResult?: (
+    match: Record<string, unknown>,
+    score1: number,
+    score2: number,
+    body: Record<string, unknown>,
+  ) => FinalsMatchResult | FinalsMatchResultError;
 }
 
 /**
@@ -842,21 +860,43 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      const targetWins = config.assignMrCoursesByRound
-        ? getMrFinalsTargetWins({ round: match.round, stage: match.stage })
-        : config.targetWins ?? 3;
-      const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
-      const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
+      let winnerId: string;
+      let loserId: string;
+      let resolvedUpdateData: Record<string, unknown> = {};
 
-      if (player1ReachedTarget === player2ReachedTarget) {
-        return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
+      if (config.resolveMatchResult) {
+        const resolved = config.resolveMatchResult(
+          match as Record<string, unknown>,
+          score1,
+          score2,
+          body as Record<string, unknown>,
+        );
+
+        if ("error" in resolved) {
+          return handleValidationError(resolved.error, resolved.field ?? 'score');
+        }
+
+        winnerId = resolved.winnerId;
+        loserId = resolved.loserId;
+        resolvedUpdateData = resolved.updateData ?? {};
+      } else {
+        const targetWins = config.assignMrCoursesByRound
+          ? getMrFinalsTargetWins({ round: match.round, stage: match.stage })
+          : config.targetWins ?? 3;
+        const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
+        const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
+
+        if (player1ReachedTarget === player2ReachedTarget) {
+          return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
+        }
+
+        winnerId = player1ReachedTarget ? match.player1Id : match.player2Id;
+        loserId = player1ReachedTarget ? match.player2Id : match.player1Id;
       }
-
-      const winnerId = player1ReachedTarget ? match.player1Id : match.player2Id;
-      const loserId = player1ReachedTarget ? match.player2Id : match.player1Id;
 
       /* Build update data with configurable score field names */
       const updateData: Record<string, unknown> = {
+        ...resolvedUpdateData,
         [config.putScoreFields.dbField1]: score1,
         [config.putScoreFields.dbField2]: score2,
         completed: true,
