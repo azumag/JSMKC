@@ -16,6 +16,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Card,
@@ -24,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -73,6 +75,7 @@ export default function MatchDetailPage({
   const [match, setMatch] = useState<BMMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+  const { data: session } = useSession();
 
   /**
    * Fetch match and tournament data in parallel.
@@ -207,8 +210,24 @@ export default function MatchDetailPage({
         {/* In-progress state */}
         {!match.completed && (
           <Card>
-            <CardContent className="py-8 text-center">
+            <CardContent className="py-6 text-center space-y-4">
               <p className="text-muted-foreground">{tMatch('matchInProgress')}</p>
+              {(session?.user?.playerId) ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Score entry is on the participant page
+                  </p>
+                  <Button asChild>
+                    <Link href={`/tournaments/${tournamentId}/bm/participant`}>
+                      Go to Score Entry
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sign in to report scores
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
