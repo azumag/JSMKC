@@ -149,7 +149,7 @@ function assignRanksForPartition(
  * guaranteed when the array comes from a Prisma `findMany({ orderBy })` query).
  *
  * When `group` is the leading sort field, ranks are computed independently for
- * each group so Group B starts from rank 1 rather than continuing after Group A.
+ * each group so qualification standings reset from rank 1 inside every group.
  *
  * @param qualifications - Already sorted qualification records (player included).
  * @param orderBy        - Prisma order-by array used to determine tiedness.

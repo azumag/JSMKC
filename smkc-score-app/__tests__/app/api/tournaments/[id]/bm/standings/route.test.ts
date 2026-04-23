@@ -413,14 +413,11 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     });
 
-    it('should handle cross-group ties (no H2H possible)', async () => {
+    it('should reset ranks for players in different groups with matching stats', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
 
-      // Players tied on score/points but in different groups (same group value in orderBy)
-      // Since BM orderBy includes group, players in different groups can't be "tied"
-      // in the orderBy sense unless they have same group AND same score AND same points.
-      // This test verifies that cross-group players with same stats get different ranks
-      // because group ordering separates them.
+      // Players with identical stats in different groups should each start from
+      // rank 1 because qualification standings are group-local.
       const mockQualifications = [
         { id: 'q1', playerId: 'p1', group: 'A', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 1', nickname: 'P1' } },
         { id: 'q2', playerId: 'p2', group: 'B', score: 4, points: 2, mp: 3, wins: 2, ties: 0, losses: 1, winRounds: 8, lossRounds: 4, player: { name: 'Player 2', nickname: 'P2' } },
@@ -433,9 +430,9 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/standings');
       const result = await GET(request, { params: Promise.resolve({ id: 't1' }) });
 
-      // Different groups → different ranks (not tied in orderBy because group differs)
+      // Each group resets independently, so Group B starts from rank 1 too.
       expect(result.data.qualifications[0].rank).toBe(1);
-      expect(result.data.qualifications[1].rank).toBe(2);
+      expect(result.data.qualifications[1].rank).toBe(1);
       // No H2H query needed
       expect(prisma.bMMatch.findMany).not.toHaveBeenCalled();
     });
