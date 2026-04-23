@@ -456,7 +456,7 @@
     "resetMatch": "Reset Match:",
     "resetMatchDesc": "If Losers champion wins Grand Final, a reset match determines the true champion",
     "enterMatchScore": "Enter Match Score",
-    "matchNeedWinner": "Match needs a winner (first to 5)",
+    "matchNeedWinner": "Match needs a winner (first to {targetWins})",
     "suddenDeathWinner": "Sudden-death winner",
     "gpTieNeedsWinner": "Select the sudden-death winner when GP points are tied",
     "startCourse": "Start Course",

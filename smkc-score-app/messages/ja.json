@@ -455,7 +455,7 @@
     "resetMatch": "リセットマッチ：",
     "resetMatchDesc": "敗者ブラケットの優勝者がグランドファイナルに勝った場合、決定戦で真のチャンピオンを決定",
     "enterMatchScore": "試合スコア入力",
-    "matchNeedWinner": "勝者が必要です（5勝先取）",
+    "matchNeedWinner": "勝者が必要です（{targetWins}勝先取）",
     "suddenDeathWinner": "サドンデス勝者",
     "gpTieNeedsWinner": "同点なのでサドンデス勝者を選択してください",
     "startCourse": "開始コース",

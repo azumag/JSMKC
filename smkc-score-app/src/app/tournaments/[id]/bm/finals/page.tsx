@@ -773,19 +773,17 @@ export default function BattleModeFinals({
                 ))}
               </div>
             </div>
-            {/* Validation warning: finals matches need a winner (best-of-9, first to 5).
-               Always rendered to reserve vertical space and prevent layout shift. */}
+            {/* Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
               scoreForm.score1 < selectedMatchTargetWins &&
               scoreForm.score2 < selectedMatchTargetWins
                 ? 'text-yellow-600' : 'invisible'
             }`}>
-              {tFinals('matchNeedWinner')}
+              {tFinals('matchNeedWinner', { targetWins: selectedMatchTargetWins })}
             </p>
           </div>
           <DialogFooter>
-            {/* Submit button disabled until a valid winner score is entered (first to 5) */}
             <Button
               onClick={handleScoreSubmit}
               disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}
