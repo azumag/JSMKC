@@ -68,6 +68,10 @@ async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
     ? sharedFixture.dualTournament
     : sharedFixture.normalTournament;
 
+  /* The shared fixture tournament persists across suite invocations.
+   * If a previous run left qualificationConfirmed=true, score PUTs are
+   * blocked with 403 and the participant page hides score buttons. */
+  await apiUpdateTournament(adminPage, tournament.id, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'bm', tournament.id, players);
 
   const data = await apiFetchBm(adminPage, tournament.id);

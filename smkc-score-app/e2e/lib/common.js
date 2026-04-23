@@ -1881,6 +1881,10 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
    * this activation the save click never fires a response and the test
    * hangs on waitForResponse. Idempotent for already-active tournaments. */
   await uiActivateTournament(adminPage, tournamentId);
+  /* The shared fixture tournament persists across suite invocations.
+   * If a previous run left qualificationConfirmed=true, score PUTs are
+   * blocked with 403. Reset the lock before re-seeding qualification. */
+  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
   /* Use API-based bulk scoring to avoid persistent-context renderer OOM
    * crashes during the 182-match 28-player qualification loop (issue #517).
