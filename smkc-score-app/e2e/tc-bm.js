@@ -489,26 +489,13 @@ async function runTc515(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
 
-    /* Wait for finalsExists to be determined so the button text leaves the
-     * generatingBracket loading state. */
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
-    }, null, { timeout: 15000 });
-
     const startPlayoffBtn = adminPage.getByRole('button', {
       name: /Start Playoff|バラッジ開始/,
     });
-    const hasStartPlayoff = await startPlayoffBtn.count() > 0;
-
+    await startPlayoffBtn.waitFor({ state: 'visible', timeout: 15000 });
     await adminPage.evaluate(() => sessionStorage.removeItem('bm_finals_topN'));
-
-    if (hasStartPlayoff) {
-      await startPlayoffBtn.click();
-      await adminPage.waitForTimeout(3000);
-    } else {
-      throw new Error('Start Playoff button not found on BM qualification page');
-    }
+    await startPlayoffBtn.click();
+    await adminPage.waitForTimeout(3000);
 
     const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('bm_finals_topN'));
 
@@ -544,10 +531,9 @@ async function runTc515(adminPage) {
     const postPhase2Text = await adminPage.locator('body').innerText();
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
-    const ok = hasStartPlayoff && storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    const ok = storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
     log('TC-515', ok ? 'PASS' : 'FAIL',
-      !hasStartPlayoff ? 'Start Playoff button missing'
-      : storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
+      storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
       : !hasPlayoffLabel ? 'Playoff label missing on finals page'
       : !hasM1 ? 'M1 missing on playoff bracket'
       : !playoffComplete ? 'playoffComplete not true'
@@ -579,12 +565,10 @@ async function runTc516(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
 
-    /* Wait for finalsExists to be determined so the button text leaves the
-     * generatingBracket loading state. */
-    await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return !text.includes('Generating bracket') && !text.includes('ブラケットを生成中');
-    }, null, { timeout: 15000 });
+    const viewBtn = adminPage.getByRole('button', {
+      name: /View Tournament|トーナメントを見る/,
+    });
+    await viewBtn.waitFor({ state: 'visible', timeout: 15000 });
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
