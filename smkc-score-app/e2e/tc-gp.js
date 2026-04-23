@@ -757,6 +757,58 @@ async function runTc710(adminPage) {
   }
 }
 
+/* ───────── TC-712: GP Grand Final sudden-death tiebreak ─────────
+ * Validates #538: when the grand final ends in a tie, the admin can select
+ * a sudden-death winner and the champion is determined correctly. */
+async function runTc712(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId, playerIds, nicknames } = setup;
+
+    const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    /* Drive M1..M15 with P1 always winning 9-0. */
+    for (let mn = 1; mn <= 15; mn++) {
+      const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id) {
+        throw new Error(`Match ${mn} not ready`);
+      }
+      const res = await apiSetGpFinalsScore(adminPage, tournamentId, match.id, 9, 0);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    /* M16 (grand final): tie 5-5 with sudden-death winner = player1. */
+    const matchesBefore = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const m16 = matchesBefore.find((m) => m.matchNumber === 16);
+    if (!m16 || !m16.player1Id) throw new Error('GF M16 not ready');
+    const sdRes = await apiSetGpFinalsScore(adminPage, tournamentId, m16.id, 5, 5, m16.player1Id);
+    if (sdRes.s !== 200) throw new Error(`M16 sudden-death put failed (${sdRes.s})`);
+
+    const matchesAfter = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const m16After = matchesAfter.find((m) => m.matchNumber === 16);
+    const expectedChampionId = m16.player1Id;
+    const championNickname = nicknames[playerIds.indexOf(expectedChampionId)];
+
+    await nav(adminPage, `/tournaments/${tournamentId}/gp/finals`);
+    const pageText = await adminPage.locator('body').innerText();
+    const championShown = pageText.includes(championNickname) &&
+      (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
+    const m16Ok = m16After.completed === true && m16After.suddenDeathWinnerId === expectedChampionId;
+
+    log('TC-712', m16Ok && championShown ? 'PASS' : 'FAIL',
+      !m16Ok ? `M16 sudden-death not persisted (completed=${m16After?.completed}, sdWinner=${m16After?.suddenDeathWinnerId})`
+      : !championShown ? `Champion banner missing nickname ${championNickname}`
+      : '');
+  } catch (err) {
+    log('TC-712', 'FAIL', err instanceof Error ? err.message : 'GP 712 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -787,13 +839,14 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
+      { name: 'TC-712', fn: runTc712 },
     ],
   };
 }
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709, runTc715, runTc716, runTc710,
+  runTc707, runTc708, runTc709, runTc715, runTc716, runTc710, runTc712,
   getSuite,
   results,
 };

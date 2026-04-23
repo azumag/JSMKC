@@ -588,15 +588,19 @@ async function apiPutGpQualScore(page, tournamentId, matchId, cup, races) {
   { label: `GP qual PUT ${matchId}` });
 }
 
-async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2) {
-  return withRetry(() => page.evaluate(async ([url, body]) => {
+async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2, suddenDeathWinnerId = null) {
+  const body = { matchId, score1, score2 };
+  if (suddenDeathWinnerId) {
+    body.suddenDeathWinnerId = suddenDeathWinnerId;
+  }
+  return withRetry(() => page.evaluate(async ([url, reqBody]) => {
     const r = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(reqBody),
     });
     return { s: r.status, b: await r.json().catch(() => ({})) };
-  }, [`/api/tournaments/${tournamentId}/gp/finals`, { matchId, score1, score2 }]),
+  }, [`/api/tournaments/${tournamentId}/gp/finals`, body]),
   { label: `GP finals PUT ${matchId}` });
 }
 
