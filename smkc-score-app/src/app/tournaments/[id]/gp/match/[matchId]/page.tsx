@@ -295,7 +295,7 @@ export default function GPMatchPage({
     canReport,
     isAdmin,
     isSessionLoading,
-    isCompleted: match.completed,
+    isCompleted: match?.completed ?? false,
     isSubmitted: submitted,
   });
 

@@ -65,9 +65,15 @@ function getSubmittedCup(
 ): string | null {
   if (races.length !== TOTAL_GP_RACES) return null;
 
-  const submittedCourses = races.map((race) =>
-    COURSE_INFO.find((course) => course.abbr === race.course)
-  );
+  const submittedCourses = races.map((race) => {
+    // First try abbr (new strict format)
+    let course = COURSE_INFO.find((c) => c.abbr === race.course);
+    // Fallback to name (legacy format stored with full course names)
+    if (!course) {
+      course = COURSE_INFO.find((c) => c.name === race.course);
+    }
+    return course;
+  });
   if (submittedCourses.some((course) => !course)) return null;
 
   const cups = [...new Set(submittedCourses.map((course) => course!.cup))];
