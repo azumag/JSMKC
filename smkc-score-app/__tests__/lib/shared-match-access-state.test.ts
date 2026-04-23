@@ -5,7 +5,6 @@ describe("getSharedMatchAccessState", () => {
     expect(
       getSharedMatchAccessState({
         canReport: false,
-        isAdmin: false,
         isSessionLoading: true,
         isCompleted: false,
         isSubmitted: false,
@@ -17,7 +16,6 @@ describe("getSharedMatchAccessState", () => {
     expect(
       getSharedMatchAccessState({
         canReport: false,
-        isAdmin: false,
         isSessionLoading: false,
         isCompleted: false,
         isSubmitted: false,
@@ -25,23 +23,21 @@ describe("getSharedMatchAccessState", () => {
     ).toBe("unauthorized");
   });
 
-  it("shows admin guidance for admins on in-progress shared pages", () => {
-    expect(
-      getSharedMatchAccessState({
-        canReport: true,
-        isAdmin: true,
-        isSessionLoading: false,
-        isCompleted: false,
-        isSubmitted: false,
-      }),
-    ).toBe("admin-guidance");
-  });
-
   it("shows the report form for participating players", () => {
     expect(
       getSharedMatchAccessState({
         canReport: true,
-        isAdmin: false,
+        isSessionLoading: false,
+        isCompleted: false,
+        isSubmitted: false,
+      }),
+    ).toBe("report-form");
+  });
+
+  it("shows the report form for admins on in-progress shared pages", () => {
+    expect(
+      getSharedMatchAccessState({
+        canReport: true,
         isSessionLoading: false,
         isCompleted: false,
         isSubmitted: false,
@@ -53,7 +49,6 @@ describe("getSharedMatchAccessState", () => {
     expect(
       getSharedMatchAccessState({
         canReport: true,
-        isAdmin: true,
         isSessionLoading: false,
         isCompleted: true,
         isSubmitted: false,
@@ -65,7 +60,6 @@ describe("getSharedMatchAccessState", () => {
     expect(
       getSharedMatchAccessState({
         canReport: true,
-        isAdmin: false,
         isSessionLoading: false,
         isCompleted: false,
         isSubmitted: true,

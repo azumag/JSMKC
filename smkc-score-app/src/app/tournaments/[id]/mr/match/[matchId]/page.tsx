@@ -44,7 +44,6 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
-import { SharedMatchAdminGuidance } from "@/components/tournament/shared-match-admin-guidance";
 import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
 
@@ -109,7 +108,7 @@ export default function MatchDetailPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
@@ -291,7 +290,6 @@ export default function MatchDetailPage({
   const p2Wins = rounds.filter(r => r.winner === 2).length;
   const accessState = getSharedMatchAccessState({
     canReport,
-    isAdmin,
     isSessionLoading,
     isCompleted: match?.completed ?? false,
     isSubmitted: submitted,
@@ -338,17 +336,9 @@ export default function MatchDetailPage({
           </Card>
         )}
 
-        {accessState === "admin-guidance" && (
-          <SharedMatchAdminGuidance
-            href={`/tournaments/${tournamentId}/mr/participant`}
-            description={tMatch('adminSharedPageGuidance')}
-            ctaLabel={tMatch('openParticipantScoreEntry')}
-          />
-        )}
-
         {/* Score entry form (shown when match is not completed and user is authorized)
-            Admins should not see the score entry form here — they use the /mr/participant page. */}
-        {accessState === "report-form" && (
+            Admins can report here by selecting which side they are entering for. */}
+        {!match.completed && !submitted && canReport && (
           <Card>
             <CardHeader>
               {/* i18n: Score entry form header */}
