@@ -329,24 +329,6 @@ export default function MatchDetailPage({
           </Card>
         )}
 
-        {/* Admin guidance for the shared page.
-            Admins can report this match, but actual entry lives on the participant workflow page. */}
-        {!match.completed && canReport && isAdmin && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMatch('adminScoreEntryTitle')}</CardTitle>
-              <CardDescription>{tMatch('adminScoreEntryDescription')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/mr/participant`}>
-                  {tMatch('goToParticipantEntry')}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Score entry form (shown when match is not completed and user is authorized)
             Admins can report here by selecting which side they are entering for. */}
         {!match.completed && !submitted && canReport && (
