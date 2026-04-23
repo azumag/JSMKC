@@ -55,3 +55,4 @@ __tests__.bak/
 # SQLite database files (D1 local dev)
 *.db
 *.db-journal
+.opencode/
