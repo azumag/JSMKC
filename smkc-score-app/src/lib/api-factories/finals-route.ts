@@ -20,6 +20,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
+import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -27,6 +28,8 @@ import { createErrorResponse, createSuccessResponse, handleValidationError, hand
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { COURSES, CUPS } from '@/lib/constants';
 
 /**
  * Bracket size inference thresholds.
@@ -41,6 +44,53 @@ const BRACKET_SIZE_THRESHOLD = 20;
  * positions 13-24 competing for the 4 Upper-Bracket seats 13-16.
  */
 const PLAYOFF_ENTRANT_COUNT = 12;
+
+function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function getOrderedRounds(
+  bracketStructure: Array<{ round: string }>,
+): string[] {
+  return [...new Set(bracketStructure.map((match) => match.round))];
+}
+
+function createMrRoundAssignments(
+  bracketStructure: Array<{ round: string }>,
+  stage: 'playoff' | 'finals',
+): Map<string, string[]> {
+  const shuffledCourses = fisherYatesShuffle(COURSES);
+  const assignments = new Map<string, string[]>();
+  let cursor = 0;
+
+  for (const round of getOrderedRounds(bracketStructure)) {
+    const roundsNeeded = getMrFinalsMaxRounds({ round, stage });
+    const assignedCourses = Array.from({ length: roundsNeeded }, (_, index) =>
+      shuffledCourses[(cursor + index) % shuffledCourses.length]
+    );
+    assignments.set(round, assignedCourses);
+    cursor = (cursor + roundsNeeded) % shuffledCourses.length;
+  }
+
+  return assignments;
+}
+
+function createGpRoundAssignments(
+  bracketStructure: Array<{ round: string }>,
+): Map<string, string> {
+  const shuffledCups = fisherYatesShuffle(CUPS);
+  return new Map(
+    getOrderedRounds(bracketStructure).map((round, index) => [
+      round,
+      shuffledCups[index % shuffledCups.length],
+    ]),
+  );
+}
 
 /**
  * Configuration for a finals route handler set.
@@ -73,20 +123,10 @@ export interface FinalsConfig {
   postRequiresAuth?: boolean;
   /** Whether PUT endpoint requires admin authentication */
   putRequiresAuth?: boolean;
-  /** Optional custom winner resolution for formats that do not use first-to-N. */
-  resolveMatchResult?: (
-    match: Record<string, unknown>,
-    score1: number,
-    score2: number,
-    body: Record<string, unknown>,
-    targetWins: number,
-  ) => {
-    winnerId?: string;
-    loserId?: string;
-    error?: string;
-    field?: string;
-    updateData?: Record<string, unknown>;
-  };
+  /** Whether finals/playoff matches should receive shared MR course assignments */
+  assignMrCoursesByRound?: boolean;
+  /** Whether finals/playoff matches should receive shared GP cup assignments */
+  assignGpCupByRound?: boolean;
 }
 
 /**
@@ -100,6 +140,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
   const model = (p: any) => p[config.matchModel];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const qualModel = (p: any) => p[config.qualificationModel];
+
+  function getRoundAssignmentData(
+    round: string,
+    mrAssignments?: Map<string, string[]>,
+    gpAssignments?: Map<string, string>,
+  ): Record<string, unknown> {
+    return {
+      ...(config.assignMrCoursesByRound ? { assignedCourses: mrAssignments?.get(round) ?? [] } : {}),
+      ...(config.assignGpCupByRound ? { cup: gpAssignments?.get(round) ?? null } : {}),
+    };
+  }
 
   /**
    * GET handler: Fetch finals bracket data for a tournament.
@@ -397,6 +448,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * inserted rows, so we re-fetch with includes after insertion to
        * preserve the existing response shape (player1/player2 relations).
        */
+      const mrAssignments = config.assignMrCoursesByRound
+        ? createMrRoundAssignments(bracketStructure, 'finals')
+        : undefined;
+      const gpAssignments = config.assignGpCupByRound
+        ? createGpRoundAssignments(bracketStructure)
+        : undefined;
+
       const matchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
           ? seededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player1Seed)
@@ -416,6 +474,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
+            ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments),
           },
         };
       });
@@ -560,6 +619,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
           });
         }
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+        const playoffMrAssignments = config.assignMrCoursesByRound
+          ? createMrRoundAssignments(playoffStructure, 'playoff')
+          : undefined;
+        const playoffGpAssignments = config.assignGpCupByRound
+          ? createGpRoundAssignments(playoffStructure)
+          : undefined;
 
         /* Playoff-local seeds 1-12 are the barrage entrants, interleaved by group. */
         const playoffSeededPlayers = selection.barrage.map((q, index) => ({
@@ -588,6 +653,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
+              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments),
             },
             include: { player1: true, player2: true },
           });
@@ -661,6 +727,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const seededPlayers = [...directPlayers, ...playoffWinnerSeeds];
 
       const bracketStructure = generateBracketStructure(16);
+      const finalsMrAssignments = config.assignMrCoursesByRound
+        ? createMrRoundAssignments(bracketStructure, 'finals')
+        : undefined;
+      const finalsGpAssignments = config.assignGpCupByRound
+        ? createGpRoundAssignments(bracketStructure)
+        : undefined;
 
       /* Clean slate on any previous finals for reset scenarios.
        * Keep playoff stage rows intact so the admin can still view the
@@ -688,6 +760,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
+            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments),
           },
           include: { player1: true, player2: true },
         });
@@ -767,41 +840,24 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      const targetWins = config.targetWins ?? 3;
-      const resolution = config.resolveMatchResult
-        ? config.resolveMatchResult(match, score1, score2, body, targetWins)
-        : (() => {
-          const player1ReachedTarget = score1 >= targetWins;
-          const player2ReachedTarget = score2 >= targetWins;
+      const targetWins = config.assignMrCoursesByRound
+        ? getMrFinalsTargetWins({ round: match.round, stage: match.stage })
+        : config.targetWins ?? 3;
+      const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
+      const player2ReachedTarget = score2 === targetWins && score1 < targetWins;
 
-          if (player1ReachedTarget === player2ReachedTarget) {
-            return {
-              error: `Match must have a winner (first to ${targetWins})`,
-              field: 'score',
-            };
-          }
-
-          return {
-            winnerId: player1ReachedTarget ? match.player1Id as string : match.player2Id as string,
-            loserId: player1ReachedTarget ? match.player2Id as string : match.player1Id as string,
-          };
-        })();
-
-      if (resolution.error || !resolution.winnerId || !resolution.loserId) {
-        return handleValidationError(
-          resolution.error ?? 'Match must have a winner',
-          resolution.field ?? 'score',
-        );
+      if (player1ReachedTarget === player2ReachedTarget) {
+        return handleValidationError(`Match must have a winner (first to ${targetWins})`, 'score');
       }
 
-      const { winnerId, loserId } = resolution;
+      const winnerId = player1ReachedTarget ? match.player1Id : match.player2Id;
+      const loserId = player1ReachedTarget ? match.player2Id : match.player1Id;
 
       /* Build update data with configurable score field names */
       const updateData: Record<string, unknown> = {
         [config.putScoreFields.dbField1]: score1,
         [config.putScoreFields.dbField2]: score2,
         completed: true,
-        ...((resolution as { updateData?: Record<string, unknown> }).updateData ?? {}),
       };
 
       if (config.putAdditionalFields) {
