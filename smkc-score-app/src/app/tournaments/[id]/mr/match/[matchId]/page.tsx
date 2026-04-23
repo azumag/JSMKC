@@ -293,7 +293,7 @@ export default function MatchDetailPage({
     canReport,
     isAdmin,
     isSessionLoading,
-    isCompleted: match.completed,
+    isCompleted: match?.completed ?? false,
     isSubmitted: submitted,
   });
 

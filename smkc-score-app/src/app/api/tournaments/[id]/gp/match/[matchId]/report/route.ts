@@ -60,21 +60,46 @@ const GP_RECALC_CONFIG: RecalculateStatsConfig = {
   useRoundDifferential: false,
 };
 
+function getSubmittedCup(
+  races: Array<{ course: string }>,
+): string | null {
+  if (races.length !== TOTAL_GP_RACES) return null;
+
+  const submittedCourses = races.map((race) => {
+    // First try abbr (new strict format)
+    let course = COURSE_INFO.find((c) => c.abbr === race.course);
+    // Fallback to name (legacy format stored with full course names)
+    if (!course) {
+      course = COURSE_INFO.find((c) => c.name === race.course);
+    }
+    return course;
+  });
+  if (submittedCourses.some((course) => !course)) return null;
+
+  const cups = [...new Set(submittedCourses.map((course) => course!.cup))];
+  if (cups.length !== 1) return null;
+
+  const cupCourses = COURSE_INFO
+    .filter((course) => course.cup === cups[0])
+    .map((course) => course.abbr);
+  const submittedCourseAbbrs = submittedCourses.map((course) => course!.abbr);
+
+  if (
+    new Set(submittedCourseAbbrs).size !== TOTAL_GP_RACES ||
+    submittedCourseAbbrs.some((course, index) => course !== cupCourses[index])
+  ) {
+    return null;
+  }
+
+  return cups[0];
+}
+
 function validateSubmittedCup(
   assignedCup: string | null | undefined,
-  races: Array<{ course: string }>
-) {
-  const submittedCups = [...new Set(
-    races
-      .map((race) => COURSE_INFO.find((course) => course.abbr === race.course || course.name === race.course)?.cup)
-      .filter((cup): cup is string => Boolean(cup))
-  )];
-
-  /* If no courses map to known cups, we cannot validate — allow the submission.
-   * This handles backward-compatible course names and E2E fixtures. */
-  if (submittedCups.length === 0) return true;
-
-  return submittedCups.length === 1 && isValidCupChoice(assignedCup, submittedCups[0]);
+  races: Array<{ course: string }>,
+): boolean {
+  const submittedCup = getSubmittedCup(races);
+  return !!submittedCup && isValidCupChoice(assignedCup, submittedCup);
 }
 
 
@@ -170,7 +195,8 @@ export async function POST(
         }
       }
 
-      if (!validateSubmittedCup(match.cup, races)) {
+      const submittedCup = getSubmittedCup(races);
+      if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
         return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
       }
 
@@ -257,7 +283,8 @@ export async function POST(
       }
     }
 
-    if (!validateSubmittedCup(match.cup, races)) {
+    const submittedCup = getSubmittedCup(races);
+    if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
       return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
     }
 

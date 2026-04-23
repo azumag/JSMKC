@@ -52,7 +52,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
-import { generateBracketStructure, roundNames } from '@/lib/double-elimination';
+import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { paginate } from '@/lib/pagination';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
@@ -349,6 +349,43 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       // Source returns 201 for successful resource creation (POST)
       expect(result.status).toBe(201);
     });
+
+    it('should assign the same cup to every playoff match in a round', async () => {
+      const mockQualifications = Array.from({ length: 24 }, (_, index) => ({
+        id: `q${index + 1}`,
+        playerId: `p${index + 1}`,
+        group: index < 12 ? 'A' : 'B',
+        score: 24 - index,
+        points: (24 - index) * 3,
+        player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+      }));
+      const playoffStructure = [
+        { matchNumber: 1, round: 'playoff_r1', player1Seed: 1, player2Seed: 8 },
+        { matchNumber: 2, round: 'playoff_r1', player1Seed: 4, player2Seed: 5 },
+        { matchNumber: 5, round: 'playoff_r2', player1Seed: 1, player2Seed: null, advancesToUpperSeed: 16 },
+      ];
+
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      (prisma.gPMatch.create as jest.Mock).mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({
+        id: `m${data.matchNumber}`,
+        ...data,
+        player1: { id: data.player1Id },
+        player2: { id: data.player2Id },
+      }));
+      (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 24 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
+
+      expect(result.status).toBe(201);
+      const createCalls = (prisma.gPMatch.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
+      expect(createCalls[0].cup).toBe(createCalls[1].cup);
+      expect(createCalls[0].cup).not.toBe(createCalls[2].cup);
+    });
   });
 
   describe('PUT - Update finals match score', () => {
@@ -586,8 +623,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(404);
     });
 
-    // Validation error case - Returns 400 when match has no winner (best of 5)
-    it('should return 400 when match has no winner (best of 5)', async () => {
+    it('should require a sudden-death winner for tied GP finals scores', async () => {
       const mockMatch = {
         id: 'm1',
         stage: 'finals',
@@ -603,9 +639,85 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      /* Error message updated: finals-route.ts now uses dynamic "first to N" format */
-      expect(result.data).toEqual({ success: false, error: 'Match must have a winner (first to 2)', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.data).toEqual({ success: false, error: 'Tied GP finals scores require a sudden-death winner', code: 'VALIDATION_ERROR', details: { field: 'suddenDeathWinnerId' } });
       expect(result.status).toBe(400);
+    });
+
+    it('should reject negative GP finals driver points', async () => {
+      const mockMatch = {
+        id: 'm1',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: -1, score2: 2 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({ success: false, error: 'Driver points must be non-negative integers', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.status).toBe(400);
+    });
+
+    it('should allow tied GP finals scores with a sudden-death winner', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        round: 'winners_qf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        points1: 2,
+        points2: 2,
+        completed: false,
+        player1: { id: 'p1', name: 'Player 1' },
+        player2: { id: 'p2', name: 'Player 2' },
+      };
+
+      const updatedMatch = { ...mockMatch, completed: true, suddenDeathWinnerId: 'p2' };
+      const mockBracket = [
+        { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
+      ];
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+      (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
+      (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', {
+        matchId: 'm1',
+        score1: 2,
+        score2: 2,
+        suddenDeathWinnerId: 'p2',
+      });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({
+        match: updatedMatch,
+        winnerId: 'p2',
+        loserId: 'p1',
+        isComplete: false,
+        champion: null,
+      });
+      expect(result.status).toBe(200);
+      expect(prisma.gPMatch.update).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { id: 'm1' },
+          data: expect.objectContaining({
+            points1: 2,
+            points2: 2,
+            suddenDeathWinnerId: 'p2',
+            completed: true,
+          }),
+        }),
+      );
     });
 
     it('should allow GP playoff round 1 results to finish at first to 1', async () => {

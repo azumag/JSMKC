@@ -646,6 +646,125 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(prisma.gPMatch.update).not.toHaveBeenCalled();
     });
 
+    it('should reject non-completed reports with malformed race cards from the assigned cup', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        cup: 'Flower',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+        player1ReportedPoints1: null,
+        player1ReportedPoints2: null,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+          { course: 'CI1', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Submitted races do not match the assigned cup for this match', field: 'races' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Submitted races do not match the assigned cup for this match',
+        'races'
+      );
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-completed reports with shuffled assigned-cup course order', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        cup: 'Mushroom',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+        player1ReportedPoints1: null,
+        player1ReportedPoints2: null,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [
+          { course: 'GV2', position1: 1, position2: 2 },
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'DP2', position1: 1, position2: 2 },
+          { course: 'BC2', position1: 1, position2: 2 },
+          { course: 'MC3', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Submitted races do not match the assigned cup for this match', field: 'races' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Submitted races do not match the assigned cup for this match',
+        'races'
+      );
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject completed-match corrections with unknown courses mixed into one cup', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        cup: 'Mushroom',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: true,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValueOnce(mockMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        races: [
+          { course: 'MC1', position1: 1, position2: 2 },
+          { course: 'XXX', position1: 1, position2: 2 },
+          { course: 'XXX', position1: 1, position2: 2 },
+          { course: 'XXX', position1: 1, position2: 2 },
+          { course: 'XXX', position1: 1, position2: 2 },
+        ],
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { error: 'Submitted races do not match the assigned cup for this match', field: 'races' },
+        status: 400,
+      });
+      expect(handleValidationError).toHaveBeenCalledWith(
+        'Submitted races do not match the assigned cup for this match',
+        'races'
+      );
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
     // Error case - Returns 500 when database operation fails
     it('should return 500 when database operation fails', async () => {
       (prisma.gPMatch.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));

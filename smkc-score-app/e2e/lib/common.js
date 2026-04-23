@@ -358,6 +358,8 @@ async function apiFetchBmFinalsState(page, tournamentId) {
       .slice()
       .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0)),
     bracketSize: wrapped?.bracketSize,
+    playoffComplete: wrapped?.playoffComplete,
+    phase: wrapped?.phase,
   };
 }
 
@@ -1818,6 +1820,58 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
  * helpers) delegates here so there is exactly one UI-based path for "fill
  * this tournament with qualification data". Do not add API-score fallbacks. */
 
+/** API-driven BM qualification score entry for EVERY open match.
+ *  Bypasses the UI dialog loop to avoid renderer memory bloat during the
+ *  heavy 182-match 28-player setup (issue #517). Used by setupBmQualViaUi
+ *  after players are assigned; individual match UI flow is still exercised
+ *  by TC-501/502/322. */
+async function apiPutAllBmQualScores(page, tournamentId, opts = {}) {
+  const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
+  const data = await apiFetchBm(page, tournamentId);
+  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
+  const CONCURRENCY = 1;
+
+  for (let i = 0; i < matches.length; i += CONCURRENCY) {
+    const batch = matches.slice(i, i + CONCURRENCY);
+    const results = await page.evaluate(async ([url, batchMatches, randomize, fixedS1, fixedS2]) => {
+      const scores = randomize
+        ? null
+        : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
+
+      return Promise.all(batchMatches.map(async (match) => {
+        let score1;
+        let score2;
+        if (randomize) {
+          const picks = [
+            { score1: 3, score2: 1 },
+            { score1: 2, score2: 2 },
+            { score1: 1, score2: 3 },
+          ];
+          const pick = picks[Math.floor(Math.random() * picks.length)];
+          score1 = pick.score1;
+          score2 = pick.score2;
+        } else {
+          score1 = scores.score1;
+          score2 = scores.score2;
+        }
+
+        const r = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: match.id, score1, score2 }),
+        });
+        return { s: r.status, id: match.id };
+      }));
+    }, [`/api/tournaments/${tournamentId}/bm`, batch, randomize, fixedS1, fixedS2]);
+
+    for (const res of results) {
+      if (res.s !== 200) {
+        throw new Error(`apiPutAllBmQualScores failed for match ${res.id} (${res.s})`);
+      }
+    }
+  }
+}
+
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
@@ -1827,8 +1881,15 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
    * this activation the save click never fires a response and the test
    * hangs on waitForResponse. Idempotent for already-active tournaments. */
   await uiActivateTournament(adminPage, tournamentId);
+  /* The shared fixture tournament persists across suite invocations.
+   * If a previous run left qualificationConfirmed=true, score PUTs are
+   * blocked with 403. Reset the lock before re-seeding qualification. */
+  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
-  await uiPutAllBmQualScores(adminPage, tournamentId, { score1, score2, randomize });
+  /* Use API-based bulk scoring to avoid persistent-context renderer OOM
+   * crashes during the 182-match 28-player qualification loop (issue #517).
+   * The UI dialog flow is still covered by TC-501/502/322. */
+  await apiPutAllBmQualScores(adminPage, tournamentId, { score1, score2, randomize });
 
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'bm');

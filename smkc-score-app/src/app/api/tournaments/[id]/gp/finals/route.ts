@@ -23,6 +23,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   postErrorMessage: 'Failed to create grand prix finals bracket',
   postRequiresAuth: true,
   putRequiresAuth: true,
+  assignGpCupByRound: true,
   resolveMatchResult: (match, score1, score2, body) => {
     if (![score1, score2].every((score) => Number.isInteger(score) && score >= 0)) {
       return { error: 'Driver points must be non-negative integers', field: 'score' };
