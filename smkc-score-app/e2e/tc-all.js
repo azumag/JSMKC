@@ -1633,6 +1633,65 @@ async function main() {
     }
   }
 
+  // TC-325: Profile page displays session and player association
+  // Uses the admin persistent session from the profile
+  {
+    try {
+      await nav(page, '/profile');
+      t = await vis(page);
+      // Profile page shows user info card with session details
+      const hasUserInfo = t.includes('User') || t.includes('ユーザー');
+      const hasNameField = t.includes('Name') || t.includes('名前');
+      const hasRole = t.includes('role') || t.includes('役割');
+      log('TC-325', hasUserInfo && hasNameField && hasRole ? 'PASS' : 'FAIL',
+        !hasUserInfo ? 'No user info section found'
+        : !hasNameField ? 'No name field found'
+        : !hasRole ? 'No role field found' : '');
+    } catch (err) {
+      log('TC-325', 'FAIL', err instanceof Error ? err.message : 'Profile page test failed');
+    }
+  }
+
+  // TC-326: Tournament export API returns valid CSV
+  // Public endpoint - no auth required
+  if (TID) {
+    try {
+      const exportResp = await page.evaluate(async (u) => {
+        const r = await fetch(u);
+        return { status: r.status, contentType: r.headers.get('content-type'), text: await r.text() };
+      }, `/api/tournaments/${TID}/export`);
+      const hasCsvContent = exportResp.contentType && exportResp.contentType.includes('text/csv');
+      const csvNotEmpty = exportResp.text && exportResp.text.length > 100;
+      // BOM character is U+FEFF; in UTF-8 this is encoded as bytes EF BB BF.
+      const hasBom = exportResp.text && exportResp.text.charCodeAt(0) === 0xFEFF;
+      log('TC-326', exportResp.status === 200 && hasCsvContent && csvNotEmpty && hasBom ? 'PASS' : 'FAIL',
+        exportResp.status !== 200 ? `Export returned ${exportResp.status}`
+        : !hasCsvContent ? 'No CSV content-type'
+        : !csvNotEmpty ? 'CSV is empty'
+        : !hasBom ? 'Missing UTF-8 BOM' : '');
+    } catch (err) {
+      log('TC-326', 'FAIL', err instanceof Error ? err.message : 'Export API test failed');
+    }
+  }
+
+  // TC-327: Session status API returns session information
+  {
+    try {
+      const sessResp = await page.evaluate(async () => {
+        const r = await fetch('/api/auth/session-status');
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      });
+      // The API wraps its payload with createSuccessResponse: { success: true, data: { authenticated, ... } }
+      const responseData = sessResp.body?.data ?? sessResp.body;
+      const hasAuthField = responseData && typeof responseData.authenticated === 'boolean';
+      log('TC-327', sessResp.status === 200 && hasAuthField ? 'PASS' : 'FAIL',
+        sessResp.status !== 200 ? `Session status returned ${sessResp.status}`
+        : !hasAuthField ? 'No authenticated boolean in response' : '');
+    } catch (err) {
+      log('TC-327', 'FAIL', err instanceof Error ? err.message : 'Session status API test failed');
+    }
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped
