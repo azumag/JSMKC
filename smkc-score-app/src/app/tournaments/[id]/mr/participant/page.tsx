@@ -132,6 +132,7 @@ export default function MatchRaceParticipantPage({
       noPendingKey="noPendingMR"
       sessionStatus={ctx.sessionStatus}
       hasAccess={ctx.hasAccess}
+      isAdminBlocked={ctx.isAdminBlocked}
       loading={ctx.loading}
       tournament={ctx.tournament}
       session={ctx.session}
