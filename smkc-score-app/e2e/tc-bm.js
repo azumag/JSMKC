@@ -461,7 +461,7 @@ async function runTc504(adminPage) {
 /* ───────── TC-515: BM Top-24 Playoff UI Flow ─────────
  * Validates the full Top-24 → Top-16 playoff UI path:
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
- * 2. Clicking it stores topN=24 in sessionStorage
+ * 2. Clicking it generates the playoff bracket via API (topN=24)
  * 3. Finals page renders PlayoffBracket with M1..M8
  * 4. Scoring all playoff_r2 matches sets playoffComplete=true
  * 5. Phase 2 creates the Upper Bracket and switches to finals phase */
@@ -497,11 +497,10 @@ async function runTc515(adminPage) {
       name: /Start Playoff|バラッジ開始/,
     });
     await startPlayoffBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await adminPage.evaluate(() => sessionStorage.removeItem('bm_finals_topN'));
     await startPlayoffBtn.click();
-    await adminPage.waitForTimeout(3000);
-
-    const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('bm_finals_topN'));
+    /* The qualification page button directly calls POST /bm/finals;
+     * give the async fetch time to complete before moving on. */
+    await adminPage.waitForTimeout(4000);
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm/finals`);
 
@@ -535,10 +534,9 @@ async function runTc515(adminPage) {
     const postPhase2Text = await adminPage.locator('body').innerText();
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
-    const ok = storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    const ok = hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
     log('TC-515', ok ? 'PASS' : 'FAIL',
-      storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
-      : !hasPlayoffLabel ? 'Playoff label missing on finals page'
+      !hasPlayoffLabel ? 'Playoff label missing on finals page'
       : !hasM1 ? 'M1 missing on playoff bracket'
       : !playoffComplete ? 'playoffComplete not true'
       : !phase2Ok ? `Phase 2 failed (${phase2.s})`
@@ -569,10 +567,11 @@ async function runTc516(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/bm`);
 
-    const viewBtn = adminPage.getByRole('button', {
-      name: /View Tournament|トーナメントを見る/,
-    });
-    await viewBtn.waitFor({ state: 'visible', timeout: 15000 });
+    /* The qualification page renders "View Tournament" as a <Link> inside
+     * <Button asChild>, so the DOM element is an <a> tag (role=link).
+     * Use getByText so we match regardless of the underlying element. */
+    await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
+      .waitFor({ state: 'visible', timeout: 15000 });
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
