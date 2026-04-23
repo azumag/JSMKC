@@ -44,7 +44,9 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { SharedMatchAdminGuidance } from "@/components/tournament/shared-match-admin-guidance";
 import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
+import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
 
 import type { Player } from "@/lib/types";
 
@@ -287,6 +289,13 @@ export default function MatchDetailPage({
   /* Calculate current score from rounds for display */
   const p1Wins = rounds.filter(r => r.winner === 1).length;
   const p2Wins = rounds.filter(r => r.winner === 2).length;
+  const accessState = getSharedMatchAccessState({
+    canReport,
+    isAdmin,
+    isSessionLoading,
+    isCompleted: match.completed,
+    isSubmitted: submitted,
+  });
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -321,7 +330,7 @@ export default function MatchDetailPage({
 
         {/* Not authorized message - shown to users who are not match participants.
             Guarded by !isSessionLoading to avoid flash during session fetch. */}
-        {!match.completed && !canReport && !isSessionLoading && (
+        {accessState === "unauthorized" && (
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
@@ -329,9 +338,17 @@ export default function MatchDetailPage({
           </Card>
         )}
 
+        {accessState === "admin-guidance" && (
+          <SharedMatchAdminGuidance
+            href={`/tournaments/${tournamentId}/mr/participant`}
+            description={tMatch('adminSharedPageGuidance')}
+            ctaLabel={tMatch('openParticipantScoreEntry')}
+          />
+        )}
+
         {/* Score entry form (shown when match is not completed and user is authorized)
             Admins should not see the score entry form here — they use the /mr/participant page. */}
-        {!match.completed && !submitted && canReport && !isAdmin && (
+        {accessState === "report-form" && (
           <Card>
             <CardHeader>
               {/* i18n: Score entry form header */}

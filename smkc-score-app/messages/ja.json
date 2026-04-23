@@ -514,7 +514,9 @@
     "cupRaceResults": "{cup}カップ - レース結果",
     "totalPoints": "合計ポイント: {points1} - {points2}",
     "pts": "{points} pts",
-    "notAuthorized": "この試合のスコアを入力する権限がありません。試合の当事者としてログインしてください。"
+    "notAuthorized": "この試合のスコアを入力する権限がありません。試合の当事者としてログインしてください。",
+    "adminSharedPageGuidance": "管理者はこの共有ページを閲覧できますが、進行中の試合のスコア入力は参加者・管理者用の入力ページから行ってください。",
+    "openParticipantScoreEntry": "スコア入力ページを開く"
   },
   "participant": {
     "scoreEntry": "参加者スコア入力",

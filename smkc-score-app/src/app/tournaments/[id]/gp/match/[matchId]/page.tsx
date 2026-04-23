@@ -45,7 +45,9 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { SharedMatchAdminGuidance } from "@/components/tournament/shared-match-admin-guidance";
 import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
+import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
 
 import type { Player } from "@/lib/types";
 
@@ -241,6 +243,13 @@ export default function GPMatchPage({
     (sum, r) => sum + (r.position2 ? getDriverPoints(r.position2) : 0),
     0
   );
+  const accessState = getSharedMatchAccessState({
+    canReport,
+    isAdmin,
+    isSessionLoading,
+    isCompleted: match.completed,
+    isSubmitted: submitted,
+  });
 
   if (loading) {
     return (
@@ -325,7 +334,7 @@ export default function GPMatchPage({
 
         {/* Not authorized message - shown to users who are not match participants.
             Guarded by !isSessionLoading to avoid flash during session fetch. */}
-        {!match.completed && !canReport && !isSessionLoading && (
+        {accessState === "unauthorized" && (
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground">{tMatch('notAuthorized')}</p>
@@ -333,9 +342,17 @@ export default function GPMatchPage({
           </Card>
         )}
 
+        {accessState === "admin-guidance" && (
+          <SharedMatchAdminGuidance
+            href={`/tournaments/${tournamentId}/gp/participant`}
+            description={tMatch('adminSharedPageGuidance')}
+            ctaLabel={tMatch('openParticipantScoreEntry')}
+          />
+        )}
+
         {/* Result entry form (shown when match is not complete and user is authorized)
             Admins should not see the score entry form here — they use the /gp/participant page. */}
-        {!match.completed && !submitted && canReport && !isAdmin && (
+        {accessState === "report-form" && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>
