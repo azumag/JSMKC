@@ -56,3 +56,12 @@ __tests__.bak/
 *.db
 *.db-journal
 .opencode/
+
+# Ephemeral E2E runners/debug scripts. Once a TC passes it is absorbed
+# into the per-mode tc-bm.js/tc-mr.js/tc-gp.js/tc-ta.js files and wired
+# through tc-all.js (see CLAUDE.md). Ad-hoc runners created while
+# iterating should not be committed (see commit ba33492).
+e2e/*-debug.js
+e2e/run-*-suite.js
+e2e/tc-??-[0-9][0-9][0-9].js
+e2e/tc-???-[0-9][0-9][0-9].js
