@@ -153,7 +153,7 @@ function buildInitialRounds(match: MRMatch): Round[] {
     const existingRounds = match.rounds.map((round) => ({
       course: (round.course as CourseAbbr) ?? "",
       winner: round.winner,
-    }));
+    })).slice(0, maxRounds); // Limit to maxRounds to avoid displaying extra rounds
     return [
       ...existingRounds,
       ...createEmptyRounds(Math.max(0, maxRounds - existingRounds.length)),
@@ -161,7 +161,7 @@ function buildInitialRounds(match: MRMatch): Round[] {
   }
 
   if (Array.isArray(match.assignedCourses) && match.assignedCourses.length > 0) {
-    const assignedRounds = match.assignedCourses.map((course) => ({
+    const assignedRounds = match.assignedCourses.slice(0, maxRounds).map((course) => ({
       course: course as CourseAbbr,
       winner: null,
     }));
