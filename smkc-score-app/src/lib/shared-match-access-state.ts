@@ -1,12 +1,10 @@
 export type SharedMatchAccessState =
   | "hidden"
   | "unauthorized"
-  | "admin-guidance"
   | "report-form";
 
 interface SharedMatchAccessInput {
   canReport: boolean;
-  isAdmin: boolean;
   isSessionLoading: boolean;
   isCompleted: boolean;
   isSubmitted: boolean;
@@ -14,7 +12,6 @@ interface SharedMatchAccessInput {
 
 export function getSharedMatchAccessState({
   canReport,
-  isAdmin,
   isSessionLoading,
   isCompleted,
   isSubmitted,
@@ -27,5 +24,5 @@ export function getSharedMatchAccessState({
     return isSessionLoading ? "hidden" : "unauthorized";
   }
 
-  return isAdmin ? "admin-guidance" : "report-form";
+  return "report-form";
 }

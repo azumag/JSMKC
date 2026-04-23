@@ -44,7 +44,6 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
-import { SharedMatchAdminGuidance } from "@/components/tournament/shared-match-admin-guidance";
 import { useMatchReportAuth } from "@/lib/hooks/useMatchReportAuth";
 import { getSharedMatchAccessState } from "@/lib/shared-match-access-state";
 
@@ -291,7 +290,6 @@ export default function MatchDetailPage({
   const p2Wins = rounds.filter(r => r.winner === 2).length;
   const accessState = getSharedMatchAccessState({
     canReport,
-    isAdmin,
     isSessionLoading,
     isCompleted: match.completed,
     isSubmitted: submitted,
