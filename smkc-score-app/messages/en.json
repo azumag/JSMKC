@@ -515,7 +515,9 @@
     "cupRaceResults": "{cup} Cup - Race Results",
     "totalPoints": "Total Points: {points1} - {points2}",
     "pts": "{points} pts",
-    "notAuthorized": "You are not authorized to enter scores for this match. Please log in as one of the players."
+    "notAuthorized": "You are not authorized to enter scores for this match. Please log in as one of the players.",
+    "adminSharedPageGuidance": "Admins can view this shared page, but score entry for in-progress matches happens on the participant/admin score entry page.",
+    "openParticipantScoreEntry": "Open score entry page"
   },
   "participant": {
     "scoreEntry": "Participant Score Entry",
