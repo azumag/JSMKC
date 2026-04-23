@@ -90,6 +90,11 @@ interface GPMatch {
   player2ReportedPoints2?: number;
   /** Winner selected when total driver points are tied (§7.5). */
   suddenDeathWinnerId?: string;
+  /** Finals matches use score1/score2 (driver points) instead of points1/points2. */
+  score1: number;
+  score2: number;
+  /** Round identifier for bracket navigation. */
+  round: string | null;
 }
 
 /** Abstract bracket position from double-elimination library */
@@ -573,13 +578,13 @@ export default function GrandPrixFinals({
             <TabsTrigger value="playoff">{tFinals('playoffBracket')}</TabsTrigger>
           </TabsList>
           <TabsContent value="finals">
-            <DoubleEliminationBracket
-              matches={matches}
-              bracketStructure={bracketStructure}
-              roundNames={roundNames}
-              seededPlayers={seededPlayers}
-              onMatchClick={isAdmin ? openScoreDialog : undefined}
-            />
+        <DoubleEliminationBracket
+          matches={matches}
+          bracketStructure={bracketStructure}
+          roundNames={roundNames}
+          seededPlayers={seededPlayers}
+          onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
+        />
           </TabsContent>
           <TabsContent value="playoff">
             <PlayoffBracket
@@ -587,7 +592,7 @@ export default function GrandPrixFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
-              onMatchClick={isAdmin ? openScoreDialog : undefined}
+              onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
             />
           </TabsContent>
         </Tabs>
@@ -598,7 +603,7 @@ export default function GrandPrixFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
-            onMatchClick={isAdmin ? openScoreDialog : undefined}
+            onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           />
           {playoffComplete && isAdmin && (
             <Card className="border-green-500/50 bg-green-500/10">
@@ -615,7 +620,7 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          onMatchClick={isAdmin ? openScoreDialog : undefined}
+          onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
         />
       )}
 
