@@ -69,16 +69,27 @@ const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
 interface GPMatch {
   id: string;
   matchNumber: number;
-  round: string | null;
   player1Id: string;
   player2Id: string;
-  score1: number;
-  score2: number;
-  points1?: number;
-  points2?: number;
+  points1: number;
+  points2: number;
   completed: boolean;
+  cup?: string;
   player1: Player;
   player2: Player;
+  races?: {
+    course: string;
+    position1: number;
+    position2: number;
+    points1: number;
+    points2: number;
+  }[];
+  player1ReportedPoints1?: number;
+  player1ReportedPoints2?: number;
+  player2ReportedPoints1?: number;
+  player2ReportedPoints2?: number;
+  /** Winner selected when total driver points are tied (§7.5). */
+  suddenDeathWinnerId?: string;
 }
 
 /** Abstract bracket position from double-elimination library */
@@ -125,12 +136,17 @@ function getCompletedChampion(matches: GPMatch[]): Player | null {
   if (reset) return getMatchWinner(reset);
 
   const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
-  if (!grandFinal || getGpScore(grandFinal, 1) <= getGpScore(grandFinal, 2)) return null;
-  return grandFinal.player1;
+  if (!grandFinal) return null;
+  return getMatchWinner(grandFinal);
 }
 
-function hasValidGpFinalsWinner(score1: number, score2: number): boolean {
-  return (score1 === 3 && score2 < 3) || (score2 === 3 && score1 < 3);
+function hasValidGpFinalsWinner(score1: number, score2: number, suddenDeathWinnerId?: string): boolean {
+  if (score1 < 0 || score2 < 0) return false;
+  if (score1 === score2) {
+    /* Tied GP finals require a sudden-death winner (§7.5). */
+    return !!suddenDeathWinnerId && suddenDeathWinnerId.length > 0;
+  }
+  return true;
 }
 
 export default function GrandPrixFinals({
@@ -177,7 +193,7 @@ export default function GrandPrixFinals({
   const [playoffComplete, setPlayoffComplete] = useState(false);
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, suddenDeathWinnerId: "" });
   const [champion, setChampion] = useState<Player | null>(null);
 
   /** Fetch finals data including matches, bracket structure, and round names */
@@ -341,7 +357,11 @@ export default function GrandPrixFinals({
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: getGpScore(match, 1), score2: getGpScore(match, 2) });
+    setScoreForm({
+      score1: getGpScore(match, 1),
+      score2: getGpScore(match, 2),
+      suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",
+    });
     setIsScoreDialogOpen(true);
   };
 
@@ -353,15 +373,20 @@ export default function GrandPrixFinals({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
+    const body: Record<string, unknown> = {
+      matchId: selectedMatch.id,
+      score1: scoreForm.score1,
+      score2: scoreForm.score2,
+    };
+    if (scoreForm.score1 === scoreForm.score2 && scoreForm.suddenDeathWinnerId) {
+      body.suddenDeathWinnerId = scoreForm.suddenDeathWinnerId;
+    }
+
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId: selectedMatch.id,
-          score1: scoreForm.score1,
-          score2: scoreForm.score2,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -369,7 +394,7 @@ export default function GrandPrixFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
+        setScoreForm({ score1: 0, score2: 0, suddenDeathWinnerId: "" });
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -402,7 +427,7 @@ export default function GrandPrixFinals({
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
-  const scoreHasWinner = hasValidGpFinalsWinner(scoreForm.score1, scoreForm.score2);
+  const scoreHasWinner = hasValidGpFinalsWinner(scoreForm.score1, scoreForm.score2, scoreForm.suddenDeathWinnerId);
 
   if (loading) {
     return (
@@ -615,7 +640,7 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Score input: best of 5 (first to 3 wins) */}
+            {/* GP finals use total driver points; tied totals require a sudden-death winner. */}
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 sm:gap-4">
               <div className="min-w-0 text-center">
                 <Label className="block truncate" title={selectedMatch?.player1.nickname}>
@@ -624,7 +649,6 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={3}
                   value={scoreForm.score1}
                   onChange={(e) =>
                     setScoreForm({
@@ -643,7 +667,6 @@ export default function GrandPrixFinals({
                 <Input
                   type="number"
                   min={0}
-                  max={3}
                   value={scoreForm.score2}
                   onChange={(e) =>
                     setScoreForm({
@@ -655,20 +678,50 @@ export default function GrandPrixFinals({
                 />
               </div>
             </div>
-            {/* Warning when neither player has reached 3 wins yet.
-               Always rendered to reserve vertical space and prevent layout shift. */}
+            {scoreForm.score1 + scoreForm.score2 > 0 && scoreForm.score1 === scoreForm.score2 && (
+              <div className="space-y-2">
+                <Label>{tFinals('suddenDeathWinner')}</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant={scoreForm.suddenDeathWinnerId === selectedMatch?.player1Id ? "default" : "outline"}
+                    onClick={() => setScoreForm((current) => ({
+                      ...current,
+                      suddenDeathWinnerId: selectedMatch?.player1Id ?? "",
+                    }))}
+                  >
+                    {selectedMatch?.player1.nickname}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={scoreForm.suddenDeathWinnerId === selectedMatch?.player2Id ? "default" : "outline"}
+                    onClick={() => setScoreForm((current) => ({
+                      ...current,
+                      suddenDeathWinnerId: selectedMatch?.player2Id ?? "",
+                    }))}
+                  >
+                    {selectedMatch?.player2.nickname}
+                  </Button>
+                </div>
+              </div>
+            )}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
-              !scoreHasWinner
+              scoreForm.score1 === scoreForm.score2 &&
+              !scoreForm.suddenDeathWinnerId
                 ? 'text-yellow-600' : 'invisible'
             }`}>
-              {tFinals('matchNeedWinner')}
+              {tFinals('gpTieNeedsWinner')}
             </p>
           </div>
           <DialogFooter>
             <Button
               onClick={handleScoreSubmit}
-              disabled={!scoreHasWinner}
+              disabled={
+                scoreForm.score1 < 0 ||
+                scoreForm.score2 < 0 ||
+                (scoreForm.score1 === scoreForm.score2 && !scoreForm.suddenDeathWinnerId)
+              }
             >
               {tCommon('saveScore')}
             </Button>
