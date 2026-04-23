@@ -103,7 +103,7 @@ export default function GPMatchPage({
   const [loading, setLoading] = useState(true);
 
   /* Authorization: determines if current user can report scores */
-  const { canReport, isAdmin, isSessionLoading, selectedPlayer, setSelectedPlayer } =
+  const { canReport, isSessionLoading, selectedPlayer, setSelectedPlayer } =
     useMatchReportAuth(match);
 
   const [submitting, setSubmitting] = useState(false);
@@ -333,27 +333,9 @@ export default function GPMatchPage({
           </Card>
         )}
 
-        {/* Admin guidance for the shared page.
-            Admins can report this match, but actual entry lives on the participant workflow page. */}
-        {!match.completed && canReport && isAdmin && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMatch('adminScoreEntryTitle')}</CardTitle>
-              <CardDescription>{tMatch('adminScoreEntryDescription')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href={`/tournaments/${tournamentId}/gp/participant`}>
-                  {tMatch('goToParticipantEntry')}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Result entry form (shown when match is not complete and user is authorized)
-            Admins should not see the score entry form here — they use the /gp/participant page. */}
-        {!match.completed && !submitted && canReport && !isAdmin && (
+            Admins can report here by selecting which side they are entering for. */}
+        {!match.completed && !submitted && canReport && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>
