@@ -212,34 +212,25 @@ export default function MatchDetailPage({
           <Card>
             <CardContent className="py-6 text-center space-y-4">
               <p className="text-muted-foreground">{tMatch('matchInProgress')}</p>
-              {/*
-                Only show the CTA when the session is fully loaded.
-                useSession returns null while status === 'loading', so
-                rendering during loading would flash the unauthenticated
-                message to an already-authenticated user.
-
-                We check playerId (not just any authenticated session) because
-                the participant score-entry page is player-only. Admins have
-                their own entry path via the main BM page.
-              */}
-              {sessionStatus !== 'loading' && (
-                session?.user?.playerId ? (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {tMatch('scoreEntryGuidance')}
-                    </p>
-                    <Button asChild>
-                      <Link href={`/tournaments/${tournamentId}/bm/participant`}>
-                        {tMatch('goToScoreEntry')}
-                      </Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {tMatch('signInToReportScores')}
-                  </p>
-                )
-              )}
+              {/* Show CTA only when session is loaded to avoid loading flash */}
+               {sessionStatus !== 'loading' && (
+                 !session ? (
+                   <p className="text-sm text-muted-foreground">
+                     {tMatch('signInToReportScores')}
+                   </p>
+                 ) : session.user?.playerId ? (
+                   <div className="space-y-2">
+                     <p className="text-sm text-muted-foreground">
+                       {tMatch('scoreEntryGuidance')}
+                     </p>
+                     <Button asChild>
+                       <Link href={`/tournaments/${tournamentId}/bm/participant`}>
+                         {tMatch('goToScoreEntry')}
+                       </Link>
+                     </Button>
+                   </div>
+                 ) : null
+               )}
             </CardContent>
           </Card>
         )}
