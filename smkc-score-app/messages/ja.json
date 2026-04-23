@@ -519,7 +519,10 @@
     "pts": "{points} pts",
     "notAuthorized": "この試合のスコアを入力する権限がありません。試合の当事者としてログインしてください。",
     "adminSharedPageGuidance": "管理者はこの共有ページを閲覧できますが、進行中の試合のスコア入力は参加者・管理者用の入力ページから行ってください。",
-    "openParticipantScoreEntry": "スコア入力ページを開く"
+    "openParticipantScoreEntry": "スコア入力ページを開く",
+    "scoreEntryGuidance": "スコア入力は参加者ページで行えます",
+    "goToScoreEntry": "スコア入力へ",
+    "signInToReportScores": "スコアを報告するにはログインしてください"
   },
   "participant": {
     "scoreEntry": "参加者スコア入力",
