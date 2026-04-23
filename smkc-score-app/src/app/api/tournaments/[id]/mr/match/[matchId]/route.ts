@@ -25,7 +25,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   validateScores: validateMatchRaceScores,
   sanitizeBody: true,
   putRequiresAuth: true,
-  getRequiresAuth: true,
+  getRequiresAuth: false,
   recalcStatsConfig: {
     matchModel: 'mRMatch',
     qualificationModel: 'mRQualification',

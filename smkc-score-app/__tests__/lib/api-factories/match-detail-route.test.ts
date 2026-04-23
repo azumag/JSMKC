@@ -160,6 +160,40 @@ describe('Match Detail Route Factory', () => {
       expect(mockResolveTournamentId).toHaveBeenCalledWith('tournament-1');
     });
 
+    it('should allow unauthenticated GET by default', async () => {
+      const mockMatch = createMockMatch();
+      mockAuth.mockResolvedValue(null);
+      (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
+
+      const { GET } = createMatchDetailHandlers({ ...baseConfig });
+
+      const request = new NextRequest('http://localhost:3000');
+      await GET(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockAuth).not.toHaveBeenCalled();
+      expect(mockCreateSuccessResponse).toHaveBeenCalledWith(mockMatch);
+    });
+
+    it('should return 401 when getRequiresAuth and user is not authenticated', async () => {
+      mockAuth.mockResolvedValue(null);
+
+      const { GET } = createMatchDetailHandlers({
+        ...baseConfig,
+        getRequiresAuth: true,
+      });
+
+      const request = new NextRequest('http://localhost:3000');
+      await GET(request, {
+        params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
+      });
+
+      expect(mockAuth).toHaveBeenCalled();
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Unauthorized', 401, 'UNAUTHORIZED');
+      expect((prisma.bMMatch as any).findUnique).not.toHaveBeenCalled();
+    });
+
     it('should resolve slug identifiers before fetching the match', async () => {
       const mockMatch = createMockMatch({ tournamentId: 'resolved-tournament-1' });
       mockResolveTournamentId.mockResolvedValue('resolved-tournament-1');

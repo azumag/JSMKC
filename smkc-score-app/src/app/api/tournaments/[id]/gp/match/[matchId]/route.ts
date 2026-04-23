@@ -23,7 +23,7 @@ const { GET, PUT } = createMatchDetailHandlers({
     updateGPMatchScore(prisma, matchId, version, val1, val2, completed, detail),
   sanitizeBody: true,
   putRequiresAuth: true,
-  getRequiresAuth: true,
+  getRequiresAuth: false,
   recalcStatsConfig: {
     matchModel: 'gPMatch',
     qualificationModel: 'gPQualification',
