@@ -809,6 +809,36 @@ async function runTc712(adminPage) {
   }
 }
 
+/* ───────── TC-821: GP match/[matchId] page view-only ─────────
+ * Similar to TC-321 (BM match page) and TC-820 (MR match page),
+ * GP match pages are also view-only for admins.
+ * Score entry is consolidated to the /gp/participant page. */
+async function runTc821(adminPage) {
+  try {
+    const { tournamentId, p1, p2, match } = await prepareSharedGpPair(adminPage);
+
+    // Visit match page
+    await nav(adminPage, `/tournaments/${tournamentId}/gp/match/${match.id}`);
+    const matchText = await adminPage.locator('body').innerText();
+
+    // Should show player names
+    const showsPlayers = matchText.includes(p1.nickname) && matchText.includes(p2.nickname);
+    // Should NOT have score entry form (position selectors, course selectors)
+    const noScoreForm =
+      !matchText.includes('Select Course') &&
+      !matchText.includes('コースを選択') &&
+      !matchText.includes('Position') &&
+      !matchText.includes('順位') &&
+      !matchText.includes('I am') &&
+      !matchText.includes('私は');
+
+    log('TC-821', showsPlayers && noScoreForm ? 'PASS' : 'FAIL',
+      !showsPlayers ? 'Match page missing player names' : !noScoreForm ? 'Match page has score entry form' : '');
+  } catch (err) {
+    log('TC-821', 'FAIL', err instanceof Error ? err.message : 'GP match view test failed');
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -840,6 +870,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
       { name: 'TC-712', fn: runTc712 },
+      { name: 'TC-821', fn: runTc821 },
     ],
   };
 }
@@ -847,6 +878,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc715, runTc716, runTc710, runTc712,
+  runTc821,
   getSuite,
   results,
 };
