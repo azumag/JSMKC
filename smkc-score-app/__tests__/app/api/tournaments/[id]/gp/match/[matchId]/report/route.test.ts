@@ -607,7 +607,6 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     });
 
     it('should reject correction races that do not match the assigned cup', async () => {
-    it('should reject correction races that do not match the assigned cup', async () => {
       const mockMatch = {
         id: 'm1',
         player1Id: 'p1',
