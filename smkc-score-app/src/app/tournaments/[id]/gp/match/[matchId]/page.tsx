@@ -342,12 +342,22 @@ export default function GPMatchPage({
           </Card>
         )}
 
-        {accessState === "admin-guidance" && (
-          <SharedMatchAdminGuidance
-            href={`/tournaments/${tournamentId}/gp/participant`}
-            description={tMatch('adminSharedPageGuidance')}
-            ctaLabel={tMatch('openParticipantScoreEntry')}
-          />
+        {/* Admin guidance for the shared page.
+            Admins can report this match, but actual entry lives on the participant workflow page. */}
+        {!match.completed && canReport && isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tMatch('adminScoreEntryTitle')}</CardTitle>
+              <CardDescription>{tMatch('adminScoreEntryDescription')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href={`/tournaments/${tournamentId}/gp/participant`}>
+                  {tMatch('goToParticipantEntry')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Result entry form (shown when match is not complete and user is authorized)
