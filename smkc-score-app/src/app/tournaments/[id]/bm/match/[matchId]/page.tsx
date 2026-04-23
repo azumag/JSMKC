@@ -229,6 +229,17 @@ export default function MatchDetailPage({
                        </Link>
                      </Button>
                    </div>
+                 ) : session.user?.role === 'admin' ? (
+                   <div className="space-y-2">
+                     <p className="text-sm text-muted-foreground">
+                       {tMatch('adminSharedPageGuidance')}
+                     </p>
+                     <Button asChild>
+                       <Link href={`/tournaments/${tournamentId}/bm`}>
+                         {tMatch('openParticipantScoreEntry')}
+                       </Link>
+                     </Button>
+                   </div>
                  ) : null
                )}
             </CardContent>
