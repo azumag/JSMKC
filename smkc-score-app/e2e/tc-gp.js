@@ -11,6 +11,7 @@
  *   TC-707  GP dual report — agreement → autoConfirmed (2 players)
  *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
+ *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -23,13 +24,14 @@
  */
 const {
   makeResults, makeLog, nav,
-  uiCreatePlayer, apiDeletePlayer,
+  uiCreatePlayer, apiDeletePlayer, apiDeleteTournament, uiCreateTournament,
   apiFetchGp, apiPutGpQualScore,
   apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
   apiUpdateTournament,
   makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
   setupGpQualViaUi,
+  resolveAllTies,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -809,6 +811,90 @@ async function runTc712(adminPage) {
   }
 }
 
+/* ───────── TC-713: GP qualification tie resolution ─────────
+ * Creates 3 players, sets up GP qualification, submits matches resulting
+ * in tied driver points, then verifies:
+ *   (a) tie warning banner appears on standings tab
+ *   (b) after resolveAllTies, the banner disappears
+ * Mirrors TC-324 (BM) but for GP mode. */
+async function runTc713(adminPage) {
+  const createdPlayers = [];
+  const createdTournaments = [];
+  try {
+    const stamp = Date.now();
+
+    // Create 3 players via admin API
+    for (let i = 1; i <= 3; i++) {
+      const name = `GP Tie P${i}`;
+      const nickname = `gp_tie_${i}_${stamp}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      createdPlayers.push({ id: p.id, name, nickname });
+    }
+
+    // Create & activate tournament with dualReport disabled
+    const tournamentId = await uiCreateTournament(adminPage, `GP Tie ${stamp}`, { dualReportEnabled: false });
+    createdTournaments.push(tournamentId);
+
+    // Setup GP qualification with 3 players
+    await setupGpQualViaUi(adminPage, tournamentId, createdPlayers);
+
+    // Get matches and submit all non-BYE matches with identical driver points
+    const gpData = await apiFetchGp(adminPage, tournamentId);
+    const nonByeMatches = (gpData.matches || []).filter((m) => !m.isBye);
+
+    // Submit each match with P1 winning all 5 races (9 pts each = 45 total)
+    for (const match of nonByeMatches) {
+      const races = makeRacesP1Wins(match.cup);
+      const put = await apiPutGpQualScore(adminPage, tournamentId, match.id, match.cup, races);
+      if (put.s !== 200) throw new Error(`Score PUT failed for match ${match.matchNumber} (${put.s})`);
+    }
+
+    // Navigate to GP page and check for tie warning banner
+    await nav(adminPage, `/tournaments/${tournamentId}/gp`);
+    // Click standings tab
+    const standingsTab = adminPage.locator('button[role="tab"]').filter({ hasText: /順位表|Standings/ });
+    if (await standingsTab.count() > 0) {
+      await standingsTab.click();
+      await adminPage.waitForTimeout(2000);
+    }
+
+    // Check for tie warning banner
+    const bannerBefore =
+      (await adminPage.locator('text=同順位が検出されました').count()) +
+      (await adminPage.locator('text=Tied ranks detected').count());
+    const hasBannerBefore = bannerBefore > 0;
+
+    // Resolve ties
+    await resolveAllTies(adminPage, tournamentId, 'gp');
+
+    // Reload and verify banner disappears
+    await nav(adminPage, `/tournaments/${tournamentId}/gp`);
+    if (await standingsTab.count() > 0) {
+      await standingsTab.click();
+      await adminPage.waitForTimeout(2000);
+    }
+
+    const bannerAfter =
+      (await adminPage.locator('text=同順位が検出されました').count()) +
+      (await adminPage.locator('text=Tied ranks detected').count());
+    const hasBannerAfter = bannerAfter > 0;
+
+    log('TC-713', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
+      !hasBannerBefore ? 'Tie warning banner never appeared (expected tie from identical scores)'
+      : hasBannerAfter ? 'Tie warning banner still visible after resolveAllTies'
+      : '');
+  } catch (err) {
+    log('TC-713', 'FAIL', err instanceof Error ? err.message : 'GP tie resolution failed');
+  } finally {
+    for (const tid of createdTournaments) {
+      await apiDeleteTournament(adminPage, tid);
+    }
+    for (const p of createdPlayers) {
+      await apiDeletePlayer(adminPage, p.id);
+    }
+  }
+}
+
 /* ───────── TC-821: GP match/[matchId] page view-only ─────────
  * Similar to TC-321 (BM match page) and TC-820 (MR match page),
  * GP match pages are also view-only for admins.
@@ -870,6 +956,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
       { name: 'TC-712', fn: runTc712 },
+      { name: 'TC-713', fn: runTc713 },
       { name: 'TC-821', fn: runTc821 },
     ],
   };
@@ -877,8 +964,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
-  runTc707, runTc708, runTc709, runTc715, runTc716, runTc710, runTc712,
-  runTc821,
+  runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
+  runTc715, runTc716, runTc821,
   getSuite,
   results,
 };
