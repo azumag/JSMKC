@@ -333,6 +333,24 @@ export default function GPMatchPage({
           </Card>
         )}
 
+        {/* Admin guidance for the shared page.
+            Admins can report this match, but actual entry lives on the participant workflow page. */}
+        {!match.completed && canReport && isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{tMatch('adminScoreEntryTitle')}</CardTitle>
+              <CardDescription>{tMatch('adminScoreEntryDescription')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href={`/tournaments/${tournamentId}/gp/participant`}>
+                  {tMatch('goToParticipantEntry')}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Result entry form (shown when match is not complete and user is authorized)
             Admins should not see the score entry form here — they use the /gp/participant page. */}
         {!match.completed && !submitted && canReport && !isAdmin && (
