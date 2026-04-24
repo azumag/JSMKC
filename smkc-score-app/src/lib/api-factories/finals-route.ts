@@ -104,52 +104,85 @@ function createGpRoundAssignments(
 }
 
 /**
- * Backfill per-round GP cup assignments for legacy matches that were created
- * before the per-round cup feature landed (those rows carry cup=null).
+ * Normalize per-round GP cup assignments so every match in the same round
+ * shares one cup (Playoff and Finals rule: M1=M2=M3=M4 for a round).
  *
- * Rule (#582 follow-up): within Playoff and Finals, every match in the same
- * round shares one cup. We pick one cup per round here, persist it, and from
- * that point on the admin score dialog always has a cup to render the race
- * table with — no dropdown, no random-on-each-open behaviour.
+ * Two legacy states need repair:
+ *   1. All matches in a round have cup=null (pre-#565 creations).
+ *   2. Mixed state within a round: some matches have cups, others are null,
+ *      or worse, different cups were picked per match by the old
+ *      client-side random fallback (#583) when admins saved scores before
+ *      the backfill landed.
  *
- * Returns true when at least one row was updated, so the caller can re-fetch.
+ * For each round we pick ONE canonical cup (the most common non-null cup
+ * among that round's matches, with a freshly shuffled CUP as fallback when
+ * no match has a cup yet) and force every match in that round to it via
+ * updateMany. This is idempotent — repeated GETs after the first repair
+ * are no-ops.
+ *
+ * Returns true when any row was updated, so the caller can re-fetch.
  */
-async function backfillMissingCupsByRound(
+async function normalizeRoundCupsToSingleCup(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
   tournamentId: string,
   stage: 'finals' | 'playoff',
   matches: Array<{ cup?: string | null; round?: string | null }>,
 ): Promise<boolean> {
-  const existingCupByRound = new Map<string, string>();
-  const roundsNeedingCup = new Set<string>();
+  /* Tally cup occurrences per round to detect mixed-cup rounds and pick a
+   * canonical cup without relying on iteration order. */
+  const cupCountsByRound = new Map<string, Map<string, number>>();
+  const roundsNeedingRepair = new Set<string>();
 
   for (const match of matches) {
     if (!match.round) continue;
+    let counts = cupCountsByRound.get(match.round);
+    if (!counts) {
+      counts = new Map();
+      cupCountsByRound.set(match.round, counts);
+    }
     if (match.cup) {
-      existingCupByRound.set(match.round, match.cup);
-    } else {
-      roundsNeedingCup.add(match.round);
+      counts.set(match.cup, (counts.get(match.cup) ?? 0) + 1);
     }
   }
 
-  if (roundsNeedingCup.size === 0) return false;
-
-  /* Reuse already-assigned cups for rounds where some matches have cups and
-   * others don't (avoids the mixed-state case diverging). For rounds with no
-   * existing cup, pick from a freshly shuffled CUPS list so assignments stay
-   * random across tournaments while being fixed per round. */
-  const shuffledCups = fisherYatesShuffle(CUPS);
-  let cursor = 0;
-  const assignments = new Map<string, string>();
-  for (const round of roundsNeedingCup) {
-    const existing = existingCupByRound.get(round);
-    assignments.set(round, existing ?? shuffledCups[cursor++ % shuffledCups.length]);
+  for (const [round, counts] of cupCountsByRound) {
+    const distinctCups = counts.size;
+    const totalMatchesWithCup = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+    const roundMatchCount = matches.filter((m) => m.round === round).length;
+    /* Round needs repair when: no cup yet, cups differ within the round,
+     * or some matches still have null cup while others don't. */
+    if (distinctCups !== 1 || totalMatchesWithCup !== roundMatchCount) {
+      roundsNeedingRepair.add(round);
+    }
   }
 
-  for (const [round, cup] of assignments) {
+  if (roundsNeedingRepair.size === 0) return false;
+
+  const shuffledCups = fisherYatesShuffle(CUPS);
+  let cursor = 0;
+  const canonicalCupByRound = new Map<string, string>();
+  for (const round of roundsNeedingRepair) {
+    const counts = cupCountsByRound.get(round) ?? new Map<string, number>();
+    /* Pick the most common existing cup, falling back to a fresh shuffle
+     * slot when the round is entirely null. Ties resolve by first-seen
+     * order, which is fine since we just need one canonical value. */
+    let dominant: string | undefined;
+    let dominantCount = 0;
+    for (const [cup, count] of counts) {
+      if (count > dominantCount) {
+        dominant = cup;
+        dominantCount = count;
+      }
+    }
+    canonicalCupByRound.set(round, dominant ?? shuffledCups[cursor++ % shuffledCups.length]);
+  }
+
+  for (const [round, cup] of canonicalCupByRound) {
+    /* Unconditional update so rounds with divergent cups converge. Skip the
+     * write when the stored value already matches to avoid churning rows. */
     await modelInstance.updateMany({
-      where: { tournamentId, stage, round, cup: null },
+      where: { tournamentId, stage, round, NOT: { cup } },
       data: { cup },
     });
   }
@@ -258,17 +291,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      /* Backfill per-round cup assignments for legacy playoff rows (pre-#565).
-       * Without this the admin score dialog has no cup and the race table
-       * never renders — see #582/#583. */
+      /* Normalize cups-per-round for legacy playoff rows. Fixes both the
+       * pre-#565 null-cup state and the divergent-cup state that PR #583's
+       * client-side random fallback could produce when admins saved scores
+       * (so M1=Flower and M2=Star on the same round would be converged). */
       if (config.assignGpCupByRound && playoffMatches.length > 0) {
-        const backfilled = await backfillMissingCupsByRound(
+        const repaired = await normalizeRoundCupsToSingleCup(
           model(prisma),
           tournamentId,
           'playoff',
           playoffMatches,
         );
-        if (backfilled) {
+        if (repaired) {
           playoffMatches = await model(prisma).findMany({
             where: { tournamentId, stage: 'playoff' },
             include: { player1: true, player2: true },
@@ -337,16 +371,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         : playoffMatches.length > 0 ? 'playoff' as const
         : 'finals' as const;
 
-      /* Backfill per-round cup assignments for legacy finals rows before
-       * paginating or simple/grouped fetches, so every branch sees the
-       * backfilled state (see playoff branch above). */
+      /* Normalize cups-per-round for legacy finals rows before paginating or
+       * simple/grouped fetches, so every branch sees the repaired state.
+       * See playoff branch above for the why. */
       if (config.assignGpCupByRound) {
         const legacyFinals = await model(prisma).findMany({
           where: { tournamentId, stage: 'finals' },
           select: { id: true, round: true, cup: true },
         });
         if (legacyFinals.length > 0) {
-          await backfillMissingCupsByRound(
+          await normalizeRoundCupsToSingleCup(
             model(prisma),
             tournamentId,
             'finals',
