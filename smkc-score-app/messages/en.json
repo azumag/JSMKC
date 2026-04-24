@@ -483,7 +483,14 @@
     "mrFtByRound": "FT by round:",
     "mrFtByRoundDesc": "Playoff FT3/4, early bracket FT5, semis FT7, finals FT9.",
     "firstTo3": "First to 3:",
-    "firstTo3Desc": "First player to win 3 races wins the match"
+    "firstTo3Desc": "First player to win 3 races wins the match",
+    "top8": "Top 8",
+    "top16": "Top 16",
+    "top24": "Top 24",
+    "playoffPhase": "Playoff Phase",
+    "playoffComplete": "Playoff Complete!",
+    "createUpperBracket": "Create Upper Bracket",
+    "allPlayoffMatchesComplete": "All playoff matches complete! Create the upper bracket to continue."
   },
   "match": {
     "enterScore": "Enter Score",
@@ -693,7 +700,12 @@
     "undoing": "Undoing...",
     "courseOverrideLabel": "Course Selection (optional)",
     "randomCourse": "Random (default)",
-    "manualCourseOverride": "Manual"
+    "manualCourseOverride": "Manual",
+    "eliminated": "Eliminated",
+    "invalidTimeFor": "Invalid time for {name}. Enter M:SS.mm format.",
+    "needAtLeast2Players": "Need at least 2 players to submit results",
+    "timePlaceholder": "M:SS.mm",
+    "retryPenalty": "Mark as retry (penalty: 9:59.990)"
   },
   "revival": {
     "round1Title": "Loser's Revival Round 1",

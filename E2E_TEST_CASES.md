@@ -411,6 +411,40 @@
   6. クリーンアップ
 - **期待結果**: rankOverride 設定後の同城解决に応じてバーが消える
 
+## TC-325: プロフィールページのセッション・プレイヤー情報表示
+- **URL**: /profile
+- **authRequired**: true (player or admin)
+- **背景**: プレイヤーセッションでログインした際、プロフィールページにセッション情報とプレイヤー関連情報が正しく表示されること
+- **手順**:
+  1. プレイヤーまたは管理者としてログインする
+  2. `/profile` にアクセスする
+  3. ユーザー情報（name, role）が表示されることを確認
+  4. プレイヤーセッションの場合、nickname と country が表示されることを確認
+- **期待結果**: セッション種別に応じた情報が正しく表示される
+
+## TC-326: トーナメントエクスポート API が有効な CSV を返す
+- **URL**: /api/tournaments/[id]/export
+- **authRequired**: true (admin)
+- **背景**: 全モードのスコアを UTF-8 BOM 付き CSV でエクスポートできる
+- **手順**:
+  1. 管理者で `GET /api/tournaments/[id]/export` を呼び出す
+  2. レスポンスステータスが 200 であることを確認
+  3. `Content-Type: text/csv` ヘッダーが設定されていることを確認
+  4. UTF-8 BOM (0xEF 0xBB 0xBF) がレスポンス先頭に付いていることを確認
+  5. CSVの内容（プレイヤー名、スコア等）が空でないことを確認
+- **期待結果**: UTF-8 BOM 付き CSV が返され Excelで正常に表示される
+
+## TC-327: セッション状態 API がセッション情報を返す
+- **URL**: /api/auth/session-status
+- **authRequired**: false
+- **背景**: 現在のセッション状態（認証の有無、ユーザー種別）を返す軽量なエンドポイント
+- **手順**:
+  1. 未認証状態で `GET /api/auth/session-status` を呼び出す
+  2. レスポンスステータスが 200 であり、`authenticated: false` が含まれることを確認
+  3. 管理者としてログイン後、同エンドポイントを呼び出す
+  4. `authenticated: true` が含まれることを確認
+- **期待結果**: セッション状態が正しくレスポンスに反映される
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
@@ -444,6 +478,17 @@
   3. プレイヤーセッションでマッチページを開く → "Score entry is on the participant page" ガイダンスと「Go to Score Entry」ボタンが表示されることを確認
   4. クリーンアップ
 - **期待結果**: 未認証/管理者/プレイヤーそれぞれに適切なガイダンスが表示される
+
+## TC-512: BM TV番号割り当て検証 (tvNumber 1〜4 のみ許可)
+- **URL**: /api/tournaments/[id]/bm (PATCH)
+- **authRequired**: true (admin)
+- **背景**: issue #529 — tvNumber は 1〜4 のみ有効。5 以上は 422 で拒否される
+- **手順**:
+  1. テスト用トーナメントで BM を設定し、non-BYE マッチを取得
+  2. `PATCH /api/tournaments/[id]/bm` で `tvNumber: 4` を送信 → 200 が返ること
+  3. 同マッチに `tvNumber: 5` を送信 → 422 が返ること
+  4. `tvNumber: null` を送信 → 200 が返り TV 割り当てがクリアされること
+- **期待結果**: tvNumber 1〜4 は受け入れられ、5 以上は拒否される
 
 ## BM フルワークフロー設計方針
 - **予選プレイヤー数**: 28名（4グループ × 7名、7はオッドのため各グループに BYE が混在）
@@ -997,6 +1042,29 @@
   4. `GET` で M1 を再取得し、`points1=15`、`points2=12`、`cup` と `races` は手順 2 で保存した値のまま残っていることを確認
   5. クリーンアップ
 - **期待結果**: 手動合計スコア PUT で score1/score2 は上書きされ、cup と races はクリアされない
+
+## TC-710: GP カップ不一致修正の拒否
+- **URL**: /api/tournaments/[temp-id]/gp (PATCH with correction)
+- **authRequired**: true (player)
+- **背景**: プレイヤーが修正スコアを送信する際、元のカップと異なるカップを指定した場合は拒否されなければならない
+- **手順**:
+  1. 2名プレイヤーで GP を設定し、マッチにスコアを入力（cup=Mushroom）
+  2. プレイヤーとしてログインし、同マッチに cup=Flower で修正スコアを送信
+  3. 422 エラーが返ること（カップ不一致）
+  4. クリーンアップ
+- **期待結果**: 修正スコア送信時にカップが一致しない場合は 422 で拒否される
+
+## TC-712: GP 決勝 Grand Final サドンデス タイブレーク
+- **URL**: /tournaments/[temp-id]/gp/finals (PUT M16)
+- **authRequired**: true (admin)
+- **背景**: Grand Final で GP ポイントが同点の場合、サドンデス勝者を指定する必要がある
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成
+  2. M1〜M15 を API で入力して Grand Final (M16) まで進める
+  3. M16 に同点スコア（score1=score2）で PUT → サドンデス勝者が設定されていなければ 400 が返ること
+  4. `suddenDeathWinner` を含めて再 PUT → 200 が返り、チャンピオンが確定すること
+  5. クリーンアップ
+- **期待結果**: GP Grand Final 同点時のサドンデス勝者指定が正しく機能する
 
 ## TC-820: MR match/[matchId] ページがview-onlyであることを確認
 - **URL**: /tournaments/[temp-id]/mr/match/[matchId]

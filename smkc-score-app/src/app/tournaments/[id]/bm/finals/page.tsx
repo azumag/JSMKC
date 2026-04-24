@@ -495,21 +495,21 @@ export default function BattleModeFinals({
                     variant={bracketSize === 8 ? "default" : "outline"}
                     onClick={() => setBracketSize(8)}
                   >
-                    Top 8
+                    {tFinals('top8')}
                   </Button>
                   <Button
                     size="sm"
                     variant={bracketSize === 16 ? "default" : "outline"}
                     onClick={() => setBracketSize(16)}
                   >
-                    Top 16
+                    {tFinals('top16')}
                   </Button>
                   <Button
                     size="sm"
                     variant={bracketSize === 24 ? "default" : "outline"}
                     onClick={() => setBracketSize(24)}
                   >
-                    Top 24
+                    {tFinals('top24')}
                   </Button>
                 </div>
                 <AlertDialogFooter>
@@ -581,13 +581,13 @@ export default function BattleModeFinals({
       {phase === 'playoff' && (
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-sm border-blue-500/50 text-blue-500">
-            Playoff Phase
+            {tFinals('playoffPhase')}
           </Badge>
           <Badge variant="outline" className="text-sm">
             {playoffMatches.filter((m) => m.completed).length} / {playoffMatches.length} matches
           </Badge>
           {playoffComplete && (
-            <Badge className="bg-green-500">Playoff Complete!</Badge>
+            <Badge className="bg-green-500">{tFinals('playoffComplete')}</Badge>
           )}
         </div>
       )}
@@ -665,10 +665,10 @@ export default function BattleModeFinals({
             <Card className="border-green-500/50 bg-green-500/10">
               <CardContent className="py-4 text-center">
                 <p className="text-sm text-muted-foreground mb-3">
-                  All playoff matches complete! Create the upper bracket to continue.
+                  {tFinals('allPlayoffMatchesComplete')}
                 </p>
                 <Button onClick={handleCreateUpperBracket}>
-                  Create Upper Bracket
+                  {tFinals('createUpperBracket')}
                 </Button>
               </CardContent>
             </Card>

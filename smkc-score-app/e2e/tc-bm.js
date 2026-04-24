@@ -318,9 +318,57 @@ async function runTc511(adminPage) {
 }
 
 /* ───────── TC-512: TV assignment up to 4 ─────────
- * Validates #529: tvNumber=4 is accepted, tvNumber=5 is rejected. */
+ * Validates #529: tvNumber=4 is accepted, tvNumber=5 is rejected at API level.
+ * Uses the shared BM fixture tournament to avoid creating extra test data. */
 async function runTc512(adminPage) {
-  // existing code...
+  if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
+  const { normalTournament, players } = sharedFixture;
+  const tournamentId = normalTournament.id;
+
+  try {
+    await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players.slice(0, 2));
+
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const match = (bmData.matches || []).find((m) => !m.isBye);
+    if (!match) throw new Error('No non-BYE match found for TC-512');
+
+    /* PATCH with tvNumber=4 — must return 200 */
+    const ok4 = await adminPage.evaluate(async ([tid, mid]) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: mid, tvNumber: 4 }),
+      });
+      return r.status;
+    }, [tournamentId, match.id]);
+
+    /* PATCH with tvNumber=5 — must return 422 */
+    const bad5 = await adminPage.evaluate(async ([tid, mid]) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: mid, tvNumber: 5 }),
+      });
+      return r.status;
+    }, [tournamentId, match.id]);
+
+    /* PATCH with tvNumber=null — must return 200 (clear TV) */
+    const okNull = await adminPage.evaluate(async ([tid, mid]) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: mid, tvNumber: null }),
+      });
+      return r.status;
+    }, [tournamentId, match.id]);
+
+    const pass = ok4 === 200 && bad5 === 422 && okNull === 200;
+    log('TC-512', pass ? 'PASS' : 'FAIL',
+      !pass ? `tvNumber=4 → ${ok4}, tvNumber=5 → ${bad5}, tvNumber=null → ${okNull}` : '');
+  } catch (err) {
+    log('TC-512', 'FAIL', err instanceof Error ? err.message : 'TC-512 TV assignment test failed');
+  }
 }
 
 /* ───────── TC-513: BM match page session-based guidance ─────────
