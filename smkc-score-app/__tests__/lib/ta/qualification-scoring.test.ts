@@ -243,5 +243,47 @@ describe('TA Qualification Scoring', () => {
       // Player B: 0 on all courses
       expect(results.get('b')!.qualificationPoints).toBe(0);
     });
+
+    /* Regression for issue #575 — E2E mirror TC-812.
+     *
+     * TA has no manual rankOverride: when two players submit identical times on
+     * every course, the per-course averaged-points rule is the ONLY mechanism
+     * that keeps their totals equal. If `calculateCourseScores` ever regressed
+     * into assigning the deterministic rank-1 score to the "first" tied entry,
+     * the resulting qualificationPoints would diverge by 20 * (50 - 25) = 500
+     * points with N=3, producing a false ordering in TA standings. */
+    it('returns identical qualificationPoints across all 20 courses when two entries tie on every course', () => {
+      const identicalTimes = {
+        MC1: '1:00.200', DP1: '1:00.200', GV1: '1:00.200', BC1: '1:00.200', MC2: '1:00.200',
+        CI1: '1:00.200', GV2: '1:00.200', DP2: '1:00.200', BC2: '1:00.200', MC3: '1:00.200',
+        KB1: '1:00.200', CI2: '1:00.200', VL1: '1:00.200', BC3: '1:00.200', MC4: '1:00.200',
+        DP3: '1:00.200', KB2: '1:00.200', GV3: '1:00.200', VL2: '1:00.200', RR: '1:00.200',
+      };
+      const slowerTimes = Object.fromEntries(
+        Object.keys(identicalTimes).map((course) => [course, '1:00.600']),
+      );
+
+      const entries = [
+        { id: 'tiedA', times: identicalTimes },
+        { id: 'tiedB', times: { ...identicalTimes } },
+        { id: 'slow',  times: slowerTimes },
+      ];
+      const results = calculateAllCourseScores(entries);
+
+      // N=3, table [50, 25, 0]. Tied at ranks 1-2 ⇒ (50 + 25)/2 = 37.5 pts per course.
+      // 37.5 * 20 = 750 — already an integer, so floor leaves it intact.
+      expect(results.get('tiedA')!.qualificationPoints).toBe(750);
+      expect(results.get('tiedB')!.qualificationPoints).toBe(750);
+      expect(results.get('tiedA')!.qualificationPoints)
+        .toBe(results.get('tiedB')!.qualificationPoints);
+      expect(results.get('slow')!.qualificationPoints).toBe(0);
+
+      // Spot-check that per-course scores themselves are averaged, not just the
+      // total. A course-level regression could otherwise cancel out across the
+      // 20 courses by coincidence.
+      expect(results.get('tiedA')!.courseScores['MC1']).toBe(37.5);
+      expect(results.get('tiedB')!.courseScores['RR']).toBe(37.5);
+      expect(results.get('slow')!.courseScores['MC1']).toBe(0);
+    });
   });
 });

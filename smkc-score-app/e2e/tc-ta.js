@@ -13,6 +13,8 @@
  *   TC-806  Phase 2 page renders and shows correct entries (8 players).
  *   TC-807  Phase 3 page renders and shows correct entries (8 players).
  *   TC-808  TA Finals page renders with champion banner on completion.
+ *   TC-812  TA qualification tie resolution — identical times yield averaged
+ *           course points and ordered ranks without manual override.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -31,10 +33,12 @@ const {
   uiFreezeTaQualification,
   uiPromoteTaPhase,
   uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
-  uiCreateTournament,
+  uiCreateTournament, uiCreatePlayer,
+  apiDeletePlayer,
   apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiTaParticipantEditTime, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase,
   makeTaTimesForRank,
+  setupTaQualViaUi,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -694,6 +698,96 @@ async function runTc808(adminPage) {
   }
 }
 
+/* ───────── TC-812: TA qualification tie resolution (averaged course points) ─────────
+ * TA does NOT use the rankOverride flow used by BM/MR/GP — ties are resolved
+ * automatically inside `calculateCourseScores` (src/lib/ta/qualification-scoring.ts):
+ * players with identical course times share the same rank and receive the
+ * averaged score across the tied positions. When overall totals remain equal,
+ * the TA standings sort uses totalTime as the tiebreaker.
+ *
+ * This test mirrors TC-324 (BM) and TC-713 (GP) but validates TA's numeric
+ * tie handling instead of a UI banner:
+ *   1. Three players, where P1 and P2 submit identical times on all 20 courses
+ *      and P3 submits strictly slower times.
+ *   2. Expect `qualificationPoints` for P1 and P2 to be exactly equal (tied),
+ *      and for their shared value to match the averaged score table
+ *      (score table for N=3 is [50, 25, 0]; P1/P2 tie at ranks 1-2 → each
+ *      receives (50 + 25) / 2 = 37.5 pts per course × 20 courses = 750 pts,
+ *      floor(750) = 750).
+ *   3. P3 must receive 0 points overall (rank 3 in N=3).
+ *   4. Server-assigned ranks: P1/P2 compare equal on (points, totalTime) and
+ *      must appear before P3.
+ *
+ * Uses isolated players/tournament because the shared fixture seeds unique
+ * times that avoid ties (TC-801's invariant), and this test intentionally
+ * violates that to exercise tie handling. */
+async function runTc812(adminPage) {
+  const createdPlayers = [];
+  let tournamentId = null;
+  try {
+    const stamp = Date.now();
+
+    for (let i = 1; i <= 3; i++) {
+      const name = `TA Tie P${i}`;
+      const nickname = `ta_tie_${i}_${stamp}`;
+      const p = await uiCreatePlayer(adminPage, name, nickname);
+      createdPlayers.push({ id: p.id, name, nickname });
+    }
+
+    tournamentId = await uiCreateTournament(adminPage, `TA Tie ${stamp}`, { dualReportEnabled: false });
+
+    /* Register all 3 players with seeding but no time seeding — we supply our
+     * own tied times below. */
+    const { entries } = await setupTaQualViaUi(adminPage, tournamentId, createdPlayers, { seedTimes: false });
+
+    /* Deterministic tied times for P1 & P2; slower for P3. makeTaTimesForRank
+     * uses 60000 + rank*200 ms per course, so rank=1 and rank=3 give distinct
+     * time vectors where P3 is strictly slower on every course. */
+    const { times: tiedTimes, totalMs: tiedTotal } = makeTaTimesForRank(1);
+    const { times: slowerTimes, totalMs: slowerTotal } = makeTaTimesForRank(3);
+
+    await apiSeedTtEntry(adminPage, tournamentId, entries[0].entryId, tiedTimes, tiedTotal, null);
+    await apiSeedTtEntry(adminPage, tournamentId, entries[1].entryId, tiedTimes, tiedTotal, null);
+    await apiSeedTtEntry(adminPage, tournamentId, entries[2].entryId, slowerTimes, slowerTotal, null);
+
+    /* Rank recalculation runs on every entry update, so the final seed call
+     * leaves the server with up-to-date qualificationPoints/rank. Re-fetch
+     * to inspect the computed state. */
+    const data = await apiFetchTa(adminPage, tournamentId);
+    const rows = data.b?.data?.entries ?? [];
+
+    const byPlayerId = new Map(rows.map((e) => [e.playerId, e]));
+    const p1Row = byPlayerId.get(createdPlayers[0].id);
+    const p2Row = byPlayerId.get(createdPlayers[1].id);
+    const p3Row = byPlayerId.get(createdPlayers[2].id);
+
+    const allPresent = !!p1Row && !!p2Row && !!p3Row;
+    const pointsTied = allPresent && p1Row.qualificationPoints === p2Row.qualificationPoints;
+    /* For N=3, tied at ranks 1-2, the expected per-course score is 37.5.
+     * floor(37.5 * 20) = 750. */
+    const expectedTiedPoints = 750;
+    const pointsMatchExpected = allPresent && p1Row.qualificationPoints === expectedTiedPoints;
+    const p3HasZero = allPresent && p3Row.qualificationPoints === 0;
+    /* P1 and P2 must outrank P3; server assigns ranks sequentially by (points
+     * desc, totalTime asc), so the two tied players share the top two slots. */
+    const ranksOrdered = allPresent && p3Row.rank === 3 && p1Row.rank <= 2 && p2Row.rank <= 2;
+
+    const ok = pointsTied && pointsMatchExpected && p3HasZero && ranksOrdered;
+    log('TC-812', ok ? 'PASS' : 'FAIL',
+      !allPresent ? 'TA entries missing after seeding'
+      : !pointsTied ? `qualificationPoints not tied: P1=${p1Row.qualificationPoints} P2=${p2Row.qualificationPoints}`
+      : !pointsMatchExpected ? `expected ${expectedTiedPoints} for tied players, got ${p1Row.qualificationPoints}`
+      : !p3HasZero ? `P3 expected 0 points, got ${p3Row.qualificationPoints}`
+      : !ranksOrdered ? `rank order wrong: P1=${p1Row.rank} P2=${p2Row.rank} P3=${p3Row.rank}`
+      : '');
+  } catch (err) {
+    log('TC-812', 'FAIL', err instanceof Error ? err.message : 'TA tie resolution failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    for (const p of createdPlayers) await apiDeletePlayer(adminPage, p.id);
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -747,12 +841,14 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
+      { name: 'TC-812', fn: runTc812 },
     ],
   };
 }
 
 module.exports = {
   runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
+  runTc812,
   getSuite,
   results,
 };
