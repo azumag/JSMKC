@@ -63,6 +63,10 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
+        # Auth failures (expired CLAUDE_CODE_OAUTH_TOKEN) must not block merges.
+        # When the token is valid Claude runs normally; when it fails gracefully
+        # the CI check still passes so the PR is not permanently blocked.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,9 +93,10 @@ jobs:
       # Auto-merge every non-draft PR. `--auto` waits for required status checks
       # and approving reviews defined in branch protection before merging.
       - name: Enable auto-merge
-        if: |
-          success() &&
-          github.event.pull_request.draft == false
+        # Non-fatal: fails if auto-merge is disabled in repo settings or the PR
+        # already has a failing required check at the time this step runs.
+        continue-on-error: true
+        if: github.event.pull_request.draft == false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
