@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/tournament/export-button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { createLogger } from "@/lib/client-logger";
+import { publishMode, unpublishMode, type RevealableMode, MODE_REVEAL_ORDER } from "@/lib/public-modes";
 
 const logger = createLogger({ serviceName: "tournaments-layout" });
 
@@ -193,19 +194,18 @@ export default function TournamentLayout({
   };
 
   /**
-   * Toggles a single mode's public visibility.
-   * Admins can show/hide each mode (TA, BM, MR, GP) independently.
-   * Non-admin users only see modes that are in publicModes.
+   * Toggles a mode's public visibility with cascade logic:
+   * publishing mode X also publishes all earlier modes (ta→bm→mr→gp order),
+   * unpublishing mode X also unpublishes all later modes.
+   * This ensures publicModes is always a sequential prefix of MODE_REVEAL_ORDER.
    */
   const [visibilityUpdating, setVisibilityUpdating] = useState(false);
-  const toggleMode = async (mode: string) => {
+  const toggleMode = async (mode: RevealableMode) => {
     setVisibilityUpdating(true);
     try {
-      const currentModes = tournament?.publicModes ?? ["ta", "bm", "mr", "gp"];
+      const currentModes = (tournament?.publicModes ?? []) as string[];
       const isPublic = currentModes.includes(mode);
-      const newModes = isPublic
-        ? currentModes.filter((m) => m !== mode)
-        : [...currentModes, mode];
+      const newModes = isPublic ? unpublishMode(mode) : publishMode(mode);
       const response = await fetch(`/api/tournaments/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -371,6 +371,33 @@ export default function TournamentLayout({
             );
           })}
         </div>
+
+        {/*
+         * Mode publish controls (admin only).
+         * Centralised here so the same UI appears regardless of which mode tab
+         * is active, and the "未公開" badge in the tab bar disappears instantly
+         * after toggling because the layout's own tournament state is updated.
+         * Publishing cascades to earlier modes; unpublishing cascades to later.
+         */}
+        {isAdmin && (
+          <div className="flex flex-wrap gap-2">
+            {MODE_REVEAL_ORDER.map((mode) => {
+              const labelKey = ({ ta: "timeTrial", bm: "battleMode", mr: "matchRace", gp: "grandPrix" } as const)[mode];
+              const isPublic = (tournament.publicModes ?? [] as string[]).includes(mode);
+              return (
+                <Button
+                  key={mode}
+                  variant={isPublic ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => toggleMode(mode)}
+                  disabled={visibilityUpdating}
+                >
+                  {t(labelKey)}: {isPublic ? tc("unpublishMode") : tc("publishMode")}
+                </Button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Child page content (TA, BM, MR, GP, or Overall sub-page) */}
         {children}

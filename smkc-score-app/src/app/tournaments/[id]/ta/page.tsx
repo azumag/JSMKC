@@ -70,7 +70,6 @@ import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-reac
 import { toast } from "sonner";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
-import { publishMode, unpublishMode, type RevealableMode } from "@/lib/public-modes";
 
 const logger = createLogger({ serviceName: 'tournaments-ta' });
 
@@ -180,44 +179,6 @@ export default function TimeAttackPage({
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
   // Public modes visibility state (for admin toggle).
-  // publicModes is always a prefix of [ta, bm, mr, gp]: publishing a mode
-  // cascades to earlier modes, unpublishing cascades to later modes. See
-  // @/lib/public-modes for details.
-  const [publicModes, setPublicModes] = useState<string[]>([]);
-  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
-
-  /** Toggle this mode's publication state for non-admin viewers. */
-  const toggleModePublication = useCallback(async (mode: RevealableMode) => {
-    setVisibilityUpdating(true);
-    try {
-      const isPublic = publicModes.includes(mode);
-      const newModes = isPublic ? unpublishMode(mode) : publishMode(mode);
-      const res = await fetch(`/api/tournaments/${tournamentId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicModes: newModes }),
-      });
-      if (res.ok) {
-        setPublicModes(newModes);
-      } else {
-        toast.error(tc('failedToUpdateVisibility'));
-      }
-    } finally {
-      setVisibilityUpdating(false);
-    }
-  }, [publicModes, tournamentId, tc]);
-
-  // Fetch tournament visibility data on mount
-  useEffect(() => {
-    fetch(`/api/tournaments/${tournamentId}?fields=summary`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((j) => {
-        const data = j?.data ?? j;
-        if (data?.publicModes) setPublicModes(data.publicModes);
-      })
-      .catch(() => {});
-  }, [tournamentId]);
-
   // Development-only flag: inlined at build time, tree-shaken in production
   const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -787,19 +748,6 @@ export default function TimeAttackPage({
               ) : (
                 <><Lock className="h-4 w-4 mr-1" />{t('freezeQualification')}</>
               )}
-            </Button>
-          )}
-          {/* Publish/Unpublish toggle for TA mode (admin only).
-           * Publishing cascades to earlier modes; unpublishing cascades to
-           * later modes (see @/lib/public-modes). */}
-          {isAdmin && (
-            <Button
-              variant={publicModes.includes("ta") ? "outline" : "default"}
-              onClick={() => toggleModePublication("ta")}
-              disabled={visibilityUpdating}
-              size="sm"
-            >
-              {publicModes.includes("ta") ? tc('unpublishMode') : tc('publishMode')}
             </Button>
           )}
           {/* Legacy "Promote to Finals" button and dialog removed.

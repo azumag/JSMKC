@@ -1438,29 +1438,61 @@
   - `?phase=phase1`: `entries`/`rounds`/`availableCourses` が追加される
   - 不正 phase パラメータ: 400
 
-## TC-338: 予選モードの順次公開（TA → BM → MR → GP）
-- **URL**: /api/tournaments/:id (PUT)、各モード qualification ページ
-- **authRequired**: true (admin)
-- **背景**: admin が各 qualification ページの「公開」/「未公開」ボタンで予選モードを
-  段階的に公開する。`publicModes` は常に `[ta, bm, mr, gp]` の先頭からの連続した
-  プレフィックスでなければならず、`["ta", "mr"]` のようなギャップは 400 で拒否される。
-  公開は前方カスケード（BM を公開すると TA も公開される）、未公開は後方カスケード
-  （BM を未公開にすると MR/GP も未公開になる）。
+## TC-338: セキュリティ — 非公開トーナメントは非 admin に一覧 API で漏洩しない
+- **URL**: GET /api/tournaments
+- **authRequired**: false (セキュリティ検証のため非認証でリクエスト)
+- **背景**: Issue #612 修正。`publicModes: []` のプライベートトーナメントは
+  `GET /api/tournaments` から除外される必要がある。変更前は全件返却で curl/DevTools
+  でトーナメント名・日付が列挙可能だった。
 - **手順**:
-  1. 空の publicModes でトーナメント作成
-  2. BM qualification ページで admin として「公開」をクリック →
-     API に `publicModes: ["ta", "bm"]` が送られ、TA も自動で公開されることを確認
-  3. MR qualification ページで「公開」をクリック → `publicModes: ["ta", "bm", "mr"]`
-  4. GP qualification ページで「公開」をクリック → `publicModes: ["ta", "bm", "mr", "gp"]`
-  5. BM qualification ページで「未公開」をクリック →
-     `publicModes: ["ta"]` になり、MR/GP も自動で未公開になることを確認
-  6. 非 admin のタブバーでは `["ta"]` のみが表示され、BM/MR/GP は非表示であること
-  7. 直接 PUT で `publicModes: ["ta", "mr"]`（ギャップあり）を送信 → 400 VALIDATION_ERROR
+  1. admin として `publicModes: []` のトーナメントを作成
+  2. `https` モジュールで `GET /api/tournaments?limit=100` をセッションなしで送信
+  3. レスポンスの `data.data` 配列に作成したトーナメントが含まれないことを確認
+  4. admin セッションからは同一エンドポイントで取得できることを確認
+  5. テストトーナメントを削除
 - **期待結果**:
-  - 「公開」ボタンは自モード以前の全モードを公開する
-  - 「未公開」ボタンは自モード以降の全モードを未公開にする
-  - サーバは非プレフィックスの publicModes を 400 で拒否する
-  - 非 admin の閲覧者には公開済みのモードだけがタブに出る
+  - 非認証リクエストに新規プライベートトーナメントが含まれない
+  - admin リクエストには含まれる
+- **スクリプト**: tc-all.js TC-338
+
+---
+
+## TC-339: モード公開カスケード — `publicModes` 順次プレフィックス制約の検証
+- **URL**: PUT /api/tournaments/:id
+- **authRequired**: true (admin)
+- **背景**: `publicModes` は `[ta, bm, mr, gp]` の先頭からの連続したプレフィックス
+  でなければならない。公開ボタンはレイアウト（layout.tsx）の共通エリアに統一移動済み。
+  `publishMode(bm)` は `["ta", "bm"]` を返し、`unpublishMode(ta)` は `[]` を返す。
+  非プレフィックスの `["bm"]` などは API が 400 で拒否する。
+- **手順**:
+  1. トーナメント作成 → `PUT publicModes: ["ta", "bm"]` → 200 で `["ta", "bm"]` が返る
+  2. `PUT publicModes: ["bm"]`（TA なしのギャップ）→ 400 VALIDATION_ERROR
+  3. `GET /api/tournaments` を非認証で → 公開後のトーナメントが一覧に現れる
+- **期待結果**:
+  - `["ta", "bm"]` は受理され、`publicModes` に反映される
+  - `["bm"]` は 400 で拒否される
+  - 公開後はトーナメントが非 admin の一覧に現れる
+- **スクリプト**: tc-all.js TC-339
+
+---
+
+## TC-340: レイアウト公開ボタン — モード公開後にタブの「未公開」バッジが消える
+- **URL**: /tournaments/:id/ta（または bm/mr/gp）
+- **authRequired**: true (admin)
+- **背景**: Issue #614 修正。各モードページにあった公開ボタンをレイアウト（layout.tsx）
+  の共通エリアに移動した。これにより (1) 公開ボタン位置が全モードで統一され、
+  (2) 公開操作後にレイアウト自体の `tournament.publicModes` が更新されるため、
+  タブの「未公開」バッジが即座に消える。
+- **手順**:
+  1. 非公開トーナメントの TA ページを開く（タブバーに「未公開」バッジが表示されること）
+  2. タブバー下の公開コントロールエリアで「タイムトライアル: 公開」ボタンをクリック
+  3. リロードなしでタブの「未公開」バッジが消えることを確認
+  4. 「タイムトライアル: 未公開」ボタンをクリック → バッジが再表示されることを確認
+- **期待結果**:
+  - 公開ボタンはタブバー直下のコントロール行に常に表示される
+  - 公開/未公開切替後に「未公開」バッジがリロードなしで更新される
+  - 操作後のページに「未公開」の古い表示が残らない
+- **スクリプト**: 未スクリプト化（UI インタラクションのため手動確認）
 
 ---
 

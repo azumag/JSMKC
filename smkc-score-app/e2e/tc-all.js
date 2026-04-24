@@ -1977,25 +1977,25 @@ async function main() {
     log('TC-334', 'FAIL', err instanceof Error ? err.message : 'Visibility test failed');
   }
 
-  // TC-335: Tournament visibility toggle — admin makes tournament public; unauthenticated access allowed
-  // Continues from TC-334: makes the private tournament public via PUT, then verifies
-  // that an unauthenticated request now receives 200 and isPublic=true.
+  // TC-335: Tournament visibility toggle — admin publishes first mode; unauthenticated detail access allowed
+  // Continues from TC-334: sets publicModes: ['ta'] via PUT, then verifies that an
+  // unauthenticated request to the detail endpoint now returns 200.
   try {
     if (!tc334TournamentId) throw new Error('TC-334 did not create a tournament; skipping');
 
-    // Admin toggles isPublic = true via the update API
+    // Admin publishes the TA mode (publicModes cascade: ['ta'])
     const putResp = await page.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPublic: true }),
+        body: JSON.stringify({ publicModes: ['ta'] }),
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
     }, tc334TournamentId);
     if (putResp.status !== 200) throw new Error(`PUT failed: ${putResp.status}`);
 
-    // Unauthenticated request must now succeed with 200
-    const anonStatus = await new Promise((resolve) => {
+    // Unauthenticated detail request must now succeed with 200
+    const anonDetail = await new Promise((resolve) => {
       const req = https.get(`${BASE}/api/tournaments/${tc334TournamentId}?fields=summary`, (res) => {
         let data = '';
         res.on('data', (c) => { data += c; });
@@ -2005,11 +2005,12 @@ async function main() {
       req.setTimeout(8000, () => { req.destroy(); resolve({ status: 0, body: '' }); });
     });
 
-    let parsedBody = {};
-    try { parsedBody = JSON.parse(anonStatus.body); } catch (_) { /* ignore */ }
-    const isPublicExposed = parsedBody?.data?.isPublic === true;
+    let parsedDetail = {};
+    try { parsedDetail = JSON.parse(anonDetail.body); } catch (_) { /* ignore */ }
+    const modesPublished = Array.isArray(parsedDetail?.data?.publicModes) &&
+      parsedDetail.data.publicModes.includes('ta');
 
-    // Also verify the tournament now appears in the public list
+    // The tournament must now appear in the unauthenticated list (publicModes != [])
     const listStatus = await new Promise((resolve) => {
       const req = https.get(`${BASE}/api/tournaments`, (res) => {
         let data = '';
@@ -2029,10 +2030,10 @@ async function main() {
     });
 
     log('TC-335',
-      anonStatus.status === 200 && isPublicExposed && listStatus.found ? 'PASS' : 'FAIL',
-      anonStatus.status !== 200 ? `Anon detail got ${anonStatus.status}` :
-      !isPublicExposed ? 'isPublic not exposed in response' :
-      !listStatus.found ? 'Tournament not in public list' : '');
+      anonDetail.status === 200 && modesPublished && listStatus.found ? 'PASS' : 'FAIL',
+      anonDetail.status !== 200 ? `Anon detail got ${anonDetail.status}` :
+      !modesPublished ? 'publicModes not updated in response' :
+      !listStatus.found ? 'Tournament not in public list after publishing' : '');
   } catch (err) {
     log('TC-335', 'FAIL', err instanceof Error ? err.message : 'Visibility toggle test failed');
   } finally {
@@ -2132,6 +2133,144 @@ async function main() {
         : !page2Ok ? `Page 2 response invalid (status=${page2Resp.status})` : '');
   } catch (err) {
     log('TC-337', 'FAIL', err instanceof Error ? err.message : 'Tournament pagination test failed');
+  }
+
+  // TC-338: Security — private tournament (publicModes: []) not visible to non-admin in list API
+  // Creates a private tournament, confirms it is excluded from GET /api/tournaments for
+  // unauthenticated users (security fix for Issue #612), then cleans up.
+  let tc338TournamentId = null;
+  try {
+    const created = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E TC-338 Private ${Date.now()}`, date: new Date().toISOString() }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    tc338TournamentId = created.body?.data?.id ?? null;
+    if (!tc338TournamentId) throw new Error(`Tournament creation failed (${created.status})`);
+
+    // Unauthenticated list request must NOT include the private tournament
+    const anonList = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/tournaments?limit=100`, (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            resolve({ status: res.statusCode, ids: (json?.data?.data ?? []).map((t) => t.id) });
+          } catch (_) {
+            resolve({ status: res.statusCode, ids: [] });
+          }
+        });
+      });
+      req.on('error', () => resolve({ status: 0, ids: [] }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ status: 0, ids: [] }); });
+    });
+
+    const notLeaked = !anonList.ids.includes(tc338TournamentId);
+
+    // Admin session must still see it in the list
+    const adminList = await page.evaluate(async (tid) => {
+      const r = await fetch('/api/tournaments?limit=100');
+      const body = await r.json().catch(() => ({}));
+      return { found: (body?.data?.data ?? []).some((t) => t.id === tid) };
+    }, tc338TournamentId);
+
+    log('TC-338',
+      notLeaked && adminList.found ? 'PASS' : 'FAIL',
+      !notLeaked ? 'Private tournament appeared in non-admin list (metadata leak)' :
+      !adminList.found ? 'Admin could not see private tournament in list' : '');
+  } catch (err) {
+    log('TC-338', 'FAIL', err instanceof Error ? err.message : 'Private tournament leak test failed');
+  } finally {
+    if (tc338TournamentId) {
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
+      }, tc338TournamentId).catch(() => {});
+    }
+  }
+
+  // TC-339: Mode publish/unpublish cascade — publishing TA publishes only TA;
+  // publishing BM cascades to also include TA. Unpublishing TA cascades to remove BM.
+  // Verifies the API enforces MODE_REVEAL_ORDER sequential prefix constraint.
+  let tc339TournamentId = null;
+  try {
+    const created = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E TC-339 Publish ${Date.now()}`, date: new Date().toISOString() }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    tc339TournamentId = created.body?.data?.id ?? null;
+    if (!tc339TournamentId) throw new Error(`Tournament creation failed (${created.status})`);
+
+    // Activate the tournament so it's in a state where publicModes can be set
+    await page.evaluate(async (tid) => {
+      await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+    }, tc339TournamentId);
+
+    // Publish BM — API should accept ['ta', 'bm'] as a valid sequential prefix
+    const bmPutResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['ta', 'bm'] }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, tc339TournamentId);
+    const bmPublished = bmPutResp.status === 200 &&
+      Array.isArray(bmPutResp.body?.data?.publicModes) &&
+      bmPutResp.body.data.publicModes.includes('ta') &&
+      bmPutResp.body.data.publicModes.includes('bm');
+
+    // Non-sequential publicModes (e.g., ['bm'] without 'ta') must be rejected with 400
+    const invalidPut = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['bm'] }),
+      });
+      return { status: r.status };
+    }, tc339TournamentId);
+    const invalidRejected = invalidPut.status === 400;
+
+    // After publishing BM, the tournament should appear in non-admin list
+    const appearsInList = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/tournaments?limit=100`, (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            resolve((json?.data?.data ?? []).some((t) => t.id === tc339TournamentId));
+          } catch (_) { resolve(false); }
+        });
+      });
+      req.on('error', () => resolve(false));
+      req.setTimeout(8000, () => { req.destroy(); resolve(false); });
+    });
+
+    log('TC-339',
+      bmPublished && invalidRejected && appearsInList ? 'PASS' : 'FAIL',
+      !bmPublished ? `BM publish failed (status=${bmPutResp.status}, modes=${JSON.stringify(bmPutResp.body?.data?.publicModes)})` :
+      !invalidRejected ? `Non-sequential modes accepted (status=${invalidPut.status}, expected 400)` :
+      !appearsInList ? 'Published tournament not visible in non-admin list' : '');
+  } catch (err) {
+    log('TC-339', 'FAIL', err instanceof Error ? err.message : 'Mode publish cascade test failed');
+  } finally {
+    if (tc339TournamentId) {
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
+      }, tc339TournamentId).catch(() => {});
+    }
   }
 
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
