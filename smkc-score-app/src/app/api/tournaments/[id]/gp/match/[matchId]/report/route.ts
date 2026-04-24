@@ -150,6 +150,12 @@ export async function POST(
       return handleValidationError("Match not found", "matchId");
     }
 
+    /* Block participant reports for finals/playoff matches — admin enters finals
+     * scores via the /gp/finals bracket page only. */
+    if (match.stage === 'finals' || match.stage === 'playoff') {
+      return handleValidationError("Score entry for finals matches is only available to admins", "stage");
+    }
+
     /* Validate reportingPlayer before auth check to prevent invalid values propagating */
     if (reportingPlayer !== 1 && reportingPlayer !== 2) {
       return handleValidationError("reportingPlayer must be 1 or 2", "reportingPlayer");
