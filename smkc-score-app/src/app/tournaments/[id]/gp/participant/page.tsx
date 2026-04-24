@@ -73,9 +73,13 @@ export default function GrandPrixParticipantPage({
   const activeCups = useMemo(() => ({ ...matchCups, ...cupOverrides }), [matchCups, cupOverrides]);
 
   /* Auto-initialize 5 races from cup's fixed course order when matches load.
-   * This replaces the previous in-render setState which violated React rules. */
+   * setState inside useEffect is intentional here: the functional updater
+   * only commits when matches first load (checked by the `changed` flag),
+   * so no cascading renders occur. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ctx.myMatches.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRaceResults((prev) => {
       const next = { ...prev };
       let changed = false;

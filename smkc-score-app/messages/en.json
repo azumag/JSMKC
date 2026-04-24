@@ -122,7 +122,8 @@
     "resettingBracket": "Resetting...",
     "resetBracketConfirm": "Reset bracket? All existing finals and playoff data will be deleted.",
     "generateFinalsBracket": "Generate Finals Bracket",
-    "failedResetBracket": "Failed to reset bracket"
+    "failedResetBracket": "Failed to reset bracket",
+    "tbd": "TBD"
   },
   "home": {
     "tagline": "SMKC Score Management",
@@ -347,7 +348,6 @@
     "autoPair": "Auto-Pair by Seeding",
     "partner": "Partner",
     "ttSeedingLabel": "TT Seed",
-    "noPair": "(none)",
     "pairsSaved": "Pairs saved",
     "pairSaveError": "Failed to save pairs",
     "pairPartner": "Pair"
@@ -490,7 +490,25 @@
     "playoffPhase": "Playoff Phase",
     "playoffComplete": "Playoff Complete!",
     "createUpperBracket": "Create Upper Bracket",
-    "allPlayoffMatchesComplete": "All playoff matches complete! Create the upper bracket to continue."
+    "allPlayoffMatchesComplete": "All playoff matches complete! Create the upper bracket to continue.",
+    "winnersSection": "Winners Bracket",
+    "losersSection": "Losers Bracket",
+    "grandFinalSection": "Grand Final",
+    "losersBadge": "Losers",
+    "grandFinalBadge": "Grand Final",
+    "roundOne": "Round 1",
+    "roundTwo": "Round 2",
+    "roundThree": "Round 3",
+    "roundFour": "Round 4",
+    "quarterFinals": "Quarter Finals",
+    "semiFinals": "Semi Finals",
+    "bracketFinalRound": "Final",
+    "grandFinalMatch": "Grand Final",
+    "resetMatchLabel": "Reset (if needed)",
+    "playoffTitle": "Playoff (Barrage)",
+    "playoffAdvanceDesc": "{round} winners advance to Upper Bracket seeds 13-16",
+    "upperSeedLabel": "→ Upper Seed {seed}",
+    "cupLabel": "{name} Cup"
   },
   "match": {
     "enterScore": "Enter Score",
@@ -626,7 +644,8 @@
     "selfEditDisabled": "Self-editing is disabled for this tournament. Your partner will enter your times.",
     "myTimesReadOnly": "My Times (Read Only)",
     "partnerTimesSubmittedSuccess": "Partner's times submitted successfully!",
-    "qualificationLocked": "Qualification results are confirmed. Score editing is locked."
+    "qualificationLocked": "Qualification results are confirmed. Score editing is locked.",
+    "finals": "Finals"
   },
   "overall": {
     "title": "Overall Ranking",
@@ -646,7 +665,7 @@
     "pointsSystem": "Points System",
     "qualificationPoints": "Qualification Points (max 1000 per mode)",
     "taQualPoints": "TA: Linear interpolation by course rank (50 pts/course max)",
-    "otherQualPoints": "BM/MR/GP: Normalized match points (2\u00d7W + 1\u00d7T)",
+    "otherQualPoints": "BM/MR/GP: Normalized match points (2×W + 1×T)",
     "finalsPoints": "Finals Points (max 2000 per mode)",
     "finalsBreakdown1": "1st: 2000 | 2nd: 1600 | 3rd: 1300 | 4th: 1000",
     "finalsBreakdown2": "5th-6th: 750 | 7th-8th: 550 | 9th-12th: 400"
@@ -795,7 +814,6 @@
     "undoLastRound": "Undo Last Round",
     "undoRoundTitle": "Undo Last Round?",
     "undoRoundDesc": "This will clear the results of the last submitted round and restore player status to before that round. The course will remain assigned so you can re-enter times.",
-    "keepRound": "Keep Round",
     "yesUndoRound": "Yes, Undo Round",
     "undoing": "Undoing...",
     "courseOverrideLabel": "Course Selection (optional)",

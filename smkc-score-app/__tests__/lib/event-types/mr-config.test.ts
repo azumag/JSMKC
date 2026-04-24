@@ -6,7 +6,7 @@
  * - aggregatePlayerStats: 0-0 matches are skipped in standings
  */
 
-const { mrConfig } = require('@/lib/event-types/mr-config');
+import { mrConfig } from '@/lib/event-types/mr-config';
 
 const { calculateMatchResult, aggregatePlayerStats } = mrConfig;
 

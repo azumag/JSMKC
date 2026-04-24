@@ -122,7 +122,8 @@
     "resettingBracket": "リセット中...",
     "resetBracketConfirm": "ブラケットをリセットしますか？既存の決勝・プレーオフデータがすべて削除されます。",
     "failedResetBracket": "ブラケットのリセットに失敗しました",
-    "generateFinalsBracket": "決勝ブラケットを生成"
+    "generateFinalsBracket": "決勝ブラケットを生成",
+    "tbd": "未定"
   },
   "home": {
     "tagline": "SMKC スコア管理",
@@ -489,7 +490,25 @@
     "playoffPhase": "プレーオフフェーズ",
     "playoffComplete": "プレーオフ完了！",
     "createUpperBracket": "上位ブラケット作成",
-    "allPlayoffMatchesComplete": "全プレーオフ試合が完了しました！上位ブラケットを作成してください。"
+    "allPlayoffMatchesComplete": "全プレーオフ試合が完了しました！上位ブラケットを作成してください。",
+    "winnersSection": "勝者ブラケット",
+    "losersSection": "敗者ブラケット",
+    "grandFinalSection": "グランドファイナル",
+    "losersBadge": "敗者",
+    "grandFinalBadge": "グランドファイナル",
+    "roundOne": "ラウンド1",
+    "roundTwo": "ラウンド2",
+    "roundThree": "ラウンド3",
+    "roundFour": "ラウンド4",
+    "quarterFinals": "準々決勝",
+    "semiFinals": "準決勝",
+    "bracketFinalRound": "決勝",
+    "grandFinalMatch": "グランドファイナル",
+    "resetMatchLabel": "リセットマッチ（必要時）",
+    "playoffTitle": "プレーオフ（バラッジ）",
+    "playoffAdvanceDesc": "{round} 勝者はアッパーブラケット（シード13-16）へ進出",
+    "upperSeedLabel": "→ アッパーシード {seed}",
+    "cupLabel": "{name} カップ"
   },
   "match": {
     "enterScore": "スコア入力",
@@ -625,7 +644,8 @@
     "selfEditDisabled": "このトーナメントでは自分のタイムの編集が無効になっています。パートナーがあなたのタイムを入力します。",
     "myTimesReadOnly": "自分のタイム（閲覧のみ）",
     "partnerTimesSubmittedSuccess": "パートナーのタイムを送信しました！",
-    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。"
+    "qualificationLocked": "予選結果は確定済みです。スコア編集はロックされています。",
+    "finals": "決勝"
   },
   "overall": {
     "title": "総合ランキング",
@@ -767,7 +787,7 @@
     "submitting": "送信中...",
     "cancelRoundTitle": "ラウンドをキャンセルしますか？",
     "cancelRoundDesc": "ラウンド記録を削除し、コース（{course}）を利用可能プールに戻します。この操作は元に戻せません。",
-    "keepRound": "ラウンドを維持",
+    "keepRound": "キャンセルしない",
     "yesCancelRound": "はい、キャンセル",
     "cancelling": "キャンセル中...",
     "activeEliminated": "{active}名アクティブ、{eliminated}名敗退",
@@ -794,7 +814,6 @@
     "undoLastRound": "直前ラウンドを取り消す",
     "undoRoundTitle": "直前ラウンドを取り消しますか？",
     "undoRoundDesc": "直前に提出したラウンドの結果を消去し、プレイヤーの状態をそのラウンド前に戻します。コースは変わらないので、タイムを再入力できます。",
-    "keepRound": "キャンセルしない",
     "yesUndoRound": "はい、取り消す",
     "undoing": "取り消し中...",
     "courseOverrideLabel": "コース選択（任意）",

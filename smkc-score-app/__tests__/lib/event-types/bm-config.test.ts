@@ -7,7 +7,7 @@
  * - parsePutBody: required field validation, score-rule validation
  */
 
-const { bmConfig } = require('@/lib/event-types/bm-config');
+import { bmConfig } from '@/lib/event-types/bm-config';
 
 const { calculateMatchResult, aggregatePlayerStats, parsePutBody } = bmConfig;
 

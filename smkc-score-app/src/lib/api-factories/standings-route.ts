@@ -176,9 +176,11 @@ export function createStandingsHandlers(config: StandingsConfig) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const preview: any[] = [];
           for (let i = 0; i < qualifications.length; i++) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const q = qualifications[i] as any;
             if (i === 0) preview.push({ ...q, _rank: 1 });
             else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const prev = qualifications[i - 1] as any;
               const isTied = (config.orderBy ?? []).every((ob) => {
                 const field = Object.keys(ob)[0];
