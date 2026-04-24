@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Sort: newest tournaments first for relevance.
     const result = await paginate(
       {
-        findMany: prisma.tournament.findMany,
+        findMany: prisma.tournament.findMany.bind(prisma.tournament),
         count: prisma.tournament.count,
       },
       where,
