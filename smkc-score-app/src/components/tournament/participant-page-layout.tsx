@@ -249,7 +249,7 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                           {tPart("tvInfo", { tv: match.tvNumber ?? "" })} •{" "}
                           {match.stage === "qualification"
                             ? tPart("qualification")
-                            : "Finals"}
+                            : tPart("finals")}
                           {renderCardHeaderExtra?.(match)}
                         </CardDescription>
                       </div>

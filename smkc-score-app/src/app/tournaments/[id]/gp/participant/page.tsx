@@ -79,6 +79,7 @@ export default function GrandPrixParticipantPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ctx.myMatches.length === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRaceResults((prev) => {
       const next = { ...prev };
       let changed = false;

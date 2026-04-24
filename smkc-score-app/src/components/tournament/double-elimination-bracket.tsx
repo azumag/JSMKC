@@ -23,6 +23,7 @@
 
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,7 @@ function MatchCard({
   isTBD: boolean;
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }) {
+  const tc = useTranslations("common");
   /* Look up seeded players for displaying seed numbers in first-round matches */
   const seededPlayer1 = bracketMatch.player1Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
@@ -132,7 +134,7 @@ function MatchCard({
       onClick={onClick}
       role="button"
       tabIndex={0}
-      aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || 'TBD'} vs ${player2?.nickname || 'TBD'}${showTBD ? ' (Pending)' : ''}`}
+      aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || tc('tbd')} vs ${player2?.nickname || tc('tbd')}${showTBD ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
         if (e.key === 'Enter' || e.key === ' ') {
@@ -160,7 +162,7 @@ function MatchCard({
             </span>
           )}
           <span className={showTBD ? "text-muted-foreground" : ""}>
-            {showTBD ? "TBD" : player1?.nickname || "TBD"}
+            {showTBD ? tc("tbd") : player1?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -182,7 +184,7 @@ function MatchCard({
             </span>
           )}
           <span className={showTBD ? "text-muted-foreground" : ""}>
-            {showTBD ? "TBD" : player2?.nickname || "TBD"}
+            {showTBD ? tc("tbd") : player2?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -213,6 +215,7 @@ function BracketSection({
   children: React.ReactNode;
   variant?: "default" | "losers" | "final";
 }) {
+  const tf = useTranslations("finals");
   return (
     <Card
       className={cn(
@@ -227,12 +230,12 @@ function BracketSection({
           {/* Badge indicators for losers and final brackets */}
           {variant === "losers" && (
             <Badge variant="outline" className="text-orange-500 border-orange-500">
-              Losers
+              {tf("losersBadge")}
             </Badge>
           )}
           {variant === "final" && (
             <Badge variant="outline" className="text-yellow-500 border-yellow-500">
-              Grand Final
+              {tf("grandFinalBadge")}
             </Badge>
           )}
         </CardTitle>
@@ -258,6 +261,7 @@ export function DoubleEliminationBracket({
   seededPlayers,
   getTargetWins,
 }: DoubleEliminationBracketProps) {
+  const tf = useTranslations("finals");
   /** Look up a match by its bracket match number */
   const getMatch = (matchNumber: number) =>
     matches.find((m) => m.matchNumber === matchNumber);
@@ -309,7 +313,7 @@ export function DoubleEliminationBracket({
   return (
     <div className="space-y-6" role="region" aria-live="polite" aria-atomic="false">
       {/* Winners Bracket - Players with no losses */}
-      <BracketSection title="Winners Bracket">
+      <BracketSection title={tf("winnersSection")}>
         {/* overflow-x-auto stays on at every breakpoint: 16-player brackets have
          * five round columns (R1 → QF → SF → Final + gaps) that routinely exceed
          * the container width on desktop. Without horizontal scrolling here the
@@ -319,7 +323,7 @@ export function DoubleEliminationBracket({
           {is16Player && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground">
-                Round 1
+                {tf("roundOne")}
               </h4>
               <div className="flex flex-col gap-2">
                 {winnersR1.map((b) => (
@@ -343,7 +347,7 @@ export function DoubleEliminationBracket({
           {/* Quarter Finals */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Quarter Finals
+              {tf("quarterFinals")}
             </h4>
             <div className="flex flex-col gap-2">
               {winnersQF.map((b) => (
@@ -366,7 +370,7 @@ export function DoubleEliminationBracket({
           {/* Semi Finals - Winners of QF matches */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Semi Finals
+              {tf("semiFinals")}
             </h4>
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersSF.map((b) => (
@@ -388,7 +392,7 @@ export function DoubleEliminationBracket({
 
           {/* Winners Final - Winner proceeds to Grand Final undefeated */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Final</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">{tf("bracketFinalRound")}</h4>
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersFinal.map((b) => (
                 <MatchCard
@@ -410,7 +414,7 @@ export function DoubleEliminationBracket({
       </BracketSection>
 
       {/* Losers Bracket - Players with one loss get a second chance */}
-      <BracketSection title="Losers Bracket" variant="losers">
+      <BracketSection title={tf("losersSection")} variant="losers">
         {/* See Winners Bracket above: horizontal scrolling must stay enabled on
          * desktop so wide 16-player losers brackets (up to 6 round columns) can
          * scroll instead of overflowing the containing pane (issue #424). */}
@@ -418,7 +422,7 @@ export function DoubleEliminationBracket({
           {/* Losers Round 1 - First matchups of eliminated players */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Round 1
+              {tf("roundOne")}
             </h4>
             <div className="flex flex-col gap-2">
               {losersR1.map((b) => (
@@ -441,7 +445,7 @@ export function DoubleEliminationBracket({
           {/* Losers Round 2 */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Round 2
+              {tf("roundTwo")}
             </h4>
             <div className="flex flex-col gap-2">
               {losersR2.map((b) => (
@@ -464,7 +468,7 @@ export function DoubleEliminationBracket({
           {/* Losers Round 3 */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Round 3
+              {tf("roundThree")}
             </h4>
             <div className="flex flex-col gap-2">
               {losersR3.map((b) => (
@@ -488,7 +492,7 @@ export function DoubleEliminationBracket({
           {losersR4.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground">
-                Round 4
+                {tf("roundFour")}
               </h4>
               <div className="flex flex-col gap-2">
                 {losersR4.map((b) => (
@@ -512,7 +516,7 @@ export function DoubleEliminationBracket({
           {/* Losers Semi Final */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Semi Final
+              {tf("semiFinals")}
             </h4>
             <div className="flex flex-col gap-2">
               {losersSF.map((b) => (
@@ -534,7 +538,7 @@ export function DoubleEliminationBracket({
 
           {/* Losers Final - Winner advances to Grand Final */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Final</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">{tf("bracketFinalRound")}</h4>
             <div className="flex flex-col gap-2">
               {losersFinal.map((b) => (
                 <MatchCard
@@ -556,14 +560,14 @@ export function DoubleEliminationBracket({
       </BracketSection>
 
       {/* Grand Final - Winners champion vs Losers champion */}
-      <BracketSection title="Grand Final" variant="final">
+      <BracketSection title={tf("grandFinalSection")} variant="final">
         {/* Kept consistent with Winners/Losers sections for predictable layout
          * behaviour across all bracket sections (issue #424). */}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Grand Final match */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Grand Final
+              {tf("grandFinalMatch")}
             </h4>
             {grandFinal.map((b) => (
               <MatchCard
@@ -588,7 +592,7 @@ export function DoubleEliminationBracket({
            */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Reset (if needed)
+              {tf("resetMatchLabel")}
             </h4>
             {grandFinalReset.map((b) => (
               <MatchCard

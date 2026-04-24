@@ -17,6 +17,7 @@ const customJestConfig: Config = {
     '^next-auth/providers/github$': '<rootDir>/__mocks__/next-auth-providers/github.js',
     '^next-auth/providers/google$': '<rootDir>/__mocks__/next-auth-providers/google.js',
     '^next-auth/providers/credentials$': '<rootDir>/__mocks__/next-auth-providers/credentials.js',
+    '^next-intl$': '<rootDir>/__mocks__/next-intl.js',
   },
   testEnvironment: 'node',
   collectCoverageFrom: [
@@ -44,7 +45,7 @@ const customJestConfig: Config = {
   // A root babel.config.js was previously used here but it interfered with
   // Next.js Turbopack builds, which also pick up project-level Babel configs.
   transformIgnorePatterns: [
-    'node_modules/(?!(html-encoding-sniffer|@exodus)/)',
+    'node_modules/(?!(html-encoding-sniffer|@exodus|next-intl|use-intl|@formatjs)/)',
     '^.+\\.module\\.(css|sass|scss)$',
   ],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],

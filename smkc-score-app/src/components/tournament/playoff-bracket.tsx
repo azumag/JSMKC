@@ -18,6 +18,7 @@
 
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,8 @@ function PlayoffMatchCard({
   isPlayer2TBD: boolean;
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
 }) {
+  const tc = useTranslations("common");
+  const tf = useTranslations("finals");
   const seededPlayer1 = bracketMatch.player1Seed
     ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
     : undefined;
@@ -126,7 +129,7 @@ function PlayoffMatchCard({
       </div>
       {match?.cup && (
         <div className="mb-1 text-[11px] text-blue-600">
-          {match.cup} Cup
+          {tf("cupLabel", { name: match.cup })}
         </div>
       )}
 
@@ -144,7 +147,7 @@ function PlayoffMatchCard({
             </span>
           )}
           <span className={isPlayer1TBD ? "text-muted-foreground" : ""}>
-            {isPlayer1TBD ? "TBD" : player1?.nickname || "TBD"}
+            {isPlayer1TBD ? tc("tbd") : player1?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -166,7 +169,7 @@ function PlayoffMatchCard({
             </span>
           )}
           <span className={isPlayer2TBD ? "text-muted-foreground" : ""}>
-            {isPlayer2TBD ? "TBD" : player2?.nickname || "TBD"}
+            {isPlayer2TBD ? tc("tbd") : player2?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -177,7 +180,7 @@ function PlayoffMatchCard({
       {/* Upper seed label for completed playoff_r2 matches */}
       {match?.completed && bracketMatch.advancesToUpperSeed && (
         <div className="mt-1 text-xs text-blue-500 font-medium">
-          → Upper Seed {bracketMatch.advancesToUpperSeed}
+          {tf("upperSeedLabel", { seed: bracketMatch.advancesToUpperSeed })}
         </div>
       )}
     </div>
@@ -196,6 +199,7 @@ export function PlayoffBracket({
   seededPlayers,
   getTargetWins,
 }: PlayoffBracketProps) {
+  const tf = useTranslations("finals");
   const getMatch = (matchNumber: number) =>
     playoffMatches.find((m) => m.matchNumber === matchNumber);
 
@@ -239,22 +243,22 @@ export function PlayoffBracket({
   const playoffR1 = playoffStructure.filter((b) => b.round === "playoff_r1");
   const playoffR2 = playoffStructure.filter((b) => b.round === "playoff_r2");
 
-  const r1RoundName = roundNames["playoff_r1"] || "Playoff Round 1";
-  const r2RoundName = roundNames["playoff_r2"] || "Playoff Round 2";
+  const r1RoundName = roundNames["playoff_r1"] || tf("roundOne");
+  const r2RoundName = roundNames["playoff_r2"] || tf("roundTwo");
 
   return (
     <Card className="border-blue-500/30">
       <CardHeader className="py-3">
         <CardTitle className="text-lg flex items-center gap-2">
-          Playoff (Barrage)
+          {tf("playoffTitle")}
           <Badge variant="outline" className="text-blue-500 border-blue-500">
-            Top 24
+            {tf("top24")}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4">
-          {r2RoundName} winners advance to Upper Bracket seeds 13-16
+          {tf("playoffAdvanceDesc", { round: r2RoundName })}
         </p>
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Playoff Round 1 */}

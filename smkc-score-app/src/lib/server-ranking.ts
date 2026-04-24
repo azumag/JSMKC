@@ -158,7 +158,6 @@ function assignRanksForPartition(
  * @param options        - Optional score field mapping for H2H winner detection.
  * @returns              - New array with `_rank` / `_rankOverridden` injected.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function computeQualificationRanks(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   qualifications: any[],
