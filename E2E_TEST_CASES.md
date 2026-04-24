@@ -458,6 +458,37 @@
   4. `authenticated: true` が含まれることを確認
 - **期待結果**: セッション状態が正しくレスポンスに反映される
 
+## TC-328: キャラクター統計 API — 管理者のみアクセス可・レスポンス形式確認
+- **URL**: /api/players/[playerId]/character-stats
+- **authRequired**: true (admin)
+- **背景**: プレイヤーのキャラクター別使用統計（matchCount, winCount, winRate）を返すエンドポイント。管理者専用で未認証リクエストは 401/403 で拒否される
+- **手順**:
+  1. 管理者セッションで `GET /api/players/[playerId]/character-stats` を呼び出す
+  2. レスポンスが `{ success: true, data: { playerId, characterStats: [...], ... } }` 形式であることを確認
+  3. 未認証リクエストが 401 または 403 で拒否されることを確認
+- **期待結果**: 管理者は characterStats 配列を取得できる。未認証は拒否される
+
+## TC-329: スコア入力ログ API — 管理者のみ取得可・監査証跡確認
+- **URL**: /api/tournaments/[id]/score-entry-logs
+- **authRequired**: true (admin)
+- **背景**: スコア入力の監査ログをマッチ別にグループ化して返すエンドポイント。管理者専用
+- **手順**:
+  1. 管理者セッションで `GET /api/tournaments/[id]/score-entry-logs` を呼び出す
+  2. レスポンスが `{ success: true, data: { tournamentId, logsByMatch: {...}, totalCount: number } }` 形式であることを確認
+  3. 未認証リクエストが 401 または 403 で拒否されることを確認
+- **期待結果**: 管理者はスコア入力の監査ログを取得できる。未認証は拒否される
+
+## TC-330: TA revival URL リダイレクト — revival-1→phase1, revival-2→phase2
+- **URL**: /tournaments/[id]/ta/revival-1, /tournaments/[id]/ta/revival-2
+- **authRequired**: false
+- **背景**: revival_* URL は phase* URL に統一された際に旧パスが削除され、後方互換のためリダイレクトが実装されている
+- **手順**:
+  1. `/tournaments/[id]/ta/revival-1` にアクセスする
+  2. `/tournaments/[id]/ta/phase1` にリダイレクトされることを確認
+  3. `/tournaments/[id]/ta/revival-2` にアクセスする
+  4. `/tournaments/[id]/ta/phase2` にリダイレクトされることを確認
+- **期待結果**: 旧 revival-* URL が正しく phase* URL にリダイレクトされる
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
