@@ -70,7 +70,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -725,8 +725,14 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Cup display with §7.1 substitution toggle */}
-            {selectedMatch?.cup && (
+            {/* Cup selection:
+              - If the match has an assigned cup (new bracket), show the badge
+                with the §7.1 substitution toggle.
+              - If not (legacy tournaments created before cup assignment landed,
+                where match.cup is null), let the admin pick any cup so scores
+                can still be entered. Without this fallback the race table
+                never renders and the Save button stays disabled. */}
+            {selectedMatch?.cup ? (
               <div className="flex items-center gap-3">
                 <Badge variant="outline">{tGp('cupLabel', { cup: scoreForm.cup || selectedMatch.cup })}</Badge>
                 {CUP_SUBSTITUTIONS[selectedMatch.cup] && (
@@ -749,6 +755,29 @@ export default function GrandPrixFinals({
                       : tGp('switchBackToAssigned', { cup: selectedMatch.cup })}
                   </Button>
                 )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>{tGp('selectCup')}</Label>
+                <Select
+                  value={scoreForm.cup}
+                  onValueChange={(value) => {
+                    setScoreForm((current) => ({
+                      ...current,
+                      cup: value,
+                      races: getCupCourses(value).map((course) => ({ course, position1: null, position2: null })),
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={tGp('selectCupPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUPS.map((cup) => (
+                      <SelectItem key={cup} value={cup}>{cup}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 

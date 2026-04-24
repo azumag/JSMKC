@@ -55,6 +55,7 @@ const logger = createLogger({ serviceName: 'tournaments-gp-match' });
 interface GPMatch {
   id: string;
   matchNumber: number;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   points1: number;
@@ -386,9 +387,10 @@ export default function GPMatchPage({
           </Card>
         )}
 
-        {/* Result entry form (shown when match is not complete and user is authorized)
-            Participants can report here. Admins use the main mode page dialogs. */}
-        {!match.completed && !submitted && canReport && !isAdmin && (
+        {/* Result entry form (shown when match is not complete, user is authorized,
+            and match is a qualification match — finals scores are entered by admin
+            via the /gp/finals bracket page only). */}
+        {!match.completed && !submitted && canReport && !isAdmin && match.stage !== 'finals' && match.stage !== 'playoff' && (
           <Card>
             <CardHeader>
               <CardTitle>{tMatch('enterResult')}</CardTitle>
