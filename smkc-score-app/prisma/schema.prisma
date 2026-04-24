@@ -129,7 +129,7 @@ model Tournament {
   frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   qualificationConfirmed Boolean @default(false) // BM/MR/GP予選確定フラグ。trueの場合スコア編集不可
   qualificationConfirmedAt DateTime? // 予選確定日時（監査証跡）
-  isPublic      Boolean  @default(false) // trueの場合プレイヤー側に公開。falseはadminのみ閲覧可
+  publicModes   Json     @default("[\"ta\",\"bm\",\"mr\",\"gp\"]") // 公開中のモード配列。空の場合全モード非表示
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用
   createdAt     DateTime @default(now())

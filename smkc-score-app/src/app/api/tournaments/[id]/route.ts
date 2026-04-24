@@ -75,7 +75,7 @@ export async function GET(
             name: true,
             date: true,
             status: true,
-            isPublic: true,
+            publicModes: true,
             frozenStages: true,
             qualificationConfirmed: true,
             createdAt: true,
@@ -87,7 +87,7 @@ export async function GET(
             name: true,
             date: true,
             status: true,
-            isPublic: true,
+            publicModes: true,
             frozenStages: true,
             qualificationConfirmed: true,
             createdAt: true,
@@ -110,12 +110,15 @@ export async function GET(
       return createErrorResponse("Tournament not found", 404);
     }
 
-    // Private tournaments are only accessible to admins.
-    if (!tournament.isPublic) {
-      const session = await auth();
-      if (session?.user?.role !== 'admin') {
-        return handleAuthzError("This tournament is not yet public");
-      }
+    // Visibility check based on publicModes (not isPublic).
+    // Admin users can see all modes regardless of publicModes setting.
+    const session = await auth();
+    const isAdmin = session?.user?.role === 'admin';
+
+    // Non-admin: check if at least one mode is public
+    const publicModes = tournament.publicModes as string[] || [];
+    if (!isAdmin && publicModes.length === 0) {
+      return handleAuthzError("This tournament has no visible modes");
     }
 
     return createSuccessResponse(tournament);
@@ -162,7 +165,7 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed, isPublic } = body;
+    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed, publicModes } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -183,6 +186,19 @@ export async function PUT(
       }
     }
 
+    // Validate publicModes: must be an array of valid mode names.
+    const VALID_MODES = ["ta", "bm", "mr", "gp"];
+    if (publicModes !== undefined) {
+      if (
+        !Array.isArray(publicModes) ||
+        !publicModes.every(
+          (m: unknown) => typeof m === "string" && VALID_MODES.includes(m)
+        )
+      ) {
+        return handleValidationError("publicModes must be an array of valid mode names (ta, bm, mr, gp)", "publicModes");
+      }
+    }
+
     // Use spread conditionals to only update fields that were provided.
     // This prevents accidentally nullifying fields that weren't included
     // in the request body.
@@ -199,7 +215,7 @@ export async function PUT(
           qualificationConfirmed: qualificationConfirmed === true,
           qualificationConfirmedAt: qualificationConfirmed ? new Date() : null,
         }),
-        ...(isPublic !== undefined && { isPublic: isPublic === true }),
+        ...(publicModes !== undefined && { publicModes }),
       },
     });
 
@@ -221,7 +237,7 @@ export async function PUT(
           status,
           frozenStages,
           qualificationConfirmed,
-          isPublic,
+          publicModes,
         },
       });
     } catch (logError) {

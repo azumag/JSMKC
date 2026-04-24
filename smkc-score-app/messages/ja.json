@@ -277,7 +277,10 @@
     "battleMode": "バトルモード",
     "matchRace": "マッチレース",
     "grandPrix": "グランプリ",
-    "overall": "総合"
+    "overall": "総合",
+    "visibleModes": "公開中",
+    "hidden": "非表示",
+    "hiddenModes": "全非表示"
   },
   "ta": {
     "title": "タイムアタック",

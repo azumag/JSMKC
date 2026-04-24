@@ -273,11 +273,14 @@
     "public": "Public",
     "visibilityUpdated": "Visibility updated",
     "failedToUpdateVisibility": "Failed to update visibility",
+    "visibleModes": "Visible",
+    "hidden": "Hidden",
     "timeTrial": "Time Trial",
     "battleMode": "Battle Mode",
     "matchRace": "Match Race",
     "grandPrix": "Grand Prix",
-    "overall": "Overall"
+    "overall": "Overall",
+    "hiddenModes": "All Hidden"
   },
   "ta": {
     "title": "Time Trial",

@@ -79,7 +79,7 @@ interface Tournament {
   name: string;
   date: string;
   status: string;
-  isPublic: boolean;
+  publicModes: string[];
   createdAt: string;
 }
 
@@ -415,9 +415,9 @@ export default function TournamentsPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getStatusBadge(tournament.status)}
-                          {/* Private badge: visible to admins when tournament is not yet public */}
-                          {isAdmin && !tournament.isPublic && (
-                            <Badge variant="destructive">{t('private')}</Badge>
+                          {/* Private badge: visible to admins when no modes are public */}
+                          {isAdmin && (tournament.publicModes ?? []).length === 0 && (
+                            <Badge variant="destructive">{t('hiddenModes')}</Badge>
                           )}
                         </div>
                       </TableCell>

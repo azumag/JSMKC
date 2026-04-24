@@ -50,10 +50,13 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
 
-    // Admins see all tournaments; non-admins only see public ones.
+    // Admins see all tournaments; non-admins only see tournaments
+    // where publicModes has at least one mode (all non-admin visibility is now per-mode).
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
-    const where = isAdmin ? {} : { isPublic: true };
+    // No isPublic filter needed since visibility is now per-mode.
+    // Non-admin users see tournaments if they have at least one public mode (client-side filter).
+    const where = {};
 
     // Use the paginate utility for consistent pagination behavior.
     // Sort: newest tournaments first for relevance.

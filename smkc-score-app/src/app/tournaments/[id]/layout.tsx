@@ -41,7 +41,7 @@ interface Tournament {
   name: string;
   date: string;
   status: string;
-  isPublic: boolean;
+  publicModes: string[];
 }
 
 /**
@@ -193,17 +193,23 @@ export default function TournamentLayout({
   };
 
   /**
-   * Toggles the tournament's public visibility.
-   * Private tournaments are hidden from non-admin users on the list and detail pages.
+   * Toggles a single mode's public visibility.
+   * Admins can show/hide each mode (TA, BM, MR, GP) independently.
+   * Non-admin users only see modes that are in publicModes.
    */
   const [visibilityUpdating, setVisibilityUpdating] = useState(false);
-  const updateVisibility = async (isPublic: boolean) => {
+  const toggleMode = async (mode: string) => {
     setVisibilityUpdating(true);
     try {
+      const currentModes = tournament?.publicModes ?? ["ta", "bm", "mr", "gp"];
+      const isPublic = currentModes.includes(mode);
+      const newModes = isPublic
+        ? currentModes.filter((m) => m !== mode)
+        : [...currentModes, mode];
       const response = await fetch(`/api/tournaments/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPublic }),
+        body: JSON.stringify({ publicModes: newModes }),
       });
       if (response.ok) {
         fetchTournament();
@@ -287,10 +293,6 @@ export default function TournamentLayout({
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold">{tournament.name}</h1>
               {getStatusBadge(tournament.status)}
-              {/* Visibility badge: warn admins when tournament is still private */}
-              {isAdmin && !tournament.isPublic && (
-                <Badge variant="destructive">{t("private")}</Badge>
-              )}
             </div>
             <p className="text-muted-foreground">
               {new Date(tournament.date).toLocaleDateString()}
@@ -313,15 +315,28 @@ export default function TournamentLayout({
                 {t("completeTournament")}
               </Button>
             )}
-            {/* Public/Private toggle (admin only) */}
+            {/* Per-mode visibility toggles (admin only) */}
             {isAdmin && (
-              <Button
-                variant={tournament.isPublic ? "outline" : "default"}
-                onClick={() => updateVisibility(!tournament.isPublic)}
-                disabled={visibilityUpdating}
-              >
-                {tournament.isPublic ? t("makePrivate") : t("makePublic")}
-              </Button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground mr-1">
+                  {t("visibleModes")}:
+                </span>
+                {["ta", "bm", "mr", "gp"].map((mode) => {
+                  const isPublic = (tournament.publicModes ?? []).includes(mode);
+                  return (
+                    <Button
+                      key={mode}
+                      variant={isPublic ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleMode(mode)}
+                      disabled={visibilityUpdating}
+                      className="h-8 px-2 text-xs"
+                    >
+                      {t(mode)}
+                    </Button>
+                  );
+                })}
+              </div>
             )}
             {/* Export button for downloading tournament data (admin only) */}
             {isAdmin && (
@@ -353,19 +368,31 @@ export default function TournamentLayout({
          * - Inactive tab: transparent with hover effect
          */}
         <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
-          {TABS.map((tab) => (
-            <Link
-              key={tab.href}
-              href={`/tournaments/${id}/${tab.href}`}
-              className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                activeTab === tab.href
-                  ? "bg-background text-foreground shadow-sm"
-                  : "hover:bg-background/50 hover:text-foreground"
-              }`}
-            >
-              {t(tab.labelKey)}
-            </Link>
-          ))}
+          {TABS.map((tab) => {
+            // Only filter for non-admin users
+            const modeName = tab.href === "overall-ranking" ? null : tab.href;
+            const isHidden = modeName && !isAdmin && !(tournament.publicModes ?? []).includes(modeName);
+            if (isHidden) return null;
+
+            return (
+              <Link
+                key={tab.href}
+                href={`/tournaments/${id}/${tab.href}`}
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  activeTab === tab.href
+                    ? "bg-background text-foreground shadow-sm"
+                    : "hover:bg-background/50 hover:text-foreground"
+                }`}
+              >
+                {t(tab.labelKey)}
+                {isAdmin && modeName && !(tournament.publicModes ?? []).includes(modeName) && (
+                  <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
+                    {t("hidden")}
+                  </Badge>
+                )}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Child page content (TA, BM, MR, GP, or Overall sub-page) */}
