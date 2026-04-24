@@ -135,6 +135,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         playoffStructure: [],
         playoffSeededPlayers: [],
         playoffComplete: false,
+        qualificationConfirmed: false,
       });
       expect(result.status).toBe(200);
       expect(paginate).toHaveBeenCalledWith(
@@ -211,6 +212,132 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.status).toBe(500);
       expect(logger.error).toHaveBeenCalled();
+    });
+
+    /**
+     * Cup-per-round normalizer: when legacy playoff rows have divergent cups
+     * within a single round (e.g. M1=Flower, M2=Star, M3/M4=null — possible
+     * from PR #583's old client-side random fallback), GET must converge
+     * them to one canonical cup per round via updateMany. Regression guard
+     * for PR #585: make sure every match in the same round shares one cup.
+     */
+    it('should force every playoff match in a round to the same cup', async () => {
+      const mixedRoundMatches = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star',   player1: {}, player2: {} },
+        { id: 'pm3', matchNumber: 3, round: 'playoff_r1', cup: null,     player1: {}, player2: {} },
+        { id: 'pm4', matchNumber: 4, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+      ];
+      /* 1st findMany: playoff fetch (returns mixed state).
+       * 2nd findMany: re-fetch after backfill (dominant cup everywhere).
+       * 3rd findMany: finals legacy-detection scan (empty — no finals rows). */
+      const normalizedRoundMatches = mixedRoundMatches.map((m) => ({ ...m, cup: 'Flower' }));
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(mixedRoundMatches)
+        .mockResolvedValueOnce(normalizedRoundMatches)
+        .mockResolvedValueOnce([]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 3 });
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      /* updateMany called once per round that needed repair. 'Flower' is the
+       * dominant cup (2 occurrences) so it wins over Star (1) and null. The
+       * NOT filter avoids touching rows that already match. */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateManyMock = (prisma.gPMatch as any).updateMany as jest.Mock;
+      expect(updateManyMock).toHaveBeenCalledWith({
+        where: {
+          tournamentId: 't1',
+          stage: 'playoff',
+          round: 'playoff_r1',
+          NOT: { cup: 'Flower' },
+        },
+        data: { cup: 'Flower' },
+      });
+    });
+
+    /**
+     * When a round has every match at cup=null, the normalizer still picks
+     * one cup for the whole round (from the shuffled CUPS list) and applies
+     * it to all four matches — guaranteeing M1=M2=M3=M4.
+     */
+    it('should assign one cup to an entirely null-cup round', async () => {
+      const nullRoundMatches = [1, 2, 3, 4].map((n) => ({
+        id: `pm${n}`,
+        matchNumber: n,
+        round: 'playoff_r1',
+        cup: null,
+        player1: {},
+        player2: {},
+      }));
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(nullRoundMatches)
+        .mockResolvedValueOnce(nullRoundMatches)  // post-backfill (irrelevant content)
+        .mockResolvedValueOnce([]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 4 });
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateManyMock = (prisma.gPMatch as any).updateMany as jest.Mock;
+      expect(updateManyMock).toHaveBeenCalledTimes(1);
+      const call = updateManyMock.mock.calls[0][0];
+      expect(call.where).toMatchObject({
+        tournamentId: 't1',
+        stage: 'playoff',
+        round: 'playoff_r1',
+      });
+      expect(call.where.NOT.cup).toEqual(call.data.cup);
+      expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(call.data.cup);
+    });
+
+    /**
+     * Already-normalized tournaments must not trigger any writes. Prevents
+     * polling from churning the DB on every GET.
+     */
+    it('should not write when every round already has one cup', async () => {
+      const normalized = [
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+      ];
+      (prisma.gPMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(normalized)
+        .mockResolvedValueOnce([]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.gPMatch as any).updateMany = jest.fn();
+
+      (paginate as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 50, total: 0, totalPages: 1 },
+      });
+      (generateBracketStructure as jest.Mock).mockReturnValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((prisma.gPMatch as any).updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -458,6 +585,57 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
           data: { player1Id: 'p1' },
         })
       );
+    });
+
+    /**
+     * Admin manual total-score override (#585): when only score1/score2 are
+     * sent without cup/races, the existing race breakdown must be preserved
+     * — the PUT body's putAdditionalFields copies `cup`/`races` only when
+     * explicitly present. Regression guard: make sure manual entry doesn't
+     * wipe the stored race array.
+     */
+    it('should preserve cup and races when manual override omits them', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        round: 'winners_qf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        cup: 'Mushroom',
+        races: [{ course: 'LC', position1: 1, position2: 2, points1: 9, points2: 6 }],
+        points1: 0,
+        points2: 0,
+        completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 27, points2: 18, completed: true });
+      (generateBracketStructure as jest.Mock).mockReturnValue([
+        { matchNumber: 1, round: 'winners_qf', winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
+      ]);
+      (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+
+      /* Manual override body: score1/score2 only — no cup, no races. */
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 27, score2: 18 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      await PUT(request, { params });
+
+      /* First update call is the score write for m1; that call's data must
+       * not include cup/races so the stored values remain intact. */
+      const firstUpdateCall = (prisma.gPMatch.update as jest.Mock).mock.calls[0][0];
+      expect(firstUpdateCall.where).toEqual({ id: 'm1' });
+      expect(firstUpdateCall.data.points1).toBe(27);
+      expect(firstUpdateCall.data.points2).toBe(18);
+      expect(firstUpdateCall.data.completed).toBe(true);
+      expect(firstUpdateCall.data).not.toHaveProperty('cup');
+      expect(firstUpdateCall.data).not.toHaveProperty('races');
     });
 
     // Success case - Completes tournament with winner from winners bracket
