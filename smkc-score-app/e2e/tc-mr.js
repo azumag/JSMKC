@@ -26,6 +26,7 @@
  *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
  *  TC-620  MR qualification tie resolution (tie warning → resolveAllTies)
+ *  TC-621  MR per-round target-wins API validation (issue #528: FT3/FT4/FT5)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -1342,6 +1343,80 @@ async function runTc620(adminPage) {
   }
 }
 
+/* ───────── TC-621: MR per-round target-wins API validation (issue #528) ─────────
+ * Verifies the MR finals API enforces the correct FT per round:
+ *   - playoff_r1 → FT3: score > 3 rejected; score 3-x accepted
+ *   - playoff_r2 → FT4: score > 4 rejected; score 4-x accepted
+ *   - winners_qf → FT5: score > 5 rejected; score 5-x accepted
+ *
+ * MR differs from BM: winners_final/losers_final/grand_final use FT9 (not FT7). */
+async function runTc621(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    /* ── Phase 1: 8-player bracket — winners_qf = FT5 ── */
+    const gen8 = await generateMrFinalsBracket(adminPage, tournamentId, 8);
+    if (gen8.s !== 201) throw new Error(`8-player MR bracket gen failed (${gen8.s})`);
+
+    const matches8 = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const qfMatch = matches8.find((m) => m.round === 'winners_qf' && m.player1Id && m.player2Id);
+    if (!qfMatch) throw new Error('No ready winners_qf match found');
+
+    /* Score 6-0 should be rejected (FT5 max = 5). */
+    const rejectQf = await setMrFinalsScore(adminPage, tournamentId, qfMatch.id, 6, 0);
+    const qfRejected = rejectQf.s === 400;
+
+    /* Score 5-3 should be accepted (player 1 reaches FT5 exactly). */
+    const acceptQf = await setMrFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 3);
+    const qfAccepted = acceptQf.s === 200;
+
+    /* ── Phase 2: 24-player playoff — playoff_r1 = FT3, playoff_r2 = FT4 ── */
+    const gen24 = await generateMrFinalsBracket(adminPage, tournamentId, 24);
+    if (gen24.s !== 201 && gen24.s !== 200) throw new Error(`24-player MR bracket gen failed (${gen24.s})`);
+
+    const state24 = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const r1Match = (state24.playoffMatches || []).find(
+      (m) => m.round === 'playoff_r1' && m.player1Id && m.player2Id,
+    );
+    const r2Match = (state24.playoffMatches || []).find(
+      (m) => m.round === 'playoff_r2' && m.player1Id && m.player2Id,
+    );
+
+    let r1Rejected = true, r1Accepted = true;
+    if (r1Match) {
+      const rR1 = await setMrFinalsScore(adminPage, tournamentId, r1Match.id, 4, 0);
+      r1Rejected = rR1.s === 400;
+      const aR1 = await setMrFinalsScore(adminPage, tournamentId, r1Match.id, 3, 2);
+      r1Accepted = aR1.s === 200;
+    }
+
+    let r2Rejected = true, r2Accepted = true;
+    if (r2Match) {
+      /* Score 5-0 should be rejected (FT4 max = 4). */
+      const rR2 = await setMrFinalsScore(adminPage, tournamentId, r2Match.id, 5, 0);
+      r2Rejected = rR2.s === 400;
+      const aR2 = await setMrFinalsScore(adminPage, tournamentId, r2Match.id, 4, 1);
+      r2Accepted = aR2.s === 200;
+    }
+
+    const ok = qfRejected && qfAccepted && r1Rejected && r1Accepted && r2Rejected && r2Accepted;
+    log('TC-621', ok ? 'PASS' : 'FAIL',
+      !qfRejected ? `winners_qf 6-0 not rejected (${rejectQf.s})`
+      : !qfAccepted ? `winners_qf 5-3 not accepted (${acceptQf.s})`
+      : !r1Rejected ? 'playoff_r1 4-0 not rejected'
+      : !r1Accepted ? 'playoff_r1 3-2 not accepted'
+      : !r2Rejected ? 'playoff_r2 5-0 not rejected'
+      : !r2Accepted ? 'playoff_r2 4-1 not accepted'
+      : '');
+  } catch (err) {
+    log('TC-621', 'FAIL', err instanceof Error ? err.message : 'MR 621 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -1379,6 +1454,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-618', fn: runTc618 },
       { name: 'TC-615', fn: runTc615 },
       { name: 'TC-616', fn: runTc616 },
+      { name: 'TC-621', fn: runTc621 },
     ],
   };
 }
@@ -1386,7 +1462,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
-  runTc615, runTc616, runTc617, runTc618,
+  runTc615, runTc616, runTc617, runTc618, runTc621,
   getSuite,
   results,
 };

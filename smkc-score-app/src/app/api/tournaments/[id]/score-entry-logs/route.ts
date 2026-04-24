@@ -27,6 +27,7 @@ import { resolveTournamentId } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
   createErrorResponse,
+  handleAuthError,
   handleAuthzError,
 } from "@/lib/error-handling";
 
@@ -40,7 +41,10 @@ export async function GET(
   // Admin authentication: score entry logs contain sensitive operational
   // data that should only be visible to tournament administrators
   const session = await auth();
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!session?.user) {
+    return handleAuthError();
+  }
+  if (session.user.role !== 'admin') {
     return handleAuthzError();
   }
 

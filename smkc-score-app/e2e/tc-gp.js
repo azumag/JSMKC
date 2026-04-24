@@ -14,6 +14,7 @@
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
+ *   TC-719  GP sudden-death tiebreak in non-grand-final bracket match (issue #604)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1052,6 +1053,59 @@ async function runTc821(adminPage) {
   }
 }
 
+/* ───────── TC-719: GP sudden-death tiebreak in non-grand-final bracket match ─────────
+ * Issue #604: Validates that the GP finals API supports sudden-death winner
+ * selection for tied driver points in ANY bracket match (not only grand final).
+ * When score1 === score2, the PUT must be accompanied by a valid suddenDeathWinnerId.
+ * Without it the API must return 400. With it, the match completes and the
+ * bracket advances correctly. */
+async function runTc719(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId, playerIds } = setup;
+
+    const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    /* Use the first winners_qf match that has both players assigned. */
+    const qfMatch = matches.find((m) => m.round === 'winners_qf' && m.player1Id && m.player2Id);
+    if (!qfMatch) throw new Error('No ready winners_qf match for TC-719');
+
+    /* Tied score without suddenDeathWinnerId must be rejected. */
+    const noSd = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5);
+    const noSdRejected = noSd.s === 400;
+
+    /* Tied score with invalid suddenDeathWinnerId must be rejected. */
+    const badSd = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5, 'invalid-id');
+    const badSdRejected = badSd.s === 400;
+
+    /* Tied score with a valid suddenDeathWinnerId must succeed. */
+    const sdRes = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5, qfMatch.player1Id);
+    const sdAccepted = sdRes.s === 200;
+
+    /* Winner must be recorded as the sudden-death winner. */
+    const after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const qfAfter = after.find((m) => m.id === qfMatch.id);
+    const winnerRouted = qfAfter?.completed === true &&
+      qfAfter?.suddenDeathWinnerId === qfMatch.player1Id &&
+      qfAfter?.winnerId === qfMatch.player1Id;
+
+    const ok = noSdRejected && badSdRejected && sdAccepted && winnerRouted;
+    log('TC-719', ok ? 'PASS' : 'FAIL',
+      !noSdRejected ? `Tied score without suddenDeathWinnerId not rejected (${noSd.s})`
+      : !badSdRejected ? `Tied score with invalid suddenDeathWinnerId not rejected (${badSd.s})`
+      : !sdAccepted ? `Tied score with valid suddenDeathWinnerId not accepted (${sdRes.s})`
+      : !winnerRouted ? `Match not completed with correct winner (completed=${qfAfter?.completed}, sdWinner=${qfAfter?.suddenDeathWinnerId})`
+      : '');
+  } catch (err) {
+    log('TC-719', 'FAIL', err instanceof Error ? err.message : 'GP 719 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -1085,6 +1139,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
       { name: 'TC-712', fn: runTc712 },
+      { name: 'TC-719', fn: runTc719 },
       { name: 'TC-713', fn: runTc713 },
       { name: 'TC-821', fn: runTc821 },
     ],
@@ -1094,7 +1149,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc821,
+  runTc715, runTc716, runTc717, runTc718, runTc719, runTc821,
   getSuite,
   results,
 };

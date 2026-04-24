@@ -28,7 +28,7 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
-import { createSuccessResponse, createErrorResponse, handleAuthzError } from "@/lib/error-handling";
+import { createSuccessResponse, createErrorResponse, handleAuthError, handleAuthzError } from "@/lib/error-handling";
 
 /**
  * Interface representing a match record with the fields needed for
@@ -60,7 +60,10 @@ export async function GET(
   // Admin authentication check: character stats contain detailed
   // competitive data that should only be visible to tournament organizers
   const session = await auth();
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!session?.user) {
+    return handleAuthError();
+  }
+  if (session.user.role !== 'admin') {
     return handleAuthzError();
   }
 
