@@ -100,13 +100,14 @@ describe('GET /api/tournaments', () => {
   });
 
   describe('Success Cases', () => {
-    it('should return only public tournaments to non-admin users', async () => {
-      // Non-admin (no session): only public tournaments are returned
+    it('should return all tournaments to non-admin users (per-mode visibility is client-side)', async () => {
+      // Non-admin (no session): all tournaments returned; per-mode visibility is handled client-side.
+      // The server no longer filters by isPublic — that column was replaced by publicModes (array).
       (auth as jest.Mock).mockResolvedValue(null);
 
       const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01', isPublic: true },
-        { id: 't2', name: 'Tournament 2', date: '2024-01-02', isPublic: true },
+        { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta', 'bm'] },
+        { id: 't2', name: 'Tournament 2', date: '2024-01-02', publicModes: [] },
       ];
 
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
@@ -118,15 +119,15 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      // Non-admin: where clause filters to public only
+      // No server-side visibility filter: where = {} for all users
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
-        where: { isPublic: true },
+        where: {},
         orderBy: { date: 'desc' },
         skip: 0,
         take: 10,
       });
       expect(prisma.tournament.count).toHaveBeenCalledWith({
-        where: { isPublic: true },
+        where: {},
       });
     });
 
@@ -163,7 +164,7 @@ describe('GET /api/tournaments', () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01', isPublic: true },
+        { id: 't1', name: 'Tournament 1', date: '2024-01-01', publicModes: ['ta'] },
       ];
 
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
@@ -175,9 +176,9 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      // Default pagination: page=1, limit=50; non-admin filter applies
+      // Default pagination: page=1, limit=50; no server-side visibility filter (where = {})
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
-        where: { isPublic: true },
+        where: {},
         orderBy: { date: 'desc' },
         skip: 0,
         take: 50,
