@@ -2044,6 +2044,96 @@ async function main() {
     }
   }
 
+  // TC-336: TA Phases API structure — GET without phase param returns phaseStatus shape;
+  // GET with ?phase=phase1 additionally returns entries/rounds/availableCourses arrays.
+  // Verifies the API is accessible without admin auth (public GET) and returns the
+  // expected data contract used by the TA elimination phase UI.
+  if (TID) {
+    try {
+      // Without phase param: only phaseStatus should be present
+      const baseResp = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/ta/phases`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, TID);
+      const hasPhaseStatus =
+        baseResp.status === 200 &&
+        baseResp.body?.success === true &&
+        typeof baseResp.body?.data?.phaseStatus === 'object' &&
+        baseResp.body?.data?.phaseStatus !== null &&
+        // entries/rounds should NOT be present without phase param
+        baseResp.body?.data?.entries === undefined;
+
+      // With ?phase=phase1 param: entries, rounds, availableCourses must be present
+      const phaseResp = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/ta/phases?phase=phase1`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, TID);
+      const hasPhaseData =
+        phaseResp.status === 200 &&
+        phaseResp.body?.success === true &&
+        Array.isArray(phaseResp.body?.data?.entries) &&
+        Array.isArray(phaseResp.body?.data?.rounds) &&
+        Array.isArray(phaseResp.body?.data?.availableCourses);
+
+      // Invalid phase param must return 400
+      const invalidResp = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/ta/phases?phase=invalid`);
+        return { status: r.status };
+      }, TID);
+
+      log('TC-336',
+        hasPhaseStatus && hasPhaseData && invalidResp.status === 400 ? 'PASS' : 'FAIL',
+        !hasPhaseStatus ? `Base response invalid (status=${baseResp.status}, phaseStatus=${typeof baseResp.body?.data?.phaseStatus})`
+          : !hasPhaseData ? `Phase param response invalid (status=${phaseResp.status})`
+          : invalidResp.status !== 400 ? `Invalid phase param got ${invalidResp.status} (expected 400)` : '');
+    } catch (err) {
+      log('TC-336', 'FAIL', err instanceof Error ? err.message : 'TA phases API test failed');
+    }
+  } else {
+    log('TC-336', 'SKIP', 'TID not available');
+  }
+
+  // TC-337: Tournaments list API pagination — GET /api/tournaments with limit and page params
+  // returns { success, data: [...], meta: { total, page, limit, totalPages } }.
+  // Verifies pagination contract and that limit clamps results correctly.
+  try {
+    // Fetch with limit=1 to verify paging works
+    const limitResp = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments?limit=1&page=1');
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    const meta = limitResp.body?.meta ?? {};
+    const hasShape =
+      limitResp.status === 200 &&
+      limitResp.body?.success === true &&
+      Array.isArray(limitResp.body?.data) &&
+      limitResp.body.data.length <= 1 &&
+      typeof meta.total === 'number' &&
+      typeof meta.page === 'number' &&
+      typeof meta.limit === 'number' &&
+      typeof meta.totalPages === 'number' &&
+      meta.page === 1 &&
+      meta.limit === 1;
+
+    // Second page with limit=1 — data array length must be 0 or 1
+    const page2Resp = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments?limit=1&page=2');
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    const page2Ok =
+      page2Resp.status === 200 &&
+      page2Resp.body?.success === true &&
+      Array.isArray(page2Resp.body?.data) &&
+      page2Resp.body.data.length <= 1;
+
+    log('TC-337',
+      hasShape && page2Ok ? 'PASS' : 'FAIL',
+      !hasShape ? `Limit=1 response shape invalid (status=${limitResp.status}, data.length=${limitResp.body?.data?.length}, meta=${JSON.stringify(meta)})`
+        : !page2Ok ? `Page 2 response invalid (status=${page2Resp.status})` : '');
+  } catch (err) {
+    log('TC-337', 'FAIL', err instanceof Error ? err.message : 'Tournament pagination test failed');
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped

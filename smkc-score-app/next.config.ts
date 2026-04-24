@@ -47,6 +47,30 @@ const nextConfig: NextConfig = {
    * See: https://opennext.js.org/cloudflare/howtos/workerd
    */
   serverExternalPackages: ['@prisma/client', '.prisma/client'],
+
+  /**
+   * Routing-level redirects for renamed TA elimination routes.
+   * revival_N was renamed to phaseN when TAEliminationPhase was introduced.
+   * These routing-level redirects fire before middleware and server components,
+   * making them more reliable than server-component redirect() in Cloudflare
+   * Workers (OpenNext) deployments where server component redirects may be
+   * unreliable depending on the Workers runtime version.
+   * permanent: false (307) allows future route changes without cache lock-in.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/tournaments/:id/ta/revival-1',
+        destination: '/tournaments/:id/ta/phase1',
+        permanent: false,
+      },
+      {
+        source: '/tournaments/:id/ta/revival-2',
+        destination: '/tournaments/:id/ta/phase2',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);
