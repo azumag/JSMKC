@@ -798,6 +798,36 @@
   5. クリーンアップ
 - **期待結果**: 手動合計スコア PUT で score1/score2 は上書きされ、rounds / assignedCourses はクリアされない
 
+## TC-620: MR 予選同着解決 — 同順位バーが rankOverride 設定後に消える
+- **URL**: /tournaments/[temp-id]/mr
+- **authRequired**: true (admin)
+- **背景** (issue #575): MR は BM/GP と共通の `qualification-route` factory と `rankOverride` フローを使っているため、同着解決の PATCH エンドポイントと同順位バーがそのまま動作する必要がある。TC-324 (BM) / TC-713 (GP) と対になる MR の回帰テスト。
+- **手順**:
+  1. テスト用プレイヤー3名 + トーナメントを作成
+  2. `setupModePlayersViaUi('mr', …)` で予選グループを作成
+  3. 全ての非BYE試合を **2-2 ドロー**で PUT（score = wins*2 + ties = 6、points = winRounds - lossRounds = 0 で全員同着）
+  4. `/mr` 页面を訪問 → 順位表タブで同順位バー（「同順位が検出されました」/「Tied ranks detected」）が**表示される**ことを確認
+  5. `resolveAllTies(mr)` で N 人全員に distinct な `rankOverride` を PATCH
+  6. `/mr` 页面を再訪問 → 同順位バーが**消えている**ことを確認
+  7. クリーンアップ
+- **期待結果**: MR でも BM/GP と同じく rankOverride 設定後に同順位バーが消える
+
+## TC-812: TA 予選同着解決 — 同タイムで average 課題ポイント
+- **URL**: /tournaments/[temp-id]/ta
+- **authRequired**: true (admin)
+- **背景** (issue #575): TA は BM/MR/GP と異なり `rankOverride` フローを持たない。代わりに `calculateCourseScores`（`src/lib/ta/qualification-scoring.ts`）が同タイムのプレイヤーに平均化された課題ポイントを配布する。§4.1 の「同着は平均で分ける」ルールを実装レベルで保証する回帰テスト。
+- **手順**:
+  1. テスト用プレイヤー3名 + トーナメントを作成
+  2. `setupTaQualViaUi(…, { seedTimes: false })` で TA エントリーを作成
+  3. P1 / P2 に **20 コース全て同一タイム**（`makeTaTimesForRank(1)`）を PUT
+  4. P3 に **20 コース全てより遅いタイム**（`makeTaTimesForRank(3)`）を PUT
+  5. `/api/tournaments/[id]/ta` で `qualificationPoints` と `rank` を取得し次を確認:
+     - N=3 のスコアテーブル [50, 25, 0] で P1/P2 が rank 1-2 で tied → 平均 (50 + 25) / 2 = 37.5 pt × 20 courses = **750 pt** を両者に割り当て
+     - P3 は rank 3 で 0 pt
+     - サーバ rank は P1/P2 のどちらかが 1、もう一方が 2、P3 は 3
+  6. クリーンアップ
+- **期待結果**: TA は手動操作なしで同着が平均ポイントで解決され、TC-324/TC-620/TC-713 と同じ同着回帰カバレッジを持つ
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)

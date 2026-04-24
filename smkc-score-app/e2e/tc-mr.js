@@ -25,6 +25,7 @@
  *  TC-822  SKIP — feature not implemented
  *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
+ *  TC-620  MR qualification tie resolution (tie warning → resolveAllTies)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -46,6 +47,7 @@ const {
   apiUpdateTournament,
   loginPlayerBrowser,
   setupMrQualViaUi,
+  resolveAllTies,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -1265,6 +1267,81 @@ async function runTc822(adminPage) {
   log('TC-822', 'SKIP', 'feature not implemented (no scoresConfirmed column on MRMatch)');
 }
 
+/* ───────── TC-620: MR qualification tie resolution ─────────
+ * Mirrors TC-324 (BM) and TC-713 (GP) — creates 3 players, sets up MR
+ * qualification, and forces every non-BYE match to a 2-2 draw so every
+ * player ends with identical (score, points). Verifies:
+ *   (a) tie warning banner appears on the standings tab
+ *   (b) after resolveAllTies, the banner disappears.
+ * MR shares the qualification-route factory with BM/GP, so rankOverride
+ * PATCH is identical; this test guards that integration end-to-end. */
+async function runTc620(adminPage) {
+  const createdPlayers = [];
+  let tournamentId = null;
+  try {
+    const stamp = Date.now();
+
+    for (let i = 1; i <= 3; i++) {
+      const name = `MR Tie P${i}`;
+      const nickname = `mr_tie_${i}_${stamp}`;
+      const p = await createPlayer(adminPage, name, nickname);
+      createdPlayers.push({ id: p.id, name, nickname });
+    }
+
+    tournamentId = await createTournament(adminPage, `MR Tie ${stamp}`, { dualReportEnabled: false });
+
+    await setupModePlayersViaUi(adminPage, 'mr', tournamentId, createdPlayers);
+
+    const mrData = await apiFetchMr(adminPage, tournamentId);
+    const nonByeMatches = (mrData.matches || []).filter((m) => !m.isBye);
+    if (nonByeMatches.length === 0) throw new Error('No non-BYE MR matches found');
+
+    /* Submit every match as 2-2. A 2-2 draw yields score = 6, points = 0 for
+     * both players (wins*2 + ties, winRounds - lossRounds), so every player
+     * in the group ends with identical (score, points) and the standings
+     * must flag the tie. */
+    for (const match of nonByeMatches) {
+      const put = await apiPutMrQualScore(adminPage, tournamentId, match.id, 2, 2);
+      if (put.s !== 200) throw new Error(`Score PUT failed for match ${match.matchNumber} (${put.s})`);
+    }
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    const standingsTab = adminPage.locator('button[role="tab"]').filter({ hasText: /順位表|Standings/ });
+    if (await standingsTab.count() > 0) {
+      await standingsTab.first().click();
+      await adminPage.waitForTimeout(2000);
+    }
+
+    const bannerBefore =
+      (await adminPage.locator('text=同順位が検出されました').count()) +
+      (await adminPage.locator('text=Tied ranks detected').count());
+    const hasBannerBefore = bannerBefore > 0;
+
+    await resolveAllTies(adminPage, tournamentId, 'mr');
+
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    if (await standingsTab.count() > 0) {
+      await standingsTab.first().click();
+      await adminPage.waitForTimeout(2000);
+    }
+
+    const bannerAfter =
+      (await adminPage.locator('text=同順位が検出されました').count()) +
+      (await adminPage.locator('text=Tied ranks detected').count());
+    const hasBannerAfter = bannerAfter > 0;
+
+    log('TC-620', hasBannerBefore && !hasBannerAfter ? 'PASS' : 'FAIL',
+      !hasBannerBefore ? 'Tie warning banner never appeared (expected tie from 2-2 draws)'
+      : hasBannerAfter ? 'Tie warning banner still visible after resolveAllTies'
+      : '');
+  } catch (err) {
+    log('TC-620', 'FAIL', err instanceof Error ? err.message : 'MR tie resolution failed');
+  } finally {
+    if (tournamentId) await deleteTournament(adminPage, tournamentId);
+    for (const p of createdPlayers) await deletePlayer(adminPage, p.id);
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -1297,6 +1374,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-612', fn: runTc612 },
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-822', fn: runTc822 },
+      { name: 'TC-620', fn: runTc620 },
       { name: 'TC-617', fn: runTc617 },
       { name: 'TC-618', fn: runTc618 },
       { name: 'TC-615', fn: runTc615 },
@@ -1307,7 +1385,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
-  runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822,
+  runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
   runTc615, runTc616, runTc617, runTc618,
   getSuite,
   results,
