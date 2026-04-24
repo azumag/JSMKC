@@ -12,6 +12,8 @@
  *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
+ *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
+ *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -537,6 +539,131 @@ async function runTc709(adminPage) {
   }
 }
 
+/* ───────── TC-717: GP finals same-cup-per-round enforcement (PR #585) ─────────
+ * Every match in the same finals round must share one cup. Generates an
+ * 8-player finals bracket and asserts that within each round (winners_qf,
+ * winners_sf, losers_r1, …) all matches carry the same cup string. Guards
+ * against the divergent state that PR #583's old client-side random
+ * fallback could leave behind when admins saved scores before the
+ * server-side normalizer landed. */
+async function runTc717(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    if (matches.length !== 17) throw new Error(`Expected 17 finals matches, got ${matches.length}`);
+
+    /* Bucket by round and check every match in a round shares one cup. */
+    const cupsByRound = new Map();
+    for (const m of matches) {
+      if (!m.round) continue;
+      if (!cupsByRound.has(m.round)) cupsByRound.set(m.round, new Set());
+      cupsByRound.get(m.round).add(m.cup ?? null);
+    }
+
+    const divergentRounds = [...cupsByRound.entries()]
+      .filter(([, cups]) => cups.size !== 1 || cups.has(null));
+    const ok = divergentRounds.length === 0;
+    log('TC-717', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `rounds with divergent or null cups: ${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`);
+  } catch (err) {
+    log('TC-717', 'FAIL', err instanceof Error ? err.message : 'GP 717 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-718: GP finals admin manual total-score override (PR #585) ─────────
+ * Admin can correct a finals match by writing raw driver-points totals
+ * without re-entering the 5-race breakdown. Asserts that PUT accepts a
+ * body of { matchId, score1, score2 } only (no cup, no races) and that
+ * any existing race breakdown is preserved rather than cleared.
+ *
+ * Flow:
+ *   1. Generate an 8-player finals bracket.
+ *   2. Enter full race data for M1 first (sets match.races on the row).
+ *   3. Reset with the raw totals (score1=15, score2=12) via the same
+ *      endpoint but without cup/races in the body.
+ *   4. Fetch back: points1/points2 reflect the manual totals, the stored
+ *      cup stays the same as before, and the races array is unchanged. */
+async function runTc718(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const before = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+    if (!m1.cup) throw new Error('Match 1 cup not assigned — normalizer may have failed');
+
+    /* Step 1: seed races via the normal cup+races path. Total = 9 per race
+     * for P1 (1st), 6 for P2 (2nd), summed across 5 races: 45-30. */
+    const raceSeed = await adminPage.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${setup.tournamentId}/gp/finals`,
+      {
+        matchId: m1.id,
+        score1: 45,
+        score2: 30,
+        cup: m1.cup,
+        races: makeRacesP1Wins(m1.cup),
+      },
+    ]);
+    if (raceSeed.s !== 200) throw new Error(`Seed PUT failed (${raceSeed.s})`);
+
+    const afterSeed = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const seeded = afterSeed.find((m) => m.id === m1.id);
+    const hadRaces = Array.isArray(seeded?.races) && seeded.races.length > 0;
+    if (!hadRaces) throw new Error('Seed PUT did not persist races');
+
+    /* Step 2: manual override — PUT without cup/races in the body. */
+    const manual = await adminPage.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${setup.tournamentId}/gp/finals`,
+      { matchId: m1.id, score1: 15, score2: 12 },
+    ]);
+    if (manual.s !== 200) throw new Error(`Manual PUT failed (${manual.s})`);
+
+    const afterManual = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const finalMatch = afterManual.find((m) => m.id === m1.id);
+    const totalsUpdated = finalMatch?.points1 === 15 && finalMatch?.points2 === 12;
+    const cupPreserved = finalMatch?.cup === seeded.cup;
+    const racesPreserved =
+      Array.isArray(finalMatch?.races) &&
+      finalMatch.races.length === seeded.races.length;
+
+    const ok = totalsUpdated && cupPreserved && racesPreserved;
+    log('TC-718', ok ? 'PASS' : 'FAIL',
+      !totalsUpdated ? `totals: ${finalMatch?.points1}-${finalMatch?.points2}`
+      : !cupPreserved ? `cup changed: ${seeded.cup} → ${finalMatch?.cup}`
+      : !racesPreserved ? `races lost: ${finalMatch?.races?.length ?? 0}`
+      : '');
+  } catch (err) {
+    log('TC-718', 'FAIL', err instanceof Error ? err.message : 'GP 718 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-715: GP Top-24 Playoff UI Flow ─────────
  * Validates the full Top-24 → Top-16 playoff UI path for GP:
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
@@ -952,6 +1079,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-705', fn: runTc705 },
       { name: 'TC-706', fn: runTc706 },
       { name: 'TC-709', fn: runTc709 },
+      { name: 'TC-717', fn: runTc717 },
+      { name: 'TC-718', fn: runTc718 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
@@ -965,7 +1094,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc821,
+  runTc715, runTc716, runTc717, runTc718, runTc821,
   getSuite,
   results,
 };

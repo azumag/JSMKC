@@ -191,6 +191,123 @@ async function normalizeRoundCupsToSingleCup(
 }
 
 /**
+ * MR counterpart of normalizeRoundCupsToSingleCup: every match in the same
+ * round shares the same `assignedCourses` array (M1 courses == M2 courses
+ * == M3 courses == M4 courses for a given round).
+ *
+ * Legacy states that need repair:
+ *   1. All matches in a round have assignedCourses=[] / null (rows created
+ *      before per-round course assignment — pre-#565 equivalent for MR).
+ *   2. Mixed state: different arrays stored per match in the same round.
+ *
+ * Strategy:
+ *   - Serialize each match's assignedCourses to a JSON key for tally.
+ *   - Pick the most common non-empty array as canonical.
+ *   - If no match in the round has a non-empty array, generate one via
+ *     the same per-round creation path (createMrRoundAssignments) so the
+ *     length matches getMrFinalsMaxRounds for that round.
+ *   - Update every match in the round whose stored array doesn't match
+ *     canonical — we per-row update because Prisma's JSON column equality
+ *     filter is unreliable on D1 (SQLite stores JSON as text).
+ *
+ * Returns true when any row was updated.
+ */
+async function normalizeRoundCoursesToSingleSet(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  modelInstance: any,
+  tournamentId: string,
+  stage: 'finals' | 'playoff',
+  matches: Array<{ id: string; assignedCourses?: unknown; round?: string | null }>,
+): Promise<boolean> {
+  /* Coerce stored value to a plain string[]. JSON columns on D1 come back
+   * as arrays already via Prisma's serialization, but we handle null and
+   * non-array shapes defensively. */
+  const normalizeArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is string => typeof entry === 'string');
+  };
+
+  const matchesByRound = new Map<string, Array<{ id: string; courses: string[] }>>();
+  for (const match of matches) {
+    if (!match.round) continue;
+    const entry = { id: match.id, courses: normalizeArray(match.assignedCourses) };
+    if (!matchesByRound.has(match.round)) matchesByRound.set(match.round, []);
+    matchesByRound.get(match.round)!.push(entry);
+  }
+
+  /* Collect rounds that need repair and the canonical array for each. */
+  const canonicalByRound = new Map<string, string[]>();
+  const roundsNeedingRegen = new Set<string>();
+
+  for (const [round, roundMatches] of matchesByRound) {
+    const keyCounts = new Map<string, number>();
+    const keyToArray = new Map<string, string[]>();
+    for (const { courses } of roundMatches) {
+      if (courses.length === 0) continue;
+      const key = JSON.stringify(courses);
+      keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+      if (!keyToArray.has(key)) keyToArray.set(key, courses);
+    }
+
+    const distinctNonEmpty = keyCounts.size;
+    const matchesWithCourses = Array.from(keyCounts.values()).reduce((a, b) => a + b, 0);
+
+    if (distinctNonEmpty === 1 && matchesWithCourses === roundMatches.length) {
+      /* Already normalized — skip this round. */
+      continue;
+    }
+
+    if (distinctNonEmpty >= 1) {
+      /* Pick the dominant array (most common serialization). */
+      let dominantKey = '';
+      let dominantCount = 0;
+      for (const [key, count] of keyCounts) {
+        if (count > dominantCount) {
+          dominantKey = key;
+          dominantCount = count;
+        }
+      }
+      canonicalByRound.set(round, keyToArray.get(dominantKey)!);
+    } else {
+      /* No existing courses in this round — defer to a fresh shuffle below. */
+      roundsNeedingRegen.add(round);
+    }
+  }
+
+  /* Generate fresh per-round assignments for any rounds that are entirely
+   * empty. Uses the same path as bracket creation so lengths respect the
+   * per-round targetWins (getMrFinalsMaxRounds). */
+  if (roundsNeedingRegen.size > 0) {
+    const bracketStructure = Array.from(roundsNeedingRegen).map((round) => ({ round }));
+    const freshAssignments = createMrRoundAssignments(bracketStructure, stage);
+    for (const round of roundsNeedingRegen) {
+      const fresh = freshAssignments.get(round);
+      if (fresh) canonicalByRound.set(round, fresh);
+    }
+  }
+
+  if (canonicalByRound.size === 0) return false;
+
+  /* Per-row updates: Prisma's JSON column equality filter on D1 is
+   * unreliable, so we compare in JS and write only when different. */
+  let writes = 0;
+  for (const [round, canonical] of canonicalByRound) {
+    const canonicalKey = JSON.stringify(canonical);
+    const roundMatches = matchesByRound.get(round) ?? [];
+    for (const { id, courses } of roundMatches) {
+      if (JSON.stringify(courses) === canonicalKey) continue;
+      await modelInstance.update({
+        where: { id },
+        data: { assignedCourses: canonical },
+      });
+      writes += 1;
+    }
+  }
+
+  return writes > 0;
+}
+
+/**
  * Configuration for a finals route handler set.
  *
  * Each event type (BM, MR, GP) supplies its own config to produce
@@ -311,6 +428,24 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
+      /* MR counterpart: same rule for assignedCourses — every match in the
+       * same playoff round must share one course set. */
+      if (config.assignMrCoursesByRound && playoffMatches.length > 0) {
+        const repaired = await normalizeRoundCoursesToSingleSet(
+          model(prisma),
+          tournamentId,
+          'playoff',
+          playoffMatches,
+        );
+        if (repaired) {
+          playoffMatches = await model(prisma).findMany({
+            where: { tournamentId, stage: 'playoff' },
+            include: { player1: true, player2: true },
+            orderBy: { matchNumber: 'asc' },
+          });
+        }
+      }
+
       const playoffStructure = playoffMatches.length > 0
         ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
         : [];
@@ -381,6 +516,22 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
         if (legacyFinals.length > 0) {
           await normalizeRoundCupsToSingleCup(
+            model(prisma),
+            tournamentId,
+            'finals',
+            legacyFinals,
+          );
+        }
+      }
+
+      /* MR counterpart for finals stage. */
+      if (config.assignMrCoursesByRound) {
+        const legacyFinals = await model(prisma).findMany({
+          where: { tournamentId, stage: 'finals' },
+          select: { id: true, round: true, assignedCourses: true },
+        });
+        if (legacyFinals.length > 0) {
+          await normalizeRoundCoursesToSingleSet(
             model(prisma),
             tournamentId,
             'finals',

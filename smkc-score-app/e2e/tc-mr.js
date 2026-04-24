@@ -23,6 +23,8 @@
  *  TC-612  GP race position validation (no-tie + double-game-over)
  *  TC-820  MR match/[matchId] page view-only
  *  TC-822  SKIP — feature not implemented
+ *  TC-617  MR finals same-courses-per-round enforcement (PR #585 normalizer)
+ *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -946,6 +948,135 @@ async function runTc820(adminPage) {
   }
 }
 
+/* ───────── TC-617: MR finals same-courses-per-round enforcement (PR #585) ─────────
+ * MR counterpart of TC-717 (GP cup normalization). Every match in the same
+ * finals round must share the same `assignedCourses` array — e.g. M1, M2,
+ * M3, M4 in winners_qf all run the same course set. Guards against
+ * divergent legacy data converging via the server-side normalizer on GET. */
+async function runTc617(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+
+    const gen = await generateMrFinalsBracket(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await fetchMrFinalsMatches(adminPage, setup.tournamentId);
+    if (matches.length !== 17) throw new Error(`Expected 17 finals matches, got ${matches.length}`);
+
+    const byRound = new Map();
+    for (const m of matches) {
+      if (!m.round) continue;
+      if (!byRound.has(m.round)) byRound.set(m.round, []);
+      byRound.get(m.round).push(m.assignedCourses ?? []);
+    }
+
+    const divergent = [...byRound.entries()].filter(([, arrays]) => {
+      const keys = new Set(arrays.map((a) => JSON.stringify(a)));
+      /* One distinct non-empty array per round. */
+      return keys.size !== 1 || arrays.some((a) => !Array.isArray(a) || a.length === 0);
+    });
+
+    const ok = divergent.length === 0;
+    log('TC-617', ok ? 'PASS' : 'FAIL',
+      ok ? ''
+      : `rounds with divergent or empty assignedCourses: ${divergent.map(([r, a]) => `${r}=${a.length}variants`).join(' | ')}`);
+  } catch (err) {
+    log('TC-617', 'FAIL', err instanceof Error ? err.message : 'MR 617 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-618: MR finals admin manual total-score override (PR #585) ─────────
+ * MR counterpart of TC-718. Admin can correct a finals match by writing
+ * raw best-of-N totals without re-entering the rounds[] breakdown. Asserts
+ * that PUT accepts { matchId, score1, score2 } only (no rounds) and that
+ * any existing rounds breakdown is preserved.
+ *
+ * Flow:
+ *   1. Generate an 8-player finals bracket.
+ *   2. Score M1 via the normal path (rounds[] present) → 5-2.
+ *   3. Reset via a rounds-less PUT → different totals (still best-of-5).
+ *   4. Fetch back: score1/score2 reflect the manual totals; rounds[] and
+ *      assignedCourses untouched. */
+async function runTc618(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+
+    const gen = await generateMrFinalsBracket(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const before = await fetchMrFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+    const assignedCoursesBefore = Array.isArray(m1.assignedCourses) ? [...m1.assignedCourses] : [];
+    if (assignedCoursesBefore.length === 0) throw new Error('assignedCourses not populated (normalizer may have failed)');
+
+    /* Step 1: normal PUT with rounds[]. MR winners_qf default target=5.
+     * 5 rounds: P1 wins 5, P2 wins 2 → 5-2. Courses follow the bracket's
+     * assignedCourses so the server-side course validator is happy. */
+    const rounds = assignedCoursesBefore.slice(0, 7).map((course, index) => ({
+      course,
+      /* First 5 are P1 wins to reach target=5, next 2 are P2 wins to trail at 2. */
+      winner: index < 5 ? 1 : 2,
+    }));
+    const normalPut = await adminPage.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${setup.tournamentId}/mr/finals`,
+      { matchId: m1.id, score1: 5, score2: 2, rounds },
+    ]);
+    if (normalPut.s !== 200) throw new Error(`Normal PUT failed (${normalPut.s})`);
+
+    const afterNormal = await fetchMrFinalsMatches(adminPage, setup.tournamentId);
+    const seeded = afterNormal.find((m) => m.id === m1.id);
+    const hadRounds = Array.isArray(seeded?.rounds) && seeded.rounds.length > 0;
+    if (!hadRounds) throw new Error('Normal PUT did not persist rounds[]');
+
+    /* Step 2: manual override — PUT score1=5, score2=4 without rounds. */
+    const manual = await adminPage.evaluate(async ([u, body]) => {
+      const r = await fetch(u, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${setup.tournamentId}/mr/finals`,
+      { matchId: m1.id, score1: 5, score2: 4 },
+    ]);
+    if (manual.s !== 200) throw new Error(`Manual PUT failed (${manual.s})`);
+
+    const afterManual = await fetchMrFinalsMatches(adminPage, setup.tournamentId);
+    const final = afterManual.find((m) => m.id === m1.id);
+    const totalsUpdated = final?.score1 === 5 && final?.score2 === 4;
+    const coursesPreserved =
+      Array.isArray(final?.assignedCourses) &&
+      JSON.stringify(final.assignedCourses) === JSON.stringify(assignedCoursesBefore);
+    const roundsPreserved =
+      Array.isArray(final?.rounds) &&
+      final.rounds.length === seeded.rounds.length;
+
+    const ok = totalsUpdated && coursesPreserved && roundsPreserved;
+    log('TC-618', ok ? 'PASS' : 'FAIL',
+      !totalsUpdated ? `totals: ${final?.score1}-${final?.score2}`
+      : !coursesPreserved ? 'assignedCourses changed'
+      : !roundsPreserved ? `rounds lost: ${final?.rounds?.length ?? 0}`
+      : '');
+  } catch (err) {
+    log('TC-618', 'FAIL', err instanceof Error ? err.message : 'MR 618 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-615: MR Top-24 Playoff UI Flow ─────────
  * Validates the full Top-24 → Top-16 playoff UI path for MR:
  * 1. Qualification page shows "Start Playoff (Top 24)" when players > 16
@@ -1166,6 +1297,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-612', fn: runTc612 },
       { name: 'TC-611', fn: runTc611 },
       { name: 'TC-822', fn: runTc822 },
+      { name: 'TC-617', fn: runTc617 },
+      { name: 'TC-618', fn: runTc618 },
       { name: 'TC-615', fn: runTc615 },
       { name: 'TC-616', fn: runTc616 },
     ],
@@ -1175,7 +1308,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc820, runTc822,
-  runTc615, runTc616,
+  runTc615, runTc616, runTc617, runTc618,
   getSuite,
   results,
 };

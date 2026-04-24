@@ -25,6 +25,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -229,6 +230,12 @@ export default function GrandPrixFinals({
     cup: string;
     races: Race[];
   }>({ suddenDeathWinnerId: "", cup: "", races: [] });
+  /* Admin override: skip race entry and write raw driver-points totals.
+   * Mirrors the qualification page's manual-total form — used when the
+   * cup total needs correcting but entering every race is overkill. */
+  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
+  const [manualPoints1, setManualPoints1] = useState<string>("");
+  const [manualPoints2, setManualPoints2] = useState<string>("");
   const [champion, setChampion] = useState<Player | null>(null);
 
   /** Fetch finals data including matches, bracket structure, and round names */
@@ -421,6 +428,13 @@ export default function GrandPrixFinals({
       cup,
       races,
     });
+    /* Reset the manual-override form; pre-fill with the stored totals so the
+     * admin can toggle into manual mode and tweak one side without retyping
+     * both. score1/score2 are the finals score fields; points1/points2 fall
+     * back for playoff rows. */
+    setManualScoreEnabled(false);
+    setManualPoints1(String(match.score1 ?? match.points1 ?? 0));
+    setManualPoints2(String(match.score2 ?? match.points2 ?? 0));
     setIsScoreDialogOpen(true);
   };
 
@@ -434,29 +448,42 @@ export default function GrandPrixFinals({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Derive total driver points from race positions */
-    const points1 = scoreForm.races.reduce(
-      (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
-      0
-    );
-    const points2 = scoreForm.races.reduce(
-      (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
-      0
-    );
+    /* Manual-override path: write the raw driver-points totals and skip the
+     * cup/races breakdown. Used when a race-by-race entry isn't needed. */
+    let points1: number;
+    let points2: number;
+    const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
-    const body: Record<string, unknown> = {
-      matchId: selectedMatch.id,
-      score1: points1,
-      score2: points2,
-      cup: scoreForm.cup,
-      races: scoreForm.races.map((r) => ({
+    if (manualScoreEnabled) {
+      points1 = Number.parseInt(manualPoints1, 10);
+      points2 = Number.parseInt(manualPoints2, 10);
+      if (!Number.isInteger(points1) || !Number.isInteger(points2) || points1 < 0 || points2 < 0) {
+        alert(tGp('manualScoreValidation'));
+        return;
+      }
+      body.score1 = points1;
+      body.score2 = points2;
+    } else {
+      /* Derive total driver points from race positions */
+      points1 = scoreForm.races.reduce(
+        (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
+        0
+      );
+      points2 = scoreForm.races.reduce(
+        (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
+        0
+      );
+      body.score1 = points1;
+      body.score2 = points2;
+      body.cup = scoreForm.cup;
+      body.races = scoreForm.races.map((r) => ({
         course: r.course,
         position1: r.position1,
         position2: r.position2,
         points1: r.position1 ? getDriverPoints(r.position1) : 0,
         points2: r.position2 ? getDriverPoints(r.position2) : 0,
-      })),
-    };
+      }));
+    }
     if (points1 === points2 && scoreForm.suddenDeathWinnerId) {
       body.suddenDeathWinnerId = scoreForm.suddenDeathWinnerId;
     }
@@ -474,6 +501,9 @@ export default function GrandPrixFinals({
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
         setScoreForm({ suddenDeathWinnerId: "", cup: "", races: [] });
+        setManualScoreEnabled(false);
+        setManualPoints1("");
+        setManualPoints2("");
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -506,15 +536,40 @@ export default function GrandPrixFinals({
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
-  /* Live driver points computed from race positions for validation preview */
-  const livePoints1 = scoreForm.races.reduce(
+  /* Live driver points preview. In manual-override mode, reflect the raw
+   * inputs so the tied-score branch (sudden-death prompt) still works. */
+  const racePoints1 = scoreForm.races.reduce(
     (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
     0
   );
-  const livePoints2 = scoreForm.races.reduce(
+  const racePoints2 = scoreForm.races.reduce(
     (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
     0
   );
+  const manualPointsParsed1 = Number.parseInt(manualPoints1, 10);
+  const manualPointsParsed2 = Number.parseInt(manualPoints2, 10);
+  const manualPointsValid =
+    Number.isInteger(manualPointsParsed1) &&
+    Number.isInteger(manualPointsParsed2) &&
+    manualPointsParsed1 >= 0 &&
+    manualPointsParsed2 >= 0;
+  const livePoints1 = manualScoreEnabled
+    ? (Number.isFinite(manualPointsParsed1) ? manualPointsParsed1 : 0)
+    : racePoints1;
+  const livePoints2 = manualScoreEnabled
+    ? (Number.isFinite(manualPointsParsed2) ? manualPointsParsed2 : 0)
+    : racePoints2;
+  /* Pre-tiebreak readiness: the inputs are filled in enough that a submit
+   * is imminent. Used to decide when to surface the sudden-death picker
+   * for tied scores (including 0-0) — the server rejects any tie without
+   * a suddenDeathWinnerId, so the admin must always have a way to pick
+   * one once the form is otherwise complete. */
+  const scoreInputsReady = manualScoreEnabled
+    ? manualPointsValid
+    : Boolean(scoreForm.cup) &&
+      scoreForm.races.length === TOTAL_GP_RACES &&
+      scoreForm.races.every((r) => r.position1 !== null && r.position2 !== null);
+  const tiedAndReady = scoreInputsReady && livePoints1 === livePoints2;
 
   if (loading) {
     return (
@@ -761,8 +816,56 @@ export default function GrandPrixFinals({
               </div>
             )}
 
+            {/* Manual total-score override (mirrors the qualification page).
+              When enabled, race entry is hidden and the raw driver-points
+              totals are written directly. */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="gp-finals-manual-score"
+                  checked={manualScoreEnabled}
+                  onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="gp-finals-manual-score">{tGp('manualTotalScore')}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {tGp('manualTotalScoreDesc')}
+                  </p>
+                </div>
+              </div>
+
+              {manualScoreEnabled && selectedMatch && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="finals-manual-points1">{selectedMatch.player1.nickname}</Label>
+                    <Input
+                      id="finals-manual-points1"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualPoints1}
+                      onChange={(e) => setManualPoints1(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="finals-manual-points2">{selectedMatch.player2.nickname}</Label>
+                    <Input
+                      id="finals-manual-points2"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualPoints2}
+                      onChange={(e) => setManualPoints2(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Race-by-race entry table (5 races per cup) */}
-            {scoreForm.cup && (
+            {!manualScoreEnabled && scoreForm.cup && (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -846,8 +949,10 @@ export default function GrandPrixFinals({
               )}
             </div>
 
-            {/* Sudden-death winner selection for tied totals (§7.5) */}
-            {livePoints1 + livePoints2 > 0 && livePoints1 === livePoints2 && (
+            {/* Sudden-death winner selection for tied totals (§7.5). Shown
+              whenever the form is otherwise submit-ready and tied, including
+              the 0-0 case (manual override or all-game-over race mode). */}
+            {tiedAndReady && (
               <div className="space-y-2">
                 <Label>{tFinals('suddenDeathWinner')}</Label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -875,9 +980,7 @@ export default function GrandPrixFinals({
               </div>
             )}
             <p className={`text-sm text-center ${
-              livePoints1 + livePoints2 > 0 &&
-              livePoints1 === livePoints2 &&
-              !scoreForm.suddenDeathWinnerId
+              tiedAndReady && !scoreForm.suddenDeathWinnerId
                 ? 'text-yellow-600' : 'invisible'
             }`}>
               {tFinals('gpTieNeedsWinner')}
@@ -887,10 +990,12 @@ export default function GrandPrixFinals({
             <Button
               onClick={handleScoreSubmit}
               disabled={
-                !scoreForm.cup ||
-                scoreForm.races.length !== TOTAL_GP_RACES ||
-                scoreForm.races.some((r) => r.position1 === null || r.position2 === null) ||
-                (livePoints1 === livePoints2 && !scoreForm.suddenDeathWinnerId)
+                !scoreInputsReady ||
+                /* Any tie — including 0-0 — needs a sudden-death winner. The
+                 * server rejects all tied scores without suddenDeathWinnerId,
+                 * so the client must not let a tie slip through even when
+                 * both totals are zero (Codex review, PR #588). */
+                (tiedAndReady && !scoreForm.suddenDeathWinnerId)
               }
             >
               {tCommon('saveScore')}

@@ -775,6 +775,29 @@
   5. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: MR決勝スコア入力は管理者のみ許可され、プレイヤーは403で拒否される
 
+## TC-617: MR決勝 — 同じラウンドの全試合で同一コースセット (PR #585 正規化)
+- **URL**: /api/tournaments/[temp-id]/mr/finals (GET)
+- **authRequired**: true (admin)
+- **背景**: Playoff / Finals ブラケットでは「同じラウンドの試合はすべて同じコースセット」(M1が `[MC, DP, GV]` なら M2・M3・M4 も同じ)。TC-717 の MR 版。GP の cup と違い MR は `assignedCourses: string[]`（ベストオブNの最大ラウンド数に応じて 3〜5コース）。legacy データの divergent state は GET 時に `normalizeRoundCoursesToSingleSet` がラウンド内の最多出現パターンへ per-row update で収束させる。
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成（17試合）
+  2. `GET /api/.../mr/finals` で全マッチ取得
+  3. `round` で bucket し、各ラウンド内の `assignedCourses` が配列として等価・かつ空でないことを確認
+  4. クリーンアップ
+- **期待結果**: winners_qf / winners_sf / winners_final / losers_r1..r3 / losers_sf / losers_final / grand_final / grand_final_reset の各ラウンドで、すべてのマッチが同一の `assignedCourses` を保持
+
+## TC-618: MR決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
+- **URL**: /api/tournaments/[temp-id]/mr/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: 予選ページ同様、決勝の管理者ダイアログでチェックボックスをオンにすると race 入力をスキップしてベストオブN の合計スコアを直接入力できる。body に `rounds` が含まれない場合、保存済みの rounds[] breakdown は温存されなければならない（`putAdditionalFields` が undefined なフィールドをスキップする契約）。
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成
+  2. M1 に通常の `{ matchId, score1: 5, score2: 2, rounds }` で PUT → rounds 配列が保存される
+  3. 続けて M1 に `{ matchId, score1: 5, score2: 4 }` のみ（rounds を**含まない**）で PUT → 200
+  4. `GET` で M1 を再取得し、`score1=5`、`score2=4`、`rounds` と `assignedCourses` は手順 2 の値のまま残っていることを確認
+  5. クリーンアップ
+- **期待結果**: 手動合計スコア PUT で score1/score2 は上書きされ、rounds / assignedCourses はクリアされない
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)
@@ -921,6 +944,29 @@
   3. HTTP 403 Forbidden が返ること
   4. クリーンアップ
 - **期待結果**: GP 決勝スコア入力は管理者のみ許可、プレイヤーは 403 拒否
+
+## TC-717: GP決勝 — 同じラウンドの全試合で同一カップ (PR #585 正規化)
+- **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
+- **authRequired**: true (admin)
+- **背景**: Playoff / Finals ブラケットでは「同じラウンドの試合はすべて同じカップ」(M1がFlowerならM2・M3・M4もFlower)。#583 の client-side random fallback が残した divergent state (M1=Flower, M2=Star, M3=null) は、GET 時に `normalizeRoundCupsToSingleCup` が同一カップへ収束させる。
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成（17試合）
+  2. `GET /api/.../gp/finals` で全マッチ取得
+  3. `round` で bucket し、各 round 内の `cup` 値が全て同じ・かつ非 null であることを確認
+  4. クリーンアップ
+- **期待結果**: winners_qf / winners_sf / winners_final / losers_r1..r3 / losers_sf / losers_final / grand_final / grand_final_reset の各ラウンドで、すべてのマッチが同一カップを保持
+
+## TC-718: GP決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: 予選ページ同様、決勝の管理者ダイアログでチェックボックスをオンにすると 5レース入力をスキップして driver-points 合計を直接入力できる。body に `cup` / `races` が含まれない場合、保存済みのレース breakdown は温存されなければならない（`putAdditionalFields` が undefined なフィールドをスキップする契約）。
+- **手順**:
+  1. 28名予選 + 決勝ブラケット生成
+  2. M1 に通常の `{ matchId, score1, score2, cup, races }` で PUT → races 配列が保存される
+  3. 続けて M1 に `{ matchId, score1: 15, score2: 12 }` のみ（cup/races を**含まない**）で PUT → 200
+  4. `GET` で M1 を再取得し、`points1=15`、`points2=12`、`cup` と `races` は手順 2 で保存した値のまま残っていることを確認
+  5. クリーンアップ
+- **期待結果**: 手動合計スコア PUT で score1/score2 は上書きされ、cup と races はクリアされない
 
 ## TC-820: MR match/[matchId] ページがview-onlyであることを確認
 - **URL**: /tournaments/[temp-id]/mr/match/[matchId]
