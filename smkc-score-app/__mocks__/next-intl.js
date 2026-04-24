@@ -1,6 +1,6 @@
 // Mock for next-intl used in Jest tests.
 // Loads actual translation messages from en.json to match production output.
-const en = require('../messages/en.json');
+import en from '../messages/en.json';
 
 const useTranslations = (namespace) => {
   const messages = namespace ? en[namespace] ?? {} : en;
@@ -15,4 +15,4 @@ const useTranslations = (namespace) => {
   };
 };
 
-module.exports = { useTranslations };
+export { useTranslations };
