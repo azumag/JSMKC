@@ -19,6 +19,7 @@ function assignRanksForPartition(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   matches: any[],
   options: ComputeRanksOptions,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   if (qualifications.length === 0) return [];
 
@@ -165,6 +166,7 @@ export function computeQualificationRanks(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   matches: any[],
   options: ComputeRanksOptions = {},
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   if (qualifications.length === 0) return [];
 
@@ -180,6 +182,7 @@ export function computeQualificationRanks(
       partitions.set(group, groupEntries);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rankedByGroup: any[] = [];
     for (const groupEntries of partitions.values()) {
       const groupPlayerIds = new Set(groupEntries.map((entry) => entry.playerId));

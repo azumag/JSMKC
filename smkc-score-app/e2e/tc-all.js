@@ -1705,6 +1705,105 @@ async function main() {
     }
   }
 
+  // TC-328: Character stats API — admin gets stats, non-admin gets 403
+  // Verifies that /api/players/:id/character-stats is admin-only and returns
+  // the expected shape { success, data: { playerId, characterStats, ... } }.
+  if (sharedFixture?.players?.length > 0) {
+    const testPlayerId = sharedFixture.players[0].id;
+    try {
+      // Admin session (current page) should receive 200 with characterStats array.
+      const adminResp = await page.evaluate(async (pid) => {
+        const r = await fetch(`/api/players/${pid}/character-stats`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, testPlayerId);
+      const hasShape = adminResp.body?.success === true &&
+        Array.isArray(adminResp.body?.data?.characterStats) &&
+        typeof adminResp.body?.data?.playerId === 'string';
+
+      // Unauthenticated request via https module must return 401/403.
+      const anonStatus = await new Promise((resolve) => {
+        const req = https.get(`${BASE}/api/players/${testPlayerId}/character-stats`, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        });
+        req.on('error', () => resolve(0));
+        req.setTimeout(8000, () => { req.destroy(); resolve(0); });
+      });
+      const anonBlocked = anonStatus === 401 || anonStatus === 403;
+      log('TC-328',
+        adminResp.status === 200 && hasShape && anonBlocked ? 'PASS' : 'FAIL',
+        adminResp.status !== 200 ? `Admin got ${adminResp.status}`
+          : !hasShape ? 'Response shape invalid'
+          : !anonBlocked ? `Anon got ${anonStatus} (expected 401/403)` : '');
+    } catch (err) {
+      log('TC-328', 'FAIL', err instanceof Error ? err.message : 'Character stats test failed');
+    }
+  } else {
+    log('TC-328', 'SKIP', 'No shared fixture players');
+  }
+
+  // TC-329: Score entry logs API — admin gets audit trail, non-admin gets 403
+  // Verifies /api/tournaments/:id/score-entry-logs returns { tournamentId,
+  // logsByMatch, totalCount } for admins and blocks unauthenticated access.
+  if (TID) {
+    try {
+      const logsResp = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/score-entry-logs`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, TID);
+      const hasShape = logsResp.body?.success === true &&
+        typeof logsResp.body?.data?.tournamentId === 'string' &&
+        typeof logsResp.body?.data?.logsByMatch === 'object' &&
+        typeof logsResp.body?.data?.totalCount === 'number';
+
+      // Unauthenticated request must be rejected.
+      const anonStatus = await new Promise((resolve) => {
+        const req = https.get(`${BASE}/api/tournaments/${TID}/score-entry-logs`, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        });
+        req.on('error', () => resolve(0));
+        req.setTimeout(8000, () => { req.destroy(); resolve(0); });
+      });
+      const anonBlocked = anonStatus === 401 || anonStatus === 403;
+      log('TC-329',
+        logsResp.status === 200 && hasShape && anonBlocked ? 'PASS' : 'FAIL',
+        logsResp.status !== 200 ? `Admin got ${logsResp.status}`
+          : !hasShape ? 'Response shape invalid'
+          : !anonBlocked ? `Anon got ${anonStatus} (expected 401/403)` : '');
+    } catch (err) {
+      log('TC-329', 'FAIL', err instanceof Error ? err.message : 'Score entry logs test failed');
+    }
+  } else {
+    log('TC-329', 'SKIP', 'TID not available');
+  }
+
+  // TC-330: TA revival URL redirect — /ta/revival-1 → /ta/phase1, /ta/revival-2 → /ta/phase2
+  // Old revival-* paths must redirect to the canonical phase* URLs for backwards
+  // compatibility with existing bookmarks and links.
+  if (TID) {
+    try {
+      let pass = true;
+      const redirectPairs = [
+        [`/tournaments/${TID}/ta/revival-1`, `/tournaments/${TID}/ta/phase1`],
+        [`/tournaments/${TID}/ta/revival-2`, `/tournaments/${TID}/ta/phase2`],
+      ];
+      for (const [from, expectedSuffix] of redirectPairs) {
+        await page.goto(BASE + from, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        if (!page.url().includes(expectedSuffix)) {
+          pass = false;
+          log('TC-330', 'FAIL', `${from} did not redirect to ${expectedSuffix}, landed on ${page.url()}`);
+          break;
+        }
+      }
+      if (pass) log('TC-330', 'PASS');
+    } catch (err) {
+      log('TC-330', 'FAIL', err instanceof Error ? err.message : 'TA revival redirect test failed');
+    }
+  } else {
+    log('TC-330', 'SKIP', 'TID not available');
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped

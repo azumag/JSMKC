@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "e2e/**", // Add e2e test files to ignore
     "coverage/**", // Add coverage directory to ignore
+    "scripts/**", // Node.js utility scripts use CommonJS require() intentionally
     "bm-debug*.js",
     "bm-group-debug.js",
   ]),
