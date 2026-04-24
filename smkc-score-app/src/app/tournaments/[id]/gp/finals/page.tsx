@@ -559,6 +559,17 @@ export default function GrandPrixFinals({
   const livePoints2 = manualScoreEnabled
     ? (Number.isFinite(manualPointsParsed2) ? manualPointsParsed2 : 0)
     : racePoints2;
+  /* Pre-tiebreak readiness: the inputs are filled in enough that a submit
+   * is imminent. Used to decide when to surface the sudden-death picker
+   * for tied scores (including 0-0) — the server rejects any tie without
+   * a suddenDeathWinnerId, so the admin must always have a way to pick
+   * one once the form is otherwise complete. */
+  const scoreInputsReady = manualScoreEnabled
+    ? manualPointsValid
+    : Boolean(scoreForm.cup) &&
+      scoreForm.races.length === TOTAL_GP_RACES &&
+      scoreForm.races.every((r) => r.position1 !== null && r.position2 !== null);
+  const tiedAndReady = scoreInputsReady && livePoints1 === livePoints2;
 
   if (loading) {
     return (
@@ -938,8 +949,10 @@ export default function GrandPrixFinals({
               )}
             </div>
 
-            {/* Sudden-death winner selection for tied totals (§7.5) */}
-            {livePoints1 + livePoints2 > 0 && livePoints1 === livePoints2 && (
+            {/* Sudden-death winner selection for tied totals (§7.5). Shown
+              whenever the form is otherwise submit-ready and tied, including
+              the 0-0 case (manual override or all-game-over race mode). */}
+            {tiedAndReady && (
               <div className="space-y-2">
                 <Label>{tFinals('suddenDeathWinner')}</Label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -967,9 +980,7 @@ export default function GrandPrixFinals({
               </div>
             )}
             <p className={`text-sm text-center ${
-              livePoints1 + livePoints2 > 0 &&
-              livePoints1 === livePoints2 &&
-              !scoreForm.suddenDeathWinnerId
+              tiedAndReady && !scoreForm.suddenDeathWinnerId
                 ? 'text-yellow-600' : 'invisible'
             }`}>
               {tFinals('gpTieNeedsWinner')}
@@ -979,12 +990,12 @@ export default function GrandPrixFinals({
             <Button
               onClick={handleScoreSubmit}
               disabled={
-                (manualScoreEnabled
-                  ? !manualPointsValid
-                  : !scoreForm.cup ||
-                    scoreForm.races.length !== TOTAL_GP_RACES ||
-                    scoreForm.races.some((r) => r.position1 === null || r.position2 === null)) ||
-                (livePoints1 > 0 && livePoints1 === livePoints2 && !scoreForm.suddenDeathWinnerId)
+                !scoreInputsReady ||
+                /* Any tie — including 0-0 — needs a sudden-death winner. The
+                 * server rejects all tied scores without suddenDeathWinnerId,
+                 * so the client must not let a tie slip through even when
+                 * both totals are zero (Codex review, PR #588). */
+                (tiedAndReady && !scoreForm.suddenDeathWinnerId)
               }
             >
               {tCommon('saveScore')}

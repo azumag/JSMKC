@@ -821,6 +821,35 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(400);
     });
 
+    /**
+     * Server enforces the sudden-death rule for any tie, including 0-0
+     * (Codex review on PR #588). Regression guard for the manual-override
+     * path where the default inputs are 0/0 — the client must not let that
+     * slip through, but even if it did, the server still rejects.
+     */
+    it('should require a sudden-death winner for a 0-0 tie', async () => {
+      const mockMatch = {
+        id: 'm1',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', score1: 0, score2: 0 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(400);
+      expect(result.data.error).toBe('Tied GP finals scores require a sudden-death winner');
+    });
+
     it('should reject negative GP finals driver points', async () => {
       const mockMatch = {
         id: 'm1',
