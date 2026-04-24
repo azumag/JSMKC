@@ -79,6 +79,7 @@ interface Tournament {
   name: string;
   date: string;
   status: string;
+  isPublic: boolean;
   createdAt: string;
 }
 
@@ -411,7 +412,15 @@ export default function TournamentsPage() {
                       <TableCell>
                         {new Date(tournament.date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{getStatusBadge(tournament.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(tournament.status)}
+                          {/* Private badge: visible to admins when tournament is not yet public */}
+                          {isAdmin && !tournament.isPublic && (
+                            <Badge variant="destructive">{t('private')}</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
                         {/* Open button navigates to tournament detail page */}
                         <Button variant="outline" size="sm" asChild>

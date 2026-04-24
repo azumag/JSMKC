@@ -41,6 +41,7 @@ interface Tournament {
   name: string;
   date: string;
   status: string;
+  isPublic: boolean;
 }
 
 /**
@@ -192,6 +193,35 @@ export default function TournamentLayout({
   };
 
   /**
+   * Toggles the tournament's public visibility.
+   * Private tournaments are hidden from non-admin users on the list and detail pages.
+   */
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
+  const updateVisibility = async (isPublic: boolean) => {
+    setVisibilityUpdating(true);
+    try {
+      const response = await fetch(`/api/tournaments/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic }),
+      });
+      if (response.ok) {
+        fetchTournament();
+      } else {
+        logger.error("Failed to update visibility", { status: response.status });
+      }
+    } catch (err) {
+      const metadata =
+        err instanceof Error
+          ? { message: err.message, stack: err.stack }
+          : { error: err };
+      logger.error("Failed to update visibility:", metadata);
+    } finally {
+      setVisibilityUpdating(false);
+    }
+  };
+
+  /**
    * Returns a styled Badge component based on tournament status.
    * - Draft: Secondary (gray) for setup phase
    * - Active: Default (primary) for in-progress
@@ -257,6 +287,10 @@ export default function TournamentLayout({
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold">{tournament.name}</h1>
               {getStatusBadge(tournament.status)}
+              {/* Visibility badge: warn admins when tournament is still private */}
+              {isAdmin && !tournament.isPublic && (
+                <Badge variant="destructive">{t("private")}</Badge>
+              )}
             </div>
             <p className="text-muted-foreground">
               {new Date(tournament.date).toLocaleDateString()}
@@ -277,6 +311,16 @@ export default function TournamentLayout({
             {isAdmin && tournament.status === "active" && (
               <Button onClick={() => updateStatus("completed")}>
                 {t("completeTournament")}
+              </Button>
+            )}
+            {/* Public/Private toggle (admin only) */}
+            {isAdmin && (
+              <Button
+                variant={tournament.isPublic ? "outline" : "default"}
+                onClick={() => updateVisibility(!tournament.isPublic)}
+                disabled={visibilityUpdating}
+              >
+                {tournament.isPublic ? t("makePrivate") : t("makePublic")}
               </Button>
             )}
             {/* Export button for downloading tournament data (admin only) */}

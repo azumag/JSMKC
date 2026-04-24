@@ -30,8 +30,9 @@ import {
 /**
  * GET /api/tournaments
  *
- * Returns a paginated list of all active (non-deleted) tournaments,
- * sorted by date in descending order (most recent first).
+ * Returns a paginated list of tournaments sorted by date descending.
+ * - Admin users see all tournaments (public and private).
+ * - Non-admin users see only tournaments where isPublic === true.
  *
  * Query parameters:
  *   - page  (number, default: 1)  - Page number for pagination
@@ -49,6 +50,11 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
 
+    // Admins see all tournaments; non-admins only see public ones.
+    const session = await auth();
+    const isAdmin = session?.user?.role === 'admin';
+    const where = isAdmin ? {} : { isPublic: true };
+
     // Use the paginate utility for consistent pagination behavior.
     // Sort: newest tournaments first for relevance.
     const result = await paginate(
@@ -56,7 +62,7 @@ export async function GET(request: NextRequest) {
         findMany: prisma.tournament.findMany,
         count: prisma.tournament.count,
       },
-      {},
+      where,
       { date: "desc" },
       { page, limit }
     );

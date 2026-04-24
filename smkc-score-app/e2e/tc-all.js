@@ -1936,6 +1936,114 @@ async function main() {
     log('TC-333', 'FAIL', err instanceof Error ? err.message : 'Polling stats test failed');
   }
 
+  // TC-334: Tournament visibility — private tournament blocked for unauthenticated users
+  // Creates a private test tournament, verifies unauthenticated GET /api/tournaments/[id]
+  // returns 403, and confirms admin session can still access it.
+  let tc334TournamentId = null;
+  try {
+    // Create a brand-new private tournament via the admin API
+    const created = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E TC-334 Private ${Date.now()}`, date: new Date().toISOString() }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    tc334TournamentId = created.body?.data?.id ?? null;
+    if (!tc334TournamentId) throw new Error(`Tournament creation failed (${created.status})`);
+
+    // Unauthenticated request (https module, no browser cookie) must be blocked with 403
+    const anonStatus = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/tournaments/${tc334TournamentId}`, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      });
+      req.on('error', () => resolve(0));
+      req.setTimeout(8000, () => { req.destroy(); resolve(0); });
+    });
+
+    // Admin session must still see the private tournament (returns 200)
+    const adminResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
+      return { status: r.status };
+    }, tc334TournamentId);
+
+    log('TC-334',
+      anonStatus === 403 && adminResp.status === 200 ? 'PASS' : 'FAIL',
+      anonStatus !== 403 ? `Anon got ${anonStatus} (expected 403)` :
+      adminResp.status !== 200 ? `Admin got ${adminResp.status}` : '');
+  } catch (err) {
+    log('TC-334', 'FAIL', err instanceof Error ? err.message : 'Visibility test failed');
+  }
+
+  // TC-335: Tournament visibility toggle — admin makes tournament public; unauthenticated access allowed
+  // Continues from TC-334: makes the private tournament public via PUT, then verifies
+  // that an unauthenticated request now receives 200 and isPublic=true.
+  try {
+    if (!tc334TournamentId) throw new Error('TC-334 did not create a tournament; skipping');
+
+    // Admin toggles isPublic = true via the update API
+    const putResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic: true }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, tc334TournamentId);
+    if (putResp.status !== 200) throw new Error(`PUT failed: ${putResp.status}`);
+
+    // Unauthenticated request must now succeed with 200
+    const anonStatus = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/tournaments/${tc334TournamentId}?fields=summary`, (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => resolve({ status: res.statusCode, body: data }));
+      });
+      req.on('error', () => resolve({ status: 0, body: '' }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ status: 0, body: '' }); });
+    });
+
+    let parsedBody = {};
+    try { parsedBody = JSON.parse(anonStatus.body); } catch (_) { /* ignore */ }
+    const isPublicExposed = parsedBody?.data?.isPublic === true;
+
+    // Also verify the tournament now appears in the public list
+    const listStatus = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/tournaments`, (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            const found = (json?.data?.data ?? []).some((t) => t.id === tc334TournamentId);
+            resolve({ status: res.statusCode, found });
+          } catch (_) {
+            resolve({ status: res.statusCode, found: false });
+          }
+        });
+      });
+      req.on('error', () => resolve({ status: 0, found: false }));
+      req.setTimeout(8000, () => { req.destroy(); resolve({ status: 0, found: false }); });
+    });
+
+    log('TC-335',
+      anonStatus.status === 200 && isPublicExposed && listStatus.found ? 'PASS' : 'FAIL',
+      anonStatus.status !== 200 ? `Anon detail got ${anonStatus.status}` :
+      !isPublicExposed ? 'isPublic not exposed in response' :
+      !listStatus.found ? 'Tournament not in public list' : '');
+  } catch (err) {
+    log('TC-335', 'FAIL', err instanceof Error ? err.message : 'Visibility toggle test failed');
+  } finally {
+    // Clean up the test tournament regardless of test outcome
+    if (tc334TournamentId) {
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
+      }, tc334TournamentId).catch(() => {});
+    }
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped

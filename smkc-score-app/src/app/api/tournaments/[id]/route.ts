@@ -31,16 +31,18 @@ import {
  * GET /api/tournaments/:id
  *
  * Retrieves a single tournament by ID with its BM qualification standings
- * and BM match records. This is publicly accessible because tournament
- * results are viewable by anyone.
+ * and BM match records.
+ * - Admin users can access all tournaments (public and private).
+ * - Non-admin users can only access tournaments where isPublic === true.
  *
  * The response includes:
- *   - Core tournament fields (name, date, status)
+ *   - Core tournament fields (name, date, status, isPublic)
  *   - bmQualifications: Player standings per group, sorted by group then score
  *   - bmMatches: All BM matches with both player details, sorted by match number
  *
  * Response:
  *   200 - Tournament object with relations
+ *   403 - Tournament is private and requester is not admin
  *   404 - Tournament not found
  *   500 - Server error
  */
@@ -73,6 +75,7 @@ export async function GET(
             name: true,
             date: true,
             status: true,
+            isPublic: true,
             frozenStages: true,
             qualificationConfirmed: true,
             createdAt: true,
@@ -84,6 +87,7 @@ export async function GET(
             name: true,
             date: true,
             status: true,
+            isPublic: true,
             frozenStages: true,
             qualificationConfirmed: true,
             createdAt: true,
@@ -104,6 +108,14 @@ export async function GET(
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
+    }
+
+    // Private tournaments are only accessible to admins.
+    if (!tournament.isPublic) {
+      const session = await auth();
+      if (session?.user?.role !== 'admin') {
+        return handleAuthzError("This tournament is not yet public");
+      }
     }
 
     return createSuccessResponse(tournament);
@@ -150,7 +162,7 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed } = body;
+    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed, isPublic } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -187,6 +199,7 @@ export async function PUT(
           qualificationConfirmed: qualificationConfirmed === true,
           qualificationConfirmedAt: qualificationConfirmed ? new Date() : null,
         }),
+        ...(isPublic !== undefined && { isPublic: isPublic === true }),
       },
     });
 
@@ -208,6 +221,7 @@ export async function PUT(
           status,
           frozenStages,
           qualificationConfirmed,
+          isPublic,
         },
       });
     } catch (logError) {
