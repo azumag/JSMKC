@@ -77,6 +77,7 @@ import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
 
 import type { Player } from "@/lib/types";
@@ -398,10 +399,12 @@ export default function GrandPrixPage({
     }
 
     if (manualScoreEnabled) {
-      const points1 = Number.parseInt(manualPoints1, 10);
-      const points2 = Number.parseInt(manualPoints2, 10);
+      /* Strict parse: reject "12.5", "1e2", etc. that parseInt would
+       * silently truncate into a valid-looking integer. */
+      const points1 = parseManualScore(manualPoints1);
+      const points2 = parseManualScore(manualPoints2);
 
-      if (!Number.isInteger(points1) || !Number.isInteger(points2) || points1 < 0 || points2 < 0) {
+      if (points1 === null || points2 === null) {
         alert(t('manualScoreValidation'));
         return;
       }

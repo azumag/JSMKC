@@ -77,6 +77,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
@@ -455,12 +456,16 @@ export default function GrandPrixFinals({
     const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
     if (manualScoreEnabled) {
-      points1 = Number.parseInt(manualPoints1, 10);
-      points2 = Number.parseInt(manualPoints2, 10);
-      if (!Number.isInteger(points1) || !Number.isInteger(points2) || points1 < 0 || points2 < 0) {
+      /* Strict parse: reject "12.5", "1e2", etc. that parseInt would
+       * silently truncate into a valid-looking integer. */
+      const parsed1 = parseManualScore(manualPoints1);
+      const parsed2 = parseManualScore(manualPoints2);
+      if (parsed1 === null || parsed2 === null) {
         alert(tGp('manualScoreValidation'));
         return;
       }
+      points1 = parsed1;
+      points2 = parsed2;
       body.score1 = points1;
       body.score2 = points2;
     } else {
@@ -546,18 +551,15 @@ export default function GrandPrixFinals({
     (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
     0
   );
-  const manualPointsParsed1 = Number.parseInt(manualPoints1, 10);
-  const manualPointsParsed2 = Number.parseInt(manualPoints2, 10);
+  const manualPointsParsed1 = parseManualScore(manualPoints1);
+  const manualPointsParsed2 = parseManualScore(manualPoints2);
   const manualPointsValid =
-    Number.isInteger(manualPointsParsed1) &&
-    Number.isInteger(manualPointsParsed2) &&
-    manualPointsParsed1 >= 0 &&
-    manualPointsParsed2 >= 0;
+    manualPointsParsed1 !== null && manualPointsParsed2 !== null;
   const livePoints1 = manualScoreEnabled
-    ? (Number.isFinite(manualPointsParsed1) ? manualPointsParsed1 : 0)
+    ? (manualPointsParsed1 ?? 0)
     : racePoints1;
   const livePoints2 = manualScoreEnabled
-    ? (Number.isFinite(manualPointsParsed2) ? manualPointsParsed2 : 0)
+    ? (manualPointsParsed2 ?? 0)
     : racePoints2;
   /* Pre-tiebreak readiness: the inputs are filled in enough that a submit
    * is imminent. Used to decide when to surface the sudden-death picker
