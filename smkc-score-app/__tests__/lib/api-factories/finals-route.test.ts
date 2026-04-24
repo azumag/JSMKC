@@ -1601,7 +1601,7 @@ describe('Finals Route Factory', () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(playoffMatch);
       (prisma.bMMatch as any).update.mockResolvedValue({
         ...playoffMatch,
-        score1: 5,
+        score1: 3,
         score2: 0,
         completed: true,
       });
@@ -1611,9 +1611,13 @@ describe('Finals Route Factory', () => {
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
 
+      /* playoff_r1 uses the factory default target-wins of 3 (matches
+       * getBmFinalsTargetWins for playoff non-R2). 3-0 passes the
+       * "exactly-reached target" guard so the bracket-advancement path is
+       * reachable, which is what this issue #454 regression is asserting. */
       const request = new NextRequest('http://localhost:3000', {
         method: 'PUT',
-        body: JSON.stringify({ matchId: 'playoff-1', score1: 5, score2: 0 }),
+        body: JSON.stringify({ matchId: 'playoff-1', score1: 3, score2: 0 }),
       });
       const response = await PUT(request, {
         params: Promise.resolve({ id: 'tournament-123' }),
