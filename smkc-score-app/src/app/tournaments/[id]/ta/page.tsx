@@ -58,16 +58,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
@@ -163,8 +153,6 @@ export default function TimeAttackPage({
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [entryToRemove, setEntryToRemove] = useState<TTEntry | null>(null);
-  const [removingEntryId, setRemovingEntryId] = useState<string | null>(null);
 
   /*
    * Unified "Setup / Edit Players" dialog (admin-only). Replaces the former
@@ -654,32 +642,6 @@ export default function TimeAttackPage({
     }
   };
 
-  /** Delete an entry from the qualification round after explicit confirmation */
-  const handleDeleteEntry = async (entry: TTEntry) => {
-    setRemovingEntryId(entry.id);
-    try {
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/ta?entryId=${entry.id}`,
-        { method: "DELETE" }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || t('removeQualificationEntryError'));
-      }
-
-      toast.success(t('removeQualificationEntrySuccess', { nickname: entry.player.nickname }));
-      setEntryToRemove(null);
-      refetch();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('removeQualificationEntryError');
-      logger.error("Failed to delete entry:", { error: err, tournamentId });
-      toast.error(errorMessage);
-      setError(errorMessage);
-    } finally {
-      setRemovingEntryId(null);
-    }
-  };
 
   // === Helper Functions ===
 
@@ -974,11 +936,11 @@ export default function TimeAttackPage({
                                     className="w-14 h-11 sm:h-10 md:h-9 text-center text-sm"
                                     aria-label={`${player?.nickname ?? s.playerId} seeding`}
                                   />
-                                  <span className="flex-1 text-sm truncate">
+                                  <span className="flex-1 min-w-0 text-sm truncate">
                                     {player?.nickname ?? `ID: ${s.playerId.slice(0, 8)}`}
                                   </span>
                                   <select
-                                    className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9"
+                                    className="border rounded px-2 py-1 text-sm bg-background h-11 sm:h-10 md:h-9 max-w-[130px]"
                                     value={s.partnerId ?? ""}
                                     onChange={(ev) => {
                                       const val = ev.target.value || null;
@@ -1337,16 +1299,6 @@ export default function TimeAttackPage({
                               {t('viewTimes')}
                             </Button>
                           )}
-                          {/* Remove button: admin-only (players cannot remove entries) */}
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEntryToRemove(entry)}
-                            >
-                              {t('removeFromQualification')}
-                            </Button>
-                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1460,42 +1412,8 @@ export default function TimeAttackPage({
         </Tabs>
       )}
 
-      <AlertDialog
-        open={entryToRemove !== null}
-        onOpenChange={(open) => {
-          if (!open && !removingEntryId) setEntryToRemove(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('removeQualificationEntryTitle', {
-                nickname: entryToRemove?.player.nickname ?? "",
-              })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('removeQualificationEntryDesc')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removingEntryId !== null}>
-              {tc('cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={removingEntryId !== null || entryToRemove === null}
-              onClick={async (event) => {
-                event.preventDefault();
-                if (entryToRemove) await handleDeleteEntry(entryToRemove);
-              }}
-            >
-              {removingEntryId !== null ? tc('saving') : t('removeQualificationEntryConfirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      {/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
+{/* Time Entry Dialog: visible for admins (any entry) and players (own entry).
        * The dialog is opened via openTimeEntryDialog() which is only callable
        * through the canEditEntry() gated "Edit Times" button. */}
       {canEditAnyEntry && <Dialog

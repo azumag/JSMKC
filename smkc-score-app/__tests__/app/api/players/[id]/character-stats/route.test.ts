@@ -105,7 +105,7 @@ describe('GET /api/players/[id]/character-stats', () => {
   });
 
   describe('Authorization', () => {
-    it('should return 403 when not authenticated', async () => {
+    it('should return 401 when not authenticated', async () => {
       auth.mockResolvedValue(null);
 
       await characterStatsRoute.GET(
@@ -113,11 +113,14 @@ describe('GET /api/players/[id]/character-stats', () => {
         { params: Promise.resolve({ id: 'p1' }) }
       );
 
+      // handleAuthError returns 401 UNAUTHORIZED for unauthenticated requests
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Forbidden',
+          success: false,
+          error: 'Authentication required',
+          code: 'UNAUTHORIZED',
         }),
-        { status: 403 }
+        { status: 401 }
       );
     });
 

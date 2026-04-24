@@ -55,10 +55,10 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
 
   describe('Authorization', () => {
     /**
-     * When auth() returns null (no session), the route returns 403 immediately
+     * When auth() returns null (no session), the route returns 401 immediately
      * without reaching the try/catch block. No error logging occurs in this path.
      */
-    it('should return 403 when not authenticated', async () => {
+    it('should return 401 when not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
 
       await scoreEntryLogsRoute.GET(
@@ -66,14 +66,14 @@ describe('GET /api/tournaments/[id]/score-entry-logs', () => {
         { params: Promise.resolve({ id: 't1' }) }
       );
 
-      // handleAuthzError returns { success: false, error, code: 'FORBIDDEN' }
+      // handleAuthError returns 401 UNAUTHORIZED for unauthenticated requests
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Forbidden',
-          code: 'FORBIDDEN',
+          error: 'Authentication required',
+          code: 'UNAUTHORIZED',
         }),
-        { status: 403 }
+        { status: 401 }
       );
     });
 

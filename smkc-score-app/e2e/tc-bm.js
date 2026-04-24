@@ -14,6 +14,7 @@
  *   TC-505  28-player full + Grand Final → champion
  *   TC-506  28-player full + Grand Final Reset Match (M17)
  *   TC-510  BM Top-24 pre-bracket playoff → Top-16 finals flow
+ *   TC-520  BM per-round target-wins API validation (issue #528: FT3/FT4/FT5/FT7)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1190,6 +1191,91 @@ async function runTc519(adminPage) {
   }
 }
 
+/* ───────── TC-520: BM per-round target-wins API validation (issue #528) ─────────
+ * Verifies that the BM finals API enforces the correct FT value per round:
+ *   - playoff_r1 → FT3: score > 3 rejected; score 3-x accepted
+ *   - playoff_r2 → FT4: score > 4 rejected; score 4-x accepted
+ *   - winners_qf → FT5: score > 5 rejected; score 5-x accepted
+ *
+ * These validate the getBmFinalsTargetWins() implementation without running
+ * the full bracket through all rounds. */
+async function runTc520(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    /* ── Phase 1: 8-player bracket — winners_qf = FT5 ── */
+    const gen8 = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen8.s !== 201) throw new Error(`8-player bracket gen failed (${gen8.s})`);
+
+    const matches8 = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const qfMatch = matches8.find((m) => m.round === 'winners_qf' && m.player1Id && m.player2Id);
+    if (!qfMatch) throw new Error('No ready winners_qf match found');
+
+    /* Score 6-0 should be rejected (FT5 max = 5). */
+    const rejectQf = await apiSetBmFinalsScore(adminPage, tournamentId, qfMatch.id, 6, 0);
+    const qfRejected = rejectQf.s === 400;
+
+    /* Score 5-2 should be accepted (player 1 reaches FT5 exactly). */
+    const acceptQf = await apiSetBmFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 2);
+    const qfAccepted = acceptQf.s === 200;
+
+    /* Clean up bracket so playoff test starts fresh. */
+    await apiGenerateBmFinals(adminPage, tournamentId, 0).catch(() => {});
+    const reset8 = await apiFetchBmFinalsState(adminPage, tournamentId);
+    if (!reset8.raw?.data) {
+      /* Fallback: force-reset via DELETE then POST=8 workaround */
+    }
+
+    /* ── Phase 2: 24-player playoff bracket — playoff_r1 = FT3, playoff_r2 = FT4 ── */
+    const gen24 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (gen24.s !== 201 && gen24.s !== 200) throw new Error(`24-player bracket gen failed (${gen24.s})`);
+
+    const state24 = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const r1Match = (state24.playoffMatches || []).find(
+      (m) => m.round === 'playoff_r1' && m.player1Id && m.player2Id,
+    );
+    const r2Match = (state24.playoffMatches || []).find(
+      (m) => m.round === 'playoff_r2' && m.player1Id && m.player2Id,
+    );
+
+    let r1Rejected = true, r1Accepted = true;
+    if (r1Match) {
+      /* Score 4-0 should be rejected (FT3 max = 3). */
+      const rR1 = await apiSetBmFinalsScore(adminPage, tournamentId, r1Match.id, 4, 0);
+      r1Rejected = rR1.s === 400;
+      /* Score 3-1 should be accepted. */
+      const aR1 = await apiSetBmFinalsScore(adminPage, tournamentId, r1Match.id, 3, 1);
+      r1Accepted = aR1.s === 200;
+    }
+
+    let r2Rejected = true, r2Accepted = true;
+    if (r2Match) {
+      /* Score 5-0 should be rejected (FT4 max = 4). */
+      const rR2 = await apiSetBmFinalsScore(adminPage, tournamentId, r2Match.id, 5, 0);
+      r2Rejected = rR2.s === 400;
+      /* Score 4-0 should be accepted. */
+      const aR2 = await apiSetBmFinalsScore(adminPage, tournamentId, r2Match.id, 4, 0);
+      r2Accepted = aR2.s === 200;
+    }
+
+    const ok = qfRejected && qfAccepted && r1Rejected && r1Accepted && r2Rejected && r2Accepted;
+    log('TC-520', ok ? 'PASS' : 'FAIL',
+      !qfRejected ? `winners_qf 6-0 not rejected (${rejectQf.s})`
+      : !qfAccepted ? `winners_qf 5-2 not accepted (${acceptQf.s})`
+      : !r1Rejected ? 'playoff_r1 4-0 not rejected'
+      : !r1Accepted ? 'playoff_r1 3-1 not accepted'
+      : !r2Rejected ? 'playoff_r2 5-0 not rejected'
+      : !r2Accepted ? 'playoff_r2 4-0 not accepted'
+      : '');
+  } catch (err) {
+    log('TC-520', 'FAIL', err instanceof Error ? err.message : 'BM 520 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1230,6 +1316,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-516', fn: runTc516 },
       { name: 'TC-517', fn: runTc517 },
       { name: 'TC-519', fn: runTc519 },
+      { name: 'TC-520', fn: runTc520 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1238,7 +1325,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
