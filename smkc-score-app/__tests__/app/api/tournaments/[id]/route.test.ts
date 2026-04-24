@@ -143,6 +143,7 @@ describe('GET /api/tournaments/[id]', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
         status: 'active',
+        isPublic: true,
         token: 'test-token',
         tokenExpiresAt: new Date('2024-02-01'),
         createdAt: new Date(),
@@ -171,6 +172,7 @@ describe('GET /api/tournaments/[id]', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
         status: 'active',
+        isPublic: true,
         frozenStages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -196,6 +198,7 @@ describe('GET /api/tournaments/[id]', () => {
       const mockTournament = {
         id: 't1',
         name: 'Test',
+        isPublic: true,
         bmQualifications: [],
         bmMatches: [],
       };
@@ -217,6 +220,7 @@ describe('GET /api/tournaments/[id]', () => {
         id: 't1',
         slug: 'jsmkc2026',
         name: 'Test Tournament',
+        isPublic: true,
         bmQualifications: [],
         bmMatches: [],
       };
@@ -241,6 +245,53 @@ describe('GET /api/tournaments/[id]', () => {
           where: { id: 't1' },
         })
       );
+    });
+  });
+
+  describe('Visibility', () => {
+    it('should return 403 when tournament is private and user is not admin', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+        id: 't1',
+        name: 'Private Tournament',
+        isPublic: false,
+        bmQualifications: [],
+        bmMatches: [],
+      });
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'FORBIDDEN' }),
+        { status: 403 }
+      );
+    });
+
+    it('should return 200 when tournament is private but user is admin', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      const mockTournament = {
+        id: 't1',
+        name: 'Private Tournament',
+        isPublic: false,
+        bmQualifications: [],
+        bmMatches: [],
+      };
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
     });
   });
 

@@ -100,14 +100,15 @@ describe('GET /api/tournaments', () => {
   });
 
   describe('Success Cases', () => {
-    it('should return tournaments with pagination', async () => {
-      // Mock data: two tournaments that paginate() will return via findMany
+    it('should return only public tournaments to non-admin users', async () => {
+      // Non-admin (no session): only public tournaments are returned
+      (auth as jest.Mock).mockResolvedValue(null);
+
       const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01' },
-        { id: 't2', name: 'Tournament 2', date: '2024-01-02' },
+        { id: 't1', name: 'Tournament 1', date: '2024-01-01', isPublic: true },
+        { id: 't2', name: 'Tournament 2', date: '2024-01-02', isPublic: true },
       ];
 
-      // The real paginate() calls prisma.tournament.findMany and count in parallel
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
       (prisma.tournament.count as jest.Mock).mockResolvedValue(2);
 
@@ -117,37 +118,52 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      // Verify prisma.tournament.findMany was called with pagination parameters
+      // Non-admin: where clause filters to public only
+      expect(prisma.tournament.findMany).toHaveBeenCalledWith({
+        where: { isPublic: true },
+        orderBy: { date: 'desc' },
+        skip: 0,
+        take: 10,
+      });
+      expect(prisma.tournament.count).toHaveBeenCalledWith({
+        where: { isPublic: true },
+      });
+    });
+
+    it('should return all tournaments to admin users', async () => {
+      // Admin: sees all tournaments including private ones
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+
+      const mockTournaments = [
+        { id: 't1', name: 'Tournament 1', date: '2024-01-01', isPublic: true },
+        { id: 't2', name: 'Tournament 2', date: '2024-01-02', isPublic: false },
+      ];
+
+      (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
+      (prisma.tournament.count as jest.Mock).mockResolvedValue(2);
+
+      const request = new NextRequest('http://localhost:3000/api/tournaments?page=1&limit=10', {
+        method: 'GET',
+      });
+
+      await tournamentsRoute.GET(request);
+
+      // Admin: no visibility filter applied
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
         where: {},
         orderBy: { date: 'desc' },
         skip: 0,
         take: 10,
       });
-
-      // Verify prisma.tournament.count was called with the same where clause
-      expect(prisma.tournament.count).toHaveBeenCalledWith({
-        where: {},
-      });
-
-      // createSuccessResponse wraps the paginate result in { success: true, data: ... }
-      expect(NextResponse.json).toHaveBeenCalledWith({
-        success: true,
-        data: {
-          data: mockTournaments,
-          meta: {
-            total: 2,
-            page: 1,
-            limit: 10,
-            totalPages: 1,
-          },
-        },
-      });
     });
 
     it('should use default pagination when no params', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
       const mockTournaments = [
-        { id: 't1', name: 'Tournament 1', date: '2024-01-01' },
+        { id: 't1', name: 'Tournament 1', date: '2024-01-01', isPublic: true },
       ];
 
       (prisma.tournament.findMany as jest.Mock).mockResolvedValue(mockTournaments);
@@ -159,9 +175,9 @@ describe('GET /api/tournaments', () => {
 
       await tournamentsRoute.GET(request);
 
-      // Default pagination: page=1, limit=50
+      // Default pagination: page=1, limit=50; non-admin filter applies
       expect(prisma.tournament.findMany).toHaveBeenCalledWith({
-        where: {},
+        where: { isPublic: true },
         orderBy: { date: 'desc' },
         skip: 0,
         take: 50,
