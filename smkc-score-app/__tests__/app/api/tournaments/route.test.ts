@@ -385,6 +385,7 @@ describe('POST /api/tournaments', () => {
             status: 'draft',
             dualReportEnabled: false,
             taPlayerSelfEdit: true,
+            publicModes: [],
           },
         })
       );

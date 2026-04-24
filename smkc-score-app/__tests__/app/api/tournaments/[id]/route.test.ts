@@ -143,7 +143,7 @@ describe('GET /api/tournaments/[id]', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
         status: 'active',
-        isPublic: true,
+        publicModes: ['ta', 'bm', 'mr', 'gp'], // at least one mode = visible to non-admin
         token: 'test-token',
         tokenExpiresAt: new Date('2024-02-01'),
         createdAt: new Date(),
@@ -172,7 +172,7 @@ describe('GET /api/tournaments/[id]', () => {
         name: 'Test Tournament',
         date: new Date('2024-01-01'),
         status: 'active',
-        isPublic: true,
+        publicModes: ['ta'], // at least one mode = visible to non-admin
         frozenStages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -198,7 +198,7 @@ describe('GET /api/tournaments/[id]', () => {
       const mockTournament = {
         id: 't1',
         name: 'Test',
-        isPublic: true,
+        publicModes: ['bm'], // at least one mode = visible to non-admin
         bmQualifications: [],
         bmMatches: [],
       };
@@ -220,7 +220,7 @@ describe('GET /api/tournaments/[id]', () => {
         id: 't1',
         slug: 'jsmkc2026',
         name: 'Test Tournament',
-        isPublic: true,
+        publicModes: ['ta'], // at least one mode = visible to non-admin
         bmQualifications: [],
         bmMatches: [],
       };
@@ -249,12 +249,12 @@ describe('GET /api/tournaments/[id]', () => {
   });
 
   describe('Visibility', () => {
-    it('should return 403 when tournament is private and user is not admin', async () => {
+    it('should return 403 when tournament has no public modes and user is not admin', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
         id: 't1',
         name: 'Private Tournament',
-        isPublic: false,
+        publicModes: [], // empty = no visible modes = private to non-admin
         bmQualifications: [],
         bmMatches: [],
       });
@@ -270,14 +270,14 @@ describe('GET /api/tournaments/[id]', () => {
       );
     });
 
-    it('should return 200 when tournament is private but user is admin', async () => {
+    it('should return 200 when tournament has no public modes but user is admin', async () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
       const mockTournament = {
         id: 't1',
         name: 'Private Tournament',
-        isPublic: false,
+        publicModes: [], // empty = private, but admin bypasses visibility check
         bmQualifications: [],
         bmMatches: [],
       };
