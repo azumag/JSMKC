@@ -70,7 +70,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -397,10 +397,11 @@ export default function GrandPrixFinals({
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    /* Fall back to a random cup for legacy matches that were created before
-     * per-round cup assignment landed (match.cup === null). Without a cup the
-     * race table never renders and the admin can't enter scores. */
-    const cup = match.cup || CUPS[Math.floor(Math.random() * CUPS.length)];
+    /* The server backfills per-round cups on GET for legacy rows, so by the
+     * time the admin can click a match it is guaranteed to have one. The
+     * fallback empty-string is kept only to satisfy the TS type and to avoid
+     * crashing if the refetch races the click. */
+    const cup = match.cup || "";
     let races: Race[];
     if (match.races && match.races.length === TOTAL_GP_RACES) {
       /* Pre-fill with existing race data for editing */
@@ -409,9 +410,11 @@ export default function GrandPrixFinals({
         position1: r.position1,
         position2: r.position2,
       }));
-    } else {
+    } else if (cup) {
       /* Auto-fill courses from the assigned cup's fixed sequence */
       races = getCupCourses(cup).map((course) => ({ course, position1: null, position2: null }));
+    } else {
+      races = Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr, position1: null, position2: null }));
     }
     setScoreForm({
       suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",

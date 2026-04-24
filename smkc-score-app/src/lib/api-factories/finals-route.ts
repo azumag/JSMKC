@@ -104,6 +104,60 @@ function createGpRoundAssignments(
 }
 
 /**
+ * Backfill per-round GP cup assignments for legacy matches that were created
+ * before the per-round cup feature landed (those rows carry cup=null).
+ *
+ * Rule (#582 follow-up): within Playoff and Finals, every match in the same
+ * round shares one cup. We pick one cup per round here, persist it, and from
+ * that point on the admin score dialog always has a cup to render the race
+ * table with — no dropdown, no random-on-each-open behaviour.
+ *
+ * Returns true when at least one row was updated, so the caller can re-fetch.
+ */
+async function backfillMissingCupsByRound(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  modelInstance: any,
+  tournamentId: string,
+  stage: 'finals' | 'playoff',
+  matches: Array<{ cup?: string | null; round?: string | null }>,
+): Promise<boolean> {
+  const existingCupByRound = new Map<string, string>();
+  const roundsNeedingCup = new Set<string>();
+
+  for (const match of matches) {
+    if (!match.round) continue;
+    if (match.cup) {
+      existingCupByRound.set(match.round, match.cup);
+    } else {
+      roundsNeedingCup.add(match.round);
+    }
+  }
+
+  if (roundsNeedingCup.size === 0) return false;
+
+  /* Reuse already-assigned cups for rounds where some matches have cups and
+   * others don't (avoids the mixed-state case diverging). For rounds with no
+   * existing cup, pick from a freshly shuffled CUPS list so assignments stay
+   * random across tournaments while being fixed per round. */
+  const shuffledCups = fisherYatesShuffle(CUPS);
+  let cursor = 0;
+  const assignments = new Map<string, string>();
+  for (const round of roundsNeedingCup) {
+    const existing = existingCupByRound.get(round);
+    assignments.set(round, existing ?? shuffledCups[cursor++ % shuffledCups.length]);
+  }
+
+  for (const [round, cup] of assignments) {
+    await modelInstance.updateMany({
+      where: { tournamentId, stage, round, cup: null },
+      data: { cup },
+    });
+  }
+
+  return true;
+}
+
+/**
  * Configuration for a finals route handler set.
  *
  * Each event type (BM, MR, GP) supplies its own config to produce
@@ -198,11 +252,30 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * When present, we also regenerate the bracket structure and reconstruct
        * seed-to-player mappings so the frontend can render the bracket without
        * relying on state from a previous POST response. */
-      const playoffMatches = await model(prisma).findMany({
+      let playoffMatches = await model(prisma).findMany({
         where: { tournamentId, stage: 'playoff' },
         include: { player1: true, player2: true },
         orderBy: { matchNumber: 'asc' },
       });
+
+      /* Backfill per-round cup assignments for legacy playoff rows (pre-#565).
+       * Without this the admin score dialog has no cup and the race table
+       * never renders — see #582/#583. */
+      if (config.assignGpCupByRound && playoffMatches.length > 0) {
+        const backfilled = await backfillMissingCupsByRound(
+          model(prisma),
+          tournamentId,
+          'playoff',
+          playoffMatches,
+        );
+        if (backfilled) {
+          playoffMatches = await model(prisma).findMany({
+            where: { tournamentId, stage: 'playoff' },
+            include: { player1: true, player2: true },
+            orderBy: { matchNumber: 'asc' },
+          });
+        }
+      }
 
       const playoffStructure = playoffMatches.length > 0
         ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
@@ -263,6 +336,24 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const phase = hasFinals > 0 ? 'finals' as const
         : playoffMatches.length > 0 ? 'playoff' as const
         : 'finals' as const;
+
+      /* Backfill per-round cup assignments for legacy finals rows before
+       * paginating or simple/grouped fetches, so every branch sees the
+       * backfilled state (see playoff branch above). */
+      if (config.assignGpCupByRound) {
+        const legacyFinals = await model(prisma).findMany({
+          where: { tournamentId, stage: 'finals' },
+          select: { id: true, round: true, cup: true },
+        });
+        if (legacyFinals.length > 0) {
+          await backfillMissingCupsByRound(
+            model(prisma),
+            tournamentId,
+            'finals',
+            legacyFinals,
+          );
+        }
+      }
 
       if (config.getStyle === 'paginated') {
         const { searchParams } = new URL(request.url);
