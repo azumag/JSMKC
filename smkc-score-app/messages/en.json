@@ -124,8 +124,8 @@
     "generateFinalsBracket": "Generate Finals Bracket",
     "failedResetBracket": "Failed to reset bracket",
     "tbd": "TBD",
-    "showToPlayers": "Show to Players",
-    "hideFromPlayers": "Hide from Players"
+    "publishMode": "Publish",
+    "unpublishMode": "Unpublish"
   },
   "home": {
     "tagline": "SMKC Score Management",
@@ -275,14 +275,14 @@
     "public": "Public",
     "visibilityUpdated": "Visibility updated",
     "failedToUpdateVisibility": "Failed to update visibility",
-    "visibleModes": "Visible",
-    "hidden": "Hidden",
+    "visibleModes": "Published",
+    "hidden": "Unpublished",
     "timeTrial": "Time Trial",
     "battleMode": "Battle Mode",
     "matchRace": "Match Race",
     "grandPrix": "Grand Prix",
     "overall": "Overall",
-    "hiddenModes": "All Hidden"
+    "hiddenModes": "All Unpublished"
   },
   "ta": {
     "title": "Time Trial",

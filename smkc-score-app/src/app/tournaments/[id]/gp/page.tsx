@@ -79,6 +79,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
+import { publishMode, unpublishMode, type RevealableMode } from "@/lib/public-modes";
 
 import type { Player } from "@/lib/types";
 
@@ -175,18 +176,19 @@ export default function GrandPrixPage({
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
-  // Public modes visibility state (for admin toggle)
+  // Public modes visibility state (for admin toggle).
+  // publicModes is always a prefix of [ta, bm, mr, gp]: publishing a mode
+  // cascades to earlier modes, unpublishing cascades to later modes. See
+  // @/lib/public-modes for details.
   const [publicModes, setPublicModes] = useState<string[]>([]);
   const [visibilityUpdating, setVisibilityUpdating] = useState(false);
 
-  /** Toggle this mode's visibility for non-admin users */
-  const toggleModeVisibility = useCallback(async (mode: string) => {
+  /** Toggle this mode's publication state for non-admin viewers. */
+  const toggleModePublication = useCallback(async (mode: RevealableMode) => {
     setVisibilityUpdating(true);
     try {
       const isPublic = publicModes.includes(mode);
-      const newModes = isPublic
-        ? publicModes.filter((m) => m !== mode)
-        : [...publicModes, mode];
+      const newModes = isPublic ? unpublishMode(mode) : publishMode(mode);
       const res = await fetch(`/api/tournaments/${tournamentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -626,14 +628,16 @@ export default function GrandPrixPage({
             </Button>
           )}
 
-          {/* Public/Private visibility toggle for GP mode (admin only) */}
+          {/* Publish/Unpublish toggle for GP mode (admin only).
+           * Publishing cascades to earlier modes; unpublishing cascades to
+           * later modes (see @/lib/public-modes). */}
           {isAdmin && (
             <Button
               variant={publicModes.includes("gp") ? "outline" : "default"}
-              onClick={() => toggleModeVisibility("gp")}
+              onClick={() => toggleModePublication("gp")}
               disabled={visibilityUpdating}
             >
-              {publicModes.includes("gp") ? tc('hideFromPlayers') : tc('showToPlayers')}
+              {publicModes.includes("gp") ? tc('unpublishMode') : tc('publishMode')}
             </Button>
           )}
 
