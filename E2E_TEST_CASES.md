@@ -358,6 +358,19 @@
   7. クリーンアップ
 - **期待結果**: update_seeding PUT → GET で永続化が確認できる
 
+## TC-318: TA ペア割り当て — set_partner + パートナーが互いのタイムを編集できる
+- **URL**: /api/tournaments/[temp-id]/ta (PUT set_partner) + /api/tournaments/[temp-id]/ta/entries/[entryId]
+- **authRequired**: true (admin + player)
+- **背景**: TA 予選ではペア制（partnerId）を採用しており、ペアになったプレイヤー同士は互いのタイムを代理入力できる。TC-803 のカバレッジ範囲
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー2名（メイン + パートナー）を作成し、TA エントリーを追加する
+  2. `PUT /api/tournaments/[id]/ta` `{ action: 'set_partner', entryId, partnerId }` を実行し、200 が返ることを確認する（step1）
+  3. GET /ta で entry1.partnerId === partnerId かつ entry2.partnerId === mainPlayerId の双方向ペアが設定されていることを確認する（step2）
+  4. 別の一時ブラウザでパートナーとしてログインし、メインプレイヤーのエントリー（entry1）の MC1 タイムを `PUT .../entries/[entry1.id]` で編集する → 200 が返ること（step3）
+  5. GET /ta でメインプレイヤーの MC1 タイムが更新されていることを確認する（step4）
+  6. クリーンアップ（トーナメント + プレイヤー削除）
+- **期待結果**: set_partner が双方向に反映され、パートナーがペアの相手のタイムを代理入力できる
+
 ## TC-319: TA taPlayerSelfEdit フラグ toggle — false でセルフ編集ブロック
 - **URL**: /api/tournaments/[temp-id]/ta + /api/tournaments/[temp-id]/ta/entries/[entryId]
 - **authRequired**: true (admin)
@@ -490,6 +503,19 @@
   4. `tvNumber: null` を送信 → 200 が返り TV 割り当てがクリアされること
 - **期待結果**: tvNumber 1〜4 は受け入れられ、5 以上は拒否される
 
+## TC-511: BM スラッグ URL からマッチ詳細ページが正常に表示される
+- **URL**: /tournaments/[slug]/bm/match/[matchId]
+- **authRequired**: true (admin)
+- **背景**: トーナメントがスラッグ（`/tournaments/my-slug/bm`）経由で開かれたとき、マッチ詳細ページ（`/tournaments/[slug]/bm/match/[matchId]`）が正常にロードされること。スラッグ → UUID 変換が match detail ルートで動作するかの回帰テスト
+- **手順**:
+  1. 管理者セッションでスラッグ付き一時トーナメント（`e2e-bm-match-slug-TIMESTAMP`）とプレイヤー2名を作成、BM グループ設定を行う
+  2. BM マッチ一覧 API で non-BYE マッチを取得する
+  3. `/tournaments/[slug]/bm` → Matches タブ → `a[href="/tournaments/[slug]/bm/match/[matchId]"]` リンクをクリックする
+  4. URL が `/tournaments/[slug]/bm/match/[matchId]` に遷移することを確認する
+  5. ページ内に player1.nickname と player2.nickname が表示されていること、かつ「試合が見つかりません / Match not found」が表示されていないことを確認する
+  6. クリーンアップ
+- **期待結果**: スラッグ URL でマッチ詳細ページが正常にレンダリングされる（スラッグ→ID 変換が機能する）
+
 ## BM フルワークフロー設計方針
 - **予選プレイヤー数**: 28名（4グループ × 7名、7はオッドのため各グループに BYE が混在）
 - **予選試合数**: 7名RR = 21試合 × 4グループ = **84試合**（API一括投入）
@@ -590,6 +616,34 @@
   4. 両カードの両プレイヤーが "TBD" と表示されていることを確認
   5. クリーンアップ
 - **期待結果**: winners-side の試合が完了する前、losers_r1 はプレイヤー名ではなく TBD を表示する
+
+## TC-515: BM Top-24 Playoff UI フロー
+- **URL**: /tournaments/[temp-id]/bm → /bm/finals
+- **authRequired**: true (admin)
+- **背景**: `topN=24` で BM 決勝生成するとまず 8 試合（playoff_r1 4試合 + playoff_r2 4試合）のバラッジが生成される。UI が以下の流れを正しく提示すること: 予選ページ「Start Playoff」ボタン → Finals ページ Playoff ブラケット表示 → playoff_r2 完了で playoffComplete=true → Phase 2（Upper Bracket）生成
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にする
+  2. 既存ブラケットをリセットし、予選ページ（`/bm`）に「Start Playoff (バラッジ開始)」ボタンが表示されることを確認する
+  3. API で `POST /bm/finals { topN: 24 }` を実行し playoff ブラケットを生成する
+  4. `/bm/finals` に遷移し「Playoff (Barrage)」ラベルと M1 が表示されることを確認する
+  5. playoff_r1 M1〜M4 を 3-0、playoff_r2 M5〜M8 を 4-0 で API 入力する
+  6. 最後の PUT レスポンスで `playoffComplete=true` になることを確認する
+  7. 再度 `POST /bm/finals { topN: 24 }` で Phase 2（Upper Bracket）を生成し、`phase='finals'` が返ることを確認する
+  8. `/bm/finals` に戻り「Upper Bracket / アッパーブラケット」が表示されることを確認する
+  9. クリーンアップ
+- **期待結果**: BM Top-24 バラッジの UI フローが全段階で正常動作する
+
+## TC-516: BM 予選ページの決勝ブラケット存在状態 + リセット
+- **URL**: /tournaments/[temp-id]/bm
+- **authRequired**: true (admin)
+- **背景**: 決勝ブラケット生成後に予選ページを再訪すると「View Tournament / トーナメントを見る」と「Reset Bracket / ブラケットリセット」が表示され、リセット後は「Generate Finals Bracket / Start Playoff」に戻る
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
+  2. 予選ページ（`/bm`）を開き「View Tournament」が表示されることを確認する
+  3. 「Reset Bracket」ボタンをクリックし、確認ダイアログで OK を選択する
+  4. リセット後に「Start Playoff / Generate Finals Bracket」ボタンが再表示されることを確認する
+  5. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament + Reset Bracket」、リセット後は「Generate / Start Playoff」に戻る
 
 ## TC-505: BM Grand Final → チャンピオン決定（28名予選後）
 - **URL**: /tournaments/[temp-id]/bm/finals
@@ -857,6 +911,33 @@
   7. クリーンアップ
 - **期待結果**: MR でも BM/GP と同じく rankOverride 設定後に同順位バーが消える
 
+## TC-615: MR Top-24 Playoff UI フロー
+- **URL**: /tournaments/[temp-id]/mr → /mr/finals
+- **authRequired**: true (admin)
+- **背景**: BM TC-515 の MR 版。`topN=24` で MR 決勝生成するとまず 8 試合のバラッジが生成される。UI が以下の流れを正しく提示すること: 予選ページ「Start Playoff」→ sessionStorage に `mr_finals_topN=24` 保存 → Finals ページ Playoff ブラケット表示 → playoff_r2 完了で playoffComplete=true → Phase 2（Upper Bracket）生成
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、既存ブラケットをリセットする
+  2. 予選ページ（`/mr`）で「Start Playoff (バラッジ開始)」ボタンが表示されることを確認する
+  3. ボタンをクリックし、sessionStorage の `mr_finals_topN` が `"24"` に設定されることを確認する
+  4. `/mr/finals` に遷移し「Playoff (Barrage)」ラベルと M1 が表示されることを確認する
+  5. playoff_r1 M1〜M4 を 3-0、playoff_r2 M5〜M8 を 3-0 で API 入力し、`playoffComplete=true` を確認する
+  6. `POST /mr/finals { topN: 24 }` で Phase 2（Upper Bracket）を生成し `phase='finals'` が返ることを確認する
+  7. `/mr/finals` に戻り「Upper Bracket / アッパーブラケット」が表示されることを確認する
+  8. クリーンアップ
+- **期待結果**: MR Top-24 バラッジの UI フローが全段階で正常動作する（sessionStorage 経由の topN 引き継ぎを含む）
+
+## TC-616: MR 予選ページの決勝ブラケット存在状態 + リセット
+- **URL**: /tournaments/[temp-id]/mr
+- **authRequired**: true (admin)
+- **背景**: BM TC-516 の MR 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」と「Reset Bracket」が表示され、リセット後は「Generate Finals Bracket / Start Playoff」に戻る
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
+  2. 予選ページ（`/mr`）を開き「View Tournament / トーナメントを見る」が表示されることを確認する
+  3. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
+  4. リセット後に「Start Playoff / Generate Finals Bracket」ボタンが再表示されることを確認する
+  5. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament + Reset Bracket」、リセット後は「Generate / Start Playoff」に戻る
+
 ## TC-812: TA 予選同着解決 — 同タイムで average 課題ポイント
 - **URL**: /tournaments/[temp-id]/ta
 - **authRequired**: true (admin)
@@ -1065,6 +1146,46 @@
   4. `suddenDeathWinner` を含めて再 PUT → 200 が返り、チャンピオンが確定すること
   5. クリーンアップ
 - **期待結果**: GP Grand Final 同点時のサドンデス勝者指定が正しく機能する
+
+## TC-713: GP 予選同着解決 — 同順位バーが rankOverride 設定後に消える
+- **URL**: /tournaments/[temp-id]/gp
+- **authRequired**: true (admin)
+- **背景**: BM TC-324 / MR TC-620 の GP 版。全プレイヤーが同一ドライバーポイントでタイとなる場合に「Tied ranks detected / 同順位が検出されました」バナーが表示され、resolveAllTies で全員に distinct な rankOverride を設定すると消えることを検証する
+- **手順**:
+  1. プレイヤー3名 + トーナメントを作成し、GP グループ設定を行う
+  2. 全ての non-BYE マッチで P1 が 5 レース全勝（9pt × 5 = 45pt）するスコアを入力する（全員同着状態を作る）
+  3. `/gp` を開き、順位表タブで「同順位が検出されました / Tied ranks detected」バナーが表示されることを確認する（hasBannerBefore）
+  4. `resolveAllTies(adminPage, tournamentId, 'gp')` で N 人全員に distinct な `rankOverride` を PATCH する
+  5. `/gp` を再訪問し、バナーが消えていることを確認する（hasBannerAfter=false）
+  6. クリーンアップ
+- **期待結果**: GP でも rankOverride 設定後に同順位バーが消える
+
+## TC-715: GP Top-24 Playoff UI フロー
+- **URL**: /tournaments/[temp-id]/gp → /gp/finals
+- **authRequired**: true (admin)
+- **背景**: BM TC-515 / MR TC-615 の GP 版。`topN=24` で GP 決勝生成するとまず 8 試合のバラッジが生成される。UI が以下の流れを正しく提示すること: 予選ページ「Start Playoff」→ sessionStorage に `gp_finals_topN=24` 保存 → Finals ページ Playoff ブラケット表示 → playoff_r2 完了で playoffComplete=true → Phase 2（Upper Bracket）生成
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、既存ブラケットをリセットする
+  2. 予選ページ（`/gp`）で「Start Playoff (バラッジ開始)」ボタンが表示されることを確認する
+  3. ボタンをクリックし、sessionStorage の `gp_finals_topN` が `"24"` に設定されることを確認する
+  4. `/gp/finals` に遷移し「Playoff (Barrage)」ラベルと M1 が表示されることを確認する
+  5. playoff_r1 M1〜M4 を 9-0、playoff_r2 M5〜M8 を 9-0 で API 入力し、`playoffComplete=true` を確認する
+  6. `POST /gp/finals { topN: 24 }` で Phase 2（Upper Bracket）を生成し `phase='finals'` が返ることを確認する
+  7. `/gp/finals` に戻り「Upper Bracket / アッパーブラケット」が表示されることを確認する
+  8. クリーンアップ
+- **期待結果**: GP Top-24 バラッジの UI フローが全段階で正常動作する（sessionStorage 経由の topN 引き継ぎを含む）
+
+## TC-716: GP 予選ページの決勝ブラケット存在状態 + リセット
+- **URL**: /tournaments/[temp-id]/gp
+- **authRequired**: true (admin)
+- **背景**: BM TC-516 / MR TC-616 の GP 版。決勝ブラケット生成後に予選ページを再訪すると「View Tournament」と「Reset Bracket」が表示され、リセット後は「Generate Finals Bracket / Start Playoff」に戻る
+- **手順**:
+  1. 28名予選完了状態のトーナメントで qualificationConfirmed=true にし、Top-8 ブラケットを生成する
+  2. 予選ページ（`/gp`）を開き「View Tournament / トーナメントを見る」が表示されることを確認する
+  3. 「Reset Bracket / ブラケットリセット」ボタンをクリックし、確認ダイアログで OK を選択する
+  4. リセット後に「Start Playoff / Generate Finals Bracket」ボタンが再表示されることを確認する
+  5. クリーンアップ
+- **期待結果**: ブラケット生成後は「View Tournament + Reset Bracket」、リセット後は「Generate / Start Playoff」に戻る
 
 ## TC-820: MR match/[matchId] ページがview-onlyであることを確認
 - **URL**: /tournaments/[temp-id]/mr/match/[matchId]
