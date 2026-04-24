@@ -50,6 +50,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -223,6 +226,11 @@ export default function MatchRaceFinals({
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<MRMatch | null>(null);
   const [rounds, setRounds] = useState<Round[]>(createEmptyRounds(getMrFinalsMaxRounds()));
+  /* Admin override: skip round entry and write raw best-of-N totals.
+   * Mirrors the qualification page's manual-total form. */
+  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
+  const [manualScore1, setManualScore1] = useState<string>("");
+  const [manualScore2, setManualScore2] = useState<string>("");
   const [champion, setChampion] = useState<Player | null>(null);
   const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
 
@@ -395,6 +403,11 @@ export default function MatchRaceFinals({
   const openMatchDialog = (match: MRMatch) => {
     setSelectedMatch(match);
     setRounds(buildInitialRounds(match));
+    /* Reset manual override; pre-fill inputs with the stored totals so
+     * toggling on doesn't clobber them. */
+    setManualScoreEnabled(false);
+    setManualScore1(String(match.score1 ?? 0));
+    setManualScore2(String(match.score2 ?? 0));
     setIsMatchDialogOpen(true);
   };
 
@@ -406,39 +419,64 @@ export default function MatchRaceFinals({
   const handleMatchSubmit = async () => {
     if (!selectedMatch) return;
 
-    if (rounds.some((round) => round.course === "")) {
-      alert(tCommon('select5UniqueCourses'));
-      return;
-    }
+    /* Manual-override path: skip round entry and write the raw totals.
+     * Server preserves the existing rounds[] because `rounds` is undefined
+     * in the body (putAdditionalFields only copies defined keys). */
+    const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
-    const usedCourses = rounds.map((round) => round.course).filter((course) => course !== "");
-    if (new Set(usedCourses).size !== usedCourses.length) {
-      alert(tCommon('select5UniqueCourses'));
-      return;
-    }
+    if (manualScoreEnabled) {
+      const score1 = Number.parseInt(manualScore1, 10);
+      const score2 = Number.parseInt(manualScore2, 10);
+      if (!Number.isInteger(score1) || !Number.isInteger(score2) || score1 < 0 || score2 < 0) {
+        alert(tMr('manualScoreValidation'));
+        return;
+      }
+      const target = selectedMatchTargetWins;
+      /* Best-of-N contract: exactly one side reaches target, the other stays
+       * strictly below. This matches the race-entry validation below. */
+      if (
+        (score1 !== target || score2 >= target) &&
+        (score2 !== target || score1 >= target)
+      ) {
+        alert(tCommon('matchMustHaveWinner'));
+        return;
+      }
+      body.score1 = score1;
+      body.score2 = score2;
+    } else {
+      if (rounds.some((round) => round.course === "")) {
+        alert(tCommon('select5UniqueCourses'));
+        return;
+      }
 
-    /* Count wins and validate a winner */
-    const winnerCount = rounds.filter(r => r.winner === 1).length;
-    const loserCount = rounds.filter(r => r.winner === 2).length;
+      const usedCourses = rounds.map((round) => round.course).filter((course) => course !== "");
+      if (new Set(usedCourses).size !== usedCourses.length) {
+        alert(tCommon('select5UniqueCourses'));
+        return;
+      }
 
-    if (
-      (winnerCount !== selectedMatchTargetWins || loserCount >= selectedMatchTargetWins) &&
-      (loserCount !== selectedMatchTargetWins || winnerCount >= selectedMatchTargetWins)
-    ) {
-      alert(tCommon('matchMustHaveWinner'));
-      return;
+      /* Count wins and validate a winner */
+      const winnerCount = rounds.filter(r => r.winner === 1).length;
+      const loserCount = rounds.filter(r => r.winner === 2).length;
+
+      if (
+        (winnerCount !== selectedMatchTargetWins || loserCount >= selectedMatchTargetWins) &&
+        (loserCount !== selectedMatchTargetWins || winnerCount >= selectedMatchTargetWins)
+      ) {
+        alert(tCommon('matchMustHaveWinner'));
+        return;
+      }
+
+      body.score1 = winnerCount;
+      body.score2 = loserCount;
+      body.rounds = rounds;
     }
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matchId: selectedMatch.id,
-          score1: winnerCount,
-          score2: loserCount,
-          rounds,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -447,6 +485,9 @@ export default function MatchRaceFinals({
         setIsMatchDialogOpen(false);
         setSelectedMatch(null);
         setRounds(createEmptyRounds(getMrFinalsMaxRounds()));
+        setManualScoreEnabled(false);
+        setManualScore1("");
+        setManualScore2("");
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -698,7 +739,55 @@ export default function MatchRaceFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Table>
+            {/* Manual total-score override (mirrors the qualification page).
+              When enabled, race-by-race entry is hidden and the raw
+              best-of-N totals are written directly. */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="mr-finals-manual-score"
+                  checked={manualScoreEnabled}
+                  onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="mr-finals-manual-score">{tMr('manualTotalScore')}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {tMr('manualTotalScoreDesc')}
+                  </p>
+                </div>
+              </div>
+
+              {manualScoreEnabled && selectedMatch && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="mr-finals-manual-score1">{selectedMatch.player1.nickname}</Label>
+                    <Input
+                      id="mr-finals-manual-score1"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualScore1}
+                      onChange={(e) => setManualScore1(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mr-finals-manual-score2">{selectedMatch.player2.nickname}</Label>
+                    <Input
+                      id="mr-finals-manual-score2"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={manualScore2}
+                      onChange={(e) => setManualScore2(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!manualScoreEnabled && <Table>
               <TableHeader>
                 <TableRow>
                   {/* i18n: Table headers for race entry */}
@@ -778,22 +867,33 @@ export default function MatchRaceFinals({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table>}
           </div>
           <DialogFooter>
             {/* i18n: Save result button */}
             <Button
               onClick={handleMatchSubmit}
-              disabled={
-                (
-                  rounds.filter(r => r.winner === 1).length !== selectedMatchTargetWins ||
-                  rounds.filter(r => r.winner === 2).length >= selectedMatchTargetWins
-                ) &&
-                (
-                  rounds.filter(r => r.winner === 2).length !== selectedMatchTargetWins ||
-                  rounds.filter(r => r.winner === 1).length >= selectedMatchTargetWins
-                )
-              }
+              disabled={(() => {
+                if (manualScoreEnabled) {
+                  const s1 = Number.parseInt(manualScore1, 10);
+                  const s2 = Number.parseInt(manualScore2, 10);
+                  if (!Number.isInteger(s1) || !Number.isInteger(s2) || s1 < 0 || s2 < 0) return true;
+                  const target = selectedMatchTargetWins;
+                  const validWinner =
+                    (s1 === target && s2 < target) || (s2 === target && s1 < target);
+                  return !validWinner;
+                }
+                return (
+                  (
+                    rounds.filter(r => r.winner === 1).length !== selectedMatchTargetWins ||
+                    rounds.filter(r => r.winner === 2).length >= selectedMatchTargetWins
+                  ) &&
+                  (
+                    rounds.filter(r => r.winner === 2).length !== selectedMatchTargetWins ||
+                    rounds.filter(r => r.winner === 1).length >= selectedMatchTargetWins
+                  )
+                );
+              })()}
             >
               {tCommon('saveResult')}
             </Button>

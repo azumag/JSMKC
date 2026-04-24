@@ -4,9 +4,9 @@
 - research the industry-standard approach to this problem use it to guide yours"
 - Detailed comments must be included in the source code to justify the implementation of such logic
 - use T-wada TDD
+- 機能実装時は、必ずE2Eシナリオを追加し、対応するe2eテストを更新すること
 
 ## Review
-- 作業内容は厳しい自己レビューを実施すること
 - コードの重複や簡潔性、無駄なファイルを作っていないかどうか、使いやすさ、セキュリティリスク、コ>ストなどのあらゆる点について厳しく指摘してください
 - レビュー修正した後は再度レビューを実施し、レビューの指摘が完全にクリアされるまで、修正とレビュ>ーを繰り返せ
 - テストに失敗したら、作業に関係なくとも、修正すること
@@ -27,31 +27,9 @@ JSMKC (Japan SMK Championship) is a tournament management and scoring system for
 ## SRC
 under `./smkc-score-app`
 
-## Scheduled Tasks (定期タスク)
-
-以下は定期実行される定期タスク。session-only の CronJob。7日後に自動失効。
-
-| Job ID | 間隔 | タスク内容 | 復帰用コマンド |
-|--------|------|-----------|--------------|
-| `0b0f8c19` | 1h | mainブランチに移動し、git pull を使いmainブランチを最新化 | `/loop 1h mainブランチに移動し、git pull を使いmainブランチを最新化` |
-| `58ac80d6` | 1h | PRのコンフリクトが出ていたら適切に解決してpushしなおせ。git worktree で作業すること | `/loop 1h PRのコンフリクトが出ていたら適切に解決してpushしなおせ. git worktree で作業すること。` |
-| `ef011b26` | 1h | 提出されているPRを確認し、レビューがついていたらそれに対応してpushせよ。git worktreeで作業すること | `/loop 1h 提出されているPRを確認し、レビューがついていたらそれに対応してpushせよ。git worktreeで作業すること。` |
-| `b9a10dd2` | 1h | 未解決issueにプランを投稿し、plannedラベルを付与 | `/loop 1h 未解決issueにプランを投稿し、plannedラベルを付与` |
-| `6c0095ee` | 1h | plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与 | `/loop 1h plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与` |
-| `10f3fced` | 1h | change-requestラベル付きissueのプランを更新し、change-requestラベルを削除 | `/loop 1h change-requestラベル付きissueのプランを更新し、change-requestラベルを削除` |
-| `810556ce` | 1h | review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose。git worktree で作業すること | `/loop 1h review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose. git worktree で作業すること` |
-| `586f6461` | 4h | コードベースを精査し、新着問題を発見してGitHub issueを作成 | `/loop 4h コードベースを精査し、新着問題を発見してGitHub issueを作成` |
-| `0f9b0a4a` | 1h | mainブランチ以外に存在している、不要なgit branchおよびworktreeを削除する。git worktree list と git branch -vv の結果を確認し、mergedされたbranchおよびunreachableなworktreeを削除すること。削除対象の基本方針：originにマージ済みのlocal branch、存在しないremoteを追跡しているbranch（gone 표시）、作業が完了して主プロジェクトに戻ったworktree。削除前に 각対象が本当にマージ済み・不要かを確認すること。 | `/loop 1h mainブランチに移動し、git pull を使いmainブランチを最新化。未解決issueにプランを投稿し、plannedラベルを付与。plannedラベル付きissueをレビューし、change-requestまたはreview-passedを付与。change-requestラベル付きissueのプランを更新し、change-requestラベルを削除。review-passedラベル付きissueを元に実装→PR作成。PRにはissue番号を表記。解決済みissueはclose。提出されているPRを確認し、レビューがついていたらそれに対応してpush。PRのコンフリクトが出ていたら適切に解決してpushしなおせ。main以外の必要ないブランチ, worktree を削除して。` |
-
 ### E2E Test Loop (定期E2Eテスト)
 
 本番環境 https://smkc.bluemoon.works/ に対して定期的にE2Eテストを実施し、問題を発見・修正・デプロイ・検証する。
-
-### 起動方法
-
-```
-/loop 12h issueから問題を発見し（resolvedラベル付きは対象外）、対象のissueにたいして方針をコメントせよ。大型の機能追加やリファクタリングであっても避けずに着手すること。解決修正し、commit push し、本番環境へのデプロイを確認し、本番環境（https://smkc.bluemoon.works/）にて node e2e/tc-all.js で全E2Eテストを実行せよ（セッションは永続プロファイルを維持、ログイン/ログアウトは行わない）。未スクリプト化TCがあればClaude自身が手動実行し、PASSしたらe2e/tc-all.jsに追加してcommitする。解決したらissueにresolvedラベルを付与せよ（closeはしない）。解決してなければ修正を続けよ。別の問題が発見されたらあたらしく issue を発行せよ。issueに対応すべきものがなければ、コードベースを調査して改善点やバグを発見し、新しいissueを作成せよ。
-```
 
 ### E2Eテストの実行方法
 

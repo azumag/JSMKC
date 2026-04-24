@@ -123,6 +123,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         playoffStructure: [],
         playoffSeededPlayers: [],
         playoffComplete: false,
+        qualificationConfirmed: false,
       });
       expect(result.status).toBe(200);
     });
@@ -150,6 +151,107 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       expect(result.data).toEqual({ success: false, error: 'Failed to fetch finals data', code: 'INTERNAL_ERROR' });
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to fetch finals data', { error: expect.any(Error), tournamentId: 't1' });
+    });
+
+    /**
+     * MR counterpart of the GP per-round cup normalizer (#585 follow-up).
+     * Every match in the same finals round must share one assignedCourses
+     * array (M1 courses = M2 courses = …). Divergent rows from legacy
+     * brackets converge to the dominant existing array via a per-row
+     * update (JSON equality filter is unreliable on D1).
+     */
+    it('should force every finals match in a round to the same assignedCourses', async () => {
+      const dominant = ['MC', 'DP', 'GV'];
+      const mixedRound = [
+        { id: 'mf1', matchNumber: 1, round: 'winners_qf', assignedCourses: dominant, player1: {}, player2: {} },
+        { id: 'mf2', matchNumber: 2, round: 'winners_qf', assignedCourses: dominant, player1: {}, player2: {} },
+        { id: 'mf3', matchNumber: 3, round: 'winners_qf', assignedCourses: ['BC', 'MB', 'KB'], player1: {}, player2: {} },
+        { id: 'mf4', matchNumber: 4, round: 'winners_qf', assignedCourses: [], player1: {}, player2: {} },
+      ];
+      /* Sequence matches MR's GET: 1st = playoff fetch (empty), 2nd =
+       * finals fetch (mixed state), then the legacy-detection scan used by
+       * the normalizer — but simple style re-fetches after normalization. */
+      (prisma.mRMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(mixedRound)
+        .mockResolvedValueOnce(mixedRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.mRMatch as any).update = jest.fn().mockResolvedValue({});
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateMock = (prisma.mRMatch as any).update as jest.Mock;
+      /* mf3 (different array) and mf4 (empty) both need repair. mf1 and mf2
+       * already agree with the canonical, so they must be skipped. */
+      const updatedIds = updateMock.mock.calls.map(([arg]) => arg.where.id);
+      expect(updatedIds.sort()).toEqual(['mf3', 'mf4']);
+      for (const [arg] of updateMock.mock.calls) {
+        expect(arg.data).toEqual({ assignedCourses: dominant });
+      }
+    });
+
+    /**
+     * When no match in the round has any assignedCourses, the normalizer
+     * falls back to a fresh assignment (createMrRoundAssignments path),
+     * so the empty-round case still converges on one array.
+     */
+    it('should assign fresh courses to a round with no existing courses', async () => {
+      const nullRound = [1, 2, 3, 4].map((n) => ({
+        id: `mf${n}`,
+        matchNumber: n,
+        round: 'winners_qf',
+        assignedCourses: [],
+        player1: {},
+        player2: {},
+      }));
+      (prisma.mRMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(nullRound)
+        .mockResolvedValueOnce(nullRound.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.mRMatch as any).update = jest.fn().mockResolvedValue({});
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateMock = (prisma.mRMatch as any).update as jest.Mock;
+      /* All four rows get the same canonical array. */
+      expect(updateMock).toHaveBeenCalledTimes(4);
+      const canonical = updateMock.mock.calls[0][0].data.assignedCourses;
+      expect(Array.isArray(canonical)).toBe(true);
+      expect(canonical.length).toBeGreaterThan(0);
+      for (const [arg] of updateMock.mock.calls) {
+        expect(arg.data.assignedCourses).toEqual(canonical);
+      }
+    });
+
+    /**
+     * Already-normalized tournaments must not trigger any writes. Prevents
+     * polling from churning the DB on every GET.
+     */
+    it('should not write when every round already has one course set', async () => {
+      const normalized = [
+        { id: 'mf1', matchNumber: 1, round: 'winners_qf', assignedCourses: ['MC', 'DP', 'GV'], player1: {}, player2: {} },
+        { id: 'mf2', matchNumber: 2, round: 'winners_qf', assignedCourses: ['MC', 'DP', 'GV'], player1: {}, player2: {} },
+      ];
+      (prisma.mRMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(normalized)
+        .mockResolvedValueOnce(normalized.map((m) => ({ id: m.id, round: m.round, assignedCourses: m.assignedCourses })));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma.mRMatch as any).update = jest.fn();
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((prisma.mRMatch as any).update).not.toHaveBeenCalled();
     });
   });
 
@@ -378,6 +480,47 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
         champion: null,
       });
       expect(result.status).toBe(200);
+    });
+
+    /**
+     * Admin manual total-score override: when only score1/score2 are sent
+     * without rounds[], the existing rounds[] breakdown must be preserved.
+     * Mirrors the GP-side guard added in PR #585.
+     */
+    it('should preserve rounds when manual override omits them', async () => {
+      const mockMatch = {
+        id: 'm1',
+        matchNumber: 1,
+        round: 'winners_qf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p8',
+        rounds: [{ course: 'MC', winner: 1 }, { course: 'DP', winner: 1 }, { course: 'GV', winner: 1 }],
+        score1: 3,
+        score2: 0,
+        player1: { id: 'p1' },
+        player2: { id: 'p8' },
+      };
+
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, score1: 5, score2: 2, completed: true });
+      (prisma.mRMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
+
+      /* Body omits `rounds`. MR winners_qf defaults to first-to-5, so
+       * 5-2 satisfies the target-wins validation. */
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/mr/finals',
+        { matchId: 'm1', score1: 5, score2: 2 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      await PUT(request, { params });
+
+      const firstUpdateCall = (prisma.mRMatch.update as jest.Mock).mock.calls[0][0];
+      expect(firstUpdateCall.where).toEqual({ id: 'm1' });
+      expect(firstUpdateCall.data.score1).toBe(5);
+      expect(firstUpdateCall.data.score2).toBe(2);
+      expect(firstUpdateCall.data.completed).toBe(true);
+      expect(firstUpdateCall.data).not.toHaveProperty('rounds');
     });
 
     // Success case - Handles grand final completion
