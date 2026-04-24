@@ -20,7 +20,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,9 +53,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -65,7 +81,14 @@ import type { Player } from "@/lib/types";
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
 
-/** GP finals match with score (score1/score2 = game wins in best-of-5) */
+/** Individual race entry in the finals score form */
+interface Race {
+  course: CourseAbbr | "";
+  position1: number | null;
+  position2: number | null;
+}
+
+/** GP finals match with cup-based race results and driver points (§7.5) */
 interface GPMatch {
   id: string;
   matchNumber: number;
@@ -175,6 +198,9 @@ export default function GrandPrixFinals({
   const tFinals = useTranslations('finals');
   const tGp = useTranslations('gp');
   const tCommon = useTranslations('common');
+  const locale = useLocale();
+  // formatGpPosition imported from @/lib/gp-utils; bind locale and gameOver label locally
+  const fmtPos = (position: number) => formatGpPosition(position, locale, tCommon('gameOver'));
 
   const [matches, setMatches] = useState<GPMatch[]>([]);
   const [bracketStructure, setBracketStructure] = useState<BracketMatch[]>([]);
@@ -198,7 +224,11 @@ export default function GrandPrixFinals({
   const [playoffComplete, setPlayoffComplete] = useState(false);
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, suddenDeathWinnerId: "" });
+  const [scoreForm, setScoreForm] = useState<{
+    suddenDeathWinnerId: string;
+    cup: string;
+    races: Race[];
+  }>({ suddenDeathWinnerId: "", cup: "", races: [] });
   const [champion, setChampion] = useState<Player | null>(null);
 
   /** Fetch finals data including matches, bracket structure, and round names */
@@ -359,31 +389,71 @@ export default function GrandPrixFinals({
     }
   };
 
+  /** Get courses belonging to a specific cup for the race table */
+  const getCupCourses = (cup: string): CourseAbbr[] => {
+    return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
+  };
+
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
+    const cup = match.cup || "";
+    let races: Race[];
+    if (match.races && match.races.length === TOTAL_GP_RACES) {
+      /* Pre-fill with existing race data for editing */
+      races = match.races.map((r) => ({
+        course: r.course as CourseAbbr,
+        position1: r.position1,
+        position2: r.position2,
+      }));
+    } else if (cup) {
+      /* Auto-fill courses from the assigned cup's fixed sequence */
+      races = getCupCourses(cup).map((course) => ({ course, position1: null, position2: null }));
+    } else {
+      races = Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr, position1: null, position2: null }));
+    }
     setScoreForm({
-      score1: getGpScore(match, 1),
-      score2: getGpScore(match, 2),
       suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",
+      cup,
+      races,
     });
     setIsScoreDialogOpen(true);
   };
 
   /**
    * Submit score for a finals match.
+   * Calculates driver points from race positions and sends cup + races
+   * so the API can store the full race breakdown (§7.5).
    * The API handles bracket progression (winner/loser advancement)
    * and returns whether the tournament is complete.
    */
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
+    /* Derive total driver points from race positions */
+    const points1 = scoreForm.races.reduce(
+      (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
+      0
+    );
+    const points2 = scoreForm.races.reduce(
+      (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
+      0
+    );
+
     const body: Record<string, unknown> = {
       matchId: selectedMatch.id,
-      score1: scoreForm.score1,
-      score2: scoreForm.score2,
+      score1: points1,
+      score2: points2,
+      cup: scoreForm.cup,
+      races: scoreForm.races.map((r) => ({
+        course: r.course,
+        position1: r.position1,
+        position2: r.position2,
+        points1: r.position1 ? getDriverPoints(r.position1) : 0,
+        points2: r.position2 ? getDriverPoints(r.position2) : 0,
+      })),
     };
-    if (scoreForm.score1 === scoreForm.score2 && scoreForm.suddenDeathWinnerId) {
+    if (points1 === points2 && scoreForm.suddenDeathWinnerId) {
       body.suddenDeathWinnerId = scoreForm.suddenDeathWinnerId;
     }
 
@@ -399,7 +469,7 @@ export default function GrandPrixFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0, suddenDeathWinnerId: "" });
+        setScoreForm({ suddenDeathWinnerId: "", cup: "", races: [] });
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -432,7 +502,15 @@ export default function GrandPrixFinals({
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
-  const scoreHasWinner = hasValidGpFinalsWinner(scoreForm.score1, scoreForm.score2, scoreForm.suddenDeathWinnerId);
+  /* Live driver points computed from race positions for validation preview */
+  const livePoints1 = scoreForm.races.reduce(
+    (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
+    0
+  );
+  const livePoints2 = scoreForm.races.reduce(
+    (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -624,9 +702,11 @@ export default function GrandPrixFinals({
         />
       )}
 
-      {/* Score entry dialog: admin-only */}
+      {/* Score entry dialog: admin-only.
+           GP finals use cup-based race entry with driver points (§7.5),
+           not raw score inputs like BM/MR finals. */}
       {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-lg p-4 sm:p-6">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{tFinals('enterMatchScore')}</DialogTitle>
             <DialogDescription>
@@ -645,45 +725,120 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* GP finals use total driver points; tied totals require a sudden-death winner. */}
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 sm:gap-4">
-              <div className="min-w-0 text-center">
-                <Label className="block truncate" title={selectedMatch?.player1.nickname}>
-                  {selectedMatch?.player1.nickname}
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={scoreForm.score1}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="mx-auto w-20 text-center text-2xl"
-                />
+            {/* Cup display with §7.1 substitution toggle */}
+            {selectedMatch?.cup && (
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">{tGp('cupLabel', { cup: scoreForm.cup || selectedMatch.cup })}</Badge>
+                {CUP_SUBSTITUTIONS[selectedMatch.cup] && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-6"
+                    onClick={() => {
+                      const sub = CUP_SUBSTITUTIONS[selectedMatch.cup!];
+                      const next = scoreForm.cup === selectedMatch.cup ? (sub ?? "") : (selectedMatch.cup ?? "");
+                      setScoreForm((current) => ({
+                        ...current,
+                        cup: next,
+                        races: getCupCourses(next).map((course) => ({ course, position1: null, position2: null })),
+                      }));
+                    }}
+                  >
+                    {scoreForm.cup === selectedMatch.cup
+                      ? tGp('switchToSubstitute', { cup: CUP_SUBSTITUTIONS[selectedMatch.cup] })
+                      : tGp('switchBackToAssigned', { cup: selectedMatch.cup })}
+                  </Button>
+                )}
               </div>
-              <span className="pb-2 text-2xl">-</span>
-              <div className="min-w-0 text-center">
-                <Label className="block truncate" title={selectedMatch?.player2.nickname}>
-                  {selectedMatch?.player2.nickname}
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={scoreForm.score2}
-                  onChange={(e) =>
-                    setScoreForm({
-                      ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="mx-auto w-20 text-center text-2xl"
-                />
-              </div>
+            )}
+
+            {/* Race-by-race entry table (5 races per cup) */}
+            {scoreForm.cup && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">{tCommon('race')}</TableHead>
+                    <TableHead>{tCommon('course')}</TableHead>
+                    <TableHead className="text-center">{tGp('p1Position')}</TableHead>
+                    <TableHead className="text-center">{tGp('p2Position')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scoreForm.races.map((race, index) => (
+                    <TableRow key={`race-${selectedMatch?.id}-${index}`}>
+                      <TableCell className="font-medium">
+                        {tCommon('race')} {index + 1}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {COURSE_INFO.find((c) => c.abbr === race.course)?.name || race.course}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={race.position1?.toString() || ""}
+                          onValueChange={(value) => {
+                            const newRaces = [...scoreForm.races];
+                            newRaces[index] = { ...newRaces[index], position1: value === "" ? null : parseInt(value, 10) };
+                            setScoreForm((current) => ({ ...current, races: newRaces }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={tCommon('position')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GP_POSITION_OPTIONS.map((position) => (
+                              <SelectItem key={`admin-p1-${index}-${position}`} value={position.toString()}>
+                                {fmtPos(position)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={race.position2?.toString() || ""}
+                          onValueChange={(value) => {
+                            const newRaces = [...scoreForm.races];
+                            newRaces[index] = { ...newRaces[index], position2: value === "" ? null : parseInt(value, 10) };
+                            setScoreForm((current) => ({ ...current, races: newRaces }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={tCommon('position')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GP_POSITION_OPTIONS.map((position) => (
+                              <SelectItem key={`admin-p2-${index}-${position}`} value={position.toString()}>
+                                {fmtPos(position)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+
+            {/* Live driver points calculation preview */}
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm font-medium mb-2">{tGp('driverPoints')}</p>
+              {selectedMatch && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-center sm:gap-4">
+                  <div>
+                    <span className="text-sm">{selectedMatch.player1.nickname}:</span>
+                    <span className="ml-2 font-bold">{livePoints1} pts</span>
+                  </div>
+                  <div>
+                    <span className="text-sm">{selectedMatch.player2.nickname}:</span>
+                    <span className="ml-2 font-bold">{livePoints2} pts</span>
+                  </div>
+                </div>
+              )}
             </div>
-            {scoreForm.score1 + scoreForm.score2 > 0 && scoreForm.score1 === scoreForm.score2 && (
+
+            {/* Sudden-death winner selection for tied totals (§7.5) */}
+            {livePoints1 + livePoints2 > 0 && livePoints1 === livePoints2 && (
               <div className="space-y-2">
                 <Label>{tFinals('suddenDeathWinner')}</Label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -711,8 +866,8 @@ export default function GrandPrixFinals({
               </div>
             )}
             <p className={`text-sm text-center ${
-              scoreForm.score1 + scoreForm.score2 > 0 &&
-              scoreForm.score1 === scoreForm.score2 &&
+              livePoints1 + livePoints2 > 0 &&
+              livePoints1 === livePoints2 &&
               !scoreForm.suddenDeathWinnerId
                 ? 'text-yellow-600' : 'invisible'
             }`}>
@@ -723,9 +878,10 @@ export default function GrandPrixFinals({
             <Button
               onClick={handleScoreSubmit}
               disabled={
-                scoreForm.score1 < 0 ||
-                scoreForm.score2 < 0 ||
-                (scoreForm.score1 === scoreForm.score2 && !scoreForm.suddenDeathWinnerId)
+                !scoreForm.cup ||
+                scoreForm.races.length !== TOTAL_GP_RACES ||
+                scoreForm.races.some((r) => r.position1 === null || r.position2 === null) ||
+                (livePoints1 === livePoints2 && !scoreForm.suddenDeathWinnerId)
               }
             >
               {tCommon('saveScore')}

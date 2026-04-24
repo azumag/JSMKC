@@ -18,6 +18,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
+  putAdditionalFields: ['races', 'cup'],
   getTargetWins: getGpFinalsTargetWins,
   getErrorMessage: 'Failed to fetch grand prix finals data',
   postErrorMessage: 'Failed to create grand prix finals bracket',
