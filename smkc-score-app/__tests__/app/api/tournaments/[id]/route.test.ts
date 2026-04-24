@@ -447,6 +447,70 @@ describe('PUT /api/tournaments/[id]', () => {
       });
     });
 
+    it.each([
+      [[]],
+      [['ta']],
+      [['ta', 'bm']],
+      [['ta', 'bm', 'mr']],
+      [['ta', 'bm', 'mr', 'gp']],
+    ])('should accept sequential prefix publicModes %p', async (publicModes) => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ publicModes });
+      (prisma.tournament.update as jest.Mock).mockResolvedValue({ id: 't1', publicModes });
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ publicModes }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { publicModes } })
+      );
+    });
+
+    it.each([
+      // Out-of-order mode in the payload — publishing BM without TA is not allowed
+      [['bm']],
+      [['mr']],
+      [['gp']],
+      // Gaps
+      [['ta', 'mr']],
+      [['ta', 'gp']],
+      [['ta', 'bm', 'gp']],
+      // Wrong order
+      [['bm', 'ta']],
+      // Unknown mode
+      [['foo']],
+    ])('should reject non-sequential publicModes %p with 400', async (publicModes) => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ publicModes });
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ publicModes }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          code: 'VALIDATION_ERROR',
+        }),
+        { status: 400 }
+      );
+    });
+
     it('should update tournament status successfully', async () => {
       const mockTournament = {
         id: 't1',

@@ -124,8 +124,8 @@
     "failedResetBracket": "ブラケットのリセットに失敗しました",
     "generateFinalsBracket": "決勝ブラケットを生成",
     "tbd": "未定",
-    "showToPlayers": "プレイヤーに公開",
-    "hideFromPlayers": "プレイヤーに非表示"
+    "publishMode": "公開",
+    "unpublishMode": "未公開"
   },
   "home": {
     "tagline": "SMKC スコア管理",
@@ -281,8 +281,8 @@
     "grandPrix": "グランプリ",
     "overall": "総合",
     "visibleModes": "公開中",
-    "hidden": "非表示",
-    "hiddenModes": "全非表示"
+    "hidden": "未公開",
+    "hiddenModes": "全未公開"
   },
   "ta": {
     "title": "タイムアタック",

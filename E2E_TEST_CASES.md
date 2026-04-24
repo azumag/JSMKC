@@ -1438,6 +1438,32 @@
   - `?phase=phase1`: `entries`/`rounds`/`availableCourses` が追加される
   - 不正 phase パラメータ: 400
 
+## TC-338: 予選モードの順次公開（TA → BM → MR → GP）
+- **URL**: /api/tournaments/:id (PUT)、各モード qualification ページ
+- **authRequired**: true (admin)
+- **背景**: admin が各 qualification ページの「公開」/「未公開」ボタンで予選モードを
+  段階的に公開する。`publicModes` は常に `[ta, bm, mr, gp]` の先頭からの連続した
+  プレフィックスでなければならず、`["ta", "mr"]` のようなギャップは 400 で拒否される。
+  公開は前方カスケード（BM を公開すると TA も公開される）、未公開は後方カスケード
+  （BM を未公開にすると MR/GP も未公開になる）。
+- **手順**:
+  1. 空の publicModes でトーナメント作成
+  2. BM qualification ページで admin として「公開」をクリック →
+     API に `publicModes: ["ta", "bm"]` が送られ、TA も自動で公開されることを確認
+  3. MR qualification ページで「公開」をクリック → `publicModes: ["ta", "bm", "mr"]`
+  4. GP qualification ページで「公開」をクリック → `publicModes: ["ta", "bm", "mr", "gp"]`
+  5. BM qualification ページで「未公開」をクリック →
+     `publicModes: ["ta"]` になり、MR/GP も自動で未公開になることを確認
+  6. 非 admin のタブバーでは `["ta"]` のみが表示され、BM/MR/GP は非表示であること
+  7. 直接 PUT で `publicModes: ["ta", "mr"]`（ギャップあり）を送信 → 400 VALIDATION_ERROR
+- **期待結果**:
+  - 「公開」ボタンは自モード以前の全モードを公開する
+  - 「未公開」ボタンは自モード以降の全モードを未公開にする
+  - サーバは非プレフィックスの publicModes を 400 で拒否する
+  - 非 admin の閲覧者には公開済みのモードだけがタブに出る
+
+---
+
 ## TC-337: トーナメント一覧 API ページネーション — GET /api/tournaments?limit&page
 - **URL**: /api/tournaments
 - **authRequired**: false (公開GETエンドポイント)
