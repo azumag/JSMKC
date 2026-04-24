@@ -79,6 +79,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 
 const logger = createLogger({ serviceName: 'tournaments-ta' });
 
@@ -955,12 +956,11 @@ export default function TimeAttackPage({
                                     placeholder="#"
                                     value={s.seeding ?? ""}
                                     onChange={(e) => {
-                                      const val = e.target.value;
-                                      const parsed = parseInt(val, 10);
+                                      /* Strict parse: reject "1.5"/"1e2" that parseInt
+                                       * would silently truncate before `>= 1` passes. */
+                                      const parsed = parseManualScore(e.target.value);
                                       const seeding =
-                                        val && !Number.isNaN(parsed) && parsed >= 1
-                                          ? parsed
-                                          : undefined;
+                                        parsed !== null && parsed >= 1 ? parsed : undefined;
                                       /* Recompute snake pairs immediately so the partner
                                        * column reflects §3.1 as soon as seedings change. */
                                       setSetupEntries((prev) =>

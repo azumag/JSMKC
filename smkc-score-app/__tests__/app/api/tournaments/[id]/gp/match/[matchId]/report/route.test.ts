@@ -40,6 +40,12 @@ jest.mock('@/lib/constants', () => ({
   ],
   TOTAL_GP_RACES: 5,
   getDriverPoints: (pos: number) => [0, 9, 6, 3, 1, 0, 0, 0, 0][pos] ?? 0,
+  /* CUPS / CUP_SUBSTITUTIONS are consumed transitively by gp-config's
+   * isValidCupChoice. Without mocking them, the module default of
+   * `undefined` crashes the cup-mismatch rejection path with a 500
+   * instead of the expected 400. */
+  CUPS: ['Mushroom', 'Flower', 'Star', 'Special'],
+  CUP_SUBSTITUTIONS: { Star: 'Mushroom', Special: 'Flower' },
 }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/optimistic-locking', () => ({

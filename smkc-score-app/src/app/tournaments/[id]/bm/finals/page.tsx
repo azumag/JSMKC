@@ -69,6 +69,7 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 
 /**
  * Client-side logger for the finals page.
@@ -729,9 +730,11 @@ export default function BattleModeFinals({
                    max={selectedMatchTargetWins}
                    value={scoreForm.score1}
                    onChange={(e) =>
+                     /* Strict parse: reject "2.5"/"1e2" that parseInt would
+                      * silently coerce into a valid-looking target-wins value. */
                      setScoreForm({
                        ...scoreForm,
-                       score1: parseInt(e.target.value) || 0,
+                       score1: parseManualScore(e.target.value) ?? 0,
                      })
                    }
                    className="w-20 text-center text-2xl"
@@ -753,7 +756,7 @@ export default function BattleModeFinals({
                    onChange={(e) =>
                      setScoreForm({
                        ...scoreForm,
-                       score2: parseInt(e.target.value) || 0,
+                       score2: parseManualScore(e.target.value) ?? 0,
                      })
                    }
                    className="w-20 text-center text-2xl"

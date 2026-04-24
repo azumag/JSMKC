@@ -73,6 +73,7 @@ import { useQualificationActions } from "@/lib/hooks/useQualificationActions";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
 import type { Player } from "@/lib/types";
 
@@ -923,9 +924,12 @@ export default function BattleModePage({
                   max={4}
                   value={scoreForm.score1}
                   onChange={(e) =>
+                    /* Strict parse: reject "2.5"/"1e2" that parseInt would
+                     * silently coerce into a valid-looking integer and pass
+                     * the "sum === 4" check at submit. */
                     setScoreForm({
                       ...scoreForm,
-                      score1: parseInt(e.target.value) || 0,
+                      score1: parseManualScore(e.target.value) ?? 0,
                     })
                   }
                   className="w-20 text-center text-2xl"
@@ -945,7 +949,7 @@ export default function BattleModePage({
                   onChange={(e) =>
                     setScoreForm({
                       ...scoreForm,
-                      score2: parseInt(e.target.value) || 0,
+                      score2: parseManualScore(e.target.value) ?? 0,
                     })
                   }
                   className="w-20 text-center text-2xl"

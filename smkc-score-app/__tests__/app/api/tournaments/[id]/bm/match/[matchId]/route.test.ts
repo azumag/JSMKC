@@ -309,13 +309,14 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
         undefined,
         undefined
       );
-      /* PUT calls findUnique twice — once for stage pre-check, once for the
-       * player-relation re-fetch. Neither currently includes tournamentId in
-       * the where-clause (only the GET path does), so assert on the pre-check
-       * variant with its original shape. */
+      /* PUT calls findUnique twice — once for the stage/round/tournamentId
+       * pre-check (reused by the round-aware finals validator) and once for
+       * the player-relation re-fetch. Neither currently scopes the where-
+       * clause to tournamentId (only the GET path does), so assert on the
+       * pre-check variant's current shape. */
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        select: { stage: true, tournamentId: true },
+        select: { stage: true, round: true, tournamentId: true },
       });
     });
 

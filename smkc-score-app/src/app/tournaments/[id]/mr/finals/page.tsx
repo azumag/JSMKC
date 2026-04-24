@@ -77,6 +77,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
@@ -425,9 +426,12 @@ export default function MatchRaceFinals({
     const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
     if (manualScoreEnabled) {
-      const score1 = Number.parseInt(manualScore1, 10);
-      const score2 = Number.parseInt(manualScore2, 10);
-      if (!Number.isInteger(score1) || !Number.isInteger(score2) || score1 < 0 || score2 < 0) {
+      /* Strict parse: reject "5.9", "1e2", etc. that parseInt would
+       * silently truncate into a valid-looking integer and slip past the
+       * target-wins check below. */
+      const score1 = parseManualScore(manualScore1);
+      const score2 = parseManualScore(manualScore2);
+      if (score1 === null || score2 === null) {
         alert(tMr('manualScoreValidation'));
         return;
       }
@@ -875,9 +879,9 @@ export default function MatchRaceFinals({
               onClick={handleMatchSubmit}
               disabled={(() => {
                 if (manualScoreEnabled) {
-                  const s1 = Number.parseInt(manualScore1, 10);
-                  const s2 = Number.parseInt(manualScore2, 10);
-                  if (!Number.isInteger(s1) || !Number.isInteger(s2) || s1 < 0 || s2 < 0) return true;
+                  const s1 = parseManualScore(manualScore1);
+                  const s2 = parseManualScore(manualScore2);
+                  if (s1 === null || s2 === null) return true;
                   const target = selectedMatchTargetWins;
                   const validWinner =
                     (s1 === target && s2 < target) || (s2 === target && s1 < target);
