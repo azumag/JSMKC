@@ -489,6 +489,39 @@
   4. `/tournaments/[id]/ta/phase2` にリダイレクトされることを確認
 - **期待結果**: 旧 revival-* URL が正しく phase* URL にリダイレクトされる
 
+## TC-331: tt/entries 単一エントリ GET — player・tournament 関連データを含むレスポンス確認
+- **URL**: /api/tournaments/[id]/tt/entries/[entryId]
+- **authRequired**: true (admin)
+- **背景**: `GET /api/tournaments/[id]/tt/entries/[entryId]` は個別の TTEntry を取得する。IDOR 保護（tournamentId が一致しない場合 404）と、関連 player・tournament を include した shape を返すことを確認する。また楽観的ロック (`version` フィールド) が存在することも検証する
+- **手順**:
+  1. 管理者セッションで一時トーナメントとプレイヤー1名を作成し、TA エントリーを追加する
+  2. `GET /api/tournaments/[id]/tt/entries/[entryId]` を呼び出す
+  3. ステータスが 200 かつ `{ success: true, data: { id, player: {...}, tournament: {...}, version: number, ... } }` 形式であることを確認する
+  4. クリーンアップ
+- **期待結果**: 単一エントリが player・tournament・version フィールドを含む正しい形式で返される
+
+## TC-332: tt/entries 楽観的ロック競合 — stale version で PUT すると 409
+- **URL**: /api/tournaments/[id]/tt/entries/[entryId]
+- **authRequired**: true (admin)
+- **背景**: `tt/entries/[entryId]` の PUT は楽観的ロックを採用しており、クライアントが読み取ったバージョンと DB 上のバージョンが一致しない場合 HTTP 409 Conflict を返す。これにより複数ユーザーの並行編集が互いを無言で上書きするのを防ぐ
+- **手順**:
+  1. 一時トーナメントにプレイヤー1名を追加し、TA エントリーを作成する
+  2. `GET /api/tournaments/[id]/tt/entries/[entryId]` でエントリーと現在の `version` (例: 0) を取得する
+  3. `PUT /api/tournaments/[id]/tt/entries/[entryId]` に `{ version: -1, times: {} }` (stale) を送信する
+  4. HTTP 409 が返ることを確認する
+  5. クリーンアップ
+- **期待結果**: 古いバージョン番号での PUT が 409 Conflict で拒否される
+
+## TC-333: ポーリング統計モニタ API — 認証ユーザーのみアクセス可・レスポンス形式確認
+- **URL**: /api/monitor/polling-stats
+- **authRequired**: true (any role)
+- **背景**: `GET /api/monitor/polling-stats` は APIリクエスト量・応答時間・エラーレートなどの監視統計を返す。認証済みユーザーのみがアクセスできる（未認証は 401 で拒否）
+- **手順**:
+  1. 管理者セッションで `GET /api/monitor/polling-stats` を呼び出す
+  2. ステータスが 200 かつ `{ success: true, data: { totalRequests, averageResponseTime, activeConnections, errorRate, warnings, timePeriod } }` 形式であることを確認する
+  3. 未認証リクエストが 401 または 403 で拒否されることを確認する
+- **期待結果**: 管理者は監視統計を取得できる。未認証リクエストは拒否される
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)

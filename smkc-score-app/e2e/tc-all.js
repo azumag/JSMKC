@@ -1804,6 +1804,138 @@ async function main() {
     log('TC-330', 'SKIP', 'TID not available');
   }
 
+  // TC-331: tt/entries single-entry GET — returns TTEntry with player and tournament data
+  // Verifies GET /api/tournaments/[id]/tt/entries/[entryId] returns a well-formed entry
+  // including related player and tournament objects (IDOR-protected by tournamentId).
+  if (pid) {
+    let tc331TournamentId = null;
+    try {
+      tc331TournamentId = await uiCreateTournament(page, `E2E TT Entry GET ${Date.now()}`);
+      await uiActivateTournament(page, tc331TournamentId);
+      await uiSetupTaPlayers(page, tc331TournamentId, [
+        { id: pid, name: playerName, nickname: nick },
+      ]);
+
+      const taResp = await apiFetchTa(page, tc331TournamentId);
+      const entry = (taResp.b?.data?.entries ?? [])[0] ?? null;
+      if (!entry) throw new Error('No TA entry created for TC-331');
+
+      const getResp = await page.evaluate(async ([tid, eid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, [tc331TournamentId, entry.id]);
+
+      const data = getResp.body?.data ?? {};
+      const hasShape =
+        getResp.status === 200 &&
+        getResp.body?.success === true &&
+        data.id === entry.id &&
+        typeof data.player === 'object' && data.player !== null &&
+        typeof data.tournament === 'object' && data.tournament !== null &&
+        typeof data.version === 'number';
+
+      log('TC-331', hasShape ? 'PASS' : 'FAIL',
+        getResp.status !== 200 ? `Got ${getResp.status}`
+        : !hasShape ? 'Response missing player, tournament, or version fields'
+        : '');
+    } catch (err) {
+      log('TC-331', 'FAIL', err instanceof Error ? err.message : 'TT entry GET test failed');
+    } finally {
+      if (tc331TournamentId) await deleteTournament(page, tc331TournamentId);
+    }
+  } else {
+    log('TC-331', 'SKIP', 'No player available');
+  }
+
+  // TC-332: tt/entries optimistic-locking conflict — stale version returns 409
+  // Verifies that PUT /api/tournaments/[id]/tt/entries/[entryId] with a version
+  // number that is one behind the current value returns HTTP 409 Conflict.
+  // This ensures concurrent edits cannot silently overwrite each other.
+  if (pid) {
+    let tc332TournamentId = null;
+    try {
+      tc332TournamentId = await uiCreateTournament(page, `E2E TT Lock ${Date.now()}`);
+      await uiActivateTournament(page, tc332TournamentId);
+      await uiSetupTaPlayers(page, tc332TournamentId, [
+        { id: pid, name: playerName, nickname: nick },
+      ]);
+
+      const taResp = await apiFetchTa(page, tc332TournamentId);
+      const entry = (taResp.b?.data?.entries ?? [])[0] ?? null;
+      if (!entry) throw new Error('No TA entry created for TC-332');
+
+      // Read the entry via tt/entries to obtain the current version number.
+      const readResp = await page.evaluate(async ([tid, eid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, [tc332TournamentId, entry.id]);
+
+      const currentVersion = readResp.body?.data?.version;
+      if (typeof currentVersion !== 'number') {
+        throw new Error(`No version in GET response: ${JSON.stringify(readResp.body).slice(0, 200)}`);
+      }
+
+      // Submit PUT with a stale version (currentVersion - 1) — must return 409.
+      const conflictResp = await page.evaluate(async ([tid, eid, staleVersion]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: staleVersion, times: {} }),
+        });
+        return { status: r.status };
+      }, [tc332TournamentId, entry.id, currentVersion - 1]);
+
+      log('TC-332', conflictResp.status === 409 ? 'PASS' : 'FAIL',
+        `Expected 409 for stale version, got ${conflictResp.status}`);
+    } catch (err) {
+      log('TC-332', 'FAIL', err instanceof Error ? err.message : 'TT optimistic lock conflict test failed');
+    } finally {
+      if (tc332TournamentId) await deleteTournament(page, tc332TournamentId);
+    }
+  } else {
+    log('TC-332', 'SKIP', 'No player available');
+  }
+
+  // TC-333: Polling-stats monitor API — authenticated gets 200 with stats shape, unauth gets 401
+  // Verifies GET /api/monitor/polling-stats requires authentication and returns the expected
+  // shape: { success, data: { totalRequests, averageResponseTime, activeConnections, errorRate,
+  // warnings, timePeriod } }.
+  try {
+    const adminResp = await page.evaluate(async () => {
+      const r = await fetch('/api/monitor/polling-stats');
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    const data = adminResp.body?.data ?? {};
+    const hasShape =
+      adminResp.status === 200 &&
+      adminResp.body?.success === true &&
+      typeof data.totalRequests === 'number' &&
+      typeof data.averageResponseTime === 'number' &&
+      typeof data.activeConnections === 'number' &&
+      typeof data.errorRate === 'number' &&
+      Array.isArray(data.warnings) &&
+      typeof data.timePeriod === 'object' && data.timePeriod !== null;
+
+    // Unauthenticated request via https module must be rejected with 401 or 403.
+    const anonStatus = await new Promise((resolve) => {
+      const req = https.get(`${BASE}/api/monitor/polling-stats`, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      });
+      req.on('error', () => resolve(0));
+      req.setTimeout(8000, () => { req.destroy(); resolve(0); });
+    });
+    const anonBlocked = anonStatus === 401 || anonStatus === 403;
+
+    log('TC-333',
+      hasShape && anonBlocked ? 'PASS' : 'FAIL',
+      adminResp.status !== 200 ? `Admin got ${adminResp.status}`
+        : !hasShape ? 'Response shape invalid'
+        : !anonBlocked ? `Anon got ${anonStatus} (expected 401/403)` : '');
+  } catch (err) {
+    log('TC-333', 'FAIL', err instanceof Error ? err.message : 'Polling stats test failed');
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped
