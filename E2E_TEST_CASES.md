@@ -1423,6 +1423,35 @@
   6. プレイヤー権限の PUT `/api/tournaments/[temp-id]/ta` が 403 で拒否されることを確認する
 - **期待結果**: 予選凍結後はノックアウト開始前でもプレイヤーは自分のタイムを再編集できない
 
+## TC-336: TA フェーズ API 構造確認 — GET /api/tournaments/[id]/ta/phases
+- **URL**: /api/tournaments/[id]/ta/phases
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: TA 決勝フェーズ（Phase1/2/3）のステータスを返す API の契約を確認する。
+  フロントエンド(`TAEliminationPhase`)はこのエンドポイントをポーリングしてフェーズ状態を
+  取得するため、レスポンス形式が崩れると UI 全体が壊れる。
+- **手順**:
+  1. `phase` パラメータなしで GET → `{ success: true, data: { phaseStatus: {...} } }` を検証
+  2. `?phase=phase1` で GET → `entries`, `rounds`, `availableCourses` が配列として含まれることを確認
+  3. `?phase=invalid` で GET → 400 バリデーションエラーを確認
+- **期待結果**:
+  - フェーズ指定なし: `phaseStatus` オブジェクトのみ (entriesなし)
+  - `?phase=phase1`: `entries`/`rounds`/`availableCourses` が追加される
+  - 不正 phase パラメータ: 400
+
+## TC-337: トーナメント一覧 API ページネーション — GET /api/tournaments?limit&page
+- **URL**: /api/tournaments
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: トーナメント一覧はページネーション付き。`limit=1&page=1` で1件返り、
+  `meta.total/page/limit/totalPages` が正しく返ることを確認する。
+  また `page=2` が空または1件のデータを返すことも確認。
+- **手順**:
+  1. `?limit=1&page=1` で GET → `data.length <= 1`, `meta.limit === 1`, `meta.page === 1` を確認
+  2. `?limit=1&page=2` で GET → 200 で `data.length <= 1` を確認
+- **期待結果**:
+  - `{ success: true, data: [...], meta: { total, page, limit, totalPages } }` の形式
+  - `limit=1` のとき `data` の要素数は最大1件
+  - `meta` の各フィールドが number 型
+
 ---
 
 ## E2Eテスト実行ガイド

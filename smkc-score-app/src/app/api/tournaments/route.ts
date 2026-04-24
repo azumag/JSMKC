@@ -30,9 +30,9 @@ import {
 /**
  * GET /api/tournaments
  *
- * Returns a paginated list of tournaments sorted by date descending.
- * - Admin users see all tournaments (public and private).
- * - Non-admin users see only tournaments where isPublic === true.
+ * Returns a paginated list of all tournaments sorted by date descending.
+ * Visibility filtering by mode (publicModes) is handled client-side.
+ * Per-tournament access control is enforced in GET /api/tournaments/[id].
  *
  * Query parameters:
  *   - page  (number, default: 1)  - Page number for pagination
@@ -50,12 +50,10 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
 
-    // Admins see all tournaments; non-admins only see tournaments
-    // where publicModes has at least one mode (all non-admin visibility is now per-mode).
-    const session = await auth();
-    const isAdmin = session?.user?.role === 'admin';
-    // No isPublic filter needed since visibility is now per-mode.
-    // Non-admin users see tournaments if they have at least one public mode (client-side filter).
+    // All tournaments are returned regardless of auth state.
+    // Per-mode visibility (publicModes) is enforced client-side so non-admin
+    // users only see modes listed in publicModes. Server-side filtering is
+    // done per-tournament in GET /api/tournaments/[id].
     const where = {};
 
     // Use the paginate utility for consistent pagination behavior.
