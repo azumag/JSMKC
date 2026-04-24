@@ -397,7 +397,10 @@ export default function GrandPrixFinals({
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
-    const cup = match.cup || "";
+    /* Fall back to a random cup for legacy matches that were created before
+     * per-round cup assignment landed (match.cup === null). Without a cup the
+     * race table never renders and the admin can't enter scores. */
+    const cup = match.cup || CUPS[Math.floor(Math.random() * CUPS.length)];
     let races: Race[];
     if (match.races && match.races.length === TOTAL_GP_RACES) {
       /* Pre-fill with existing race data for editing */
@@ -406,11 +409,9 @@ export default function GrandPrixFinals({
         position1: r.position1,
         position2: r.position2,
       }));
-    } else if (cup) {
+    } else {
       /* Auto-fill courses from the assigned cup's fixed sequence */
       races = getCupCourses(cup).map((course) => ({ course, position1: null, position2: null }));
-    } else {
-      races = Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr, position1: null, position2: null }));
     }
     setScoreForm({
       suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",
@@ -725,17 +726,16 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Cup selection:
-              - If the match has an assigned cup (new bracket), show the badge
-                with the §7.1 substitution toggle.
-              - If not (legacy tournaments created before cup assignment landed,
-                where match.cup is null), let the admin pick any cup so scores
-                can still be entered. Without this fallback the race table
-                never renders and the Save button stays disabled. */}
-            {selectedMatch?.cup ? (
+            {/* Cup display with §7.1 substitution toggle. scoreForm.cup is
+              always set by openScoreDialog: either from the match's assigned
+              cup or a random fallback for legacy matches. The substitution
+              toggle is only offered when the match has a server-assigned
+              cup, since substitution is a rule about the originally assigned
+              cup. */}
+            {scoreForm.cup && (
               <div className="flex items-center gap-3">
-                <Badge variant="outline">{tGp('cupLabel', { cup: scoreForm.cup || selectedMatch.cup })}</Badge>
-                {CUP_SUBSTITUTIONS[selectedMatch.cup] && (
+                <Badge variant="outline">{tGp('cupLabel', { cup: scoreForm.cup })}</Badge>
+                {selectedMatch?.cup && CUP_SUBSTITUTIONS[selectedMatch.cup] && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -755,29 +755,6 @@ export default function GrandPrixFinals({
                       : tGp('switchBackToAssigned', { cup: selectedMatch.cup })}
                   </Button>
                 )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>{tGp('selectCup')}</Label>
-                <Select
-                  value={scoreForm.cup}
-                  onValueChange={(value) => {
-                    setScoreForm((current) => ({
-                      ...current,
-                      cup: value,
-                      races: getCupCourses(value).map((course) => ({ course, position1: null, position2: null })),
-                    }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={tGp('selectCupPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CUPS.map((cup) => (
-                      <SelectItem key={cup} value={cup}>{cup}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             )}
 
