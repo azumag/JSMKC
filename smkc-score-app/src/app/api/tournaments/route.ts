@@ -120,7 +120,8 @@ export async function POST(request: NextRequest) {
       return handleValidationError("Slug must contain only lowercase letters, numbers, and hyphens", "slug");
     }
 
-    // Create the tournament with initial "draft" status.
+    // Create the tournament with initial "draft" status and no public modes.
+    // New tournaments are private by default; admin enables modes individually.
     // dualReportEnabled defaults to false — when true, both players must
     // report matching scores for auto-confirmation.
     const tournament = await prisma.tournament.create({
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
         status: "draft",
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
+        publicModes: [],
       },
     });
 

@@ -123,7 +123,9 @@
     "resetBracketConfirm": "Reset bracket? All existing finals and playoff data will be deleted.",
     "generateFinalsBracket": "Generate Finals Bracket",
     "failedResetBracket": "Failed to reset bracket",
-    "tbd": "TBD"
+    "tbd": "TBD",
+    "showToPlayers": "Show to Players",
+    "hideFromPlayers": "Hide from Players"
   },
   "home": {
     "tagline": "SMKC Score Management",

@@ -315,29 +315,6 @@ export default function TournamentLayout({
                 {t("completeTournament")}
               </Button>
             )}
-            {/* Per-mode visibility toggles (admin only) */}
-            {isAdmin && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground mr-1">
-                  {t("visibleModes")}:
-                </span>
-                {["ta", "bm", "mr", "gp"].map((mode) => {
-                  const isPublic = (tournament.publicModes ?? []).includes(mode);
-                  return (
-                    <Button
-                      key={mode}
-                      variant={isPublic ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => toggleMode(mode)}
-                      disabled={visibilityUpdating}
-                      className="h-8 px-2 text-xs"
-                    >
-                      {t(mode)}
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
             {/* Export button for downloading tournament data (admin only) */}
             {isAdmin && (
               <ExportButton

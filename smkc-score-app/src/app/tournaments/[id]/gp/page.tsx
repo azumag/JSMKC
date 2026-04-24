@@ -175,6 +175,44 @@ export default function GrandPrixPage({
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
+  // Public modes visibility state (for admin toggle)
+  const [publicModes, setPublicModes] = useState<string[]>([]);
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
+
+  /** Toggle this mode's visibility for non-admin users */
+  const toggleModeVisibility = useCallback(async (mode: string) => {
+    setVisibilityUpdating(true);
+    try {
+      const isPublic = publicModes.includes(mode);
+      const newModes = isPublic
+        ? publicModes.filter((m) => m !== mode)
+        : [...publicModes, mode];
+      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: newModes }),
+      });
+      if (res.ok) {
+        setPublicModes(newModes);
+      } else {
+        alert(tc('failedToUpdateVisibility') ?? 'Failed to update visibility');
+      }
+    } finally {
+      setVisibilityUpdating(false);
+    }
+  }, [publicModes, tournamentId, tc]);
+
+  // Fetch tournament visibility data on mount
+  useEffect(() => {
+    fetch(`/api/tournaments/${tournamentId}?fields=summary`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        const data = j?.data ?? j;
+        if (data?.publicModes) setPublicModes(data.publicModes);
+      })
+      .catch(() => {});
+  }, [tournamentId]);
+
   /** Get courses belonging to a specific cup for the course selection dropdown */
   const getCupCourses = (cup: string): CourseAbbr[] => {
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
@@ -585,6 +623,17 @@ export default function GrandPrixPage({
               }}
             >
               {resettingBracket ? tc('resettingBracket') : tc('resetBracket')}
+            </Button>
+          )}
+
+          {/* Public/Private visibility toggle for GP mode (admin only) */}
+          {isAdmin && (
+            <Button
+              variant={publicModes.includes("gp") ? "outline" : "default"}
+              onClick={() => toggleModeVisibility("gp")}
+              disabled={visibilityUpdating}
+            >
+              {publicModes.includes("gp") ? tc('hideFromPlayers') : tc('showToPlayers')}
             </Button>
           )}
 

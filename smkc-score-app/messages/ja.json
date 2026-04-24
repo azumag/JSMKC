@@ -123,7 +123,9 @@
     "resetBracketConfirm": "ブラケットをリセットしますか？既存の決勝・プレーオフデータがすべて削除されます。",
     "failedResetBracket": "ブラケットのリセットに失敗しました",
     "generateFinalsBracket": "決勝ブラケットを生成",
-    "tbd": "未定"
+    "tbd": "未定",
+    "showToPlayers": "プレイヤーに公開",
+    "hideFromPlayers": "プレイヤーに非表示"
   },
   "home": {
     "tagline": "SMKC スコア管理",

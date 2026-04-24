@@ -157,6 +157,44 @@ export default function MatchRacePage({
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
 
+  // Public modes visibility state (for admin toggle)
+  const [publicModes, setPublicModes] = useState<string[]>([]);
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
+
+  /** Toggle this mode's visibility for non-admin users */
+  const toggleModeVisibility = useCallback(async (mode: string) => {
+    setVisibilityUpdating(true);
+    try {
+      const isPublic = publicModes.includes(mode);
+      const newModes = isPublic
+        ? publicModes.filter((m) => m !== mode)
+        : [...publicModes, mode];
+      const res = await fetch(`/api/tournaments/${tournamentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: newModes }),
+      });
+      if (res.ok) {
+        setPublicModes(newModes);
+      } else {
+        alert(tc('failedToUpdateVisibility') ?? 'Failed to update visibility');
+      }
+    } finally {
+      setVisibilityUpdating(false);
+    }
+  }, [publicModes, tournamentId, tc]);
+
+  // Fetch tournament visibility data on mount
+  useEffect(() => {
+    fetch(`/api/tournaments/${tournamentId}?fields=summary`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        const data = j?.data ?? j;
+        if (data?.publicModes) setPublicModes(data.publicModes);
+      })
+      .catch(() => {});
+  }, [tournamentId]);
+
   /**
    * Fetch MR data and player list concurrently.
    * Called by the polling hook for real-time updates.
@@ -561,6 +599,16 @@ export default function MatchRacePage({
             groupCount={groupCount}
             setGroupCount={setGroupCount}
           />}
+          {/* Public/Private visibility toggle for MR mode (admin only) */}
+          {isAdmin && (
+            <Button
+              variant={publicModes.includes("mr") ? "outline" : "default"}
+              onClick={() => toggleModeVisibility("mr")}
+              disabled={visibilityUpdating}
+            >
+              {publicModes.includes("mr") ? tc('hideFromPlayers') : tc('showToPlayers')}
+            </Button>
+          )}
         </div>
       </div>
 
