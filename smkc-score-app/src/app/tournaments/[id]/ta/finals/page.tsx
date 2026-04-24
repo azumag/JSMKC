@@ -113,10 +113,11 @@ interface PhaseRound {
 /**
  * Render visual lives indicator with heart icons.
  * Hearts turn red when only 1 life remains (danger state).
+ * eliminatedLabel is a translated string passed from the component to avoid i18n hooks at module scope.
  */
-function renderLives(lives: number, eliminated: boolean) {
+function renderLives(lives: number, eliminated: boolean, eliminatedLabel: string) {
   if (eliminated) {
-    return <span className="text-gray-400">Eliminated</span>;
+    return <span className="text-gray-400">{eliminatedLabel}</span>;
   }
   const hearts = [];
   for (let i = 0; i < lives; i++) {
@@ -489,7 +490,7 @@ export default function TimeAttackFinals({
           const timeMs = timeToMs(timeStr);
           if (timeMs === null) {
             setSaveError(
-              `Invalid time for ${entry.player.nickname}. Enter M:SS.mm format.`
+              tTaFinals('invalidTimeFor', { name: entry.player.nickname })
             );
             setSubmitting(false);
             return;
@@ -499,7 +500,7 @@ export default function TimeAttackFinals({
       }
 
       if (results.length < 2) {
-        setSaveError("Need at least 2 players to submit results");
+        setSaveError(tTaFinals('needAtLeast2Players'));
         setSubmitting(false);
         return;
       }
@@ -736,12 +737,12 @@ export default function TimeAttackFinals({
                         {entry.player.nickname}
                       </Label>
                       <div className="text-xs text-muted-foreground">
-                        {renderLives(entry.lives, entry.eliminated)}
+                        {renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
                       </div>
                     </div>
                     <Input
                       type="text"
-                      placeholder="M:SS.mm"
+                      placeholder={tTaFinals('timePlaceholder')}
                       value={courseTimes[entry.playerId] || ""}
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)
@@ -757,7 +758,7 @@ export default function TimeAttackFinals({
                       }
                       size="sm"
                       onClick={() => handleRetryToggle(entry.playerId)}
-                      title="Mark as retry (penalty: 9:59.990)"
+                      title={tTaFinals('retryPenalty')}
                     >
                       {tCommon('retry')}
                     </Button>
@@ -976,7 +977,7 @@ export default function TimeAttackFinals({
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    {renderLives(entry.lives, entry.eliminated)}
+                    {renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
                   </TableCell>
                   {/* Admin-only: manual elimination button */}
                   {isAdmin && (

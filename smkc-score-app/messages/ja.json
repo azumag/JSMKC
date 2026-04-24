@@ -482,7 +482,14 @@
     "mrFtByRound": "ラウンド別FT：",
     "mrFtByRoundDesc": "プレーオフは FT3/4、序盤ブラケットは FT5、準決勝帯は FT7、決勝帯は FT9 です。",
     "firstTo3": "3勝先取：",
-    "firstTo3Desc": "先に3勝したプレイヤーが勝利"
+    "firstTo3Desc": "先に3勝したプレイヤーが勝利",
+    "top8": "Top 8",
+    "top16": "Top 16",
+    "top24": "Top 24",
+    "playoffPhase": "プレーオフフェーズ",
+    "playoffComplete": "プレーオフ完了！",
+    "createUpperBracket": "上位ブラケット作成",
+    "allPlayoffMatchesComplete": "全プレーオフ試合が完了しました！上位ブラケットを作成してください。"
   },
   "match": {
     "enterScore": "スコア入力",
@@ -692,7 +699,12 @@
     "undoing": "取り消し中...",
     "courseOverrideLabel": "コース選択（任意）",
     "randomCourse": "ランダム（デフォルト）",
-    "manualCourseOverride": "手動選択"
+    "manualCourseOverride": "手動選択",
+    "eliminated": "敗退",
+    "invalidTimeFor": "{name}のタイムが無効です。M:SS.mm形式で入力してください。",
+    "needAtLeast2Players": "結果を提出するには少なくとも2名必要です",
+    "timePlaceholder": "M:SS.mm",
+    "retryPenalty": "リトライとしてマーク（ペナルティ: 9:59.990）"
   },
   "revival": {
     "round1Title": "敗者復活戦 ラウンド1",
