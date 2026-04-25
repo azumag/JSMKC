@@ -132,7 +132,8 @@
     "grandPrix": "Grand Prix",
     "generatingBracket": "Generating bracket... Please wait.",
     "broadcastReflect": "Broadcast",
-    "broadcastReflected": "Broadcast updated"
+    "broadcastReflected": "Broadcast updated",
+    "broadcastError": "Broadcast failed"
   },
   "home": {
     "tagline": "SMKC Score Management",

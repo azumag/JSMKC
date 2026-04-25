@@ -1016,7 +1016,7 @@ export default function GrandPrixFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                    const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -1024,7 +1024,13 @@ export default function GrandPrixFinals({
                         player2Name: selectedMatch.player2.nickname,
                       }),
                     });
-                    toast.success("配信に反映しました");
+                    if (res.ok) {
+                      toast.success(tCommon("broadcastReflected"));
+                    } else {
+                      toast.error(tCommon("broadcastError"));
+                    }
+                  } catch {
+                    toast.error(tCommon("broadcastError"));
                   } finally {
                     setBroadcasting(false);
                   }

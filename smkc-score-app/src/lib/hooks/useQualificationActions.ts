@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createLogger } from "@/lib/client-logger";
 
@@ -28,6 +29,7 @@ interface RankOverrideUpdate {
  * These functions are identical across BM/MR/GP qualification pages.
  */
 export function useQualificationActions({ tournamentId, mode, refetch }: UseQualificationActionsOptions) {
+  const tc = useTranslations("common");
   // Memoize logger so useCallback deps stay referentially stable
   const logger = useMemo(() => createLogger({ serviceName: `tournaments-${mode}` }), [mode]);
 
@@ -109,15 +111,17 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         body: JSON.stringify({ player1Name, player2Name }),
       });
       if (res.ok) {
-        toast.success("配信に反映しました");
+        toast.success(tc("broadcastReflected"));
         return true;
       }
+      toast.error(tc("broadcastError"));
       return false;
     } catch (err) {
       logger.error("Failed to reflect broadcast:", { error: err, tournamentId });
+      toast.error(tc("broadcastError"));
       return false;
     }
-  }, [tournamentId, logger]);
+  }, [tournamentId, tc, logger]);
 
   return { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect };
 }

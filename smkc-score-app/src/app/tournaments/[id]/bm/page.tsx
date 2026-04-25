@@ -246,6 +246,22 @@ export default function BattleModePage({
     return () => { cancelled = true; };
   }, [tournamentId]);
 
+  /* Clear tvOverrides for matches where the API has caught up to the optimistic value */
+  useEffect(() => {
+    if (!pollData) return;
+    setTvOverrides((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const match of (pollData.matches ?? [])) {
+        if (match.id in next && next[match.id] === match.tvNumber) {
+          delete next[match.id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pollData]);
+
   /* Shared handlers for rank override, TV assignment, and broadcast reflect */
   const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
     useQualificationActions({ tournamentId, mode: "bm", refetch });
