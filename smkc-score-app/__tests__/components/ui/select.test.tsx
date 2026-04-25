@@ -128,7 +128,7 @@ describe('Select Components', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
-      expect(trigger).toHaveClass('data-[size=default]:h-9');
+      expect(trigger).toHaveClass('data-[size=default]:h-10');
     });
 
     it('should apply sm size height class when size="sm"', () => {
@@ -174,7 +174,7 @@ describe('Select Components', () => {
       renderSelect();
 
       const trigger = screen.getByTestId('trigger');
-      expect(trigger).toHaveClass('focus-visible:border-ring', 'focus-visible:ring-[3px]');
+      expect(trigger).toHaveClass('focus-visible:border-primary', 'focus-visible:ring-2');
     });
 
     it('should be disabled when disabled prop is passed', () => {
