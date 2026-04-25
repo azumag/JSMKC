@@ -52,9 +52,11 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
-      <div className="relative pl-7">
-        {/* Vertical rail. Sits behind the dots and stretches full height. */}
-        <div className="pointer-events-none absolute bottom-1 left-[10px] top-1 w-px bg-white/15" />
+      <div className="relative pl-10">
+        {/* Vertical rail. Sits behind the dots and stretches full height.
+            Rail x-center (~21px) intentionally aligns with the dot center
+            below — keep the offsets in sync if pl-* changes. */}
+        <div className="pointer-events-none absolute bottom-1 left-[20px] top-1 w-px bg-white/15" />
 
         {ordered.map((event) => {
           const dot = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_DOT;
@@ -65,11 +67,11 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
               data-testid="dashboard-timeline-entry"
               data-event-id={event.id}
             >
-              {/* Dot marker on the rail. -left lines it up with the rail; the
-                  ring suggests a subtle "node" feel without distracting from
-                  the text content. */}
+              {/* Dot marker on the rail. With pl-10 (40) and dot width 14,
+                  left:-26 puts the dot center at 40 - 26 + 7 = 21 — matches
+                  the rail above. */}
               <div
-                className={`absolute left-[-21px] top-[8px] h-3.5 w-3.5 rounded-full ring-2 ring-black/60 ${dot}`}
+                className={`absolute left-[-26px] top-[8px] h-3.5 w-3.5 rounded-full ring-2 ring-black/60 ${dot}`}
               />
 
               <div
