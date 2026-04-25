@@ -125,7 +125,11 @@
     "failedResetBracket": "Failed to reset bracket",
     "tbd": "TBD",
     "publishMode": "Publish",
-    "unpublishMode": "Unpublish"
+    "unpublishMode": "Unpublish",
+    "timeTrial": "Time Trial",
+    "battleMode": "Battle Mode",
+    "matchRace": "Match Race",
+    "grandPrix": "Grand Prix"
   },
   "home": {
     "tagline": "SMKC Score Management",
