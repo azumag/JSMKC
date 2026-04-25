@@ -49,6 +49,7 @@ const bmModule = require('./tc-bm');
 const mrModule = require('./tc-mr');
 const gpModule = require('./tc-gp');
 const taModule = require('./tc-ta');
+const overlayModule = require('./tc-overlay');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 /* TID is set at runtime from a dedicated test tournament we create in main().
@@ -2456,6 +2457,9 @@ async function main() {
     { label: 'MR Tests', mod: mrModule },
     { label: 'GP Tests', mod: gpModule },
     { label: 'TA Tests', mod: taModule },
+    /* Overlay tests own a tiny self-contained tournament — no shared fixture
+       dependency, so the order relative to BM/MR/GP/TA doesn't matter. */
+    { label: 'Overlay Tests', mod: overlayModule },
   ];
 
   const suiteFailures = {};
