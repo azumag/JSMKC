@@ -42,17 +42,29 @@ export default function DashboardPage({
   const { id } = use(params);
 
   const [events, setEvents] = useState<OverlayEvent[]>([]);
+  /* IDs of events that arrived in the latest poll — used for slide-in animation (#646).
+     Cleared after 500ms so the animation CSS class is no longer needed. */
+  const [newEventIds, setNewEventIds] = useState<ReadonlySet<string>>(new Set());
   const [currentPhase, setCurrentPhase] = useState<string>("");
+  const [currentPhaseFormat, setCurrentPhaseFormat] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
   /* Broadcast player names from "配信に反映" / 配信管理 page */
   const [overlayPlayer1Name, setOverlayPlayer1Name] = useState<string>("");
   const [overlayPlayer2Name, setOverlayPlayer2Name] = useState<string>("");
+  /* Match info set by "配信に反映" for footer label and score display (#644/#645/#649) */
+  const [overlayMatchLabel, setOverlayMatchLabel] = useState<string | null>(null);
+  const [overlayPlayer1Wins, setOverlayPlayer1Wins] = useState<number | null>(null);
+  const [overlayPlayer2Wins, setOverlayPlayer2Wins] = useState<number | null>(null);
+  const [overlayMatchFt, setOverlayMatchFt] = useState<number | null>(null);
 
   /* `since` advances each poll. First call uses `?initial=1` (no since)
      to backfill recent history; subsequent calls echo back `serverTime`. */
   const sinceRef = useRef<string | null>(null);
   /* Dedupe overlapping `since` windows the same way the toast page does. */
   const seenRef = useRef<Set<string>>(new Set());
+  /* Timer ref for the slide-in animation clearance — cleaned up on unmount
+     so we never call setState after the component unmounts (#646). */
+  const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Tick a wall-clock state every second so relative-time labels update
      without re-fetching. The poll loop runs every 3s for new data. */
@@ -84,9 +96,15 @@ export default function DashboardPage({
 
       sinceRef.current = payload.serverTime;
       if (payload.currentPhase) setCurrentPhase(payload.currentPhase);
-      /* Always update broadcast names (may change between polls even without new events) */
+      /* currentPhaseFormat may be null (no FT for this phase) — always update */
+      if ("currentPhaseFormat" in payload) setCurrentPhaseFormat(payload.currentPhaseFormat ?? null);
+      /* Broadcast names and match info — always update (may change between polls) */
       if (payload.overlayPlayer1Name !== undefined) setOverlayPlayer1Name(payload.overlayPlayer1Name);
       if (payload.overlayPlayer2Name !== undefined) setOverlayPlayer2Name(payload.overlayPlayer2Name);
+      if ("overlayMatchLabel" in payload) setOverlayMatchLabel(payload.overlayMatchLabel ?? null);
+      if ("overlayPlayer1Wins" in payload) setOverlayPlayer1Wins(payload.overlayPlayer1Wins ?? null);
+      if ("overlayPlayer2Wins" in payload) setOverlayPlayer2Wins(payload.overlayPlayer2Wins ?? null);
+      if ("overlayMatchFt" in payload) setOverlayMatchFt(payload.overlayMatchFt ?? null);
 
       const fresh = payload.events.filter((e) => {
         if (seenRef.current.has(e.id)) return false;
@@ -94,6 +112,14 @@ export default function DashboardPage({
         return true;
       });
       if (fresh.length === 0) return;
+
+      /* Mark new events for the slide-in animation. Clear after 500ms
+         (longer than the 400ms animation) so the class doesn't linger.
+         Cancel any previous pending clear so rapid polls don't fight. */
+      const freshIds = new Set(fresh.map((e) => e.id));
+      setNewEventIds(freshIds);
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+      animationTimerRef.current = setTimeout(() => setNewEventIds(new Set()), 500);
 
       setEvents((prev) => {
         /* Append new events and trim from the BOTTOM (oldest) so the
@@ -110,7 +136,11 @@ export default function DashboardPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll();
     const interval = setInterval(poll, POLLING_INTERVAL);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      /* Prevent setState-after-unmount from the slide-in animation timer. */
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+    };
   }, [poll]);
 
   return (
@@ -136,7 +166,7 @@ export default function DashboardPage({
         {/* min-h-0 lets the inner scroll container shrink to fit; without
             it flex children inflate to content height and overflow the box. */}
         <div className="min-h-0 flex-1">
-          <DashboardTimeline events={events} now={now} />
+          <DashboardTimeline events={events} now={now} newEventIds={newEventIds} />
         </div>
       </div>
 
@@ -146,13 +176,18 @@ export default function DashboardPage({
         className="pointer-events-none fixed"
         style={{ bottom: 0, left: 170, width: 1050, height: 82 }}
       >
-        <DashboardFooter currentPhase={currentPhase} />
+        <DashboardFooter
+          currentPhase={currentPhase}
+          currentPhaseFormat={currentPhaseFormat}
+          overlayMatchLabel={overlayMatchLabel}
+        />
       </div>
 
-      {/* 1P name display: x:80, y:480, w:230px, h:48px (「配信に反映」設定値) */}
+      {/* 1P name display: x:80, y:480, w:230px, h:48px (「配信に反映」設定値)
+          Shows player name + current wins when match score is available (#645) */}
       {overlayPlayer1Name && (
         <div
-          className="pointer-events-none fixed flex items-center justify-center"
+          className="pointer-events-none fixed flex flex-col items-center justify-center"
           style={{ left: 80, top: 480, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
@@ -161,13 +196,25 @@ export default function DashboardPage({
           >
             {overlayPlayer1Name}
           </span>
+          {overlayPlayer1Wins !== null && (
+            <span
+              className="text-yellow-300 font-bold text-lg leading-none tabular-nums"
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+              data-testid="overlay-p1-score"
+            >
+              {overlayMatchFt !== null
+                ? `${overlayPlayer1Wins} / ${overlayMatchFt}`
+                : `${overlayPlayer1Wins}`}
+            </span>
+          )}
         </div>
       )}
 
-      {/* 2P name display: x:80, y:870, w:230px, h:48px (「配信に反映」設定値) */}
+      {/* 2P name display: x:80, y:870, w:230px, h:48px (「配信に反映」設定値)
+          Shows player name + current wins when match score is available (#645) */}
       {overlayPlayer2Name && (
         <div
-          className="pointer-events-none fixed flex items-center justify-center"
+          className="pointer-events-none fixed flex flex-col items-center justify-center"
           style={{ left: 80, top: 870, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
@@ -176,6 +223,17 @@ export default function DashboardPage({
           >
             {overlayPlayer2Name}
           </span>
+          {overlayPlayer2Wins !== null && (
+            <span
+              className="text-yellow-300 font-bold text-lg leading-none tabular-nums"
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+              data-testid="overlay-p2-score"
+            >
+              {overlayMatchFt !== null
+                ? `${overlayPlayer2Wins} / ${overlayMatchFt}`
+                : `${overlayPlayer2Wins}`}
+            </span>
+          )}
         </div>
       )}
     </div>

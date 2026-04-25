@@ -81,6 +81,10 @@ export async function GET(
         qualificationConfirmedAt: true,
         overlayPlayer1Name: true,
         overlayPlayer2Name: true,
+        overlayMatchLabel: true,
+        overlayPlayer1Wins: true,
+        overlayPlayer2Wins: true,
+        overlayMatchFt: true,
       },
     });
     if (!tournament) {
@@ -328,6 +332,11 @@ export async function GET(
       /* Broadcast player names for the overlay name display (配信に反映) */
       overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
       overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+      /* Match info set by "配信に反映" for footer label and score display */
+      overlayMatchLabel: tournament.overlayMatchLabel ?? null,
+      overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,
+      overlayPlayer2Wins: tournament.overlayPlayer2Wins ?? null,
+      overlayMatchFt: tournament.overlayMatchFt ?? null,
     });
 
     /* Disable any intermediate caching: the response is time-sensitive and

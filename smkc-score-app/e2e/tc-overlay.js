@@ -26,6 +26,8 @@
  *   TC-915  GET /overlay-events?initial=1 returns currentPhase + event cap
  *   TC-916  PUT /broadcast sets 1P/2P names; public GET reads them back
  *   TC-917  overlay-events response includes overlayPlayer1Name / overlayPlayer2Name
+ *   TC-918  PUT /broadcast with matchLabel/wins/ft → GET returns new fields (#644/#645/#649)
+ *   TC-919  overlay-events includes overlayMatchLabel / overlayPlayer1Wins / overlayPlayer2Wins / overlayMatchFt
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -688,6 +690,87 @@ async function runTc917(_adminPage) {
   }
 }
 
+/* ───────── TC-918: Broadcast PUT with match info fields (#644/#645/#649) ─────────
+ * Verifies that the new overlayMatchLabel, overlayPlayer1Wins, overlayPlayer2Wins,
+ * and overlayMatchFt fields can be set via PUT /broadcast and read back via
+ * public GET /broadcast. Extends TC-916's coverage of the broadcast API. */
+async function runTc918(adminPage) {
+  try {
+    const stamp = Date.now();
+    const name1 = `TC918_P1_${stamp}`;
+    const name2 = `TC918_P2_${stamp}`;
+    const matchLabel = '決勝 QF';
+    const player1Wins = 3;
+    const player2Wins = 1;
+    const matchFt = 5;
+
+    const putRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${fixture.tournamentId}/broadcast`,
+      { player1Name: name1, player2Name: name2, matchLabel, player1Wins, player2Wins, matchFt },
+    ]);
+    if (putRes.s !== 200) {
+      log('TC-918', 'FAIL', `PUT status=${putRes.s} ${JSON.stringify(putRes.b).slice(0, 100)}`);
+      return;
+    }
+
+    const getResp = await httpsGet(`/api/tournaments/${fixture.tournamentId}/broadcast`);
+    const d = getResp.body?.data;
+    const hasLabel = d?.matchLabel === matchLabel;
+    const hasWins = d?.player1Wins === player1Wins && d?.player2Wins === player2Wins;
+    const hasFt = d?.matchFt === matchFt;
+
+    log('TC-918',
+      getResp.status === 200 && hasLabel && hasWins && hasFt ? 'PASS' : 'FAIL',
+      getResp.status !== 200 ? `GET status=${getResp.status}` :
+      !hasLabel ? `matchLabel mismatch: got "${d?.matchLabel}"` :
+      !hasWins ? `wins mismatch: got ${d?.player1Wins}/${d?.player2Wins}` :
+      !hasFt ? `matchFt mismatch: got ${d?.matchFt}` : '');
+  } catch (err) {
+    log('TC-918', 'FAIL', err instanceof Error ? err.message : 'TC-918 threw');
+  }
+}
+
+/* ───────── TC-919: overlay-events includes new broadcast match info fields ─────────
+ * After TC-918 sets matchLabel/wins/ft, the overlay-events endpoint must
+ * expose them so the dashboard page can render them without a separate fetch.
+ * Verifies overlayMatchLabel, overlayPlayer1Wins, overlayPlayer2Wins,
+ * overlayMatchFt all appear in the overlay-events response (#645, #649). */
+async function runTc919(_adminPage) {
+  try {
+    const resp = await httpsGet(
+      `/api/tournaments/${fixture.tournamentId}/overlay-events?initial=1`,
+    );
+    const d = resp.body?.data;
+    const hasLabel = d && 'overlayMatchLabel' in d;
+    const hasWins = d && 'overlayPlayer1Wins' in d && 'overlayPlayer2Wins' in d;
+    const hasFt = d && 'overlayMatchFt' in d;
+    /* TC-918 set matchLabel = "決勝 QF", wins = 3/1, ft = 5 */
+    const labelCorrect = hasLabel && d.overlayMatchLabel === '決勝 QF';
+    const winsCorrect = hasWins && d.overlayPlayer1Wins === 3 && d.overlayPlayer2Wins === 1;
+    const ftCorrect = hasFt && d.overlayMatchFt === 5;
+
+    log('TC-919',
+      resp.status === 200 && hasLabel && hasWins && hasFt && labelCorrect && winsCorrect && ftCorrect
+        ? 'PASS' : 'FAIL',
+      resp.status !== 200 ? `status=${resp.status}` :
+      !hasLabel ? 'overlayMatchLabel missing from overlay-events' :
+      !hasWins ? 'overlayPlayer1Wins/overlayPlayer2Wins missing' :
+      !hasFt ? 'overlayMatchFt missing' :
+      !labelCorrect ? `label mismatch: "${d.overlayMatchLabel}"` :
+      !winsCorrect ? `wins mismatch: ${d.overlayPlayer1Wins}/${d.overlayPlayer2Wins}` :
+      !ftCorrect ? `ft mismatch: ${d.overlayMatchFt}` : '');
+  } catch (err) {
+    log('TC-919', 'FAIL', err instanceof Error ? err.message : 'TC-919 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -768,6 +851,11 @@ function getSuite() {
       { name: 'TC-915', fn: runTc915 },
       { name: 'TC-916', fn: runTc916 },
       { name: 'TC-917', fn: runTc917 },
+      /* TC-918/919 run after TC-916/917 so broadcast names are already set
+         and the PUT extends them with new match-info fields. TC-919 must
+         follow TC-918 so the fields exist in the DB to read back. */
+      { name: 'TC-918', fn: runTc918 },
+      { name: 'TC-919', fn: runTc919 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -776,7 +864,7 @@ function getSuite() {
 module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
-  runTc916, runTc917,
+  runTc916, runTc917, runTc918, runTc919,
   getSuite,
   results,
 };

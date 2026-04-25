@@ -78,6 +78,7 @@ import { parseManualScore } from "@/lib/parse-manual-score";
  * Note: Client logger is created at module level (unlike server API loggers).
  */
 import type { Player } from "@/lib/types";
+import { buildMatchLabel } from "@/lib/overlay/phase";
 
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
@@ -201,6 +202,8 @@ export default function BattleModeFinals({
   /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
+  /* Loading state for the explicit TV# save button in the score dialog (#651) */
+  const [tvSaving, setTvSaving] = useState(false);
 
   /**
    * Fetch finals data including matches, bracket structure, and round names.
@@ -819,7 +822,9 @@ export default function BattleModeFinals({
                 ))}
               </div>
             </div>
-            {/* TV number assignment for broadcast: admin selects TV 1–4 */}
+            {/* TV number assignment for broadcast: admin selects TV 1–4.
+                The explicit save button (#651) lets admins assign TV# before
+                scores are ready, without having to submit the full score form. */}
             <div className="flex items-center justify-center gap-3">
               <Label htmlFor="bm-finals-tv" className="text-sm text-muted-foreground shrink-0">
                 TV#
@@ -833,6 +838,20 @@ export default function BattleModeFinals({
                 <option value="">-</option>
                 {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
+              {selectedMatch && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tvSaving}
+                  onClick={async () => {
+                    setTvSaving(true);
+                    await handleBracketTvNumberChange(selectedMatch, scoreForm.tvNumber);
+                    setTvSaving(false);
+                  }}
+                >
+                  {tvSaving ? tCommon("saving") : tFinals("saveTvNumber")}
+                </Button>
+              )}
             </div>
             {/* Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
@@ -853,12 +872,18 @@ export default function BattleModeFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         player1Name: selectedMatch.player1.nickname,
                         player2Name: selectedMatch.player2.nickname,
+                        /* Include score and round info (#645, #649) */
+                        matchLabel,
+                        player1Wins: selectedMatch.score1,
+                        player2Wins: selectedMatch.score2,
+                        matchFt: selectedMatchTargetWins,
                       }),
                     });
                     if (res.ok) {

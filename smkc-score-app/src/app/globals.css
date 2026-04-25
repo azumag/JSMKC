@@ -223,6 +223,31 @@
     }
   }
 
+  /**
+   * Overlay timeline slide-in animation (#646).
+   *
+   * New event cards in the dashboard timeline slide in from the right edge
+   * so the broadcaster can immediately spot fresh activity. The animation
+   * completes in 400ms so it never obscures the content for long.
+   *
+   * Applied via the `timeline-slide-in` class, which React attaches to newly
+   * added entries for one animation cycle, then removes via `onAnimationEnd`.
+   */
+  .timeline-slide-in {
+    animation: timeline-slide-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  }
+
+  @keyframes timeline-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(60px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
   /*
    * OBS browser-source overlay mode.
    *

@@ -80,6 +80,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
+import { buildMatchLabel } from "@/lib/overlay/phase";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -242,6 +243,7 @@ export default function GrandPrixFinals({
   const [manualPoints2, setManualPoints2] = useState<string>("");
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
+  const [tvSaving, setTvSaving] = useState(false);
 
   /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {
@@ -1031,7 +1033,8 @@ export default function GrandPrixFinals({
               {tFinals('gpTieNeedsWinner')}
             </p>
           </div>
-          {/* TV number assignment for broadcast */}
+          {/* TV number assignment for broadcast: explicit save button (#651)
+              lets admins assign TV# before scores are entered. */}
           <div className="flex items-center gap-3 px-1 pb-2">
             <Label htmlFor="gp-finals-tv" className="text-sm text-muted-foreground shrink-0">TV#</Label>
             <select
@@ -1043,6 +1046,20 @@ export default function GrandPrixFinals({
               <option value="">-</option>
               {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
+            {selectedMatch && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={tvSaving}
+                onClick={async () => {
+                  setTvSaving(true);
+                  await handleBracketTvNumberChange(selectedMatch, scoreForm.tvNumber);
+                  setTvSaving(false);
+                }}
+              >
+                {tvSaving ? tCommon("saving") : tFinals("saveTvNumber")}
+              </Button>
+            )}
           </div>
           <DialogFooter className="flex-wrap gap-2">
             {selectedMatch && (
@@ -1053,12 +1070,19 @@ export default function GrandPrixFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
+                    /* Finals matches expose driver points as score1/score2 (per GPMatch type).
+                       No FT threshold applies to GP — points are accumulated across races. */
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         player1Name: selectedMatch.player1.nickname,
                         player2Name: selectedMatch.player2.nickname,
+                        matchLabel,
+                        player1Wins: selectedMatch.score1,
+                        player2Wins: selectedMatch.score2,
+                        matchFt: null,
                       }),
                     });
                     if (res.ok) {
