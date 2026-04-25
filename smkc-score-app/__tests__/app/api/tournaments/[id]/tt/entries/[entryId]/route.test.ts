@@ -79,6 +79,11 @@ jest.mock('@/lib/error-handling', () => ({
 jest.mock('@/lib/ta/freeze-check', () => ({
   checkStageFrozen: jest.fn(() => Promise.resolve(null)),
 }));
+// Mock rank-calculation: recalculateRanks is a side-effect called after time updates;
+// the unit tests for this route only verify the API contract, not ranking logic.
+jest.mock('@/lib/ta/rank-calculation', () => ({
+  recalculateRanks: jest.fn(() => Promise.resolve()),
+}));
 
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -234,8 +239,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
         user: { id: 'p1', role: 'member', userType: 'player', playerId: 'p1' },
       });
 
-      // First findUnique call: ownership check (select: { playerId: true })
-      // Second findUnique call: re-fetch after update (include: { player, tournament })
+      // findUnique call order for player path with times:
+      //   1. ownership+freeze check (select: { playerId, stage, tournamentId })
+      //   2. recalculate stage lookup (select: { stage, tournamentId }) — added when times is updated
+      //   3. re-fetch after update (include: { player, tournament })
       const mockEntryFull = {
         id: 'e1',
         playerId: 'p1',
@@ -252,8 +259,9 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       };
 
       (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ playerId: 'p1' })  // ownership check
-        .mockResolvedValueOnce(mockEntryFull);       // re-fetch after update
+        .mockResolvedValueOnce({ playerId: 'p1', stage: 'qualification', tournamentId: 't1' })  // ownership check
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })                  // recalculate lookup
+        .mockResolvedValueOnce(mockEntryFull);                                                   // re-fetch after update
 
       const updateResult = { id: 'e1', version: 2 };
       (updateTTEntry as jest.Mock).mockResolvedValue(updateResult);
@@ -601,11 +609,14 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
     it('should return 404 when updatedEntry is null after update', async () => {
       const updateResult = { id: 'e1', version: 2 };
       (updateTTEntry as jest.Mock).mockResolvedValue(updateResult);
-      /* First findUnique: admin freeze check returns valid entry
-       * Second findUnique: re-fetch after update returns null (entry deleted mid-flight) */
+      /* findUnique call order for admin path with times:
+       *   1. admin freeze check → valid entry
+       *   2. recalculate stage lookup → valid entry (times !== undefined triggers this)
+       *   3. re-fetch after update → null (simulates entry deleted mid-flight, issue #273) */
       (prisma.tTEntry.findUnique as jest.Mock)
-        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })
-        .mockResolvedValueOnce(null);
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })  // freeze check
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' })  // recalculate lookup
+        .mockResolvedValueOnce(null);                                            // final re-fetch → 404
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: [1000],
