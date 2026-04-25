@@ -310,6 +310,7 @@ Cloudflare documents build variables separately from runtime variables. For this
 - [x] **Players**: プレイヤー登録・編集・削除
 - [x] **Tournaments**: トーナメント作成・管理
 - [x] **Battle Mode Qualification**: グループ分け、総当たり対戦表、スコア入力、勝ち点自動計算
+- [x] **OBS Browser-Source Overlay**: スコア入力・状態遷移を配信画面にトースト通知（[後述](#obs-browser-source-overlay)）
 
 ### Coming Soon
 - [ ] Battle Mode Finals (Double Elimination)
@@ -319,6 +320,74 @@ Cloudflare documents build variables separately from runtime variables. For this
 - [ ] Real-time standings display
 - [ ] Result export (Excel/PDF)
 - [ ] **Participant Score Entry** (後述)
+
+---
+
+## OBS Browser-Source Overlay
+
+トーナメントのスコア入力や状態遷移をリアルタイムに検知して、配信画面（OBS）の右下にトースト通知としてポップアップさせるオーバーレイ機能。
+
+### URL
+
+```
+https://smkc.bluemoon.works/tournaments/<トーナメントID または slug>/overlay
+```
+
+- **認証不要** — URL を知っていれば誰でも見られます（スコア情報は元々公開ページで参照可能なので、新たに漏れる情報はありません）
+- **背景透過** — 別途 OBS 側で CSS を書く必要なし
+
+### OBS の設定
+
+OBS Studio の「ソースを追加」→「ブラウザ」で以下を入力：
+
+| 項目 | 値 |
+|---|---|
+| URL | 上記の overlay URL |
+| 幅 | `1920` |
+| 高さ | `1080` |
+| シーンがアクティブになっていない時にソースをシャットダウン | **OFF** |
+| シーンがアクティブになった時にブラウザをリフレッシュ | **OFF** |
+
+> **OFF にする理由**: ON だとシーン切替のたびにポーリング状態がリセットされ、その瞬間直近 30 秒のイベントが一気に再生されてしまいます
+
+カスタム CSS は **不要**（ページ側で `body.overlay-mode` を立てて、root layout の chrome と背景色を `globals.css` で全て無効化しています）。
+
+### 通知されるイベント
+
+| イベント種別 | 発火タイミング |
+|---|---|
+| `match_completed` | BM/MR/GP の試合スコアが確定したとき |
+| `score_reported` | 参加者が `/report` 経由でスコアを自己申告したとき |
+| `ta_time_recorded` | TA エントリのタイムが入力・更新されたとき |
+| `qualification_confirmed` | 予選確定フラグを ON にしたとき |
+| `finals_started` | BM 決勝ブラケットが生成されたとき |
+| `ta_phase_advanced` | TA フェーズで新ラウンドが開始されたとき |
+| `overall_ranking_updated` | 総合ランキングが再集計されたとき |
+
+### 表示仕様
+
+- **位置**: 画面右下（24px 内側にスタック）
+- **モード別アクセントカラー**: BM=赤 / MR=青 / GP=緑 / TA=黄、neutral イベント（予選確定など）は白
+- **最大同時表示**: 5 件、新着が上、古いものから消える
+- **表示時間**: 各トースト 6 秒で自動 fade-out
+- **ポーリング間隔**: 3 秒
+- **初回表示**: 直近 30 秒以内のイベントを表示（OBS を試合中盤で起動すると過去のイベントが流れる）
+
+### トラブルシューティング
+
+| 症状 | 対処 |
+|---|---|
+| 何も表示されない | URL のトーナメント ID/slug が正しいか確認。OBS のブラウザソース上で右クリック→「OBS の対話を有効にする」→「対話する」で開発者ツールを開き、`/api/tournaments/.../overlay-events` のレスポンスを確認 |
+| 配信開始直後に過去のイベントが大量に流れる | "シーンがアクティブになった時にブラウザをリフレッシュ" を OFF。仕様上、初回ポーリングで直近 30 秒分が出るため、進行が止まっている時間帯に OBS を起動すると最小化できる |
+| 透過にならない（白/黒の背景が見える） | キャッシュをリフレッシュ（OBS 上で右クリック→「リフレッシュ」）。それでも残る場合は OBS のブラウザソースのバージョンが古い可能性があるため OBS 自体を最新化 |
+
+### 関連ドキュメント
+
+- 設計プラン: [`/Users/azumag/.claude/plans/greedy-puzzling-beacon.md`](../plans) — 実装前の検討内容
+- E2E テスト: `e2e/tc-overlay.js`（TC-901..914、全 7 種のイベント種別をカバー）
+- 単体テスト: `__tests__/lib/overlay/events.test.ts`（aggregator の純粋関数）
+- API ルート: `src/app/api/tournaments/[id]/overlay-events/route.ts`
+- ページ実装: `src/app/tournaments/[id]/overlay/page.tsx`
 
 ---
 

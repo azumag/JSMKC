@@ -83,6 +83,20 @@ export default function OverlayPage({
   // Track outstanding setTimeout handles for unmount cleanup
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
+  /*
+   * Mark <body> with `overlay-mode` so globals.css can strip the root
+   * layout's solid `bg-background` wrapper, global header, and main-area
+   * padding. Without this the overlay renders inside the standard chrome
+   * and OBS sees a white/dark frame instead of a transparent canvas.
+   * Cleanup runs on unmount so navigating away restores normal layout.
+   */
+  useEffect(() => {
+    document.body.classList.add('overlay-mode');
+    return () => {
+      document.body.classList.remove('overlay-mode');
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 

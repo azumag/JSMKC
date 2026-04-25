@@ -222,4 +222,35 @@
       background-color: transparent;
     }
   }
+
+  /*
+   * OBS browser-source overlay mode.
+   *
+   * The overlay page must render with a transparent background and zero
+   * chrome so OBS can composite it over a scene. The Next.js root layout
+   * (`src/app/layout.tsx`) wraps every page in a `bg-background` shell with
+   * a global header and `<main class="container mx-auto px-4 py-8">`, which
+   * shows up as a solid white/dark band over the broadcast.
+   *
+   * The overlay page client component toggles `body.overlay-mode` on mount,
+   * and these rules undo the parent chrome with `!important` to win against
+   * Tailwind's utility-class specificity. Removing this class on unmount
+   * restores the normal layout for any subsequent navigation.
+   */
+  body.overlay-mode {
+    background: transparent !important;
+  }
+  body.overlay-mode > div {
+    background: transparent !important;
+    min-height: 0 !important;
+  }
+  body.overlay-mode header {
+    display: none !important;
+  }
+  body.overlay-mode main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
 }
