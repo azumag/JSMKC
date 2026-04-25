@@ -7,6 +7,8 @@
  *   TC-903  Admin score PUT surfaces a match_completed event for an unauth poller
  *   TC-904  `since` query parameter is respected (future-dated since → no events)
  *   TC-905  GET /tournaments/[id]/overlay renders without auth
+ *   TC-906  Overlay page actually renders a toast in a real browser after a
+ *           live score PUT (end-to-end render path, not just SSR HTML)
  *
  * Setup is API-only: the suite owns a 2-player tournament with one BM qual
  * match, scores it, and tears everything down at the end. Independent from
@@ -258,6 +260,60 @@ async function runTc905(_adminPage) {
   }
 }
 
+/* ───────── TC-906: real-browser render of the overlay page ─────────
+ * SSR (TC-905) only proves the HTML shell is reachable. This test drives
+ * the actual client-side polling + toast animation pipeline by:
+ *   1. Navigating the admin page to /tournaments/[id]/overlay
+ *   2. Writing a fresh score so the live poll picks it up after mount
+ *   3. Waiting for [data-testid="overlay-toast"] to appear in the DOM
+ *
+ * We use the existing admin page (rather than a fresh anonymous context)
+ * because TC-905 already covers the unauthenticated path; TC-906 is about
+ * proving the runtime render works end-to-end. */
+async function runTc906(adminPage) {
+  try {
+    await adminPage.goto(
+      `${BASE}/tournaments/${fixture.tournamentId}/overlay`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    /* Wait for the React tree to mount — the SSR HTML already has this
+       marker but waiting on it confirms the client component hydrated. */
+    await adminPage.waitForSelector('[data-testid="overlay-root"]', { timeout: 10_000 });
+
+    /* Score the match again so we generate a fresh updatedAt that the
+       overlay's running poll cycle will pick up. The first poll on mount
+       (no `since`) only sees the last 30s of events, so re-PUTting here
+       guarantees a new event arrives while the page is already watching.
+       Use 3-1 (not 4-1) because BM qualification enforces score1+score2 === 4. */
+    const putRes = await apiPutBmQualScore(adminPage, fixture.tournamentId, fixture.matchId, 3, 1);
+    if (putRes.s !== 200) {
+      log('TC-906', 'FAIL', `Score re-PUT failed: ${putRes.s}`);
+      return;
+    }
+
+    /* Polling interval is 3s; allow plenty of headroom for D1 + edge
+       propagation + the next poll tick. */
+    await adminPage.waitForSelector('[data-testid="overlay-toast"]', { timeout: 15_000 });
+
+    /* Read the entire stack, not just .first(), because the 4-0 toast from
+       TC-902 may co-exist with the 3-1 toast we just generated. We only
+       care that *some* BM toast with a score format rendered. */
+    const stackText = await adminPage.locator('[data-testid="overlay-toast-stack"]').innerText();
+    const hasMode = /BM/.test(stackText);
+    const hasScore = /\d+\s*-\s*\d+/.test(stackText);
+    const hasFinishLabel = /終了/.test(stackText);
+    const ok = hasMode && hasScore && hasFinishLabel;
+    log('TC-906',
+      ok ? 'PASS' : 'FAIL',
+      ok ? '' :
+      !hasMode ? `BM marker missing in toast: "${stackText}"` :
+      !hasScore ? `score format missing in toast: "${stackText}"` :
+      `終了 label missing in toast: "${stackText}"`);
+  } catch (err) {
+    log('TC-906', 'FAIL', err instanceof Error ? err.message : 'TC-906 threw');
+  }
+}
+
 function getSuite() {
   return {
     suiteName: 'OVERLAY',
@@ -272,18 +328,22 @@ function getSuite() {
     },
     tests: [
       /* TC-901 first: it asserts the empty-state response shape *before* any
-         score is written. TC-902 writes the score; TC-903 reads it back. */
+         score is written. TC-902 writes the score; TC-903 reads it back.
+         TC-906 navigates the admin page away to /overlay and is therefore
+         the LAST test in the suite — afterAll cleanup still works because
+         it only uses API calls, not the navigated page. */
       { name: 'TC-901', fn: runTc901 },
       { name: 'TC-902', fn: runTc902 },
       { name: 'TC-903', fn: runTc903 },
       { name: 'TC-904', fn: runTc904 },
       { name: 'TC-905', fn: runTc905 },
+      { name: 'TC-906', fn: runTc906 },
     ],
   };
 }
 
 module.exports = {
-  runTc901, runTc902, runTc903, runTc904, runTc905,
+  runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   getSuite,
   results,
 };
