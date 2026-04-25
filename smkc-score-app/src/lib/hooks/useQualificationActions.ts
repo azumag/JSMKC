@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { createLogger } from "@/lib/client-logger";
 
 type Mode = "bm" | "mr" | "gp";
@@ -81,34 +82,40 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
 
   /**
    * Handle TV number assignment for a match.
-   * Calls the PATCH endpoint to update the match's broadcast TV assignment.
+   * Fires the PATCH in the background without waiting; the caller should apply
+   * optimistic UI updates before calling this. No refetch is triggered so the
+   * dropdown feels instant — the next polling cycle will confirm the value.
    */
-  const handleTvAssign = useCallback(async (matchId: string, tvNumber: number | null) => {
-    try {
-      await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId, tvNumber }),
-      });
-      refetch();
-    } catch (err) {
+  const handleTvAssign = useCallback((matchId: string, tvNumber: number | null) => {
+    fetch(`/api/tournaments/${tournamentId}/${mode}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchId, tvNumber }),
+    }).catch((err) => {
       logger.error("Failed to assign TV:", { error: err, tournamentId, matchId });
-    }
-  }, [tournamentId, mode, refetch, logger]);
+    });
+  }, [tournamentId, mode, logger]);
 
   /**
    * Push match players to the overlay as the current 1P/2P broadcast names.
    * Used by the "配信に反映" button on each match row.
+   * Returns true on success so callers can show per-button feedback.
    */
-  const handleBroadcastReflect = useCallback(async (player1Name: string, player2Name: string) => {
+  const handleBroadcastReflect = useCallback(async (player1Name: string, player2Name: string): Promise<boolean> => {
     try {
-      await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ player1Name, player2Name }),
       });
+      if (res.ok) {
+        toast.success("配信に反映しました");
+        return true;
+      }
+      return false;
     } catch (err) {
       logger.error("Failed to reflect broadcast:", { error: err, tournamentId });
+      return false;
     }
   }, [tournamentId, logger]);
 

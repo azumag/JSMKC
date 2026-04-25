@@ -30,6 +30,8 @@ interface QualificationPlayoffManagerProps {
   groups: PlayoffGroup[];
   isAdmin: boolean;
   onSave: (entries: PlayoffEntry[]) => Promise<boolean>;
+  /** Broadcast first two players in the group to the overlay. */
+  onBroadcast?: (player1Name: string, player2Name: string) => Promise<boolean>;
 }
 
 function moveEntry<T>(entries: T[], from: number, to: number): T[] {
@@ -43,11 +45,13 @@ export function QualificationPlayoffManager({
   groups,
   isAdmin,
   onSave,
+  onBroadcast,
 }: QualificationPlayoffManagerProps) {
   const tc = useTranslations("common");
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [draftOrder, setDraftOrder] = useState<PlayoffEntry[]>([]);
   const [saving, setSaving] = useState(false);
+  const [broadcastingGroupId, setBroadcastingGroupId] = useState<string | null>(null);
 
   const activeGroup = useMemo(
     () => groups.find((group) => group.id === openGroupId) ?? null,
@@ -88,15 +92,31 @@ export function QualificationPlayoffManager({
                   {group.players.map((player) => player.nickname).join(" / ")}
                 </div>
               </div>
-              {isAdmin ? (
-                <Button size="sm" variant="outline" onClick={() => openDialog(group)}>
-                  {tc("recordPlayoffResult")}
-                </Button>
-              ) : (
-                <div className="text-sm text-yellow-900">
-                  {tc("playoffPending")}
-                </div>
-              )}
+              <div className="flex gap-2 flex-wrap">
+                {isAdmin && onBroadcast && group.players.length >= 2 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={broadcastingGroupId === group.id}
+                    onClick={async () => {
+                      setBroadcastingGroupId(group.id);
+                      await onBroadcast(group.players[0].nickname, group.players[1].nickname);
+                      setBroadcastingGroupId(null);
+                    }}
+                  >
+                    {broadcastingGroupId === group.id ? tc("saving") : tc("broadcastReflect")}
+                  </Button>
+                )}
+                {isAdmin ? (
+                  <Button size="sm" variant="outline" onClick={() => openDialog(group)}>
+                    {tc("recordPlayoffResult")}
+                  </Button>
+                ) : (
+                  <div className="text-sm text-yellow-900">
+                    {tc("playoffPending")}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

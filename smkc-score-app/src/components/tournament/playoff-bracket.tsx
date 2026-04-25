@@ -107,11 +107,14 @@ function PlayoffMatchCard({
   const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
   const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
+  const isTV1 = match?.tvNumber === 1;
+
   return (
     <div
       className={cn(
         "border rounded-lg p-2 bg-card min-w-[180px] cursor-pointer hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary",
-        match?.completed && "border-green-500/50"
+        match?.completed && "border-green-500/50",
+        isTV1 && "bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700"
       )}
       onClick={onClick}
       role="button"

@@ -457,6 +457,7 @@ model TTPhaseRound {
   phase           String     // "phase1", "phase2", "phase3"
   roundNumber     Int        // Sequential round number within the phase
   course          String     // Course abbreviation (e.g., "MC1")
+  tvNumber        Int?       // Broadcast TV screen number (1-4), optional
   results         Json       // Array: [{playerId, timeMs, isRetry}]
   eliminatedIds   Json?      // Array of player IDs eliminated this round
   livesReset      Boolean    @default(false) // Whether lives were reset after this round

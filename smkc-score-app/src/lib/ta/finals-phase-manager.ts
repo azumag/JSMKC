@@ -882,8 +882,9 @@ export async function startPhaseRound(
   prisma: PrismaClient,
   context: PhaseContext,
   phase: "phase1" | "phase2" | "phase3",
-  manualCourse?: string
-): Promise<{ roundNumber: number; course: string; manualOverride: boolean }> {
+  manualCourse?: string,
+  tvNumber?: number | null
+): Promise<{ roundNumber: number; course: string; manualOverride: boolean; tvNumber: number | null }> {
   const logger = createLogger("ta-phase-manager");
   const { tournamentId, userId, ipAddress, userAgent } = context;
 
@@ -950,6 +951,7 @@ export async function startPhaseRound(
           roundNumber,
           course,
           manualOverride,
+          tvNumber: tvNumber ?? null,
           results: [], // Will be populated by submitRoundResults
         },
       });
@@ -1000,7 +1002,7 @@ export async function startPhaseRound(
     });
   }
 
-  return { roundNumber, course, manualOverride };
+  return { roundNumber, course, manualOverride, tvNumber: tvNumber ?? null };
 }
 
 /**

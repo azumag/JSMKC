@@ -88,10 +88,12 @@ const PostRequestSchema = z.discriminatedUnion("action", [
   // Start a new round: selects a random course and creates a TTPhaseRound record.
   // Optional `course` allows admin to manually specify a course abbreviation (e.g. "MC1")
   // instead of using random selection. Must be a valid abbreviation in the current cycle.
+  // Optional `tvNumber` (1-4) assigns a broadcast TV screen to the round.
   z.object({
     action: z.literal("start_round"),
     phase: PhaseSchema,
-    course: z.string().optional(), // Admin manual course override; undefined = random
+    course: z.string().optional(),
+    tvNumber: z.number().int().min(1).max(4).nullable().optional(),
   }),
 
   // Cancel an unsubmitted round: deletes the TTPhaseRound record to free the course
@@ -290,12 +292,12 @@ export async function POST(
 
     // === Round Management Actions ===
     if (action === "start_round") {
-      const { phase, course } = parsed.data;
+      const { phase, course, tvNumber } = parsed.data;
       // Prevent starting rounds in a frozen phase (admin locked after completion)
       const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
       if (freezeError) return freezeError;
       // Pass optional manual course; undefined = random selection (default behaviour)
-      const result = await startPhaseRound(prisma, context, phase, course);
+      const result = await startPhaseRound(prisma, context, phase, course, tvNumber ?? null);
       return createSuccessResponse(result);
     }
 

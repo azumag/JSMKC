@@ -157,6 +157,10 @@ export default function BattleModePage({
   const [resettingBracket, setResettingBracket] = useState(false);
   /* Whether a finals or playoff bracket already exists on the server */
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
+  /* Track which match ID is currently being broadcast to prevent double-clicks */
+  const [broadcastingMatchId, setBroadcastingMatchId] = useState<string | null>(null);
+  /* Optimistic TV overrides: applied immediately on dropdown change, confirmed by next poll */
+  const [tvOverrides, setTvOverrides] = useState<Record<string, number | null>>({});
 
   /**
    * Fetch both BM qualification data and all players in parallel.
@@ -598,6 +602,7 @@ export default function BattleModePage({
                                 })),
                               )
                             }
+                            onBroadcast={handleBroadcastReflect}
                           />
                           <Table>
                             <TableHeader>
@@ -827,15 +832,18 @@ export default function BattleModePage({
                                   >
                                     {match.isBye ? tc('bye') : match.player2.nickname}
                                   </TableCell>
-                                  {/* TV# assignment: admin can select TV number, others see read-only */}
+                                  {/* TV# assignment: admin can select TV number, others see read-only.
+                                      Optimistic update: local state is updated immediately; API fires in background. */}
                                   <TableCell className="text-center">
                                     {isAdmin && !match.isBye ? (
                                       <select
                                         className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                        value={match.tvNumber ?? ""}
+                                        value={(match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ""}
                                         onChange={(e) => {
                                           const val = e.target.value;
-                                          handleTvAssign(match.id, val ? parseInt(val) : null);
+                                          const num = val ? parseInt(val) : null;
+                                          setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
+                                          handleTvAssign(match.id, num);
                                         }}
                                       >
                                         <option value="">-</option>
@@ -865,12 +873,16 @@ export default function BattleModePage({
                                     {/* 配信に反映: admin pushes this match's players to the overlay */}
                                     {isAdmin && !match.isBye && (
                                       <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        onClick={() => handleBroadcastReflect(match.player1.nickname, match.player2.nickname)}
-                                        title="配信に反映"
+                                        disabled={broadcastingMatchId === match.id}
+                                        onClick={async () => {
+                                          setBroadcastingMatchId(match.id);
+                                          await handleBroadcastReflect(match.player1.nickname, match.player2.nickname);
+                                          setBroadcastingMatchId(null);
+                                        }}
                                       >
-                                        📺
+                                        {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
                                       </Button>
                                     )}
                                     {/* Admin-only score entry/edit button (not for BYE matches, locked when confirmed) */}

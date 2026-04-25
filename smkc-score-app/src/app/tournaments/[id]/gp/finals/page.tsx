@@ -21,6 +21,7 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -240,6 +241,7 @@ export default function GrandPrixFinals({
   const [manualPoints1, setManualPoints1] = useState<string>("");
   const [manualPoints2, setManualPoints2] = useState<string>("");
   const [champion, setChampion] = useState<Player | null>(null);
+  const [broadcasting, setBroadcasting] = useState(false);
 
   /** Fetch finals data including matches, bracket structure, and round names */
   const fetchFinalsData = useCallback(async () => {
@@ -1010,19 +1012,25 @@ export default function GrandPrixFinals({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={broadcasting}
                 onClick={async () => {
-                  await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      player1Name: selectedMatch.player1.nickname,
-                      player2Name: selectedMatch.player2.nickname,
-                    }),
-                  });
+                  setBroadcasting(true);
+                  try {
+                    await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        player1Name: selectedMatch.player1.nickname,
+                        player2Name: selectedMatch.player2.nickname,
+                      }),
+                    });
+                    toast.success("配信に反映しました");
+                  } finally {
+                    setBroadcasting(false);
+                  }
                 }}
-                title="配信に反映"
               >
-                📺 配信に反映
+                {broadcasting ? tCommon('saving') : tCommon('broadcastReflect')}
               </Button>
             )}
             <Button

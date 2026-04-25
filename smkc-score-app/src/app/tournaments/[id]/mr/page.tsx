@@ -157,6 +157,8 @@ export default function MatchRacePage({
   const [generatingBracket, setGeneratingBracket] = useState(false);
   const [resettingBracket, setResettingBracket] = useState(false);
   const [finalsExists, setFinalsExists] = useState<boolean | undefined>(undefined);
+  const [broadcastingMatchId, setBroadcastingMatchId] = useState<string | null>(null);
+  const [tvOverrides, setTvOverrides] = useState<Record<string, number | null>>({});
 
   /**
    * Fetch MR data and player list concurrently.
@@ -641,6 +643,7 @@ export default function MatchRacePage({
                                 })),
                               )
                             }
+                            onBroadcast={handleBroadcastReflect}
                           />
                           <Table>
                             <TableHeader>
@@ -835,10 +838,12 @@ export default function MatchRacePage({
                                     {isAdmin && !match.isBye ? (
                                       <select
                                         className="w-14 h-8 text-center text-sm border rounded bg-background"
-                                        value={match.tvNumber ?? ""}
+                                        value={(match.id in tvOverrides ? tvOverrides[match.id] : match.tvNumber) ?? ""}
                                         onChange={(e) => {
                                           const val = e.target.value;
-                                          handleTvAssign(match.id, val ? parseInt(val) : null);
+                                          const num = val ? parseInt(val) : null;
+                                          setTvOverrides((prev) => ({ ...prev, [match.id]: num }));
+                                          handleTvAssign(match.id, num);
                                         }}
                                       >
                                         <option value="">-</option>
@@ -875,12 +880,16 @@ export default function MatchRacePage({
                                   <TableCell className="text-right space-x-2">
                                     {isAdmin && !match.isBye && (
                                       <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        onClick={() => handleBroadcastReflect(match.player1.nickname, match.player2.nickname)}
-                                        title="配信に反映"
+                                        disabled={broadcastingMatchId === match.id}
+                                        onClick={async () => {
+                                          setBroadcastingMatchId(match.id);
+                                          await handleBroadcastReflect(match.player1.nickname, match.player2.nickname);
+                                          setBroadcastingMatchId(null);
+                                        }}
                                       >
-                                        📺
+                                        {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
                                       </Button>
                                     )}
                                     {isAdmin && !match.isBye && (
