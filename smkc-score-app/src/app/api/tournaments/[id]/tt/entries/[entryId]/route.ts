@@ -29,6 +29,7 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { timeToMs } from "@/lib/ta/time-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { recalculateRanks } from "@/lib/ta/rank-calculation";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -193,6 +194,19 @@ export async function PUT(
         lives
       }
     );
+
+    // Recalculate qualification points and ranks when times were updated.
+    // The tt/entries endpoint is used for bulk time seeding (e.g., admin tools
+    // and E2E helpers). Without this call, qualificationPoints stays null.
+    if (times !== undefined) {
+      const entryForStage = await prisma.tTEntry.findUnique({
+        where: { id: entryId },
+        select: { stage: true, tournamentId: true },
+      });
+      if (entryForStage) {
+        await recalculateRanks(entryForStage.tournamentId, entryForStage.stage, prisma);
+      }
+    }
 
     // Fetch the fully updated entry with relations for the response
     const updatedEntry = await prisma.tTEntry.findUnique({

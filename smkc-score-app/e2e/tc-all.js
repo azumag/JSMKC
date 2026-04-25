@@ -2095,7 +2095,9 @@ async function main() {
   }
 
   // TC-337: Tournaments list API pagination — GET /api/tournaments with limit and page params
-  // returns { success, data: [...], meta: { total, page, limit, totalPages } }.
+  // returns { success, data: { data: [...], meta: { total, page, limit, totalPages } } }.
+  // createSuccessResponse wraps the paginate() result, so the shape is
+  // body.data.data (array) and body.data.meta (pagination metadata).
   // Verifies pagination contract and that limit clamps results correctly.
   try {
     // Fetch with limit=1 to verify paging works
@@ -2103,12 +2105,14 @@ async function main() {
       const r = await fetch('/api/tournaments?limit=1&page=1');
       return { status: r.status, body: await r.json().catch(() => ({})) };
     });
-    const meta = limitResp.body?.meta ?? {};
+    // createSuccessResponse wraps paginate() result: { success, data: { data, meta } }
+    const paginatedData = limitResp.body?.data ?? {};
+    const meta = paginatedData?.meta ?? {};
     const hasShape =
       limitResp.status === 200 &&
       limitResp.body?.success === true &&
-      Array.isArray(limitResp.body?.data) &&
-      limitResp.body.data.length <= 1 &&
+      Array.isArray(paginatedData?.data) &&
+      paginatedData.data.length <= 1 &&
       typeof meta.total === 'number' &&
       typeof meta.page === 'number' &&
       typeof meta.limit === 'number' &&
@@ -2121,15 +2125,16 @@ async function main() {
       const r = await fetch('/api/tournaments?limit=1&page=2');
       return { status: r.status, body: await r.json().catch(() => ({})) };
     });
+    const page2PaginatedData = page2Resp.body?.data ?? {};
     const page2Ok =
       page2Resp.status === 200 &&
       page2Resp.body?.success === true &&
-      Array.isArray(page2Resp.body?.data) &&
-      page2Resp.body.data.length <= 1;
+      Array.isArray(page2PaginatedData?.data) &&
+      page2PaginatedData.data.length <= 1;
 
     log('TC-337',
       hasShape && page2Ok ? 'PASS' : 'FAIL',
-      !hasShape ? `Limit=1 response shape invalid (status=${limitResp.status}, data.length=${limitResp.body?.data?.length}, meta=${JSON.stringify(meta)})`
+      !hasShape ? `Limit=1 response shape invalid (status=${limitResp.status}, data.length=${paginatedData?.data?.length}, meta=${JSON.stringify(meta)})`
         : !page2Ok ? `Page 2 response invalid (status=${page2Resp.status})` : '');
   } catch (err) {
     log('TC-337', 'FAIL', err instanceof Error ? err.message : 'Tournament pagination test failed');
@@ -2271,6 +2276,75 @@ async function main() {
         await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
       }, tc339TournamentId).catch(() => {});
     }
+  }
+
+  // TC-341: Authenticated player can access private tournament detail API (publicModes: [])
+  // Regression test for the #615 fix regression: the visibility check was too strict,
+  // blocking authenticated non-admin users (players) when publicModes was empty.
+  // Fixed by changing the guard from !isAdmin → !isAuthenticated.
+  if (pid && playerTempPassword) {
+    let tc341TournamentId = null;
+    let tc341PlayerBrowser = null;
+    try {
+      // Create a private tournament (publicModes defaults to [])
+      const tc341Created = await page.evaluate(async () => {
+        const r = await fetch('/api/tournaments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `E2E TC-341 Private ${Date.now()}`, date: new Date().toISOString() }),
+        });
+        return { status: r.status, body: await r.json() };
+      });
+      tc341TournamentId = tc341Created.body?.data?.id ?? null;
+      if (!tc341TournamentId) throw new Error(`Tournament creation failed (${tc341Created.status})`);
+
+      // 1. Verify unauthenticated access returns 403 (baseline check)
+      const unauthStatus = await new Promise((resolve) => {
+        const req = https.get(`${BASE}/api/tournaments/${tc341TournamentId}?fields=summary`, (res) => {
+          res.resume();
+          resolve(res.statusCode);
+        });
+        req.on('error', () => resolve(0));
+        req.setTimeout(8000, () => { req.destroy(); resolve(0); });
+      });
+
+      // 2. Log in as player and call the same endpoint — expect 200
+      tc341PlayerBrowser = await chromium.launch({
+        headless: false,
+        env: createBrowserLaunchEnv(),
+        args: getChromiumArgs(),
+      });
+      const tc341PlayerCtx = await tc341PlayerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
+      const tc341PlayerPage = await tc341PlayerCtx.newPage();
+      await nav(tc341PlayerPage, '/auth/signin');
+      await tc341PlayerPage.locator('#nickname').fill(nick);
+      await tc341PlayerPage.locator('#password').fill(playerTempPassword);
+      await tc341PlayerPage.getByRole('button', { name: /ログイン|Login/ }).click();
+      await tc341PlayerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+
+      const tc341PlayerResp = await tc341PlayerPage.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
+        return { status: r.status, body: await r.json() };
+      }, tc341TournamentId);
+
+      const unauthBlocked = unauthStatus === 403;
+      const playerAllowed = tc341PlayerResp.status === 200 && tc341PlayerResp.body?.success === true;
+
+      log('TC-341',
+        unauthBlocked && playerAllowed ? 'PASS' : 'FAIL',
+        !unauthBlocked ? `Unauthenticated should get 403, got ${unauthStatus}` :
+        !playerAllowed ? `Player should get 200, got ${tc341PlayerResp.status} (${JSON.stringify(tc341PlayerResp.body)})` : '');
+    } catch (err) {
+      log('TC-341', 'FAIL', err instanceof Error ? err.message : 'Authenticated player private tournament test failed');
+    } finally {
+      if (tc341PlayerBrowser) await tc341PlayerBrowser.close().catch(() => {});
+      if (tc341TournamentId) {
+        await page.evaluate(async (tid) => {
+          await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
+        }, tc341TournamentId).catch(() => {});
+      }
+    }
+  } else {
+    log('TC-341', 'SKIP', 'Player credentials not available');
   }
 
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====

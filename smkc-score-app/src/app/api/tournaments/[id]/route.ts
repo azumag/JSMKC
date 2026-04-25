@@ -112,13 +112,15 @@ export async function GET(
     }
 
     // Visibility check based on publicModes (not isPublic).
-    // Admin users can see all modes regardless of publicModes setting.
+    // Admin users can see all tournaments; authenticated users (players) can
+    // also access private tournaments so they can submit times before modes are
+    // published. Unauthenticated requests are blocked when publicModes is empty.
     const session = await auth();
     const isAdmin = session?.user?.role === 'admin';
+    const isAuthenticated = Boolean(session?.user);
 
-    // Non-admin: check if at least one mode is public
     const publicModes = tournament.publicModes as string[] || [];
-    if (!isAdmin && publicModes.length === 0) {
+    if (!isAuthenticated && publicModes.length === 0) {
       return handleAuthzError("This tournament has no visible modes");
     }
 
