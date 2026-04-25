@@ -100,6 +100,7 @@ export default function DashboardPage({
   }, [id]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll();
     const interval = setInterval(poll, POLLING_INTERVAL);
     return () => clearInterval(interval);

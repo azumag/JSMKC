@@ -30,6 +30,7 @@ import { timeToMs } from "@/lib/ta/time-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { recalculateRanks } from "@/lib/ta/rank-calculation";
+import { COURSES } from "@/lib/constants";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -177,6 +178,16 @@ export async function PUT(
         if (time !== "" && timeToMs(time) === null) {
           return handleValidationError(`Invalid time format for ${course}: ${time}`, "times");
         }
+      }
+      // Reject partial times: all 20 courses must have non-empty values.
+      // If any course is missing, recalculateRanks derives totalTime=null and
+      // silently overwrites the client-supplied totalTime with null (issue #624).
+      const missingCourses = COURSES.filter((c) => !times[c]);
+      if (missingCourses.length > 0) {
+        return handleValidationError(
+          `times must include all ${COURSES.length} courses. Missing: ${missingCourses.join(", ")}`,
+          "times"
+        );
       }
     }
 

@@ -1924,12 +1924,14 @@ async function main() {
         throw new Error(`No version in GET response: ${JSON.stringify(readResp.body).slice(0, 200)}`);
       }
 
-      // Submit PUT with a stale version (currentVersion - 1) — must return 409.
+      // Submit PUT with a stale version (currentVersion - 1) and no times — must return 409.
+      // Note: times is intentionally omitted so the partial-times validation (issue #624) is not
+      // triggered before the optimistic-lock check has a chance to run.
       const conflictResp = await page.evaluate(async ([tid, eid, staleVersion]) => {
         const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ version: staleVersion, times: {} }),
+          body: JSON.stringify({ version: staleVersion }),
         });
         return { status: r.status };
       }, [tc332TournamentId, entry.id, currentVersion - 1]);
@@ -1943,6 +1945,60 @@ async function main() {
     }
   } else {
     log('TC-332', 'SKIP', 'No player available');
+  }
+
+  // TC-342: PUT /tt/entries with partial times — returns 400 (issue #624)
+  // Verifies that PUT /api/tournaments/[id]/tt/entries/[entryId] rejects a times object
+  // that doesn't include all 20 TA courses. Previously the server would accept the partial
+  // payload and then silently overwrite totalTime with null during recalculateRanks.
+  if (pid) {
+    let tc342TournamentId = null;
+    try {
+      tc342TournamentId = await uiCreateTournament(page, `E2E TT Partial Times ${Date.now()}`);
+      await uiActivateTournament(page, tc342TournamentId);
+      await uiSetupTaPlayers(page, tc342TournamentId, [
+        { id: pid, name: playerName, nickname: nick },
+      ]);
+
+      const taResp = await apiFetchTa(page, tc342TournamentId);
+      const entry = (taResp.b?.data?.entries ?? [])[0] ?? null;
+      if (!entry) throw new Error('No TA entry created for TC-342');
+
+      const readResp = await page.evaluate(async ([tid, eid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, [tc342TournamentId, entry.id]);
+
+      const currentVersion = readResp.body?.data?.version;
+      if (typeof currentVersion !== 'number') {
+        throw new Error(`No version in GET response: ${JSON.stringify(readResp.body).slice(0, 200)}`);
+      }
+
+      // Send PUT with only 2 of the required 20 courses — must return 400 (issue #624).
+      // Use valid M:SS.mm format so the format check passes and only the completeness guard fires.
+      const partialResp = await page.evaluate(async ([tid, eid, ver]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: ver, times: { MC1: '1:24.00', DP1: '1:05.00' } }),
+        });
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, [tc342TournamentId, entry.id, currentVersion]);
+
+      const is400 = partialResp.status === 400;
+      const hasErrorMsg = typeof partialResp.body?.error === 'string' &&
+        partialResp.body.error.includes('20');
+      log('TC-342', is400 && hasErrorMsg ? 'PASS' : 'FAIL',
+        !is400 ? `Expected 400 for partial times, got ${partialResp.status}`
+        : !hasErrorMsg ? `Missing/wrong error message: ${partialResp.body?.error}`
+        : '');
+    } catch (err) {
+      log('TC-342', 'FAIL', err instanceof Error ? err.message : 'TT partial times test failed');
+    } finally {
+      if (tc342TournamentId) await deleteTournament(page, tc342TournamentId);
+    }
+  } else {
+    log('TC-342', 'SKIP', 'No player available');
   }
 
   // TC-333: Polling-stats monitor API — authenticated gets 200 with stats shape, unauth gets 401

@@ -1520,6 +1520,23 @@
 
 ---
 
+## TC-342: PUT /tt/entries — 部分的 times は 400 を返す (issue #624)
+- **URL**: PUT /api/tournaments/:id/tt/entries/:entryId
+- **authRequired**: true (admin)
+- **背景**: Issue #624 修正。`times` が全 20 コース未満の場合、`recalculateRanks` が
+  `totalTime=null` に上書きしてしまう問題。バリデーションで 400 を返すよう修正した。
+- **手順**:
+  1. トーナメント作成・アクティベート → TA エントリー作成
+  2. PUT `/tt/entries/:entryId` に 2 コース分のみの `times` を送信（version は最新）
+  3. 400 が返り、エラーメッセージに「20」コースが必要な旨が含まれることを確認
+  4. クリーンアップ
+- **期待結果**:
+  - HTTP 400
+  - `{ success: false, error: "times must include all 20 courses. Missing: ...", field: "times" }`
+- **スクリプト**: tc-all.js TC-342
+
+---
+
 ## TC-337: トーナメント一覧 API ページネーション — GET /api/tournaments?limit&page
 - **URL**: /api/tournaments
 - **authRequired**: false (公開GETエンドポイント)
