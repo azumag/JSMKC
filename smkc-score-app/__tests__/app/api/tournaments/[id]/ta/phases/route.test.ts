@@ -623,12 +623,13 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1' }), { params: mockParams });
 
     expect(checkStageFrozen).toHaveBeenCalledWith(prisma, 'tournament-1', 'phase1');
-    // course is undefined (not provided in request), so the 4th arg is undefined = random selection
+    // course is undefined (not provided in request), tvNumber defaults to null
     expect(startPhaseRound).toHaveBeenCalledWith(
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
-      undefined
+      undefined,
+      null
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 1, course: 'MC1', manualOverride: false } });
   });
@@ -642,9 +643,24 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
       prisma,
       expect.objectContaining({ tournamentId: 'tournament-1' }),
       'phase1',
-      'DP1'
+      'DP1',
+      null
     );
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { roundNumber: 2, course: 'DP1', manualOverride: true } });
+  });
+
+  it('should pass tvNumber to startPhaseRound when provided', async () => {
+    (startPhaseRound as jest.Mock).mockResolvedValue({ roundNumber: 1, course: 'MC1', manualOverride: false, tvNumber: 2 });
+
+    await phasesRoute.POST(createPostRequest({ action: 'start_round', phase: 'phase1', tvNumber: 2 }), { params: mockParams });
+
+    expect(startPhaseRound).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase1',
+      undefined,
+      2
+    );
   });
 
   it('should return freeze error when phase is frozen for start_round', async () => {

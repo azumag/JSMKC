@@ -152,11 +152,11 @@ export default function DashboardPage({
       {/* 1P name display: x:80, y:480, w:230px, h:48px (「配信に反映」設定値) */}
       {overlayPlayer1Name && (
         <div
-          className="pointer-events-none fixed flex items-center"
+          className="pointer-events-none fixed flex items-center justify-center"
           style={{ left: 80, top: 480, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
-            className="text-white font-bold text-xl leading-none truncate w-full"
+            className="text-white font-bold text-2xl leading-none truncate w-full text-center"
             style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
           >
             {overlayPlayer1Name}
@@ -167,11 +167,11 @@ export default function DashboardPage({
       {/* 2P name display: x:80, y:870, w:230px, h:48px (「配信に反映」設定値) */}
       {overlayPlayer2Name && (
         <div
-          className="pointer-events-none fixed flex items-center"
+          className="pointer-events-none fixed flex items-center justify-center"
           style={{ left: 80, top: 870, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
-            className="text-white font-bold text-xl leading-none truncate w-full"
+            className="text-white font-bold text-2xl leading-none truncate w-full text-center"
             style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
           >
             {overlayPlayer2Name}

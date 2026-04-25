@@ -75,7 +75,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS } from "@/lib/constants";
+import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
@@ -103,6 +103,7 @@ interface PhaseRound {
   phase: string;
   roundNumber: number;
   course: string;
+  tvNumber?: number | null;
   results: Array<{ playerId: string; timeMs: number; isRetry: boolean }>;
   eliminatedIds: string[] | null;
   livesReset: boolean;
@@ -161,6 +162,7 @@ export default function TimeAttackFinals({
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
   const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
+  const [selectedTvNumber, setSelectedTvNumber] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -297,6 +299,7 @@ export default function TimeAttackFinals({
             // Only include course when admin has manually selected one;
             // omitting it lets the server choose randomly (default behaviour).
             ...(selectedCourse && selectedCourse !== "__random__" ? { course: selectedCourse } : {}),
+            ...(selectedTvNumber !== null ? { tvNumber: selectedTvNumber } : {}),
           }),
         }
       );
@@ -324,6 +327,7 @@ export default function TimeAttackFinals({
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
       setSelectedCourse("__random__"); // Reset manual selection after round is started
+      setSelectedTvNumber(null); // Reset TV selection after round is started
       fetchData();
     } catch (err) {
       const errorMessage =
@@ -881,6 +885,19 @@ export default function TimeAttackFinals({
                     </SelectContent>
                   </Select>
                 </div>
+                {/* TV number selector for the next round */}
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm text-muted-foreground shrink-0">{tCommon('tvNumber')}</Label>
+                  <select
+                    className="w-20 h-8 text-center text-sm border rounded bg-background"
+                    value={selectedTvNumber ?? ""}
+                    disabled={startingRound || hasOpenRound}
+                    onChange={(e) => setSelectedTvNumber(e.target.value ? parseInt(e.target.value) : null)}
+                  >
+                    <option value="">-</option>
+                    {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
                 <Button
                   className="w-full"
                   size="lg"
@@ -1059,6 +1076,11 @@ export default function TimeAttackFinals({
                             })}
                           </h4>
                           <div className="flex gap-2">
+                            {round.tvNumber && (
+                              <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs">
+                                TV{round.tvNumber}
+                              </Badge>
+                            )}
                             {round.livesReset && (
                               <Badge className="bg-yellow-500 text-black">
                                 {tTaFinals('livesReset')}

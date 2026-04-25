@@ -129,7 +129,10 @@
     "timeTrial": "タイムトライアル",
     "battleMode": "バトルモード",
     "matchRace": "マッチレース",
-    "grandPrix": "グランプリ"
+    "grandPrix": "グランプリ",
+    "generatingBracket": "ブラケットを生成中...しばらくお待ちください。",
+    "broadcastReflect": "配信に反映",
+    "broadcastReflected": "配信に反映しました"
   },
   "home": {
     "tagline": "SMKC スコア管理",
