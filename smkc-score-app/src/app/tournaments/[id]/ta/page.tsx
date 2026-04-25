@@ -59,6 +59,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
@@ -1017,6 +1018,15 @@ export default function TimeAttackPage({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          )}
+
+          {/* Per-mode independent publish toggle (issue #618) */}
+          {isAdmin && (
+            <ModePublishSwitch
+              tournamentId={tournamentId}
+              mode="ta"
+              modeLabelKey="timeTrial"
+            />
           )}
         </div>
       </div>

@@ -58,6 +58,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
+import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
@@ -648,6 +649,15 @@ export default function GrandPrixPage({
             groupCount={groupCount}
             setGroupCount={setGroupCount}
           />}
+
+          {/* Per-mode independent publish toggle (issue #618) */}
+          {isAdmin && (
+            <ModePublishSwitch
+              tournamentId={tournamentId}
+              mode="gp"
+              modeLabelKey="grandPrix"
+            />
+          )}
         </div>
       </div>
 

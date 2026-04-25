@@ -26,7 +26,7 @@ import {
   handleAuthzError,
   handleValidationError,
 } from "@/lib/error-handling";
-import { isSequentialPrefix } from "@/lib/public-modes";
+import { isValidPublicModes } from "@/lib/public-modes";
 
 /**
  * GET /api/tournaments/:id
@@ -189,18 +189,13 @@ export async function PUT(
       }
     }
 
-    // Validate publicModes: must be a sequential prefix of MODE_REVEAL_ORDER.
-    // Modes are revealed to non-admin viewers in order (TA → BM → MR → GP), so
-    // e.g. ["ta", "mr"] is rejected because publishing MR without BM is not
-    // meaningful in the tournament flow. See @/lib/public-modes for the rule.
+    // Validate publicModes: each entry must be a valid mode name, with no
+    // duplicates. Modes are independently publishable (issue #618), so any
+    // subset of [ta, bm, mr, gp] in any order is accepted.
     if (publicModes !== undefined) {
-      if (
-        !Array.isArray(publicModes) ||
-        !publicModes.every((m: unknown) => typeof m === "string") ||
-        !isSequentialPrefix(publicModes as string[])
-      ) {
+      if (!Array.isArray(publicModes) || !isValidPublicModes(publicModes)) {
         return handleValidationError(
-          "publicModes must be a sequential prefix of [ta, bm, mr, gp]",
+          "publicModes must be an array of valid modes (ta, bm, mr, gp) with no duplicates",
           "publicModes"
         );
       }

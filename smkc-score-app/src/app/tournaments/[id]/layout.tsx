@@ -30,7 +30,6 @@ import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/tournament/export-button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { createLogger } from "@/lib/client-logger";
-import { publishMode, unpublishMode, type RevealableMode, MODE_REVEAL_ORDER } from "@/lib/public-modes";
 
 const logger = createLogger({ serviceName: "tournaments-layout" });
 
@@ -194,40 +193,6 @@ export default function TournamentLayout({
   };
 
   /**
-   * Toggles a mode's public visibility with cascade logic:
-   * publishing mode X also publishes all earlier modes (ta→bm→mr→gp order),
-   * unpublishing mode X also unpublishes all later modes.
-   * This ensures publicModes is always a sequential prefix of MODE_REVEAL_ORDER.
-   */
-  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
-  const toggleMode = async (mode: RevealableMode) => {
-    setVisibilityUpdating(true);
-    try {
-      const currentModes = (tournament?.publicModes ?? []) as string[];
-      const isPublic = currentModes.includes(mode);
-      const newModes = isPublic ? unpublishMode(mode) : publishMode(mode);
-      const response = await fetch(`/api/tournaments/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicModes: newModes }),
-      });
-      if (response.ok) {
-        fetchTournament();
-      } else {
-        logger.error("Failed to update visibility", { status: response.status });
-      }
-    } catch (err) {
-      const metadata =
-        err instanceof Error
-          ? { message: err.message, stack: err.stack }
-          : { error: err };
-      logger.error("Failed to update visibility:", metadata);
-    } finally {
-      setVisibilityUpdating(false);
-    }
-  };
-
-  /**
    * Returns a styled Badge component based on tournament status.
    * - Draft: Secondary (gray) for setup phase
    * - Active: Default (primary) for in-progress
@@ -373,31 +338,11 @@ export default function TournamentLayout({
         </div>
 
         {/*
-         * Mode publish controls (admin only).
-         * Centralised here so the same UI appears regardless of which mode tab
-         * is active, and the "未公開" badge in the tab bar disappears instantly
-         * after toggling because the layout's own tournament state is updated.
-         * Publishing cascades to earlier modes; unpublishing cascades to later.
+         * Per-mode publish controls have moved next to each mode's player
+         * settings (issue #618). Each mode's publish state is now independent;
+         * the "未公開" badge below still reflects the per-mode state via
+         * tournament.publicModes.
          */}
-        {isAdmin && (
-          <div className="flex flex-wrap gap-2">
-            {MODE_REVEAL_ORDER.map((mode) => {
-              const labelKey = ({ ta: "timeTrial", bm: "battleMode", mr: "matchRace", gp: "grandPrix" } as const)[mode];
-              const isPublic = (tournament.publicModes ?? [] as string[]).includes(mode);
-              return (
-                <Button
-                  key={mode}
-                  variant={isPublic ? "outline" : "default"}
-                  size="sm"
-                  onClick={() => toggleMode(mode)}
-                  disabled={visibilityUpdating}
-                >
-                  {t(labelKey)}: {isPublic ? tc("unpublishMode") : tc("publishMode")}
-                </Button>
-              );
-            })}
-          </div>
-        )}
 
         {/* Child page content (TA, BM, MR, GP, or Overall sub-page) */}
         {children}
