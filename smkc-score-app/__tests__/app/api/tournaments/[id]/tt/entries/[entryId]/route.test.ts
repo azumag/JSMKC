@@ -456,9 +456,10 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       (prisma.tTEntry.findUnique as jest.Mock)
         .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
-      // Only 2 courses supplied — all 20 are required (issue #624)
+      // Only 2 courses supplied — all 20 are required (issue #624).
+      // Use correct M:SS.mm format so the format check passes and only the partial-times check fires.
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
-        times: { MC1: '1:24:00', DP1: '1:05:00' },
+        times: { MC1: '1:24.00', DP1: '1:05.00' },
         version: 1,
       });
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
@@ -475,11 +476,12 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       (prisma.tTEntry.findUnique as jest.Mock)
         .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
 
-      // Build a times object with all 20 courses but leave RR empty
+      // Build a times object with all 20 courses but leave RR empty.
+      // Use correct M:SS.mm format so the format check passes for non-empty entries.
       const partialTimes = Object.fromEntries(
         ['MC1','DP1','GV1','BC1','MC2','CI1','GV2','DP2','BC2','MC3',
          'KB1','CI2','VL1','BC3','MC4','DP3','KB2','GV3','VL2','RR']
-          .map((c) => [c, c === 'RR' ? '' : '1:24:00'])
+          .map((c) => [c, c === 'RR' ? '' : '1:24.00'])
       );
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
         times: partialTimes,

@@ -1975,11 +1975,12 @@ async function main() {
       }
 
       // Send PUT with only 2 of the required 20 courses — must return 400 (issue #624).
+      // Use valid M:SS.mm format so the format check passes and only the completeness guard fires.
       const partialResp = await page.evaluate(async ([tid, eid, ver]) => {
         const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ version: ver, times: { MC1: '1:24:00', DP1: '1:05:00' } }),
+          body: JSON.stringify({ version: ver, times: { MC1: '1:24.00', DP1: '1:05.00' } }),
         });
         return { status: r.status, body: await r.json().catch(() => ({})) };
       }, [tc342TournamentId, entry.id, currentVersion]);
