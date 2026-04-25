@@ -35,7 +35,6 @@
  */
 // @ts-nocheck
 
-
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/optimistic-locking', () => ({
   updateTTEntry: jest.fn(),
