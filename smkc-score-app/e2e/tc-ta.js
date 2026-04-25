@@ -35,7 +35,7 @@ const {
   uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
   uiCreateTournament, uiCreatePlayer,
   apiDeletePlayer,
-  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiTaParticipantEditTime, loginPlayerBrowser,
+  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiTaParticipantEditTime, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase,
   makeTaTimesForRank,
   setupTaQualViaUi,
@@ -103,6 +103,13 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
     const rank = startRank + i;
     const { times, totalMs } = makeTaTimesForRank(rank);
     await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, rank);
+    /* recalculateRanks (triggered inside the PUT route when `times` is present)
+     * reorders by actual time values and may derive a different rank than the
+     * requested one when fewer than 24 players are in the tournament. Force the
+     * desired rank with a separate rank-only PUT (no `times` → no recalculate)
+     * so the Finals Phases card sees ranks in the 17–24 range and shows the
+     * "Start Phase 1" button. Must run before uiFreezeTaQualification. */
+    await apiForceRankOnly(adminPage, tournamentId, entries[i].entryId, rank);
     seeded.push({ ...entries[i], rank, times, totalMs });
   }
   return seeded;
@@ -298,10 +305,15 @@ async function runTc805(adminPage) {
     }).first();
     await removeDialog.waitFor({ state: 'visible', timeout: 10000 });
 
-    /* p1's entry appears in the right panel (staged entries). Click its Remove
-     * button to remove from the staged list, then save. */
-    const p1EntryRow = removeDialog.locator('div').filter({ hasText: new RegExp(`^.*${p1.nickname}.*$`) }).first();
-    await p1EntryRow.getByRole('button', { name: /^(Remove|削除)$/ }).click();
+    /* p1's entry appears in the right panel (staged entries). Each row has an
+     * input with aria-label `${nickname} seeding`; the Remove button is the
+     * only button sibling in that row div. Using the seeding input as an anchor
+     * avoids the strict-mode violation caused by `div.filter(hasText)` matching
+     * all ancestor divs (including the container with all 28 Remove buttons). */
+    await removeDialog
+      .locator(`input[aria-label="${p1.nickname} seeding"]`)
+      .locator('xpath=following-sibling::button')
+      .click();
     await removeDialog.getByRole('button', { name: /^(Save|保存)$/ }).click();
     await removeDialog.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
 

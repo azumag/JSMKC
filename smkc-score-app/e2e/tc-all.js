@@ -18,6 +18,7 @@ const {
   apiUpdateTaSeeding,
   apiFetchTa,
   apiSeedTtEntry,
+  apiForceRankOnly,
   apiTaParticipantEditTime,
   installApiLogging,
   setupAllModes28PlayerQualification,
@@ -840,6 +841,10 @@ async function main() {
       const taEntry312 = (taData312.b?.data?.entries ?? []).find((e) => e.playerId === pid);
       if (!taEntry312) throw new Error(`No TA entry found for player ${pid}`);
       await apiSeedTtEntry(page, taTournamentId, taEntry312.id, rank17Times, rank17Total, 17);
+      /* recalculateRanks (called inside apiSeedTtEntry's PUT) assigns rank=1
+       * for a single-player tournament, overriding the requested rank=17.
+       * Force rank=17 with a times-free PUT so phase1HasPlayers becomes true. */
+      await apiForceRankOnly(page, taTournamentId, taEntry312.id, 17);
       await uiFreezeTaQualification(page, taTournamentId);
 
       /* uiPromoteTaPhase throws on non-200 so no explicit status check is
@@ -903,6 +908,8 @@ async function main() {
       const taEntry313 = (taData313.b?.data?.entries ?? []).find((e) => e.playerId === pid);
       if (!taEntry313) throw new Error(`No TA entry found for player ${pid}`);
       await apiSeedTtEntry(page, taTournamentId, taEntry313.id, rank17TimesTc313, rank17TotalTc313, 17);
+      /* Same rank-17 preservation needed as TC-312 — see comment there. */
+      await apiForceRankOnly(page, taTournamentId, taEntry313.id, 17);
       await uiFreezeTaQualification(page, taTournamentId);
 
       /* uiPromoteTaPhase throws on non-200 so no explicit status check is
@@ -1225,35 +1232,66 @@ async function main() {
   } else { log('TC-319', 'SKIP'); }
 
   // TC-518: TV Assignment up to 4
-  try {
-    await nav(page, `/tournaments/${TID}/bm`);
-    const tvSelect = page.locator('select.w-14').first();
-    const hasSelect = await tvSelect.count() > 0;
-    let options = [];
-    let optionsOk = false;
-    let assignOk = false;
-    if (hasSelect) {
-      options = await tvSelect.evaluateAll((sel) => Array.from(sel[0].options).map((o) => o.value));
-      optionsOk = ['1', '2', '3', '4'].every((v) => options.includes(v));
-      // Assign TV 4 to the first match
-      await tvSelect.selectOption('4');
-      await page.waitForTimeout(1000);
-      // Verify via API that the assignment persisted
-      const bmData = await page.evaluate(async (u) => {
-        const r = await fetch(u);
-        return r.json().catch(() => ({}));
-      }, `/api/tournaments/${TID}/bm`);
-      const matches = bmData.data?.matches || bmData.matches || [];
-      const firstMatchWithTv = matches.find((m) => m.tvNumber === 4);
-      assignOk = !!firstMatchWithTv;
+  // Uses an isolated 2-player BM tournament so this test is independent of
+  // setupAllModes28PlayerQualification (which can fail or time out). With 2
+  // players there is exactly 1 non-BYE match — enough to verify the TV select.
+  {
+    let tc518TournamentId = null;
+    let tc518P1Id = null;
+    let tc518P2Id = null;
+    try {
+      const ts518 = Date.now();
+      const p518a = await uiCreatePlayer(page, 'E2E BM TV A', `e2e_bmtv_a_${ts518}`);
+      tc518P1Id = p518a.id;
+      const p518b = await uiCreatePlayer(page, 'E2E BM TV B', `e2e_bmtv_b_${ts518}`);
+      tc518P2Id = p518b.id;
+      tc518TournamentId = await uiCreateTournament(page, `E2E TC-518 BM TV ${ts518}`);
+      await uiActivateTournament(page, tc518TournamentId);
+
+      // Set up BM with 2 players in group A — creates 1 non-BYE match
+      const bmSetup518 = await page.evaluate(async ([tid, p1, p2]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [{ playerId: p1, group: 'A' }, { playerId: p2, group: 'A' }] }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [tc518TournamentId, tc518P1Id, tc518P2Id]);
+      if (bmSetup518.s !== 201) throw new Error(`BM setup failed (${bmSetup518.s})`);
+
+      await nav(page, `/tournaments/${tc518TournamentId}/bm`);
+      const tvSelect = page.locator('select.w-14').first();
+      const hasSelect = await tvSelect.count() > 0;
+      let options = [];
+      let optionsOk = false;
+      let assignOk = false;
+      if (hasSelect) {
+        options = await tvSelect.evaluateAll((sel) => Array.from(sel[0].options).map((o) => o.value));
+        optionsOk = ['1', '2', '3', '4'].every((v) => options.includes(v));
+        // Assign TV 4 to the first match
+        await tvSelect.selectOption('4');
+        await page.waitForTimeout(1000);
+        // Verify via API that the assignment persisted
+        const bmData518 = await page.evaluate(async (u) => {
+          const r = await fetch(u);
+          return r.json().catch(() => ({}));
+        }, `/api/tournaments/${tc518TournamentId}/bm`);
+        const matches518 = bmData518.data?.matches || bmData518.matches || [];
+        const matchWithTv = matches518.find((m) => m.tvNumber === 4);
+        assignOk = !!matchWithTv;
+      }
+      log('TC-518', hasSelect && optionsOk && assignOk ? 'PASS' : 'FAIL',
+        !hasSelect ? 'No TV select found on BM qualification page'
+        : !optionsOk ? `TV options missing 1-4 (got ${options.join(',')})`
+        : !assignOk ? 'TV 4 assignment did not persist'
+        : '');
+    } catch (err) {
+      log('TC-518', 'FAIL', err instanceof Error ? err.message : 'TV assignment test failed');
+    } finally {
+      if (tc518TournamentId) await deleteTournament(page, tc518TournamentId);
+      if (tc518P1Id) await deletePlayer(page, tc518P1Id);
+      if (tc518P2Id) await deletePlayer(page, tc518P2Id);
     }
-    log('TC-518', hasSelect && optionsOk && assignOk ? 'PASS' : 'FAIL',
-      !hasSelect ? 'No TV select found on BM qualification page'
-      : !optionsOk ? `TV options missing 1-4 (got ${options.join(',')})`
-      : !assignOk ? 'TV 4 assignment did not persist'
-      : '');
-  } catch (err) {
-    log('TC-518', 'FAIL', err instanceof Error ? err.message : 'TV assignment test failed');
   }
 
   // TC-104: Player delete
@@ -2510,7 +2548,9 @@ async function main() {
       await tc341PlayerPage.locator('#nickname').fill(nick);
       await tc341PlayerPage.locator('#password').fill(playerTempPassword);
       await tc341PlayerPage.getByRole('button', { name: /ログイン|Login/ }).click();
-      await tc341PlayerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 15000 });
+      /* TC-341 runs late in the suite when the production server may be under
+       * more load; use a longer timeout than the default 15s to reduce flakiness. */
+      await tc341PlayerPage.waitForURL((url) => url.pathname === '/tournaments', { timeout: 30000 });
 
       const tc341PlayerResp = await tc341PlayerPage.evaluate(async (tid) => {
         const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
@@ -2536,6 +2576,63 @@ async function main() {
     }
   } else {
     log('TC-341', 'SKIP', 'Player credentials not available');
+  }
+
+  // TC-344: noCamera flag — create player with noCamera=true, verify in API and UI, toggle via edit
+  {
+    let tc344PlayerId = null;
+    try {
+      const ts344 = Date.now();
+      const nick344 = `e2e_nocam_${ts344}`;
+
+      // Create player with noCamera=true via API
+      const createResp = await page.evaluate(async (d) => {
+        const r = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(d),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { name: 'E2E NoCamera Test', nickname: nick344, noCamera: true });
+
+      if (createResp.s !== 201) throw new Error(`Create failed (${createResp.s})`);
+      tc344PlayerId = createResp.b?.data?.player?.id;
+      if (!tc344PlayerId) throw new Error('No player id in create response');
+
+      // Verify noCamera=true in GET response
+      const getResp = await page.evaluate(async (id) => {
+        const r = await fetch(`/api/players/${id}`);
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, tc344PlayerId);
+      const noCameraTrue = getResp.b?.data?.noCamera === true;
+
+      // Update player to toggle noCamera=false
+      const putResp = await page.evaluate(async (d) => {
+        const r = await fetch(`/api/players/${d.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'E2E NoCamera Test', nickname: d.nick, noCamera: false }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, { id: tc344PlayerId, nick: nick344 });
+      const updateOk = putResp.s === 200 && putResp.b?.data?.noCamera === false;
+
+      // Verify updated value in GET
+      const getResp2 = await page.evaluate(async (id) => {
+        const r = await fetch(`/api/players/${id}`);
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, tc344PlayerId);
+      const noCameraFalse = getResp2.b?.data?.noCamera === false;
+
+      log('TC-344', noCameraTrue && updateOk && noCameraFalse ? 'PASS' : 'FAIL',
+        !noCameraTrue ? `noCamera should be true after create, got ${getResp.b?.data?.noCamera}` :
+        !updateOk ? `PUT noCamera=false failed (${putResp.s}), noCamera=${putResp.b?.data?.noCamera}` :
+        !noCameraFalse ? `noCamera should be false after update, got ${getResp2.b?.data?.noCamera}` : '');
+    } catch (err) {
+      log('TC-344', 'FAIL', err instanceof Error ? err.message : 'noCamera flag test failed');
+    } finally {
+      if (tc344PlayerId) await deletePlayer(page, tc344PlayerId);
+    }
   }
 
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====

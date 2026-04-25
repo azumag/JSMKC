@@ -97,7 +97,7 @@ export async function PUT(
 
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country } = body;
+    const { name, nickname, country, noCamera } = body;
 
     // Validate required fields
     if (!name || !nickname) {
@@ -112,6 +112,7 @@ export async function PUT(
         name,
         nickname,
         country: country || null,
+        noCamera: noCamera === true,
       },
     });
 
