@@ -71,7 +71,6 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
-import { toast } from "sonner";
 
 /**
  * Client-side logger for the finals page.

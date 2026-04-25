@@ -79,7 +79,6 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
-import { toast } from "sonner";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
