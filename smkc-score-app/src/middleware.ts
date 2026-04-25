@@ -112,6 +112,11 @@ export default async function middleware(req: NextRequest) {
     const nonce = generateNonce()
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set('x-nonce', nonce)
+    // Forward the pathname so the root layout can render chrome-less HTML
+    // for the OBS overlay route — without this header the layout has no
+    // way to detect /overlay during SSR (Next.js does not expose pathname
+    // to Server Components by default).
+    requestHeaders.set('x-pathname', pathname)
 
     const response = NextResponse.next({
       request: { headers: requestHeaders },

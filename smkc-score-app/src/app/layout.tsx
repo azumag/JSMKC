@@ -32,6 +32,7 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
+import { headers } from "next/headers";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Toaster } from "sonner";
@@ -62,76 +63,69 @@ export default async function RootLayout({
   const locale = await getLocale();
   const messages = await getMessages();
 
+  /*
+   * Detect the OBS overlay route from the middleware-injected `x-pathname`
+   * header. On overlay pages we skip the global header, the bg-background
+   * shell, and the main padding so the page renders fully transparent
+   * from the first paint. Avoids the FOIC (flash of incorrect content)
+   * that a useEffect-based body-class swap would cause in OBS.
+   */
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+  const isOverlay = pathname.includes("/overlay");
+
   return (
     <html lang={locale}>
       <head>
         {/* Additional head content can be added here (favicon, meta tags, etc.) */}
       </head>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased${
+          isOverlay ? " overlay-mode" : ""
+        }`}
       >
-        {/*
-         * NextIntlClientProvider passes locale and messages to all client components,
-         * enabling useTranslations() hooks throughout the component tree.
-         */}
         <NextIntlClientProvider locale={locale} messages={messages}>
-          {/* SessionProvider makes the session available to all client components via useSession() */}
           <SessionProvider>
-            <div className="min-h-screen bg-background">
-              {/* Global navigation header with border separator */}
-              <header className="border-b">
-                <div className="container mx-auto px-4 py-4">
-                  <nav className="flex items-center justify-between">
-                    {/* Application logo/title linking to home page.
-                       * On mobile (<640px), show abbreviated "SMKC" to prevent
-                       * text wrapping that pushes nav items off-screen. */}
-                    <Link href="/" className="text-xl font-bold whitespace-nowrap">
-                      <span className="sm:hidden">SMKC</span>
-                      <span className="hidden sm:inline">SMKC Score System</span>
-                    </Link>
-                    <div className="flex gap-3 sm:gap-6 items-center">
-                      {/* Primary navigation links - publicly accessible pages */}
-                      <Link
-                        href="/players"
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <NavLabel messageKey="players" />
-                      </Link>
-                      <Link
-                        href="/tournaments"
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <NavLabel messageKey="tournaments" />
-                      </Link>
-
-                      {/*
-                       * Language switcher toggle button.
-                       * Displays "日本語" when in English mode, "English" when in Japanese mode.
-                       */}
-                      <LocaleSwitcher />
-
-                      {/*
-                       * AuthHeader: Client component for authentication-aware UI.
-                       * Uses client-side useSession() + signOut() to ensure the
-                       * header's auth state stays in sync with the SessionProvider
-                       * that page components also consume. This prevents stale
-                       * session bugs after logout.
-                       */}
-                      <AuthHeader />
+            {isOverlay ? (
+              /* Overlay route: render only the page tree — no header, no
+                 bg-background wrapper, no main padding, no Sonner toaster
+                 (sonner pollutes the transparent canvas). */
+              children
+            ) : (
+              <>
+                <div className="min-h-screen bg-background">
+                  {/* Global navigation header with border separator */}
+                  <header className="border-b">
+                    <div className="container mx-auto px-4 py-4">
+                      <nav className="flex items-center justify-between">
+                        <Link href="/" className="text-xl font-bold whitespace-nowrap">
+                          <span className="sm:hidden">SMKC</span>
+                          <span className="hidden sm:inline">SMKC Score System</span>
+                        </Link>
+                        <div className="flex gap-3 sm:gap-6 items-center">
+                          <Link
+                            href="/players"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <NavLabel messageKey="players" />
+                          </Link>
+                          <Link
+                            href="/tournaments"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <NavLabel messageKey="tournaments" />
+                          </Link>
+                          <LocaleSwitcher />
+                          <AuthHeader />
+                        </div>
+                      </nav>
                     </div>
-                  </nav>
+                  </header>
+                  <main className="container mx-auto px-4 py-8">{children}</main>
                 </div>
-              </header>
-
-              {/* Main content area - all page components render here */}
-              <main className="container mx-auto px-4 py-8">{children}</main>
-            </div>
-            {/*
-             * Toaster must be outside the main container so toast notifications
-             * appear as a fixed overlay regardless of scroll position.
-             * Sonner toasts are no-ops without this component present in the tree.
-             */}
-            <Toaster richColors position="bottom-right" />
+                <Toaster richColors position="bottom-right" />
+              </>
+            )}
           </SessionProvider>
         </NextIntlClientProvider>
       </body>
