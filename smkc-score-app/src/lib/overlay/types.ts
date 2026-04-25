@@ -124,4 +124,10 @@ export interface OverlayEventsResponse {
   /** Server's "now". Clients echo this back as `since` on the next poll. */
   serverTime: string;
   events: OverlayEvent[];
+  /**
+   * Combined tournament-phase label for the OBS dashboard footer (e.g.
+   * "予選", "バラッジ1 R3", "決勝 QF"). Always populated; the legacy toast
+   * overlay simply ignores it.
+   */
+  currentPhase?: string;
 }
