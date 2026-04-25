@@ -65,12 +65,17 @@ const TABS = [
  * Pages excluded from the full layout:
  * - /participant: Accessed by logged-in players during live events
  * - /match/: Public-facing shareable match entry pages
+ * - /overlay: OBS browser-source overlay (transparent background, no chrome)
  *
  * These pages should show only their own content without the
  * admin navigation chrome (header, status controls, tab bar).
  */
 function isMinimalPage(pathname: string): boolean {
-  return pathname.includes("/participant") || pathname.includes("/match/");
+  return (
+    pathname.includes("/participant") ||
+    pathname.includes("/match/") ||
+    pathname.includes("/overlay")
+  );
 }
 
 /**
