@@ -25,7 +25,7 @@ export function TieWarningBanner({ hasTies, isAdmin }: TieWarningBannerProps) {
   if (!hasTies) return null;
 
   return (
-    <div className="mb-2 flex items-center gap-2 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+    <div className="mb-2 flex items-center gap-2 rounded-sm border border-y border-r border-l-[3px] border-l-accent border-foreground/15 bg-accent/15 px-3 py-2 text-sm text-foreground">
       {/* Warning icon */}
       <svg
         xmlns="http://www.w3.org/2000/svg"

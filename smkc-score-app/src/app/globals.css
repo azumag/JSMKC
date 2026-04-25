@@ -1,49 +1,32 @@
 /**
- * globals.css - Application-wide CSS configuration
+ * globals.css — Paddock Editorial design system
  *
- * This stylesheet establishes the design system foundation using:
- * 1. Tailwind CSS v4 with the @import directive
- * 2. tw-animate-css for animation utilities
- * 3. Custom CSS variables mapped to Tailwind theme tokens
- * 4. Light and dark mode color palettes using OKLCH color space
- * 5. Custom utility animations for real-time data updates
+ * Aesthetic: F1 paddock × sports editorial. Charcoal/paper neutrals,
+ * Racing Red as the dominant accent, Mustard as the leader/warning
+ * highlight. Display type is set in Anton; UI sans is Manrope; numerics
+ * use JetBrains Mono with tabular figures so times, scores, and ranks
+ * line up vertically across rows.
  *
- * Color system:
- * - Uses OKLCH color space for perceptually uniform color manipulation
- * - All colors are defined as CSS custom properties for runtime theming
- * - Dark mode is activated via the `.dark` class on a parent element
- *
- * Component tokens:
- * - Card, Popover, Sidebar: Surface colors for layered UI panels
- * - Chart 1-5: Data visualization palette
- * - Destructive: Error/danger state color
- * - Ring/Border/Input: Focus and boundary styling
+ * The OBS browser-source overlay route relies on `body.overlay-mode`
+ * rules at the bottom of this file to render with a fully transparent
+ * canvas. Those rules use `!important` to defeat utility specificity
+ * and MUST stay intact — touching them breaks every broadcast.
  */
 
-/* Tailwind CSS base import (v4 syntax) */
 @import "tailwindcss";
-
-/* Animation utilities for transitions and entrance effects */
 @import "tw-animate-css";
 
-/* Dark mode variant using the .dark class strategy (not media query) */
 @custom-variant dark (&:is(.dark *));
 
-/**
- * Theme token mapping - connects CSS custom properties to Tailwind's
- * theme system so that utilities like `bg-background` and `text-foreground`
- * resolve to the correct CSS variable values at runtime.
- */
 @theme inline {
-  /* Core layout colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Typography fonts loaded via geist package (next/font/local) */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Typography — wired through next/font/google in src/app/layout.tsx */
+  --font-display: var(--font-anton);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-jetbrains);
 
-  /* Sidebar component tokens for navigation drawer styling */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -53,19 +36,16 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
 
-  /* Chart palette for data visualization (5 distinct colors) */
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
 
-  /* Interactive element tokens */
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
 
-  /* Semantic color tokens */
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -76,134 +56,203 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
 
-  /* Floating panel tokens (dropdowns, tooltips, etc.) */
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
 
-  /* Card surface tokens */
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* Border radius scale derived from a single --radius base value */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  /* Sharper edges to match pit-board / signage feel */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/**
- * Light mode color palette (default).
- * Uses neutral OKLCH values (chroma = 0) for most UI elements,
- * with chromatic colors reserved for charts and destructive actions.
- */
+/* Light — paper background, charcoal ink, racing red as primary */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.25rem;
+
+  --background: oklch(0.985 0.004 80);
+  --foreground: oklch(0.18 0.008 270);
+
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.008 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.18 0.008 270);
+
+  --primary: oklch(0.58 0.22 27);
+  --primary-foreground: oklch(0.99 0.005 80);
+
+  --secondary: oklch(0.94 0.005 80);
+  --secondary-foreground: oklch(0.22 0.008 270);
+
+  --muted: oklch(0.96 0.004 80);
+  --muted-foreground: oklch(0.44 0.012 270);
+
+  --accent: oklch(0.86 0.16 92);
+  --accent-foreground: oklch(0.2 0.04 60);
+
+  --destructive: oklch(0.58 0.22 27);
+
+  --border: oklch(0.86 0.006 270);
+  --input: oklch(0.9 0.006 270);
+  --ring: oklch(0.58 0.22 27);
+
+  /* Race telemetry palette — distinct hues for chart readability */
+  --chart-1: oklch(0.58 0.22 27);
+  --chart-2: oklch(0.7 0.18 92);
+  --chart-3: oklch(0.55 0.14 240);
+  --chart-4: oklch(0.62 0.18 160);
+  --chart-5: oklch(0.5 0.18 320);
+
+  --sidebar: oklch(0.98 0.004 80);
+  --sidebar-foreground: oklch(0.18 0.008 270);
+  --sidebar-primary: oklch(0.58 0.22 27);
+  --sidebar-primary-foreground: oklch(0.99 0.005 80);
+  --sidebar-accent: oklch(0.94 0.005 80);
+  --sidebar-accent-foreground: oklch(0.22 0.008 270);
+  --sidebar-border: oklch(0.86 0.006 270);
+  --sidebar-ring: oklch(0.58 0.22 27);
 }
 
-/**
- * Dark mode color palette.
- * Inverts the lightness relationships and introduces chromatic
- * sidebar/chart colors for visual interest against dark backgrounds.
- * Border and input use alpha transparency for subtle layering.
- */
+/* Dark — deep carbon. Red is pushed up in chroma so it still pops on near-black. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.14 0.008 270);
+  --foreground: oklch(0.97 0.005 80);
+
+  --card: oklch(0.18 0.01 270);
+  --card-foreground: oklch(0.97 0.005 80);
+  --popover: oklch(0.18 0.01 270);
+  --popover-foreground: oklch(0.97 0.005 80);
+
+  --primary: oklch(0.66 0.24 27);
+  --primary-foreground: oklch(0.99 0.005 80);
+
+  --secondary: oklch(0.24 0.01 270);
+  --secondary-foreground: oklch(0.97 0.005 80);
+
+  --muted: oklch(0.22 0.01 270);
+  --muted-foreground: oklch(0.72 0.012 270);
+
+  --accent: oklch(0.78 0.18 92);
+  --accent-foreground: oklch(0.18 0.04 60);
+
+  --destructive: oklch(0.7 0.22 27);
+
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.22 27);
+
+  --chart-1: oklch(0.66 0.24 27);
+  --chart-2: oklch(0.78 0.18 92);
+  --chart-3: oklch(0.7 0.16 240);
+  --chart-4: oklch(0.7 0.16 160);
+  --chart-5: oklch(0.65 0.2 320);
+
+  --sidebar: oklch(0.18 0.01 270);
+  --sidebar-foreground: oklch(0.97 0.005 80);
+  --sidebar-primary: oklch(0.66 0.24 27);
+  --sidebar-primary-foreground: oklch(0.99 0.005 80);
+  --sidebar-accent: oklch(0.24 0.01 270);
+  --sidebar-accent-foreground: oklch(0.97 0.005 80);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.7 0.22 27);
 }
 
-/**
- * Base layer: applies default border and outline ring colors to all
- * elements, and sets the body background and text colors.
- */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: 0.005em;
   }
 }
 
-/**
- * Utility layer: custom animation for real-time data updates.
- * When a score or value changes via polling/WebSocket, the
- * `update-flash` class is applied to briefly highlight the row
- * or cell, drawing the user's attention to the changed data.
- *
- * Light mode: flashes from a subtle gray to transparent
- * Dark mode: flashes from a subtle white overlay to transparent
- */
 @layer utilities {
+  /* Anton — used for hero headlines, ranks, scores, mode codes. */
+  .font-display {
+    font-family: var(--font-display), "Bebas Neue", "Impact", system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    line-height: 0.92;
+    text-transform: uppercase;
+  }
+
+  /* Tabular figures keep numeric columns vertically aligned across rows. */
+  .tabular,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Checkered flag strip — a 2-row checker used as a 4–6px decorative
+   * band above hero sections, card tops, and the global header. Two
+   * diagonal gradients composed against each other draw an 8px grid.
+   */
+  .checker-strip {
+    background-image:
+      linear-gradient(45deg, var(--foreground) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--foreground) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--foreground) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--foreground) 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+    background-color: var(--background);
+  }
+
+  /*
+   * Race-stripe overlay — kept under 6% opacity so it reads as texture
+   * rather than a flat color, applied to hero blocks via background-image.
+   */
+  .race-stripe {
+    background-image: repeating-linear-gradient(
+      102deg,
+      color-mix(in oklch, var(--primary) 6%, transparent) 0 24px,
+      transparent 24px 64px
+    );
+  }
+
+  /* Pit-board active tab underline — solid 3px Racing Red */
+  .pit-active {
+    box-shadow: inset 0 -3px 0 0 var(--primary);
+  }
+
+  /*
+   * Status flag tokens — reused by Badge variants and editorial table
+   * left borders. Green = active, Yellow = draft/preparing, Black =
+   * completed.
+   */
+  .flag-active {
+    background-color: oklch(0.74 0.16 145);
+    color: oklch(0.18 0.05 145);
+    border: 1px solid oklch(0.55 0.16 145);
+  }
+  .flag-draft {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+    border: 1px solid color-mix(in oklch, var(--accent) 70%, var(--foreground) 30%);
+  }
+  .flag-completed {
+    background-color: var(--foreground);
+    color: var(--background);
+    border: 1px solid var(--foreground);
+  }
+
+  /* Flashes a row/cell when polled data updates. Amber pulse. */
   .update-flash {
     animation: flash-highlight 1s ease-out;
   }
 
   @keyframes flash-highlight {
     0% {
-      background-color: oklch(0.922 0 0);
+      background-color: color-mix(in oklch, var(--accent) 40%, transparent);
     }
     100% {
       background-color: transparent;
@@ -216,7 +265,7 @@
 
   @keyframes flash-highlight-dark {
     0% {
-      background-color: oklch(1 0 0 / 10%);
+      background-color: color-mix(in oklch, var(--accent) 30%, transparent);
     }
     100% {
       background-color: transparent;
@@ -224,18 +273,18 @@
   }
 
   /*
-   * OBS browser-source overlay mode.
+   * OBS browser-source overlay mode — DO NOT TOUCH.
    *
    * The overlay page must render with a transparent background and zero
    * chrome so OBS can composite it over a scene. The Next.js root layout
-   * (`src/app/layout.tsx`) wraps every page in a `bg-background` shell with
-   * a global header and `<main class="container mx-auto px-4 py-8">`, which
-   * shows up as a solid white/dark band over the broadcast.
+   * wraps every page in a `bg-background` shell with a global header and
+   * a padded `<main>`, which would otherwise show up as a solid band
+   * over the broadcast.
    *
-   * The overlay page client component toggles `body.overlay-mode` on mount,
-   * and these rules undo the parent chrome with `!important` to win against
-   * Tailwind's utility-class specificity. Removing this class on unmount
-   * restores the normal layout for any subsequent navigation.
+   * The overlay page client component toggles `body.overlay-mode` on
+   * mount; these rules undo the parent chrome with `!important` to win
+   * against Tailwind's utility-class specificity. Removing the class on
+   * unmount restores the normal layout for any subsequent navigation.
    */
   body.overlay-mode {
     background: transparent !important;

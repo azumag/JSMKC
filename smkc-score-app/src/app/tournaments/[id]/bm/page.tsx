@@ -386,7 +386,7 @@ export default function BattleModePage({
   if (!pollData && pollError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">{t('title')}</h1>
+        <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{pollError}</p>
           <Button onClick={refetch}>{tc('retry')}</Button>
@@ -416,7 +416,7 @@ export default function BattleModePage({
       {/* Page header with title, polling indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t('title')}</h1>
+          <h1 className="text-2xl font-semibold">{t('title')}</h1>
           <p className="text-muted-foreground">
             {t('qualificationDesc')}
           </p>

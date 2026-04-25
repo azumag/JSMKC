@@ -1,19 +1,13 @@
 /**
- * Tabs UI Component
+ * Tabs — Paddock Editorial.
  *
- * A tabbed interface built on Radix UI's Tabs primitive for accessible
- * tab navigation. Used throughout the JSMKC app for:
- * - Tournament detail pages (switching between TA/BM/MR/GP modes)
- * - Score entry views (switching between different course groups)
- * - Settings panels (switching between configuration sections)
+ * Switched from a pill-shaped inset bar to a pit-board underline strip.
+ * Inactive triggers read as muted small-caps; the active trigger gets a
+ * 3px Racing Red bar drawn with `box-shadow` so the layout stays exactly
+ * the same height for active and inactive states.
  *
- * Marked as "use client" because Radix Tabs manages active tab state
- * and requires browser APIs for keyboard navigation (arrow keys).
- *
- * Radix Tabs automatically handles:
- * - ARIA roles (tablist, tab, tabpanel)
- * - Keyboard navigation (Arrow Left/Right, Home, End)
- * - Focus management between trigger and content
+ * API is unchanged (Tabs/TabsList/TabsTrigger/TabsContent), so every
+ * existing caller continues to compile.
  */
 "use client"
 
@@ -22,12 +16,6 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Tabs root component.
- * Manages active tab state and provides context to child components.
- * Uses flex-col layout with gap-2 to space the tab list and content.
- * Can be controlled (value + onValueChange) or uncontrolled (defaultValue).
- */
 function Tabs({
   className,
   ...props
@@ -35,19 +23,12 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex flex-col gap-3", className)}
       {...props}
     />
   )
 }
 
-/**
- * Tabs list component.
- * The container for tab triggers. Styled as a pill-shaped bar with
- * muted background. Uses inline-flex with w-fit to prevent the tab bar
- * from stretching to full width. The 3px padding creates visual inset
- * for the active tab indicator.
- */
 function TabsList({
   className,
   ...props
@@ -56,7 +37,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
+        "inline-flex h-10 items-stretch justify-start gap-1 border-b border-foreground/15 text-muted-foreground",
         className
       )}
       {...props}
@@ -64,18 +45,6 @@ function TabsList({
   )
 }
 
-/**
- * Tabs trigger (tab button) component.
- * Individual tab buttons within the tab list. Features:
- * - Active state: elevated background with shadow to look "selected"
- * - Dark mode: uses input background for active state
- * - Focus-visible: ring indicator for keyboard navigation
- * - flex-1: distributes available width equally among triggers
- * - Transition on color and box-shadow for smooth state changes
- *
- * The transparent border on inactive state prevents layout shift when
- * the active state adds a visible border in dark mode.
- */
 function TabsTrigger({
   className,
   ...props
@@ -84,7 +53,12 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "inline-flex items-center justify-center gap-1.5 px-4 text-xs font-semibold uppercase tracking-[0.16em] whitespace-nowrap transition-colors",
+        "text-muted-foreground hover:text-foreground",
+        "data-[state=active]:text-foreground data-[state=active]:pit-active",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -92,13 +66,6 @@ function TabsTrigger({
   )
 }
 
-/**
- * Tabs content panel component.
- * The content area displayed when a tab is active. Uses flex-1 to fill
- * remaining vertical space when Tabs root is in a flex container.
- * Outline-none removes the default focus outline since focus is managed
- * by the tab triggers themselves.
- */
 function TabsContent({
   className,
   ...props

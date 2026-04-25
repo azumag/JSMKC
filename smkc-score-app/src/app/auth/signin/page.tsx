@@ -55,10 +55,10 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-[calc(100vh-12rem)] flex items-center justify-center">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{t('loginTitle')}</CardTitle>
+        <CardHeader className="text-center pb-2">
+          <CardTitle className="text-2xl font-semibold">{t('loginTitle')}</CardTitle>
           <CardDescription>{t('subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>

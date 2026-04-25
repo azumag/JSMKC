@@ -99,8 +99,8 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   return (
     <div className="flex items-center gap-1">
       {rankOverride != null ? (
-        /* Amber badge signals that this rank was manually set by an admin */
-        <span className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+        /* Mustard "yellow flag" badge — signals that this rank was manually set by an admin */
+        <span className="inline-flex items-center justify-center rounded-sm px-1.5 py-0.5 text-xs font-semibold tabular flag-draft">
           {rankOverride}
         </span>
       ) : (

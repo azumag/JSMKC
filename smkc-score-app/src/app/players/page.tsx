@@ -473,13 +473,13 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page header with title and Add Player button (admin only) */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-foreground/15 pb-5">
         <div>
-          <h1 className="text-3xl font-bold">{t('title')}</h1>
-          {/* Role-appropriate subtitle text */}
-          <p className="text-muted-foreground">
+          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">
+            {t('title')}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-2">
             {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
           </p>
         </div>
@@ -558,34 +558,32 @@ export default function PlayersPage() {
           </DialogContent>
         </Dialog>
         )}
-      </div>
+      </header>
 
-      {/* Player list table wrapped in a card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('playerList')}</CardTitle>
-          <CardDescription>
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-base font-semibold">
+            {t('playerList')}
+          </h2>
+          <p className="text-xs text-muted-foreground font-mono tabular">
             {t('playersRegistered', { count: totalPlayers })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </div>
+        <div>
           {fetchError ? (
-            /* Error state: API failed — show message with retry button */
-            <div className="text-center py-8 space-y-3">
+            <div className="text-center py-12 space-y-3 border border-foreground/15">
               <p className="text-destructive">{t('fetchError')}</p>
               <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchPlayers(); }}>
                 {tc('retry')}
               </Button>
             </div>
           ) : players.length === 0 ? (
-            /* Empty state message - differs by role */
-            <div className="text-center py-8 text-muted-foreground">
-              {isAdmin
-                ? t('noPlayersAdmin')
-                : t('noPlayersView')}
+            <div className="text-center py-12 text-muted-foreground border border-foreground/15">
+              {isAdmin ? t('noPlayersAdmin') : t('noPlayersView')}
             </div>
           ) : (
             <div className="space-y-4">
+              <div className="border border-foreground/15">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -639,9 +637,10 @@ export default function PlayersPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               {totalPages > 1 && (
-                <div className="flex items-center justify-between gap-3">
+                <nav className="flex items-center justify-between gap-3 pt-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -651,9 +650,9 @@ export default function PlayersPage() {
                       setCurrentPage((page) => Math.max(1, page - 1));
                     }}
                   >
-                    {t('previousPage')}
+                    ← {t('previousPage')}
                   </Button>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs text-muted-foreground font-mono tabular tracking-[0.16em] uppercase">
                     {t('pageStatus', { page: currentPage, totalPages })}
                   </div>
                   <Button
@@ -665,14 +664,14 @@ export default function PlayersPage() {
                       setCurrentPage((page) => Math.min(totalPages, page + 1));
                     }}
                   >
-                    {t('nextPage')}
+                    {t('nextPage')} →
                   </Button>
-                </div>
+                </nav>
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Edit Player Dialog - controlled externally via state */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>

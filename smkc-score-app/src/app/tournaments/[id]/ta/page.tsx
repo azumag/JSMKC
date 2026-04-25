@@ -675,7 +675,7 @@ export default function TimeAttackPage({
   if (!pollData && error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">{t('title')}</h1>
+        <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <div className="text-center py-8">
           <p className="text-destructive mb-4">{error}</p>
           <Button onClick={refetch}>{tc('retry')}</Button>
@@ -704,7 +704,7 @@ export default function TimeAttackPage({
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">{t('title')}</h1>
+          <h1 className="text-2xl font-semibold">{t('title')}</h1>
         </div>
         <Card>
           <CardContent className="py-8 text-center">
@@ -723,7 +723,7 @@ export default function TimeAttackPage({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold">{t('qualificationTitle')}</h1>
+            <h1 className="text-2xl font-semibold">{t('qualificationTitle')}</h1>
             {/* Show frozen badge when qualification stage is locked */}
             {frozenStages.includes("qualification") && (
               <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">

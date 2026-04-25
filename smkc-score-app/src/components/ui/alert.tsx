@@ -33,19 +33,18 @@ import { cn } from "@/lib/utils"
  * - Icon-adjacent content receives left padding to avoid overlap
  */
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  "relative w-full rounded-sm border-l-[3px] border-y border-r border-foreground/15 p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
   {
     variants: {
       /**
        * Visual variant styles:
-       * - default: Standard background with foreground text, for informational alerts
-       * - destructive: Red border and text for error/warning alerts, with icon
-       *   color matching the destructive theme for visual consistency
+       * - default: Yellow-flag warning treatment — mustard left border on paper.
+       * - destructive: Red flag — red left border, destructive text, matching icon.
        */
       variant: {
-        default: "bg-background text-foreground",
+        default: "bg-background text-foreground border-l-accent",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+          "border-l-destructive text-destructive [&>svg]:text-destructive",
       },
     },
     /** Default variant for informational alerts */

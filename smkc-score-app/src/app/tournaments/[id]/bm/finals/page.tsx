@@ -503,7 +503,7 @@ export default function BattleModeFinals({
       {/* Page header with title, update indicator, and action buttons */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{tBm('finalsTitle')}</h1>
+          <h1 className="text-2xl font-semibold">{tBm('finalsTitle')}</h1>
           <p className="text-muted-foreground">
             {tFinals('doubleElimination')}
           </p>
@@ -593,11 +593,10 @@ export default function BattleModeFinals({
 
       {/* Champion announcement card - shown when tournament is complete */}
       {champion && (
-        <Card className="border-yellow-500 bg-yellow-500/10">
+        <Card className="border-accent bg-accent/10">
           <CardContent className="py-6 text-center">
-            <div className="text-4xl mb-2">🏆</div>
-            <h2 className="text-2xl font-bold">{tFinals('champion')}</h2>
-            <p className="text-3xl font-bold text-yellow-500 mt-2">
+            <h2 className="text-sm font-semibold text-muted-foreground">{tFinals('champion')}</h2>
+            <p className="font-display text-3xl sm:text-4xl tracking-wide text-foreground mt-2">
               {champion.nickname}
             </p>
           </CardContent>

@@ -171,7 +171,7 @@ function PlayoffMatchCard({
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
-          isWinner1 && "bg-green-500/20 font-bold"
+          isWinner1 && "bg-primary/10 font-bold border-l-2 border-l-primary"
         )}
       >
         <span className="flex items-center gap-1">
@@ -193,7 +193,7 @@ function PlayoffMatchCard({
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
-          isWinner2 && "bg-green-500/20 font-bold"
+          isWinner2 && "bg-primary/10 font-bold border-l-2 border-l-primary"
         )}
       >
         <span className="flex items-center gap-1">

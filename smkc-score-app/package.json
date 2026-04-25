@@ -20,7 +20,7 @@
     "finals:prepare": "node scripts/create-finals-ready-tournament.js",
     "finals:reapply-ranks": "node scripts/reapply-rank-overrides.js",
     "build:cf": "opennextjs-cloudflare build",
-    "preview": "opennextjs-cloudflare dev",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "npm run build:cf && wrangler deploy"
   },
   "dependencies": {
