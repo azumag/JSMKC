@@ -1,32 +1,23 @@
 /**
- * layout.tsx - Root Layout Component
+ * layout.tsx — Root Layout (Paddock Editorial)
  *
- * This is the top-level layout for the entire JSMKC application.
- * It provides:
- * 1. HTML document structure with locally-bundled Geist fonts (Sans + Mono)
- * 2. Global metadata (title, description) for SEO
- * 3. NextAuth SessionProvider for client-side session access
- * 4. NextIntlClientProvider for i18n translation support
- * 5. Shared navigation header with AuthHeader client component
- * 6. Language switcher for toggling between English and Japanese
- * 7. Main content container with consistent padding
+ * Top-level layout for every route. Provides:
+ *  - Distinctive type stack: Anton (display), Manrope (sans), JetBrains Mono
+ *    (numerics) — wired to Tailwind theme tokens via CSS variables in
+ *    globals.css.
+ *  - The global pit-board header: SMKC racing-number lockup, primary nav,
+ *    LocaleSwitcher, AuthHeader. A 4px checker strip caps the header so
+ *    the page below feels like it sits on a paddock pit-board.
+ *  - i18n via NextIntlClientProvider and auth via SessionProvider.
  *
- * Authentication display:
- * - AuthHeader uses client-side useSession() + signOut() to stay
- *   in sync with the SessionProvider, preventing stale session bugs
- *
- * i18n strategy:
- * - No URL-based locale routing; locale is determined by cookie or browser language
- * - NextIntlClientProvider wraps all children to provide useTranslations() in client components
- * - Server-side locale detection happens in src/i18n/request.ts
- *
- * This component is a Server Component (async) that fetches
- * locale data on the server side. Session handling is fully
- * client-side via SessionProvider and AuthHeader.
+ * Overlay routes (`/.../overlay`) are detected via the middleware-injected
+ * `x-pathname` header so we can render them with no chrome and no
+ * `bg-background` shell. The body adds the `overlay-mode` class which
+ * globals.css uses to enforce a transparent canvas — this is critical for
+ * OBS browser-source compositing and must not regress.
  */
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
+import { Anton, Manrope, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
@@ -36,92 +27,108 @@ import { headers } from "next/headers";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Toaster } from "sonner";
+import { NavLabelClient } from "@/components/NavLabel";
 
-/**
- * Page metadata for SEO and browser tab display.
- * Applied to all pages unless overridden by child layouts.
+/*
+ * Font wiring. CSS variable names match the @theme inline declarations
+ * in globals.css (`--font-display`, `--font-sans`, `--font-mono`).
+ *
+ * Anton has a single 400 weight — using it at large sizes with letter
+ * tracking gives the condensed-display "race programme cover" feel.
+ * Manrope ships variable-weight axes for the body. JetBrains Mono is
+ * the workhorse for tabular figures (times, scores, ranks).
  */
+const fontDisplay = Anton({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-anton",
+  display: "swap",
+});
+const fontSans = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "SMKC Score System",
   description: "SMKC Score Management System",
 };
 
-/**
- * RootLayout - The top-level server component that wraps all pages.
- *
- * Fetches locale server-side for initial render. Auth state is handled
- * entirely client-side by AuthHeader to avoid stale session issues.
- *
- * @param children - The page content rendered inside this layout
- */
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  /* Fetch locale and translation messages for i18n */
   const locale = await getLocale();
   const messages = await getMessages();
 
   /*
-   * Detect the OBS overlay route from the middleware-injected `x-pathname`
+   * Detect the OBS overlay route via the middleware-injected `x-pathname`
    * header. On overlay pages we skip the global header, the bg-background
    * shell, and the main padding so the page renders fully transparent
-   * from the first paint. Avoids the FOIC (flash of incorrect content)
-   * that a useEffect-based body-class swap would cause in OBS.
+   * from the first paint, avoiding any FOUC over the broadcast canvas.
    */
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
   const isOverlay = pathname.includes("/overlay");
 
   return (
-    <html lang={locale}>
-      <head>
-        {/* Additional head content can be added here (favicon, meta tags, etc.) */}
-      </head>
+    <html
+      lang={locale}
+      className={`${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable}`}
+    >
+      <head />
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} antialiased${
-          isOverlay ? " overlay-mode" : ""
-        }`}
+        className={`font-sans antialiased${isOverlay ? " overlay-mode" : ""}`}
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <SessionProvider>
             {isOverlay ? (
               /* Overlay route: render only the page tree — no header, no
                  bg-background wrapper, no main padding, no Sonner toaster
-                 (sonner pollutes the transparent canvas). */
+                 (sonner would pollute the transparent canvas). */
               children
             ) : (
               <>
                 <div className="min-h-screen bg-background">
-                  {/* Global navigation header with border separator */}
-                  <header className="border-b">
-                    <div className="container mx-auto px-4 py-4">
-                      <nav className="flex items-center justify-between">
-                        <Link href="/" className="text-xl font-bold whitespace-nowrap">
-                          <span className="sm:hidden">SMKC</span>
-                          <span className="hidden sm:inline">SMKC Score System</span>
+                  {/*
+                   * Single page-wide paddock cue — a 3px checker strip
+                   * pinned to the top edge. It's the only global
+                   * decorative element; everything below stays calm.
+                   */}
+                  <div className="checker-strip h-[3px]" aria-hidden="true" />
+                  <header className="border-b border-foreground/15 bg-background">
+                    <div className="container mx-auto px-5 sm:px-6">
+                      <nav className="flex items-center justify-between gap-4 py-3 sm:py-4">
+                        <Link
+                          href="/"
+                          className="font-display text-xl sm:text-2xl tracking-[0.18em] text-foreground whitespace-nowrap"
+                          aria-label="SMKC home"
+                        >
+                          SMKC
                         </Link>
-                        <div className="flex gap-3 sm:gap-6 items-center">
-                          <Link
-                            href="/players"
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <NavLabel messageKey="players" />
-                          </Link>
-                          <Link
-                            href="/tournaments"
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <NavLabel messageKey="tournaments" />
-                          </Link>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <NavLink href="/players" messageKey="players" />
+                          <NavLink href="/tournaments" messageKey="tournaments" />
+                          <span
+                            className="hidden sm:block w-px h-6 bg-foreground/15 mx-1"
+                            aria-hidden="true"
+                          />
                           <LocaleSwitcher />
                           <AuthHeader />
                         </div>
                       </nav>
                     </div>
                   </header>
-                  <main className="container mx-auto px-4 py-8">{children}</main>
+                  <main className="container mx-auto px-5 sm:px-6 py-10">
+                    {children}
+                  </main>
                 </div>
                 <Toaster richColors position="bottom-right" />
               </>
@@ -134,14 +141,23 @@ export default async function RootLayout({
 }
 
 /**
- * NavLabel - Client component wrapper for translated navigation labels.
- *
- * Since the root layout is a Server Component but uses translated strings
- * in JSX that needs to be a client-side hook, we use this thin wrapper
- * to access useTranslations() from the common namespace.
- * This avoids making the entire layout a client component.
+ * NavLink — pit-board navigation entry. Pure presentation; no active
+ * state because these are top-level entry points and inner pages own
+ * their own selected state via the tournament tab bar.
  */
-import { NavLabelClient } from "@/components/NavLabel";
-function NavLabel({ messageKey }: { messageKey: string }) {
-  return <NavLabelClient messageKey={messageKey} />;
+function NavLink({
+  href,
+  messageKey,
+}: {
+  href: string;
+  messageKey: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <NavLabelClient messageKey={messageKey} />
+    </Link>
+  );
 }

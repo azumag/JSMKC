@@ -45,10 +45,11 @@ interface Tournament {
 }
 
 /**
- * Tab configuration for the game mode navigation bar.
- * Each entry maps a URL path segment to a translation key.
- * The actual display label is resolved inside the component via useTranslations('tournaments'),
- * because React hooks (including useTranslations) cannot be called outside components.
+ * Tab configuration for the game-mode navigation.
+ *
+ * The active tab is marked with a 3px Racing Red bar via `pit-active`;
+ * everything else is plain Manrope text. We deliberately keep the tab
+ * label single-line so dense tournament pages don't get a busy header.
  */
 const TABS = [
   { href: "ta", labelKey: "timeTrial" },
@@ -60,7 +61,7 @@ const TABS = [
 
 /** Admin-only tabs shown after the main mode tabs */
 const ADMIN_TABS = [
-  { href: "broadcast", label: "📺 配信管理" },
+  { href: "broadcast", label: "配信管理" },
 ] as const;
 
 /**
@@ -211,19 +212,18 @@ export default function TournamentLayout({
   };
 
   /**
-   * Returns a styled Badge component based on tournament status.
-   * - Draft: Secondary (gray) for setup phase
-   * - Active: Default (primary) for in-progress
-   * - Completed: Outline for finished tournaments
+   * Status flag — green/active, mustard/draft, black/completed. Mirrors
+   * the same flag semantics used on the tournament list and overall
+   * ranking, so users learn one color language across the app.
    */
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="secondary">{t("draft")}</Badge>;
+        return <Badge variant="flag-draft">{t("draft")}</Badge>;
       case "active":
-        return <Badge variant="default">{t("activeStatus")}</Badge>;
+        return <Badge variant="flag-active">{t("activeStatus")}</Badge>;
       case "completed":
-        return <Badge variant="outline">{t("completed")}</Badge>;
+        return <Badge variant="flag-completed">{t("completed")}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -269,105 +269,122 @@ export default function TournamentLayout({
 
   return (
     <ErrorBoundary>
-      <div className="space-y-6">
-        {/* Tournament header: name, status badge, date, and action buttons */}
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold">{tournament.name}</h1>
-              {getStatusBadge(tournament.status)}
+      <div className="space-y-7">
+        {/*
+         * Tournament header. Status flag and date sit on a single quiet
+         * line beside the title — no programme/championship eyebrow.
+         */}
+        <header className="border-b border-foreground/15 pb-5">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div className="flex items-stretch gap-3">
+              {/*
+               * 3px Racing Red rule — a quiet "race chapter" mark that
+               * runs the full height of the title block. Substitutes for
+               * the heavier eyebrow ticker we removed earlier.
+               */}
+              <span aria-hidden="true" className="block w-[3px] bg-primary self-stretch" />
+              <div>
+                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl tracking-wide leading-[0.95] text-foreground">
+                  {tournament.name}
+                </h1>
+                <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                  {getStatusBadge(tournament.status)}
+                  <span className="font-mono tabular">
+                    {new Date(tournament.date).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-muted-foreground">
-              {new Date(tournament.date).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {/*
-             * Status transition buttons (admin only):
-             * - Draft -> Active: "Start Tournament" begins the competition
-             * - Active -> Completed: "Complete Tournament" finalizes results
-             * These are one-way transitions; there is no revert mechanism.
-             */}
-            {isAdmin && tournament.status === "draft" && (
-              <Button onClick={() => updateStatus("active")}>
-                {t("startTournament")}
+            <div className="flex flex-wrap gap-2">
+              {/*
+               * Status transition buttons (admin only). One-way: there
+               * is no revert mechanism — guarding lives in the API.
+               */}
+              {isAdmin && tournament.status === "draft" && (
+                <Button onClick={() => updateStatus("active")}>
+                  {t("startTournament")}
+                </Button>
+              )}
+              {isAdmin && tournament.status === "active" && (
+                <Button onClick={() => updateStatus("completed")}>
+                  {t("completeTournament")}
+                </Button>
+              )}
+              {isAdmin && (
+                <ExportButton
+                  tournamentId={id}
+                  tournamentName={tournament.name}
+                />
+              )}
+              <Button variant="outline" asChild>
+                <Link href="/tournaments">← {t("backToList")}</Link>
               </Button>
-            )}
-            {isAdmin && tournament.status === "active" && (
-              <Button onClick={() => updateStatus("completed")}>
-                {t("completeTournament")}
-              </Button>
-            )}
-            {/* Export button for downloading tournament data (admin only) */}
-            {isAdmin && (
-              <ExportButton
-                tournamentId={id}
-                tournamentName={tournament.name}
-              />
-            )}
-            {/* Back to list navigation */}
-            <Button variant="outline" asChild>
-              <Link href="/tournaments">{t("backToList")}</Link>
-            </Button>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/*
-         * Link-based Tab Navigation for Game Modes.
-         *
-         * Uses Next.js <Link> components so each tab is a URL-based navigation.
-         * This enables:
-         * - Direct content display on tab click (no extra click needed)
-         * - Bookmarkable URLs for each game mode
-         * - Browser back/forward navigation between tabs
-         * - Layout preservation (header doesn't re-render on tab switch)
-         *
-         * Styling matches the existing TabsList/TabsTrigger components:
-         * - Container: bg-muted rounded-lg padding
-         * - Active tab: bg-background shadow-sm
-         * - Inactive tab: transparent with hover effect
+         * Tab navigation. Each tab is a Link so URLs are bookmarkable.
+         * The active tab draws a 3px Racing Red bar via `pit-active`.
          */}
-        <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
-          {TABS.map((tab) => {
-            // Only filter for non-admin users
-            const modeName = tab.href === "overall-ranking" ? null : tab.href;
-            const isHidden = modeName && !isAdmin && !(tournament.publicModes ?? []).includes(modeName);
-            if (isHidden) return null;
+        <nav
+          aria-label="Tournament sections"
+          className="overflow-x-auto -mx-5 sm:-mx-6 px-5 sm:px-6 border-b border-foreground/15"
+        >
+          <ul className="flex items-stretch gap-0 min-w-max">
+            {TABS.map((tab) => {
+              const modeName = tab.href === "overall-ranking" ? null : tab.href;
+              const isHidden =
+                modeName &&
+                !isAdmin &&
+                !(tournament.publicModes ?? []).includes(modeName);
+              if (isHidden) return null;
+              const isActive = activeTab === tab.href;
+              const adminHidden =
+                isAdmin && modeName && !(tournament.publicModes ?? []).includes(modeName);
 
-            return (
-              <Link
-                key={tab.href}
-                href={`/tournaments/${id}/${tab.href}`}
-                className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  activeTab === tab.href
-                    ? "bg-background text-foreground shadow-sm"
-                    : "hover:bg-background/50 hover:text-foreground"
-                }`}
-              >
-                {t(tab.labelKey)}
-                {isAdmin && modeName && !(tournament.publicModes ?? []).includes(modeName) && (
-                  <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
-                    {t("hidden")}
-                  </Badge>
-                )}
-              </Link>
-            );
-          })}
-          {/* Admin-only extra tabs */}
-          {isAdmin && ADMIN_TABS.map((tab) => (
-            <Link
-              key={tab.href}
-              href={`/tournaments/${id}/${tab.href}`}
-              className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                activeTab === tab.href
-                  ? "bg-background text-foreground shadow-sm"
-                  : "hover:bg-background/50 hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </div>
+              return (
+                <li key={tab.href}>
+                  <Link
+                    href={`/tournaments/${id}/${tab.href}`}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                      isActive
+                        ? "pit-active text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t(tab.labelKey)}
+                    {adminHidden && (
+                      <Badge variant="flag-draft" className="px-1 py-0">
+                        {t("hidden")}
+                      </Badge>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+            {isAdmin &&
+              ADMIN_TABS.map((tab) => {
+                const isActive = activeTab === tab.href;
+                return (
+                  <li key={tab.href}>
+                    <Link
+                      href={`/tournaments/${id}/${tab.href}`}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                        isActive
+                          ? "pit-active text-foreground font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {tab.label}
+                    </Link>
+                  </li>
+                );
+              })}
+          </ul>
+        </nav>
 
         {/*
          * Per-mode publish controls have moved next to each mode's player

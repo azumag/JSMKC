@@ -193,7 +193,7 @@ function MatchCard({
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
-          isWinner1 && "bg-green-500/20 font-bold"
+          isWinner1 && "bg-primary/10 font-bold border-l-2 border-l-primary"
         )}
       >
         <span className="flex items-center gap-1">
@@ -215,7 +215,7 @@ function MatchCard({
       <div
         className={cn(
           "flex justify-between items-center py-1 px-2 rounded",
-          isWinner2 && "bg-green-500/20 font-bold"
+          isWinner2 && "bg-primary/10 font-bold border-l-2 border-l-primary"
         )}
       >
         <span className="flex items-center gap-1">
@@ -261,7 +261,7 @@ function BracketSection({
     <Card
       className={cn(
         variant === "losers" && "border-orange-500/30",
-        variant === "final" && "border-yellow-500/50"
+        variant === "final" && "border-accent/70 bg-accent/5"
       )}
       aria-label={`${title} Bracket`}
     >
@@ -275,7 +275,7 @@ function BracketSection({
             </Badge>
           )}
           {variant === "final" && (
-            <Badge variant="outline" className="text-yellow-500 border-yellow-500">
+            <Badge variant="flag-draft" className="">
               {tf("grandFinalBadge")}
             </Badge>
           )}

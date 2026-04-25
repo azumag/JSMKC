@@ -35,13 +35,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -231,38 +224,59 @@ export default function TournamentsPage() {
   const canGoNext = currentPage < totalPages;
 
   /**
-   * Returns a styled Badge component based on tournament status.
-   * Visual differentiation helps users quickly identify tournament states:
-   * - Draft: Secondary (gray) badge for setup phase
-   * - Active: Default (primary) badge for in-progress tournaments
-   * - Completed: Outline badge for finished tournaments
+   * Status flag — green for active runs, mustard for draft (preparing),
+   * checkered black for completed. The colors mirror the racing flag
+   * semantics used everywhere else in the system, so a glance at the
+   * tournament list reads like a race control board.
    */
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "draft":
-        return <Badge variant="secondary">{t('draft')}</Badge>;
+        return <Badge variant="flag-draft">{t('draft')}</Badge>;
       case "active":
-        return <Badge variant="default">{t('activeStatus')}</Badge>;
+        return <Badge variant="flag-active">{t('activeStatus')}</Badge>;
       case "completed":
-        return <Badge variant="outline">{t('completed')}</Badge>;
+        return <Badge variant="flag-completed">{t('completed')}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
-  /* Simple loading text while data is fetched */
+  /**
+   * Each row's left-edge color also uses the same flag semantics so users
+   * can scan the column visually without parsing the badge text.
+   */
+  const rowAccent = (status: string) => {
+    switch (status) {
+      case "draft":
+        return "border-l-accent";
+      case "active":
+        return "border-l-[oklch(0.55_0.16_145)]";
+      case "completed":
+        return "border-l-foreground";
+      default:
+        return "border-l-foreground/20";
+    }
+  };
+
+  /* Loading state — keep the layout calm. */
   if (loading) {
-    return <div className="text-center py-8">{t('loadingTournaments')}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="h-10 w-48 bg-muted animate-pulse rounded" />
+        <div className="h-64 bg-muted animate-pulse rounded" />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page header with title and Create Tournament button (admin only) */}
-      <div className="flex justify-between items-center">
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-foreground/15 pb-5">
         <div>
-          <h1 className="text-3xl font-bold">{t('title')}</h1>
-          {/* Role-appropriate subtitle text */}
-          <p className="text-muted-foreground">
+          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">
+            {t('title')}
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm">
             {isAdmin ? t('subtitleAdmin') : t('subtitleView')}
           </p>
         </div>
@@ -360,75 +374,73 @@ export default function TournamentsPage() {
           </DialogContent>
         </Dialog>
         )}
-      </div>
+      </header>
 
-      {/* Tournament list table wrapped in a card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('tournamentList')}</CardTitle>
-          <CardDescription>
+      {/* Tournament list — editorial table with flag-coded left rules */}
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-base font-semibold">
+            {t('tournamentList')}
+          </h2>
+          <p className="text-xs text-muted-foreground font-mono tabular">
             {t('tournamentCount', { count: totalTournaments })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {fetchError ? (
-            /* Error state: API failed — show message with retry button */
-            <div className="text-center py-8 space-y-3">
-              <p className="text-destructive">{t('fetchError')}</p>
-              <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchTournaments(); }}>
-                {tc('retry')}
-              </Button>
-            </div>
-          ) : tournaments.length === 0 ? (
-            /* Empty state message - differs by role */
-            <div className="text-center py-8 text-muted-foreground">
-              {isAdmin
-                ? t('noTournamentsAdmin')
-                : t('noTournamentsView')}
-            </div>
-          ) : (
-            <div className="space-y-4">
+          </p>
+        </div>
+
+        {fetchError ? (
+          <div className="text-center py-12 space-y-3 border border-foreground/15">
+            <p className="text-destructive">{t('fetchError')}</p>
+            <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchTournaments(); }}>
+              {tc('retry')}
+            </Button>
+          </div>
+        ) : tournaments.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground border border-foreground/15">
+            {isAdmin ? t('noTournamentsAdmin') : t('noTournamentsView')}
+          </div>
+        ) : (
+          <>
+            <div className="border border-foreground/15">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('name')}</TableHead>
+                    <TableHead className="pl-4">{t('name')}</TableHead>
                     <TableHead>{t('date')}</TableHead>
                     <TableHead>{t('status')}</TableHead>
-                    <TableHead className="text-right">{tc('actions')}</TableHead>
+                    <TableHead className="text-right pr-4">{tc('actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tournaments.map((tournament) => (
-                    <TableRow key={tournament.id}>
-                      {/* Tournament name links to the detail page */}
-                      <TableCell className="font-medium">
+                    <TableRow
+                      key={tournament.id}
+                      className={`border-l-[6px] ${rowAccent(tournament.status)}`}
+                    >
+                      <TableCell className="font-medium pl-4">
                         <Link
                           href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}
-                          className="hover:underline"
+                          className="hover:underline decoration-primary decoration-2 underline-offset-4"
                         >
                           {tournament.name}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono tabular text-sm text-muted-foreground">
                         {new Date(tournament.date).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getStatusBadge(tournament.status)}
-                          {/* Private badge: visible to admins when no modes are public */}
                           {isAdmin && (tournament.publicModes ?? []).length === 0 && (
                             <Badge variant="destructive">{t('hiddenModes')}</Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {/* Open button navigates to tournament detail page */}
+                      <TableCell className="text-right pr-4 space-x-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/tournaments/${getTournamentUrlIdentifier(tournament)}`}>
                             {tc('open')}
                           </Link>
                         </Button>
-                        {/* Delete button - admin only, with confirmation */}
                         {isAdmin && (
                           <Button
                             variant="destructive"
@@ -449,40 +461,40 @@ export default function TournamentsPage() {
                   ))}
                 </TableBody>
               </Table>
-
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canGoPrevious}
-                    onClick={() => {
-                      setLoading(true);
-                      setCurrentPage((page) => Math.max(1, page - 1));
-                    }}
-                  >
-                    {t('previousPage')}
-                  </Button>
-                  <div className="text-sm text-muted-foreground">
-                    {t('pageStatus', { page: currentPage, totalPages })}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canGoNext}
-                    onClick={() => {
-                      setLoading(true);
-                      setCurrentPage((page) => Math.min(totalPages, page + 1));
-                    }}
-                  >
-                    {t('nextPage')}
-                  </Button>
-                </div>
-              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {totalPages > 1 && (
+              <nav className="flex items-center justify-between gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canGoPrevious}
+                  onClick={() => {
+                    setLoading(true);
+                    setCurrentPage((page) => Math.max(1, page - 1));
+                  }}
+                >
+                  ← {t('previousPage')}
+                </Button>
+                <div className="text-xs text-muted-foreground font-mono tabular tracking-[0.16em] uppercase">
+                  {t('pageStatus', { page: currentPage, totalPages })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canGoNext}
+                  onClick={() => {
+                    setLoading(true);
+                    setCurrentPage((page) => Math.min(totalPages, page + 1));
+                  }}
+                >
+                  {t('nextPage')} →
+                </Button>
+              </nav>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

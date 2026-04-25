@@ -29,13 +29,6 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -176,12 +169,27 @@ export default function OverallRankingPage({
     return rank + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
   };
 
-  /** Get badge styling variant based on rank position */
-  const getRankBadgeVariant = (rank: number | null): "default" | "secondary" | "outline" => {
+  /**
+   * Rank badge variant — gold (mustard flag-draft) for the lead, red for
+   * the rest of the podium (default), neutral outline for the rest.
+   */
+  const getRankBadgeVariant = (rank: number | null): "default" | "flag-draft" | "outline" => {
     if (rank === null) return "outline";
-    if (rank === 1) return "default";
-    if (rank <= 3) return "secondary";
+    if (rank === 1) return "flag-draft";
+    if (rank <= 3) return "default";
     return "outline";
+  };
+
+  /**
+   * Podium tile background — gold for 1st, charcoal for 2nd, copper-tone
+   * carbon for 3rd. Mirrors the medal hierarchy without resorting to
+   * literal medal icons, keeping the editorial flavor.
+   */
+  const podiumTone = (rank: number | null) => {
+    if (rank === 1) return "bg-accent text-accent-foreground border-accent";
+    if (rank === 2) return "bg-foreground text-background border-foreground";
+    if (rank === 3) return "bg-secondary text-secondary-foreground border-foreground/30";
+    return "bg-card text-card-foreground border-foreground/15";
   };
 
   /** Calculate total points for a mode (qualification + finals) */
@@ -196,22 +204,18 @@ export default function OverallRankingPage({
   if (error && !pollData) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">{tOverall('title')}</h1>
+        <h1 className="font-display text-4xl tracking-wide">{tOverall('title')}</h1>
+        <div className="border border-foreground/15 py-10 text-center space-y-4">
+          <p className="text-destructive">{error}</p>
+          <div className="space-x-2">
+            <Button onClick={refetch}>{tCommon('retry')}</Button>
+            {isAdmin && (
+              <Button variant="outline" onClick={handleRecalculate}>
+                {tOverall('calculateRankings')}
+              </Button>
+            )}
+          </div>
         </div>
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <div className="space-x-2">
-              <Button onClick={refetch}>{tCommon('retry')}</Button>
-              {isAdmin && (
-                <Button variant="outline" onClick={handleRecalculate}>
-                  {tOverall('calculateRankings')}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -232,87 +236,103 @@ export default function OverallRankingPage({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page header with recalculate and back buttons */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 border-b border-foreground/15 pb-4">
         <div>
-          <h1 className="text-3xl font-bold">{tOverall('title')}</h1>
-          <p className="text-muted-foreground">
-            {tournamentName} - {tOverall('subtitle')}
+          <h1 className="font-display text-3xl sm:text-4xl tracking-wide leading-none">
+            {tOverall('title')}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-2">
+            {tOverall('subtitle')}
           </p>
           {lastUpdated && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground font-mono tabular mt-1">
               {tOverall('lastUpdated', { date: new Date(lastUpdated).toLocaleString() })}
             </p>
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
           {isAdmin && (
-            <Button
-              onClick={handleRecalculate}
-              disabled={recalculating}
-            >
+            <Button onClick={handleRecalculate} disabled={recalculating}>
               {recalculating ? tOverall('recalculating') : tOverall('recalculate')}
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Inline error message (when rankings exist but refresh fails) */}
       {error && (
-        <Card className="border-destructive">
-          <CardContent className="py-4">
-            <p className="text-destructive text-sm">{error}</p>
-          </CardContent>
-        </Card>
+        <div className="border-l-[3px] border-destructive bg-destructive/5 py-3 px-4">
+          <p className="text-destructive text-sm">{error}</p>
+        </div>
       )}
 
       {rankings.length === 0 ? (
         /* Empty state with calculate button */
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            <p className="mb-4">{tOverall('noRankings')}</p>
-            {isAdmin && (
-              <Button onClick={handleRecalculate} disabled={recalculating}>
-                {recalculating ? tOverall('calculating') : tOverall('calculateRankings')}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="border border-foreground/15 py-10 text-center text-muted-foreground space-y-4">
+          <p>{tOverall('noRankings')}</p>
+          {isAdmin && (
+            <Button onClick={handleRecalculate} disabled={recalculating}>
+              {recalculating ? tOverall('calculating') : tOverall('calculateRankings')}
+            </Button>
+          )}
+        </div>
       ) : (
         <>
-          {/* Top 3 podium summary cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {rankings.slice(0, 3).map((ranking) => (
-              <Card key={ranking.playerId}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Badge variant={getRankBadgeVariant(ranking.overallRank)}>
-                      {formatRank(ranking.overallRank)}
-                    </Badge>
-                    {ranking.playerNickname}
-                  </CardTitle>
-                  <CardDescription>{ranking.playerName}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-primary">
-                    {ranking.totalPoints.toLocaleString()}
+          {/*
+           * Stepped podium: tiles use Anton + tabular figures, with
+           * tone classes that read as gold/silver/bronze without medal
+           * icons. The first place sits taller via lg:order/translate to
+           * draw the eye to the lead.
+           */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            {rankings.slice(0, 3).map((ranking, idx) => {
+              const rank = ranking.overallRank;
+              const tone = podiumTone(rank);
+              const heightClass =
+                rank === 1
+                  ? "min-h-[210px] md:order-2"
+                  : rank === 2
+                  ? "min-h-[180px] md:order-1"
+                  : "min-h-[160px] md:order-3";
+              return (
+                <article
+                  key={ranking.playerId ?? idx}
+                  className={`relative border ${tone} ${heightClass} flex flex-col p-5`}
+                >
+                  <span className="font-display text-5xl leading-none tracking-wide">
+                    {rank ? `#${String(rank).padStart(2, "0")}` : "—"}
+                  </span>
+                  <div className="mt-auto">
+                    <p className="text-lg font-semibold leading-tight">
+                      {ranking.playerNickname}
+                    </p>
+                    <p className="text-xs opacity-80 mt-0.5">
+                      {ranking.playerName}
+                    </p>
+                    <p className="font-mono tabular text-2xl mt-2">
+                      {ranking.totalPoints.toLocaleString()}
+                    </p>
+                    <p className="text-xs opacity-70 mt-0.5">
+                      {tOverall('totalPoints')}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{tOverall('totalPoints')}</p>
-                </CardContent>
-              </Card>
-            ))}
+                </article>
+              );
+            })}
           </div>
 
           {/* Full rankings table with mode-by-mode breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{tOverall('completeRankings')}</CardTitle>
-              <CardDescription>
+          <section className="space-y-3">
+            <header className="flex items-baseline justify-between">
+              <h2 className="text-base font-semibold">
+                {tOverall('completeRankings')}
+              </h2>
+              <p className="text-xs text-muted-foreground font-mono tabular">
                 {tOverall('rankedByTotal', { count: rankings.length })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
+              </p>
+            </header>
+            <div className="overflow-x-auto border border-foreground/15">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -365,7 +385,7 @@ export default function OverallRankingPage({
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-bold text-lg font-mono">
+                        <div className="font-display text-xl tracking-wider tabular">
                           {ranking.totalPoints.toLocaleString()}
                         </div>
                       </TableCell>
@@ -373,33 +393,35 @@ export default function OverallRankingPage({
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Points system legend explaining qualification and finals scoring */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{tOverall('pointsSystem')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <h4 className="font-medium mb-2">{tOverall('qualificationPoints')}</h4>
-                  <ul className="text-muted-foreground space-y-1">
-                    <li>{tOverall('taQualPoints')}</li>
-                    <li>{tOverall('otherQualPoints')}</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium mb-2">{tOverall('finalsPoints')}</h4>
-                  <ul className="text-muted-foreground space-y-1">
-                    <li>{tOverall('finalsBreakdown1')}</li>
-                    <li>{tOverall('finalsBreakdown2')}</li>
-                  </ul>
-                </div>
+          <section className="border border-foreground/15 p-6">
+            <h2 className="text-base font-semibold mb-4">
+              {tOverall('pointsSystem')}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  {tOverall('qualificationPoints')}
+                </h4>
+                <ul className="text-muted-foreground space-y-1">
+                  <li>{tOverall('taQualPoints')}</li>
+                  <li>{tOverall('otherQualPoints')}</li>
+                </ul>
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  {tOverall('finalsPoints')}
+                </h4>
+                <ul className="text-muted-foreground space-y-1">
+                  <li>{tOverall('finalsBreakdown1')}</li>
+                  <li>{tOverall('finalsBreakdown2')}</li>
+                </ul>
+              </div>
+            </div>
+          </section>
         </>
       )}
     </div>

@@ -139,45 +139,48 @@ export default function BroadcastPage({
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-2xl font-bold">📺 配信管理</h2>
-        <p className="text-muted-foreground text-sm mt-1">
+    <div className="space-y-7 max-w-3xl">
+      <header className="border-b border-foreground/15 pb-4">
+        <h2 className="font-display text-3xl tracking-wide leading-none">
+          配信管理
+        </h2>
+        <p className="text-muted-foreground text-sm mt-2">
           オーバーレイに表示する1P/2Pの名前を設定します。
         </p>
-      </div>
+      </header>
 
       {/* Current overlay state preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">現在の配信表示</CardTitle>
-          <CardDescription>OBSオーバーレイに現在表示されている名前</CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-6">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">1P (x:80, y:480)</p>
-            <p className={`font-bold text-lg ${currentState.player1Name ? "" : "text-muted-foreground"}`}>
-              {currentState.player1Name || "（未設定）"}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">2P (x:80, y:870)</p>
-            <p className={`font-bold text-lg ${currentState.player2Name ? "" : "text-muted-foreground"}`}>
-              {currentState.player2Name || "（未設定）"}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <section className="border border-foreground/15">
+        <div className="px-5 pt-4 pb-1">
+          <p className="text-sm font-semibold">現在の配信表示</p>
+          <p className="text-xs text-muted-foreground mt-0.5">OBSオーバーレイに現在表示されている名前</p>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-foreground/10">
+          {[
+            { slot: "1P", coords: "x:80, y:480", value: currentState.player1Name },
+            { slot: "2P", coords: "x:80, y:870", value: currentState.player2Name },
+          ].map((p) => (
+            <div key={p.slot} className="p-5">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-mono mb-2">
+                <span className="font-semibold text-foreground">{p.slot}</span>
+                <span>{p.coords}</span>
+              </div>
+              <p className={`text-2xl font-semibold ${p.value ? "" : "text-muted-foreground"}`}>
+                {p.value || "未設定"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Name input form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">名前を設定</CardTitle>
-          <CardDescription>
+      <section className="border border-foreground/15 p-5 space-y-4">
+        <div>
+          <p className="text-sm font-semibold">名前を設定</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             プレイヤーリストから選ぶか、直接入力してください。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
           <div className="space-y-2">
             <Label>1P 名前</Label>
             {/* Player selector dropdown */}
@@ -243,8 +246,7 @@ export default function BroadcastPage({
               クリア
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </section>
 
       <div className="text-sm text-muted-foreground">
         <p>
