@@ -116,6 +116,26 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
 }
 
 /**
+ * Build a human-readable match label for the overlay footer (issue #649).
+ *
+ * Called by the "配信に反映" handler in BM/MR/GP finals pages to construct
+ * the `overlayMatchLabel` stored in the DB. The label mirrors the format
+ * used by `computeCurrentPhase` so the footer stays visually consistent
+ * whether it shows the auto-computed phase or an admin-pinned one.
+ *
+ * @param roundKey   - The raw `round` value from the DB (e.g. "winners_qf")
+ * @param roundNames - Locale map from the API (e.g. { winners_qf: "QF" })
+ */
+export function buildMatchLabel(
+  roundKey: string | null | undefined,
+  roundNames: Record<string, string>,
+): string {
+  if (!roundKey) return "決勝";
+  const roundName = roundNames[roundKey] ?? roundKey;
+  return roundName ? `決勝 ${roundName}` : "決勝";
+}
+
+/**
  * Format ("First To" / equivalent) string shown next to the phase label —
  * for example, BM bracket finals are best-of-9 / FT5. Returns `null` when
  * the active phase has no meaningful FT value (e.g. TA tournaments are

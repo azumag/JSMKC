@@ -80,6 +80,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
+import { buildMatchLabel } from "@/lib/overlay/phase";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -1069,11 +1070,9 @@ export default function GrandPrixFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    const roundKey = selectedMatch.round ?? "";
-                    const roundName = roundNames[roundKey] || roundKey;
-                    const matchLabel = roundName ? `決勝 ${roundName}` : "決勝";
-                    const score1 = selectedMatch.score1 ?? (selectedMatch as { points1?: number }).points1 ?? 0;
-                    const score2 = selectedMatch.score2 ?? (selectedMatch as { points2?: number }).points2 ?? 0;
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
+                    /* Finals matches expose driver points as score1/score2 (per GPMatch type).
+                       No FT threshold applies to GP — points are accumulated across races. */
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
@@ -1081,9 +1080,8 @@ export default function GrandPrixFinals({
                         player1Name: selectedMatch.player1.nickname,
                         player2Name: selectedMatch.player2.nickname,
                         matchLabel,
-                        player1Wins: score1,
-                        player2Wins: score2,
-                        /* GP uses accumulated points, no FT threshold */
+                        player1Wins: selectedMatch.score1,
+                        player2Wins: selectedMatch.score2,
                         matchFt: null,
                       }),
                     });

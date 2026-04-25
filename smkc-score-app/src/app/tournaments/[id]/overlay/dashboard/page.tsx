@@ -62,6 +62,9 @@ export default function DashboardPage({
   const sinceRef = useRef<string | null>(null);
   /* Dedupe overlapping `since` windows the same way the toast page does. */
   const seenRef = useRef<Set<string>>(new Set());
+  /* Timer ref for the slide-in animation clearance — cleaned up on unmount
+     so we never call setState after the component unmounts (#646). */
+  const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Tick a wall-clock state every second so relative-time labels update
      without re-fetching. The poll loop runs every 3s for new data. */
@@ -111,10 +114,12 @@ export default function DashboardPage({
       if (fresh.length === 0) return;
 
       /* Mark new events for the slide-in animation. Clear after 500ms
-         (longer than the 400ms animation) so the class doesn't linger. */
+         (longer than the 400ms animation) so the class doesn't linger.
+         Cancel any previous pending clear so rapid polls don't fight. */
       const freshIds = new Set(fresh.map((e) => e.id));
       setNewEventIds(freshIds);
-      setTimeout(() => setNewEventIds(new Set()), 500);
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+      animationTimerRef.current = setTimeout(() => setNewEventIds(new Set()), 500);
 
       setEvents((prev) => {
         /* Append new events and trim from the BOTTOM (oldest) so the
@@ -131,15 +136,12 @@ export default function DashboardPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll();
     const interval = setInterval(poll, POLLING_INTERVAL);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      /* Prevent setState-after-unmount from the slide-in animation timer. */
+      if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+    };
   }, [poll]);
-
-  /* Score display: "wins / FT" for BM/MR, raw score for GP (no FT).
-     Returns null when there is no score info at all. */
-  function scoreLabel(wins: number | null): string | null {
-    if (wins === null) return null;
-    return `${wins}`;
-  }
 
   return (
     <div
@@ -200,10 +202,9 @@ export default function DashboardPage({
               style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
               data-testid="overlay-p1-score"
             >
-              {/* Show "wins / FT" for BM/MR, or just the score for GP */}
               {overlayMatchFt !== null
-                ? `${scoreLabel(overlayPlayer1Wins)} / ${overlayMatchFt}`
-                : scoreLabel(overlayPlayer1Wins)}
+                ? `${overlayPlayer1Wins} / ${overlayMatchFt}`
+                : `${overlayPlayer1Wins}`}
             </span>
           )}
         </div>
@@ -229,8 +230,8 @@ export default function DashboardPage({
               data-testid="overlay-p2-score"
             >
               {overlayMatchFt !== null
-                ? `${scoreLabel(overlayPlayer2Wins)} / ${overlayMatchFt}`
-                : scoreLabel(overlayPlayer2Wins)}
+                ? `${overlayPlayer2Wins} / ${overlayMatchFt}`
+                : `${overlayPlayer2Wins}`}
             </span>
           )}
         </div>

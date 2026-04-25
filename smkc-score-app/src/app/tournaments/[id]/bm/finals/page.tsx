@@ -78,6 +78,7 @@ import { parseManualScore } from "@/lib/parse-manual-score";
  * Note: Client logger is created at module level (unlike server API loggers).
  */
 import type { Player } from "@/lib/types";
+import { buildMatchLabel } from "@/lib/overlay/phase";
 
 const logger = createLogger({ serviceName: 'tournaments-bm-finals' });
 
@@ -871,10 +872,7 @@ export default function BattleModeFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    /* Build round label "決勝 QF" etc. from the match's round key */
-                    const roundKey = selectedMatch.round ?? "";
-                    const roundName = roundNames[roundKey] || roundKey;
-                    const matchLabel = roundName ? `決勝 ${roundName}` : "決勝";
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },

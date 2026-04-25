@@ -80,6 +80,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
+import { buildMatchLabel } from "@/lib/overlay/phase";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-mr-finals' });
@@ -954,9 +955,7 @@ export default function MatchRaceFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    const roundKey = selectedMatch.round ?? "";
-                    const roundName = roundNames[roundKey] || roundKey;
-                    const matchLabel = roundName ? `決勝 ${roundName}` : "決勝";
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
