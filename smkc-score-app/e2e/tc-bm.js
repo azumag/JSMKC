@@ -8,7 +8,7 @@
  *   TC-508  BM dual report — mismatch (2 players)
  *   TC-509  BM dual report — previousReports panel (2 players)
  *   TC-322  BM participant correction (UI, 2 players)
- *   TC-511  BM slug URL list → match detail page
+ *   TC-511  BM no-slug URL list → match detail page (ID-routed regression)
  *   TC-503  28-player full qualification + finals bracket gen + first-to-5 routing
  *   TC-504  28-player full + finals bracket reset
  *   TC-505  28-player full + Grand Final → champion
@@ -248,9 +248,12 @@ async function runTc322(adminPage) {
   }
 }
 
-/* ───────── TC-511: BM slug URL list → match detail page ─────────
- * Reproduces the reported bug: when the tournament is opened via slug,
- * the match detail page must still load the qualification match. */
+/* ───────── TC-511: BM no-slug URL list → match detail page ─────────
+ * Regression coverage for the ID-routed case. The shared `normalTournament`
+ * fixture now pins slug='e2e', so every other BM workflow already exercises
+ * slug routing; this test guards the opposite path — a tournament created
+ * without a slug must still resolve the qualification match detail page when
+ * navigated purely via tournament id. */
 async function runTc511(adminPage) {
   let tournamentId = null;
   let player1Id = null;
@@ -258,41 +261,41 @@ async function runTc511(adminPage) {
 
   try {
     const stamp = Date.now();
-    const slug = `e2e-bm-match-slug-${stamp}`;
     const player1 = await uiCreatePlayer(
       adminPage,
-      `E2E BM Slug P1 ${stamp}`,
-      `e2e_bm_slug_p1_${stamp}`,
+      `E2E BM NoSlug P1 ${stamp}`,
+      `e2e_bm_noslug_p1_${stamp}`,
     );
     const player2 = await uiCreatePlayer(
       adminPage,
-      `E2E BM Slug P2 ${stamp}`,
-      `e2e_bm_slug_p2_${stamp}`,
+      `E2E BM NoSlug P2 ${stamp}`,
+      `e2e_bm_noslug_p2_${stamp}`,
     );
     player1Id = player1.id;
     player2Id = player2.id;
 
+    /* Intentionally omit `slug` so the tournament is reachable only by id. */
     tournamentId = await uiCreateTournament(
       adminPage,
-      `E2E BM Slug ${stamp}`,
-      { dualReportEnabled: false, slug },
+      `E2E BM NoSlug ${stamp}`,
+      { dualReportEnabled: false },
     );
     await uiActivateTournament(adminPage, tournamentId);
 
     await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
-      { id: player1.id, name: `E2E BM Slug P1 ${stamp}`, nickname: player1.nickname },
-      { id: player2.id, name: `E2E BM Slug P2 ${stamp}`, nickname: player2.nickname },
+      { id: player1.id, name: `E2E BM NoSlug P1 ${stamp}`, nickname: player1.nickname },
+      { id: player2.id, name: `E2E BM NoSlug P2 ${stamp}`, nickname: player2.nickname },
     ]);
 
     const bmData = await apiFetchBm(adminPage, tournamentId);
     const match = (bmData.matches || []).find((m) => !m.isBye);
     if (!match) throw new Error('No non-BYE BM match found');
 
-    await nav(adminPage, `/tournaments/${slug}/bm`);
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
     await adminPage.getByRole('tab', { name: /試合一覧|Matches/ }).click();
-    await adminPage.locator(`a[href="/tournaments/${slug}/bm/match/${match.id}"]`).first().click();
+    await adminPage.locator(`a[href="/tournaments/${tournamentId}/bm/match/${match.id}"]`).first().click();
     await adminPage.waitForURL(
-      (url) => url.pathname === `/tournaments/${slug}/bm/match/${match.id}`,
+      (url) => url.pathname === `/tournaments/${tournamentId}/bm/match/${match.id}`,
       { timeout: 15000 },
     );
     await adminPage.waitForTimeout(2000);
@@ -306,11 +309,11 @@ async function runTc511(adminPage) {
       pageText.includes('Match not found');
 
     log('TC-511', showsPlayers && !notFoundShown ? 'PASS' : 'FAIL',
-      !showsPlayers ? 'Match detail did not render both player nicknames from slug URL'
-      : notFoundShown ? 'Slug-based match detail showed not-found state'
+      !showsPlayers ? 'Match detail did not render both player nicknames from id URL'
+      : notFoundShown ? 'Id-based match detail showed not-found state'
       : '');
   } catch (err) {
-    log('TC-511', 'FAIL', err instanceof Error ? err.message : 'BM slug match detail test failed');
+    log('TC-511', 'FAIL', err instanceof Error ? err.message : 'BM no-slug match detail test failed');
   } finally {
     if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
     if (player1Id) await apiDeletePlayer(adminPage, player1Id);

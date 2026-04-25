@@ -567,18 +567,20 @@
   4. `tvNumber: null` を送信 → 200 が返り TV 割り当てがクリアされること
 - **期待結果**: tvNumber 1〜4 は受け入れられ、5 以上は拒否される
 
-## TC-511: BM スラッグ URL からマッチ詳細ページが正常に表示される
-- **URL**: /tournaments/[slug]/bm/match/[matchId]
+## TC-511: BM スラッグ無し URL からマッチ詳細ページが正常に表示される（ID 経路の回帰）
+- **URL**: /tournaments/[id]/bm/match/[matchId]
 - **authRequired**: true (admin)
-- **背景**: トーナメントがスラッグ（`/tournaments/my-slug/bm`）経由で開かれたとき、マッチ詳細ページ（`/tournaments/[slug]/bm/match/[matchId]`）が正常にロードされること。スラッグ → UUID 変換が match detail ルートで動作するかの回帰テスト
+- **背景**: 共有フィクスチャ `normalTournament`（`E2E Shared Normal`）はスラッグを `e2e` に固定しているため、Phase A の本流ワークフローは常にスラッグ経路（`/tournaments/e2e/...`）を経由する。本テストはその対称ケースとして、**スラッグを持たないトーナメント**でも tournament-id 経路でマッチ詳細ページが正常にレンダリングされることを保証する回帰テスト
 - **手順**:
-  1. 管理者セッションでスラッグ付き一時トーナメント（`e2e-bm-match-slug-TIMESTAMP`）とプレイヤー2名を作成、BM グループ設定を行う
+  1. 管理者セッションでスラッグ**無し**の一時トーナメント（`E2E BM NoSlug TIMESTAMP`）とプレイヤー2名を作成、BM グループ設定を行う
   2. BM マッチ一覧 API で non-BYE マッチを取得する
-  3. `/tournaments/[slug]/bm` → Matches タブ → `a[href="/tournaments/[slug]/bm/match/[matchId]"]` リンクをクリックする
-  4. URL が `/tournaments/[slug]/bm/match/[matchId]` に遷移することを確認する
+  3. `/tournaments/[id]/bm` → Matches タブ → `a[href="/tournaments/[id]/bm/match/[matchId]"]` リンクをクリックする
+  4. URL が `/tournaments/[id]/bm/match/[matchId]` に遷移することを確認する
   5. ページ内に player1.nickname と player2.nickname が表示されていること、かつ「試合が見つかりません / Match not found」が表示されていないことを確認する
   6. クリーンアップ
-- **期待結果**: スラッグ URL でマッチ詳細ページが正常にレンダリングされる（スラッグ→ID 変換が機能する）
+- **期待結果**: スラッグ未設定の tournament-id URL でマッチ詳細ページが正常にレンダリングされる（ID 直接ルックアップが機能する）
+
+> **共有フィクスチャ補足**: `e2e/lib/fixtures.js` の `normalTournament` は slug=`e2e` 固定で再利用される。既存トーナメントが別のスラッグ／slug 未設定で残存していた場合、`ensureSharedTournament` は削除して `slug='e2e'` で作り直す。スラッグ経路のカバレッジは Phase A 全体で得られるため、TC-511 は「スラッグ無しケース」専用の回帰テストとして残す。
 
 ## BM フルワークフロー設計方針
 - **予選プレイヤー数**: 28名（4グループ × 7名、7はオッドのため各グループに BYE が混在）

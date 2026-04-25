@@ -113,7 +113,15 @@ async function ensureSharedTournament(page, name, opts) {
   const tournaments = await listAll(page, '/api/tournaments');
   let tournament = tournaments.find((row) => row.name === name);
 
-  if (tournament && Boolean(tournament.dualReportEnabled) !== Boolean(opts.dualReportEnabled)) {
+  /* Recreate when dualReportEnabled or slug differ from the requested fixture
+   * shape. Slugs are globally unique, so an existing tournament with a stale
+   * slug must be torn down before another run can claim the requested slug. */
+  const dualReportMismatch =
+    tournament && Boolean(tournament.dualReportEnabled) !== Boolean(opts.dualReportEnabled);
+  const slugMismatch =
+    tournament && opts.slug !== undefined && (tournament.slug ?? null) !== (opts.slug ?? null);
+
+  if (tournament && (dualReportMismatch || slugMismatch)) {
     await apiDeleteTournament(page, tournament.id);
     tournament = null;
   }
@@ -155,7 +163,7 @@ async function createSharedE2eFixture(page, suiteName) {
   const normalTournament = await ensureSharedTournament(
     page,
     'E2E Shared Normal',
-    { dualReportEnabled: false },
+    { dualReportEnabled: false, slug: 'e2e' },
   );
   const dualTournament = await ensureSharedTournament(
     page,
