@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 
 import type { Player } from "@/lib/types";
 
@@ -67,6 +68,8 @@ interface PlayoffBracketProps {
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   /** Number of wins required to highlight a completed match winner */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
+  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }
 
 /**
@@ -82,6 +85,7 @@ function PlayoffMatchCard({
   isPlayer1TBD,
   isPlayer2TBD,
   getTargetWins,
+  onTvNumberChange,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
@@ -90,6 +94,7 @@ function PlayoffMatchCard({
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
   const tf = useTranslations("finals");
@@ -127,10 +132,34 @@ function PlayoffMatchCard({
         }
       }}
     >
-      {/* Match number and TV number label */}
-      <div className="text-xs text-muted-foreground mb-1 flex justify-between">
+      {/*
+       * Match number + TV# control. See DoubleEliminationBracket.MatchCard
+       * for the rationale: when admins are interacting with the bracket,
+       * the TV badge becomes a `<select>` so the assignment is saved on
+       * change without opening the score dialog.
+       */}
+      <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center">
         <span>M{bracketMatch.matchNumber}</span>
-        {match?.tvNumber && <span className="text-blue-500">TV{match.tvNumber}</span>}
+        {onTvNumberChange && match ? (
+          <select
+            value={match.tvNumber ?? ""}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              const v = e.target.value;
+              onTvNumberChange(match, v === "" ? null : parseInt(v, 10));
+            }}
+            className="text-blue-500 bg-transparent border border-input rounded px-1 py-0.5 text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label={tc("tvNumber")}
+          >
+            <option value="">{tc("tvNumber")}</option>
+            {TV_NUMBER_OPTIONS.map((n) => (
+              <option key={n} value={n}>TV{n}</option>
+            ))}
+          </select>
+        ) : (
+          match?.tvNumber && <span className="text-blue-500">TV{match.tvNumber}</span>
+        )}
       </div>
       {match?.cup && (
         <div className="mb-1 text-[11px] text-blue-600">
@@ -203,6 +232,7 @@ export function PlayoffBracket({
   onMatchClick,
   seededPlayers,
   getTargetWins,
+  onTvNumberChange,
 }: PlayoffBracketProps) {
   const tf = useTranslations("finals");
   const getMatch = (matchNumber: number) =>
@@ -285,6 +315,7 @@ export function PlayoffBracket({
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -309,6 +340,7 @@ export function PlayoffBracket({
                   isPlayer1TBD={isTBD(b.matchNumber, 1)}
                   isPlayer2TBD={isTBD(b.matchNumber, 2)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>

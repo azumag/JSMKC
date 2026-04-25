@@ -79,6 +79,7 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
+import { toast } from "sonner";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
@@ -403,6 +404,39 @@ export default function MatchRaceFinals({
   };
 
   /**
+   * Persist a TV# selection from the bracket card immediately. See
+   * BM finals page for rationale — the bracket dropdown saves on change so
+   * the score dialog isn't required just to assign a broadcast slot.
+   */
+  const handleBracketTvNumberChange = async (
+    match: MRMatch,
+    tvNumber: number | null,
+  ) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId: match.id, tvNumber }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error?.error || tFinals('failedAssignTv'));
+        return;
+      }
+      if (tvNumber === null) {
+        toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
+      } else {
+        toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+      }
+      refetch();
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to assign TV number from bracket:', metadata);
+      toast.error(tFinals('failedAssignTv'));
+    }
+  };
+
+  /**
    * Open match result dialog, pre-filling existing round data if available.
    */
   const openMatchDialog = (match: MRMatch) => {
@@ -687,6 +721,7 @@ export default function MatchRaceFinals({
               roundNames={roundNames}
               seededPlayers={seededPlayers}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
+              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
           </TabsContent>
           <TabsContent value="playoff">
@@ -696,6 +731,7 @@ export default function MatchRaceFinals({
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? openMatchDialog : undefined}
+              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
           </TabsContent>
         </Tabs>
@@ -707,6 +743,7 @@ export default function MatchRaceFinals({
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
             onMatchClick={isAdmin ? openMatchDialog : undefined}
+            onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           />
           {playoffComplete && isAdmin && (
             <Card className="border-green-500/50 bg-green-500/10">
@@ -724,6 +761,7 @@ export default function MatchRaceFinals({
           roundNames={roundNames}
           seededPlayers={seededPlayers}
           onMatchClick={isAdmin ? openMatchDialog : undefined}
+          onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
       )}
 

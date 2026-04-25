@@ -9,7 +9,7 @@
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT } = createFinalsHandlers({
+const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   matchModel: 'bMMatch',
   qualificationModel: 'bMQualification',
   loggerName: 'bm-finals-api',
@@ -26,4 +26,4 @@ const { GET, POST, PUT } = createFinalsHandlers({
   putRequiresAuth: true,
 });
 
-export { GET, POST, PUT };
+export { GET, POST, PUT, PATCH };

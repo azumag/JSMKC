@@ -79,6 +79,7 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
+import { toast } from "sonner";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
@@ -406,6 +407,39 @@ export default function GrandPrixFinals({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
+  /**
+   * Persist a TV# selection from the bracket card immediately. See BM/MR
+   * finals pages for rationale — the dropdown saves on change so admins
+   * don't have to enter the score dialog just to assign a broadcast slot.
+   */
+  const handleBracketTvNumberChange = async (
+    match: { id: string; matchNumber: number },
+    tvNumber: number | null,
+  ) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId: match.id, tvNumber }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error?.error || tFinals('failedAssignTv'));
+        return;
+      }
+      if (tvNumber === null) {
+        toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
+      } else {
+        toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+      }
+      refetch();
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to assign TV number from bracket:', metadata);
+      toast.error(tFinals('failedAssignTv'));
+    }
+  };
+
   /** Open score entry dialog for a specific match */
   const openScoreDialog = (match: GPMatch) => {
     setSelectedMatch(match);
@@ -729,6 +763,7 @@ export default function GrandPrixFinals({
           roundNames={roundNames}
           seededPlayers={seededPlayers}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
+          onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
           </TabsContent>
           <TabsContent value="playoff">
@@ -738,6 +773,7 @@ export default function GrandPrixFinals({
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
+              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
           </TabsContent>
         </Tabs>
@@ -749,6 +785,7 @@ export default function GrandPrixFinals({
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
             onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
+            onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           />
           {playoffComplete && isAdmin && (
             <Card className="border-green-500/50 bg-green-500/10">
@@ -766,6 +803,7 @@ export default function GrandPrixFinals({
           roundNames={roundNames}
           seededPlayers={seededPlayers}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
+          onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
       )}
 

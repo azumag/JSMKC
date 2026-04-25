@@ -27,6 +27,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TV_NUMBER_OPTIONS } from "@/lib/constants";
 
 import type { Player } from "@/lib/types";
 
@@ -69,6 +70,13 @@ interface DoubleEliminationBracketProps {
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   /** Number of wins required to highlight a completed match winner. */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  /**
+   * Optional callback fired the moment an admin picks a TV# from the
+   * inline dropdown on the match card. When provided, the static "TV{n}"
+   * badge becomes an editable `<select>` so the assignment saves on change
+   * without having to open the score-entry dialog (issue: select-to-save TV#).
+   */
+  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }
 
 /**
@@ -89,6 +97,7 @@ function MatchCard({
   onClick,
   isTBD,
   getTargetWins,
+  onTvNumberChange,
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
@@ -96,6 +105,7 @@ function MatchCard({
   onClick?: () => void;
   isTBD: boolean;
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
+  onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
   /* Look up seeded players for displaying seed numbers in first-round matches */
@@ -148,10 +158,35 @@ function MatchCard({
         }
       }}
     >
-      {/* Match number and TV number label */}
-      <div className="text-xs text-muted-foreground mb-1 flex justify-between">
+      {/*
+       * Match number and TV# control. When an `onTvNumberChange` handler is
+       * provided AND the match row exists in the DB, render an inline select
+       * so admins can assign/clear TV# without opening the score dialog. The
+       * select stops click propagation to avoid triggering the card's score
+       * dialog (which would discard the unsaved selection).
+       */}
+      <div className="text-xs text-muted-foreground mb-1 flex justify-between items-center">
         <span>M{bracketMatch.matchNumber}</span>
-        {match?.tvNumber && <span className="text-blue-500">TV{match.tvNumber}</span>}
+        {onTvNumberChange && match ? (
+          <select
+            value={match.tvNumber ?? ""}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              const v = e.target.value;
+              onTvNumberChange(match, v === "" ? null : parseInt(v, 10));
+            }}
+            className="text-blue-500 bg-transparent border border-input rounded px-1 py-0.5 text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label={tc("tvNumber")}
+          >
+            <option value="">{tc("tvNumber")}</option>
+            {TV_NUMBER_OPTIONS.map((n) => (
+              <option key={n} value={n}>TV{n}</option>
+            ))}
+          </select>
+        ) : (
+          match?.tvNumber && <span className="text-blue-500">TV{match.tvNumber}</span>
+        )}
       </div>
 
       {/* Player 1 row with optional seed number and score */}
@@ -266,6 +301,7 @@ export function DoubleEliminationBracket({
   onMatchClick,
   seededPlayers,
   getTargetWins,
+  onTvNumberChange,
 }: DoubleEliminationBracketProps) {
   const tf = useTranslations("finals");
   /** Look up a match by its bracket match number */
@@ -344,6 +380,7 @@ export function DoubleEliminationBracket({
                     }}
                     isTBD={isTBD(b.matchNumber)}
                     getTargetWins={getTargetWins}
+                    onTvNumberChange={onTvNumberChange}
                   />
                 ))}
               </div>
@@ -368,6 +405,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -391,6 +429,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -412,6 +451,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -443,6 +483,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -466,6 +507,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -489,6 +531,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -513,6 +556,7 @@ export function DoubleEliminationBracket({
                     }}
                     isTBD={isTBD(b.matchNumber)}
                     getTargetWins={getTargetWins}
+                    onTvNumberChange={onTvNumberChange}
                   />
                 ))}
               </div>
@@ -537,6 +581,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -558,6 +603,7 @@ export function DoubleEliminationBracket({
                   }}
                   isTBD={isTBD(b.matchNumber)}
                   getTargetWins={getTargetWins}
+                  onTvNumberChange={onTvNumberChange}
                 />
               ))}
             </div>
@@ -587,6 +633,7 @@ export function DoubleEliminationBracket({
                 }}
                 isTBD={isTBD(b.matchNumber)}
                 getTargetWins={getTargetWins}
+                onTvNumberChange={onTvNumberChange}
               />
             ))}
           </div>
@@ -612,6 +659,7 @@ export function DoubleEliminationBracket({
                 }}
                 isTBD={isTBD(b.matchNumber)}
                 getTargetWins={getTargetWins}
+                onTvNumberChange={onTvNumberChange}
               />
             ))}
           </div>

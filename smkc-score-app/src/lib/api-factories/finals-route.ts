@@ -1415,5 +1415,81 @@ export function createFinalsHandlers(config: FinalsConfig) {
     }
   }
 
-  return { GET, POST, PUT };
+  /**
+   * PATCH handler: Assign or clear the broadcast TV stream number for a
+   * finals/playoff match without touching scores or bracket advancement.
+   *
+   * Lets admins set the TV# directly from the bracket card (issue: instant
+   * "select-to-save" UX). Mirrors the qualification-route PATCH path so the
+   * client contract is identical: `{ matchId, tvNumber }` where `tvNumber`
+   * is `1..MAX_TV_NUMBER` or `null` to clear.
+   *
+   * Score updates and winner advancement remain on PUT — splitting the
+   * concern keeps PUT's much heavier validation/advancement out of the path
+   * for this lightweight admin tweak.
+   */
+  async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) {
+    const logger = createLogger(config.loggerName);
+
+    const session = await auth();
+    if (!session?.user || session.user.role !== 'admin') {
+      return createErrorResponse('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    const patchClientIp = getClientIdentifier(request);
+    const patchRateResult = await checkRateLimit('general', patchClientIp);
+    if (!patchRateResult.success) {
+      return handleRateLimitError(patchRateResult.retryAfter);
+    }
+
+    const { id } = await params;
+    const tournamentId = await resolveTournamentId(id);
+
+    try {
+      const body = sanitizeInput(await request.json());
+      const { matchId, tvNumber } = body;
+
+      if (!matchId || typeof matchId !== 'string') {
+        return handleValidationError('matchId is required', 'matchId');
+      }
+
+      if (tvNumber !== null && tvNumber !== undefined &&
+          (typeof tvNumber !== 'number' || !Number.isInteger(tvNumber) ||
+           tvNumber < 1 || tvNumber > MAX_TV_NUMBER)) {
+        return handleValidationError(
+          `tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`,
+          'tvNumber',
+        );
+      }
+
+      /* IDOR guard: confirm match exists in this tournament before update.
+       * Restricted to finals/playoff stage so this PATCH cannot be used
+       * to mutate qualification matches via the wrong endpoint. */
+      const existing = await model(prisma).findFirst({
+        where: { id: matchId, tournamentId },
+      });
+      if (!existing) {
+        return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+      if (existing.stage !== 'finals' && existing.stage !== 'playoff') {
+        return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+
+      const match = await model(prisma).update({
+        where: { id: matchId },
+        data: { tvNumber: tvNumber ?? null },
+        include: { player1: true, player2: true },
+      });
+
+      return createSuccessResponse({ match });
+    } catch (error) {
+      logger.error('Failed to update finals tvNumber', { error, tournamentId });
+      return createErrorResponse('Failed to update tvNumber', 500, 'INTERNAL_ERROR');
+    }
+  }
+
+  return { GET, POST, PUT, PATCH };
 }

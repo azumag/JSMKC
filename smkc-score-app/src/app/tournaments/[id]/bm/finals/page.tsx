@@ -71,6 +71,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
+import { toast } from "sonner";
 
 /**
  * Client-side logger for the finals page.
@@ -372,6 +373,41 @@ export default function BattleModeFinals({
     }
   };
 
+  /**
+   * Persist a TV# selection from the bracket card immediately.
+   * Uses PATCH so admins don't have to enter the score dialog just to assign
+   * a broadcast slot — the dropdown saves on change. On success, refetch and
+   * surface a toast; on failure, surface a toast with the server error so the
+   * admin notices (the bracket card otherwise looks identical).
+   */
+  const handleBracketTvNumberChange = async (
+    match: BMMatch,
+    tvNumber: number | null,
+  ) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId: match.id, tvNumber }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error?.error || tFinals('failedAssignTv'));
+        return;
+      }
+      if (tvNumber === null) {
+        toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
+      } else {
+        toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+      }
+      refetch();
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to assign TV number from bracket:', metadata);
+      toast.error(tFinals('failedAssignTv'));
+    }
+  };
+
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
@@ -641,6 +677,7 @@ export default function BattleModeFinals({
               seededPlayers={seededPlayers}
               getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
+              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
           </TabsContent>
           <TabsContent value="playoff">
@@ -650,6 +687,7 @@ export default function BattleModeFinals({
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
               onMatchClick={isAdmin ? openScoreDialog : undefined}
+              onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             />
           </TabsContent>
@@ -663,6 +701,7 @@ export default function BattleModeFinals({
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
             onMatchClick={isAdmin ? openScoreDialog : undefined}
+            onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
           />
           {playoffComplete && isAdmin && (
@@ -687,6 +726,7 @@ export default function BattleModeFinals({
           seededPlayers={seededPlayers}
           getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })}
           onMatchClick={isAdmin ? openScoreDialog : undefined}
+          onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
       )}
 

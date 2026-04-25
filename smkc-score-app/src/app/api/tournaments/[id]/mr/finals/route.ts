@@ -9,7 +9,7 @@
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT } = createFinalsHandlers({
+const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   matchModel: 'mRMatch',
   qualificationModel: 'mRQualification',
   loggerName: 'mr-finals-api',
@@ -27,4 +27,4 @@ const { GET, POST, PUT } = createFinalsHandlers({
   assignMrCoursesByRound: true,
 });
 
-export { GET, POST, PUT };
+export { GET, POST, PUT, PATCH };

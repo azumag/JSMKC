@@ -8,7 +8,7 @@
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT } = createFinalsHandlers({
+const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   loggerName: 'gp-finals-api',
@@ -63,4 +63,4 @@ const { GET, POST, PUT } = createFinalsHandlers({
   },
 });
 
-export { GET, POST, PUT };
+export { GET, POST, PUT, PATCH };

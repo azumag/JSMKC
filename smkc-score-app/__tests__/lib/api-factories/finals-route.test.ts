@@ -1640,4 +1640,123 @@ describe('Finals Route Factory', () => {
       });
     });
   });
+
+  // ============================================================
+  // PATCH Handler Tests — TV# select-to-save (issue: bracket card)
+  // ============================================================
+
+  describe('PATCH Handler (tvNumber)', () => {
+    it('updates tvNumber on a finals match without touching scores', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({ id: 'match-1', stage: 'finals', tvNumber: null });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(existing);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, tvNumber: 2 });
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.data.match.tvNumber).toBe(2);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'match-1' },
+          data: { tvNumber: 2 },
+        }),
+      );
+    });
+
+    it('clears tvNumber when given null', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({ id: 'match-1', stage: 'finals', tvNumber: 3 });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(existing);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, tvNumber: null });
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: null }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { tvNumber: null } }),
+      );
+    });
+
+    it('returns 403 when caller is not admin', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'user' } } as any);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(403);
+      expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when matchId is missing', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ tvNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 400 when tvNumber is out of range', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 99 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 404 when match does not belong to the tournament', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(null);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('returns 404 when target match is qualification stage', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({ id: 'match-1', stage: 'qualification' });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(existing);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(404);
+      expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
+    });
+  });
 });
