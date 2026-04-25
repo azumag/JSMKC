@@ -219,6 +219,24 @@ export async function PUT(
       }
     }
 
+    // Set lastRecordedCourse/Time so the overlay-events aggregator can emit
+    // ta_time_recorded events (it skips entries with null values). Only runs
+    // when `times` is a proper {course: timeStr} object — array or other
+    // shapes get skipped (defensive: matches the validation block above).
+    if (times !== undefined && isTimeRecord(times)) {
+      // Use the last course in canonical COURSES order as the "most recently
+      // recorded" course for overlay display. All courses are validated
+      // present at this point.
+      const lastCourse = COURSES[COURSES.length - 1];
+      const lastTime = times[lastCourse];
+      if (lastCourse && lastTime) {
+        await prisma.tTEntry.update({
+          where: { id: entryId },
+          data: { lastRecordedCourse: lastCourse, lastRecordedTime: lastTime },
+        });
+      }
+    }
+
     // Fetch the fully updated entry with relations for the response
     const updatedEntry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
