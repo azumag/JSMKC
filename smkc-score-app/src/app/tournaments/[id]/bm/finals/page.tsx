@@ -62,7 +62,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { POLLING_INTERVAL } from "@/lib/constants";
+import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { getBmFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -86,6 +86,7 @@ interface BMMatch {
   matchNumber: number;
   round: string | null;
   stage?: string | null;
+  tvNumber?: number | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -193,7 +194,7 @@ export default function BattleModeFinals({
   /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0 });
+  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, tvNumber: null as number | null });
   const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
@@ -372,7 +373,7 @@ export default function BattleModeFinals({
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2 });
+    setScoreForm({ score1: match.score1, score2: match.score2, tvNumber: match.tvNumber ?? null });
     setIsScoreDialogOpen(true);
   };
 
@@ -392,6 +393,7 @@ export default function BattleModeFinals({
           matchId: selectedMatch.id,
           score1: scoreForm.score1,
           score2: scoreForm.score2,
+          tvNumber: scoreForm.tvNumber,
         }),
       });
 
@@ -404,7 +406,7 @@ export default function BattleModeFinals({
         }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0 });
+        setScoreForm({ score1: 0, score2: 0, tvNumber: null });
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -776,6 +778,21 @@ export default function BattleModeFinals({
                 ))}
               </div>
             </div>
+            {/* TV number assignment for broadcast: admin selects TV 1–4 */}
+            <div className="flex items-center justify-center gap-3">
+              <Label htmlFor="bm-finals-tv" className="text-sm text-muted-foreground shrink-0">
+                TV#
+              </Label>
+              <select
+                id="bm-finals-tv"
+                className="w-20 h-8 text-center text-sm border rounded bg-background"
+                value={scoreForm.tvNumber ?? ""}
+                onChange={(e) => setScoreForm({ ...scoreForm, tvNumber: e.target.value ? parseInt(e.target.value) : null })}
+              >
+                <option value="">-</option>
+                {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
             {/* Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
               scoreForm.score1 + scoreForm.score2 > 0 &&
@@ -786,7 +803,26 @@ export default function BattleModeFinals({
               {tFinals('matchNeedWinner', { targetWins: selectedMatchTargetWins })}
             </p>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
+            {selectedMatch && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      player1Name: selectedMatch.player1.nickname,
+                      player2Name: selectedMatch.player2.nickname,
+                    }),
+                  });
+                }}
+                title="配信に反映"
+              >
+                📺 配信に反映
+              </Button>
+            )}
             <Button
               onClick={handleScoreSubmit}
               disabled={scoreForm.score1 < selectedMatchTargetWins && scoreForm.score2 < selectedMatchTargetWins}

@@ -242,8 +242,8 @@ export default function BattleModePage({
     return () => { cancelled = true; };
   }, [tournamentId]);
 
-  /* Shared handlers for rank override and TV assignment */
-  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign } =
+  /* Shared handlers for rank override, TV assignment, and broadcast reflect */
+  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
     useQualificationActions({ tournamentId, mode: "bm", refetch });
 
   /**
@@ -860,6 +860,17 @@ export default function BattleModePage({
                                         <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
                                           {tc('matchDetails')}
                                         </Link>
+                                      </Button>
+                                    )}
+                                    {/* 配信に反映: admin pushes this match's players to the overlay */}
+                                    {isAdmin && !match.isBye && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleBroadcastReflect(match.player1.nickname, match.player2.nickname)}
+                                        title="配信に反映"
+                                      >
+                                        📺
                                       </Button>
                                     )}
                                     {/* Admin-only score entry/edit button (not for BYE matches, locked when confirmed) */}

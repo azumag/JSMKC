@@ -15,6 +15,7 @@
  *   TC-506  28-player full + Grand Final Reset Match (M17)
  *   TC-510  BM Top-24 pre-bracket playoff → Top-16 finals flow
  *   TC-520  BM per-round target-wins API validation (issue #528: FT3/FT4/FT5/FT7)
+ *   TC-522  BM finals tvNumber PUT accepts 1–4, rejects 5, clears on null (issue #634)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1352,6 +1353,65 @@ async function runTc521(adminPage) {
   }
 }
 
+/* ───────── TC-522: BM finals tvNumber via PUT (Issue #634) ─────────
+ * Verifies that the finals route's putAdditionalFields now includes tvNumber:
+ *   - tvNumber=2 → 200, value persisted on the match
+ *   - tvNumber=5 → 422 (exceeds MAX_TV_NUMBER=4)
+ *   - tvNumber=null → 200 (clears TV assignment) */
+async function runTc522(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Bracket missing match 1');
+
+    /* PUT tvNumber=2 — valid range is 1–4 */
+    const res2 = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 2 }]);
+
+    const after2 = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const tvSaved = after2.find((m) => m.id === m1.id)?.tvNumber === 2;
+
+    /* PUT tvNumber=5 — must be rejected (422) */
+    const res5 = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 5 }]);
+
+    /* PUT tvNumber=null — must clear TV (200) */
+    const resNull = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: null }]);
+
+    const pass = res2.s === 200 && tvSaved && res5.s === 422 && resNull.s === 200;
+    log('TC-522', pass ? 'PASS' : 'FAIL',
+      !pass ? `tvNumber=2 → ${res2.s} (saved=${tvSaved}), tvNumber=5 → ${res5.s}, tvNumber=null → ${resNull.s}` : '');
+  } catch (err) {
+    log('TC-522', 'FAIL', err instanceof Error ? err.message : 'TC-522 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1394,6 +1454,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-519', fn: runTc519 },
       { name: 'TC-520', fn: runTc520 },
       { name: 'TC-521', fn: runTc521 },
+      { name: 'TC-522', fn: runTc522 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1402,7 +1463,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

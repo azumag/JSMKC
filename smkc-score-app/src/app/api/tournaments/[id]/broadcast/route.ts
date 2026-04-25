@@ -1,0 +1,141 @@
+/**
+ * Broadcast State API
+ *
+ * GET  /api/tournaments/[id]/broadcast  - Fetch current overlay player names (public)
+ * PUT  /api/tournaments/[id]/broadcast  - Set overlay player names (admin only)
+ *
+ * Stores the 1P/2P display names shown on the OBS overlay at fixed positions.
+ * Admin sets them by clicking "配信に反映" on a match row or via the 配信管理 page.
+ * The overlay dashboard polls this via overlay-events; we also expose it
+ * directly so the 配信管理 page can read/write without re-deriving the state
+ * from a wider events payload.
+ */
+
+import { NextRequest } from "next/server";
+import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { resolveTournamentId } from "@/lib/tournament-identifier";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleAuthzError,
+  handleValidationError,
+} from "@/lib/error-handling";
+import { sanitizeInput } from "@/lib/sanitize";
+import { createLogger } from "@/lib/logger";
+
+const MAX_NAME_LENGTH = 50;
+
+/**
+ * GET /api/tournaments/[id]/broadcast
+ *
+ * Returns the current overlay player names.
+ * Public — the overlay page reads this on each poll.
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const logger = createLogger("broadcast-api");
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
+
+  try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { overlayPlayer1Name: true, overlayPlayer2Name: true },
+    });
+
+    if (!tournament) {
+      return createErrorResponse("Tournament not found", 404);
+    }
+
+    return createSuccessResponse({
+      player1Name: tournament.overlayPlayer1Name ?? "",
+      player2Name: tournament.overlayPlayer2Name ?? "",
+    });
+  } catch (error) {
+    logger.error("Failed to fetch broadcast state", { error, tournamentId });
+    return createErrorResponse("Failed to fetch broadcast state", 500);
+  }
+}
+
+/**
+ * PUT /api/tournaments/[id]/broadcast
+ *
+ * Updates the overlay player names.
+ * Requires admin authentication.
+ *
+ * Body: { player1Name?: string, player2Name?: string }
+ * Either field may be omitted to leave it unchanged.
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const logger = createLogger("broadcast-api");
+
+  const session = await auth();
+  if (!session?.user || session.user.role !== "admin") {
+    return handleAuthzError();
+  }
+
+  const { id } = await params;
+  const tournamentId = await resolveTournamentId(id);
+
+  try {
+    const body = sanitizeInput(await request.json()) as Record<string, unknown>;
+    const { player1Name, player2Name } = body;
+
+    /* Allow null/empty string to clear the field; reject only invalid types. */
+    if (player1Name !== undefined && player1Name !== null && typeof player1Name !== "string") {
+      return handleValidationError("player1Name must be a string", "player1Name");
+    }
+    if (player2Name !== undefined && player2Name !== null && typeof player2Name !== "string") {
+      return handleValidationError("player2Name must be a string", "player2Name");
+    }
+    if (typeof player1Name === "string" && player1Name.length > MAX_NAME_LENGTH) {
+      return handleValidationError(`player1Name must be at most ${MAX_NAME_LENGTH} characters`, "player1Name");
+    }
+    if (typeof player2Name === "string" && player2Name.length > MAX_NAME_LENGTH) {
+      return handleValidationError(`player2Name must be at most ${MAX_NAME_LENGTH} characters`, "player2Name");
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true },
+    });
+    if (!tournament) {
+      return createErrorResponse("Tournament not found", 404);
+    }
+
+    const updateData: Record<string, string | null> = {};
+    if (player1Name !== undefined) {
+      updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
+    }
+    if (player2Name !== undefined) {
+      updateData.overlayPlayer2Name = player2Name === null ? null : (player2Name as string).trim() || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return handleValidationError("At least one of player1Name or player2Name is required", "body");
+    }
+
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: updateData,
+    });
+
+    return createSuccessResponse({
+      player1Name: updateData.overlayPlayer1Name !== undefined
+        ? (updateData.overlayPlayer1Name ?? "")
+        : undefined,
+      player2Name: updateData.overlayPlayer2Name !== undefined
+        ? (updateData.overlayPlayer2Name ?? "")
+        : undefined,
+    });
+  } catch (error) {
+    logger.error("Failed to update broadcast state", { error, tournamentId });
+    return createErrorResponse("Failed to update broadcast state", 500);
+  }
+}

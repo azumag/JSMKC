@@ -96,5 +96,21 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     }
   }, [tournamentId, mode, refetch, logger]);
 
-  return { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign };
+  /**
+   * Push match players to the overlay as the current 1P/2P broadcast names.
+   * Used by the "配信に反映" button on each match row.
+   */
+  const handleBroadcastReflect = useCallback(async (player1Name: string, player2Name: string) => {
+    try {
+      await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player1Name, player2Name }),
+      });
+    } catch (err) {
+      logger.error("Failed to reflect broadcast:", { error: err, tournamentId });
+    }
+  }, [tournamentId, logger]);
+
+  return { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect };
 }

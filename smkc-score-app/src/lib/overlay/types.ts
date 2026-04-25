@@ -177,4 +177,11 @@ export interface OverlayEventsResponse {
    * active phase has no meaningful FT value (TA, GP, qualification, barrage).
    */
   currentPhaseFormat?: string | null;
+  /**
+   * Broadcast player names set by the admin via "配信に反映" or 配信管理 page.
+   * Displayed on the OBS overlay canvas at the 1P/2P name positions.
+   * Empty string means no name is currently set.
+   */
+  overlayPlayer1Name?: string;
+  overlayPlayer2Name?: string;
 }

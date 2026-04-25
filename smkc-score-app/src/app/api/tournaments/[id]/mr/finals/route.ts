@@ -18,7 +18,7 @@ const { GET, POST, PUT } = createFinalsHandlers({
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
   getStyle: 'simple',
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },
-  putAdditionalFields: ['rounds'],
+  putAdditionalFields: ['rounds', 'tvNumber'],
   getTargetWins: getMrFinalsTargetWins,
   getErrorMessage: 'Failed to fetch finals data',
   postErrorMessage: 'Failed to create finals bracket',

@@ -58,6 +58,11 @@ const TABS = [
   { href: "overall-ranking", labelKey: "overall" },
 ] as const;
 
+/** Admin-only tabs shown after the main mode tabs */
+const ADMIN_TABS = [
+  { href: "broadcast", label: "📺 配信管理" },
+] as const;
+
 /**
  * Determines if the current page is a "minimal UI" page where the
  * tournament header and tab bar should be hidden.
@@ -91,6 +96,7 @@ function getActiveTab(pathname: string): string {
   /* Check "overall-ranking" first since it's the longest segment
      and won't conflict with shorter path segments */
   if (pathname.includes("/overall-ranking")) return "overall-ranking";
+  if (pathname.includes("/broadcast")) return "broadcast";
   for (const tab of TABS) {
     if (tab.href !== "overall-ranking" && pathname.includes(`/${tab.href}`)) {
       return tab.href;
@@ -347,6 +353,20 @@ export default function TournamentLayout({
               </Link>
             );
           })}
+          {/* Admin-only extra tabs */}
+          {isAdmin && ADMIN_TABS.map((tab) => (
+            <Link
+              key={tab.href}
+              href={`/tournaments/${id}/${tab.href}`}
+              className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                activeTab === tab.href
+                  ? "bg-background text-foreground shadow-sm"
+                  : "hover:bg-background/50 hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
         </div>
 
         {/*

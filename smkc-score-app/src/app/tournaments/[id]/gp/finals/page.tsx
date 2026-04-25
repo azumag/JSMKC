@@ -71,7 +71,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -100,6 +100,7 @@ interface GPMatch {
   points2: number;
   completed: boolean;
   cup?: string;
+  tvNumber?: number | null;
   player1: Player;
   player2: Player;
   races?: {
@@ -230,7 +231,8 @@ export default function GrandPrixFinals({
     suddenDeathWinnerId: string;
     cup: string;
     races: Race[];
-  }>({ suddenDeathWinnerId: "", cup: "", races: [] });
+    tvNumber: number | null;
+  }>({ suddenDeathWinnerId: "", cup: "", races: [], tvNumber: null });
   /* Admin override: skip race entry and write raw driver-points totals.
    * Mirrors the qualification page's manual-total form — used when the
    * cup total needs correcting but entering every race is overkill. */
@@ -428,6 +430,7 @@ export default function GrandPrixFinals({
       suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",
       cup,
       races,
+      tvNumber: match.tvNumber ?? null,
     });
     /* Reset the manual-override form; pre-fill with the stored totals so the
      * admin can toggle into manual mode and tweak one side without retyping
@@ -492,6 +495,7 @@ export default function GrandPrixFinals({
     if (points1 === points2 && scoreForm.suddenDeathWinnerId) {
       body.suddenDeathWinnerId = scoreForm.suddenDeathWinnerId;
     }
+    body.tvNumber = scoreForm.tvNumber;
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
@@ -505,7 +509,7 @@ export default function GrandPrixFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ suddenDeathWinnerId: "", cup: "", races: [] });
+        setScoreForm({ suddenDeathWinnerId: "", cup: "", races: [], tvNumber: null });
         setManualScoreEnabled(false);
         setManualPoints1("");
         setManualPoints2("");
@@ -988,7 +992,39 @@ export default function GrandPrixFinals({
               {tFinals('gpTieNeedsWinner')}
             </p>
           </div>
-          <DialogFooter>
+          {/* TV number assignment for broadcast */}
+          <div className="flex items-center gap-3 px-1 pb-2">
+            <Label htmlFor="gp-finals-tv" className="text-sm text-muted-foreground shrink-0">TV#</Label>
+            <select
+              id="gp-finals-tv"
+              className="w-20 h-8 text-center text-sm border rounded bg-background"
+              value={scoreForm.tvNumber ?? ""}
+              onChange={(e) => setScoreForm({ ...scoreForm, tvNumber: e.target.value ? parseInt(e.target.value) : null })}
+            >
+              <option value="">-</option>
+              {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <DialogFooter className="flex-wrap gap-2">
+            {selectedMatch && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      player1Name: selectedMatch.player1.nickname,
+                      player2Name: selectedMatch.player2.nickname,
+                    }),
+                  });
+                }}
+                title="配信に反映"
+              >
+                📺 配信に反映
+              </Button>
+            )}
             <Button
               onClick={handleScoreSubmit}
               disabled={

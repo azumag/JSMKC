@@ -71,7 +71,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { COURSE_INFO, POLLING_INTERVAL, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TV_NUMBER_OPTIONS, type CourseAbbr } from "@/lib/constants";
 import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from "@/lib/finals-target-wins";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -89,6 +89,7 @@ interface MRMatch {
   matchNumber: number;
   round: string | null;
   stage?: string | null;
+  tvNumber?: number | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -232,6 +233,7 @@ export default function MatchRaceFinals({
   const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
   const [manualScore1, setManualScore1] = useState<string>("");
   const [manualScore2, setManualScore2] = useState<string>("");
+  const [selectedTvNumber, setSelectedTvNumber] = useState<number | null>(null);
   const [champion, setChampion] = useState<Player | null>(null);
   const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
 
@@ -409,6 +411,7 @@ export default function MatchRaceFinals({
     setManualScoreEnabled(false);
     setManualScore1(String(match.score1 ?? 0));
     setManualScore2(String(match.score2 ?? 0));
+    setSelectedTvNumber(match.tvNumber ?? null);
     setIsMatchDialogOpen(true);
   };
 
@@ -475,6 +478,7 @@ export default function MatchRaceFinals({
       body.score2 = loserCount;
       body.rounds = rounds;
     }
+    body.tvNumber = selectedTvNumber;
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/mr/finals`, {
@@ -873,7 +877,39 @@ export default function MatchRaceFinals({
               </TableBody>
             </Table>}
           </div>
-          <DialogFooter>
+          {/* TV number assignment for broadcast */}
+          <div className="flex items-center gap-3 px-1">
+            <Label htmlFor="mr-finals-tv" className="text-sm text-muted-foreground shrink-0">TV#</Label>
+            <select
+              id="mr-finals-tv"
+              className="w-20 h-8 text-center text-sm border rounded bg-background"
+              value={selectedTvNumber ?? ""}
+              onChange={(e) => setSelectedTvNumber(e.target.value ? parseInt(e.target.value) : null)}
+            >
+              <option value="">-</option>
+              {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <DialogFooter className="flex-wrap gap-2">
+            {selectedMatch && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      player1Name: selectedMatch.player1.nickname,
+                      player2Name: selectedMatch.player2.nickname,
+                    }),
+                  });
+                }}
+                title="配信に反映"
+              >
+                📺 配信に反映
+              </Button>
+            )}
             {/* i18n: Save result button */}
             <Button
               onClick={handleMatchSubmit}
