@@ -761,6 +761,24 @@ async function apiSeedTtEntry(page, tournamentId, entryId, times, totalTimeMs, r
   return res;
 }
 
+/** Force a TTEntry rank without sending times so recalculateRanks is NOT
+ * triggered. Use after apiSeedTtEntry when the desired rank (e.g. 17) would
+ * be overwritten by the server's rank recalculation across all tournament
+ * entries. Sends only `{version, rank}` — the PUT route only calls
+ * recalculateRanks when `times` is present in the body. */
+async function apiForceRankOnly(page, tournamentId, entryId, rank) {
+  const ge = await apiGetTtEntry(page, tournamentId, entryId);
+  const version = ge.b?.data?.version;
+  if (ge.s !== 200 || typeof version !== 'number') {
+    throw new Error(`Failed to fetch TT entry version for rank-only update (${entryId}, status=${ge.s})`);
+  }
+  const res = await apiUpdateTtEntry(page, tournamentId, entryId, { version, rank });
+  if (res.s !== 200) {
+    throw new Error(`Failed to force rank ${rank} for entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 120)}`);
+  }
+  return res;
+}
+
 async function apiPromoteTaPhase(page, tournamentId, action) {
   return page.evaluate(async ([u, d]) => {
     const r = await fetch(u, {
@@ -1381,8 +1399,18 @@ async function uiSetupTaPlayers(page, tournamentId, players) {
   for (const player of players) {
     await search.fill(player.nickname);
     await page.waitForTimeout(150);
-    const label = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
-    await dialog.getByLabel(label).check();
+    /* Use label-text lookup to find the <label> element, then get its `for`
+     * attribute to locate the exact checkbox button by id.
+     * Avoids getByLabel().check() which times out on Radix UI <button role=checkbox>
+     * inside nested overflow containers where Playwright cannot scroll-into-view. */
+    const labelText = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
+    const labelEl = dialog.locator('label').filter({ hasText: labelText }).first();
+    await labelEl.waitFor({ state: 'visible', timeout: 10000 });
+    const forId = await labelEl.getAttribute('for');
+    if (!forId) throw new Error(`No for attribute on player label for ${player.nickname}`);
+    const checkboxEl = dialog.locator(`button[id="${forId}"]`);
+    await checkboxEl.scrollIntoViewIfNeeded().catch(() => {});
+    await checkboxEl.check();
   }
   await search.fill('');
   await page.waitForTimeout(200);

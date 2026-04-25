@@ -903,7 +903,7 @@ async function main() {
       const { times: rank17TimesTc313, totalMs: rank17TotalTc313 } = makeTaTimesForRank(17);
       await uiSetTaEntryTimes(page, taTournamentId, { nickname: nick }, rank17TimesTc313);
 
-      /* See TC-312 above for why we stamp rank=17 + freeze before promotion. */
+      /* See TC-312 above for why we stamp rank=17 + force without recalculate. */
       const taData313 = await apiFetchTa(page, taTournamentId);
       const taEntry313 = (taData313.b?.data?.entries ?? []).find((e) => e.playerId === pid);
       if (!taEntry313) throw new Error(`No TA entry found for player ${pid}`);
