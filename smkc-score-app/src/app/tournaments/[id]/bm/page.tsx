@@ -925,8 +925,8 @@ export default function BattleModePage({
             })()}
             <div className="flex items-center justify-center gap-4">
               {/* Player 1 score input */}
-              <div className="text-center">
-                <Label htmlFor={`bm-score1-${selectedMatch?.id}`}>{selectedMatch?.player1.nickname}</Label>
+              <div className="text-center min-w-0 max-w-[140px]">
+                <Label htmlFor={`bm-score1-${selectedMatch?.id}`} className="block truncate w-full">{selectedMatch?.player1.nickname}</Label>
                 <Input
                   id={`bm-score1-${selectedMatch?.id}`}
                   type="number"
@@ -948,8 +948,8 @@ export default function BattleModePage({
               </div>
               <span className="text-2xl" aria-hidden="true">-</span>
               {/* Player 2 score input */}
-              <div className="text-center">
-                <Label htmlFor={`bm-score2-${selectedMatch?.id}`}>{selectedMatch?.player2.nickname}</Label>
+              <div className="text-center min-w-0 max-w-[140px]">
+                <Label htmlFor={`bm-score2-${selectedMatch?.id}`} className="block truncate w-full">{selectedMatch?.player2.nickname}</Label>
                 <Input
                   id={`bm-score2-${selectedMatch?.id}`}
                   type="number"

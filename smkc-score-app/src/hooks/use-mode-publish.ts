@@ -88,6 +88,8 @@ export function useModePublish(
       });
       if (response.ok) {
         setPublicModes(next);
+        // Notify the tournament layout to refresh its publicModes so tab badges update without a page reload (issue #621)
+        window.dispatchEvent(new CustomEvent('publicModesChanged', { detail: { tournamentId } }));
       } else {
         logger.error("Failed to update mode visibility", {
           status: response.status,
