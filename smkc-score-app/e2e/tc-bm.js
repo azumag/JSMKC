@@ -1276,6 +1276,79 @@ async function runTc520(adminPage) {
   }
 }
 
+/* ───────── TC-521: BM admin score dialog — long player names must not overflow ─────────
+ * Regression guard for issue #619: player names longer than the dialog pane width
+ * must be visually truncated (via CSS `truncate`) and not cause horizontal scroll.
+ *
+ * Approach: create 2 players with 50-char nicknames, open the score entry dialog,
+ * then evaluate whether the label elements overflow their containing div. */
+async function runTc521(adminPage) {
+  let tournamentId = null;
+  let player1Id = null;
+  let player2Id = null;
+
+  try {
+    const stamp = Date.now();
+    // 50-char name to guarantee overflow without truncation
+    const longName = `VeryLongPlayerNameForOverflowTest${stamp}`.slice(0, 50);
+    const player1 = await uiCreatePlayer(adminPage, longName, `e2e_bm_521_p1_${stamp}`);
+    const player2 = await uiCreatePlayer(adminPage, longName + 'X', `e2e_bm_521_p2_${stamp}`);
+    player1Id = player1.id;
+    player2Id = player2.id;
+
+    tournamentId = await uiCreateTournament(adminPage, `E2E BM521 ${stamp}`, {});
+    await uiActivateTournament(adminPage, tournamentId);
+
+    await setupModePlayersViaUi(adminPage, 'bm', tournamentId, [
+      { id: player1.id, name: longName, nickname: player1.nickname },
+      { id: player2.id, name: longName + 'X', nickname: player2.nickname },
+    ]);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
+    await adminPage.waitForTimeout(3000);
+
+    // Click the score entry button for the first non-BYE match
+    const scoreBtn = adminPage.getByRole('button', { name: /スコア入力|Enter Score/i }).first();
+    await scoreBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await scoreBtn.click();
+    await adminPage.waitForTimeout(1500);
+
+    // Verify dialog is open and player names are visible (dialog should not be wider than viewport)
+    const dialogVisible = await adminPage.locator('[role="dialog"]').isVisible();
+
+    // Evaluate whether label text overflows its container — with `truncate`, scrollWidth should not
+    // exceed the viewport width (the label is capped by the max-w-[140px] parent).
+    const overflows = await adminPage.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      if (!dialog) return { dialogWidth: 0, viewportWidth: window.innerWidth, labels: [] };
+      const labels = Array.from(dialog.querySelectorAll('label'));
+      return {
+        dialogWidth: dialog.getBoundingClientRect().width,
+        viewportWidth: window.innerWidth,
+        // scrollWidth > clientWidth means the element's content overflows its box
+        labels: labels.map(l => ({ scrollWidth: l.scrollWidth, clientWidth: l.clientWidth })),
+      };
+    });
+
+    const dialogFitsViewport = overflows.dialogWidth <= overflows.viewportWidth;
+    // Each label must not overflow its own bounding box (truncate keeps scrollWidth === clientWidth)
+    const labelsNoOverflow = overflows.labels.every(l => l.scrollWidth <= l.clientWidth);
+
+    const pass = dialogVisible && dialogFitsViewport && labelsNoOverflow;
+    log('TC-521', pass ? 'PASS' : 'FAIL',
+      !dialogVisible ? 'Score dialog did not open'
+      : !dialogFitsViewport ? `Dialog ${overflows.dialogWidth}px wider than viewport ${overflows.viewportWidth}px`
+      : !labelsNoOverflow ? `Label overflow detected: ${JSON.stringify(overflows.labels)}`
+      : '');
+  } catch (err) {
+    log('TC-521', 'FAIL', err instanceof Error ? err.message : 'TC-521 long name overflow test failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    if (player1Id) await apiDeletePlayer(adminPage, player1Id);
+    if (player2Id) await apiDeletePlayer(adminPage, player2Id);
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1317,6 +1390,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-517', fn: runTc517 },
       { name: 'TC-519', fn: runTc519 },
       { name: 'TC-520', fn: runTc520 },
+      { name: 'TC-521', fn: runTc521 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1325,7 +1399,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

@@ -167,6 +167,13 @@ export default function TournamentLayout({
     fetchTournament();
   }, [fetchTournament]);
 
+  // Re-fetch when a mode's publish state changes so tab badges update immediately (issue #621)
+  useEffect(() => {
+    const handler = () => { fetchTournament(); };
+    window.addEventListener('publicModesChanged', handler);
+    return () => window.removeEventListener('publicModesChanged', handler);
+  }, [fetchTournament]);
+
   /**
    * Updates the tournament status via PUT request.
    * Used for one-way status transitions:

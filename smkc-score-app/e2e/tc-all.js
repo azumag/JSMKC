@@ -438,6 +438,54 @@ async function main() {
   t = await vis(page);
   log('TC-203', (t.includes('Overall') || t.includes('総合')) ? 'PASS' : 'FAIL');
 
+  // TC-823: Mode publish toggle updates layout tab badge in real time (issue #621)
+  // A new tournament has publicModes=[] so all mode tabs show a destructive "未公開" badge for admins.
+  // Toggling the per-mode switch dispatches a custom event that triggers a re-fetch of the layout's
+  // tournament data; the hidden badge should appear/disappear without a page reload.
+  {
+    let tc823TournamentId = null;
+    try {
+      tc823TournamentId = await uiCreateTournament(page, `E2E TC-823 ${Date.now()}`);
+
+      await nav(page, `/tournaments/${tc823TournamentId}/bm`);
+      await page.waitForTimeout(3000);
+
+      // BM tab link has exact href; the hidden badge lives inside it with `bg-destructive`
+      const bmTabBadge = page.locator(`a[href="/tournaments/${tc823TournamentId}/bm"] .bg-destructive`);
+      const hasBadgeBefore = await bmTabBadge.count() > 0;
+
+      // The ModePublishSwitch aria-label is "{mode}: {state}" (e.g. "バトルモード: 未公開")
+      const publishSwitch = page.getByRole('switch', { name: /バトルモード|Battle Mode/i }).first();
+      const switchExists = await publishSwitch.count() > 0;
+
+      let hasBadgeAfterPublish = true;
+      let hasBadgeAfterUnpublish = false;
+      if (switchExists) {
+        // Toggle to published
+        await publishSwitch.click();
+        await page.waitForTimeout(3000); // Wait for API call + publicModesChanged event + re-fetch
+        hasBadgeAfterPublish = await bmTabBadge.count() > 0;
+
+        // Toggle back to unpublished
+        await publishSwitch.click();
+        await page.waitForTimeout(3000);
+        hasBadgeAfterUnpublish = await bmTabBadge.count() > 0;
+      }
+
+      const pass = switchExists && hasBadgeBefore && !hasBadgeAfterPublish && hasBadgeAfterUnpublish;
+      log('TC-823', pass ? 'PASS' : 'FAIL',
+        !switchExists ? 'Publish switch not found on BM page'
+        : !hasBadgeBefore ? 'Hidden badge not shown before toggle'
+        : hasBadgeAfterPublish ? 'Hidden badge still shown after toggle to published (event/re-fetch missing)'
+        : !hasBadgeAfterUnpublish ? 'Hidden badge did not reappear after re-toggle to unpublished'
+        : '');
+    } catch (err) {
+      log('TC-823', 'FAIL', err instanceof Error ? err.message : 'TC-823 mode tab badge test failed');
+    } finally {
+      if (tc823TournamentId) await deleteTournament(page, tc823TournamentId);
+    }
+  }
+
   // TC-401: Shared all-mode tournament has completed qualification data in TA/BM/MR/GP
   if (setupAllModesError) {
     log('TC-401', 'FAIL', `setupAllModes failed: ${setupAllModesError.slice(0, 160)}`);

@@ -278,10 +278,10 @@ export function ParticipantPageLayout<TMatch extends BaseMatch>({
                               key={player.id}
                               className={`p-3 rounded-lg border ${isYou ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`}
                             >
-                              <div className="font-medium">
-                                {player.nickname}
+                              <div className="font-medium flex items-center gap-1 min-w-0">
+                                <span className="truncate min-w-0">{player.nickname}</span>
                                 {isYou && (
-                                  <Badge variant="default" className="ml-2 bg-blue-600">
+                                  <Badge variant="default" className="shrink-0 bg-blue-600">
                                     {tPart("you")}
                                   </Badge>
                                 )}

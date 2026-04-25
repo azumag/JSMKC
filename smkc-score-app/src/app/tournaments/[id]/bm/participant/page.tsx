@@ -119,8 +119,8 @@ export default function BattleModeParticipantPage({
         {/* +/- button score input: [Player1 [-][score][+]] - [Player2 [-][score][+]] */}
         <div className="flex items-center justify-center gap-3 mb-4">
           {/* Player 1 score */}
-          <div className="text-center">
-            <p className="text-sm mb-2">{match.player1.nickname}</p>
+          <div className="text-center min-w-0 max-w-[120px]">
+            <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
@@ -147,8 +147,8 @@ export default function BattleModeParticipantPage({
           </div>
           <span className="text-xl mt-6">-</span>
           {/* Player 2 score */}
-          <div className="text-center">
-            <p className="text-sm mb-2">{match.player2.nickname}</p>
+          <div className="text-center min-w-0 max-w-[120px]">
+            <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
