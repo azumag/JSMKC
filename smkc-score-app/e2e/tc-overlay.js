@@ -180,11 +180,14 @@ async function runTc902(adminPage) {
     );
     const forbidden = new Set(['ipAddress', 'userAgent', 'userId', 'password', 'email']);
     const leak = findForbiddenKey(resp.body, forbidden);
+    const eventCount = resp.body?.data?.events?.length ?? 0;
+    const pass = resp.status === 200 && !leak && eventCount > 0;
     log('TC-902',
-      resp.status === 200 && !leak && (resp.body?.data?.events?.length ?? 0) > 0 ? 'PASS' : 'FAIL',
+      pass ? 'PASS' : 'FAIL',
+      pass ? '' :
       resp.status !== 200 ? `status=${resp.status}` :
       leak ? `Leaked PII at ${leak}` :
-      'No events to inspect');
+      'No events to inspect (poll timeout)');
   } catch (err) {
     log('TC-902', 'FAIL', err instanceof Error ? err.message : 'TC-902 threw');
   }
