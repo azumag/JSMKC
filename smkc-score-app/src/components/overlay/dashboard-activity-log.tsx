@@ -61,8 +61,8 @@ export function DashboardActivityLog({ events, now }: DashboardActivityLogProps)
         return (
           <div
             key={event.id}
-            className="flex overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 backdrop-blur-md"
-            style={{ backgroundColor: "rgba(15, 23, 42, 0.85)" }}
+            className="flex overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10"
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
             data-testid="dashboard-activity-log-entry"
             data-event-id={event.id}
           >

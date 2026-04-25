@@ -115,7 +115,7 @@ export default function DashboardPage({
           freed up by the planned 2P relocation in the JSMKC broadcast. */}
       <div
         className="pointer-events-none fixed"
-        style={{ top: 96, right: 20, width: 440, height: 900 }}
+        style={{ top: 80, right: 10, bottom: 34, width: 240 }}
       >
         <DashboardActivityLog events={events} now={now} />
       </div>
@@ -124,7 +124,7 @@ export default function DashboardPage({
           the right portion (解説 / Discord) stays visible. */}
       <div
         className="pointer-events-none fixed"
-        style={{ bottom: 0, left: 80, width: 1140, height: 82 }}
+        style={{ bottom: 0, left: 120, width: 1100, height: 82 }}
       >
         <DashboardFooter currentPhase={currentPhase} />
       </div>

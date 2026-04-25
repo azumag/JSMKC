@@ -18,8 +18,7 @@ interface DashboardFooterProps {
 export function DashboardFooter({ currentPhase }: DashboardFooterProps) {
   return (
     <div
-      className="flex h-full w-full items-center px-6 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-md"
-      style={{ backgroundColor: "rgba(15, 23, 42, 0.85)" }}
+      className="flex h-full w-full items-center px-6 text-blue-900"
       data-testid="dashboard-footer"
     >
       <span className="text-3xl font-semibold tracking-tight">{currentPhase}</span>
