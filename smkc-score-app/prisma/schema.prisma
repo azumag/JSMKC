@@ -79,6 +79,7 @@ model Player {
   name      String
   nickname  String   @unique
   country   String?
+  noCamera  Boolean  @default(false) // カメラなしフラグ（配信時のオーバーレイ制御用）
   password  String?  // bcrypt hashed password for player authentication
   deletedAt DateTime? // ソフトデリート用タイムスタンプ
   version   Int      @default(0) // 楽観的ロック用

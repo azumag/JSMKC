@@ -222,7 +222,8 @@
     "confirmResetPassword": "このプレイヤーのパスワードをリセットしますか？",
     "passwordResetSuccess": "パスワードのリセットに成功しました",
     "failedToResetPassword": "パスワードのリセットに失敗しました",
-    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。"
+    "fetchError": "プレイヤーの読み込みに失敗しました。再試行してください。",
+    "noCamera": "カメラなし"
   },
   "profile": {
     "title": "プロフィール",

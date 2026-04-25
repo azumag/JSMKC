@@ -30,6 +30,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -81,6 +82,7 @@ interface Player {
   name: string;
   nickname: string;
   country: string | null;
+  noCamera: boolean;
   createdAt: string;
   /** Set by the API for admin users: true if the player is registered in any tournament. */
   hasTournamentData?: boolean;
@@ -132,6 +134,7 @@ export default function PlayersPage() {
     name: "",
     nickname: "",
     country: "",
+    noCamera: false,
   });
 
   /* Currently editing player ID (null when adding a new player) */
@@ -243,7 +246,7 @@ export default function PlayersPage() {
         };
         setPlayers(prev => [...prev, newPlayer]);
 
-        setFormData({ name: "", nickname: "", country: "" });
+        setFormData({ name: "", nickname: "", country: "", noCamera: false });
         setIsAddDialogOpen(false);
 
         if (!isLostResponse && data.temporaryPassword) {
@@ -299,12 +302,12 @@ export default function PlayersPage() {
         // Optimistic update: immediately reflect changes in the list
         setPlayers(prev => prev.map(p =>
           p.id === editingPlayerId
-            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null }
+            ? { ...p, name: formData.name, nickname: formData.nickname, country: formData.country || null, noCamera: formData.noCamera }
             : p
         ));
         setIsEditDialogOpen(false);
         setEditingPlayerId(null);
-        setFormData({ name: "", nickname: "", country: "" });
+        setFormData({ name: "", nickname: "", country: "", noCamera: false });
       } else {
         const text = await response!.text();
         try {
@@ -418,6 +421,7 @@ export default function PlayersPage() {
       name: player.name,
       nickname: player.nickname,
       country: player.country || "",
+      noCamera: player.noCamera,
     });
     setEditingPlayerId(player.id);
     setError("");
@@ -432,7 +436,7 @@ export default function PlayersPage() {
     setIsEditDialogOpen(open);
     if (!open) {
       setEditingPlayerId(null);
-      setFormData({ name: "", nickname: "", country: "" });
+      setFormData({ name: "", nickname: "", country: "", noCamera: false });
     }
   };
 
@@ -483,7 +487,7 @@ export default function PlayersPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", nickname: "", country: "" })}>
+              <Button onClick={() => setFormData({ name: "", nickname: "", country: "", noCamera: false })}>
                 {tc('addPlayer')}
               </Button>
             </DialogTrigger>
@@ -534,6 +538,16 @@ export default function PlayersPage() {
                     placeholder={t('countryPlaceholder')}
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="noCamera"
+                    checked={formData.noCamera}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, noCamera: checked === true })
+                    }
+                  />
+                  <Label htmlFor="noCamera">{t('noCamera')}</Label>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting}>
@@ -578,6 +592,7 @@ export default function PlayersPage() {
                     <TableHead>{t('nickname')}</TableHead>
                     <TableHead>{t('fullName')}</TableHead>
                     <TableHead>{t('country')}</TableHead>
+                    <TableHead>{t('noCamera')}</TableHead>
                     {/* Actions column only visible to admins */}
                     {isAdmin && <TableHead className="text-right">{tc('actions')}</TableHead>}
                   </TableRow>
@@ -590,6 +605,7 @@ export default function PlayersPage() {
                       </TableCell>
                       <TableCell>{player.name}</TableCell>
                       <TableCell>{player.country || "-"}</TableCell>
+                      <TableCell>{player.noCamera ? "✗" : "-"}</TableCell>
                       {/* Admin-only action buttons: Edit and Delete */}
                       {isAdmin && (
                         <TableCell className="text-right space-x-2">
@@ -701,6 +717,16 @@ export default function PlayersPage() {
                     setFormData({ ...formData, country: e.target.value })
                   }
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="edit-noCamera"
+                  checked={formData.noCamera}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, noCamera: checked === true })
+                  }
+                />
+                <Label htmlFor="edit-noCamera">{t('noCamera')}</Label>
               </div>
             </div>
             <DialogFooter>

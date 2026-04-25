@@ -717,6 +717,30 @@ async function apiUpdateTtEntry(page, tournamentId, entryId, payload) {
   { label: `TT entry PUT ${entryId}` });
 }
 
+/**
+ * Force-set the rank of a TT entry WITHOUT sending times in the payload.
+ *
+ * The PUT /tt/entries route calls recalculateRanks only when `times` is present.
+ * Sending only `rank` (no `times`) skips recalculation so tests that seed a
+ * single-player slot (e.g. rank 17 in a 1-player tournament) can preserve the
+ * desired rank even though recalculateRanks would otherwise derive rank=1 from
+ * actual time ordering.
+ *
+ * Must be called BEFORE freezing the stage (frozen entries block all PUTs).
+ */
+async function apiForceRankOnly(page, tournamentId, entryId, rank) {
+  const ge = await apiGetTtEntry(page, tournamentId, entryId);
+  const version = ge.b?.data?.version;
+  if (ge.s !== 200 || typeof version !== 'number') {
+    throw new Error(`Failed to fetch TT entry version for rank-only update (${entryId}, status=${ge.s})`);
+  }
+  const res = await apiUpdateTtEntry(page, tournamentId, entryId, { version, rank });
+  if (res.s !== 200) {
+    throw new Error(`Failed to force rank ${rank} for entry ${entryId} (${res.s}): ${JSON.stringify(res.b).slice(0, 120)}`);
+  }
+  return res;
+}
+
 /** Fetch current version, then PUT full times + totalTime + rank in one call.
  *  Callers pass already-formatted `times` (e.g. { MC1: '1:00.00' }) + totalTimeMs + rank. */
 async function apiSeedTtEntry(page, tournamentId, entryId, times, totalTimeMs, rank) {
@@ -2249,6 +2273,7 @@ module.exports = {
   apiGetTtEntry,
   apiUpdateTtEntry,
   apiSeedTtEntry,
+  apiForceRankOnly,
   apiPromoteTaPhase,
   apiSetTaPartner,
   apiUpdateTaSeeding,

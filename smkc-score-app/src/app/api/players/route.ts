@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     // Sanitize all input fields to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, nickname, country } = body;
+    const { name, nickname, country, noCamera } = body;
 
     // Validate required fields before database operations
     if (!name || !nickname) {
@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
         name,
         nickname,
         country: country || null,
+        noCamera: noCamera === true,
         password: hashedPassword,
       },
     });
