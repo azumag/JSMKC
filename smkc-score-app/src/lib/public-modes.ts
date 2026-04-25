@@ -1,38 +1,64 @@
 /**
- * Sequential publication order for qualification modes.
+ * Independent per-mode publish state for the four qualification modes.
  *
- * Admins publish modes to non-admin viewers one stage at a time, matching the
- * tournament flow (TA → BM → MR → GP). A mode can only be public if every mode
- * earlier in this list is also public, so `publicModes` stored on the
- * Tournament must always be a prefix of this list.
+ * `publicModes` on the Tournament is an unordered set serialized as a JSON
+ * array. Each mode's published state is independent of the others —
+ * publishing or unpublishing one mode does not affect any other mode.
  *
- * Publishing mode X ⇒ publish X and every earlier mode.
- * Unpublishing mode X ⇒ unpublish X and every later mode (cascade).
+ * MODE_REVEAL_ORDER is the canonical mode list and the display order; it is
+ * NOT a sequencing constraint on the stored value.
  */
 export const MODE_REVEAL_ORDER = ["ta", "bm", "mr", "gp"] as const;
 export type RevealableMode = (typeof MODE_REVEAL_ORDER)[number];
 
-/** Prefix of {@link MODE_REVEAL_ORDER} up to and including `mode`. */
-export function publishMode(mode: RevealableMode): RevealableMode[] {
-  const idx = MODE_REVEAL_ORDER.indexOf(mode);
-  return MODE_REVEAL_ORDER.slice(0, idx + 1);
-}
+const REVEALABLE_SET: ReadonlySet<string> = new Set(MODE_REVEAL_ORDER);
 
-/** Prefix of {@link MODE_REVEAL_ORDER} strictly before `mode` (cascades unpublish). */
-export function unpublishMode(mode: RevealableMode): RevealableMode[] {
-  const idx = MODE_REVEAL_ORDER.indexOf(mode);
-  return MODE_REVEAL_ORDER.slice(0, idx);
+function isRevealableMode(value: unknown): value is RevealableMode {
+  return typeof value === "string" && REVEALABLE_SET.has(value);
 }
 
 /**
- * True iff `modes` is a valid prefix of {@link MODE_REVEAL_ORDER}: no gaps,
- * canonical order, no duplicates. Used by the API to reject non-sequential
- * `publicModes` payloads from clients.
+ * Returns `modes ∪ {mode}`, normalized: only valid modes are kept,
+ * duplicates are removed, and the result is sorted by MODE_REVEAL_ORDER
+ * for stable storage and readable audit logs.
  */
-export function isSequentialPrefix(modes: readonly string[]): boolean {
-  if (modes.length > MODE_REVEAL_ORDER.length) return false;
-  for (let i = 0; i < modes.length; i++) {
-    if (modes[i] !== MODE_REVEAL_ORDER[i]) return false;
+export function addPublicMode(
+  modes: readonly string[],
+  mode: RevealableMode
+): RevealableMode[] {
+  const set = new Set<RevealableMode>();
+  for (const m of modes) {
+    if (isRevealableMode(m)) set.add(m);
+  }
+  set.add(mode);
+  return MODE_REVEAL_ORDER.filter((m) => set.has(m));
+}
+
+/**
+ * Returns `modes \ {mode}`, normalized: only valid modes are kept,
+ * duplicates are removed, sorted by MODE_REVEAL_ORDER.
+ */
+export function removePublicMode(
+  modes: readonly string[],
+  mode: RevealableMode
+): RevealableMode[] {
+  const set = new Set<RevealableMode>();
+  for (const m of modes) {
+    if (isRevealableMode(m) && m !== mode) set.add(m);
+  }
+  return MODE_REVEAL_ORDER.filter((m) => set.has(m));
+}
+
+/**
+ * True iff `modes` is an array of valid mode names with no duplicates.
+ * Order is irrelevant. Used by the API to validate `publicModes` payloads.
+ */
+export function isValidPublicModes(modes: readonly unknown[]): boolean {
+  const seen = new Set<string>();
+  for (const m of modes) {
+    if (!isRevealableMode(m)) return false;
+    if (seen.has(m)) return false;
+    seen.add(m);
   }
   return true;
 }

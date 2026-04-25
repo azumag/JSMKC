@@ -1983,7 +1983,7 @@ async function main() {
   try {
     if (!tc334TournamentId) throw new Error('TC-334 did not create a tournament; skipping');
 
-    // Admin publishes the TA mode (publicModes cascade: ['ta'])
+    // Admin publishes the TA mode (independent toggle; publicModes: ['ta'])
     const putResp = await page.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
         method: 'PUT',
@@ -2197,9 +2197,11 @@ async function main() {
     }
   }
 
-  // TC-339: Mode publish/unpublish cascade — publishing TA publishes only TA;
-  // publishing BM cascades to also include TA. Unpublishing TA cascades to remove BM.
-  // Verifies the API enforces MODE_REVEAL_ORDER sequential prefix constraint.
+  // TC-339: Independent per-mode publish toggle (issue #618).
+  // Each mode publishes/unpublishes independently — toggling one mode must not
+  // affect the publish state of any other mode. Non-sequential subsets like
+  // ['bm'] alone or ['bm','gp'] are now valid; only invalid mode names and
+  // duplicates are rejected.
   let tc339TournamentId = null;
   try {
     const created = await page.evaluate(async () => {
@@ -2222,8 +2224,22 @@ async function main() {
       });
     }, tc339TournamentId);
 
-    // Publish BM — API should accept ['ta', 'bm'] as a valid sequential prefix
-    const bmPutResp = await page.evaluate(async (tid) => {
+    // Publish only BM — API must accept ['bm'] alone (no cascade to TA).
+    const bmOnlyResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['bm'] }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, tc339TournamentId);
+    const bmOnlyAccepted = bmOnlyResp.status === 200 &&
+      Array.isArray(bmOnlyResp.body?.data?.publicModes) &&
+      bmOnlyResp.body.data.publicModes.length === 1 &&
+      bmOnlyResp.body.data.publicModes.includes('bm');
+
+    // Toggle TA on without affecting BM — final state must be exactly {ta, bm}
+    const taAddResp = await page.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2231,23 +2247,45 @@ async function main() {
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
     }, tc339TournamentId);
-    const bmPublished = bmPutResp.status === 200 &&
-      Array.isArray(bmPutResp.body?.data?.publicModes) &&
-      bmPutResp.body.data.publicModes.includes('ta') &&
-      bmPutResp.body.data.publicModes.includes('bm');
+    const taAdded = taAddResp.status === 200 &&
+      Array.isArray(taAddResp.body?.data?.publicModes) &&
+      taAddResp.body.data.publicModes.includes('ta') &&
+      taAddResp.body.data.publicModes.includes('bm');
 
-    // Non-sequential publicModes (e.g., ['bm'] without 'ta') must be rejected with 400
+    // Toggle BM off — TA must remain, no cascade
+    const bmOffResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['ta'] }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, tc339TournamentId);
+    const bmOffNoCascade = bmOffResp.status === 200 &&
+      Array.isArray(bmOffResp.body?.data?.publicModes) &&
+      bmOffResp.body.data.publicModes.length === 1 &&
+      bmOffResp.body.data.publicModes.includes('ta');
+
+    // Invalid mode names and duplicates must still be rejected
     const invalidPut = await page.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicModes: ['bm'] }),
+        body: JSON.stringify({ publicModes: ['foo'] }),
       });
       return { status: r.status };
     }, tc339TournamentId);
-    const invalidRejected = invalidPut.status === 400;
+    const dupePut = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['ta', 'ta'] }),
+      });
+      return { status: r.status };
+    }, tc339TournamentId);
+    const invalidRejected = invalidPut.status === 400 && dupePut.status === 400;
 
-    // After publishing BM, the tournament should appear in non-admin list
+    // After publishing modes, the tournament should appear in the non-admin list
     const appearsInList = await new Promise((resolve) => {
       const req = https.get(`${BASE}/api/tournaments?limit=100`, (res) => {
         let data = '';
@@ -2264,12 +2302,14 @@ async function main() {
     });
 
     log('TC-339',
-      bmPublished && invalidRejected && appearsInList ? 'PASS' : 'FAIL',
-      !bmPublished ? `BM publish failed (status=${bmPutResp.status}, modes=${JSON.stringify(bmPutResp.body?.data?.publicModes)})` :
-      !invalidRejected ? `Non-sequential modes accepted (status=${invalidPut.status}, expected 400)` :
+      bmOnlyAccepted && taAdded && bmOffNoCascade && invalidRejected && appearsInList ? 'PASS' : 'FAIL',
+      !bmOnlyAccepted ? `Independent BM publish failed (status=${bmOnlyResp.status}, modes=${JSON.stringify(bmOnlyResp.body?.data?.publicModes)})` :
+      !taAdded ? `TA add did not preserve BM (modes=${JSON.stringify(taAddResp.body?.data?.publicModes)})` :
+      !bmOffNoCascade ? `BM off cascaded into TA (modes=${JSON.stringify(bmOffResp.body?.data?.publicModes)})` :
+      !invalidRejected ? `Invalid modes accepted (foo=${invalidPut.status}, dupe=${dupePut.status}, expected 400)` :
       !appearsInList ? 'Published tournament not visible in non-admin list' : '');
   } catch (err) {
-    log('TC-339', 'FAIL', err instanceof Error ? err.message : 'Mode publish cascade test failed');
+    log('TC-339', 'FAIL', err instanceof Error ? err.message : 'Independent mode publish test failed');
   } finally {
     if (tc339TournamentId) {
       await page.evaluate(async (tid) => {

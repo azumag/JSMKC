@@ -447,13 +447,21 @@ describe('PUT /api/tournaments/[id]', () => {
       });
     });
 
+    // Independent per-mode toggling (issue #618): any subset of valid mode
+    // names is accepted, with no ordering or prefix constraint.
     it.each([
       [[]],
       [['ta']],
+      [['bm']],
+      [['mr']],
+      [['gp']],
       [['ta', 'bm']],
-      [['ta', 'bm', 'mr']],
+      [['bm', 'gp']],
+      [['ta', 'mr']],
       [['ta', 'bm', 'mr', 'gp']],
-    ])('should accept sequential prefix publicModes %p', async (publicModes) => {
+      // Order is irrelevant
+      [['gp', 'ta']],
+    ])('should accept any valid publicModes subset %p', async (publicModes) => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
@@ -475,19 +483,13 @@ describe('PUT /api/tournaments/[id]', () => {
     });
 
     it.each([
-      // Out-of-order mode in the payload — publishing BM without TA is not allowed
-      [['bm']],
-      [['mr']],
-      [['gp']],
-      // Gaps
-      [['ta', 'mr']],
-      [['ta', 'gp']],
-      [['ta', 'bm', 'gp']],
-      // Wrong order
-      [['bm', 'ta']],
-      // Unknown mode
+      // Unknown mode names
       [['foo']],
-    ])('should reject non-sequential publicModes %p with 400', async (publicModes) => {
+      [['ta', 'foo']],
+      // Duplicates
+      [['ta', 'ta']],
+      [['bm', 'mr', 'bm']],
+    ])('should reject invalid publicModes %p with 400', async (publicModes) => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
