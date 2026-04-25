@@ -273,49 +273,37 @@ async function runTc804(adminPage) {
 }
 
 /* ───────── TC-805: Remove a mistaken TA qualification player via UI ─────────
- * The admin can remove a qualification entry, cancel safely, then confirm. The
- * player master record remains available and the player returns to the Add
- * Player candidate list for re-entry. Uses 2 shared players. */
+ * The admin removes a player from qualification via the Edit Players setup
+ * dialog (the per-row "Remove from qualification" button was replaced by the
+ * unified setup dialog). The player master record remains available and the
+ * player returns to the Add Player candidate list for re-entry.
+ * Uses 2 shared players. */
 async function runTc805(adminPage) {
   try {
     /* Operates on the shared 28-player qualification state. Picks two
-     * players, exercises the remove-from-qualification UX, then re-adds p1
-     * via the Setup dialog so downstream tests still see 28 entries. */
+     * players, exercises the remove-from-qualification UX via the setup
+     * dialog, then re-adds p1 so downstream tests still see 28 entries. */
     const tournamentId = sharedTaTournamentId;
     if (!tournamentId) throw new Error('Shared TA tournament not initialized');
     const [p1, p2] = sharedTaPlayers(2);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
-    await adminPage.getByRole('tab', { name: /タイム入力|Time Entry/ }).click();
 
-    const rowFor = (nickname) => adminPage
-      .getByRole('row')
-      .filter({ hasText: nickname });
+    /* Open the Edit Players dialog to remove p1 from the staged entry list. */
+    await adminPage.getByRole('button', {
+      name: /^(Setup Players|Edit Players|プレイヤー設定|プレイヤー編集)$/,
+    }).first().click();
+    const removeDialog = adminPage.getByRole('dialog').filter({
+      hasText: /Setup Time Trial Players|Edit Time Trial Players|タイムアタック プレイヤー(設定|編集)/,
+    }).first();
+    await removeDialog.waitFor({ state: 'visible', timeout: 10000 });
 
-    const targetRow = rowFor(p1.nickname);
-    await targetRow.getByRole('button', { name: /予選から削除|Remove from qualification/ }).click();
-
-    const dialog = adminPage.getByRole('alertdialog');
-    await dialog.getByText(/予選から削除しますか|Remove .* from qualification/).waitFor({ timeout: 10000 });
-    const dialogText = await dialog.innerText();
-    const explainsRemoval = /プレイヤー自体は削除されません|player record is not deleted/i.test(dialogText);
-    const explainsReAdd = /再追加|add the player again/i.test(dialogText);
-    if (!explainsRemoval || !explainsReAdd) {
-      throw new Error(`Removal dialog did not explain deletion scope/re-add path: ${dialogText}`);
-    }
-
-    await dialog.getByRole('button', { name: /キャンセル|Cancel/ }).click();
-    await rowFor(p1.nickname).waitFor({ timeout: 10000 });
-
-    await rowFor(p1.nickname)
-      .getByRole('button', { name: /予選から削除|Remove from qualification/ })
-      .click();
-    await adminPage
-      .getByRole('alertdialog')
-      .getByRole('button', { name: /予選から削除|Remove from qualification/ })
-      .click();
-
-    await rowFor(p1.nickname).waitFor({ state: 'detached', timeout: 15000 });
+    /* p1's entry appears in the right panel (staged entries). Click its Remove
+     * button to remove from the staged list, then save. */
+    const p1EntryRow = removeDialog.locator('div').filter({ hasText: new RegExp(`^.*${p1.nickname}.*$`) }).first();
+    await p1EntryRow.getByRole('button', { name: /^(Remove|削除)$/ }).click();
+    await removeDialog.getByRole('button', { name: /^(Save|保存)$/ }).click();
+    await removeDialog.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
 
     let entries = [];
     let removedFromApi = false;

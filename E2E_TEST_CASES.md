@@ -1496,6 +1496,28 @@
 
 ---
 
+## TC-341: 認証済みプレイヤーが非公開トーナメントの参加者ページにアクセス可能
+- **URL**: /api/tournaments/:id (GET, fields=summary)
+- **authRequired**: true (player credentials)
+- **背景**: Issue #615 修正後に発生したリグレッション。publicModes:[] の非公開トーナメントに対し
+  `GET /api/tournaments/:id?fields=summary` が認証済みプレイヤーへ 403 を返していた（管理者のみ
+  許可する条件が認証済みユーザー全体に広すぎた）。TA participant/page.tsx はこの API を使って
+  トーナメント情報を取得するため、403 になるとページが「Tournament Not Found」と表示される。
+  修正後: 未認証リクエストのみ 403、認証済みユーザー（プレイヤーを含む）は 200 を受け取る。
+- **手順**:
+  1. プレイヤー credentials でログイン済みのコンテキストを作成
+  2. publicModes:[] の非公開トーナメントを管理者 API で作成
+  3. プレイヤーコンテキストから `GET /api/tournaments/:id?fields=summary` を呼ぶ
+  4. ステータスが 200 かつ `success: true` であることを確認
+  5. 未認証リクエストで同 URL を呼び、403 が返ることを確認
+  6. トーナメント削除（クリーンアップ）
+- **期待結果**:
+  - 認証済みプレイヤー: 200 + `{ success: true, data: { id, name, ... } }`
+  - 未認証リクエスト: 403
+- **スクリプト**: tc-all.js TC-341
+
+---
+
 ## TC-337: トーナメント一覧 API ページネーション — GET /api/tournaments?limit&page
 - **URL**: /api/tournaments
 - **authRequired**: false (公開GETエンドポイント)
