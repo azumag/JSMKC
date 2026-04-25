@@ -48,13 +48,13 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
 
   return (
     <div
-      className="h-full overflow-y-auto pr-1"
+      className="h-full overflow-y-auto pr-2"
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
-      <div className="relative pl-5">
+      <div className="relative pl-7">
         {/* Vertical rail. Sits behind the dots and stretches full height. */}
-        <div className="pointer-events-none absolute bottom-1 left-[7px] top-1 w-px bg-white/15" />
+        <div className="pointer-events-none absolute bottom-1 left-[10px] top-1 w-px bg-white/15" />
 
         {ordered.map((event) => {
           const dot = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_DOT;
@@ -69,23 +69,23 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
                   ring suggests a subtle "node" feel without distracting from
                   the text content. */}
               <div
-                className={`absolute left-[-18px] top-[6px] h-3 w-3 rounded-full ring-2 ring-black/60 ${dot}`}
+                className={`absolute left-[-21px] top-[8px] h-3.5 w-3.5 rounded-full ring-2 ring-black/60 ${dot}`}
               />
 
               <div
-                className="rounded-md px-3 py-2 text-white shadow-md ring-1 ring-white/10"
+                className="rounded-md px-4 py-3 text-white shadow-md ring-1 ring-white/10"
                 style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm font-semibold leading-snug">
+                  <span className="truncate text-base font-semibold leading-snug">
                     {event.title}
                   </span>
-                  <span className="shrink-0 text-[10px] text-white/55 tabular-nums">
+                  <span className="shrink-0 text-xs text-white/55 tabular-nums">
                     {formatTimeAgo(now, event.timestamp)}
                   </span>
                 </div>
                 {event.subtitle && (
-                  <div className="mt-0.5 text-[13px] leading-snug text-white/85">
+                  <div className="mt-1 text-sm leading-snug text-white/85">
                     {event.subtitle}
                   </div>
                 )}
@@ -95,7 +95,7 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
         })}
 
         {ordered.length === 0 && (
-          <div className="py-6 text-center text-xs text-white/40">
+          <div className="py-6 text-center text-sm text-white/40">
             イベント待機中…
           </div>
         )}

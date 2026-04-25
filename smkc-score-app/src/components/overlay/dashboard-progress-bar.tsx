@@ -40,31 +40,31 @@ export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps
 
   return (
     <div
-      className="rounded-lg px-4 py-3 text-white shadow-2xl ring-1 ring-white/10"
+      className="rounded-lg px-6 py-5 text-white shadow-2xl ring-1 ring-white/10"
       style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
       data-testid="dashboard-progress-bar"
     >
-      <div className="mb-2 text-xs uppercase tracking-widest text-white/50">
+      <div className="mb-3 text-sm uppercase tracking-widest text-white/50">
         トーナメント進行
       </div>
 
       {/* Step indicator: dots + connecting bars. The connector between dot N
           and N+1 lights up when N is reached, so the bar visually fills as
           the tournament progresses. */}
-      <div className="mb-2 flex items-center">
+      <div className="mb-3 flex items-center">
         {STEPS.map((step, i) => {
           const reached = i <= activeIdx;
           const isCurrent = i === activeIdx;
           return (
             <div key={step.key} className="flex flex-1 items-center">
               <div
-                className={`flex h-2.5 w-2.5 shrink-0 rounded-full ${
+                className={`flex h-3 w-3 shrink-0 rounded-full ${
                   reached ? "bg-yellow-400" : "bg-white/20"
                 } ${isCurrent ? "ring-2 ring-yellow-400/40" : ""}`}
               />
               {i < STEPS.length - 1 && (
                 <div
-                  className={`mx-1 h-0.5 flex-1 ${
+                  className={`mx-1.5 h-0.5 flex-1 ${
                     i < activeIdx ? "bg-yellow-400" : "bg-white/20"
                   }`}
                 />
@@ -74,7 +74,7 @@ export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps
         })}
       </div>
 
-      <div className="mb-2 flex justify-between text-[11px]">
+      <div className="mb-3 flex justify-between text-sm">
         {STEPS.map((step, i) => (
           <span
             key={step.key}
@@ -91,7 +91,7 @@ export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps
 
       {/* Detailed phase label — preserves round-level info like "決勝 QF" or
           "バラッジ1 R3". Empty until the first poll lands. */}
-      <div className="text-base font-semibold leading-tight">
+      <div className="text-xl font-semibold leading-tight">
         {currentPhase || "─"}
       </div>
     </div>
