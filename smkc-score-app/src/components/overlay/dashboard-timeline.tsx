@@ -24,7 +24,7 @@ const MODE_COLOR: Record<OverlayMode, string> = {
   gp: "bg-green-500",
 };
 
-const NEUTRAL_DOT = "bg-white";
+const NEUTRAL_ACCENT = "bg-white";
 
 /** Inline JP relative-time formatter — same pattern as `update-indicator`. */
 function formatTimeAgo(now: number, iso: string): string {
@@ -57,29 +57,16 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
-      <div className="relative pl-10">
-        {/* Vertical rail. Sits behind the dots and stretches full height.
-            Rail x-center (~21px) intentionally aligns with the dot center
-            below — keep the offsets in sync if pl-* changes. */}
-        <div className="pointer-events-none absolute bottom-1 left-[20px] top-1 w-px bg-white/15" />
-
+      <div>
         {ordered.map((event) => {
-          const dot = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_DOT;
           const isMatch = event.type === "match_completed" && !!event.matchResult;
           return (
             <div
               key={event.id}
-              className="relative mb-3 last:mb-0"
+              className="mb-3 last:mb-0"
               data-testid="dashboard-timeline-entry"
               data-event-id={event.id}
             >
-              {/* Dot marker on the rail. With pl-10 (40) and dot width 14,
-                  left:-26 puts the dot center at 40 - 26 + 7 = 21 — matches
-                  the rail above. */}
-              <div
-                className={`absolute left-[-26px] top-[10px] h-3.5 w-3.5 rounded-full ring-2 ring-black/60 ${dot}`}
-              />
-
               {isMatch ? (
                 <MatchScoreboardCard event={event} now={now} />
               ) : (
@@ -146,7 +133,7 @@ function MatchScoreboardCard({
   const r = event.matchResult!;
   const p1Wins = r.score1 > r.score2;
   const p2Wins = r.score2 > r.score1;
-  const accent = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_DOT;
+  const accent = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_ACCENT;
   return (
     <div
       className="overflow-hidden rounded-md text-white shadow-md ring-1 ring-white/10"
@@ -158,7 +145,11 @@ function MatchScoreboardCard({
         <div className={`w-1 shrink-0 ${accent}`} />
         <div className="flex-1 px-4 py-3">
           <div className="mb-2 flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-semibold uppercase tracking-wide text-white/70">
+            {/* Title rendered in full-strength white + bold so it reads
+                clearly as the card heading. The previous dimmed/uppercase
+                "label" treatment made it look like meta-text rather than
+                the headline. */}
+            <span className="truncate text-base font-bold text-white">
               {event.title.replace(/\s*終了\s*$/, "")}
             </span>
             <span className="shrink-0 text-xs text-white/55 tabular-nums">
