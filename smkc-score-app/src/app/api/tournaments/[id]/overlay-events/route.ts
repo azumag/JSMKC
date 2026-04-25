@@ -28,6 +28,7 @@ import { createLogger } from "@/lib/logger";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
 import { buildOverlayEvents } from "@/lib/overlay/events";
+import { computeCurrentPhase } from "@/lib/overlay/phase";
 import type { OverlayMatchInput } from "@/lib/overlay/types";
 
 /** Initial-poll window when no `since` is supplied. */
@@ -36,7 +37,19 @@ const INITIAL_WINDOW_MS = 30_000;
 /** Maximum lookback even when `since` is supplied — guards against runaway clients. */
 const MAX_LOOKBACK_MS = 10 * 60_000;
 
-function parseSince(raw: string | null, now: Date): Date {
+/**
+ * Lookback used when `?initial=1` is supplied (dashboard first-load case).
+ * The dashboard wants a populated panel even after long quiet stretches, so
+ * we trade a wider window for the cap-by-count enforced via `slice(-100)` on
+ * the merged event list further down.
+ */
+const INITIAL_BACKFILL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/** Hard cap on backfilled events (per dashboard contract). */
+const INITIAL_BACKFILL_LIMIT = 100;
+
+function parseSince(raw: string | null, now: Date, initial: boolean): Date {
+  if (initial) return new Date(now.getTime() - INITIAL_BACKFILL_MS);
   if (!raw) return new Date(now.getTime() - INITIAL_WINDOW_MS);
   const parsed = Date.parse(raw);
   if (Number.isNaN(parsed)) return new Date(now.getTime() - INITIAL_WINDOW_MS);
@@ -52,7 +65,8 @@ export async function GET(
   const { id } = await params;
   const tournamentId = await resolveTournamentId(id);
   const now = new Date();
-  const since = parseSince(request.nextUrl.searchParams.get("since"), now);
+  const initial = request.nextUrl.searchParams.get("initial") === "1";
+  const since = parseSince(request.nextUrl.searchParams.get("since"), now, initial);
 
   try {
     /* findUnique short-circuits all the relation queries below if the
@@ -63,6 +77,7 @@ export async function GET(
       where: { id: tournamentId },
       select: {
         id: true,
+        qualificationConfirmed: true,
         qualificationConfirmedAt: true,
       },
     });
@@ -100,7 +115,8 @@ export async function GET(
 
     /* Run all reads in parallel — D1 has no inter-query state to share and
        these are independent. The route runs every 3s per overlay so latency
-       matters more than per-query connection cost. */
+       matters more than per-query connection cost. The phase-state lookups
+       (last 9) feed the dashboard footer and are unaffected by `since`. */
     const [
       bmMatches,
       mrMatches,
@@ -110,6 +126,15 @@ export async function GET(
       scoreLogs,
       earliestFinals,
       latestOverallRanking,
+      bmLatestFinals,
+      mrLatestFinals,
+      gpLatestFinals,
+      taPhase1Entry,
+      taPhase2Entry,
+      taPhase3Entry,
+      taPhase1LatestRound,
+      taPhase2LatestRound,
+      taPhase3LatestRound,
     ] = await Promise.all([
       prisma.bMMatch.findMany({
         where: { tournamentId, updatedAt: { gt: since } },
@@ -175,6 +200,52 @@ export async function GET(
         where: { tournamentId, updatedAt: { gt: since } },
         _max: { updatedAt: true },
       }),
+      /* Footer phase state: the most recently created finals match per
+         mode (round != null), plus TA phase existence and latest round
+         number per phase. None of these depend on `since` — they describe
+         the current tournament state, not a delta. */
+      prisma.bMMatch.findFirst({
+        where: { tournamentId, stage: "finals", round: { not: null } },
+        select: { round: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.mRMatch.findFirst({
+        where: { tournamentId, stage: "finals", round: { not: null } },
+        select: { round: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.gPMatch.findFirst({
+        where: { tournamentId, stage: "finals", round: { not: null } },
+        select: { round: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.tTEntry.findFirst({
+        where: { tournamentId, stage: "phase1" },
+        select: { id: true },
+      }),
+      prisma.tTEntry.findFirst({
+        where: { tournamentId, stage: "phase2" },
+        select: { id: true },
+      }),
+      prisma.tTEntry.findFirst({
+        where: { tournamentId, stage: "phase3" },
+        select: { id: true },
+      }),
+      prisma.tTPhaseRound.findFirst({
+        where: { tournamentId, phase: "phase1" },
+        select: { roundNumber: true },
+        orderBy: { roundNumber: "desc" },
+      }),
+      prisma.tTPhaseRound.findFirst({
+        where: { tournamentId, phase: "phase2" },
+        select: { roundNumber: true },
+        orderBy: { roundNumber: "desc" },
+      }),
+      prisma.tTPhaseRound.findFirst({
+        where: { tournamentId, phase: "phase3" },
+        select: { roundNumber: true },
+        orderBy: { roundNumber: "desc" },
+      }),
     ]);
 
     const events = buildOverlayEvents({
@@ -198,9 +269,48 @@ export async function GET(
       scoreLogs,
     });
 
+    /* Initial dashboard load: cap to the most-recent N events. The window
+       is wide (7d) so this trim keeps the response from blowing up on busy
+       tournaments. Newest entries (end of the array — buildOverlayEvents
+       sorts ascending) are preserved. */
+    const cappedEvents = initial
+      ? events.slice(-INITIAL_BACKFILL_LIMIT)
+      : events;
+
+    /* Pick the latest finals round across the three 2P modes by createdAt;
+       if no mode has a finals match yet, this is null. */
+    const latestFinals = [bmLatestFinals, mrLatestFinals, gpLatestFinals]
+      .filter((m): m is { round: string | null; createdAt: Date } => m !== null)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+    /* Resolve TA phase from the existence checks. We descend from phase3
+       so the most-progressed phase wins even when earlier phases still
+       have stale entries. */
+    let taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3" =
+      "qualification";
+    let taLatestPhaseRoundNumber: number | null = null;
+    if (taPhase3Entry) {
+      taCurrentPhase = "phase3";
+      taLatestPhaseRoundNumber = taPhase3LatestRound?.roundNumber ?? null;
+    } else if (taPhase2Entry) {
+      taCurrentPhase = "phase2";
+      taLatestPhaseRoundNumber = taPhase2LatestRound?.roundNumber ?? null;
+    } else if (taPhase1Entry) {
+      taCurrentPhase = "phase1";
+      taLatestPhaseRoundNumber = taPhase1LatestRound?.roundNumber ?? null;
+    }
+
+    const currentPhase = computeCurrentPhase({
+      qualificationConfirmed: tournament.qualificationConfirmed,
+      taCurrentPhase,
+      taLatestPhaseRoundNumber,
+      latestFinalsRound: latestFinals?.round ?? null,
+    });
+
     const response = createSuccessResponse({
       serverTime: now.toISOString(),
-      events,
+      events: cappedEvents,
+      currentPhase,
     });
 
     /* Disable any intermediate caching: the response is time-sensitive and
