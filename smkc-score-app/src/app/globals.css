@@ -240,10 +240,6 @@
   body.overlay-mode {
     background: transparent !important;
   }
-  body.overlay-mode > div {
-    background: transparent !important;
-    min-height: 0 !important;
-  }
   body.overlay-mode header {
     display: none !important;
   }

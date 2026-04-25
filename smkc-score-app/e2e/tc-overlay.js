@@ -23,6 +23,7 @@
  *   a self-contained 2-player fixture. The unit tests in
  *   __tests__/lib/overlay/events.test.ts cover the aggregator path; manual
  *   QA on the shared 28-player fixture covers the route path.
+ *   TC-915  GET /overlay-events?initial=1 returns currentPhase + event cap
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -575,6 +576,46 @@ async function runTc909(adminPage) {
   }
 }
 
+/* ───────── TC-915: overlay ?initial=1 returns currentPhase + capped events ─────────
+ * Verifies the dashboard initial-load path:
+ *   - status 200 with success: true
+ *   - `currentPhase` string is present (phase resolver always returns a value)
+ *   - events array is present and within the 100-event cap (INITIAL_BACKFILL_LIMIT)
+ *   - Cache-Control: no-store header set (same as regular polls)
+ *
+ * Note: TC-909 (qualificationConfirmed) must have run first so the phase is
+ * at least "qualification_confirmed", giving us a populated `currentPhase`. */
+async function runTc915(_adminPage) {
+  try {
+    const resp = await httpsGet(
+      `/api/tournaments/${fixture.tournamentId}/overlay-events?initial=1`,
+    );
+    const okStatus = resp.status === 200;
+    const ok = resp.body?.success === true;
+    const data = resp.body?.data;
+    const hasEvents = data && Array.isArray(data.events);
+    // currentPhase is a string returned by computeCurrentPhase (e.g. "予選確定" or "予選中")
+    const hasCurrentPhase = data && 'currentPhase' in data && typeof data.currentPhase === 'string';
+    const hasServerTime = data && typeof data.serverTime === 'string';
+    const noStore = (resp.headers['cache-control'] || '').toLowerCase().includes('no-store');
+    // Events are capped to INITIAL_BACKFILL_LIMIT (100)
+    const withinLimit = hasEvents && data.events.length <= 100;
+
+    log('TC-915',
+      okStatus && ok && hasEvents && hasCurrentPhase && hasServerTime && noStore && withinLimit
+        ? 'PASS' : 'FAIL',
+      !okStatus ? `status=${resp.status}` :
+      !ok ? `success=${resp.body?.success}` :
+      !hasEvents ? 'events array missing' :
+      !hasCurrentPhase ? `currentPhase missing or wrong type: ${JSON.stringify(Object.keys(data || {})).slice(0, 80)}` :
+      !hasServerTime ? 'serverTime missing' :
+      !noStore ? `Cache-Control missing no-store: "${resp.headers['cache-control']}"` :
+      !withinLimit ? `events.length=${data.events.length} exceeds cap (100)` : '');
+  } catch (err) {
+    log('TC-915', 'FAIL', err instanceof Error ? err.message : 'TC-915 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -650,6 +691,7 @@ function getSuite() {
       { name: 'TC-913', fn: runTc913 },
       { name: 'TC-911', fn: runTc911 },
       { name: 'TC-909', fn: runTc909 },
+      { name: 'TC-915', fn: runTc915 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -657,7 +699,7 @@ function getSuite() {
 
 module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
-  runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914,
+  runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   getSuite,
   results,
 };

@@ -2001,6 +2001,52 @@ async function main() {
     log('TC-342', 'SKIP', 'No player available');
   }
 
+  // TC-343: PUT /tt/entries with full 20-course times populates lastRecordedCourse/lastRecordedTime.
+  // The overlay-events aggregator skips ta_time_recorded events when these fields are null
+  // (issue #627 TC-910). This test verifies the bulk-seed path through /tt/entries sets the
+  // fields so the overlay can display the most-recently recorded course for admin-seeded entries.
+  if (pid) {
+    let tc343TournamentId = null;
+    try {
+      tc343TournamentId = await uiCreateTournament(page, `E2E TT LastCourse ${Date.now()}`);
+      await uiActivateTournament(page, tc343TournamentId);
+      await uiSetupTaPlayers(page, tc343TournamentId, [
+        { id: pid, name: playerName, nickname: nick },
+      ]);
+
+      const taResp = await apiFetchTa(page, tc343TournamentId);
+      const entry = (taResp.b?.data?.entries ?? [])[0] ?? null;
+      if (!entry) throw new Error('No TA entry created for TC-343');
+
+      // Seed all 20 courses via the bulk /tt/entries PUT endpoint
+      const { times, totalMs } = makeTaTimesForRank(1);
+      await apiSeedTtEntry(page, tc343TournamentId, entry.id, times, totalMs, 1);
+
+      // Re-fetch the entry and verify lastRecordedCourse/lastRecordedTime are populated
+      const readResp = await page.evaluate(async ([tid, eid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`);
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, [tc343TournamentId, entry.id]);
+
+      const entryData = readResp.body?.data;
+      // lastRecordedCourse should be 'RR' (last course in canonical COURSES order)
+      const hasLastCourse = entryData?.lastRecordedCourse === 'RR';
+      const hasLastTime = typeof entryData?.lastRecordedTime === 'string' && entryData.lastRecordedTime.length > 0;
+
+      log('TC-343', readResp.status === 200 && hasLastCourse && hasLastTime ? 'PASS' : 'FAIL',
+        readResp.status !== 200 ? `GET failed: ${readResp.status}`
+        : !hasLastCourse ? `lastRecordedCourse=${entryData?.lastRecordedCourse} (expected 'RR')`
+        : !hasLastTime ? `lastRecordedTime not set (got ${entryData?.lastRecordedTime})`
+        : '');
+    } catch (err) {
+      log('TC-343', 'FAIL', err instanceof Error ? err.message : 'TT lastRecordedCourse test failed');
+    } finally {
+      if (tc343TournamentId) await deleteTournament(page, tc343TournamentId);
+    }
+  } else {
+    log('TC-343', 'SKIP', 'No player available');
+  }
+
   // TC-333: Polling-stats monitor API — authenticated gets 200 with stats shape, unauth gets 401
   // Verifies GET /api/monitor/polling-stats requires authentication and returns the expected
   // shape: { success, data: { totalRequests, averageResponseTime, activeConnections, errorRate,
