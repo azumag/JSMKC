@@ -2,10 +2,7 @@
  * Card — Paddock Editorial.
  *
  * Pit-board surface: 1px charcoal border, no drop shadow, slightly tighter
- * vertical rhythm than stock shadcn. The optional `data-flag` attribute on
- * the root surfaces a 4px decorative checker strip across the top edge —
- * use it for hero/leader cards (e.g., podium, primary tournament cards) by
- * passing `data-flag="checker"` on the Card.
+ * vertical rhythm than stock shadcn.
  */
 import * as React from "react"
 
@@ -16,9 +13,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        // Decorative checker strip is opt-in via data-flag="checker".
-        "relative bg-card text-card-foreground flex flex-col gap-5 rounded-sm border border-foreground/15 py-7 shadow-none",
-        "data-[flag=checker]:before:content-[''] data-[flag=checker]:before:absolute data-[flag=checker]:before:left-0 data-[flag=checker]:before:right-0 data-[flag=checker]:before:top-0 data-[flag=checker]:before:h-1 data-[flag=checker]:before:checker-strip",
+        "bg-card text-card-foreground flex flex-col gap-5 rounded-sm border border-foreground/15 py-7 shadow-none",
         className
       )}
       {...props}
