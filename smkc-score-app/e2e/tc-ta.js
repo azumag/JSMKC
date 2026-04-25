@@ -102,6 +102,10 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
   for (let i = 0; i < entries.length; i++) {
     const rank = startRank + i;
     const { times, totalMs } = makeTaTimesForRank(rank);
+    /* apiSeedTtEntry triggers recalculateRanks which resets ranks to 1..N
+     * based on relative totalTime. Follow up with apiForceRankOnly to stamp
+     * the desired rank (e.g. 17..24 for Phase 1 promotion tests) without
+     * re-triggering rank recalculation (rank-only PUT skips recalculate). */
     await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, rank);
     /* recalculateRanks (triggered inside the PUT route when `times` is present)
      * reorders by actual time values and may derive a different rank than the

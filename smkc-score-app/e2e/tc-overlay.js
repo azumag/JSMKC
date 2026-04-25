@@ -483,14 +483,19 @@ async function runTc910(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'ta_time_recorded');
     const hasMode = evt && evt.mode === 'ta';
-    const hasTitle = evt && /TA/.test(evt.title || '');
-    const pass = !!(evt && hasMode && hasTitle);
+    // title format: "[phaseLabel] playerNick が course で time を記録しました（現在 N 位）"
+    // The literal "TA" was intentionally removed from the title in 779e988;
+    // mode is carried by evt.mode and evt.taTimeRecord instead.
+    const hasTitle = evt && /記録しました/.test(evt.title || '');
+    const hasTaPayload = evt && evt.taTimeRecord?.course && evt.taTimeRecord?.time;
+    const pass = !!(evt && hasMode && hasTitle && hasTaPayload);
     log('TC-910',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'ta_time_recorded event missing' :
       !hasMode ? `wrong mode ${evt.mode}` :
-      `title missing TA: "${evt.title}"`);
+      !hasTitle ? `title missing 記録しました: "${evt.title}"` :
+      `taTimeRecord payload incomplete: ${JSON.stringify(evt.taTimeRecord)}`);
   } catch (err) {
     log('TC-910', 'FAIL', err instanceof Error ? err.message : 'TC-910 threw');
   }
