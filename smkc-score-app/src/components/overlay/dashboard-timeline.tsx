@@ -1,30 +1,22 @@
 /**
  * Timeline view for the OBS dashboard browser source.
  *
- * Renders a vertical timeline with a single rail line and mode-colored
- * dot markers. Two card variants:
- *   - Match results (`event.matchResult` populated): graphical scoreboard
- *     row — player names with big tabular score digits, winner highlighted.
+ * Renders a vertical stack of cards. Two card variants:
+ *   - Match results (`event.matchResult` populated): graphical scoreboard —
+ *     player names with big tabular score digits, winner highlighted.
  *     Roughly 2× the height of a regular card so the broadcast viewer can
  *     read the result at a glance.
  *   - Everything else: compact title + optional subtitle.
  *
- * Newest events are pinned at the top; the parent page owns polling,
- * dedupe and capping.
+ * Cards are visually separated by a wider gap and a stronger ring/border
+ * (no rail line, no per-mode side stripe) so each entry reads as its
+ * own self-contained item. Newest events sit at the top; the parent page
+ * owns polling, dedupe and capping.
  */
 
 "use client";
 
-import type { OverlayEvent, OverlayMode } from "@/lib/overlay/types";
-
-const MODE_COLOR: Record<OverlayMode, string> = {
-  ta: "bg-yellow-400",
-  bm: "bg-red-500",
-  mr: "bg-blue-500",
-  gp: "bg-green-500",
-};
-
-const NEUTRAL_ACCENT = "bg-white";
+import type { OverlayEvent } from "@/lib/overlay/types";
 
 /** Inline JP relative-time formatter — same pattern as `update-indicator`. */
 function formatTimeAgo(now: number, iso: string): string {
@@ -38,6 +30,13 @@ function formatTimeAgo(now: number, iso: string): string {
   if (hr < 24) return `${hr}時間前`;
   return `${Math.floor(hr / 24)}日前`;
 }
+
+/* Card visual treatment: solid border + drop shadow so each card stands
+   off the transparent OBS canvas as a distinct block. The previous
+   `ring-1 ring-white/10` was almost invisible on a dark broadcast. */
+const CARD_BASE =
+  "rounded-lg border border-white/25 text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)]";
+const CARD_BG = "rgba(0, 0, 0, 0.78)";
 
 interface DashboardTimelineProps {
   /** Events oldest-first (matches the API response order). */
@@ -57,13 +56,15 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
-      <div>
+      {/* gap-4 (was mb-3 ≈ 12px between cards) gives ~16px breathing room
+          between cards so the new bordered look reads as separated blocks
+          rather than a continuous list. */}
+      <div className="flex flex-col gap-4">
         {ordered.map((event) => {
           const isMatch = event.type === "match_completed" && !!event.matchResult;
           return (
             <div
               key={event.id}
-              className="mb-3 last:mb-0"
               data-testid="dashboard-timeline-entry"
               data-event-id={event.id}
             >
@@ -94,8 +95,8 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
 function CompactCard({ event, now }: { event: OverlayEvent; now: number }) {
   return (
     <div
-      className="rounded-md px-4 py-3 text-white shadow-md ring-1 ring-white/10"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
+      className={`${CARD_BASE} px-4 py-3`}
+      style={{ backgroundColor: CARD_BG }}
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-semibold leading-snug">
@@ -119,9 +120,6 @@ function CompactCard({ event, now }: { event: OverlayEvent; now: number }) {
  * context, then two rows showing player + score. Winning row gets a
  * yellow accent + bullet, losing row dims; ties show neither bullet
  * and add a "引き分け" footnote so the viewer doesn't second-guess.
- *
- * The underlying mode color of the dot is also reused as the left
- * accent stripe so the card visually ties back to its rail marker.
  */
 function MatchScoreboardCard({
   event,
@@ -133,41 +131,28 @@ function MatchScoreboardCard({
   const r = event.matchResult!;
   const p1Wins = r.score1 > r.score2;
   const p2Wins = r.score2 > r.score1;
-  const accent = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_ACCENT;
   return (
     <div
-      className="overflow-hidden rounded-md text-white shadow-md ring-1 ring-white/10"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.75)" }}
+      className={`${CARD_BASE} px-4 py-3`}
+      style={{ backgroundColor: CARD_BG }}
       data-testid="dashboard-timeline-scoreboard"
     >
-      <div className="flex">
-        {/* Mode accent stripe — links the card visually to its rail dot. */}
-        <div className={`w-1 shrink-0 ${accent}`} />
-        <div className="flex-1 px-4 py-3">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            {/* Title rendered in full-strength white + bold so it reads
-                clearly as the card heading. The previous dimmed/uppercase
-                "label" treatment made it look like meta-text rather than
-                the headline. */}
-            <span className="truncate text-base font-bold text-white">
-              {event.title.replace(/\s*終了\s*$/, "")}
-            </span>
-            <span className="shrink-0 text-xs text-white/55 tabular-nums">
-              {formatTimeAgo(now, event.timestamp)}
-            </span>
-          </div>
-
-          <PlayerScoreRow name={r.player1} score={r.score1} winner={p1Wins} />
-          <div className="my-1 h-px bg-white/10" />
-          <PlayerScoreRow name={r.player2} score={r.score2} winner={p2Wins} />
-
-          {!p1Wins && !p2Wins && (
-            <div className="mt-1 text-center text-xs text-white/50">
-              引き分け
-            </div>
-          )}
-        </div>
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="truncate text-base font-bold text-white">
+          {event.title.replace(/\s*終了\s*$/, "")}
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
       </div>
+
+      <PlayerScoreRow name={r.player1} score={r.score1} winner={p1Wins} />
+      <div className="my-1 h-px bg-white/10" />
+      <PlayerScoreRow name={r.player2} score={r.score2} winner={p2Wins} />
+
+      {!p1Wins && !p2Wins && (
+        <div className="mt-1 text-center text-xs text-white/50">引き分け</div>
+      )}
     </div>
   );
 }
