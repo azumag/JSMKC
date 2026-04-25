@@ -21,7 +21,7 @@ export function DashboardFooter({ currentPhase }: DashboardFooterProps) {
       className="flex h-full w-full items-center px-6 text-blue-900"
       data-testid="dashboard-footer"
     >
-      <span className="text-3xl font-semibold tracking-tight">{currentPhase}</span>
+      <span className="text-5xl font-bold tracking-tight">{currentPhase}</span>
     </div>
   );
 }

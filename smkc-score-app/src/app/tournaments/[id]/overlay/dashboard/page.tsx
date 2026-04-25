@@ -20,8 +20,9 @@
 "use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { DashboardActivityLog } from "@/components/overlay/dashboard-activity-log";
 import { DashboardFooter } from "@/components/overlay/dashboard-footer";
+import { DashboardProgressBar } from "@/components/overlay/dashboard-progress-bar";
+import { DashboardTimeline } from "@/components/overlay/dashboard-timeline";
 import type { OverlayEvent, OverlayEventsResponse } from "@/lib/overlay/types";
 import { POLLING_INTERVAL } from "@/lib/constants";
 
@@ -112,20 +113,26 @@ export default function DashboardPage({
       style={{ background: "transparent" }}
       data-testid="dashboard-root"
     >
-      {/* Right-edge activity log column. Coordinates align with the slot
-          freed up by the planned 2P relocation in the JSMKC broadcast. */}
+      {/* Right-edge dashboard panel: progress bar at the top + scrolling
+          event timeline below. Anchored at (1525, 156) per the broadcast
+          scene's reserved slot, sized 380×800. */}
       <div
-        className="pointer-events-none fixed"
-        style={{ top: 80, right: 10, bottom: 34, width: 240 }}
+        className="pointer-events-none fixed flex flex-col gap-3"
+        style={{ left: 1525, top: 156, width: 380, height: 800 }}
       >
-        <DashboardActivityLog events={events} now={now} />
+        <DashboardProgressBar currentPhase={currentPhase} />
+        {/* min-h-0 lets the inner scroll container shrink to fit; without
+            it flex children inflate to content height and overflow the box. */}
+        <div className="min-h-0 flex-1">
+          <DashboardTimeline events={events} now={now} />
+        </div>
       </div>
 
       {/* Phase footer in the existing bottom-left strip. Width-bounded so
           the right portion (解説 / Discord) stays visible. */}
       <div
         className="pointer-events-none fixed"
-        style={{ bottom: 0, left: 120, width: 1100, height: 82 }}
+        style={{ bottom: 0, left: 170, width: 1050, height: 82 }}
       >
         <DashboardFooter currentPhase={currentPhase} />
       </div>
