@@ -312,6 +312,7 @@ describe('PUT /api/players/[id]', () => {
             name: 'Updated Name',
             nickname: 'updated',
             country: 'US',
+            noCamera: false,
           },
         })
       );
