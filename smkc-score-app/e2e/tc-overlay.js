@@ -24,6 +24,8 @@
  *   __tests__/lib/overlay/events.test.ts cover the aggregator path; manual
  *   QA on the shared 28-player fixture covers the route path.
  *   TC-915  GET /overlay-events?initial=1 returns currentPhase + event cap
+ *   TC-916  PUT /broadcast sets 1P/2P names; public GET reads them back
+ *   TC-917  overlay-events response includes overlayPlayer1Name / overlayPlayer2Name
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -621,6 +623,71 @@ async function runTc915(_adminPage) {
   }
 }
 
+/* ───────── TC-916: Broadcast API PUT/GET (Issue #635) ─────────
+ * Admin sets 1P/2P names via PUT /broadcast (needs auth → browser eval).
+ * Public GET /broadcast (unauthenticated, via httpsGet) must return them. */
+async function runTc916(adminPage) {
+  try {
+    const stamp = Date.now();
+    const name1 = `TC916_P1_${stamp}`;
+    const name2 = `TC916_P2_${stamp}`;
+
+    const putRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, [
+      `/api/tournaments/${fixture.tournamentId}/broadcast`,
+      { player1Name: name1, player2Name: name2 },
+    ]);
+
+    const putOk = putRes.s === 200;
+
+    /* Unauthenticated GET must succeed (public endpoint) */
+    const getResp = await httpsGet(`/api/tournaments/${fixture.tournamentId}/broadcast`);
+    const getData = getResp.body?.data;
+    const namesMatch = getData?.player1Name === name1 && getData?.player2Name === name2;
+
+    log('TC-916',
+      putOk && getResp.status === 200 && namesMatch ? 'PASS' : 'FAIL',
+      !putOk ? `PUT status=${putRes.s} ${JSON.stringify(putRes.b).slice(0, 100)}` :
+      getResp.status !== 200 ? `GET status=${getResp.status}` :
+      !namesMatch ? `names mismatch got ${getData?.player1Name}/${getData?.player2Name}` : '');
+  } catch (err) {
+    log('TC-916', 'FAIL', err instanceof Error ? err.message : 'TC-916 threw');
+  }
+}
+
+/* ───────── TC-917: overlay-events exposes broadcast player names (Issue #635) ─────────
+ * After TC-916 sets names, /overlay-events?initial=1 must include
+ * overlayPlayer1Name and overlayPlayer2Name as non-empty strings. */
+async function runTc917(_adminPage) {
+  try {
+    const resp = await httpsGet(
+      `/api/tournaments/${fixture.tournamentId}/overlay-events?initial=1`,
+    );
+    const data = resp.body?.data;
+    const hasP1 = data && 'overlayPlayer1Name' in data && typeof data.overlayPlayer1Name === 'string';
+    const hasP2 = data && 'overlayPlayer2Name' in data && typeof data.overlayPlayer2Name === 'string';
+    /* TC-916 set both names, so they should be non-empty here */
+    const p1Set = hasP1 && data.overlayPlayer1Name.length > 0;
+    const p2Set = hasP2 && data.overlayPlayer2Name.length > 0;
+
+    log('TC-917',
+      resp.status === 200 && hasP1 && hasP2 && p1Set && p2Set ? 'PASS' : 'FAIL',
+      resp.status !== 200 ? `status=${resp.status}` :
+      !hasP1 ? 'overlayPlayer1Name missing from response' :
+      !hasP2 ? 'overlayPlayer2Name missing from response' :
+      !p1Set ? `overlayPlayer1Name is empty: "${data.overlayPlayer1Name}"` :
+      !p2Set ? `overlayPlayer2Name is empty: "${data.overlayPlayer2Name}"` : '');
+  } catch (err) {
+    log('TC-917', 'FAIL', err instanceof Error ? err.message : 'TC-917 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -681,6 +748,8 @@ function getSuite() {
      *   - TC-911 (overall ranking) any time after qual data exists.
      *   - TC-909 (qualificationConfirmed) AFTER all score PUTs: the route
      *     blocks qualification edits once this flag is set.
+     *   - TC-916 / TC-917 (broadcast): TC-916 sets names, TC-917 reads them
+     *     back from overlay-events. Both after TC-909 to avoid races.
      *   - TC-906 (real-browser render) last: navigates the admin page
      *     away from anything cleanup might need. */
     tests: [
@@ -697,6 +766,8 @@ function getSuite() {
       { name: 'TC-911', fn: runTc911 },
       { name: 'TC-909', fn: runTc909 },
       { name: 'TC-915', fn: runTc915 },
+      { name: 'TC-916', fn: runTc916 },
+      { name: 'TC-917', fn: runTc917 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -705,6 +776,7 @@ function getSuite() {
 module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
+  runTc916, runTc917,
   getSuite,
   results,
 };

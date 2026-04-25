@@ -29,7 +29,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
-import { COURSES, CUPS } from '@/lib/constants';
+import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
 
 /**
  * Bracket size inference thresholds.
@@ -1177,6 +1177,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
       };
 
       if (config.putAdditionalFields) {
+        /* Validate tvNumber if present: must be an integer 1-MAX_TV_NUMBER or null/undefined to clear. */
+        if (body.tvNumber !== undefined && body.tvNumber !== null) {
+          const tv = body.tvNumber;
+          if (!Number.isInteger(tv) || tv < 1 || tv > MAX_TV_NUMBER) {
+            return handleValidationError(`tvNumber must be 1–${MAX_TV_NUMBER}`, 'tvNumber');
+          }
+        }
         for (const field of config.putAdditionalFields) {
           if (body[field] !== undefined) {
             updateData[field] = body[field] || null;

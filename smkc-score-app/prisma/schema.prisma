@@ -128,6 +128,8 @@ model Tournament {
   dualReportEnabled Boolean @default(false) // When true, both players must report matching scores for auto-confirmation
   taPlayerSelfEdit  Boolean @default(true)  // §3.1: When false, players cannot edit their own TA times (only partner's)
   frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
+  overlayPlayer1Name String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
+  overlayPlayer2Name String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
   qualificationConfirmed Boolean @default(false) // BM/MR/GP予選確定フラグ。trueの場合スコア編集不可
   qualificationConfirmedAt DateTime? // 予選確定日時（監査証跡）
   publicModes   Json     @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）

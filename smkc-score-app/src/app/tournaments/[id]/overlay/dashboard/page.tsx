@@ -44,6 +44,9 @@ export default function DashboardPage({
   const [events, setEvents] = useState<OverlayEvent[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string>("");
   const [now, setNow] = useState<number>(() => Date.now());
+  /* Broadcast player names from "配信に反映" / 配信管理 page */
+  const [overlayPlayer1Name, setOverlayPlayer1Name] = useState<string>("");
+  const [overlayPlayer2Name, setOverlayPlayer2Name] = useState<string>("");
 
   /* `since` advances each poll. First call uses `?initial=1` (no since)
      to backfill recent history; subsequent calls echo back `serverTime`. */
@@ -81,6 +84,9 @@ export default function DashboardPage({
 
       sinceRef.current = payload.serverTime;
       if (payload.currentPhase) setCurrentPhase(payload.currentPhase);
+      /* Always update broadcast names (may change between polls even without new events) */
+      if (payload.overlayPlayer1Name !== undefined) setOverlayPlayer1Name(payload.overlayPlayer1Name);
+      if (payload.overlayPlayer2Name !== undefined) setOverlayPlayer2Name(payload.overlayPlayer2Name);
 
       const fresh = payload.events.filter((e) => {
         if (seenRef.current.has(e.id)) return false;
@@ -142,6 +148,36 @@ export default function DashboardPage({
       >
         <DashboardFooter currentPhase={currentPhase} />
       </div>
+
+      {/* 1P name display: x:80, y:480, w:230px, h:48px (「配信に反映」設定値) */}
+      {overlayPlayer1Name && (
+        <div
+          className="pointer-events-none fixed flex items-center"
+          style={{ left: 80, top: 480, width: 230, height: 48, overflow: "hidden" }}
+        >
+          <span
+            className="text-white font-bold text-xl leading-none truncate w-full"
+            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
+          >
+            {overlayPlayer1Name}
+          </span>
+        </div>
+      )}
+
+      {/* 2P name display: x:80, y:870, w:230px, h:48px (「配信に反映」設定値) */}
+      {overlayPlayer2Name && (
+        <div
+          className="pointer-events-none fixed flex items-center"
+          style={{ left: 80, top: 870, width: 230, height: 48, overflow: "hidden" }}
+        >
+          <span
+            className="text-white font-bold text-xl leading-none truncate w-full"
+            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
+          >
+            {overlayPlayer2Name}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

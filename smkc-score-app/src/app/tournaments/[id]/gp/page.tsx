@@ -266,7 +266,7 @@ export default function GrandPrixPage({
   }, [tournamentId]);
 
   /* Shared handlers for rank override and TV assignment */
-  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign } =
+  const { handleRankOverrideSave, handleBulkRankOverrideSave, handleTvAssign, handleBroadcastReflect } =
     useQualificationActions({ tournamentId, mode: "gp", refetch });
 
   /**
@@ -966,6 +966,16 @@ export default function GrandPrixPage({
                                     </TableCell>
                                   )}
                                   <TableCell className="text-right space-x-2">
+                                    {isAdmin && !match.isBye && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleBroadcastReflect(match.player1.nickname, match.player2.nickname)}
+                                        title="配信に反映"
+                                      >
+                                        📺
+                                      </Button>
+                                    )}
                                     {isAdmin && !match.isBye && (
                                       <Button
                                         variant={match.completed ? "outline" : "default"}

@@ -79,6 +79,8 @@ export async function GET(
         id: true,
         qualificationConfirmed: true,
         qualificationConfirmedAt: true,
+        overlayPlayer1Name: true,
+        overlayPlayer2Name: true,
       },
     });
     if (!tournament) {
@@ -323,6 +325,9 @@ export async function GET(
       events: cappedEvents,
       currentPhase,
       currentPhaseFormat,
+      /* Broadcast player names for the overlay name display (配信に反映) */
+      overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
+      overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
     });
 
     /* Disable any intermediate caching: the response is time-sensitive and

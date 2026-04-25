@@ -31,6 +31,7 @@ interface BMMatch {
   matchNumber: number;
   round: string | null;
   stage?: string | null;
+  tvNumber?: number | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -123,9 +124,10 @@ function PlayoffMatchCard({
         }
       }}
     >
-      {/* Match number label */}
-      <div className="text-xs text-muted-foreground mb-1">
-        M{bracketMatch.matchNumber}
+      {/* Match number and TV number label */}
+      <div className="text-xs text-muted-foreground mb-1 flex justify-between">
+        <span>M{bracketMatch.matchNumber}</span>
+        {match?.tvNumber && <span className="text-blue-500">TV{match.tvNumber}</span>}
       </div>
       {match?.cup && (
         <div className="mb-1 text-[11px] text-blue-600">
