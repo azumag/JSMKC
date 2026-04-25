@@ -58,6 +58,15 @@ function matchEvents(
       mode,
       title: `${MODE_LABEL[mode]} ${stageLabel} 試合 #${m.matchNumber} 終了`,
       subtitle: `${nick(m.player1)} ${scoreLabel} ${nick(m.player2)}`,
+      // Structured payload for the dashboard scoreboard renderer. Keeping
+      // `subtitle` populated alongside means consumers that don't know
+      // about `matchResult` (e.g. the legacy toast overlay) still work.
+      matchResult: {
+        player1: nick(m.player1),
+        player2: nick(m.player2),
+        score1: m.score1,
+        score2: m.score2,
+      },
     });
   }
   return out;

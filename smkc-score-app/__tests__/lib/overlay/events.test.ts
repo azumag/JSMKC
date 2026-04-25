@@ -54,7 +54,15 @@ function match(overrides: Partial<OverlayMatchInput>): OverlayMatchInput {
   };
 }
 
-const ALLOWED_KEYS = new Set(["id", "type", "timestamp", "mode", "title", "subtitle"]);
+const ALLOWED_KEYS = new Set([
+  "id",
+  "type",
+  "timestamp",
+  "mode",
+  "title",
+  "subtitle",
+  "matchResult",
+]);
 
 function assertNoPII<T extends object>(obj: T) {
   for (const key of Object.keys(obj)) {
@@ -102,6 +110,13 @@ describe("buildOverlayEvents", () => {
     expect(events[0].subtitle).toContain("4-1");
     expect(events[0].subtitle).toContain("Alice");
     expect(events[0].subtitle).toContain("Bob");
+    // Structured scoreboard payload powers the dashboard graphical view.
+    expect(events[0].matchResult).toEqual({
+      player1: "Alice",
+      player2: "Bob",
+      score1: 4,
+      score2: 1,
+    });
   });
 
   it("labels finals stage differently from qualification stage", () => {

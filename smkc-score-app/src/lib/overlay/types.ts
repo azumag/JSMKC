@@ -28,6 +28,23 @@ export type OverlayEventType =
  * server; the client should never compute it from `Date.now()` because the
  * OBS host clock cannot be trusted to match the server clock.
  */
+/**
+ * Structured score data attached to `match_completed` events so the
+ * dashboard can render a graphical scoreboard (player rows + big score
+ * digits) instead of parsing the freeform `subtitle` string.
+ *
+ * `score1`/`score2` carry the same number the subtitle string already
+ * exposes — for GP this is the driver-point total (re-mapped from
+ * `points1`/`points2` in the route handler), for BM/MR it is round wins.
+ * Either side can be null when a match has a bye seat.
+ */
+export interface OverlayMatchResult {
+  player1: string;
+  player2: string;
+  score1: number;
+  score2: number;
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -35,6 +52,9 @@ export interface OverlayEvent {
   mode?: OverlayMode;
   title: string;
   subtitle?: string;
+  /** Populated only when `type === "match_completed"`. Drives the graphical
+      scoreboard view in the dashboard timeline. */
+  matchResult?: OverlayMatchResult;
 }
 
 /**

@@ -1,11 +1,11 @@
 /**
  * Header bar for the OBS dashboard browser source.
  *
- * Renders the tournament's overall progression as a 4-step indicator
- * (予選 → バラッジ → 決勝 → TA決勝) with the current step highlighted, plus
- * the detailed phase label below. The 4th cell (TA決勝) is intentionally
- * always rendered so BM/MR/GP-only tournaments still see a consistent
- * layout — it just stays inactive when the tournament never reaches it.
+ * Renders the tournament's overall progression as a 3-step indicator
+ * (予選 → バラッジ → 決勝) with the current step highlighted. TA's
+ * phase3 (its bracket-equivalent finals) collapses into the "決勝" step
+ * — the round-level detail like "決勝 TA-R3" or "決勝 QF" lives in the
+ * label below and tells the viewer which mode is active.
  *
  * Why string-prefix classification (not a new API field): `computeCurrentPhase`
  * is the single source of truth for the dashboard label. Re-deriving the
@@ -19,16 +19,14 @@ const STEPS = [
   { key: "qualification", label: "予選" },
   { key: "barrage", label: "バラッジ" },
   { key: "finals", label: "決勝" },
-  { key: "ta_finals", label: "TA決勝" },
 ] as const;
 
 type StepKey = (typeof STEPS)[number]["key"];
 
 function classifyPhase(phase: string): StepKey {
-  // TA finals tag themselves with "TA-" so we can distinguish them from a
-  // 2P bracket round. Order matters: this must be checked before the
-  // generic 決勝 prefix below.
-  if (phase.startsWith("決勝 TA-") || phase === "決勝 TA") return "ta_finals";
+  // Both "決勝 QF" (BM/MR/GP bracket) and "決勝 TA-R<n>" (TA phase3) map to
+  // the finals bucket — the distinguishing TA-/round info lives in the
+  // detail label below the step indicator.
   if (phase.startsWith("決勝")) return "finals";
   if (phase.startsWith("バラッジ")) return "barrage";
   // "予選", "予選確定", or empty — all collapse to the qualification bucket
@@ -65,10 +63,10 @@ export function DashboardProgressBar({
       {/* Step indicator. Each STEP gets one equal-width grid cell with the
           dot centered horizontally; a horizontal connector lights up
           between cells once the prior step is reached. Both the dot row
-          and the label row share `grid-cols-4`, which guarantees the dot
+          and the label row share `grid-cols-3`, which guarantees the dot
           and its label sit on the same vertical axis (the previous flex
           layout drifted because justify-between hugged the row edges). */}
-      <div className="mb-2 grid grid-cols-4 items-center">
+      <div className="mb-2 grid grid-cols-3 items-center">
         {STEPS.map((step, i) => {
           const reached = i <= activeIdx;
           const isCurrent = i === activeIdx;
@@ -97,7 +95,7 @@ export function DashboardProgressBar({
         })}
       </div>
 
-      <div className="mb-3 grid grid-cols-4 text-sm">
+      <div className="mb-3 grid grid-cols-3 text-sm">
         {STEPS.map((step, i) => (
           <span
             key={step.key}
