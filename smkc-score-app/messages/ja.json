@@ -125,7 +125,11 @@
     "generateFinalsBracket": "決勝ブラケットを生成",
     "tbd": "未定",
     "publishMode": "公開",
-    "unpublishMode": "未公開"
+    "unpublishMode": "未公開",
+    "timeTrial": "タイムトライアル",
+    "battleMode": "バトルモード",
+    "matchRace": "マッチレース",
+    "grandPrix": "グランプリ"
   },
   "home": {
     "tagline": "SMKC スコア管理",

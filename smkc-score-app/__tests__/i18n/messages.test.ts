@@ -27,4 +27,21 @@ describe('translation messages', () => {
     expect(enMessages.common.viewTournament).toBe('View Tournament');
     expect(jaMessages.common.viewTournament).toBe('トーナメントを見る');
   });
+
+  /**
+   * ModePublishSwitch (src/components/tournament/mode-publish-switch.tsx) reads
+   * mode labels from the `common` namespace via `useTranslations('common')` and
+   * passes one of `timeTrial | battleMode | matchRace | grandPrix` as the key.
+   * If any of these are missing in `common`, the admin mode pages crash at
+   * render time with `MISSING_MESSAGE: common.<modeKey> (<locale>)` — which is
+   * exactly how the issue introduced by PR #620 (commit bb02f03) was found.
+   * This guards the contract between mode-publish-switch and the message files.
+   */
+  it.each(['timeTrial', 'battleMode', 'matchRace', 'grandPrix'] as const)(
+    'defines mode label "%s" in common for both locales (ModePublishSwitch contract)',
+    (modeKey) => {
+      expect(enMessages.common[modeKey]).toBeDefined();
+      expect(jaMessages.common[modeKey]).toBeDefined();
+    }
+  );
 });
