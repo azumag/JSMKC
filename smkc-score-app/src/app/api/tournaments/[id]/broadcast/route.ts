@@ -29,7 +29,7 @@ const MAX_NAME_LENGTH = 50;
 /**
  * GET /api/tournaments/[id]/broadcast
  *
- * Returns the current overlay player names.
+ * Returns the current overlay player names and match info.
  * Public — the overlay page reads this on each poll.
  */
 export async function GET(
@@ -43,7 +43,14 @@ export async function GET(
   try {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
-      select: { overlayPlayer1Name: true, overlayPlayer2Name: true },
+      select: {
+        overlayPlayer1Name: true,
+        overlayPlayer2Name: true,
+        overlayMatchLabel: true,
+        overlayPlayer1Wins: true,
+        overlayPlayer2Wins: true,
+        overlayMatchFt: true,
+      },
     });
 
     if (!tournament) {
@@ -53,6 +60,10 @@ export async function GET(
     return createSuccessResponse({
       player1Name: tournament.overlayPlayer1Name ?? "",
       player2Name: tournament.overlayPlayer2Name ?? "",
+      matchLabel: tournament.overlayMatchLabel ?? null,
+      player1Wins: tournament.overlayPlayer1Wins ?? null,
+      player2Wins: tournament.overlayPlayer2Wins ?? null,
+      matchFt: tournament.overlayMatchFt ?? null,
     });
   } catch (error) {
     logger.error("Failed to fetch broadcast state", { error, tournamentId });
@@ -60,14 +71,16 @@ export async function GET(
   }
 }
 
+const MAX_LABEL_LENGTH = 50;
+
 /**
  * PUT /api/tournaments/[id]/broadcast
  *
- * Updates the overlay player names.
+ * Updates the overlay player names and optional match info.
  * Requires admin authentication.
  *
- * Body: { player1Name?: string, player2Name?: string }
- * Either field may be omitted to leave it unchanged.
+ * Body: { player1Name?, player2Name?, matchLabel?, player1Wins?, player2Wins?, matchFt? }
+ * Any field may be omitted to leave it unchanged.
  */
 export async function PUT(
   request: NextRequest,
@@ -85,7 +98,7 @@ export async function PUT(
 
   try {
     const body = sanitizeInput(await request.json()) as Record<string, unknown>;
-    const { player1Name, player2Name } = body;
+    const { player1Name, player2Name, matchLabel, player1Wins, player2Wins, matchFt } = body;
 
     /* Allow null/empty string to clear the field; reject only invalid types. */
     if (player1Name !== undefined && player1Name !== null && typeof player1Name !== "string") {
@@ -100,6 +113,21 @@ export async function PUT(
     if (typeof player2Name === "string" && player2Name.length > MAX_NAME_LENGTH) {
       return handleValidationError(`player2Name must be at most ${MAX_NAME_LENGTH} characters`, "player2Name");
     }
+    if (matchLabel !== undefined && matchLabel !== null && typeof matchLabel !== "string") {
+      return handleValidationError("matchLabel must be a string", "matchLabel");
+    }
+    if (typeof matchLabel === "string" && matchLabel.length > MAX_LABEL_LENGTH) {
+      return handleValidationError(`matchLabel must be at most ${MAX_LABEL_LENGTH} characters`, "matchLabel");
+    }
+    if (player1Wins !== undefined && player1Wins !== null && typeof player1Wins !== "number") {
+      return handleValidationError("player1Wins must be a number", "player1Wins");
+    }
+    if (player2Wins !== undefined && player2Wins !== null && typeof player2Wins !== "number") {
+      return handleValidationError("player2Wins must be a number", "player2Wins");
+    }
+    if (matchFt !== undefined && matchFt !== null && typeof matchFt !== "number") {
+      return handleValidationError("matchFt must be a number", "matchFt");
+    }
 
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -109,16 +137,28 @@ export async function PUT(
       return createErrorResponse("Tournament not found", 404);
     }
 
-    const updateData: Record<string, string | null> = {};
+    const updateData: Record<string, string | number | null> = {};
     if (player1Name !== undefined) {
       updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
     }
     if (player2Name !== undefined) {
       updateData.overlayPlayer2Name = player2Name === null ? null : (player2Name as string).trim() || null;
     }
+    if (matchLabel !== undefined) {
+      updateData.overlayMatchLabel = matchLabel === null ? null : (matchLabel as string).trim() || null;
+    }
+    if (player1Wins !== undefined) {
+      updateData.overlayPlayer1Wins = player1Wins === null ? null : (player1Wins as number);
+    }
+    if (player2Wins !== undefined) {
+      updateData.overlayPlayer2Wins = player2Wins === null ? null : (player2Wins as number);
+    }
+    if (matchFt !== undefined) {
+      updateData.overlayMatchFt = matchFt === null ? null : (matchFt as number);
+    }
 
     if (Object.keys(updateData).length === 0) {
-      return handleValidationError("At least one of player1Name or player2Name is required", "body");
+      return handleValidationError("At least one field is required", "body");
     }
 
     await prisma.tournament.update({
@@ -132,6 +172,18 @@ export async function PUT(
         : undefined,
       player2Name: updateData.overlayPlayer2Name !== undefined
         ? (updateData.overlayPlayer2Name ?? "")
+        : undefined,
+      matchLabel: updateData.overlayMatchLabel !== undefined
+        ? (updateData.overlayMatchLabel ?? null)
+        : undefined,
+      player1Wins: updateData.overlayPlayer1Wins !== undefined
+        ? (updateData.overlayPlayer1Wins ?? null)
+        : undefined,
+      player2Wins: updateData.overlayPlayer2Wins !== undefined
+        ? (updateData.overlayPlayer2Wins ?? null)
+        : undefined,
+      matchFt: updateData.overlayMatchFt !== undefined
+        ? (updateData.overlayMatchFt ?? null)
         : undefined,
     });
   } catch (error) {

@@ -43,9 +43,15 @@ interface DashboardTimelineProps {
   events: OverlayEvent[];
   /** Current wall clock for relative-time labels. */
   now: number;
+  /**
+   * IDs of events that were just added this poll cycle.
+   * These entries receive a slide-in animation (#646) on their first render.
+   * The parent is responsible for clearing this set once the animation is done.
+   */
+  newEventIds?: ReadonlySet<string>;
 }
 
-export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
+export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelineProps) {
   /* Reverse so newest renders at the top. Don't mutate the prop — callers
      reuse the same array reference across renders for diffing. */
   const ordered = [...events].reverse();
@@ -56,18 +62,21 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
-      {/* gap-4 (was mb-3 ≈ 12px between cards) gives ~16px breathing room
-          between cards so the new bordered look reads as separated blocks
-          rather than a continuous list. */}
+      {/* gap-4 gives ~16px breathing room between cards so the bordered look
+          reads as separated blocks rather than a continuous list. */}
       <div className="flex flex-col gap-4">
         {ordered.map((event) => {
           const isMatch =
             event.type === "match_completed" && !!event.matchResult;
           const isTaTime =
             event.type === "ta_time_recorded" && !!event.taTimeRecord;
+          /* New entries slide in from the right (#646). The class is removed
+             after the animation completes to keep the DOM clean. */
+          const isNew = newEventIds?.has(event.id) ?? false;
           return (
             <div
               key={event.id}
+              className={isNew ? "timeline-slide-in" : undefined}
               data-testid="dashboard-timeline-entry"
               data-event-id={event.id}
             >

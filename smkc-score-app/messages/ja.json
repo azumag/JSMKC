@@ -500,6 +500,7 @@
     "tvAssigned": "M{matchNumber} に TV{n} を割り当てました",
     "tvCleared": "M{matchNumber} の TV 割り当てを解除しました",
     "failedAssignTv": "TV の割り当てに失敗しました",
+    "saveTvNumber": "TV# 保存",
     "fiveRaces": "5レース：",
     "fiveRacesDesc": "各試合は5つの異なるコースで構成",
     "mrEnteredRacesDesc": "実際に行ったレース分だけコースを入力してください。",

@@ -184,4 +184,16 @@ export interface OverlayEventsResponse {
    */
   overlayPlayer1Name?: string;
   overlayPlayer2Name?: string;
+  /**
+   * Round label of the match selected by "配信に反映" (e.g. "決勝 QF").
+   * When set, the dashboard footer uses this instead of the auto-computed phase.
+   * Null/undefined means fall back to computeCurrentPhase.
+   */
+  overlayMatchLabel?: string | null;
+  /** Current wins for 1P in the broadcast match. Null when not set. */
+  overlayPlayer1Wins?: number | null;
+  /** Current wins for 2P in the broadcast match. Null when not set. */
+  overlayPlayer2Wins?: number | null;
+  /** First-To target wins for the broadcast match (BM/MR finals: 5). Null for modes without FT. */
+  overlayMatchFt?: number | null;
 }

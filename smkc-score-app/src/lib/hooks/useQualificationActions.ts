@@ -99,16 +99,31 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   }, [tournamentId, mode, logger]);
 
   /**
-   * Push match players to the overlay as the current 1P/2P broadcast names.
+   * Push match players (and optional score/round info) to the overlay.
    * Used by the "配信に反映" button on each match row.
+   *
+   * When `matchInfo` is supplied the broadcast API also updates:
+   *   - `matchLabel`   → footer phase label (issue #649)
+   *   - `player1Wins` / `player2Wins` → score display next to names (issue #645)
+   *   - `matchFt`     → First-To target for the score label
+   *
    * Returns true on success so callers can show per-button feedback.
    */
-  const handleBroadcastReflect = useCallback(async (player1Name: string, player2Name: string): Promise<boolean> => {
+  const handleBroadcastReflect = useCallback(async (
+    player1Name: string,
+    player2Name: string,
+    matchInfo?: {
+      matchLabel?: string;
+      player1Wins?: number;
+      player2Wins?: number;
+      matchFt?: number;
+    },
+  ): Promise<boolean> => {
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player1Name, player2Name }),
+        body: JSON.stringify({ player1Name, player2Name, ...matchInfo }),
       });
       if (res.ok) {
         toast.success(tc("broadcastReflected"));
