@@ -21,6 +21,21 @@ interface LogMetadata extends Record<string, unknown> {
   service?: string;
 }
 
+/**
+ * Serialize meta for log output. Error instances need a JSON.stringify replacer
+ * because `name`/`message`/`stack` are non-enumerable and would otherwise
+ * disappear, leaving operators with `{"error":{}}` in production logs (mirrors
+ * the same handling in src/lib/logger.ts).
+ */
+export function serializeMeta(meta: LogMetadata): string {
+  return JSON.stringify(meta, (_key, value) => {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message, stack: value.stack };
+    }
+    return value;
+  });
+}
+
 // Silent test logger to avoid noise in test output
 const createTestLogger = (_serviceName: string) => {
   return {
@@ -52,7 +67,7 @@ export const createLogger = (options: LoggerOptions) => {
   // Format log message with timestamp, service name, and level
   const formatMessage = (level: string, message: string, meta?: LogMetadata): string => {
     const timestamp = new Date().toISOString();
-    const metaStr = meta ? ` ${JSON.stringify(meta)}` : '';
+    const metaStr = meta ? ` ${serializeMeta(meta)}` : '';
     return `[${timestamp}] [${serviceName}] [${level}] ${message}${metaStr}`;
   };
 
