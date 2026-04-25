@@ -209,9 +209,7 @@ export async function PUT(
     // Recalculate qualification points and ranks when times were updated.
     // The tt/entries endpoint is used for bulk time seeding (e.g., admin tools
     // and E2E helpers). Without this call, qualificationPoints stays null.
-    // Also set lastRecordedCourse/Time so the overlay-events aggregator can
-    // emit ta_time_recorded events (it skips entries with null values).
-    if (times !== undefined && isTimeRecord(times)) {
+    if (times !== undefined) {
       const entryForStage = await prisma.tTEntry.findUnique({
         where: { id: entryId },
         select: { stage: true, tournamentId: true },
@@ -219,8 +217,16 @@ export async function PUT(
       if (entryForStage) {
         await recalculateRanks(entryForStage.tournamentId, entryForStage.stage, prisma);
       }
-      // Use the last course in canonical COURSES order as the "most recently recorded"
-      // course for overlay display. All courses are validated present at this point.
+    }
+
+    // Set lastRecordedCourse/Time so the overlay-events aggregator can emit
+    // ta_time_recorded events (it skips entries with null values). Only runs
+    // when `times` is a proper {course: timeStr} object — array or other
+    // shapes get skipped (defensive: matches the validation block above).
+    if (times !== undefined && isTimeRecord(times)) {
+      // Use the last course in canonical COURSES order as the "most recently
+      // recorded" course for overlay display. All courses are validated
+      // present at this point.
       const lastCourse = COURSES[COURSES.length - 1];
       const lastTime = times[lastCourse];
       if (lastCourse && lastTime) {
