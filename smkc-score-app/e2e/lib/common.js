@@ -2256,6 +2256,7 @@ module.exports = {
   setupMrQualViaUi,
   setupGpQualViaUi,
   setupTaQualViaUi,
+  ensureTaQualificationRanksSettled,
   resolveAllTies,
   /* draft */
   snakeDraft28,
