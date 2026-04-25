@@ -130,4 +130,10 @@ export interface OverlayEventsResponse {
    * overlay simply ignores it.
    */
   currentPhase?: string;
+  /**
+   * Format string ("First To" / equivalent) shown next to `currentPhase` —
+   * for example, "FT5" for BM/MR bracket finals. Null/undefined when the
+   * active phase has no meaningful FT value (TA, GP, qualification, barrage).
+   */
+  currentPhaseFormat?: string | null;
 }

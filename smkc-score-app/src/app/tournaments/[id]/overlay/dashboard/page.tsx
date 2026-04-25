@@ -43,6 +43,7 @@ export default function DashboardPage({
 
   const [events, setEvents] = useState<OverlayEvent[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string>("");
+  const [currentPhaseFormat, setCurrentPhaseFormat] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
 
   /* `since` advances each poll. First call uses `?initial=1` (no since)
@@ -81,6 +82,9 @@ export default function DashboardPage({
 
       sinceRef.current = payload.serverTime;
       if (payload.currentPhase) setCurrentPhase(payload.currentPhase);
+      // Always sync format — null means "no FT for this phase" and the
+      // chip needs to disappear, so don't gate on truthiness like above.
+      setCurrentPhaseFormat(payload.currentPhaseFormat ?? null);
 
       const fresh = payload.events.filter((e) => {
         if (seenRef.current.has(e.id)) return false;
@@ -122,7 +126,10 @@ export default function DashboardPage({
         className="pointer-events-none fixed flex flex-col gap-3"
         style={{ left: 1525, top: 161, width: 380, height: 746, paddingRight: 8 }}
       >
-        <DashboardProgressBar currentPhase={currentPhase} />
+        <DashboardProgressBar
+          currentPhase={currentPhase}
+          currentPhaseFormat={currentPhaseFormat}
+        />
         {/* min-h-0 lets the inner scroll container shrink to fit; without
             it flex children inflate to content height and overflow the box. */}
         <div className="min-h-0 flex-1">

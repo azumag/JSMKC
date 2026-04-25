@@ -28,8 +28,8 @@ import { createLogger } from "@/lib/logger";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
 import { buildOverlayEvents } from "@/lib/overlay/events";
-import { computeCurrentPhase } from "@/lib/overlay/phase";
-import type { OverlayMatchInput } from "@/lib/overlay/types";
+import { computeCurrentPhase, computeCurrentPhaseFormat } from "@/lib/overlay/phase";
+import type { OverlayMatchInput, OverlayMode } from "@/lib/overlay/types";
 
 /** Initial-poll window when no `since` is supplied. */
 const INITIAL_WINDOW_MS = 30_000;
@@ -278,9 +278,17 @@ export async function GET(
       : events;
 
     /* Pick the latest finals round across the three 2P modes by createdAt;
-       if no mode has a finals match yet, this is null. */
-    const latestFinals = [bmLatestFinals, mrLatestFinals, gpLatestFinals]
-      .filter((m): m is { round: string | null; createdAt: Date } => m !== null)
+       if no mode has a finals match yet, this is null. The mode tag rides
+       along so the format resolver can map the round to its FT value
+       (BM/MR → FT5; GP → null). */
+    const latestFinals = (
+      [
+        bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
+        mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
+        gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
+      ] as Array<{ round: string | null; createdAt: Date; mode: OverlayMode } | null>
+    )
+      .filter((m): m is { round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
     /* Resolve TA phase from the existence checks. We descend from phase3
@@ -300,17 +308,21 @@ export async function GET(
       taLatestPhaseRoundNumber = taPhase1LatestRound?.roundNumber ?? null;
     }
 
-    const currentPhase = computeCurrentPhase({
+    const phaseInput = {
       qualificationConfirmed: tournament.qualificationConfirmed,
       taCurrentPhase,
       taLatestPhaseRoundNumber,
       latestFinalsRound: latestFinals?.round ?? null,
-    });
+      latestFinalsMode: latestFinals?.mode ?? null,
+    };
+    const currentPhase = computeCurrentPhase(phaseInput);
+    const currentPhaseFormat = computeCurrentPhaseFormat(phaseInput);
 
     const response = createSuccessResponse({
       serverTime: now.toISOString(),
       events: cappedEvents,
       currentPhase,
+      currentPhaseFormat,
     });
 
     /* Disable any intermediate caching: the response is time-sensitive and

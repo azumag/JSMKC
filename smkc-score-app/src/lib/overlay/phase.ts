@@ -11,6 +11,8 @@
  * That keeps the decision tree unit-testable without Prisma.
  */
 
+import type { OverlayMode } from "./types";
+
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
 export interface ComputeCurrentPhaseInput {
   /** Whether qualification has been confirmed for the tournament as a whole. */
@@ -32,6 +34,12 @@ export interface ComputeCurrentPhaseInput {
    * match, across all three modes. Null when no finals match exists yet.
    */
   latestFinalsRound: string | null;
+  /**
+   * Which 2P mode (BM/MR/GP) the `latestFinalsRound` belongs to. Used to look
+   * up the matching format ("FT5" etc.) in `computeCurrentPhaseFormat`. Null
+   * when there is no finals match yet, or when the latest match has no mode.
+   */
+  latestFinalsMode?: OverlayMode | null;
 }
 
 /**
@@ -105,4 +113,31 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
     return "予選確定";
   }
   return "予選";
+}
+
+/**
+ * Format ("First To" / equivalent) string shown next to the phase label —
+ * for example, BM bracket finals are best-of-9 / FT5. Returns `null` when
+ * the active phase has no meaningful FT value (e.g. TA tournaments are
+ * scored by accumulated time, GP runs are scored by points across races).
+ *
+ * Kept as its own function so the dashboard can drop the FT badge cleanly
+ * when there is nothing to show — joining it onto `computeCurrentPhase`'s
+ * label would force a placeholder in the no-FT case.
+ */
+export function computeCurrentPhaseFormat(
+  input: ComputeCurrentPhaseInput,
+): string | null {
+  const { latestFinalsRound, latestFinalsMode } = input;
+
+  // BM / MR finals are double-elimination best-of-9 (FT5) per §4. GP finals
+  // are point-totals over races and have no "first to N" notion.
+  if (latestFinalsRound && latestFinalsMode) {
+    if (latestFinalsMode === "bm" || latestFinalsMode === "mr") return "FT5";
+    return null;
+  }
+
+  // No FT label for qualification, barrage, or TA finals — those are scored
+  // by sums (points / time) rather than win-count thresholds.
+  return null;
 }

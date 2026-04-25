@@ -10,7 +10,10 @@
  *  - unknown finals round strings fall through unchanged (forward compat)
  */
 
-import { computeCurrentPhase } from "@/lib/overlay/phase";
+import {
+  computeCurrentPhase,
+  computeCurrentPhaseFormat,
+} from "@/lib/overlay/phase";
 
 function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {}) {
   return {
@@ -18,6 +21,7 @@ function input(overrides: Partial<Parameters<typeof computeCurrentPhase>[0]> = {
     taCurrentPhase: "qualification" as const,
     taLatestPhaseRoundNumber: null,
     latestFinalsRound: null,
+    latestFinalsMode: null,
     ...overrides,
   };
 }
@@ -119,8 +123,68 @@ describe("computeCurrentPhase", () => {
           taCurrentPhase: "phase2",
           taLatestPhaseRoundNumber: 2,
           latestFinalsRound: "winners_qf",
+          latestFinalsMode: "bm",
         }),
       ),
     ).toBe("決勝 QF");
+  });
+});
+
+describe("computeCurrentPhaseFormat", () => {
+  it("returns FT5 for BM bracket finals", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsRound: "winners_qf",
+          latestFinalsMode: "bm",
+        }),
+      ),
+    ).toBe("FT5");
+  });
+
+  it("returns FT5 for MR bracket finals", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsRound: "grand_final",
+          latestFinalsMode: "mr",
+        }),
+      ),
+    ).toBe("FT5");
+  });
+
+  it("returns null for GP finals (point-total, no first-to threshold)", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          latestFinalsRound: "winners_sf",
+          latestFinalsMode: "gp",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null while qualification or barrage is active", () => {
+    expect(computeCurrentPhaseFormat(input())).toBeNull();
+    expect(
+      computeCurrentPhaseFormat(
+        input({ qualificationConfirmed: true, taCurrentPhase: "phase1", taLatestPhaseRoundNumber: 2 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when TA reaches phase3 (TA finals are timed, not FT)", () => {
+    expect(
+      computeCurrentPhaseFormat(
+        input({
+          qualificationConfirmed: true,
+          taCurrentPhase: "phase3",
+          taLatestPhaseRoundNumber: 2,
+        }),
+      ),
+    ).toBeNull();
   });
 });
