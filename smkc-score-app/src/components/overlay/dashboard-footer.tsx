@@ -21,7 +21,12 @@ export function DashboardFooter({ currentPhase }: DashboardFooterProps) {
       className="flex h-full w-full items-center px-6 text-blue-900"
       data-testid="dashboard-footer"
     >
-      <span className="text-5xl font-bold tracking-tight">{currentPhase}</span>
+      {/* Lift the label 30px above the strip's vertical center so it sits
+          flush with the broadcast scene's text baseline (the underlying OBS
+          chrome puts its title text higher than this footer's mid-line). */}
+      <span className="-translate-y-[30px] text-5xl font-bold tracking-tight">
+        {currentPhase}
+      </span>
     </div>
   );
 }

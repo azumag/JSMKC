@@ -48,7 +48,7 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
 
   return (
     <div
-      className="h-full overflow-y-auto pr-2"
+      className="h-full overflow-y-auto pr-3"
       style={{ scrollbarWidth: "none" }}
       data-testid="dashboard-timeline"
     >
