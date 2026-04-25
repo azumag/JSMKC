@@ -25,7 +25,7 @@ const VISIBLE_DURATION_MS = 6_000;
 /** Fade-out duration; matches the CSS transition on `OverlayToast`. */
 const FADE_DURATION_MS = 300;
 /** Cap the stack depth to keep the screen readable on a busy tournament. */
-const MAX_VISIBLE = 5;
+const MAX_VISIBLE = 10;
 
 interface ApiEnvelope<T> {
   success?: boolean;

@@ -478,6 +478,11 @@ model TTEntry {
   times        Json? // {"MC1": "1:23.45", "DP1": "1:12.34", ...}
   totalTime    Int? // Total time in milliseconds
   rank         Int?
+  // Most recently recorded (course, raw time string) on this entry. Persisted
+  // by the TA PUT route so the overlay can show "<player> が <course> で
+  // <time> を記録しました" without needing per-course history.
+  lastRecordedCourse String?
+  lastRecordedTime   String?
   courseScores         Json?   // Points per course: {"MC1": 45, "DP1": 50, ...}
   qualificationPoints  Int?    // Total qualification points (max 1000)
   deletedAt    DateTime?  // ソフトデリート用タイムスタンプ

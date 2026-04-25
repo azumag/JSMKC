@@ -78,6 +78,12 @@ export interface OverlayTtEntryInput {
   totalTime: number | null;
   rank: number | null;
   updatedAt: Date;
+  /** Stage the entry belongs to (qualification / phase1 / phase2 / phase3). */
+  stage: string;
+  /** Most recently recorded course abbreviation, or null if never set. */
+  lastRecordedCourse: string | null;
+  /** Raw time string ("M:SS.ms") matching `lastRecordedCourse`. */
+  lastRecordedTime: string | null;
 }
 
 export interface OverlayTtPhaseRoundInput {

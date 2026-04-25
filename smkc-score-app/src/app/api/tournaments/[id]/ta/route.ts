@@ -639,10 +639,35 @@ export async function PUT(
       }
     }
 
-    // Persist the updated times
+    // Determine the most recently recorded (course, time) so the overlay can
+    // surface the specific entry. For single-course updates this is trivial;
+    // for bulk merges we pick the last non-empty diff in iteration order so
+    // sequential typed entries produce a stable "latest" event.
+    let lastRecordedCourse: string | null = null;
+    let lastRecordedTime: string | null = null;
+    if (course && time !== undefined && time !== "") {
+      lastRecordedCourse = course;
+      lastRecordedTime = time;
+    } else if (bulkTimes) {
+      for (const [c, t] of Object.entries(bulkTimes)) {
+        if (!t || t === "") continue;
+        if (currentTimes[c] === t) continue;
+        lastRecordedCourse = c;
+        lastRecordedTime = t;
+      }
+    }
+
+    // Persist the updated times. Only touch lastRecorded* when something new
+    // was actually entered, so clears/no-op merges don't reset the overlay
+    // marker to null and lose context for the next poll.
     await prisma.tTEntry.update({
       where: { id: entryId },
-      data: { times: updatedTimes },
+      data: {
+        times: updatedTimes,
+        ...(lastRecordedCourse && lastRecordedTime
+          ? { lastRecordedCourse, lastRecordedTime }
+          : {}),
+      },
     });
 
     // Recalculate ranks after time change to update standings

@@ -26,7 +26,7 @@ export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving:
   return (
     <div
       className={[
-        "flex w-80 overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 backdrop-blur-md",
+        "flex w-[28rem] max-w-[90vw] overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 backdrop-blur-md",
         "transition-all duration-300 ease-out will-change-transform",
         leaving ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
       ].join(" ")}
@@ -34,11 +34,15 @@ export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving:
       data-testid="overlay-toast"
       data-event-id={event.id}
     >
-      <div className={`w-1.5 shrink-0 ${accent}`} />
-      <div className="flex-1 px-4 py-3 text-white">
-        <div className="text-sm font-semibold leading-tight tracking-tight">{event.title}</div>
+      <div className={`w-2 shrink-0 ${accent}`} />
+      {/* Title and subtitle render at the same large size — broadcasters
+          asked for a single visual weight rather than a "title + body" split. */}
+      <div className="flex-1 px-5 py-4 text-white">
+        <div className="text-xl font-semibold leading-snug tracking-tight">{event.title}</div>
         {event.subtitle && (
-          <div className="mt-0.5 text-xs leading-snug text-white/80">{event.subtitle}</div>
+          <div className="mt-1 text-xl font-semibold leading-snug tracking-tight">
+            {event.subtitle}
+          </div>
         )}
       </div>
     </div>

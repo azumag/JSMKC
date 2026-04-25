@@ -134,7 +134,7 @@ describe("buildOverlayEvents", () => {
     expect(events[0].subtitle).toContain("Charlie");
   });
 
-  it("emits ta_time_recorded only when totalTime is set", () => {
+  it("emits ta_time_recorded only when a course/time was recorded", () => {
     const events = buildOverlayEvents(
       emptyInput({
         ttEntries: [
@@ -144,6 +144,9 @@ describe("buildOverlayEvents", () => {
             totalTime: null,
             rank: null,
             updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: null,
+            lastRecordedTime: null,
           },
           {
             id: "tt-good",
@@ -151,14 +154,21 @@ describe("buildOverlayEvents", () => {
             totalTime: 90_000,
             rank: 3,
             updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "1:23.45",
           },
         ],
       }),
     );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_time_recorded");
-    expect(events[0].subtitle).toContain("Eve");
-    expect(events[0].subtitle).toContain("3");
+    expect(events[0].title).toContain("Eve");
+    expect(events[0].title).toContain("MC1");
+    expect(events[0].title).toContain("1:23.45");
+    expect(events[0].title).toContain("3 位");
+    expect(events[0].title).toContain("予選");
+    expect(events[0].subtitle).toBeUndefined();
   });
 
   it("emits qualification_confirmed / finals_started / overall_ranking_updated when their timestamps cross since", () => {
@@ -235,6 +245,9 @@ describe("buildOverlayEvents", () => {
             totalTime: 1000,
             rank: 1,
             updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "1:23.45",
           },
         ],
         tournament: {

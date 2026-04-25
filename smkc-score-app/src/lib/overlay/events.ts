@@ -26,6 +26,18 @@ const MODE_LABEL: Record<OverlayMode, string> = {
   gp: "GP",
 };
 
+/**
+ * Human-readable phase labels for TA. `qualification` collapses to "予選",
+ * the two barrage rounds keep their numbering, and `phase3` is the final.
+ * Unknown stages render with an empty prefix so the toast still reads cleanly.
+ */
+const TA_STAGE_LABEL: Record<string, string> = {
+  qualification: "予選",
+  phase1: "敗者復活1",
+  phase2: "敗者復活2",
+  phase3: "決勝",
+};
+
 function matchEvents(
   matches: OverlayMatchInput[],
   mode: OverlayMode,
@@ -84,14 +96,18 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
 
   for (const e of ttEntries) {
     if (e.updatedAt.getTime() <= sinceMs) continue;
-    if (e.totalTime === null) continue;
+    // Skip until the row has both columns populated — pre-migration rows or
+    // entries created without a time yet shouldn't fire a generic toast.
+    if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
+    const stageLabel = TA_STAGE_LABEL[e.stage] ?? "";
+    const rankSuffix = e.rank ? `（現在 ${e.rank} 位）` : "";
+    const prefix = stageLabel ? `[${stageLabel}] ` : "";
     events.push({
       id: `ta_time_recorded:${e.id}:${e.updatedAt.getTime()}`,
       type: "ta_time_recorded",
       timestamp: e.updatedAt.toISOString(),
       mode: "ta",
-      title: "TA タイム更新",
-      subtitle: `${nick(e.player)}${e.rank ? ` (現在 ${e.rank} 位)` : ""}`,
+      title: `${prefix}${nick(e.player)} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`,
     });
   }
 
