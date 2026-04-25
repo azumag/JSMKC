@@ -16,6 +16,7 @@
  *   TC-510  BM Top-24 pre-bracket playoff → Top-16 finals flow
  *   TC-520  BM per-round target-wins API validation (issue #528: FT3/FT4/FT5/FT7)
  *   TC-522  BM finals tvNumber PUT accepts 1–4, rejects 5, clears on null (issue #634)
+ *   TC-523  BM finals score dialog — TV# save button persists without score submit (issue #651)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1412,6 +1413,75 @@ async function runTc522(adminPage) {
   }
 }
 
+/* ───────── TC-523: BM finals score dialog — TV# save button (issue #651) ─────────
+ * Verifies that the explicit "TV# 保存" button in the score dialog saves the
+ * TV# assignment immediately without submitting the full match score.
+ *
+ * Flow:
+ *   1. Generate an 8-player BM finals bracket.
+ *   2. Navigate to the BM finals page and open the score dialog for match 1.
+ *   3. Select TV#3 in the dialog's TV# dropdown and click "TV# 保存".
+ *   4. Confirm the dialog stays open (no score submitted → scores unchanged).
+ *   5. Verify TV#3 was persisted on the match via the finals API.
+ */
+async function runTc523(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    /* Navigate to finals page — wait for bracket cards to appear. */
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/bm/finals`);
+    await adminPage.waitForTimeout(3000);
+
+    /* Click the first match card to open the score dialog. */
+    const matchCards = adminPage.locator('[data-testid="bracket-match-card"]');
+    const cardCount = await matchCards.count();
+    if (cardCount === 0) throw new Error('No bracket match cards found');
+    await matchCards.first().click();
+    await adminPage.waitForTimeout(1000);
+
+    /* Dialog must be visible before we interact with the TV# selector. */
+    const dialog = adminPage.locator('[role="dialog"]');
+    const dialogVisible = await dialog.isVisible();
+    if (!dialogVisible) throw new Error('Score dialog did not open');
+
+    /* Select TV#3 from the dropdown (id="bm-finals-tv"). */
+    await adminPage.locator('#bm-finals-tv').selectOption('3');
+    await adminPage.waitForTimeout(300);
+
+    /* Click the save button (text: "TV# 保存" / "Save TV#"). */
+    const saveBtn = dialog.getByRole('button', { name: /TV#\s*保存|Save TV#/i });
+    await saveBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await saveBtn.click();
+    await adminPage.waitForTimeout(1500);
+
+    /* Dialog must still be open — TV# save must not close it. */
+    const stillOpen = await dialog.isVisible();
+
+    /* Verify TV#3 was persisted on match 1 via the API. */
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    const tvSaved = m1?.tvNumber === 3;
+
+    const pass = dialogVisible && stillOpen && tvSaved;
+    log('TC-523', pass ? 'PASS' : 'FAIL',
+      !dialogVisible ? 'Score dialog did not open' :
+      !stillOpen ? 'Dialog closed unexpectedly after TV# save' :
+      !tvSaved ? `tvNumber not saved: got ${m1?.tvNumber}` : '');
+  } catch (err) {
+    log('TC-523', 'FAIL', err instanceof Error ? err.message : 'TC-523 failed');
+  } finally {
+    /* Always reset the bracket so later tests get a clean state. */
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup?.tournamentId}/bm/finals`);
+    }
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1455,6 +1525,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-520', fn: runTc520 },
       { name: 'TC-521', fn: runTc521 },
       { name: 'TC-522', fn: runTc522 },
+      { name: 'TC-523', fn: runTc523 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1463,7 +1534,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

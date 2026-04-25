@@ -21,6 +21,7 @@
     "finals:reapply-ranks": "node scripts/reapply-rank-overrides.js",
     "build:cf": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "preview:fast": "opennextjs-cloudflare dev",
     "deploy": "npm run build:cf && wrangler deploy"
   },
   "dependencies": {

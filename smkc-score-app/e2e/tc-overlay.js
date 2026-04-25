@@ -28,6 +28,7 @@
  *   TC-917  overlay-events response includes overlayPlayer1Name / overlayPlayer2Name
  *   TC-918  PUT /broadcast with matchLabel/wins/ft → GET returns new fields (#644/#645/#649)
  *   TC-919  overlay-events includes overlayMatchLabel / overlayPlayer1Wins / overlayPlayer2Wins / overlayMatchFt
+ *   TC-920  Dashboard page renders matchLabel and score display in real browser (#644/#645/#649)
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -771,6 +772,48 @@ async function runTc919(_adminPage) {
   }
 }
 
+/* ───────── TC-920: Dashboard page renders match score data in real browser ─────────
+ * After TC-918/919 have set matchLabel/wins/ft via PUT /broadcast, the
+ * /overlay/dashboard page must reflect that data when polled:
+ *   - DashboardFooter shows the matchLabel in the footer strip (#649)
+ *   - DashboardFooter shows the FT badge (#644)
+ *   - Player name slots show win counts (#645)
+ *
+ * Must run after TC-918 (so matchLabel, wins, ft are set in the DB) and
+ * after TC-906 is done with the overlay page navigation. We navigate the
+ * admin browser to /overlay/dashboard so we can read rendered content.
+ */
+async function runTc920(adminPage) {
+  try {
+    await adminPage.goto(
+      `${BASE}/tournaments/${fixture.tournamentId}/overlay/dashboard`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    /* Wait for the root element then allow the poll cycle (3s) + render. */
+    await adminPage.waitForSelector('[data-testid="dashboard-root"]', { timeout: 10_000 });
+    await adminPage.waitForTimeout(8000);
+
+    const footerText = await adminPage.locator('[data-testid="dashboard-footer"]').innerText().catch(() => '');
+    /* TC-918 set matchLabel="決勝 QF", so footer must contain it. */
+    const hasLabel = footerText.includes('決勝 QF');
+    /* TC-918 also set matchFt=5, so the FT badge must show "FT5". */
+    const ftBadgeText = await adminPage.locator('[data-testid="dashboard-footer-ft"]').innerText().catch(() => '');
+    const hasFt = ftBadgeText.includes('FT5');
+    /* TC-918/916 set player names + wins. At least one score element must exist. */
+    const scoreEl = adminPage.locator('[data-testid="overlay-p1-score"],[data-testid="overlay-p2-score"]');
+    const scoreCount = await scoreEl.count();
+    const hasScore = scoreCount > 0;
+
+    const pass = hasLabel && hasFt && hasScore;
+    log('TC-920', pass ? 'PASS' : 'FAIL',
+      !hasLabel ? `matchLabel missing from footer: "${footerText}"` :
+      !hasFt ? `FT badge missing or wrong: "${ftBadgeText}"` :
+      !hasScore ? 'score elements not rendered on dashboard' : '');
+  } catch (err) {
+    log('TC-920', 'FAIL', err instanceof Error ? err.message : 'TC-920 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -856,6 +899,9 @@ function getSuite() {
          follow TC-918 so the fields exist in the DB to read back. */
       { name: 'TC-918', fn: runTc918 },
       { name: 'TC-919', fn: runTc919 },
+      /* TC-920 must run after TC-918/919 set matchLabel/wins/ft,
+         and before TC-906 navigates away. */
+      { name: 'TC-920', fn: runTc920 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -864,7 +910,7 @@ function getSuite() {
 module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
-  runTc916, runTc917, runTc918, runTc919,
+  runTc916, runTc917, runTc918, runTc919, runTc920,
   getSuite,
   results,
 };
