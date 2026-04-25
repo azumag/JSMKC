@@ -451,6 +451,48 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       expect(result.status).toBe(400);
     });
 
+    it('should return 400 when times is partial (fewer than 20 courses)', async () => {
+      /* Admin freeze check must pass before validation is reached */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
+      // Only 2 courses supplied — all 20 are required (issue #624)
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: { MC1: '1:24:00', DP1: '1:05:00' },
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(400);
+      expect(result.data).toMatchObject({ success: false, field: 'times' });
+      expect(result.data.error).toMatch(/times must include all 20 courses/);
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when times has all 20 keys but some are empty strings', async () => {
+      /* Admin freeze check must pass before validation is reached */
+      (prisma.tTEntry.findUnique as jest.Mock)
+        .mockResolvedValueOnce({ stage: 'qualification', tournamentId: 't1' });
+
+      // Build a times object with all 20 courses but leave RR empty
+      const partialTimes = Object.fromEntries(
+        ['MC1','DP1','GV1','BC1','MC2','CI1','GV2','DP2','BC2','MC3',
+         'KB1','CI2','VL1','BC3','MC4','DP3','KB2','GV3','VL2','RR']
+          .map((c) => [c, c === 'RR' ? '' : '1:24:00'])
+      );
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: partialTimes,
+        version: 1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(400);
+      expect(result.data).toMatchObject({ success: false, field: 'times' });
+      expect(updateTTEntry).not.toHaveBeenCalled();
+    });
+
     it('should return 400 when times contain seconds greater than 59', async () => {
       /* Admin freeze check must pass before validation is reached */
       (prisma.tTEntry.findUnique as jest.Mock)
