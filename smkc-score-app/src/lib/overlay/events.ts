@@ -117,6 +117,16 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       timestamp: e.updatedAt.toISOString(),
       mode: "ta",
       title: `${prefix}${nick(e.player)} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`,
+      // Structured payload powers the dashboard timeline's TA card. Subtitle
+      // is left undefined here because the TA card consumes the components
+      // directly — falling back to title would render a redundant sentence.
+      taTimeRecord: {
+        player: nick(e.player),
+        course: e.lastRecordedCourse,
+        time: e.lastRecordedTime,
+        phaseLabel: stageLabel || undefined,
+        rank: e.rank ?? null,
+      },
     });
   }
 

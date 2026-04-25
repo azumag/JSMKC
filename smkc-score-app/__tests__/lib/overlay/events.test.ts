@@ -62,6 +62,7 @@ const ALLOWED_KEYS = new Set([
   "title",
   "subtitle",
   "matchResult",
+  "taTimeRecord",
 ]);
 
 function assertNoPII<T extends object>(obj: T) {
@@ -184,6 +185,14 @@ describe("buildOverlayEvents", () => {
     expect(events[0].title).toContain("3 位");
     expect(events[0].title).toContain("予選");
     expect(events[0].subtitle).toBeUndefined();
+    // Structured TA payload powers the dashboard's rich TA card.
+    expect(events[0].taTimeRecord).toEqual({
+      player: "Eve",
+      course: "MC1",
+      time: "1:23.45",
+      phaseLabel: "予選",
+      rank: 3,
+    });
   });
 
   it("emits qualification_confirmed / finals_started / overall_ranking_updated when their timestamps cross since", () => {

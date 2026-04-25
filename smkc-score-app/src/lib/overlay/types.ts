@@ -45,6 +45,25 @@ export interface OverlayMatchResult {
   score2: number;
 }
 
+/**
+ * Structured TA-time payload attached to `ta_time_recorded` events. Mirrors
+ * the data already present in the title string but split into discrete
+ * fields so the dashboard timeline can render a richer card (player chip,
+ * course chip, prominent time digits) instead of one long sentence.
+ */
+export interface OverlayTaTimeRecord {
+  player: string;
+  course: string;
+  /** Raw time string ("M:SS.ms"). Format-preserving so the broadcast UI
+      can choose its own emphasis without re-parsing. */
+  time: string;
+  /** Human label for the TA stage ("予選" / "敗者復活1" etc.). May be
+      empty when the stage is unknown. */
+  phaseLabel?: string;
+  /** Current rank in the active stage, when known. */
+  rank: number | null;
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -55,6 +74,8 @@ export interface OverlayEvent {
   /** Populated only when `type === "match_completed"`. Drives the graphical
       scoreboard view in the dashboard timeline. */
   matchResult?: OverlayMatchResult;
+  /** Populated only when `type === "ta_time_recorded"`. */
+  taTimeRecord?: OverlayTaTimeRecord;
 }
 
 /**

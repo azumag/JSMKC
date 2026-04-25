@@ -61,7 +61,10 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
           rather than a continuous list. */}
       <div className="flex flex-col gap-4">
         {ordered.map((event) => {
-          const isMatch = event.type === "match_completed" && !!event.matchResult;
+          const isMatch =
+            event.type === "match_completed" && !!event.matchResult;
+          const isTaTime =
+            event.type === "ta_time_recorded" && !!event.taTimeRecord;
           return (
             <div
               key={event.id}
@@ -70,6 +73,8 @@ export function DashboardTimeline({ events, now }: DashboardTimelineProps) {
             >
               {isMatch ? (
                 <MatchScoreboardCard event={event} now={now} />
+              ) : isTaTime ? (
+                <TaTimeCard event={event} now={now} />
               ) : (
                 <CompactCard event={event} now={now} />
               )}
@@ -153,6 +158,55 @@ function MatchScoreboardCard({
       {!p1Wins && !p2Wins && (
         <div className="mt-1 text-center text-xs text-white/50">引き分け</div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Rich card for a recorded TA time. Same overall sizing as the match
+ * scoreboard so both event types feel like first-class entries on the
+ * timeline. Top row: phase + relative timestamp. Middle row: player name
+ * with rank chip. Bottom row: course label + the time itself rendered
+ * large enough to read from across the room.
+ */
+function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
+  const t = event.taTimeRecord!;
+  return (
+    <div
+      className={`${CARD_BASE} px-4 py-3`}
+      style={{ backgroundColor: CARD_BG }}
+      data-testid="dashboard-timeline-ta-time"
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="truncate text-base font-bold text-white">
+          {t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA タイム更新
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
+      </div>
+
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="min-w-0 flex-1 truncate text-base font-medium text-white/90">
+          {t.player}
+        </span>
+        {t.rank != null && (
+          <span className="shrink-0 rounded bg-yellow-400/20 px-2 py-0.5 text-sm font-semibold text-yellow-300">
+            現在 {t.rank} 位
+          </span>
+        )}
+      </div>
+
+      <div className="my-1 h-px bg-white/10" />
+
+      <div className="mt-2 flex items-baseline justify-between gap-3">
+        <span className="rounded bg-white/10 px-2 py-0.5 text-sm font-medium text-white/85">
+          {t.course}
+        </span>
+        <span className="text-3xl font-bold tabular-nums text-yellow-400">
+          {t.time}
+        </span>
+      </div>
     </div>
   );
 }

@@ -114,15 +114,19 @@ export default function DashboardPage({
       data-testid="dashboard-root"
     >
       {/* Right-edge dashboard panel: progress bar at the top + scrolling
-          event timeline below. Anchored at (1525, 161) per the broadcast
+          event timeline below. Anchored at (1525, 166) per the broadcast
           scene's reserved slot, sized 380×746. paddingRight pulls both
           children (progress bar and timeline) inward by 8px so neither hugs
           the broadcast frame's right edge. */}
       <div
         className="pointer-events-none fixed flex flex-col gap-3"
-        style={{ left: 1525, top: 161, width: 380, height: 746, paddingRight: 8 }}
+        style={{ left: 1525, top: 166, width: 380, height: 746, paddingRight: 8 }}
       >
-        <DashboardProgressBar currentPhase={currentPhase} />
+        {/* pr-4 mirrors DashboardTimeline's internal pr-4 so the progress
+            bar's right edge aligns with the timeline cards underneath. */}
+        <div className="pr-4">
+          <DashboardProgressBar currentPhase={currentPhase} />
+        </div>
         {/* min-h-0 lets the inner scroll container shrink to fit; without
             it flex children inflate to content height and overflow the box. */}
         <div className="min-h-0 flex-1">
