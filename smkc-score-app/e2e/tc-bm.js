@@ -676,8 +676,9 @@ async function runTc516(adminPage) {
     /* The qualification page renders "View Tournament" as a <Link> inside
      * <Button asChild>, so the DOM element is an <a> tag (role=link).
      * Use getByText so we match regardless of the underlying element. */
+    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
     await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
-      .waitFor({ state: 'visible', timeout: 15000 });
+      .waitFor({ state: 'visible', timeout: 25000 });
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
@@ -1335,7 +1336,8 @@ async function runTc521(adminPage) {
 
     // Click the score entry button for the first non-BYE match
     const scoreBtn = adminPage.getByRole('button', { name: /スコア入力|Enter Score/i }).first();
-    await scoreBtn.waitFor({ state: 'visible', timeout: 10000 });
+    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
+    await scoreBtn.waitFor({ state: 'visible', timeout: 25000 });
     await scoreBtn.click();
     await adminPage.waitForTimeout(1500);
 
@@ -1489,6 +1491,54 @@ async function runTc523(adminPage) {
   }
 }
 
+/* ───────── TC-524: BM bracket startingCourseNumber randomisation (issue #671) ─────────
+ * After bracket creation each match should carry a startingCourseNumber in [1,4].
+ * All matches within the same round must share the same value (issue #671 requirement).
+ * Different rounds are allowed to differ — the per-round random assignment means
+ * uniqueness is not guaranteed across rounds. */
+async function runTc524(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const finalsMatches = matches.filter((m) => m.stage === 'finals' || !m.stage);
+    if (finalsMatches.length === 0) throw new Error('No finals matches returned');
+
+    /* All matches must have a valid startingCourseNumber */
+    const allHaveValidCourse = finalsMatches.every(
+      (m) => Number.isInteger(m.startingCourseNumber) && m.startingCourseNumber >= 1 && m.startingCourseNumber <= 4,
+    );
+
+    /* All matches in the same round must share the same startingCourseNumber */
+    const byRound = new Map();
+    for (const m of finalsMatches) {
+      if (!m.round) continue;
+      if (!byRound.has(m.round)) byRound.set(m.round, new Set());
+      byRound.get(m.round).add(m.startingCourseNumber);
+    }
+    const roundsUniform = [...byRound.values()].every((vals) => vals.size === 1);
+
+    const pass = allHaveValidCourse && roundsUniform;
+    log('TC-524', pass ? 'PASS' : 'FAIL',
+      !allHaveValidCourse
+        ? `Some matches have invalid startingCourseNumber: ${JSON.stringify(finalsMatches.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+        : !roundsUniform
+        ? `Matches in the same round have different startingCourseNumbers: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
+        : '');
+  } catch (err) {
+    log('TC-524', 'FAIL', err instanceof Error ? err.message : 'TC-524 failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup?.tournamentId}/bm/finals`);
+    }
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1533,6 +1583,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-521', fn: runTc521 },
       { name: 'TC-522', fn: runTc522 },
       { name: 'TC-523', fn: runTc523 },
+      { name: 'TC-524', fn: runTc524 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],

@@ -385,7 +385,8 @@ async function runTc604(adminPage) {
       }
     }
 
-    await adminPage.getByRole('button', { name: /Save|保存/ }).click();
+    /* Use anchored pattern to avoid matching the "TV# 保存" button added in #671 */
+    await adminPage.getByRole('button', { name: /^(Save|結果保存)$/ }).click();
     await adminPage.waitForTimeout(3000);
 
     // Poll for bracket update
