@@ -93,7 +93,12 @@ const AlertDialogContent = React.forwardRef<
         // `caution-modal` swaps the checker top stripe for a yellow/black
         // safety-flag stripe; everything else (red side bar, race-stripe
         // wash, layered shadow) is shared with Dialog for product cohesion.
-        "paddock-modal caution-modal paddock-drop fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none",
+        "paddock-modal caution-modal fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none",
+        // Open + close animations come from tw-animate-css's data-state
+        // utilities; do NOT use a custom keyframe with fill-mode:both here
+        // -- a single failed animation start would lock the dialog at
+        // opacity:0 and break confirmations across the app.
+        "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-4 data-[state=open]:duration-200",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150",
         className
       )}

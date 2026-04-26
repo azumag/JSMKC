@@ -179,12 +179,20 @@
 /*
  * Custom paddock utilities.
  *
- * These are intentionally NOT wrapped in `@layer utilities { ... }`. Tailwind
- * v4 treats that layer as its own generated namespace and silently strips any
- * raw `.classname { ... }` rules placed there during CSS bundling, so the
- * styles below would never reach the browser if we used the v3-era wrapper.
- * Top-level rules are emitted as-is and cascade after Tailwind utilities,
- * which is the behavior we want for these branded extras.
+ * NOT wrapped in `@layer utilities { ... }` (Tailwind v4 strips raw rules
+ * from there) and NOT wrapped in `@layer paddock { ... }` either (Tailwind
+ * v4 + Turbopack drops unknown named layers during bundling -- verified by
+ * inspecting the compiled chunk). Top-level rules are kept verbatim, but
+ * top-level rules WIN cascade ties against any `@layer utilities` rule
+ * regardless of source order. This means a bare `.paddock-modal { position:
+ * relative }` would override `.fixed { position: fixed }` from Tailwind
+ * and break modal positioning -- which broke every modal on first ship.
+ *
+ * Defense: rules that *might* collide with a Tailwind utility on the same
+ * element are wrapped in `:where(...)` so they carry specificity 0 and
+ * always lose to any class-level utility the consumer applies. Pseudo-
+ * element rules and animation keyframes don't collide with Tailwind so
+ * they stay un-where'd.
  */
   /* Anton — used for hero headlines, ranks, scores, mode codes. */
   .font-display {
@@ -309,18 +317,31 @@
   /*
    * Paddock modal — pit-wall briefing panel treatment for Dialog / AlertDialog.
    *
-   * The body of the app is intentionally restrained. Modals are the moments
-   * where the operator has stopped to make a decision (add player, confirm
-   * delete, open a setup form), so they are dressed up to feel like an FIA
-   * bulletin slip dropped onto the pit wall.
+   * Two cascade traps had to be navigated:
+   *   1. Tailwind v4 strips raw rules from `@layer utilities { ... }` AND
+   *      from `@layer paddock { ... }` (named layers also dropped). So the
+   *      rules below sit at top level.
+   *   2. Per CSS L5, unlayered author rules WIN cascade ties against any
+   *      `@layer utilities` rule -- regardless of `:where()` specificity.
+   *      A bare `.paddock-modal { position: relative }` therefore defeated
+   *      `.fixed { position: fixed }` and dialogs rendered in document flow
+   *      at the bottom of the page on production.
    *
-   * Layered on `position: relative` so the ::before/::after pseudo-elements
-   * can paint the top stripe and the diagonal race-stripe wash without
-   * disturbing Radix's grid layout. `> *` is bumped to z-index:1 so the
-   * dialog body always sits above the wash.
+   * Resolution: we DO NOT set `position` on `.paddock-modal`. The consumers
+   * (DialogContent, AlertDialogContent) always pair with `.fixed`, and that
+   * `.fixed` provides the containing block for the absolute pseudo-elements
+   * below. `isolation: isolate` creates a stacking context so the diagonal
+   * race-stripe wash on `::after` can sit at z-index:-1 behind the children
+   * without competing with absolute descendants outside the modal.
+   *
+   * The remaining visual properties (bg/color/border/shadow/overflow) DO
+   * sit unlayered and outrank any `@layer utilities` override. Acceptable:
+   * the modal callsites don't override them, and overriding them would mean
+   * "I want a non-paddock modal," for which the user can omit paddock-modal
+   * entirely.
    */
   .paddock-modal {
-    position: relative;
+    isolation: isolate;
     background-color: var(--card);
     color: var(--card-foreground);
     border: 1px solid color-mix(in oklch, var(--foreground) 22%, transparent);
@@ -330,10 +351,6 @@
       0 12px 28px -16px rgb(0 0 0 / 0.45),
       inset 3px 0 0 0 var(--primary);
     overflow: hidden;
-  }
-  .paddock-modal > * {
-    position: relative;
-    z-index: 1;
   }
   /* Top edge: 4px B&W checker band sitting on a 2px Racing Red bar (6px total). */
   .paddock-modal::before {
@@ -353,7 +370,12 @@
     background-repeat: no-repeat, repeat-x, repeat-x, repeat-x, repeat-x;
     background-color: var(--card);
   }
-  /* Diagonal race-stripe wash, capped under 5% so it reads as paper texture. */
+  /*
+   * Diagonal race-stripe wash, capped under 5% so it reads as paper texture.
+   * z-index:-1 paired with `isolation: isolate` on the parent puts the wash
+   * BEHIND the modal's static content (without leaking into other stacking
+   * contexts on the page).
+   */
   .paddock-modal::after {
     content: "";
     position: absolute;
@@ -364,7 +386,7 @@
       color-mix(in oklch, var(--primary) 5%, transparent) 0 22px,
       transparent 22px 72px
     );
-    z-index: 0;
+    z-index: -1;
   }
 
   /*
@@ -409,52 +431,29 @@
     );
   }
 
-  /*
-   * Drop-in animation: panel falls from above with a tiny rotateX so it
-   * "lands" on the pit wall rather than fading in flat. perspective on
-   * the parent isn't required because the rotation is small enough to
-   * read correctly without it on modern browsers.
-   */
-  @keyframes paddock-drop-in {
-    0% {
-      opacity: 0;
-      transform: translate(-50%, calc(-50% - 24px)) scale(0.96);
-    }
-    60% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-  }
-  .paddock-drop {
-    animation: paddock-drop-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1.05) both;
-  }
-
-  /*
-   * OBS browser-source overlay mode — DO NOT TOUCH.
-   *
-   * The overlay page must render with a transparent background and zero
-   * chrome so OBS can composite it over a scene. The Next.js root layout
-   * wraps every page in a `bg-background` shell with a global header and
-   * a padded `<main>`, which would otherwise show up as a solid band
-   * over the broadcast.
-   *
-   * The overlay page client component toggles `body.overlay-mode` on
-   * mount; these rules undo the parent chrome with `!important` to win
-   * against Tailwind's utility-class specificity. Removing the class on
-   * unmount restores the normal layout for any subsequent navigation.
-   */
-  body.overlay-mode {
-    background: transparent !important;
-  }
-  body.overlay-mode header {
-    display: none !important;
-  }
-  body.overlay-mode main {
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: none !important;
-    width: 100% !important;
-  }
+/*
+ * OBS browser-source overlay mode — DO NOT TOUCH.
+ *
+ * The overlay page must render with a transparent background and zero
+ * chrome so OBS can composite it over a scene. The Next.js root layout
+ * wraps every page in a `bg-background` shell with a global header and
+ * a padded `<main>`, which would otherwise show up as a solid band
+ * over the broadcast.
+ *
+ * The overlay page client component toggles `body.overlay-mode` on
+ * mount; these rules undo the parent chrome with `!important` to win
+ * against Tailwind's utility-class specificity. Removing the class on
+ * unmount restores the normal layout for any subsequent navigation.
+ */
+body.overlay-mode {
+  background: transparent !important;
+}
+body.overlay-mode header {
+  display: none !important;
+}
+body.overlay-mode main {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}

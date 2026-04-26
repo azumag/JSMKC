@@ -122,9 +122,14 @@ function DialogContent({
           // the diagonal race-stripe wash, and the layered drop shadow.
           // pt-9 leaves room under the 6px top stripe so the title doesn't
           // crowd the checker band.
-          "paddock-modal paddock-drop fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none sm:max-w-lg",
-          // Closing animation falls back to fade+zoom; the open animation is
-          // driven by the paddock-drop keyframes for the panel-landing motion.
+          "paddock-modal fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none sm:max-w-lg",
+          // Use Radix's data-state-driven animations (via tw-animate-css) for
+          // both open and close. A custom keyframe with `fill-mode: both`
+          // would lock the dialog at its 0% frame (opacity:0, translated up)
+          // if the animation failed to start, so the dialog could become
+          // permanently invisible -- happened on the first ship and broke
+          // every modal in production.
+          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-4 data-[state=open]:duration-200",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150",
           className
         )}
@@ -137,11 +142,11 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            // Visual is a 28px square pit-board button, but `before:-inset-2`
-            // adds an 8px transparent halo so the actual touch target is 44px
-            // -- meets WCAG 2.5.5 / Apple HIG without expanding the visible
-            // chrome over the modal header.
-            className="ring-offset-background focus:ring-ring absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-xs border border-foreground/25 bg-card/70 text-foreground/70 transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none before:absolute before:-inset-2 before:content-[''] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
+            // 36px (size-9) actual button = visible 28px (size-7) icon area
+            // bordered by a 4px transparent padding ring. Sits in the corner
+            // pt-stripe gutter where the title doesn't reach, so it cannot
+            // intercept clicks meant for the title or close-adjacent body.
+            className="ring-offset-background focus:ring-ring absolute top-2 right-2 inline-flex size-9 items-center justify-center rounded-xs border border-foreground/25 bg-card/70 text-foreground/70 transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
           >
             <XIcon />
             <span className="sr-only">Close</span>
