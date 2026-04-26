@@ -2725,7 +2725,6 @@ async function main() {
     }
   }
 
-<<<<<<< Updated upstream
   // TC-345: Duplicate TV number rejected in qualification round (issue #668)
   // Verifies that assigning the same TV number to two different matches in the
   // same round returns 400. Uses an isolated 2-player BM tournament so this
@@ -3028,7 +3027,7 @@ async function main() {
       log('TC-349', 'SKIP', 'No tournament ID available');
     }
   }
-=======
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)
@@ -3039,7 +3038,6 @@ async function main() {
     }, `/api/players/${pid}`);
     log('TC-104', dr.ok ? 'PASS' : 'FAIL');
   } else { log('TC-104', 'SKIP'); }
->>>>>>> Stashed changes
 
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
