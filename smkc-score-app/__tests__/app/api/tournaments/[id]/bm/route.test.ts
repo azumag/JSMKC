@@ -24,6 +24,7 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/standings-cache', () => ({ invalidate: jest.fn().mockResolvedValue(undefined), generateETag: jest.fn().mockReturnValue('mock-etag') }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/request-utils', () => ({ getServerSideIdentifier: jest.fn(), getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'), getUserAgent: jest.fn().mockReturnValue('jest-test') }));
@@ -37,6 +38,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
@@ -111,12 +113,12 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(result.status).toBe(200);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
       });
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });
@@ -398,7 +400,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       expect(prisma.bMQualification.updateMany).toHaveBeenCalledTimes(2);
     });
@@ -428,7 +430,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 2, score2: 2, rounds: null, completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 
@@ -465,7 +467,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
@@ -29,6 +30,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
 
 /**
@@ -135,15 +137,23 @@ function createBmRoundStartingCourses(
  * updateMany. This is idempotent — repeated GETs after the first repair
  * are no-ops.
  *
- * Returns true when any row was updated, so the caller can re-fetch.
+ * Returns the per-round canonical cup map alongside the `repaired` flag so
+ * callers can patch their in-memory `matches` array (m.cup = canonical[m.round])
+ * without firing a second findMany to pick up the writes. The flag is true
+ * when any row was updated.
  */
+interface CupNormalizationResult {
+  repaired: boolean;
+  canonicalByRound: Map<string, string>;
+}
+
 async function normalizeRoundCupsToSingleCup(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
   tournamentId: string,
   stage: 'finals' | 'playoff',
   matches: Array<{ cup?: string | null; round?: string | null }>,
-): Promise<boolean> {
+): Promise<CupNormalizationResult> {
   /* Tally cup occurrences per round to detect mixed-cup rounds and pick a
    * canonical cup without relying on iteration order. */
   const cupCountsByRound = new Map<string, Map<string, number>>();
@@ -172,7 +182,9 @@ async function normalizeRoundCupsToSingleCup(
     }
   }
 
-  if (roundsNeedingRepair.size === 0) return false;
+  if (roundsNeedingRepair.size === 0) {
+    return { repaired: false, canonicalByRound: new Map() };
+  }
 
   const shuffledCups = fisherYatesShuffle(CUPS);
   let cursor = 0;
@@ -202,7 +214,7 @@ async function normalizeRoundCupsToSingleCup(
     });
   }
 
-  return true;
+  return { repaired: true, canonicalByRound: canonicalCupByRound };
 }
 
 /**
@@ -225,15 +237,22 @@ async function normalizeRoundCupsToSingleCup(
  *     canonical — we per-row update because Prisma's JSON column equality
  *     filter is unreliable on D1 (SQLite stores JSON as text).
  *
- * Returns true when any row was updated.
+ * Returns the per-round canonical course map alongside the `repaired` flag,
+ * mirroring normalizeRoundCupsToSingleCup. Callers patch their in-memory
+ * matches with the canonical arrays so they don't need a second findMany.
  */
+interface CourseNormalizationResult {
+  repaired: boolean;
+  canonicalByRound: Map<string, string[]>;
+}
+
 async function normalizeRoundCoursesToSingleSet(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
   tournamentId: string,
   stage: 'finals' | 'playoff',
   matches: Array<{ id: string; assignedCourses?: unknown; round?: string | null }>,
-): Promise<boolean> {
+): Promise<CourseNormalizationResult> {
   /* Coerce stored value to a plain string[]. JSON columns on D1 come back
    * as arrays already via Prisma's serialization, but we handle null and
    * non-array shapes defensively. */
@@ -301,7 +320,9 @@ async function normalizeRoundCoursesToSingleSet(
     }
   }
 
-  if (canonicalByRound.size === 0) return false;
+  if (canonicalByRound.size === 0) {
+    return { repaired: false, canonicalByRound: new Map() };
+  }
 
   /* Per-row updates: Prisma's JSON column equality filter on D1 is
    * unreliable, so we compare in JS and write only when different. */
@@ -319,7 +340,7 @@ async function normalizeRoundCoursesToSingleSet(
     }
   }
 
-  return writes > 0;
+  return { repaired: writes > 0, canonicalByRound };
 }
 
 /**
@@ -423,45 +444,55 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * relying on state from a previous POST response. */
       let playoffMatches = await model(prisma).findMany({
         where: { tournamentId, stage: 'playoff' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
 
       /* Normalize cups-per-round for legacy playoff rows. Fixes both the
        * pre-#565 null-cup state and the divergent-cup state that PR #583's
        * client-side random fallback could produce when admins saved scores
-       * (so M1=Flower and M2=Star on the same round would be converged). */
+       * (so M1=Flower and M2=Star on the same round would be converged).
+       *
+       * After repair, we patch the in-memory `playoffMatches` array using the
+       * canonical map returned by the normalizer, instead of refetching the
+       * whole row set. The DB writes have already happened — refetching only
+       * served to read back our own writes. */
       if (config.assignGpCupByRound && playoffMatches.length > 0) {
-        const repaired = await normalizeRoundCupsToSingleCup(
+        const cupResult = await normalizeRoundCupsToSingleCup(
           model(prisma),
           tournamentId,
           'playoff',
           playoffMatches,
         );
-        if (repaired) {
-          playoffMatches = await model(prisma).findMany({
-            where: { tournamentId, stage: 'playoff' },
-            include: { player1: true, player2: true },
-            orderBy: { matchNumber: 'asc' },
-          });
+        if (cupResult.repaired) {
+          for (const m of playoffMatches) {
+            const round = (m as { round?: string | null }).round;
+            if (!round) continue;
+            const canonical = cupResult.canonicalByRound.get(round);
+            if (canonical) (m as { cup?: string | null }).cup = canonical;
+          }
         }
       }
 
       /* MR counterpart: same rule for assignedCourses — every match in the
-       * same playoff round must share one course set. */
+       * same playoff round must share one course set. Patch in-memory using
+       * the canonical map for the same reason as the cup branch above. */
       if (config.assignMrCoursesByRound && playoffMatches.length > 0) {
-        const repaired = await normalizeRoundCoursesToSingleSet(
+        const courseResult = await normalizeRoundCoursesToSingleSet(
           model(prisma),
           tournamentId,
           'playoff',
           playoffMatches,
         );
-        if (repaired) {
-          playoffMatches = await model(prisma).findMany({
-            where: { tournamentId, stage: 'playoff' },
-            include: { player1: true, player2: true },
-            orderBy: { matchNumber: 'asc' },
-          });
+        if (courseResult.repaired) {
+          for (const m of playoffMatches) {
+            const round = (m as { round?: string | null }).round;
+            if (!round) continue;
+            const canonical = courseResult.canonicalByRound.get(round);
+            if (canonical) {
+              (m as { assignedCourses?: unknown }).assignedCourses = canonical;
+            }
+          }
         }
       }
 
@@ -572,7 +603,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           },
           { tournamentId, stage: 'finals' },
           { matchNumber: 'asc' },
-          { page, limit, include: { player1: true, player2: true } },
+          { page, limit, include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
         );
 
         /* Infer bracket size from total match count:
@@ -602,7 +633,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       /* Shared fetch for 'grouped' and 'simple' styles */
       const matches = await model(prisma).findMany({
         where: { tournamentId, stage: 'finals' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
 
@@ -725,7 +756,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const qualifications = await qualModel(prisma).findMany({
         where: { tournamentId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
         take: topN,
       });
@@ -801,7 +832,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const insertedMatches = await model(prisma).findMany({
         where: { tournamentId, stage: 'finals' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
 
@@ -886,7 +917,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * selectFinalsEntrantsByGroup. */
       const qualifications = await qualificationModel(prisma).findMany({
         where: { tournamentId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: finalsConfig.qualificationOrderBy,
       });
 
@@ -976,7 +1007,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
               completed: false,
               ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
             },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           });
 
           createdPlayoffMatches.push({
@@ -1086,7 +1117,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             completed: false,
             ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
           },
-          include: { player1: true, player2: true },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         });
 
         createdMatches.push({
@@ -1150,7 +1181,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       const match = await model(prisma).findUnique({
         where: { id: matchId, tournamentId },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       if (!match) {
@@ -1245,7 +1276,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const updatedMatch = await model(prisma).update({
         where: { id: matchId },
         data: updateData,
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       /* --- Playoff advancement path (issue #454) ---
@@ -1582,7 +1613,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const match = await model(prisma).update({
         where: { id: matchId },
         data: updateData,
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       return createSuccessResponse({ match });
@@ -1592,5 +1623,47 @@ export function createFinalsHandlers(config: FinalsConfig) {
     }
   }
 
-  return { GET, POST, PUT, PATCH };
+  /*
+   * Cache-bust wrapper for write handlers.
+   *
+   * Every successful POST/PUT/PATCH on a finals route mutates rows that
+   * `calculateOverallRankings` reads (finals matches feed `*FinalsPoints`,
+   * playoff bracket changes alter who reaches finals, etc.), so the cached
+   * overall ranking for that tournament must be invalidated. The handlers
+   * themselves have many success branches (8+ across POST/PUT/PATCH), so
+   * wrapping them centrally avoids the maintenance hazard of remembering
+   * to call `invalidateOverallRankingsCache(...)` at every return statement.
+   *
+   * The wrapper deliberately swallows errors from `resolveTournamentId`:
+   * if the lookup fails on a 2xx response (vanishingly unlikely — the
+   * handler used the same id internally) we'd rather skip the cache-bust
+   * than turn a successful response into an error.
+   */
+  type FinalsWriteHandler = (
+    request: NextRequest,
+    ctx: { params: Promise<{ id: string }> },
+  ) => Promise<Response>;
+
+  function withFinalsCacheBust(handler: FinalsWriteHandler): FinalsWriteHandler {
+    return async (request, ctx) => {
+      const response = await handler(request, ctx);
+      if (response && response.status >= 200 && response.status < 300) {
+        try {
+          const { id } = await ctx.params;
+          const tournamentId = await resolveTournamentId(id);
+          invalidateOverallRankingsCache(tournamentId);
+        } catch {
+          /* best effort — cache bust failure must not break the response */
+        }
+      }
+      return response;
+    };
+  }
+
+  return {
+    GET,
+    POST: withFinalsCacheBust(POST as FinalsWriteHandler),
+    PUT: withFinalsCacheBust(PUT as FinalsWriteHandler),
+    PATCH: withFinalsCacheBust(PATCH as FinalsWriteHandler),
+  };
 }

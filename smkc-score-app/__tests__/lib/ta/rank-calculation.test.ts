@@ -18,6 +18,7 @@
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { PrismaClient } from '@prisma/client';
 
 jest.mock('@/lib/prisma');
@@ -321,7 +322,7 @@ describe('TA Rank Calculation', () => {
 
       expect(mockPrisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-1', stage: 'qualification' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       expect(mockPrisma.$transaction).toHaveBeenCalled();

@@ -25,6 +25,7 @@
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
 import { createMatchDetailHandlers } from '@/lib/api-factories/match-detail-route';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { OptimisticLockError } from '@/lib/optimistic-locking';
 
@@ -155,7 +156,7 @@ describe('Match Detail Route Factory', () => {
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect((prisma.bMMatch as any).findUnique).toHaveBeenCalledWith({
         where: { id: 'match-123' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       expect(mockResolveTournamentId).toHaveBeenCalledWith('tournament-1');
     });

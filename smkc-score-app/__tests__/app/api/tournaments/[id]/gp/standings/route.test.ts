@@ -27,6 +27,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET } from '@/app/api/tournaments/[id]/gp/standings/route';
@@ -186,7 +187,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
         orderBy: [
           { points: 'desc' },

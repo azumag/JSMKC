@@ -60,6 +60,7 @@ jest.mock('@/lib/request-utils', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
@@ -140,7 +141,7 @@ describe('MR Match API Route - /api/tournaments/[id]/mr/match/[matchId]', () => 
       expect(createSuccessResponse).toHaveBeenCalledWith(mockMatch);
       expect(prisma.mRMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

@@ -33,6 +33,7 @@
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
 import { createQualificationHandlers } from '@/lib/api-factories/qualification-route';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { EventTypeConfig } from '@/lib/event-types/types';
 
@@ -49,9 +50,11 @@ jest.mock('@/lib/sanitize');
 jest.mock('@/lib/logger');
 /* PATCH's rank-override branch calls standings-cache.invalidate after a
  * successful update; without this mock, requiring the module inside the
- * handler crashes the request → 500. */
+ * handler crashes the request → 500. The GET path additionally pulls
+ * generateETag for conditional-GET support, so stub it here too. */
 jest.mock('@/lib/standings-cache', () => ({
   invalidate: jest.fn().mockResolvedValue(undefined),
+  generateETag: jest.fn().mockReturnValue('mock-etag'),
 }));
 
 import { auth } from '@/lib/auth';
@@ -146,12 +149,12 @@ describe('Qualification Route Factory', () => {
       expect(json.data.matches).toEqual(mockMatches);
       expect((prisma.bMQualification as any).findMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
       });
       expect((prisma.bMMatch as any).findMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'qualification' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });
@@ -1234,7 +1237,7 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: 'match-1', tournamentId: 'tournament-123' },
         data: { tvNumber: 2 },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 
@@ -1268,7 +1271,7 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: 'match-1', tournamentId: 'tournament-123' },
         data: { tvNumber: 4 },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 
@@ -1294,7 +1297,7 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: 'match-1', tournamentId: 'tournament-123' },
         data: { tvNumber: null },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

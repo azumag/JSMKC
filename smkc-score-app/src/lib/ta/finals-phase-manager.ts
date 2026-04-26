@@ -27,6 +27,7 @@
  */
 
 import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 import { selectRandomCourse, getPlayedCourses, getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
@@ -120,7 +121,7 @@ async function getQualificationPlayersByRank(
         lte: rankEnd,
       },
     },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
     orderBy: { rank: "asc" },
   });
 }
@@ -145,7 +146,7 @@ async function getActivePhasePlayers(
       stage: phase,
       eliminated: false,
     },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
     orderBy: { totalTime: "asc" },
   });
 }
@@ -227,7 +228,7 @@ export async function promoteToPhase1(
             totalTime: qual.totalTime,
             rank: qual.rank,
           },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
         });
         createdEntries.push(entry);
 
@@ -358,7 +359,7 @@ export async function promoteToPhase2(
             totalTime: source.totalTime,
             rank: source.rank,
           },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
         });
         createdEntries.push(entry);
 
@@ -487,7 +488,7 @@ export async function promoteToPhase3(
             totalTime: source.totalTime,
             rank: source.rank,
           },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
         });
         createdEntries.push(entry);
 
@@ -817,7 +818,7 @@ export async function getPhaseStatus(
   for (const phase of phases) {
     const entries = await prisma.tTEntry.findMany({
       where: { tournamentId, stage: phase },
-      include: { player: true },
+      include: { player: { select: PLAYER_PUBLIC_SELECT } },
     });
 
     if (entries.length > 0) {

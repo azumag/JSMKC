@@ -15,6 +15,7 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/standings-cache', () => ({ invalidate: jest.fn().mockResolvedValue(undefined), generateETag: jest.fn().mockReturnValue('mock-etag') }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
@@ -27,6 +28,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/route';
@@ -38,16 +40,21 @@ const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: j
 const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
 
 class MockNextRequest {
+  private _headersMap: Map<string, string>;
+  headers: { get: (key: string) => string | null };
+
   constructor(
     private url: string,
     private body?: any,
-    private headers: Map<string, string> = new Map()
-  ) {}
+    headersMap?: Map<string, string>
+  ) {
+    this._headersMap = headersMap || new Map();
+    this.headers = {
+      get: (key: string) => this._headersMap.get(key) ?? null,
+    };
+  }
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
-  headers = {
-    get: (key: string) => this.headers.get(key)
-  };
+  get header() { return { get: (key: string) => this._headersMap.get(key) ?? null }; }
 }
 
 describe('GP API Route - /api/tournaments/[id]/gp', () => {
@@ -98,12 +105,12 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(result.status).toBe(200);
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ points: 'desc' }, { score: 'desc' }],
       });
       expect(prisma.gPMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });
@@ -427,7 +434,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           races: expect.any(Array),
           completed: true,
         }),
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
     });

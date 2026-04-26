@@ -17,6 +17,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
@@ -249,7 +250,7 @@ export async function POST(
               ...reportData,
               version: { increment: 1 },
             },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           });
         });
 
@@ -380,7 +381,7 @@ export async function POST(
           tx.gPMatch.update({
             where: { id: matchId, version: updatedMatch.version },
             data: { points1: totalPoints1, points2: totalPoints2, completed: true, version: { increment: 1 } },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           })
         );
         await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
@@ -451,7 +452,7 @@ export async function POST(
           const finalResult = await tx.gPMatch.update({
             where: { id: matchId, version: updatedMatch.version },
             data: { points1: p1p1, points2: p1p2, races: racesToUse || [], completed: true, version: { increment: 1 } },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           });
 
           if (!finalResult) {

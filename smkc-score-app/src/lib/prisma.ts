@@ -20,10 +20,30 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { PrismaD1 } from '@prisma/adapter-d1';
 import { PrismaClient } from '@prisma/client';
+import { createLogger } from '@/lib/logger';
+import { recordQuery } from '@/lib/perf/query-counter';
 
 // WeakMap: same D1 binding → same client (within request)
 // different binding (new request) → new client
 const clientCache = new WeakMap<D1Database, PrismaClient>();
+
+/*
+ * Performance instrumentation. When PERF_LOG=1, every Prisma operation is
+ * wrapped via $extends so we can:
+ *   1. Record per-query duration into the current request's AsyncLocalStorage
+ *      scope (see perf/query-counter.ts), enabling per-request "db_query_count"
+ *      summaries from the API timing wrapper.
+ *   2. Emit a `slow_query` warn log when a single operation exceeds the
+ *      `PERF_SLOW_QUERY_MS` threshold (default 100ms). This lets us spot
+ *      outliers without drowning in per-query info logs.
+ *
+ * The Prisma `$on('query')` event is not available with the D1 adapter (it
+ * relies on the underlying query engine), so the $extends route is the only
+ * reliable place to hook in.
+ */
+const PERF_LOG = process.env.PERF_LOG === '1';
+const SLOW_QUERY_THRESHOLD_MS = Number(process.env.PERF_SLOW_QUERY_MS ?? 100);
+const perfLog = createLogger('prisma-perf');
 
 function getOrCreateClient(): PrismaClient {
   const { env } = getCloudflareContext();
@@ -31,13 +51,37 @@ function getOrCreateClient(): PrismaClient {
   let client = clientCache.get(db);
   if (!client) {
     const adapter = new PrismaD1(db);
-    client = new PrismaClient({
+    const base = new PrismaClient({
       adapter,
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
       // Globally omit password from Player queries to prevent accidental leakage.
       // Auth code explicitly uses `omit: { password: false }` when it needs the hash.
       omit: { player: { password: true } },
-    }) as PrismaClient;
+    });
+
+    client = (PERF_LOG
+      ? base.$extends({
+          name: 'perf-instrumentation',
+          query: {
+            $allOperations: async ({ model, operation, args, query }) => {
+              const start = Date.now();
+              try {
+                return await query(args);
+              } finally {
+                const duration = Date.now() - start;
+                recordQuery(duration);
+                if (duration >= SLOW_QUERY_THRESHOLD_MS) {
+                  perfLog.warn('slow_query', {
+                    model: model ?? '(raw)',
+                    operation,
+                    duration_ms: duration,
+                  });
+                }
+              }
+            },
+          },
+        })
+      : base) as unknown as PrismaClient;
     clientCache.set(db, client);
   }
   return client;

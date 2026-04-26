@@ -20,6 +20,7 @@
  */
 
 import { COURSES } from "@/lib/constants";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from "@/lib/ta/time-utils";
 import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
 import { PrismaClient } from "@prisma/client";
@@ -180,7 +181,7 @@ export async function recalculateRanks(
   // Fetch all entries for this tournament stage including player data
   const entries = await prisma.tTEntry.findMany({
     where: { tournamentId, stage },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
   // Calculate total time for each entry from individual course times

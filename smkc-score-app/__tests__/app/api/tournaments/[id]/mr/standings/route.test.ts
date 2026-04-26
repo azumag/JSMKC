@@ -35,6 +35,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
@@ -90,7 +91,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       expect(result.data).toEqual({ ...cachedData.data, _cached: true });
       expect(result.headers).toEqual({
         'ETag': 'etag-123',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'private, max-age=0, must-revalidate',
       });
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
     });
@@ -125,7 +126,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
       });
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'new-etag-123');
@@ -373,7 +374,7 @@ describe('MR Standings API Route - /api/tournaments/[id]/mr/standings', () => {
 
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
     });

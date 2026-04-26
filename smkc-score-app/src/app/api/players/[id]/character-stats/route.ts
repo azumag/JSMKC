@@ -25,6 +25,7 @@
  *   }
  */
 import { NextRequest } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
@@ -75,7 +76,7 @@ export async function GET(
     // Includes the player relation for name/nickname in the response.
     const characterUsages = await prisma.matchCharacterUsage.findMany({
       where: { playerId },
-      include: { player: true },
+      include: { player: { select: PLAYER_PUBLIC_SELECT } },
       orderBy: { createdAt: 'desc' },
     });
 

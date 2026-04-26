@@ -24,6 +24,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createLogger } from "@/lib/logger";
 import {
   calculateAllCourseScores,
@@ -40,6 +41,76 @@ import { getFinalsPoints } from "./finals-points";
 type ExtendedPrismaClient = PrismaClient;
 
 const logger = createLogger("overall-ranking");
+
+/**
+ * In-memory cache for `calculateOverallRankings`.
+ *
+ * The function pulls from every qualification + finals + match table for a
+ * tournament — easily 10+ D1 round-trips per call, each scaling with player
+ * count. Polling endpoints (overall page, ranking dashboards) hit this on
+ * every refresh, so without caching, an idle dashboard with 4 viewers can
+ * issue 50+ queries per cycle for data that has not changed.
+ *
+ * The TTL is short (5 minutes) because:
+ *   - Active tournaments do mutate frequently, but each mutation path also
+ *     calls `invalidateOverallRankingsCache(tournamentId)` so the cache
+ *     becomes consistent within milliseconds of a write.
+ *   - Even if a write somehow misses the invalidation hook, 5 minutes is
+ *     short enough to bound staleness for live broadcasts.
+ *
+ * Workers note: this Map lives in the isolate's module scope, so it is
+ * scoped to a single Worker isolate and does not span deployments. A future
+ * Cache API layer will replace this with a persisted cache; for now the
+ * in-memory layer is enough to take the D1 burden off polling.
+ *
+ * Capacity is bounded with an LRU policy so a long-running isolate that
+ * sees many tournament IDs (e.g. an admin browsing through history) does
+ * not grow the Map without limit.
+ */
+interface RankingsCacheEntry {
+  data: PlayerTournamentScore[];
+  timestamp: number;
+}
+const OVERALL_RANKINGS_TTL_MS = 5 * 60 * 1000;
+const OVERALL_RANKINGS_MAX_SIZE = 50;
+const overallRankingsCache = new Map<string, RankingsCacheEntry>();
+
+/**
+ * Insert/refresh an entry while keeping the Map at or under the size cap.
+ * Map preserves insertion order, so we delete-then-set to bump a touched
+ * key to the most-recently-used end, then evict from the front until we
+ * are within capacity.
+ */
+function setOverallRankingsCache(
+  tournamentId: string,
+  data: PlayerTournamentScore[],
+): void {
+  if (overallRankingsCache.has(tournamentId)) {
+    overallRankingsCache.delete(tournamentId);
+  }
+  overallRankingsCache.set(tournamentId, { data, timestamp: Date.now() });
+  while (overallRankingsCache.size > OVERALL_RANKINGS_MAX_SIZE) {
+    const oldest = overallRankingsCache.keys().next().value;
+    if (oldest === undefined) break;
+    overallRankingsCache.delete(oldest);
+  }
+}
+
+/**
+ * Drop the cached overall rankings for a tournament. Call after any write
+ * that could shift player scores (qualification setup, match score update,
+ * finals bracket change). No-op if nothing was cached.
+ */
+export function invalidateOverallRankingsCache(tournamentId: string): void {
+  overallRankingsCache.delete(tournamentId);
+}
+
+/**
+ * Drop every entry. Used by tests and when an admin manually wipes data.
+ */
+export function clearOverallRankingsCache(): void {
+  overallRankingsCache.clear();
+}
 
 /**
  * Shape of a qualification entry from the database for BM/MR/GP modes.
@@ -116,7 +187,7 @@ export async function calculateTAQualificationPointsFromDB(
       tournamentId,
       stage: "qualification",
     },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
   // Use the same scoring algorithm as the TA qualification page (qualification-scoring.ts)
@@ -167,7 +238,7 @@ export async function calculateBMQualificationPointsFromDB(
 ): Promise<Map<string, QualificationPointsResult>> {
   const qualifications = await prisma.bMQualification.findMany({
     where: { tournamentId },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
   // Map database records to the MatchRecord interface expected by the calculator
@@ -204,7 +275,7 @@ export async function calculateMRQualificationPointsFromDB(
 ): Promise<Map<string, QualificationPointsResult>> {
   const qualifications = await prisma.mRQualification.findMany({
     where: { tournamentId },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
   const records: MatchRecord[] = qualifications.map((q: QualificationEntry) => ({
@@ -239,7 +310,7 @@ export async function calculateGPQualificationPointsFromDB(
 ): Promise<Map<string, QualificationPointsResult>> {
   const qualifications = await prisma.gPQualification.findMany({
     where: { tournamentId },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
   const records: MatchRecord[] = qualifications.map((q: QualificationEntry) => ({
@@ -516,6 +587,14 @@ export async function calculateOverallRankings(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<PlayerTournamentScore[]> {
+  // Cache short-circuit: serve recent results without re-querying D1.
+  // Invalidation hooks in api-factories drop this entry on every write
+  // path, so a live cache hit reflects the latest committed state.
+  const cached = overallRankingsCache.get(tournamentId);
+  if (cached && Date.now() - cached.timestamp < OVERALL_RANKINGS_TTL_MS) {
+    return cached.data;
+  }
+
   // Step 1: Collect all unique player IDs across all 4 modes.
   // A player may participate in only some modes, and still receives
   // 0 points for modes they did not enter.
@@ -673,6 +752,7 @@ export async function calculateOverallRankings(
     previousPoints = scores[i].totalPoints;
   }
 
+  setOverallRankingsCache(tournamentId, scores);
   return scores;
 }
 
@@ -774,7 +854,7 @@ export async function getOverallRankings(
 ): Promise<PlayerTournamentScore[]> {
   const scores = await prisma.tournamentPlayerScore.findMany({
     where: { tournamentId },
-    include: { player: true },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
     orderBy: { overallRank: "asc" },
   });
 

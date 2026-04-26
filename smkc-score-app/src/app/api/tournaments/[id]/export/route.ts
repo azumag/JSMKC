@@ -20,6 +20,7 @@
  * Response: CSV file download
  */
 import { NextResponse } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
@@ -42,11 +43,11 @@ export async function GET(
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
-        bmQualifications: { include: { player: true } },
-        bmMatches: { include: { player1: true, player2: true } },
-        mrMatches: { include: { player1: true, player2: true } },
-        gpMatches: { include: { player1: true, player2: true } },
-        ttEntries: { include: { player: true } },
+        bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+        bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+        mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+        gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+        ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
       },
     });
 

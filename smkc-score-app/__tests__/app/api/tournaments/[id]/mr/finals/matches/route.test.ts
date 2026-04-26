@@ -33,6 +33,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { createAuditLog } from '@/lib/audit-log';
@@ -133,7 +134,7 @@ describe('MR Finals Matches API Route - /api/tournaments/[id]/mr/finals/matches'
           isGrandFinal: false,
           rounds: {},
         },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

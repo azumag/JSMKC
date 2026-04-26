@@ -41,6 +41,7 @@ jest.mock('next/server', () => {
 });
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createLogger } from '@/lib/logger';
 import { formatDate, formatTime } from '@/lib/excel';
 import { GET } from '@/app/api/tournaments/[id]/export/route';
@@ -105,11 +106,11 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(prisma.tournament.findUnique).toHaveBeenCalledWith({
         where: { id: 't1' },
         include: {
-          bmQualifications: { include: { player: true } },
-          bmMatches: { include: { player1: true, player2: true } },
-          mrMatches: { include: { player1: true, player2: true } },
-          gpMatches: { include: { player1: true, player2: true } },
-          ttEntries: { include: { player: true } },
+          bmQualifications: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
+          bmMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          mrMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          gpMatches: { include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } },
+          ttEntries: { include: { player: { select: PLAYER_PUBLIC_SELECT } } },
         },
       });
     });

@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
@@ -103,9 +104,20 @@ export function createStandingsHandlers(config: StandingsConfig) {
       const cached = await get(tournamentId, 'qualification');
 
       if (cached && !isExpired(cached) && ifNoneMatch !== '*') {
+        /* Conditional GET: client already has this exact version. Return
+         * 304 with no body so the network round-trip carries only headers. */
+        if (ifNoneMatch === cached.etag) {
+          return new NextResponse(null, {
+            status: 304,
+            headers: {
+              ETag: cached.etag,
+              'Cache-Control': 'private, max-age=0, must-revalidate',
+            },
+          });
+        }
         const response = createSuccessResponse({ ...cached.data, _cached: true });
         response.headers.set('ETag', cached.etag);
-        response.headers.set('Cache-Control', 'public, max-age=300');
+        response.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
         return response;
       }
 
@@ -151,7 +163,7 @@ export function createStandingsHandlers(config: StandingsConfig) {
         /* Direct path (MR/GP): findMany with player include and transform */
         const qualifications = await qualModel(prisma).findMany({
           where: { tournamentId },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: config.orderBy,
         });
 

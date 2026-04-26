@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
@@ -182,7 +183,7 @@ export async function GET(
       // Player.password is globally omitted via PrismaClient config in lib/prisma.ts.
       const entries = await prisma.tTEntry.findMany({
         where: { tournamentId, stage: phaseValue },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [
           { eliminated: "asc" }, // Active players first
           { lives: "desc" },     // Most lives first (relevant for phase3)

@@ -7,6 +7,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateBattleModeScores } from '@/lib/score-validation';
 
@@ -82,7 +83,7 @@ export const bmConfig: EventTypeConfig = {
         rounds: data.rounds || null,
         completed: true,
       },
-      include: { player1: true, player2: true },
+      include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
     });
     return { match, score1OrPoints1: data.score1!, score2OrPoints2: data.score2! };
   },

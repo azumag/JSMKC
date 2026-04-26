@@ -25,6 +25,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
@@ -144,7 +145,7 @@ describe('Standings Route Factory', () => {
       const response = await GET(request, { params });
 
       expect(response.headers.get('ETag')).toBe('etag-test-123');
-      expect(response.headers.get('Cache-Control')).toBe('public, max-age=300');
+      expect(response.headers.get('Cache-Control')).toBe('private, max-age=0, must-revalidate');
     });
 
     // Cache bypass: If-None-Match: * forces fresh fetch
@@ -252,7 +253,7 @@ describe('Standings Route Factory', () => {
       expect(response.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
       // paginate should NOT be called in direct mode

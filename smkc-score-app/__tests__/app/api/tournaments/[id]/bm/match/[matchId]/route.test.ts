@@ -49,6 +49,7 @@ jest.mock('@/lib/sanitize', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { updateBMMatchScore, OptimisticLockError } from '@/lib/optimistic-locking';
@@ -135,8 +136,8 @@ describe('BM Match API Route - /api/tournaments/[id]/bm/match/[matchId]', () => 
       expect(prisma.bMMatch.findUnique).toHaveBeenCalledWith({
         where: { id: 'm1' },
         include: {
-          player1: true,
-          player2: true,
+          player1: { select: PLAYER_PUBLIC_SELECT },
+          player2: { select: PLAYER_PUBLIC_SELECT },
         },
       });
     });

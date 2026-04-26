@@ -40,6 +40,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimination';
@@ -377,7 +378,7 @@ describe('MR Finals Bracket API Route - /api/tournaments/[id]/mr/finals/bracket'
 
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
     });

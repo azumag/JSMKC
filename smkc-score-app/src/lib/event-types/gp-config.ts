@@ -9,6 +9,7 @@
  */
 
 import { EventTypeConfig, MatchResult } from './types';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
 import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS, TOTAL_GP_RACES } from '@/lib/constants';
@@ -146,7 +147,7 @@ export const gpConfig: EventTypeConfig = {
           completed: true,
           version: { increment: 1 },
         },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

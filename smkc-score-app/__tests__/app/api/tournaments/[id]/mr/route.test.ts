@@ -20,6 +20,7 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/standings-cache', () => ({ invalidate: jest.fn().mockResolvedValue(undefined), generateETag: jest.fn().mockReturnValue('mock-etag') }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/rate-limit', () => ({ getServerSideIdentifier: jest.fn(), checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
@@ -32,6 +33,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/mr/route';
@@ -43,16 +45,21 @@ const _NextResponseMock = jest.requireMock('next/server') as { NextResponse: { j
 
 // Mock NextRequest class
 class MockNextRequest {
+  private _headersMap: Map<string, string>;
+  headers: { get: (key: string) => string | null };
+
   constructor(
     private url: string,
     private body?: Record<string, unknown>,
-    private headers: Map<string, string> = new Map()
-  ) {}
+    headersMap?: Map<string, string>
+  ) {
+    this._headersMap = headersMap || new Map();
+    this.headers = {
+      get: (key: string) => this._headersMap.get(key) ?? null,
+    };
+  }
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
-  headers = {
-    get: (key: string) => this.headers.get(key)
-  };
+  get header() { return { get: (key: string) => this._headersMap.get(key) ?? null }; }
 }
 
 describe('MR API Route - /api/tournaments/[id]/mr', () => {
@@ -88,12 +95,12 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(result.status).toBe(200);
       expect(prisma.mRQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
       });
       expect(prisma.mRMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });
@@ -342,7 +349,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       expect(prisma.mRQualification.updateMany).toHaveBeenCalledTimes(2);
     });
@@ -395,7 +402,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       expect(prisma.mRMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: validRounds, completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

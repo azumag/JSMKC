@@ -46,6 +46,7 @@ import {
   calculateOverallRankings,
   saveOverallRankings,
   getOverallRankings,
+  clearOverallRankingsCache,
 } from '@/lib/points/overall-ranking';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,9 @@ const PLAYER_P2 = { id: 'p2', name: 'Bob', nickname: 'bob' };
 describe('Overall Ranking module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // The Phase-2 in-memory cache for calculateOverallRankings persists across
+    // tests via module scope, so clear it here to keep each test independent.
+    clearOverallRankingsCache();
   });
 
   // =========================================================================
