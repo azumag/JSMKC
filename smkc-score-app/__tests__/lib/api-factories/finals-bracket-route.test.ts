@@ -33,6 +33,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket } from '@/lib/tournament/double-elimination';
@@ -129,7 +130,7 @@ describe('Finals Bracket Route Factory', () => {
 
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'finals' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });

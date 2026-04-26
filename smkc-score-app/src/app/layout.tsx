@@ -28,6 +28,7 @@ import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Toaster } from "sonner";
 import { NavLabelClient } from "@/components/NavLabel";
+import { WebVitalsReporter } from "./web-vitals";
 
 /*
  * Font wiring. CSS variable names match the @theme inline declarations
@@ -89,6 +90,7 @@ export default async function RootLayout({
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <SessionProvider>
+            <WebVitalsReporter />
             {isOverlay ? (
               /* Overlay route: render only the page tree — no header, no
                  bg-background wrapper, no main padding, no Sonner toaster

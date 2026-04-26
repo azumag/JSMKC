@@ -32,6 +32,7 @@
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
@@ -102,6 +103,7 @@ describe('Finals Route Factory', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
 
     // Setup mocks
     mockAuth = auth as jest.MockedFunction<typeof auth>;
@@ -1460,7 +1462,7 @@ describe('Finals Route Factory', () => {
           completed: true,
           rounds: [],
         },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 
@@ -1517,7 +1519,7 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith({
         where: { id: 'match-1' },
         data: expect.objectContaining({ completed: true }),
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

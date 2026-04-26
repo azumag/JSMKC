@@ -12,6 +12,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
@@ -150,7 +151,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
           isGrandFinal: data.isGrandFinal,
           rounds: {},
         },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       /* Record audit log for match creation (security and accountability) */

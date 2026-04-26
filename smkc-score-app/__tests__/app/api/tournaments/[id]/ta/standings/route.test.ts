@@ -27,6 +27,7 @@
 // NOTE: Do NOT import from @jest/globals. Mock factories run with the global jest,
 // so using the imported jest causes mock identity mismatches (see mock-debug2.test.ts).
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 
 // Mock dependencies
 
@@ -207,7 +208,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'ETag': 'cached-etag',
-            'Cache-Control': 'public, max-age=300',
+            'Cache-Control': 'private, max-age=0, must-revalidate',
           }),
         })
       );
@@ -303,7 +304,7 @@ describe('GET /api/tournaments/[id]/ta/standings', () => {
 
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { rank: 'asc' },
       });
 

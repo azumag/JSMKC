@@ -30,6 +30,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import _prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { get, set, isExpired, generateETag } from '@/lib/standings-cache';
@@ -87,7 +88,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       expect(result.data).toEqual({ ...cachedData.data, _cached: true });
       expect(result.headers).toEqual({
         'ETag': 'etag-123',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'private, max-age=0, must-revalidate',
       });
       expect(get).toHaveBeenCalledWith('t1', 'qualification');
     });
@@ -131,7 +132,7 @@ describe('BM Standings API Route - /api/tournaments/[id]/bm/standings', () => {
       expect(result.data.qualifications[1].rank).toBe(2);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
       });
     });

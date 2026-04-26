@@ -83,32 +83,88 @@ export async function GET(request: NextRequest) {
       // Run queries sequentially to avoid D1 (SQLite) concurrent query failures.
       // D1 can intermittently fail under parallel query load (Promise.all with 8 queries),
       // causing the entire /api/players endpoint to return 500.
-      // Gracefully degrade: if hasTournamentData fails, return players without the flag
-      // rather than failing the entire request.
-      try {
-        const bmqIds = await prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const bmmRows = await prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
-        const mrqIds = await prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const mrmRows = await prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
-        const gpqIds = await prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const gpmRows = await prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
-        const tteIds = await prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const tpsIds = await prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
+      //
+      // Variable-count budget: D1's SQLITE_LIMIT_VARIABLE_NUMBER is 100,
+      // but Prisma adds bound parameters of its own to each query (e.g. soft-
+      // delete `deletedAt` predicates, implicit type casts), so an `IN (?,…)`
+      // clause that already binds the full 100 page IDs immediately tips the
+      // statement over the limit. Chunk into batches of 50 to leave headroom.
+      //
+      // Gracefully degrade: if hasTournamentData fails, return players without
+      // the flag rather than failing the entire request.
+      const ID_BATCH = 50;
+      const idChunks: string[][] = [];
+      for (let i = 0; i < pagePlayerIds.length; i += ID_BATCH) {
+        idChunks.push(pagePlayerIds.slice(i, i + ID_BATCH));
+      }
 
-        const registeredIds = new Set<string>([
-          ...bmqIds.map(r => r.playerId),
-          ...bmmRows.flatMap(r => [r.player1Id, r.player2Id]),
-          ...mrqIds.map(r => r.playerId),
-          ...mrmRows.flatMap(r => [r.player1Id, r.player2Id]),
-          ...gpqIds.map(r => r.playerId),
-          ...gpmRows.flatMap(r => [r.player1Id, r.player2Id]),
-          ...tteIds.map(r => r.playerId),
-          ...tpsIds.map(r => r.playerId),
-        ]);
+      try {
+        const collected = new Set<string>();
+
+        // Helper: run a per-chunk query and feed every yielded id into the Set.
+        async function collectFrom<T extends Record<string, unknown>>(
+          query: (chunk: string[]) => Promise<T[]>,
+          fields: ReadonlyArray<keyof T & string>,
+        ) {
+          for (const chunk of idChunks) {
+            const rows = await query(chunk);
+            for (const row of rows) {
+              for (const field of fields) {
+                const v = row[field];
+                if (typeof v === "string") collected.add(v);
+              }
+            }
+          }
+        }
+
+        await collectFrom(
+          (chunk) => prisma.bMQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ["playerId"]
+        );
+        await collectFrom(
+          (chunk) => prisma.bMMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
+          ["player1Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.bMMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
+          ["player2Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.mRQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ["playerId"]
+        );
+        await collectFrom(
+          (chunk) => prisma.mRMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
+          ["player1Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.mRMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
+          ["player2Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.gPQualification.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ["playerId"]
+        );
+        await collectFrom(
+          (chunk) => prisma.gPMatch.findMany({ where: { player1Id: { in: chunk } }, select: { player1Id: true } }),
+          ["player1Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.gPMatch.findMany({ where: { player2Id: { in: chunk } }, select: { player2Id: true } }),
+          ["player2Id"]
+        );
+        await collectFrom(
+          (chunk) => prisma.tTEntry.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ["playerId"]
+        );
+        await collectFrom(
+          (chunk) => prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: chunk } }, select: { playerId: true } }),
+          ["playerId"]
+        );
 
         result.data = players.map(player => ({
           ...player,
-          hasTournamentData: registeredIds.has(player.id),
+          hasTournamentData: collected.has(player.id),
         }));
       } catch (annotationError) {
         // hasTournamentData is a UI convenience (disables delete button).

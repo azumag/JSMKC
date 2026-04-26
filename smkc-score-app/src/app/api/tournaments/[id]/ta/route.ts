@@ -20,6 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
@@ -177,7 +178,7 @@ export async function GET(
     const [entries, tournament, qualCount, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: stageToQuery },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
       }),
       prisma.tournament.findUnique({
@@ -285,7 +286,7 @@ export async function POST(
      */
     // Explicit payload type so TypeScript knows `.player.nickname` is
     // safe on each entry after the later findMany runs with the include.
-    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: true } }>[] = [];
+    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: { select: typeof PLAYER_PUBLIC_SELECT } } }>[] = [];
 
     if (playerIds.length > 0) {
       const existingEntries = await prisma.tTEntry.findMany({
@@ -317,7 +318,7 @@ export async function POST(
             stage: "qualification",
             playerId: { in: newPlayerIds },
           },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
         });
 
         // Audit logs in parallel. createAuditLog never throws (it catches
@@ -403,14 +404,14 @@ export async function PUT(
 
       const entry = await prisma.tTEntry.findUnique({
         where: { id: entryId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
       if (!entry) return createErrorResponse('Entry not found', 404, 'NOT_FOUND');
 
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: { partnerId: partnerId ?? null },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       if (partnerId) {
@@ -449,7 +450,7 @@ export async function PUT(
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: { seeding: seeding ?? null },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       return createSuccessResponse({ entry: updatedEntry });
@@ -463,7 +464,7 @@ export async function PUT(
 
       const entry = await prisma.tTEntry.findUnique({
         where: { id: entryId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       if (!entry) {
@@ -477,7 +478,7 @@ export async function PUT(
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: action === "reset_lives" ? { lives: 3 } : { lives: { increment: livesDelta } },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       await recalculateRanks(tournamentId, entry.stage, prisma);
@@ -517,7 +518,7 @@ export async function PUT(
 
       const entry = await prisma.tTEntry.findUnique({
         where: { id: entryId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       if (!entry) {
@@ -531,7 +532,7 @@ export async function PUT(
       const updatedEntry = await prisma.tTEntry.update({
         where: { id: entryId },
         data: { eliminated },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       // Recalculate ranks after elimination status change
@@ -676,7 +677,7 @@ export async function PUT(
     // Fetch the fully updated entry with player data for the response
     const finalEntry = await prisma.tTEntry.findUnique({
       where: { id: entryId },
-      include: { player: true },
+      include: { player: { select: PLAYER_PUBLIC_SELECT } },
     });
 
     const ipAddress = getClientIdentifier(request);
@@ -748,7 +749,7 @@ export async function DELETE(
     // Fetch entry to confirm existence and get player data for audit log
     const entryToDelete = await prisma.tTEntry.findUnique({
       where: { id: entryId },
-      include: { player: true },
+      include: { player: { select: PLAYER_PUBLIC_SELECT } },
     });
 
     if (!entryToDelete) {

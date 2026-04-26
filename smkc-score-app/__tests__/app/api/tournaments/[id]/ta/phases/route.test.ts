@@ -140,6 +140,7 @@ jest.mock('next/server', () => {
 });
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import {
   getPhaseStatus,
@@ -356,10 +357,10 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
       // Player.password is globally omitted via PrismaClient config in lib/prisma.ts,
-      // so a plain `include: { player: true }` is sufficient — no per-query omit needed.
+      // so a plain `include: { player: { select: PLAYER_PUBLIC_SELECT } }` is sufficient — no per-query omit needed.
       expect(prisma.tTEntry.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
         })
       );
     });

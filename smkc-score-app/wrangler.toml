@@ -18,6 +18,16 @@ custom_domain = true
 NODE_ENV = "production"
 # NextAuth v5 uses AUTH_URL (not NEXTAUTH_URL)
 AUTH_URL = "https://smkc.bluemoon.works"
+# Performance instrumentation (Phase 0 of perf rollout):
+#   PERF_LOG=1            — enables prisma `slow_query` warnings, per-request
+#                            timing summaries, and the /api/internal/vitals
+#                            ingestion endpoint.
+#   NEXT_PUBLIC_PERF_LOG=1 — opts the client-side WebVitalsReporter into
+#                            posting LCP/INP/TTFB beacons.
+# Both are baked into the Worker bundle at deploy time; flip them off and
+# redeploy when measurement is no longer needed.
+PERF_LOG = "1"
+NEXT_PUBLIC_PERF_LOG = "1"
 
 [assets]
 directory = ".open-next/assets"

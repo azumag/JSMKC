@@ -13,6 +13,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
@@ -68,14 +69,14 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       /* Fetch all finals matches ordered by match number for bracket display */
       const matches = await matchMdl(prisma).findMany({
         where: { tournamentId, stage: 'finals' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
 
       /* Fetch qualification standings for player seedings */
       const qualifications = await qualMdl(prisma).findMany({
         where: { tournamentId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
 
@@ -132,7 +133,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       /* Fetch qualification standings for seeding */
       const qualifications = await qualMdl(prisma).findMany({
         where: { tournamentId },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ score: 'desc' }, { points: 'desc' }],
       });
 

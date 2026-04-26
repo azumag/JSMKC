@@ -81,6 +81,7 @@ jest.mock('next/server', () => {
 });
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import * as characterStatsRoute from '@/app/api/players/[id]/character-stats/route';
@@ -195,7 +196,7 @@ describe('GET /api/players/[id]/character-stats', () => {
       expect(prisma.matchCharacterUsage.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { playerId: 'p1' },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: { createdAt: 'desc' },
         })
       );

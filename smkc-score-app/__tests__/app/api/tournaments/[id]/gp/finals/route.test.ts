@@ -49,6 +49,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/finals/route';
@@ -82,6 +83,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
     (createLogger as jest.Mock).mockReturnValue(logger);
@@ -142,7 +144,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { findMany: expect.any(Function), count: expect.any(Function) },
         { tournamentId: 't1', stage: 'finals' },
         { matchNumber: 'asc' },
-        { page: 1, limit: 50, include: { player1: true, player2: true } }
+        { page: 1, limit: 50, include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } }
       );
       expect(generateBracketStructure).toHaveBeenCalledWith(8);
     });
@@ -185,7 +187,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         expect.any(Object),
         expect.any(Object),
         expect.any(Object),
-        { page: 2, limit: 20, include: { player1: true, player2: true } }
+        { page: 2, limit: 20, include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } } }
       );
     });
 
@@ -228,13 +230,13 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         { id: 'pm3', matchNumber: 3, round: 'playoff_r1', cup: null,     player1: {}, player2: {} },
         { id: 'pm4', matchNumber: 4, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
       ];
-      /* 1st findMany: playoff fetch (returns mixed state).
-       * 2nd findMany: re-fetch after backfill (dominant cup everywhere).
-       * 3rd findMany: finals legacy-detection scan (empty — no finals rows). */
-      const normalizedRoundMatches = mixedRoundMatches.map((m) => ({ ...m, cup: 'Flower' }));
+      /* 1st findMany: playoff fetch (returns mixed state). The route now
+       * patches `playoffMatches` in memory using the canonical map returned
+       * by `normalizeRoundCupsToSingleCup`, so there is no second findMany
+       * for the same playoff rows.
+       * 2nd findMany: finals legacy-detection scan (empty — no finals rows). */
       (prisma.gPMatch.findMany as jest.Mock)
         .mockResolvedValueOnce(mixedRoundMatches)
-        .mockResolvedValueOnce(normalizedRoundMatches)
         .mockResolvedValueOnce([]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 3 });
@@ -280,9 +282,10 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player1: {},
         player2: {},
       }));
+      // playoff fetch + legacy finals scan (no second playoff fetch — the route
+      // now relies on the in-memory canonical map from the normalizer)
       (prisma.gPMatch.findMany as jest.Mock)
         .mockResolvedValueOnce(nullRoundMatches)
-        .mockResolvedValueOnce(nullRoundMatches)  // post-backfill (irrelevant content)
         .mockResolvedValueOnce([]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 4 });

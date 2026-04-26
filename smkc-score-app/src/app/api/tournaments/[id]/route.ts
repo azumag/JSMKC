@@ -13,6 +13,7 @@
  * Additional match types (MR, GP, TA) are loaded via their own endpoints.
  */
 import { NextRequest } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
@@ -94,13 +95,13 @@ export async function GET(
             createdAt: true,
             updatedAt: true,
             bmQualifications: {
-              include: { player: true },
+              include: { player: { select: PLAYER_PUBLIC_SELECT } },
               orderBy: [{ group: "asc" }, { score: "desc" }],
             },
             bmMatches: {
               include: {
-                player1: true,
-                player2: true,
+                player1: { select: PLAYER_PUBLIC_SELECT },
+                player2: { select: PLAYER_PUBLIC_SELECT },
               },
               orderBy: { matchNumber: "asc" },
             },

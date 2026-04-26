@@ -33,6 +33,7 @@ jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: 
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { POST } from '@/app/api/tournaments/[id]/bm/finals/matches/route';
@@ -142,7 +143,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
           losses: 0,
           rounds: {},
         }),
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
       /* Source resolves IP from x-forwarded-for || x-real-ip || "unknown".
          This request has user-agent but no IP headers, so falls back to "unknown". */
@@ -199,7 +200,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
           player1Id: UUID_P1,
           player2Id: UUID_P2,
         }),
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 
@@ -246,7 +247,7 @@ describe('BM Finals Matches API Route - /api/tournaments/[id]/bm/finals/matches'
         data: expect.objectContaining({
           matchNumber: 6,
         }),
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

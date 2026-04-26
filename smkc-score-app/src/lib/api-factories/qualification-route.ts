@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
@@ -20,9 +21,10 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
-import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
-import { invalidate } from '@/lib/standings-cache';
+import { generateETag, invalidate } from '@/lib/standings-cache';
+import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import {
   generateRoundRobinSchedule,
@@ -98,23 +100,34 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     ) {
       const logger = createLogger(config.loggerName);
     const { id } = await params;
-    const tournamentId = await resolveTournamentId(id);
+    // Pre-declared so the catch block below can include it in error logs
+    // even when resolveTournament throws before assigning the resolved id.
+    let tournamentId: string = id;
 
     try {
-      const [qualifications, matches, tournament] = await Promise.all([
+      // Resolve identifier (id or slug) AND read qualificationConfirmed in
+      // a single findFirst. The previous flow ran resolveTournamentId →
+      // findFirst, then fanned out into a parallel findUnique to grab
+      // qualificationConfirmed; merging them collapses one D1 round-trip.
+      const tournament = await resolveTournament(id, {
+        id: true,
+        qualificationConfirmed: true,
+      });
+      if (!tournament) {
+        return createErrorResponse(`${config.eventDisplayName} tournament not found`, 404, 'NOT_FOUND');
+      }
+      tournamentId = tournament.id;
+
+      const [qualifications, matches] = await Promise.all([
         qualModel(prisma).findMany({
           where: { tournamentId },
-          include: { player: true },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: config.qualificationOrderBy,
         }),
         matchModel(prisma).findMany({
           where: { tournamentId, stage: 'qualification' },
-          include: { player1: true, player2: true },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: { matchNumber: 'asc' },
-        }),
-        prisma.tournament.findUnique({
-          where: { id: tournamentId },
-          select: { qualificationConfirmed: true },
         }),
       ]);
 
@@ -126,12 +139,36 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         { matchScoreFields: config.matchScoreFields },
       );
 
-      /* Wrap in standard success response format for API consistency (#274) */
-      return createSuccessResponse({
+      /* Conditional GET: hash the response body and short-circuit to 304
+       * when the client's If-None-Match matches. We cannot avoid the D1
+       * reads above (no upstream cache layer yet), but skipping the JSON
+       * serialisation and the response payload alone meaningfully reduces
+       * the per-poll cost — and the hash is cheap. */
+      const responseBody = {
         qualifications: rankedQualifications,
         matches,
-        qualificationConfirmed: tournament?.qualificationConfirmed ?? false,
-      });
+        qualificationConfirmed: tournament.qualificationConfirmed,
+      };
+      const etag = generateETag([responseBody]);
+      const ifNoneMatch = request.headers.get('if-none-match');
+      if (ifNoneMatch && ifNoneMatch !== '*' && ifNoneMatch === etag) {
+        // Use the Web standard Response for the empty-body 304 path. Going
+        // through `new NextResponse(...)` would require constructor support
+        // in route-test mocks that currently only stub `NextResponse.json`.
+        return new Response(null, {
+          status: 304,
+          headers: { ETag: etag, 'Cache-Control': 'private, max-age=0, must-revalidate' },
+        });
+      }
+
+      const response = createSuccessResponse(responseBody);
+      // Some test mocks return a plain object instead of a Response, so guard
+      // against `headers` not being present before tagging the ETag onto it.
+      if (response && (response as Response).headers && typeof (response as Response).headers.set === 'function') {
+        (response as Response).headers.set('ETag', etag);
+        (response as Response).headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
+      }
+      return response;
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
       return createErrorResponse(`Failed to fetch ${config.eventDisplayName} data`, 500, 'INTERNAL_ERROR');
@@ -352,27 +389,44 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * BYE matches are auto-completed on creation, so the player's win
        * must be reflected in standings right away — not deferred until
        * their first real match is submitted via PUT.
-       * Use Promise.all for parallel execution to reduce latency.
+       *
+       * Implementation: a single findMany retrieves every completed BYE
+       * match touching any recipient, then we partition the result in
+       * memory before issuing the per-player updateMany. This replaces an
+       * earlier N+1 pattern that issued one findMany per BYE recipient
+       * (visible in profiling as duplicated `Match.findMany` queries
+       * during tournament setup).
        */
-      await Promise.all([...byeRecipientIds].map(async (playerId) => {
-        const byeMatches = await matchModel(prisma).findMany({
+      const byeRecipientList = [...byeRecipientIds];
+      if (byeRecipientList.length > 0) {
+        const allByeMatches = await matchModel(prisma).findMany({
           where: {
             tournamentId,
             stage: 'qualification',
             completed: true,
-            OR: [{ player1Id: playerId }, { player2Id: playerId }],
+            OR: [
+              { player1Id: { in: byeRecipientList } },
+              { player2Id: { in: byeRecipientList } },
+            ],
           },
         });
-        const stats = config.aggregatePlayerStats(
-          byeMatches,
-          playerId,
-          config.calculateMatchResult,
-        );
-        await qualModel(prisma).updateMany({
-          where: { tournamentId, playerId },
-          data: stats.qualificationData,
-        });
-      }));
+
+        await Promise.all(byeRecipientList.map(async (playerId) => {
+          const playerByeMatches = allByeMatches.filter(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (m: any) => m.player1Id === playerId || m.player2Id === playerId,
+          );
+          const stats = config.aggregatePlayerStats(
+            playerByeMatches,
+            playerId,
+            config.calculateMatchResult,
+          );
+          await qualModel(prisma).updateMany({
+            where: { tournamentId, playerId },
+            data: stats.qualificationData,
+          });
+        }));
+      }
 
       /* Audit logging if configured */
       if (config.auditAction && currentSession) {
@@ -396,6 +450,21 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           });
         }
       }
+
+      /* Setup wipes and rebuilds qualification rows + matches, so every
+       * cached standings view AND the cross-mode overall ranking for this
+       * tournament are now stale. Drop the whole tournament's cache (no
+       * `stage` argument) instead of just the qualification slice in case
+       * anything pulled finals/playoff data into the cache before setup ran. */
+      try {
+        await invalidate(tournamentId);
+      } catch (invalidateErr) {
+        logger.warn('Failed to invalidate standings cache after qualification setup', {
+          error: invalidateErr,
+          tournamentId,
+        });
+      }
+      invalidateOverallRankingsCache(tournamentId);
 
       return createSuccessResponse(
         { message: config.setupCompleteMessage, qualifications },
@@ -496,6 +565,19 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         });
       }
 
+      /* Score updates change both per-mode standings and the cross-mode
+       * overall ranking. Drop both caches so the next GET reflects the new
+       * totals. invalidate() is best-effort; we log and continue on failure. */
+      try {
+        await invalidate(tournamentId, 'qualification');
+      } catch (invalidateErr) {
+        logger.warn('Failed to invalidate standings cache after score update', {
+          error: invalidateErr,
+          tournamentId,
+        });
+      }
+      invalidateOverallRankingsCache(tournamentId);
+
       return createSuccessResponse({ match, result1, result2 });
     } catch (error) {
       // Surface cup validation errors (§7.1/§7.4) as 400 rather than 500
@@ -582,8 +664,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           },
         });
 
-        // Invalidate standings cache so the rank change takes effect immediately
+        // Invalidate standings cache + overall-rankings cache so the rank
+        // change takes effect immediately on both per-mode and cross-mode views.
         await invalidate(tournamentId, 'qualification');
+        invalidateOverallRankingsCache(tournamentId);
 
         logger.info('Rank override updated', {
           tournamentId,
@@ -642,7 +726,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const match = await matchModel(prisma).update({
         where: { id: matchId, tournamentId },
         data: { tvNumber: tvNumber ?? null },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       return createSuccessResponse({ match });

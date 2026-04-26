@@ -19,6 +19,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { PLAYER_PUBLIC_SELECT, PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 
 import {
   createErrorResponse,
@@ -104,7 +105,7 @@ export async function POST(
     /* Fetch match and verify it belongs to this tournament */
     const match = await prisma.bMMatch.findUnique({
       where: { id: matchId, tournamentId },
-      include: { player1: true, player2: true },
+      include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
     });
 
     if (!match) {
@@ -175,7 +176,7 @@ export async function POST(
               ...reportData,
               version: { increment: 1 },
             },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
         });
 
@@ -257,7 +258,7 @@ export async function POST(
           return tx.bMMatch.update({
             where: { id: matchId, version: currentMatch.version },
             data: { score1, score2, completed: true, version: { increment: 1 } },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
         });
         await recalculatePlayerStats(BM_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
@@ -289,7 +290,7 @@ export async function POST(
           const finalResult = await tx.bMMatch.update({
             where: { id: matchId, version: result.version },
             data: { score1: p1s1, score2: p1s2, completed: true, version: { increment: 1 } },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
 
           if (!finalResult) {

@@ -18,6 +18,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { PLAYER_PUBLIC_SELECT, PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
@@ -102,7 +103,7 @@ export async function POST(
     /* Fetch match and verify it belongs to this tournament */
     const match = await prisma.mRMatch.findUnique({
       where: { id: matchId, tournamentId },
-      include: { player1: true, player2: true },
+      include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
     });
 
     if (!match) {
@@ -161,7 +162,7 @@ export async function POST(
               ...reportData,
               version: { increment: 1 },
             },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           });
         });
 
@@ -283,7 +284,7 @@ export async function POST(
           tx.mRMatch.update({
             where: { id: matchId, version: result.version },
             data: { score1, score2, completed: true, version: { increment: 1 } },
-            include: { player1: true, player2: true },
+            include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           })
         );
         await recalculatePlayerStats(MR_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
@@ -334,7 +335,7 @@ export async function POST(
             const finalResult = await tx.mRMatch.update({
               where: { id: matchId, version: result.version },
               data: { score1: p1Score1, score2: p1Score2, rounds: racesToUse || [], completed: true, version: { increment: 1 } },
-              include: { player1: true, player2: true },
+              include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
             });
 
             if (!finalResult) {

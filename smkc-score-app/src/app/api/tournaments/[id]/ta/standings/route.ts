@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { get, set, isExpired, generateETag } from "@/lib/standings-cache";
@@ -68,7 +69,7 @@ export async function GET(
         {
           headers: {
             'ETag': cached.etag,
-            'Cache-Control': 'public, max-age=300',
+            'Cache-Control': 'private, max-age=0, must-revalidate',
           },
         }
       );
@@ -77,7 +78,7 @@ export async function GET(
     // Cache miss or expired: fetch fresh data from database
     const entries = await prisma.tTEntry.findMany({
       where: { tournamentId },
-      include: { player: true },
+      include: { player: { select: PLAYER_PUBLIC_SELECT } },
       orderBy: { rank: 'asc' },
     });
 

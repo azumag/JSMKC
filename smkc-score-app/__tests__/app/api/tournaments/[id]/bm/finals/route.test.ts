@@ -43,6 +43,7 @@ jest.mock('@/lib/qualification-confirmed-check', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/finals/route';
@@ -77,6 +78,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);
@@ -119,7 +121,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(result.data.grandFinalMatches).toHaveLength(1);
       expect(prisma.bMMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'finals' },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
     });
@@ -244,7 +246,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(result.data.seededPlayers).toHaveLength(8);
       expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
-        include: { player: true },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
         take: 8,
       });
@@ -402,7 +404,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1' },
         data: { score1: 5, score2: 0, completed: true },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
     });
 

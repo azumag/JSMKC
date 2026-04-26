@@ -882,4 +882,41 @@ describe('usePolling', () => {
       expect(retainedResult.current.data).toEqual({ id: 24 });
     });
   });
+
+  describe('self-rescheduling under stable ETag (regression for ETag-stuck bug)', () => {
+    /*
+     * Pre-fix the effect's deps included `poll`, and `poll`'s deps included
+     * `lastETag`. When the server returned the same ETag forever, `poll`
+     * never re-created → effect never re-ran → setTimeout fired exactly
+     * once and polling silently stopped.
+     *
+     * Post-fix the effect schedules the next poll itself when each one
+     * resolves, so a stable ETag must NOT halt polling. This test fails
+     * if anyone reintroduces a `poll`-on-deps regression.
+     */
+    it('keeps polling even when ETag stays identical across many cycles', async () => {
+      const stableETag = 'unchanged-etag';
+      const stableResponse = {
+        id: 1,
+        headers: { get: (n: string) => (n === 'etag' ? stableETag : null) },
+      };
+      const mockFetch = jest.fn().mockResolvedValue(stableResponse);
+
+      await act(async () => {
+        renderHook(() => usePolling(mockFetch, { interval: 5000 }));
+      });
+      await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+
+      /* Drive five additional polling cycles. Each setTimeout(5s) must
+       * be re-armed by the previous poll's completion, not by an effect
+       * re-run, because the ETag never changes and therefore no React
+       * state update fires. */
+      for (let i = 2; i <= 6; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(5000);
+        });
+        await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(i));
+      }
+    });
+  });
 });

@@ -10,6 +10,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { OptimisticLockError } from '@/lib/optimistic-locking';
@@ -26,6 +27,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { invalidate as invalidateStandingsCache } from '@/lib/standings-cache';
+import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { recalculatePlayerStats, type RecalculateStatsConfig } from './score-report-helpers';
 
 /**
@@ -135,7 +138,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       const tournamentId = await resolveTournamentId(identifier);
       const match = await model(prisma).findUnique({
         where: { id: matchId },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       if (!match || ('tournamentId' in match && match.tournamentId && match.tournamentId !== tournamentId)) {
@@ -255,7 +258,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
       /* Re-fetch the updated match with player relations for the response */
       const updatedMatch = await model(prisma).findUnique({
         where: { id: matchId },
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
       /* Mirror the qualification-route PUT flow: after a successful
@@ -286,6 +289,23 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
            * update already committed. Log and move on; a subsequent score
            * edit or a POST /overall-ranking will reconcile. */
         }
+      }
+
+      /* Cache busting after a successful score write:
+       *   - standings-cache: per-stage standings rendered to the API
+       *   - overall-rankings cache: cross-mode tournament total
+       * Both are best-effort; if either invalidate throws we still return
+       * success and let TTL eventually catch up. */
+      if (matchMeta?.tournamentId) {
+        try {
+          await invalidateStandingsCache(matchMeta.tournamentId);
+        } catch (invalidateErr) {
+          logger.warn('Failed to invalidate standings cache after match update', {
+            error: invalidateErr,
+            tournamentId: matchMeta.tournamentId,
+          });
+        }
+        invalidateOverallRankingsCache(matchMeta.tournamentId);
       }
 
       return createSuccessResponse({

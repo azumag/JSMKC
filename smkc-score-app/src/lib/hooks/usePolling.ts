@@ -7,18 +7,23 @@
  * states up to date in real time during active competitions.
  *
  * Features:
- * - Configurable polling interval (default: POLLING_INTERVAL from constants = 3s)
- * - ETag-based change detection: skips state updates when data hasn't changed,
- *   reducing unnecessary re-renders
- * - Cross-mount cache: when a cacheKey is provided, data persists across
+ * - Self-rescheduling: each poll schedules the next via setTimeout when it
+ *   completes. Continues running indefinitely while mounted, even when the
+ *   ETag is stable and no React state updates fire.
+ * - Page Visibility aware: pauses polling while `document.hidden` is true
+ *   (background tab) and resumes immediately when the tab becomes visible
+ *   again. Eliminates the wasted 3s/cycle traffic in inactive tabs.
+ * - ETag-based change detection: when the response carries an ETag matching
+ *   the previous one, the state update is skipped to avoid a re-render. The
+ *   ETag value lives in a ref so that ETag changes do not invalidate the
+ *   `poll` callback identity (which would otherwise cause `useEffect` to
+ *   re-run on every fetch).
+ * - Cross-mount cache: when a `cacheKey` is provided, data persists across
  *   component unmount/remount cycles, eliminating the loading skeleton flash
- *   when navigating between tabs
- * - Automatic cleanup on unmount to prevent memory leaks and state updates
- *   on unmounted components
- * - Manual refetch capability for user-initiated refreshes
- * - Error handling with callback support
- * - Enable/disable toggle for conditional polling (e.g., only poll when
- *   the tournament is in an active phase)
+ *   when navigating between tabs.
+ * - Manual refetch capability for user-initiated refreshes.
+ * - Error handling with callback support.
+ * - Enable/disable toggle for conditional polling.
  *
  * Usage:
  * ```tsx
@@ -27,10 +32,6 @@
  *   { interval: POLLING_INTERVAL, enabled: isActive, cacheKey: 'tournament/123/bm' }
  * );
  * ```
- *
- * Note: The hook uses setTimeout (not setInterval) to schedule the next poll
- * after the current effect runs. This means the interval is measured from
- * effect execution, not from the completion of the fetch.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -140,14 +141,18 @@ export function clearPollingCache(): void {
  * @property cacheKey  - When provided, data is cached in a module-level Map and restored on
  *                       remount. This eliminates the loading skeleton flash when switching
  *                       between tournament tabs. Example: "tournament/abc123/bm"
+ * @property pauseWhenHidden - When true (default), pause polling while the tab is hidden
+ *                       (`document.hidden`) and resume on `visibilitychange`. Set to false
+ *                       only for use cases that must keep ticking in background tabs.
  */
-interface UsePollingOptions {
+export interface UsePollingOptions {
   enabled?: boolean;
   interval?: number;
   immediate?: boolean;
   onSuccess?: (data: unknown) => void;
   onError?: (error: Error) => void;
   cacheKey?: string;
+  pauseWhenHidden?: boolean;
 }
 
 /**
@@ -170,9 +175,10 @@ export function usePolling<T>(
     onSuccess,
     onError,
     cacheKey,
+    pauseWhenHidden = true,
   } = options;
 
-  // State for the fetched data, errors, and ETag tracking.
+  // Public state for the fetched data and last error.
   // Uses a lazy initializer (function form) so the cache lookup runs only
   // on the initial mount, not on every render.
   const [data, setData] = useState<T | null>(() => {
@@ -184,17 +190,34 @@ export function usePolling<T>(
     return cached ?? null;
   });
   const [error, setError] = useState<Error | null>(null);
-  const [lastETag, setLastETag] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  /*
+   * `lastETag` is also surfaced as state so consumers can render
+   * "last updated" badges and the UI can react to changes. The *internal*
+   * comparison, however, reads from `lastETagRef` so that updating the
+   * ETag does not invalidate the `poll` callback identity. Keeping the ETag
+   * out of `poll`'s dependency array is what allows the polling effect to
+   * stay mounted across many fetches without re-running and re-scheduling
+   * the timer on every successful poll.
+   */
+  const [lastETag, setLastETag] = useState<string | null>(null);
+  const lastETagRef = useRef<string | null>(null);
+
   // Refs to track timer and mount state across renders
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  // isMountedRef prevents state updates on unmounted components,
-  // which would cause React warnings and potential memory leaks
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // isMountedRef prevents state updates on unmounted components, which
+  // would cause React warnings and potential memory leaks
   const isMountedRef = useRef(true);
   // pollRef holds the latest poll function to avoid stale closures
-  // in the setTimeout callback
+  // in the setTimeout callback. We invoke poll via this ref instead of
+  // including it in the effect's deps, so the effect runs only when
+  // its real lifecycle inputs (enabled/interval/immediate) change.
   const pollRef = useRef<(() => Promise<void>) | null>(null);
+  // schedulerRef likewise holds the current scheduler so visibilitychange
+  // and refetch handlers can re-arm the timer without depending on the
+  // effect closure.
+  const schedulerRef = useRef<(() => void) | null>(null);
 
   /**
    * Core polling function. Executes the fetch, handles ETag comparison,
@@ -202,8 +225,8 @@ export function usePolling<T>(
    *
    * ETag handling: If the response object has a `headers.get('etag')` method
    * (i.e., it's a Response-like object), the ETag is compared with the last
-   * known value. If unchanged, the state update is skipped to prevent
-   * unnecessary re-renders.
+   * known value (from `lastETagRef`, not `lastETag` state). If unchanged,
+   * the state update is skipped to prevent unnecessary re-renders.
    */
   const poll = useCallback(async () => {
     // Guard against polling after component unmount
@@ -217,17 +240,21 @@ export function usePolling<T>(
       // This works with fetch() Response objects or any object that exposes
       // a headers.get() method.
       const responseObj = response as { headers?: { get: (name: string) => string | null } };
-      const currentETag = responseObj?.headers?.get('etag');
+      const currentETag = responseObj?.headers?.get('etag') ?? null;
 
       // If we have an ETag and it matches the previous one, the data
-      // hasn't changed -- skip the state update to avoid re-renders
-      if (currentETag && currentETag === lastETag) {
+      // hasn't changed -- skip the state update to avoid re-renders.
+      // Compare against the ref (always-current value), not state.
+      if (currentETag && currentETag === lastETagRef.current) {
         setIsLoading(false);
         return;
       }
 
-      // Update ETag tracking
-      setLastETag(currentETag ?? null);
+      // Update ETag tracking — both ref (for next comparison) and state
+      // (for UI consumers reading lastETag/lastUpdated).
+      lastETagRef.current = currentETag;
+      setLastETag(currentETag);
+
       // Update the data state with the fresh response
       setData(response);
 
@@ -256,16 +283,20 @@ export function usePolling<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFn, lastETag, onSuccess, onError, cacheKey]);
+    // Note: lastETag is intentionally NOT in this dep list. We read the
+    // current ETag via lastETagRef so that the poll callback identity
+    // stays stable across fetches. Without this, every successful poll
+    // would invalidate the effect below and re-arm the timer.
+  }, [fetchFn, onSuccess, onError, cacheKey]);
 
-  // Keep pollRef in sync with the latest poll function.
-  // This is assigned outside useEffect so the setTimeout callback
-  // always calls the most recent version, avoiding stale closure issues.
+  // Keep pollRef in sync with the latest poll function so the timer's
+  // setTimeout callback always invokes the most recent closure.
   pollRef.current = poll;
 
   /**
-   * Clean up polling state: cancel any pending timer, reset mount flag,
-   * and clear loading/error state.
+   * Clean up polling state: cancel any pending timer and clear loading/
+   * error state. Marks the hook as unmounted so any in-flight poll bails
+   * out before touching state.
    */
   const clearPolling = useCallback(() => {
     isMountedRef.current = false;
@@ -280,60 +311,141 @@ export function usePolling<T>(
   /**
    * Effect that manages the polling lifecycle.
    *
-   * On mount (or when dependencies change):
-   * - If enabled and immediate, executes a poll right away
-   * - Schedules the next poll after `interval` milliseconds
+   * Lifecycle inputs are limited to `enabled` / `interval` / `immediate` so
+   * the effect does not re-run on every successful fetch (which previously
+   * happened because `poll` was in the dep list and `poll` changed whenever
+   * `lastETag` changed). Stable lifecycle inputs let the timer self-schedule
+   * indefinitely without React tearing it down between polls.
    *
-   * On unmount (or dependency change), clears polling to prevent leaks.
+   * Self-rescheduling: each poll, on completion, schedules the next one via
+   * setTimeout. This replaces the previous "single setTimeout per effect run"
+   * model, which silently stopped after one cycle whenever the ETag stabilised
+   * (no state change → no re-render → no effect re-run → no new timer).
    *
-   * Note: Uses setTimeout rather than setInterval. This means the interval
-   * starts from when the effect runs, not from when the previous fetch completes.
-   * For most tournament polling use cases (5s intervals), this difference is negligible.
+   * Visibility: while `document.hidden` is true and `pauseWhenHidden` is
+   * enabled, `scheduleNext` no-ops. The visibilitychange listener fires a
+   * fresh poll the moment the tab returns to the foreground.
    */
   useEffect(() => {
-    // Mark component as mounted for the guard in poll()
     isMountedRef.current = true;
 
-    // If polling is disabled, clean up and exit early
     if (!enabled) {
       clearPolling();
       return;
     }
 
-    // Wrapper that safely calls the latest poll function via ref
-    const executePoll = async () => {
-      if (isMountedRef.current && pollRef.current) {
-        await pollRef.current();
+    /**
+     * Schedule the next poll. No-op if the tab is hidden (we resume via
+     * the visibilitychange listener) or if the component has unmounted.
+     */
+    const scheduleNext = () => {
+      if (!isMountedRef.current) return;
+      if (
+        pauseWhenHidden &&
+        typeof document !== 'undefined' &&
+        document.hidden
+      ) {
+        // Hidden tab: do not schedule. visibilitychange handler resumes.
+        return;
       }
+      if (pollingRef.current) {
+        clearTimeout(pollingRef.current);
+      }
+      pollingRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
+        const fn = pollRef.current;
+        if (!fn) return;
+        // Run the poll, then chain the next schedule. Errors inside the
+        // poll are caught by `poll` itself (it never rejects), so we don't
+        // need a try/catch here.
+        void fn().then(() => {
+          scheduleNext();
+        });
+      }, interval);
+    };
+    schedulerRef.current = scheduleNext;
+
+    /**
+     * Run a poll right now and chain the next schedule.
+     * Used for `immediate`, `visibilitychange → visible`, and `refetch`.
+     */
+    const runNow = () => {
+      if (!isMountedRef.current) return;
+      // Cancel any pending timer so we don't double-fire.
+      if (pollingRef.current) {
+        clearTimeout(pollingRef.current);
+        pollingRef.current = null;
+      }
+      const fn = pollRef.current;
+      if (!fn) {
+        scheduleNext();
+        return;
+      }
+      void fn().then(() => {
+        scheduleNext();
+      });
     };
 
-    // Execute immediately on mount if configured to do so
     if (immediate) {
-      executePoll();
+      runNow();
+    } else {
+      scheduleNext();
     }
 
-    // Schedule the next poll after the configured interval
-    pollingRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        executePoll();
+    /**
+     * Visibility handler. When the tab becomes visible we poll immediately
+     * (so the UI does not wait up to `interval` for fresh data) and the
+     * normal cadence resumes from there. When it becomes hidden we cancel
+     * any pending timer; `scheduleNext` will refuse to arm a new one until
+     * the tab is visible again.
+     */
+    const onVisibilityChange = () => {
+      if (!isMountedRef.current) return;
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        if (pollingRef.current) {
+          clearTimeout(pollingRef.current);
+          pollingRef.current = null;
+        }
+        return;
       }
-    }, interval);
+      runNow();
+    };
 
-    // Cleanup function: cancel timer and reset state on unmount
+    if (pauseWhenHidden && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
+    // Cleanup function: cancel timer, drop listeners, and reset state on unmount
     return () => {
+      if (pauseWhenHidden && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+      schedulerRef.current = null;
       clearPolling();
     };
-  }, [enabled, interval, immediate, poll, clearPolling]);
+    // `poll` is intentionally omitted from deps; we invoke it via pollRef
+    // so the effect stays mounted across fetches. See the comment on `poll`.
+  }, [enabled, interval, immediate, pauseWhenHidden, clearPolling]);
 
   /**
    * Manually trigger a refetch outside the regular polling cycle.
-   * Useful for "refresh" buttons or after user actions that are
-   * expected to change the data.
+   * Cancels the pending timer, runs a poll immediately, and re-arms
+   * the next interval from the result. Useful for "refresh" buttons or
+   * after user actions that are expected to change the data.
    */
   const manuallyRefetch = useCallback(() => {
-    if (pollRef.current) {
-      return pollRef.current();
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current);
+      pollingRef.current = null;
     }
+    const fn = pollRef.current;
+    if (!fn) return undefined;
+    return fn().then(() => {
+      // Re-arm the regular cadence after the manual fetch.
+      const sched = schedulerRef.current;
+      if (sched) sched();
+    });
   }, []);
 
   // Return a comprehensive API for consumers.

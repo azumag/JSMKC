@@ -74,6 +74,7 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
     (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     configureNextResponseMock(jest.requireMock('next/server').NextResponse);

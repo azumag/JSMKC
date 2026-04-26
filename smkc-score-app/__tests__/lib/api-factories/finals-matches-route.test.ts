@@ -31,6 +31,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 import { NextRequest } from 'next/server';
+import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { createAuditLog } from '@/lib/audit-log';
@@ -282,7 +283,7 @@ describe('Finals Matches Route Factory', () => {
     /* Verify include has player1: true and player2: true */
     expect(prisma.bMMatch.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: { player1: true, player2: true },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       }),
     );
   });
