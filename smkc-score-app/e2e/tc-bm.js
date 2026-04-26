@@ -16,7 +16,9 @@
  *   TC-510  BM Top-24 pre-bracket playoff → Top-16 finals flow
  *   TC-520  BM per-round target-wins API validation (issue #528: FT3/FT4/FT5/FT7)
  *   TC-522  BM finals tvNumber PUT accepts 1–4, rejects 5, clears on null (issue #634)
- *   TC-523  BM finals score dialog — TV# save button persists without score submit (issue #651)
+ *   TC-523  BM finals score dialog — TV# autosaves on select (no explicit save button)
+ *   TC-524  BM bracket startingCourseNumber randomisation per round (#671)
+ *   TC-525  BM finals score dialog — startingCourseNumber autosaves on select
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1422,16 +1424,19 @@ async function runTc522(adminPage) {
   }
 }
 
-/* ───────── TC-523: BM finals score dialog — TV# save button (issue #651) ─────────
- * Verifies that the explicit "TV# 保存" button in the score dialog saves the
- * TV# assignment immediately without submitting the full match score.
+/* ───────── TC-523: BM finals score dialog — TV# autosaves on select ─────────
+ * The score-dialog TV# dropdown now persists the value the moment the admin
+ * picks it (PATCH on change), with a sonner toast for feedback. The previous
+ * explicit "TV# 保存" button has been removed — the autosave UX matches the
+ * starting-course dropdown (TC-524).
  *
  * Flow:
  *   1. Generate an 8-player BM finals bracket.
  *   2. Navigate to the BM finals page and open the score dialog for match 1.
- *   3. Select TV#3 in the dialog's TV# dropdown and click "TV# 保存".
- *   4. Confirm the dialog stays open (no score submitted → scores unchanged).
- *   5. Verify TV#3 was persisted on the match via the finals API.
+ *   3. Select TV#3 in the dialog's TV# dropdown.
+ *   4. Confirm no explicit "TV# 保存" / "Save TV#" button is rendered.
+ *   5. Confirm the dialog stays open (no score submitted → scores unchanged).
+ *   6. Verify TV#3 was persisted on the match via the finals API.
  */
 async function runTc523(adminPage) {
   let setup = null;
@@ -1456,17 +1461,15 @@ async function runTc523(adminPage) {
     const dialogVisible = await dialog.isVisible();
     if (!dialogVisible) throw new Error('Score dialog did not open');
 
-    /* Select TV#3 from the dropdown (id="bm-finals-tv"). */
-    await adminPage.locator('#bm-finals-tv').selectOption('3');
-    await adminPage.waitForTimeout(300);
+    /* The explicit save button has been removed (autosave). */
+    const saveBtnCount = await dialog.getByRole('button', { name: /TV#\s*保存|Save TV#/i }).count();
+    const noSaveBtn = saveBtnCount === 0;
 
-    /* Click the save button (text: "TV# 保存" / "Save TV#"). */
-    const saveBtn = dialog.getByRole('button', { name: /TV#\s*保存|Save TV#/i });
-    await saveBtn.waitFor({ state: 'visible', timeout: 5000 });
-    await saveBtn.click();
+    /* Select TV#3 from the dropdown (id="bm-finals-tv"). Autosave fires here. */
+    await adminPage.locator('#bm-finals-tv').selectOption('3');
     await adminPage.waitForTimeout(1500);
 
-    /* Dialog must still be open — TV# save must not close it. */
+    /* Dialog must still be open — autosave must not close it. */
     const stillOpen = await dialog.isVisible();
 
     /* Verify TV#3 was persisted on match 1 via the API. */
@@ -1474,10 +1477,11 @@ async function runTc523(adminPage) {
     const m1 = matches.find((m) => m.matchNumber === 1);
     const tvSaved = m1?.tvNumber === 3;
 
-    const pass = dialogVisible && stillOpen && tvSaved;
+    const pass = dialogVisible && noSaveBtn && stillOpen && tvSaved;
     log('TC-523', pass ? 'PASS' : 'FAIL',
       !dialogVisible ? 'Score dialog did not open' :
-      !stillOpen ? 'Dialog closed unexpectedly after TV# save' :
+      !noSaveBtn ? 'Explicit "TV# 保存" button is still rendered (should be removed)' :
+      !stillOpen ? 'Dialog closed unexpectedly after TV# select' :
       !tvSaved ? `tvNumber not saved: got ${m1?.tvNumber}` : '');
   } catch (err) {
     log('TC-523', 'FAIL', err instanceof Error ? err.message : 'TC-523 failed');
@@ -1539,6 +1543,75 @@ async function runTc524(adminPage) {
   }
 }
 
+/* ───────── TC-525: BM finals score dialog — startingCourseNumber autosave ─────────
+ * The "starting course" dropdown in the score dialog persists the chosen
+ * battle course (1–4) the moment the admin selects it, via PATCH, with a
+ * sonner toast for feedback. The score-save button is no longer required for
+ * this field, matching the TV# autosave UX (TC-523).
+ *
+ * Flow:
+ *   1. Generate an 8-player BM finals bracket.
+ *   2. Open the score dialog for match 1.
+ *   3. Pick "Battle Course 2" from the start-course dropdown.
+ *   4. Confirm the dialog stays open (no score submit triggered).
+ *   5. Verify startingCourseNumber=2 was persisted via the finals API.
+ *   6. Pick the empty option to clear; verify startingCourseNumber=null.
+ */
+async function runTc525(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/bm/finals`);
+    await adminPage.waitForTimeout(3000);
+
+    const matchCards = adminPage.locator('[data-testid="bracket-match-card"]');
+    const cardCount = await matchCards.count();
+    if (cardCount === 0) throw new Error('No bracket match cards found');
+    await matchCards.first().click();
+    await adminPage.waitForTimeout(1000);
+
+    const dialog = adminPage.locator('[role="dialog"]');
+    const dialogVisible = await dialog.isVisible();
+    if (!dialogVisible) throw new Error('Score dialog did not open');
+
+    /* Select Battle Course 2 from the start-course dropdown. */
+    await adminPage.locator('#bm-finals-start-course').selectOption('2');
+    await adminPage.waitForTimeout(1500);
+
+    const stillOpen = await dialog.isVisible();
+
+    const afterSelect = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = afterSelect.find((m) => m.matchNumber === 1);
+    const courseSaved = m1?.startingCourseNumber === 2;
+
+    /* Clear by selecting the empty option ("-"). */
+    await adminPage.locator('#bm-finals-start-course').selectOption('');
+    await adminPage.waitForTimeout(1500);
+
+    const afterClear = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1Clear = afterClear.find((m) => m.matchNumber === 1);
+    const courseCleared = m1Clear?.startingCourseNumber === null;
+
+    const pass = dialogVisible && stillOpen && courseSaved && courseCleared;
+    log('TC-525', pass ? 'PASS' : 'FAIL',
+      !dialogVisible ? 'Score dialog did not open' :
+      !stillOpen ? 'Dialog closed unexpectedly after start-course select' :
+      !courseSaved ? `startingCourseNumber not saved: got ${m1?.startingCourseNumber}` :
+      !courseCleared ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}` : '');
+  } catch (err) {
+    log('TC-525', 'FAIL', err instanceof Error ? err.message : 'TC-525 failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup?.tournamentId}/bm/finals`);
+    }
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1584,6 +1657,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-522', fn: runTc522 },
       { name: 'TC-523', fn: runTc523 },
       { name: 'TC-524', fn: runTc524 },
+      { name: 'TC-525', fn: runTc525 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1592,7 +1666,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
