@@ -447,7 +447,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * When present, we also regenerate the bracket structure and reconstruct
        * seed-to-player mappings so the frontend can render the bracket without
        * relying on state from a previous POST response. */
-      let playoffMatches = await model(prisma).findMany({
+      const playoffMatches = await model(prisma).findMany({
         where: { tournamentId, stage: 'playoff' },
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
