@@ -350,6 +350,8 @@ async function normalizeRoundCoursesToSingleSet(
  * handlers with the correct Prisma model, score fields, and response shape.
  */
 export interface FinalsConfig {
+  /** Event type code used to select the per-mode qualification confirmed flag (#696). */
+  eventTypeCode: 'bm' | 'mr' | 'gp';
   /** Prisma model name for match records (e.g. 'bMMatch') */
   matchModel: string;
   /** Prisma model name for qualification records (e.g. 'bMQualification') */
@@ -427,14 +429,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
     const logger = createLogger(config.loggerName);
     const { id } = await params;
 
-    // Resolve and verify in one D1 round-trip. The previous flow did a
-    // findFirst inside resolveTournamentId followed by a findUnique here,
-    // both reading the same row. The handler only consumes
-    // `qualificationConfirmed` from the response, so the projection stays
-    // tight to keep the payload small.
+    // Resolve and verify in one D1 round-trip. The handler only consumes
+    // the mode-specific qualificationConfirmed flag, so the projection stays
+    // tight. Using per-mode flags (issue #696) prevents BM confirmation from
+    // locking MR/GP bracket creation.
+    const modeField = `${config.eventTypeCode}QualificationConfirmed` as
+      | 'bmQualificationConfirmed'
+      | 'mrQualificationConfirmed'
+      | 'gpQualificationConfirmed';
     const tournament = await resolveTournament(id, {
       id: true,
-      qualificationConfirmed: true,
+      [modeField]: true,
     });
     if (!tournament) {
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
@@ -626,7 +631,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
-          qualificationConfirmed: tournament.qualificationConfirmed ?? false,
+          qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
           phase,
           playoffMatches,
           playoffStructure,
@@ -668,7 +673,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           bracketStructure,
           bracketSize,
           roundNames,
-          qualificationConfirmed: tournament.qualificationConfirmed ?? false,
+          qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,

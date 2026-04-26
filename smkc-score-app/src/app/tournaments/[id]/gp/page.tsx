@@ -299,7 +299,8 @@ export default function GrandPrixPage({
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qualificationConfirmed: newValue }),
+        // Use per-mode field so only GP scores are locked/unlocked (#696)
+        body: JSON.stringify({ gpQualificationConfirmed: newValue }),
       });
       if (response.ok) {
         refetch();

@@ -624,6 +624,17 @@
 - **期待結果**: 片スロットが実名、もう片方が TBD
 - **スクリプト**: tc-all.js TC-350
 
+## TC-351: モード別予選確定 — BM 確定が MR/GP スコアをロックしないこと (issue #696)
+- **authRequired**: true (admin)
+- **背景**: issue #696「一つのモードで予選を確定させると他のモードの予選も確定されてしまう」のリグレッションテスト。BM/MR/GP はそれぞれ独立した `bmQualificationConfirmed`/`mrQualificationConfirmed`/`gpQualificationConfirmed` フラグを持つ。
+- **手順**:
+  1. 新規トーナメントを作成し BM・MR 予選をセットアップ
+  2. `PUT /api/tournaments/{id}` に `{ bmQualificationConfirmed: true }` を送信
+  3. BM GET レスポンスの `qualificationConfirmed` が `true` であることを確認
+  4. MR マッチにスコアを PUT → 200 が返ること（MR はロックされていない）
+- **期待結果**: BM のみロック、MR は編集可能
+- **スクリプト**: tc-all.js TC-351
+
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
 - **authRequired**: true (admin)
 - **背景**: `setupAllModes28PlayerQualification` で28名 × 4モードの予選を完了させた後、各モード API が有効なデータを返すことを確認する統合テスト。

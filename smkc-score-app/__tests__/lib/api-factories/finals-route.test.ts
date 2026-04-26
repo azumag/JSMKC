@@ -59,6 +59,7 @@ describe('Finals Route Factory', () => {
   let mockLogger: ReturnType<typeof createLogger>;
 
   const createMockConfig = (overrides = {}) => ({
+    eventTypeCode: 'bm' as const,
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',
     loggerName: 'bm-finals',
@@ -103,7 +104,7 @@ describe('Finals Route Factory', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', bmQualificationConfirmed: false, mrQualificationConfirmed: false, gpQualificationConfirmed: false }));
 
     // Setup mocks
     mockAuth = auth as jest.MockedFunction<typeof auth>;
@@ -658,7 +659,7 @@ describe('Finals Route Factory', () => {
       (prisma.tournament as any).findUnique.mockResolvedValue({
         id: 'tournament-123',
         name: 'Test Tournament',
-        qualificationConfirmed: true,
+        bmQualificationConfirmed: true,
       });
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(8));
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });

@@ -169,7 +169,14 @@ export async function PUT(
   try {
     // Sanitize input to prevent XSS/injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, status, frozenStages, taPlayerSelfEdit, qualificationConfirmed, publicModes } = body;
+    const {
+      name, date, status, frozenStages, taPlayerSelfEdit, publicModes,
+      // Per-mode qualification confirmed flags (issue #696).
+      // Legacy qualificationConfirmed is no longer accepted; use the mode-specific fields.
+      bmQualificationConfirmed,
+      mrQualificationConfirmed,
+      gpQualificationConfirmed,
+    } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     if (slug !== undefined && slug !== null && !isValidTournamentSlug(slug)) {
@@ -214,9 +221,20 @@ export async function PUT(
         ...(status && { status }),
         ...(frozenStages !== undefined && { frozenStages }),
         ...(taPlayerSelfEdit !== undefined && { taPlayerSelfEdit: taPlayerSelfEdit === true }),
-        ...(qualificationConfirmed !== undefined && {
-          qualificationConfirmed: qualificationConfirmed === true,
-          qualificationConfirmedAt: qualificationConfirmed ? new Date() : null,
+        // Per-mode qualification confirmed flags (issue #696).
+        // qualificationConfirmedAt is updated whenever any mode is confirmed so the
+        // overlay event system (overlay-events/route.ts) continues to fire correctly.
+        ...(bmQualificationConfirmed !== undefined && {
+          bmQualificationConfirmed: bmQualificationConfirmed === true,
+          ...(bmQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
+        }),
+        ...(mrQualificationConfirmed !== undefined && {
+          mrQualificationConfirmed: mrQualificationConfirmed === true,
+          ...(mrQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
+        }),
+        ...(gpQualificationConfirmed !== undefined && {
+          gpQualificationConfirmed: gpQualificationConfirmed === true,
+          ...(gpQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
         }),
         ...(publicModes !== undefined && { publicModes }),
       },
@@ -239,7 +257,9 @@ export async function PUT(
           date,
           status,
           frozenStages,
-          qualificationConfirmed,
+          bmQualificationConfirmed,
+          mrQualificationConfirmed,
+          gpQualificationConfirmed,
           publicModes,
         },
       });

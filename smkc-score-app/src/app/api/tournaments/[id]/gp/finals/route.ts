@@ -9,6 +9,7 @@ import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 
 const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+  eventTypeCode: 'gp',
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   loggerName: 'gp-finals-api',
