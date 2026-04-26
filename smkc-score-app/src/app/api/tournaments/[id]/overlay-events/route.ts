@@ -130,7 +130,10 @@ export async function GET(
       where: { id: tournamentId },
       select: {
         id: true,
-        qualificationConfirmed: true,
+        // Per-mode flags (issue #696); OR of all three = "any qual confirmed" for phase display
+        bmQualificationConfirmed: true,
+        mrQualificationConfirmed: true,
+        gpQualificationConfirmed: true,
         qualificationConfirmedAt: true,
         overlayPlayer1Name: true,
         overlayPlayer2Name: true,
@@ -199,7 +202,8 @@ export async function GET(
         // labels). We keep `events: []` so the merge-on-client step is a
         // no-op. Skipping the 17 detail queries is the whole point.
         const minimalPhaseInput = {
-          qualificationConfirmed: tournament.qualificationConfirmed,
+          // Any mode being confirmed = "qualification confirmed" for overlay phase display (#696)
+          qualificationConfirmed: tournament.bmQualificationConfirmed || tournament.mrQualificationConfirmed || tournament.gpQualificationConfirmed,
           taCurrentPhase: "qualification" as const,
           taLatestPhaseRoundNumber: null as number | null,
           latestFinalsRound: null as string | null,
@@ -458,7 +462,8 @@ export async function GET(
     }
 
     const phaseInput = {
-      qualificationConfirmed: tournament.qualificationConfirmed,
+      // Any mode being confirmed = "qualification confirmed" for overlay phase display (#696)
+      qualificationConfirmed: tournament.bmQualificationConfirmed || tournament.mrQualificationConfirmed || tournament.gpQualificationConfirmed,
       taCurrentPhase,
       taLatestPhaseRoundNumber,
       latestFinalsRound: latestFinals?.round ?? null,

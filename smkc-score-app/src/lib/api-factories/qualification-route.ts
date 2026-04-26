@@ -105,13 +105,16 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     let tournamentId: string = id;
 
     try {
-      // Resolve identifier (id or slug) AND read qualificationConfirmed in
-      // a single findFirst. The previous flow ran resolveTournamentId →
-      // findFirst, then fanned out into a parallel findUnique to grab
-      // qualificationConfirmed; merging them collapses one D1 round-trip.
+      // Resolve identifier (id or slug) AND read the mode-specific
+      // qualificationConfirmed flag in a single findFirst. Each mode has
+      // its own flag so confirming one mode does not lock the others (#696).
+      const modeField = `${config.eventTypeCode}QualificationConfirmed` as
+        | 'bmQualificationConfirmed'
+        | 'mrQualificationConfirmed'
+        | 'gpQualificationConfirmed';
       const tournament = await resolveTournament(id, {
         id: true,
-        qualificationConfirmed: true,
+        [modeField]: true,
       });
       if (!tournament) {
         return createErrorResponse(`${config.eventDisplayName} tournament not found`, 404, 'NOT_FOUND');
@@ -147,7 +150,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const responseBody = {
         qualifications: rankedQualifications,
         matches,
-        qualificationConfirmed: tournament.qualificationConfirmed,
+        // Return the mode-specific flag under the generic key so the frontend
+        // polling hook (useParticipantMatches / page state) needs no changes.
+        qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
       };
       const etag = generateETag([responseBody]);
       const ifNoneMatch = request.headers.get('if-none-match');
@@ -505,8 +510,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     const tournamentId = await resolveTournamentId(id);
 
     try {
-      /* Block score edits when qualification is confirmed (admin locked results) */
-      const lockError = await checkQualificationConfirmed(prisma, tournamentId);
+      /* Block score edits when this mode's qualification is confirmed (admin locked results) */
+      const lockError = await checkQualificationConfirmed(prisma, tournamentId, config.eventTypeCode);
       if (lockError) return lockError;
 
       /* Defense-in-depth: always sanitize user input */

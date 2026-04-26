@@ -113,10 +113,12 @@ describe('Qualification Route Factory', () => {
 
     // Default tournament for resolveTournament(); individual tests override
     // this when they need a specific qualificationConfirmed flag or to
-    // simulate a missing tournament.
+    // simulate a missing tournament. Uses per-mode flags (issue #696).
     (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
       id: 'tournament-123',
-      qualificationConfirmed: false,
+      bmQualificationConfirmed: false,
+      mrQualificationConfirmed: false,
+      gpQualificationConfirmed: false,
     });
   });
 

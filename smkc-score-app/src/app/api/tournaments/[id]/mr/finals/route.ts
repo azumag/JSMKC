@@ -10,6 +10,7 @@ import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 
 const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+  eventTypeCode: 'mr',
   matchModel: 'mRMatch',
   qualificationModel: 'mRQualification',
   loggerName: 'mr-finals-api',

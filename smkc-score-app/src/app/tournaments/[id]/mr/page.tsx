@@ -273,7 +273,8 @@ export default function MatchRacePage({
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qualificationConfirmed: newValue }),
+        // Use per-mode field so only MR scores are locked/unlocked (#696)
+        body: JSON.stringify({ mrQualificationConfirmed: newValue }),
       });
       if (response.ok) {
         refetch();

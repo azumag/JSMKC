@@ -10,6 +10,7 @@ import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
 
 const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+  eventTypeCode: 'bm',
   matchModel: 'bMMatch',
   qualificationModel: 'bMQualification',
   loggerName: 'bm-finals-api',

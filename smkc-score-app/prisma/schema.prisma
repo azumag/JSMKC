@@ -134,8 +134,11 @@ model Tournament {
   overlayPlayer1Wins  Int?    // 配信中試合の1P勝利数
   overlayPlayer2Wins  Int?    // 配信中試合の2P勝利数
   overlayMatchFt      Int?    // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
-  qualificationConfirmed Boolean @default(false) // BM/MR/GP予選確定フラグ。trueの場合スコア編集不可
-  qualificationConfirmedAt DateTime? // 予選確定日時（監査証跡）
+  qualificationConfirmed Boolean @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
+  qualificationConfirmedAt DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
+  bmQualificationConfirmed Boolean @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
+  mrQualificationConfirmed Boolean @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
+  gpQualificationConfirmed Boolean @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
   publicModes   Json     @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用

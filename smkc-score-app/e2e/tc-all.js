@@ -2872,7 +2872,7 @@ async function main() {
       await page.evaluate(async (tid) => {
         await fetch(`/api/tournaments/${tid}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ qualificationConfirmed: true }),
+          body: JSON.stringify({ bmQualificationConfirmed: true }),
         });
       }, tc346TournamentId);
 
@@ -3082,7 +3082,7 @@ async function main() {
       await page.evaluate(async (tid) => {
         await fetch(`/api/tournaments/${tid}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ qualificationConfirmed: true }),
+          body: JSON.stringify({ bmQualificationConfirmed: true }),
         });
         await fetch(`/api/tournaments/${tid}/bm/finals`, {
           method: 'POST',
@@ -3140,6 +3140,91 @@ async function main() {
     } finally {
       if (tc350TournamentId) await deleteTournament(page, tc350TournamentId);
       for (const p of tc350Players) await deletePlayer(page, p.id);
+    }
+  }
+
+  // TC-351: Per-mode qualification confirmed independence (issue #696)
+  // Confirming BM qual must NOT lock MR/GP scores; each mode has its own flag.
+  {
+    let tc351TournamentId = null;
+    const tc351Players = [];
+    const ts351 = Date.now();
+    try {
+      // Create minimal tournament and 2 players
+      tc351TournamentId = await uiCreateTournament(page, `E2E TC-351 QualConf ${ts351}`);
+      for (let i = 0; i < 2; i++) {
+        const p = await createPlayer(page, `tc351p${i}_${ts351}`, `351p${i}`);
+        tc351Players.push(p);
+      }
+
+      // Setup BM qualification (2 players, 1 group)
+      await page.evaluate(async ({ tid, pids }) => {
+        await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [{ playerId: pids[0], group: 'A' }, { playerId: pids[1], group: 'A' }], groupCount: 1 }),
+        });
+      }, { tid: tc351TournamentId, pids: tc351Players.map(p => p.id) });
+
+      // Setup MR qualification too
+      await page.evaluate(async ({ tid, pids }) => {
+        await fetch(`/api/tournaments/${tid}/mr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [{ playerId: pids[0], group: 'A' }, { playerId: pids[1], group: 'A' }], groupCount: 1 }),
+        });
+      }, { tid: tc351TournamentId, pids: tc351Players.map(p => p.id) });
+
+      // Confirm BM qualification only
+      const confirmBm = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bmQualificationConfirmed: true }),
+        });
+        return r.status;
+      }, tc351TournamentId);
+
+      // Get a MR match ID
+      const mrData = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/mr`);
+        const j = await r.json().catch(() => ({}));
+        return j.data ?? j;
+      }, tc351TournamentId);
+      const mrMatchId = (mrData.matches ?? [])[0]?.id;
+
+      // Try to enter MR score — should succeed because MR is NOT confirmed
+      let mrScoreStatus = 0;
+      if (mrMatchId) {
+        mrScoreStatus = await page.evaluate(async ({ tid, mid }) => {
+          const r = await fetch(`/api/tournaments/${tid}/mr`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId: mid, score1: 2, score2: 2 }),
+          });
+          return r.status;
+        }, { tid: tc351TournamentId, mid: mrMatchId });
+      }
+
+      // Verify BM GET returns bmQualificationConfirmed=true
+      const bmData = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`);
+        const j = await r.json().catch(() => ({}));
+        return j.data ?? j;
+      }, tc351TournamentId);
+
+      const bmConfirmed = bmData.qualificationConfirmed === true;
+      const mrUnlocked = !mrMatchId || mrScoreStatus === 200;
+
+      log('TC-351',
+        bmConfirmed && mrUnlocked ? 'PASS' : 'FAIL',
+        `bm_confirmed=${bmConfirmed} mr_unlocked=${mrUnlocked} mr_status=${mrScoreStatus}`,
+      );
+    } catch (err) {
+      log('TC-351', 'FAIL', err instanceof Error ? err.message : 'Per-mode qual confirm test failed');
+    } finally {
+      if (tc351TournamentId) await deleteTournament(page, tc351TournamentId);
+      for (const p of tc351Players) await deletePlayer(page, p.id);
     }
   }
 
