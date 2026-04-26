@@ -429,7 +429,7 @@ export default function BattleModePage({
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/bm/participant`}>
@@ -789,6 +789,7 @@ export default function BattleModePage({
                               {tc('dayLabel', { day })}
                             </h3>
                           )}
+                          <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -873,7 +874,8 @@ export default function BattleModePage({
                                       match.tvNumber ? `${match.tvNumber}` : "-"
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right space-x-2">
+                                  <TableCell className="text-right">
+                                    <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
                                     {/* Match detail link (not for BYE matches) */}
                                     {!match.isBye && (
                                       <Button
@@ -912,11 +914,13 @@ export default function BattleModePage({
                                         {match.completed ? tc('edit') : tc('enterScore')}
                                       </Button>
                                     )}
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -962,7 +966,7 @@ export default function BattleModePage({
               const loserNickname = p1Score < p2Score ? selectedMatch.player1.nickname : selectedMatch.player2.nickname;
               return <p className="text-sm text-blue-600 text-center">{tc('characterPriority', { player: loserNickname })}</p>;
             })()}
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-4">
               {/* Player 1 score input */}
               <div className="text-center min-w-0 max-w-[140px]">
                 <Label htmlFor={`bm-score1-${selectedMatch?.id}`} className="block truncate w-full">{selectedMatch?.player1.nickname}</Label>

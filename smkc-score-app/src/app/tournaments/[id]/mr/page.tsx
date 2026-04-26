@@ -473,7 +473,7 @@ export default function MatchRacePage({
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
             <Link href={`/tournaments/${tournamentId}/mr/participant`}>
@@ -810,6 +810,7 @@ export default function MatchRacePage({
                               {tc('dayLabel', { day })}
                             </h3>
                           )}
+                          <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -893,7 +894,8 @@ export default function MatchRacePage({
                                       })()}
                                     </TableCell>
                                   )}
-                                  <TableCell className="text-right space-x-2">
+                                  <TableCell className="text-right">
+                                    <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-1">
                                     {isAdmin && !match.isBye && (
                                       <Button
                                         variant="outline"
@@ -918,11 +920,13 @@ export default function MatchRacePage({
                                         {match.completed ? tc('edit') : tc('enterResult')}
                                       </Button>
                                     )}
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
+                          </div>
                         </div>
                       ))}
                     </div>

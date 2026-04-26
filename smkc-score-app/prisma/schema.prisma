@@ -219,6 +219,7 @@ model BMMatch {
   completed    Boolean    @default(false)
   assignedCourses Json? // Pre-assigned courses for this match (§5.4, §6.3): ["MC1", "DP1", "GV1", "BC1"]
   rounds       Json? // [{arena: "Arena 1", winner: 1}, ...]
+  startingCourseNumber Int? // BM bracket only: starting Battle Course (1-4) for this match. NULL for qualification.
 
   // Double elimination fields
   bracket      String?     // "winners", "losers", "grand_final"

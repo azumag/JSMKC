@@ -18,8 +18,14 @@ const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
   getStyle: 'grouped',
   putScoreFields: { dbField1: 'score1', dbField2: 'score2' },
-  putAdditionalFields: ['tvNumber'],
+  /* tvNumber: broadcast slot, startingCourseNumber: which Battle Course (1-4) starts the match.
+   * The latter is randomised per-round at bracket creation (issue #671) and can be
+   * overridden per-match by the admin via the score dialog. */
+  putAdditionalFields: ['tvNumber', 'startingCourseNumber'],
   getTargetWins: getBmFinalsTargetWins,
+  /* Assign a random starting Battle Course (1-4) to every match in each bracket round
+   * at bracket-creation time.  All matches in the same round share one course. */
+  assignBmStartingCourseByRound: true,
   getErrorMessage: 'Failed to fetch finals data',
   postErrorMessage: 'Failed to create finals bracket',
   postRequiresAuth: true,
