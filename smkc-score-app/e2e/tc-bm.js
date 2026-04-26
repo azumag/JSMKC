@@ -17,7 +17,8 @@
  *   TC-520  BM per-round target-wins API validation (issue #528: FT3/FT4/FT5/FT7)
  *   TC-522  BM finals tvNumber PUT accepts 1–4, rejects 5, clears on null (issue #634)
  *   TC-523  BM finals score dialog — TV# autosaves on select (no explicit save button)
- *   TC-524  BM finals score dialog — startingCourseNumber autosaves on select
+ *   TC-524  BM bracket startingCourseNumber randomisation per round (#671)
+ *   TC-525  BM finals score dialog — startingCourseNumber autosaves on select
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -677,8 +678,9 @@ async function runTc516(adminPage) {
     /* The qualification page renders "View Tournament" as a <Link> inside
      * <Button asChild>, so the DOM element is an <a> tag (role=link).
      * Use getByText so we match regardless of the underlying element. */
+    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
     await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
-      .waitFor({ state: 'visible', timeout: 15000 });
+      .waitFor({ state: 'visible', timeout: 25000 });
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
@@ -1336,7 +1338,8 @@ async function runTc521(adminPage) {
 
     // Click the score entry button for the first non-BYE match
     const scoreBtn = adminPage.getByRole('button', { name: /スコア入力|Enter Score/i }).first();
-    await scoreBtn.waitFor({ state: 'visible', timeout: 10000 });
+    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
+    await scoreBtn.waitFor({ state: 'visible', timeout: 25000 });
     await scoreBtn.click();
     await adminPage.waitForTimeout(1500);
 
@@ -1492,7 +1495,55 @@ async function runTc523(adminPage) {
   }
 }
 
-/* ───────── TC-524: BM finals score dialog — startingCourseNumber autosave ─────────
+/* ───────── TC-524: BM bracket startingCourseNumber randomisation (issue #671) ─────────
+ * After bracket creation each match should carry a startingCourseNumber in [1,4].
+ * All matches within the same round must share the same value (issue #671 requirement).
+ * Different rounds are allowed to differ — the per-round random assignment means
+ * uniqueness is not guaranteed across rounds. */
+async function runTc524(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const finalsMatches = matches.filter((m) => m.stage === 'finals' || !m.stage);
+    if (finalsMatches.length === 0) throw new Error('No finals matches returned');
+
+    /* All matches must have a valid startingCourseNumber */
+    const allHaveValidCourse = finalsMatches.every(
+      (m) => Number.isInteger(m.startingCourseNumber) && m.startingCourseNumber >= 1 && m.startingCourseNumber <= 4,
+    );
+
+    /* All matches in the same round must share the same startingCourseNumber */
+    const byRound = new Map();
+    for (const m of finalsMatches) {
+      if (!m.round) continue;
+      if (!byRound.has(m.round)) byRound.set(m.round, new Set());
+      byRound.get(m.round).add(m.startingCourseNumber);
+    }
+    const roundsUniform = [...byRound.values()].every((vals) => vals.size === 1);
+
+    const pass = allHaveValidCourse && roundsUniform;
+    log('TC-524', pass ? 'PASS' : 'FAIL',
+      !allHaveValidCourse
+        ? `Some matches have invalid startingCourseNumber: ${JSON.stringify(finalsMatches.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+        : !roundsUniform
+        ? `Matches in the same round have different startingCourseNumbers: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
+        : '');
+  } catch (err) {
+    log('TC-524', 'FAIL', err instanceof Error ? err.message : 'TC-524 failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup?.tournamentId}/bm/finals`);
+    }
+  }
+}
+
+/* ───────── TC-525: BM finals score dialog — startingCourseNumber autosave ─────────
  * The "starting course" dropdown in the score dialog persists the chosen
  * battle course (1–4) the moment the admin selects it, via PATCH, with a
  * sonner toast for feedback. The score-save button is no longer required for
@@ -1506,7 +1557,7 @@ async function runTc523(adminPage) {
  *   5. Verify startingCourseNumber=2 was persisted via the finals API.
  *   6. Pick the empty option to clear; verify startingCourseNumber=null.
  */
-async function runTc524(adminPage) {
+async function runTc525(adminPage) {
   let setup = null;
   try {
     setup = await prepareSharedBmFinalsSetup(adminPage);
@@ -1545,13 +1596,13 @@ async function runTc524(adminPage) {
     const courseCleared = m1Clear?.startingCourseNumber === null;
 
     const pass = dialogVisible && stillOpen && courseSaved && courseCleared;
-    log('TC-524', pass ? 'PASS' : 'FAIL',
+    log('TC-525', pass ? 'PASS' : 'FAIL',
       !dialogVisible ? 'Score dialog did not open' :
       !stillOpen ? 'Dialog closed unexpectedly after start-course select' :
       !courseSaved ? `startingCourseNumber not saved: got ${m1?.startingCourseNumber}` :
       !courseCleared ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}` : '');
   } catch (err) {
-    log('TC-524', 'FAIL', err instanceof Error ? err.message : 'TC-524 failed');
+    log('TC-525', 'FAIL', err instanceof Error ? err.message : 'TC-525 failed');
   } finally {
     if (setup) {
       await adminPage.evaluate(async (url) => {
@@ -1606,6 +1657,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-522', fn: runTc522 },
       { name: 'TC-523', fn: runTc523 },
       { name: 'TC-524', fn: runTc524 },
+      { name: 'TC-525', fn: runTc525 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1614,7 +1666,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

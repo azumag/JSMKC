@@ -1109,19 +1109,28 @@ async function runTc719(adminPage) {
     const sdRes = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5, qfMatch.player1Id);
     const sdAccepted = sdRes.s === 200;
 
-    /* Winner must be recorded as the sudden-death winner. */
+    /* Winner must be recorded as the sudden-death winner.
+     * GPMatch schema has no dedicated winnerId column; routing is verified
+     * by checking that the SD winner appears in the next bracket match. */
     const after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const qfAfter = after.find((m) => m.id === qfMatch.id);
-    const winnerRouted = qfAfter?.completed === true &&
-      qfAfter?.suddenDeathWinnerId === qfMatch.player1Id &&
-      qfAfter?.winnerId === qfMatch.player1Id;
+    const sdPersisted = qfAfter?.completed === true &&
+      qfAfter?.suddenDeathWinnerId === qfMatch.player1Id;
+
+    /* Verify bracket advancement: winners_qf winner must appear in a winners_sf slot. */
+    const nextMatch = after.find(
+      (m) => m.round === 'winners_sf' &&
+        (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
+    );
+    const winnerRouted = sdPersisted && !!nextMatch;
 
     const ok = noSdRejected && badSdRejected && sdAccepted && winnerRouted;
     log('TC-719', ok ? 'PASS' : 'FAIL',
       !noSdRejected ? `Tied score without suddenDeathWinnerId not rejected (${noSd.s})`
       : !badSdRejected ? `Tied score with invalid suddenDeathWinnerId not rejected (${badSd.s})`
       : !sdAccepted ? `Tied score with valid suddenDeathWinnerId not accepted (${sdRes.s})`
-      : !winnerRouted ? `Match not completed with correct winner (completed=${qfAfter?.completed}, sdWinner=${qfAfter?.suddenDeathWinnerId})`
+      : !sdPersisted ? `SD not persisted (completed=${qfAfter?.completed}, sdWinner=${qfAfter?.suddenDeathWinnerId})`
+      : !winnerRouted ? `SD winner not routed to winners_sf`
       : '');
   } catch (err) {
     log('TC-719', 'FAIL', err instanceof Error ? err.message : 'GP 719 failed');

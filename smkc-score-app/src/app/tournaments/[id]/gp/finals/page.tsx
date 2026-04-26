@@ -161,6 +161,10 @@ function getMatchWinner(match: GPMatch): Player | null {
   const score2 = getGpScore(match, 2);
   if (score1 > score2) return match.player1;
   if (score2 > score1) return match.player2;
+  /* Tied scores resolved by sudden-death: winner is whichever player's id matches */
+  if (match.suddenDeathWinnerId) {
+    return match.player1?.id === match.suddenDeathWinnerId ? match.player1 : match.player2;
+  }
   return null;
 }
 

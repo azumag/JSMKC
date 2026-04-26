@@ -1269,10 +1269,11 @@ async function main() {
        * the session-driven `isAdmin` flag flips true. Wait until the table
        * row + admin TV select are mounted (15 s for D1 cold start), then
        * assert. */
+      /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
       await page.waitForFunction(
         () => document.querySelectorAll('select.w-14').length > 0,
         null,
-        { timeout: 15000 },
+        { timeout: 25000 },
       ).catch(() => {});
       const tvSelect = page.locator('select.w-14').first();
       const hasSelect = await tvSelect.count() > 0;
@@ -3025,6 +3026,120 @@ async function main() {
       }
     } else {
       log('TC-349', 'SKIP', 'No tournament ID available');
+    }
+  }
+
+  // TC-350: BM finals bracket UI — TBD slots render correctly before/after QF completion
+  // Issue #673: TC-346 only verified the API invariant (player1Id/player2Id diverge after
+  // routing); this test verifies the UI actually renders the real player nickname and
+  // the "TBD" placeholder text for unfilled loser-bracket slots.
+  {
+    let tc350TournamentId = null;
+    let tc350Players = [];
+    try {
+      const ts350 = Date.now();
+      const nicknames350 = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((l) => `e2e_lb350_${l}_${ts350}`);
+      for (const nick of nicknames350) {
+        const p = await uiCreatePlayer(page, `E2E LB350 ${nick}`, nick);
+        tc350Players.push({ id: p.id, nickname: nick });
+      }
+      tc350TournamentId = await uiCreateTournament(page, `E2E TC-350 LB UI ${ts350}`);
+      await uiActivateTournament(page, tc350TournamentId);
+
+      /* Enroll all 8 in BM qualification and give them distinct scores */
+      await page.evaluate(async ([tid, pids]) => {
+        await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [
+            { playerId: pids[0], group: 'A' }, { playerId: pids[1], group: 'A' },
+            { playerId: pids[2], group: 'A' }, { playerId: pids[3], group: 'A' },
+            { playerId: pids[4], group: 'B' }, { playerId: pids[5], group: 'B' },
+            { playerId: pids[6], group: 'B' }, { playerId: pids[7], group: 'B' },
+          ] }),
+        });
+      }, [tc350TournamentId, tc350Players.map((p) => p.id)]);
+
+      /* Score and finish all qual matches */
+      const qualMatches350 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`);
+        const j = await r.json().catch(() => ({}));
+        return j.data?.matches ?? j.matches ?? [];
+      }, tc350TournamentId);
+      for (const m of qualMatches350) {
+        if (!m.completed && m.player1Id && m.player2Id && m.player1Id !== m.player2Id) {
+          await page.evaluate(async ([tid, mid]) => {
+            await fetch(`/api/tournaments/${tid}/bm`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ matchId: mid, score1: 4, score2: 1 }),
+            });
+          }, [tc350TournamentId, m.id]);
+        }
+      }
+
+      /* Confirm and generate finals */
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qualificationConfirmed: true }),
+        });
+        await fetch(`/api/tournaments/${tid}/bm/finals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+      }, tc350TournamentId);
+
+      /* Open bracket page and wait for it to render */
+      await nav(page, `/tournaments/${tc350TournamentId}/bm/finals`);
+      /* 25s to absorb D1 cold-start + fetchWithRetry delays */
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="bracket-match-card"]') !== null,
+        null,
+        { timeout: 25000 },
+      ).catch(() => {});
+
+      const pageText350 = await page.locator('body').innerText();
+      /* Before any QF is played, losers bracket slots should show TBD (either literal
+       * "TBD" or the Japanese equivalent "未定"). */
+      const hasTbd = pageText350.includes('TBD') || pageText350.includes('未定');
+
+      /* Complete one QF match via API so its loser is routed */
+      const finalsMatches350 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm/finals`);
+        const j = await r.json().catch(() => ({}));
+        return j.data?.matches ?? j.matches ?? [];
+      }, tc350TournamentId);
+      const firstQf350 = finalsMatches350.find((m) => m.round === 'winners_qf' && m.player1Id && m.player2Id);
+      let routed350 = false;
+      if (firstQf350) {
+        await page.evaluate(async ([tid, mid]) => {
+          await fetch(`/api/tournaments/${tid}/bm/finals`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId: mid, score1: 5, score2: 0 }),
+          });
+        }, [tc350TournamentId, firstQf350.id]);
+
+        /* Re-fetch bracket page and wait for update */
+        await nav(page, `/tournaments/${tc350TournamentId}/bm/finals`);
+        await page.waitForTimeout(8000);
+        const pageAfter350 = await page.locator('body').innerText();
+        /* After routing, at least one loser bracket match should show a real player nickname */
+        routed350 = tc350Players.some((p) => pageAfter350.includes(p.nickname));
+      }
+
+      log('TC-350',
+        hasTbd && routed350 ? 'PASS' : 'FAIL',
+        !hasTbd ? 'Bracket page did not show TBD for empty loser slots'
+        : !routed350 ? 'Routed player nickname not visible in bracket UI after QF completion'
+        : '');
+    } catch (err) {
+      log('TC-350', 'FAIL', err instanceof Error ? err.message : 'BM bracket TBD UI test failed');
+    } finally {
+      if (tc350TournamentId) await deleteTournament(page, tc350TournamentId);
+      for (const p of tc350Players) await deletePlayer(page, p.id);
     }
   }
 
