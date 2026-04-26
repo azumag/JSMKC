@@ -82,7 +82,9 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        // paddock-overlay supplies the blur + scanline texture; the
+        // animate-in/out classes layer Tailwind's tw-animate-css fade on top.
+        "paddock-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50",
         className
       )}
       {...props}
@@ -116,18 +118,30 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-sm border border-foreground/25 p-6 shadow-[0_18px_60px_-20px_rgba(0,0,0,0.35)] duration-200 outline-none sm:max-w-lg",
+          // `paddock-modal` paints the checker top stripe, the red side bar,
+          // the diagonal race-stripe wash, and the layered drop shadow.
+          // pt-9 leaves room under the 6px top stripe so the title doesn't
+          // crowd the checker band.
+          "paddock-modal paddock-drop fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 px-6 pt-9 pb-6 outline-none sm:max-w-lg",
+          // Closing animation falls back to fade+zoom; the open animation is
+          // driven by the paddock-drop keyframes for the panel-landing motion.
+          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150",
           className
         )}
         {...props}
       >
         {children}
-        {/* Conditionally render the close button (X icon) in the top-right corner.
-            The sr-only span provides screen reader text for accessibility. */}
+        {/* Pit-board exit button — bordered 28px square keeps the racing
+            signage feel rather than a floating ghost icon. The accent ring
+            on hover echoes the Racing Red side bar. */}
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            // Visual is a 28px square pit-board button, but `before:-inset-2`
+            // adds an 8px transparent halo so the actual touch target is 44px
+            // -- meets WCAG 2.5.5 / Apple HIG without expanding the visible
+            // chrome over the modal header.
+            className="ring-offset-background focus:ring-ring absolute top-3 right-3 inline-flex size-7 items-center justify-center rounded-xs border border-foreground/25 bg-card/70 text-foreground/70 transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none before:absolute before:-inset-2 before:content-[''] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
           >
             <XIcon />
             <span className="sr-only">Close</span>
@@ -147,7 +161,13 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn(
+        // The header sits below the 6px top stripe; a thin checker hairline
+        // under the title block reinforces the briefing-slip feel without
+        // adding another DOM node.
+        "flex flex-col gap-1.5 pb-3 text-center sm:text-left border-b border-dashed border-foreground/15",
+        className
+      )}
       {...props}
     />
   )
@@ -185,7 +205,13 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg font-semibold leading-none", className)}
+      // Display type (Anton, uppercase) elevates the title to FIA-bulletin
+      // level without making the rest of the app heavy. Tracking is opened
+      // up slightly for legibility at this size.
+      className={cn(
+        "font-display text-2xl leading-[0.95] tracking-[0.04em] text-foreground",
+        className
+      )}
       {...props}
     />
   )
@@ -204,7 +230,15 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      // Mono caption sits under the Anton headline like race-graphic metadata.
+      // No uppercase / wide tracking here -- JetBrains Mono lacks JP glyphs so
+      // descriptions in Japanese fall back to system mono; uppercase is a
+      // no-op on JP and 0.08em tracking visibly breaks JP kerning, so we
+      // keep the styling readable in both languages.
+      className={cn(
+        "font-mono text-xs text-muted-foreground",
+        className
+      )}
       {...props}
     />
   )

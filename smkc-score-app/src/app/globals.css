@@ -176,7 +176,16 @@
   }
 }
 
-@layer utilities {
+/*
+ * Custom paddock utilities.
+ *
+ * These are intentionally NOT wrapped in `@layer utilities { ... }`. Tailwind
+ * v4 treats that layer as its own generated namespace and silently strips any
+ * raw `.classname { ... }` rules placed there during CSS bundling, so the
+ * styles below would never reach the browser if we used the v3-era wrapper.
+ * Top-level rules are emitted as-is and cascade after Tailwind utilities,
+ * which is the behavior we want for these branded extras.
+ */
   /* Anton — used for hero headlines, ranks, scores, mode codes. */
   .font-display {
     font-family: var(--font-display), "Bebas Neue", "Impact", system-ui, sans-serif;
@@ -298,6 +307,132 @@
   }
 
   /*
+   * Paddock modal — pit-wall briefing panel treatment for Dialog / AlertDialog.
+   *
+   * The body of the app is intentionally restrained. Modals are the moments
+   * where the operator has stopped to make a decision (add player, confirm
+   * delete, open a setup form), so they are dressed up to feel like an FIA
+   * bulletin slip dropped onto the pit wall.
+   *
+   * Layered on `position: relative` so the ::before/::after pseudo-elements
+   * can paint the top stripe and the diagonal race-stripe wash without
+   * disturbing Radix's grid layout. `> *` is bumped to z-index:1 so the
+   * dialog body always sits above the wash.
+   */
+  .paddock-modal {
+    position: relative;
+    background-color: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid color-mix(in oklch, var(--foreground) 22%, transparent);
+    border-radius: var(--radius-sm);
+    box-shadow:
+      0 30px 80px -28px color-mix(in oklch, var(--primary) 35%, rgb(0 0 0 / 0.55)),
+      0 12px 28px -16px rgb(0 0 0 / 0.45),
+      inset 3px 0 0 0 var(--primary);
+    overflow: hidden;
+  }
+  .paddock-modal > * {
+    position: relative;
+    z-index: 1;
+  }
+  /* Top edge: 4px B&W checker band sitting on a 2px Racing Red bar (6px total). */
+  .paddock-modal::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 6px;
+    z-index: 2;
+    background-image:
+      linear-gradient(var(--primary), var(--primary)),
+      linear-gradient(45deg, var(--foreground) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--foreground) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--foreground) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--foreground) 75%);
+    background-size: 100% 2px, 8px 4px, 8px 4px, 8px 4px, 8px 4px;
+    background-position: 0 100%, 0 0, 0 2px, 2px 0, 2px 2px;
+    background-repeat: no-repeat, repeat-x, repeat-x, repeat-x, repeat-x;
+    background-color: var(--card);
+  }
+  /* Diagonal race-stripe wash, capped under 5% so it reads as paper texture. */
+  .paddock-modal::after {
+    content: "";
+    position: absolute;
+    inset: 6px 0 0 0;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      102deg,
+      color-mix(in oklch, var(--primary) 5%, transparent) 0 22px,
+      transparent 22px 72px
+    );
+    z-index: 0;
+  }
+
+  /*
+   * Caution variant — swaps the checker top stripe for a yellow/black
+   * caution-flag stripe used by AlertDialog (destructive confirmations).
+   * The 2px Racing Red bar is preserved underneath as a continuity cue
+   * so the two modal types still feel like the same product.
+   */
+  .paddock-modal.caution-modal::before {
+    background-image:
+      linear-gradient(var(--primary), var(--primary)),
+      repeating-linear-gradient(
+        135deg,
+        var(--accent) 0 8px,
+        var(--foreground) 8px 16px
+      );
+    background-size: 100% 2px, 100% 4px;
+    background-position: 0 100%, 0 0;
+    background-repeat: no-repeat, repeat-x;
+  }
+  .paddock-modal.caution-modal {
+    box-shadow:
+      0 30px 80px -28px color-mix(in oklch, var(--accent) 50%, rgb(0 0 0 / 0.55)),
+      0 12px 28px -16px rgb(0 0 0 / 0.45),
+      inset 3px 0 0 0 color-mix(in oklch, var(--accent) 80%, var(--primary) 20%);
+  }
+
+  /*
+   * Backdrop: blurred + a faint horizontal scanline overlay. The scanline
+   * comes from a 1px transparent gradient repeated every 3px — barely
+   * perceptible, but enough to give the backdrop a CRT/broadcast feel
+   * that matches the OBS-overlay world the app lives in.
+   */
+  .paddock-overlay {
+    background-color: color-mix(in oklch, var(--foreground) 62%, transparent);
+    backdrop-filter: blur(6px) saturate(115%);
+    -webkit-backdrop-filter: blur(6px) saturate(115%);
+    background-image: repeating-linear-gradient(
+      0deg,
+      rgb(0 0 0 / 0.08) 0 1px,
+      transparent 1px 3px
+    );
+  }
+
+  /*
+   * Drop-in animation: panel falls from above with a tiny rotateX so it
+   * "lands" on the pit wall rather than fading in flat. perspective on
+   * the parent isn't required because the rotation is small enough to
+   * read correctly without it on modern browsers.
+   */
+  @keyframes paddock-drop-in {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% - 24px)) scale(0.96);
+    }
+    60% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  .paddock-drop {
+    animation: paddock-drop-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1.05) both;
+  }
+
+  /*
    * OBS browser-source overlay mode — DO NOT TOUCH.
    *
    * The overlay page must render with a transparent background and zero
@@ -323,4 +458,3 @@
     max-width: none !important;
     width: 100% !important;
   }
-}

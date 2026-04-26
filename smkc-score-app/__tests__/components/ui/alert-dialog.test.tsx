@@ -120,7 +120,7 @@ describe('AlertDialog Components', () => {
 
       const overlay = screen.getByTestId('overlay');
       expect(overlay).toBeInTheDocument();
-      expect(overlay).toHaveClass('fixed', 'inset-0', 'z-50', 'bg-black/80');
+      expect(overlay).toHaveClass('fixed', 'inset-0', 'z-50', 'paddock-overlay');
     });
 
     it('should accept custom className', () => {
@@ -218,7 +218,7 @@ describe('AlertDialog Components', () => {
       );
 
       const header = screen.getByTestId('header');
-      expect(header).toHaveClass('flex', 'flex-col', 'space-y-2');
+      expect(header).toHaveClass('flex', 'flex-col', 'gap-1.5', 'pb-3');
     });
 
     it('should accept custom className', () => {
@@ -322,7 +322,7 @@ describe('AlertDialog Components', () => {
       );
 
       const title = screen.getByTestId('title');
-      expect(title).toHaveClass('text-lg', 'font-semibold');
+      expect(title).toHaveClass('font-display', 'text-2xl');
     });
 
     it('should accept custom className', () => {
@@ -372,7 +372,7 @@ describe('AlertDialog Components', () => {
       );
 
       const description = screen.getByTestId('description');
-      expect(description).toHaveClass('text-sm', 'text-muted-foreground');
+      expect(description).toHaveClass('font-mono', 'text-xs', 'text-muted-foreground');
     });
 
     it('should accept custom className', () => {
