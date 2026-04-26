@@ -415,6 +415,11 @@ export default function BattleModeFinals({
         toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
       } else {
         toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+        /* Warn when assigning a TV slot to a match containing a NoCamera player
+         * so the admin can reconsider the broadcast layout (issue #674). */
+        if (match.player1?.noCamera || match.player2?.noCamera) {
+          toast.warning(tFinals('noCameraWarning'));
+        }
       }
       refetch();
     } catch (err) {

@@ -19,6 +19,7 @@
  *   TC-523  BM finals score dialog — TV# autosaves on select (no explicit save button)
  *   TC-524  BM bracket startingCourseNumber randomisation per round (#671)
  *   TC-525  BM finals score dialog — startingCourseNumber autosaves on select
+ *   TC-526  NoCamera player warning toast when TV# assigned to their match (#674)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1612,6 +1613,120 @@ async function runTc525(adminPage) {
   }
 }
 
+/* ───────── TC-526: NoCamera player warning when TV# assigned (issue #674) ─────────
+ * When an admin assigns a TV number to a BM finals match that contains a
+ * NoCamera player, the API must still succeed (the restriction is advisory)
+ * AND the match data returned by GET must expose `player1.noCamera` so the
+ * frontend can surface a toast warning.
+ *
+ * Flow:
+ *   1. Generate an 8-player BM finals bracket.
+ *   2. Fetch M1 and identify player1.
+ *   3. Update player1 to noCamera=true via PUT /api/players/:id.
+ *   4. Re-fetch M1 and verify player1.noCamera === true in the response.
+ *   5. PATCH M1 with tvNumber=1 — must return 200 (noCamera is advisory only).
+ *   6. Navigate to BM finals page and open the score dialog for M1.
+ *   7. Select TV# 1 in the dialog and confirm a warning toast appears.
+ *   8. Restore player1 noCamera=false, clean up bracket.
+ */
+async function runTc526(adminPage) {
+  let setup = null;
+  let p1Id = null;
+  let p1Name = null;
+  let p1Nickname = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1 && m.player1Id && m.player2Id);
+    if (!m1) throw new Error('M1 not ready');
+    p1Id = m1.player1Id;
+
+    /* Fetch current player data so the PUT can include required name/nickname. */
+    const playerRes = await adminPage.evaluate(async (url) => {
+      const r = await fetch(url);
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, `/api/players/${p1Id}`);
+    const playerData = playerRes.b?.data ?? playerRes.b;
+    p1Name = playerData?.name ?? 'unknown';
+    p1Nickname = playerData?.nickname ?? 'unknown';
+
+    /* Set noCamera=true on player1. */
+    const setNoCamera = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: true }]);
+    if (setNoCamera.s !== 200) throw new Error(`Failed to set noCamera on player (${setNoCamera.s})`);
+
+    /* Confirm GET response exposes noCamera for the match. */
+    const after = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
+    const m1After = after.find((m) => m.matchNumber === 1);
+    const noCameraVisible = m1After?.player1?.noCamera === true;
+
+    /* PATCH TV#1 — must succeed even with a noCamera player (advisory only). */
+    const patchRes = await adminPage.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 1 }]);
+    const tvPatchOk = patchRes.s === 200;
+
+    /* UI: navigate to finals page, open score dialog for M1, change TV# to 2,
+     * then verify a warning toast appears (data-type="warning"). */
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/bm/finals`);
+    await adminPage.waitForTimeout(3000);
+
+    const matchCards = adminPage.locator('[data-testid="bracket-match-card"]');
+    if (await matchCards.count() === 0) throw new Error('No bracket match cards found');
+    await matchCards.first().click();
+    await adminPage.waitForTimeout(800);
+
+    const dialogVisible = await adminPage.locator('[role="dialog"]').isVisible();
+    /* Change the TV# inside the dialog — triggers handleBracketTvNumberChange. */
+    await adminPage.locator('#bm-finals-tv').selectOption('2');
+    await adminPage.waitForTimeout(2000);
+
+    /* Sonner renders warnings as <li data-type="warning"> inside the toaster. */
+    const warningToast = adminPage.locator('[data-sonner-toast][data-type="warning"]');
+    const warningShown = await warningToast.count() > 0;
+
+    const pass = noCameraVisible && tvPatchOk && dialogVisible && warningShown;
+    log('TC-526', pass ? 'PASS' : 'FAIL',
+      !noCameraVisible ? `player1.noCamera not visible in GET response (got ${m1After?.player1?.noCamera})`
+      : !tvPatchOk ? `TV# PATCH failed for noCamera match (${patchRes.s})`
+      : !dialogVisible ? 'Score dialog did not open'
+      : !warningShown ? 'No warning toast shown for noCamera player TV# assignment'
+      : '');
+  } catch (err) {
+    log('TC-526', 'FAIL', err instanceof Error ? err.message : 'TC-526 failed');
+  } finally {
+    /* Restore player noCamera flag before bracket cleanup. */
+    if (p1Id && p1Name && p1Nickname) {
+      await adminPage.evaluate(async ([url, body]) => {
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch(() => {});
+      }, [`/api/players/${p1Id}`, { name: p1Name, nickname: p1Nickname, noCamera: false }]);
+    }
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1658,6 +1773,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-523', fn: runTc523 },
       { name: 'TC-524', fn: runTc524 },
       { name: 'TC-525', fn: runTc525 },
+      { name: 'TC-526', fn: runTc526 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1666,7 +1782,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
