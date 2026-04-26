@@ -54,6 +54,10 @@ interface BracketMatch {
   bracket: "winners" | "losers" | "grand_final";
   player1Seed?: number;
   player2Seed?: number;
+  winnerGoesTo?: number;
+  loserGoesTo?: number;
+  /** Position in the receiving match (1 or 2), used for winner routing */
+  position?: 1 | 2;
 }
 
 /** Props for the main DoubleEliminationBracket component */
@@ -88,7 +92,7 @@ interface DoubleEliminationBracketProps {
  * @param bracketMatch - Bracket structure definition for this position
  * @param seededPlayers - Seeded player data for seed number display
  * @param onClick - Click handler for score entry
- * @param isTBD - Whether this match has undetermined players
+ * @param isTBD - Per-slot TBD flags: whether player1/player2 slots are undetermined
  */
 function MatchCard({
   match,
@@ -103,7 +107,7 @@ function MatchCard({
   bracketMatch: BracketMatch;
   seededPlayers?: { seed: number; playerId: string; player: Player }[];
   onClick?: () => void;
-  isTBD: boolean;
+  isTBD: { player1: boolean; player2: boolean };
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
@@ -125,16 +129,14 @@ function MatchCard({
   const isWinner2 = !!match?.completed && match.score2 >= targetWins && match.score2 > match.score1;
 
   /*
-   * Determine if this match should show "TBD" for players.
-   * Winners first-round matches (winners_qf, winners_r1) always have real
-   * players from direct seeding. losers_r1 is populated from winners-side
-   * losers so its players are unknown until those matches complete — issue
-   * #574: immediately after bracket generation both slots were filled with
-   * seed 1 as a placeholder and it needs to render as TBD.
+   * Per-slot TBD display. First-round matches (seeded) always show real names.
+   * For later rounds, show "TBD" only for the specific slot that hasn't been
+   * filled yet by a routing event from a completed prior match (issue #669).
    */
   const isFirstRound =
     bracketMatch.round === "winners_r1" || bracketMatch.round === "winners_qf";
-  const showTBD = !isFirstRound && isTBD;
+  const showTBD1 = !isFirstRound && isTBD.player1;
+  const showTBD2 = !isFirstRound && isTBD.player2;
 
   /* TV1 gets a subtle amber highlight so broadcast crew can spot it instantly. */
   const isTV1 = match?.tvNumber === 1;
@@ -150,7 +152,7 @@ function MatchCard({
       role="button"
       tabIndex={0}
       data-testid="bracket-match-card"
-      aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || tc('tbd')} vs ${player2?.nickname || tc('tbd')}${showTBD ? ' (Pending)' : ''}`}
+      aria-label={`Match ${bracketMatch.matchNumber}: ${showTBD1 ? tc('tbd') : player1?.nickname || tc('tbd')} vs ${showTBD2 ? tc('tbd') : player2?.nickname || tc('tbd')}${(showTBD1 || showTBD2) ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
         if (e.key === 'Enter' || e.key === ' ') {
@@ -203,8 +205,8 @@ function MatchCard({
               [{bracketMatch.player1Seed}]
             </span>
           )}
-          <span className={showTBD ? "text-muted-foreground" : ""}>
-            {showTBD ? tc("tbd") : player1?.nickname || tc("tbd")}
+          <span className={showTBD1 ? "text-muted-foreground" : ""}>
+            {showTBD1 ? tc("tbd") : player1?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -225,8 +227,8 @@ function MatchCard({
               [{bracketMatch.player2Seed}]
             </span>
           )}
-          <span className={showTBD ? "text-muted-foreground" : ""}>
-            {showTBD ? tc("tbd") : player2?.nickname || tc("tbd")}
+          <span className={showTBD2 ? "text-muted-foreground" : ""}>
+            {showTBD2 ? tc("tbd") : player2?.nickname || tc("tbd")}
           </span>
         </span>
         <span className="font-mono">
@@ -314,20 +316,79 @@ export function DoubleEliminationBracket({
     bracketStructure.find((b) => b.matchNumber === matchNumber);
 
   /**
-   * Determine if a match should display "TBD" for its players.
-   * A match is TBD when:
-   * - No match data exists for this position
-   * - It's not a first-round match AND both player IDs are the same
-   *   (indicating placeholder players that haven't been filled in yet)
+   * Reverse routing map: `${matchNumber}-${slot}` → source match number.
+   *
+   * `bracketStructure` is always produced by `generateBracketStructure()` on the
+   * server, which guarantees `winnerGoesTo`, `loserGoesTo`, and `position` are
+   * populated for every non-terminal match. The map will therefore contain an
+   * entry for every non-seeded slot under normal circumstances.
+   *
+   * Loser position rules (same as getNextMatchInfo in double-elimination.ts):
+   *   winners_r1:  (matchNumber - 1) % 2 + 1
+   *   winners_qf:  position 2 for 16-player; (matchNumber - 1) % 2 + 1 for 8-player
+   *   winners_sf:  always 1
+   *   winners_final: always 2
    */
-  const isTBD = (matchNumber: number) => {
+  const slotSourceMap = (() => {
+    const map = new Map<string, number>();
+    /* 8-player bracket = 17 matches; 16-player = 31 matches. */
+    const is16Player = bracketStructure.length > 17;
+    for (const bm of bracketStructure) {
+      if (bm.winnerGoesTo) {
+        const pos = bm.position ?? 1;
+        map.set(`${bm.winnerGoesTo}-${pos}`, bm.matchNumber);
+      }
+      if (bm.loserGoesTo) {
+        let loserPos: 1 | 2;
+        if (bm.round === 'winners_r1') {
+          loserPos = ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
+        } else if (bm.round === 'winners_qf') {
+          loserPos = is16Player ? 2 : ((bm.matchNumber - 1) % 2 + 1) as 1 | 2;
+        } else if (bm.round === 'winners_sf') {
+          loserPos = 1;
+        } else if (bm.round === 'winners_final') {
+          loserPos = 2;
+        } else {
+          continue;
+        }
+        map.set(`${bm.loserGoesTo}-${loserPos}`, bm.matchNumber);
+      }
+    }
+    return map;
+  })();
+
+  /**
+   * Per-slot TBD detection. A slot is TBD when no completed source match
+   * has routed a real player into it yet. Returns per-slot flags so the
+   * bracket can show "Player vs TBD" when only one slot has been filled,
+   * rather than hiding both names (issue #669).
+   */
+  const isTBD = (matchNumber: number): { player1: boolean; player2: boolean } => {
     const match = getMatch(matchNumber);
-    if (!match) return true;
+    if (!match) return { player1: true, player2: true };
     const bracket = getBracketMatch(matchNumber);
-    /* First round matches always have real players from seeding */
-    if (bracket?.round === "winners_qf" || bracket?.round === "winners_r1") return false;
-    /* Later rounds: check if both player IDs are the same (placeholder state) */
-    return !match.completed && match.player1Id === match.player2Id;
+    /* First-round seeded matches always have real players */
+    if (bracket?.round === "winners_qf" || bracket?.round === "winners_r1") {
+      return { player1: false, player2: false };
+    }
+    if (match.completed) return { player1: false, player2: false };
+
+    const isSlotTBD = (slot: 1 | 2): boolean => {
+      /* Seeded slots (playoff_r2 BYE seeds) are always filled */
+      if (slot === 1 && bracket?.player1Seed != null) return false;
+      if (slot === 2 && bracket?.player2Seed != null) return false;
+      const sourceMatchNumber = slotSourceMap.get(`${matchNumber}-${slot}`);
+      if (sourceMatchNumber == null) {
+        /* Routing fields absent (should not happen with generateBracketStructure,
+         * but degrade gracefully using the placeholder heuristic: bracket creation
+         * initialises unfilled slots to seededPlayers[0].playerId for both players,
+         * so equal IDs means both slots are still placeholders. */
+        return !match.completed && match.player1Id === match.player2Id;
+      }
+      return !getMatch(sourceMatchNumber)?.completed;
+    };
+
+    return { player1: isSlotTBD(1), player2: isSlotTBD(2) };
   };
 
   /* Group bracket positions by round for organized display */

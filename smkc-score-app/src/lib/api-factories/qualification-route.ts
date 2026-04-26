@@ -618,6 +618,24 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
 
+      /* Uniqueness guard: prevent the same TV number in the same round (issue #668). */
+      if (tvNumber !== null && tvNumber !== undefined) {
+        const tvConflict = await matchModel(prisma).findFirst({
+          where: {
+            tournamentId,
+            round: existingMatch.round,
+            tvNumber,
+            id: { not: matchId },
+          },
+        });
+        if (tvConflict) {
+          return handleValidationError(
+            `TV${tvNumber} is already assigned to match ${tvConflict.matchNumber} in this round`,
+            'tvNumber',
+          );
+        }
+      }
+
       const match = await matchModel(prisma).update({
         where: { id: matchId, tournamentId },
         data: { tvNumber: tvNumber ?? null },

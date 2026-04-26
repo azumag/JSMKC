@@ -1183,6 +1183,22 @@ export function createFinalsHandlers(config: FinalsConfig) {
           if (!Number.isInteger(tv) || tv < 1 || tv > MAX_TV_NUMBER) {
             return handleValidationError(`tvNumber must be 1–${MAX_TV_NUMBER}`, 'tvNumber');
           }
+          /* Uniqueness guard: prevent the same TV number in the same round (issue #668). */
+          const tvConflict = await model(prisma).findFirst({
+            where: {
+              tournamentId,
+              stage: match.stage,
+              round: match.round,
+              tvNumber: tv,
+              id: { not: matchId },
+            },
+          });
+          if (tvConflict) {
+            return handleValidationError(
+              `TV${tv} is already assigned to match ${tvConflict.matchNumber} in this round`,
+              'tvNumber',
+            );
+          }
         }
         for (const field of config.putAdditionalFields) {
           if (body[field] !== undefined) {
@@ -1476,6 +1492,26 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
       if (existing.stage !== 'finals' && existing.stage !== 'playoff') {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
+      }
+
+      /* Uniqueness guard: prevent the same TV number being assigned to two
+       * different matches in the same round (issue #668). */
+      if (tvNumber !== null && tvNumber !== undefined) {
+        const conflict = await model(prisma).findFirst({
+          where: {
+            tournamentId,
+            stage: existing.stage,
+            round: existing.round,
+            tvNumber,
+            id: { not: matchId },
+          },
+        });
+        if (conflict) {
+          return handleValidationError(
+            `TV${tvNumber} is already assigned to match ${conflict.matchNumber} in this round`,
+            'tvNumber',
+          );
+        }
       }
 
       const match = await model(prisma).update({
