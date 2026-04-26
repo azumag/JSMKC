@@ -178,7 +178,7 @@ export default function DashboardPage({
       >
         <DashboardFooter
           currentPhase={currentPhase}
-          currentPhaseFormat={currentPhaseFormat}
+          currentPhaseFormat={overlayMatchFt !== null ? `FT${overlayMatchFt}` : currentPhaseFormat}
           overlayMatchLabel={overlayMatchLabel}
         />
       </div>

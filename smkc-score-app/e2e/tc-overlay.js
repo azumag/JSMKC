@@ -821,18 +821,22 @@ async function runTc920(adminPage) {
  * cleanup still works). */
 async function runTc906(adminPage) {
   try {
+    /* Inject a fresh overall_ranking_updated event immediately before
+     * navigating. TC-909/TC-911 run many steps earlier; with TC-920's 8s
+     * wait and other intervening tests the elapsed time can exceed the
+     * overlay page's 30-second no-`since` initial window, leaving the first
+     * poll with zero events and no toast to show. Recalculating here
+     * guarantees at least one event is younger than 5s. */
+    await apiRecalculateOverallRanking(adminPage, fixture.tournamentId);
+
     await adminPage.goto(
       `${BASE}/tournaments/${fixture.tournamentId}/overlay`,
       { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
     await adminPage.waitForSelector('[data-testid="overlay-root"]', { timeout: 10_000 });
-    /* Wait for any toast — by the time TC-906 runs, recent events from TC-909
-       (qualification_confirmed) and TC-911 (overall_ranking_updated) will
-       still be inside the server's 30-second initial-poll window, so the
-       page's first poll surfaces at least one toast. We deliberately accept
-       any event type (mode-specific or neutral) because each individual
-       event type already has its own dedicated TC; this test is purely
-       about proving the SSR → hydrate → poll → animate pipeline works. */
+    /* Wait for any toast. We deliberately accept any event type because each
+     * individual event type already has its own dedicated TC; this test is
+     * purely about proving the SSR → hydrate → poll → animate pipeline. */
     await adminPage.waitForSelector('[data-testid="overlay-toast"]', { timeout: 15_000 });
 
     const stackText = await adminPage.locator('[data-testid="overlay-toast-stack"]').innerText();
