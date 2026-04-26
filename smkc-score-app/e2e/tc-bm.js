@@ -422,7 +422,13 @@ async function runTc513(adminPage) {
     const anonContext = await chromium.launchPersistentContext('/tmp/playwright-smkc-anon', { headless: true });
     const anonPage = await anonContext.newPage();
     await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    await anonPage.waitForTimeout(8000);
+    /* 20s: NextAuth sessionStatus may stay 'loading' during D1 cold start
+     * (issue #678 class-C). Active poll is faster than a fixed sleep when warm. */
+    await anonPage.waitForFunction(
+      () => document.body.innerText.includes('Sign in to report scores') ||
+            document.body.innerText.includes('スコアを報告するにはログインしてください'),
+      null, { timeout: 20000 },
+    ).catch(() => {});
     const anonText = await anonPage.innerText('body');
     /* Accept either locale — the persistent admin profile defaults to EN, but a
      * fresh anon context follows the system Accept-Language and lands on JA on
@@ -434,7 +440,11 @@ async function runTc513(adminPage) {
     /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
      * (commit 05b0625: separate admin branch linking to /bm page). */
     await adminPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    await adminPage.waitForTimeout(8000);
+    await adminPage.waitForFunction(
+      () => document.body.innerText.includes('Admins can view this shared page') ||
+            document.body.innerText.includes('管理者はこの共有ページを閲覧できます'),
+      null, { timeout: 20000 },
+    ).catch(() => {});
     const adminText = await adminPage.innerText('body');
     const adminHasGuidance =
       adminText.includes('Admins can view this shared page') ||
@@ -451,7 +461,10 @@ async function runTc513(adminPage) {
     const { browser: playerBrowser, page: playerPage } =
       await loginPlayerBrowser(player1.nickname, player1.password);
     await playerPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    await playerPage.waitForTimeout(8000);
+    await playerPage.waitForFunction(
+      () => document.body.innerText.includes('Score entry is on the participant page'),
+      null, { timeout: 20000 },
+    ).catch(() => {});
     const playerText = await playerPage.innerText('body');
     const playerHasGuidance = playerText.includes('Score entry is on the participant page');
     const playerHasButton = await playerPage.locator('a:has-text("Go to Score Entry")').count() > 0;
@@ -1181,7 +1194,13 @@ async function runTc519(adminPage) {
     /* Losers R1 matches are M8 and M9 in the 8-player bracket.
      * Both players should show "TBD" because no winners-side matches
      * have completed yet to populate the loser slots. */
-    const bodyText = await adminPage.locator('body').innerText();
+
+    /* 25s: page fetches bracket data client-side; D1 cold start can delay
+     * rendering significantly past the 8s nav wait (issue #678 class-A/C). */
+    await adminPage.waitForFunction(
+      () => document.querySelectorAll('[data-testid="bracket-match-card"]').length > 0,
+      null, { timeout: 25000 },
+    ).catch(() => {});
 
     /* Locate cards via the dedicated `data-testid="bracket-match-card"` (added
      * in commit bcf769d for TC-523), then filter by exact "M8"/"M9" text so a
