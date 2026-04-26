@@ -141,7 +141,8 @@ export default function TournamentLayout({
   const fetchTournament = useCallback(async () => {
     try {
       // ?fields=summary skips BM relations — layout only needs name/date/status
-      const response = await fetchWithRetry(`/api/tournaments/${id}?fields=summary`);
+      // cache:'no-store' prevents stale publicModes after publicModesChanged re-fetch (issue #662)
+      const response = await fetchWithRetry(`/api/tournaments/${id}?fields=summary`, { cache: 'no-store' });
       if (response.ok) {
         const json = await response.json();
         // API uses createSuccessResponse: { success, data: {...} }

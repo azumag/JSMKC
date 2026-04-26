@@ -1931,6 +1931,71 @@ async function apiPutAllBmQualScores(page, tournamentId, opts = {}) {
   }
 }
 
+/** API-driven MR qualification score entry for EVERY open match.
+ *  Mirrors apiPutAllBmQualScores (issue #517/#661): bypasses the UI dialog loop
+ *  that requires a full browser click per race winner, which takes 35 min for
+ *  182 matches in a 28-player two-group tournament.
+ *  Submits { matchId, score1, score2 } to the bulk PUT endpoint.
+ *  score1 + score2 must equal TOTAL_MR_RACES (4). */
+async function apiPutAllMrQualScores(page, tournamentId, opts = {}) {
+  const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
+  const data = await apiFetchMr(page, tournamentId);
+  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
+
+  for (const match of matches) {
+    const profile = randomize ? pickRandomMrScoreProfile() : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
+    const result = await withRetry(() => page.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status, id: body.matchId };
+    }, [`/api/tournaments/${tournamentId}/mr`, {
+      matchId: match.id,
+      score1: profile.score1,
+      score2: profile.score2,
+    }]), { label: `MR qual API PUT ${match.id}` });
+
+    if (result.s !== 200) {
+      throw new Error(`apiPutAllMrQualScores failed for match ${match.id} (${result.s})`);
+    }
+  }
+}
+
+/** API-driven GP qualification score entry for EVERY open match.
+ *  Mirrors apiPutAllBmQualScores (issue #517/#661): bypasses the UI dialog loop
+ *  that takes 35 min for 182 matches in a 28-player setup.
+ *  Uses the per-match manual-score endpoint (/gp/match/[id]) with points1/points2
+ *  so we don't need to construct per-race position arrays. */
+async function apiPutAllGpQualScores(page, tournamentId, opts = {}) {
+  const { points1: fixedP1, points2: fixedP2, randomize = true } = opts;
+  const data = await apiFetchGp(page, tournamentId);
+  const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
+
+  for (const match of matches) {
+    const pts = randomize ? pickRandomGpPoints() : { points1: fixedP1 ?? 45, points2: fixedP2 ?? 0 };
+
+    const result = await withRetry(() => page.evaluate(async ([url, body]) => {
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: r.status };
+    }, [`/api/tournaments/${tournamentId}/gp/match/${match.id}`, {
+      points1: pts.points1,
+      points2: pts.points2,
+      completed: true,
+      version: match.version,
+    }]), { label: `GP qual API PUT ${match.id}` });
+
+    if (result.s !== 200) {
+      throw new Error(`apiPutAllGpQualScores failed for match ${match.id} (${result.s})`);
+    }
+  }
+}
+
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
@@ -1955,8 +2020,10 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
   }
 }
 
-/** UI-driven MR qualification: group assignment + all match scores (3-1
- *  via per-race winner buttons). */
+/** MR qualification: group assignment + all match scores via API bulk PUT.
+ *  Uses apiPutAllMrQualScores (mirrors the BM API approach from issue #517)
+ *  to avoid the 35-min UI click loop for 182 matches in a 28-player setup
+ *  (issue #661). The UI dialog flow is still covered by TC-601/602. */
 async function setupMrQualViaUi(
   adminPage,
   tournamentId,
@@ -1968,15 +2035,18 @@ async function setupMrQualViaUi(
    * which disables the MR score-entry button. Reset before re-seeding. */
   await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
-  await uiPutAllMrQualScores(adminPage, tournamentId, { score1, score2, randomize });
+  /* Use API bulk scoring to avoid renderer OOM and suite timeout on 182-match
+   * 28-player tournaments (issue #661). Individual UI flow covered by TC-601/602. */
+  await apiPutAllMrQualScores(adminPage, tournamentId, { score1, score2, randomize });
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'mr');
   }
 }
 
-/** UI-driven GP qualification: group assignment + all match scores via the
- *  dialog's Manual Total Score toggle (45-0 by default, matching the
- *  player1-wins-all-5-races outcome of makeRacesP1Wins). */
+/** GP qualification: group assignment + all match scores via API bulk PUT.
+ *  Uses apiPutAllGpQualScores (mirrors the BM API approach from issue #517)
+ *  to avoid the 35-min UI click loop for 182 matches in a 28-player setup
+ *  (issue #661). The UI dialog flow is still covered by TC-701/702. */
 async function setupGpQualViaUi(
   adminPage,
   tournamentId,
@@ -1988,7 +2058,10 @@ async function setupGpQualViaUi(
    * which disables the GP score-entry button. Reset before re-seeding. */
   await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
-  await uiPutAllGpQualScores(adminPage, tournamentId, { points1, points2, randomize });
+  /* Use API bulk scoring (manual-score endpoint) to avoid renderer OOM and
+   * suite timeout on 182-match 28-player tournaments (issue #661). Individual
+   * UI flow covered by TC-701/702. */
+  await apiPutAllGpQualScores(adminPage, tournamentId, { points1, points2, randomize });
   if (resolveTies) {
     await resolveAllTies(adminPage, tournamentId, 'gp');
   }
@@ -2275,6 +2348,7 @@ module.exports = {
   apiSetupBmGroup,
   apiFetchBm,
   apiPutBmQualScore,
+  apiPutAllBmQualScores,
   apiSetBmFinalsScore,
   apiGenerateBmFinals,
   apiFetchBmFinalsMatches,
@@ -2284,6 +2358,7 @@ module.exports = {
   apiSetupMrGroup,
   apiFetchMr,
   apiPutMrQualScore,
+  apiPutAllMrQualScores,
   apiGenerateMrFinals,
   apiSetMrFinalsScore,
   apiFetchMrFinalsMatches,
@@ -2295,6 +2370,7 @@ module.exports = {
   apiSetupGpGroup,
   apiFetchGp,
   apiPutGpQualScore,
+  apiPutAllGpQualScores,
   apiSetGpFinalsScore,
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
