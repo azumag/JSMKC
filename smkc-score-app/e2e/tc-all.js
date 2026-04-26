@@ -2543,18 +2543,27 @@ async function main() {
     const badgeBeforePublish = await hiddenBadge().isVisible().catch(() => false);
 
     // Step 2: Click the ModePublishSwitch for TA to publish it
-    // aria-label pattern: "Time Trial: Publish" / "タイムトライアル: 公開"
+    // aria-label: "Time Trial: Unpublish" (en) / "タイムトライアル: 未公開" (ja)
     const publishSwitch = page.getByRole('switch', { name: /Time Trial|タイムトライアル/ });
     await publishSwitch.click();
-    // Allow the publicModesChanged event handler + re-fetch to resolve
-    await page.waitForTimeout(3000);
+    // Wait for publicModesChanged event → layout re-fetch → badge disappears.
+    // Use polling instead of fixed timeout: D1 PUT + GET can take >3s on cold start.
+    await page.waitForFunction(
+      () => !document.querySelector('nav[aria-label="Tournament sections"]')
+        ?.textContent?.match(/Unpublished|未公開/),
+      { timeout: 10000 },
+    ).catch(() => {});
 
     // Step 3: Badge must be gone from the tab without a reload
     const badgeAfterPublish = await hiddenBadge().isVisible().catch(() => false);
 
     // Step 4: Toggle back to unpublish — badge must reappear
     await publishSwitch.click();
-    await page.waitForTimeout(3000);
+    await page.waitForFunction(
+      () => document.querySelector('nav[aria-label="Tournament sections"]')
+        ?.textContent?.match(/Unpublished|未公開/),
+      { timeout: 10000 },
+    ).catch(() => {});
     const badgeAfterUnpublish = await hiddenBadge().isVisible().catch(() => false);
 
     log('TC-340',
