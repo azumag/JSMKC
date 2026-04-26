@@ -59,17 +59,30 @@ export interface OverlayMatchResult {
 }
 
 /**
- * Structured TA-time payload attached to `ta_time_recorded` events. Mirrors
- * the data already present in the title string but split into discrete
- * fields so the dashboard timeline can render a richer card (player chip,
- * course chip, prominent time digits) instead of one long sentence.
+ * Structured TA-time payload attached to `ta_time_recorded` events.
+ *
+ * Two flavors share this shape so the dashboard renderer can branch on
+ * which fields are populated:
+ *
+ *  - **Qualification completion** (stage=qualification, `totalTime` non-null):
+ *    `totalTimeMs` and `totalTimeFormatted` are set; `course` / `time` are
+ *    absent. One event per player per qualification stage (re-fires only on
+ *    subsequent corrections).
+ *
+ *  - **Phase round** (phase1 / phase2 / phase3, single course per round):
+ *    `course` and `time` are set per the most recently recorded course;
+ *    `totalTimeMs` / `totalTimeFormatted` are absent.
  */
 export interface OverlayTaTimeRecord {
   player: string;
-  course: string;
-  /** Raw time string ("M:SS.ms"). Format-preserving so the broadcast UI
-      can choose its own emphasis without re-parsing. */
-  time: string;
+  /** Per-course course label. Set for phase rounds; omitted for qualification completion. */
+  course?: string;
+  /** Raw per-course time string ("M:SS.ms"). Set for phase rounds; omitted for qualification completion. */
+  time?: string;
+  /** Total time in ms — set only for qualification-completion events. */
+  totalTimeMs?: number;
+  /** Formatted total time ("M:SS.cc") — set only for qualification-completion events. */
+  totalTimeFormatted?: string;
   /** Human label for the TA stage ("予選" / "敗者復活1" etc.). May be
       empty when the stage is unknown. */
   phaseLabel?: string;

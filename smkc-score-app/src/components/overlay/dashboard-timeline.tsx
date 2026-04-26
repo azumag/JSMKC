@@ -197,14 +197,37 @@ function MatchScoreboardCard({
 }
 
 /**
- * Rich card for a recorded TA time. Same overall sizing as the match
- * scoreboard so both event types feel like first-class entries on the
- * timeline. Top row: phase + relative timestamp. Middle row: player name
- * with rank chip. Bottom row: course label + the time itself rendered
- * large enough to read from across the room.
+ * Rich card for a TA event. Two flavors:
+ *
+ *  - Qualification completion (`totalTimeFormatted` set): heading reads
+ *    "TA 予選 完走", bottom row shows the total time prominently. No
+ *    course chip because qualification is 20 courses' worth of time
+ *    aggregated.
+ *  - Phase round (per-course `course` + `time`): unchanged — course chip
+ *    + course time digits.
+ *
+ * Same overall sizing as the match scoreboard so both event types feel
+ * like first-class timeline entries.
  */
 function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
-  const t = event.taTimeRecord!;
+  // Defensive: an in-flight overlay event without a structured payload
+  // would otherwise crash the dashboard timeline. We render nothing so
+  // the surrounding card list keeps working.
+  if (!event.taTimeRecord) return null;
+  const t = event.taTimeRecord;
+  // Discriminate the two payload flavors strictly: both totalTimeMs (raw)
+  // and a non-empty totalTimeFormatted (rendered) must be present, so a
+  // malformed qualification payload can't silently render a blank digit
+  // row, and a phase-round payload that happens to carry a stray
+  // formatted string can't accidentally route to the qualification branch.
+  const isQualificationTotal =
+    typeof t.totalTimeMs === "number" &&
+    typeof t.totalTimeFormatted === "string" &&
+    t.totalTimeFormatted.length > 0;
+  const heading = isQualificationTotal
+    ? `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA 予選 完走`
+    : `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA タイム更新`;
+
   return (
     <div
       className={`${CARD_BASE} px-4 py-3`}
@@ -213,7 +236,7 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          {t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA タイム更新
+          {heading}
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -233,14 +256,26 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
 
       <div className="my-1 h-px bg-white/10" />
 
-      <div className="mt-2 flex items-baseline justify-between gap-3">
-        <span className="rounded bg-white/10 px-2 py-0.5 text-sm font-medium text-white/85">
-          {t.course}
-        </span>
-        <span className="text-3xl font-bold tabular-nums text-yellow-400">
-          {t.time}
-        </span>
-      </div>
+      {isQualificationTotal ? (
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <span className="text-sm font-medium text-white/70">合計タイム</span>
+          <span
+            className="text-3xl font-bold tabular-nums text-yellow-400"
+            data-testid="dashboard-timeline-ta-total"
+          >
+            {t.totalTimeFormatted}
+          </span>
+        </div>
+      ) : (
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <span className="rounded bg-white/10 px-2 py-0.5 text-sm font-medium text-white/85">
+            {t.course}
+          </span>
+          <span className="text-3xl font-bold tabular-nums text-yellow-400">
+            {t.time}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
