@@ -452,12 +452,17 @@ async function main() {
       await nav(page, `/tournaments/${tc823TournamentId}/bm`);
       await page.waitForTimeout(3000);
 
-      // BM tab link has exact href; the hidden badge lives inside it with `bg-destructive`
-      const bmTabBadge = page.locator(`a[href="/tournaments/${tc823TournamentId}/bm"] .bg-destructive`);
+      // BM tab link has exact href; the hidden badge lives inside it as a flag-draft Badge.
+      // (Paddock-editorial redesign in commit 0e73b5c switched the variant from `destructive`
+      // to `flag-draft`, so the old `.bg-destructive` selector no longer matches.)
+      const bmTabBadge = page.locator(`a[href="/tournaments/${tc823TournamentId}/bm"] .flag-draft`);
       const hasBadgeBefore = await bmTabBadge.count() > 0;
 
-      // The ModePublishSwitch aria-label is "{mode}: {state}" (e.g. "バトルモード: 未公開")
+      // The ModePublishSwitch aria-label is "{mode}: {state}" (e.g. "バトルモード: 未公開").
+      // The switch only renders after isAdmin is determined client-side, so wait
+      // for it explicitly rather than relying on a 3s nav timeout.
       const publishSwitch = page.getByRole('switch', { name: /バトルモード|Battle Mode/i }).first();
+      await publishSwitch.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
       const switchExists = await publishSwitch.count() > 0;
 
       let hasBadgeAfterPublish = true;
@@ -1260,6 +1265,15 @@ async function main() {
       if (bmSetup518.s !== 201) throw new Error(`BM setup failed (${bmSetup518.s})`);
 
       await nav(page, `/tournaments/${tc518TournamentId}/bm`);
+      /* Match list renders client-side after the BM data fetch resolves and
+       * the session-driven `isAdmin` flag flips true. Wait until the table
+       * row + admin TV select are mounted (15 s for D1 cold start), then
+       * assert. */
+      await page.waitForFunction(
+        () => document.querySelectorAll('select.w-14').length > 0,
+        null,
+        { timeout: 15000 },
+      ).catch(() => {});
       const tvSelect = page.locator('select.w-14').first();
       const hasSelect = await tvSelect.count() > 0;
       let options = [];
@@ -1294,14 +1308,10 @@ async function main() {
     }
   }
 
-  // TC-104: Player delete
-  if (pid) {
-    const dr = await page.evaluate(async u => {
-      const r = await fetch(u, { method: 'DELETE' });
-      return { ok: r.ok };
-    }, `/api/players/${pid}`);
-    log('TC-104', dr.ok ? 'PASS' : 'FAIL');
-  } else { log('TC-104', 'SKIP'); }
+  /* TC-104 (player delete) intentionally deferred until after TC-344. Several
+   * downstream TCs (TC-331/332/342/343/344) call uiSetupTaPlayers with the
+   * shared `pid`; deleting it here would make the setup dialog never render the
+   * player label and trigger 10 s waitFor timeouts. We delete at end of suite. */
 
   // TC-304: MR is set up in the shared tournament and renders match data
   await nav(page, `/tournaments/${TID}/mr`);
@@ -1784,8 +1794,10 @@ async function main() {
         typeof sessResp.body?.data?.authenticated === 'boolean';
       const isUnauthenticated = sessResp.body?.success === false &&
         sessResp.body?.requiresAuth === true;
-      log('TC-327', sessResp.status === 200 && (isAuthenticated || isUnauthenticated) ? 'PASS' : 'FAIL',
-        sessResp.status !== 200 ? `Session status returned ${sessResp.status}`
+      const tc327Pass = sessResp.status === 200 && (isAuthenticated || isUnauthenticated);
+      log('TC-327', tc327Pass ? 'PASS' : 'FAIL',
+        tc327Pass ? ''
+        : sessResp.status !== 200 ? `Session status returned ${sessResp.status}`
         : 'Unexpected response structure');
     } catch (err) {
       log('TC-327', 'FAIL', err instanceof Error ? err.message : 'Session status API test failed');
@@ -2534,31 +2546,41 @@ async function main() {
     // Navigate to the TA page — layout renders the tab nav with "Unpublished" badge for TA
     await nav(page, `/tournaments/${tc340TournamentId}/ta`);
 
-    // Step 1: TA tab must show the "Unpublished"/"未公開" badge since publicModes=[]
-    const tabNav = page.locator('nav[aria-label="Tournament sections"]');
-    const hiddenBadge = () => tabNav.getByText(/^(Unpublished|未公開)$/).first();
+    /* Scope the badge check to the TA tab link only. Toggling TA's publish
+     * switch only removes TA's badge — BM/MR/GP badges still render because
+     * their per-mode publish state is independent (issue #618). A nav-wide
+     * regex would always match the remaining badges and the test would never
+     * see "no badge". */
+    const taTab = page.locator(`a[href="/tournaments/${tc340TournamentId}/ta"]`);
+    const hiddenBadge = () => taTab.getByText(/^(Unpublished|未公開)$/).first();
     const badgeBeforePublish = await hiddenBadge().isVisible().catch(() => false);
 
     // Step 2: Click the ModePublishSwitch for TA to publish it
     // aria-label: "Time Trial: Unpublish" (en) / "タイムトライアル: 未公開" (ja)
     const publishSwitch = page.getByRole('switch', { name: /Time Trial|タイムトライアル/ });
     await publishSwitch.click();
-    // Wait for publicModesChanged event → layout re-fetch → badge disappears.
-    // Use polling instead of fixed timeout: D1 PUT + GET can take >3s on cold start.
+    /* Wait for publicModesChanged event → layout re-fetch → TA tab badge
+     * disappears. Polling beats a fixed timeout for D1 cold-start latency. */
     await page.waitForFunction(
-      () => !document.querySelector('nav[aria-label="Tournament sections"]')
-        ?.textContent?.match(/Unpublished|未公開/),
+      (tid) => {
+        const tab = document.querySelector(`a[href="/tournaments/${tid}/ta"]`);
+        return tab ? !tab.textContent?.match(/Unpublished|未公開/) : false;
+      },
+      tc340TournamentId,
       { timeout: 10000 },
     ).catch(() => {});
 
-    // Step 3: Badge must be gone from the tab without a reload
+    // Step 3: Badge must be gone from the TA tab without a reload
     const badgeAfterPublish = await hiddenBadge().isVisible().catch(() => false);
 
-    // Step 4: Toggle back to unpublish — badge must reappear
+    // Step 4: Toggle back to unpublish — TA tab badge must reappear
     await publishSwitch.click();
     await page.waitForFunction(
-      () => document.querySelector('nav[aria-label="Tournament sections"]')
-        ?.textContent?.match(/Unpublished|未公開/),
+      (tid) => {
+        const tab = document.querySelector(`a[href="/tournaments/${tid}/ta"]`);
+        return tab ? !!tab.textContent?.match(/Unpublished|未公開/) : false;
+      },
+      tc340TournamentId,
       { timeout: 10000 },
     ).catch(() => {});
     const badgeAfterUnpublish = await hiddenBadge().isVisible().catch(() => false);
@@ -2703,6 +2725,7 @@ async function main() {
     }
   }
 
+<<<<<<< Updated upstream
   // TC-345: Duplicate TV number rejected in qualification round (issue #668)
   // Verifies that assigning the same TV number to two different matches in the
   // same round returns 400. Uses an isolated 2-player BM tournament so this
@@ -3005,6 +3028,18 @@ async function main() {
       log('TC-349', 'SKIP', 'No tournament ID available');
     }
   }
+=======
+  // TC-104: Player delete (deferred from earlier in the file — see comment above
+  // TC-304. Must run last for the shared `pid` so any TC that invoked
+  // uiSetupTaPlayers with that player can find the label in the setup dialog.)
+  if (pid) {
+    const dr = await page.evaluate(async u => {
+      const r = await fetch(u, { method: 'DELETE' });
+      return { ok: r.ok };
+    }, `/api/players/${pid}`);
+    log('TC-104', dr.ok ? 'PASS' : 'FAIL');
+  } else { log('TC-104', 'SKIP'); }
+>>>>>>> Stashed changes
 
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked

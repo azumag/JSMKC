@@ -1308,12 +1308,28 @@ async function removeSelectedGroupPlayers(dialog) {
   throw new Error('Too many selected players while clearing group setup dialog');
 }
 
-/** Check a single player's checkbox in the group setup dialog via search-filter. */
+/** Check a single player's checkbox in the group setup dialog via search-filter.
+ *  Uses label-text lookup → label[for] → button[id] then `.click()` instead of
+ *  `.check()`. Reasons:
+ *   - Playwright's getByLabel().check() times out on Radix UI <button role=checkbox>
+ *     inside the dialog's nested overflow scroller (auto-scroll-into-view fails).
+ *   - Even with the resolved button, `.check()` does a post-click verification that
+ *     re-reads aria-checked. The setup dialog moves a player from "available" to
+ *     "selected" on click, removing the original button from the DOM, so the
+ *     verification loops until the 30 s timeout. Plain `.click()` skips that
+ *     verification, which is safe because we just searched the player and the
+ *     button is by construction unchecked. */
 async function selectGroupPlayer(dialog, player) {
   const search = dialog.getByPlaceholder(/Search players|プレイヤーを検索/);
   await search.fill(player.nickname);
-  const label = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
-  await dialog.getByLabel(label).check();
+  const labelText = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
+  const labelEl = dialog.locator('label').filter({ hasText: labelText }).first();
+  await labelEl.waitFor({ state: 'visible', timeout: 15000 });
+  const forId = await labelEl.getAttribute('for');
+  if (!forId) throw new Error(`No for attribute on player label for ${player.nickname}`);
+  const checkboxEl = dialog.locator(`button[id="${forId}"]`);
+  await checkboxEl.scrollIntoViewIfNeeded().catch(() => {});
+  await checkboxEl.click();
   await search.fill('');
 }
 
@@ -1400,9 +1416,15 @@ async function uiSetupTaPlayers(page, tournamentId, players) {
     await search.fill(player.nickname);
     await page.waitForTimeout(150);
     /* Use label-text lookup to find the <label> element, then get its `for`
-     * attribute to locate the exact checkbox button by id.
-     * Avoids getByLabel().check() which times out on Radix UI <button role=checkbox>
-     * inside nested overflow containers where Playwright cannot scroll-into-view. */
+     * attribute to locate the exact checkbox button by id, then `.click()`.
+     *  - getByLabel().check() times out on Radix UI <button role=checkbox>
+     *    inside nested overflow containers where Playwright cannot scroll-into-view.
+     *  - .check() does a post-click verification that re-reads aria-checked, but
+     *    the setup dialog moves a player to a "selected" panel on click, removing
+     *    the original button from the DOM. The verification loop never sees
+     *    aria-checked="true" and times out at 30 s. Plain .click() skips that
+     *    verification, which is safe because the button is unchecked by
+     *    construction (we just searched + filtered to find it). */
     const labelText = new RegExp(`^${escapeRegex(player.nickname)} \\(${escapeRegex(player.name)}\\)$`);
     const labelEl = dialog.locator('label').filter({ hasText: labelText }).first();
     await labelEl.waitFor({ state: 'visible', timeout: 10000 });
@@ -1410,7 +1432,7 @@ async function uiSetupTaPlayers(page, tournamentId, players) {
     if (!forId) throw new Error(`No for attribute on player label for ${player.nickname}`);
     const checkboxEl = dialog.locator(`button[id="${forId}"]`);
     await checkboxEl.scrollIntoViewIfNeeded().catch(() => {});
-    await checkboxEl.check();
+    await checkboxEl.click();
   }
   await search.fill('');
   await page.waitForTimeout(200);

@@ -62,6 +62,32 @@ function sharedMrPlayers(count = 28) {
   return sharedFixture.players.slice(0, count);
 }
 
+/* Mirrors src/lib/finals-target-wins.ts:getMrFinalsTargetWins so tests can
+ * derive the per-round FT target needed for a valid score PUT (issue #559
+ * introduced FT5/FT7/FT9 by round; before that everything was FT3, which is
+ * why this helper didn't exist and earlier TC-605/606/607 used 3-0). Kept
+ * inline here rather than importing from src so tc-mr.js stays a plain CJS
+ * test script. */
+function mrFinalsTargetWinsForMatch(match) {
+  if (match?.stage === 'playoff') {
+    return match.round === 'playoff_r2' ? 4 : 3;
+  }
+  const round = match?.round;
+  if (round === 'winners_r1' || round === 'winners_qf'
+    || round === 'losers_r1' || round === 'losers_r2') {
+    return 5;
+  }
+  if (round === 'winners_sf'
+    || round === 'losers_r3' || round === 'losers_r4' || round === 'losers_sf') {
+    return 7;
+  }
+  if (round === 'winners_final' || round === 'losers_final'
+    || round === 'grand_final' || round === 'grand_final_reset') {
+    return 9;
+  }
+  return 5;
+}
+
 async function loginSharedPlayer(adminPage, player) {
   await ensurePlayerPassword(adminPage, player);
   return loginPlayerBrowser(player.nickname, player.password);
@@ -80,6 +106,12 @@ async function prepareSharedMrPair(adminPage, { dualReport = false } = {}) {
     ? sharedFixture.dualTournament
     : sharedFixture.normalTournament;
 
+  /* The shared fixture tournament persists across suite invocations and the
+   * BM suite runs first, leaving qualificationConfirmed=true. Score PUTs
+   * (TC-603) and the participant page winner buttons (TC-602) are both gated
+   * on this flag, so reset it before re-seeding. Mirrors prepareSharedBmPair
+   * in tc-bm.js. */
+  await apiUpdateTournament(adminPage, tournament.id, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'mr', tournament.id, players);
 
   const data = await apiFetchMr(adminPage, tournament.id);
@@ -109,10 +141,19 @@ async function prepareSharedMrFinalsSetup(adminPage) {
 
   const players = sharedMrPlayers(28);
   const tournamentId = sharedFixture.normalTournament.id;
-  if (!sharedMrFinalsReady) {
+
+  /* Re-seed if the pair tests reduced qualifications to 2 (see comment in
+   * tc-gp.js:prepareSharedGpFinalsSetup). */
+  const mrData = await apiFetchMr(adminPage, tournamentId);
+  const qualCount = (mrData.qualifications || mrData.data?.qualifications || []).length;
+  if (!sharedMrFinalsReady || qualCount < 28) {
     await setupMrQualViaUi(adminPage, tournamentId, players);
     sharedMrFinalsReady = true;
   }
+  /* The UI "Generate Bracket" button is gated on qualificationConfirmed=true
+   * (mr/finals/page.tsx). TC-604 clicks that button, so confirm here.
+   * Idempotent — safe even when finals are already in progress. */
+  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
 
   return {
     tournamentId,
@@ -185,12 +226,13 @@ async function runTc601(adminPage) {
 
     const allPassed = hasExpectedMatches && allScoresOk && hasStandings && standingsSorted;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
-      !hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
-      : !allScoresOk ? 'Some qualification matches are still incomplete'
-      : !hasStandings ? 'Standings page did not render properly'
-      : !standingsSorted ? 'Standings not sorted correctly'
-      : !hasCourses ? 'No course data found in matches (assignCoursesRandomly not working)'
-      : '');
+      !allPassed
+        ? (!hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
+           : !allScoresOk ? 'Some qualification matches are still incomplete'
+           : !hasStandings ? 'Standings page did not render properly'
+           : !standingsSorted ? 'Standings not sorted correctly'
+           : '')
+        : '');
   } catch (err) {
     log('TC-601', 'FAIL', err instanceof Error ? err.message : 'MR full flow failed');
   }
@@ -289,9 +331,15 @@ async function runTc604(adminPage) {
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
     await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i }).click();
     await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
+    /* Wait for the bracket to render. The MR finals page only displays an
+     * "X / Y matches" counter for the playoff stage (line 683 in
+     * mr/finals/page.tsx); the regular winners/losers bracket has no such
+     * counter, so wait for any bracket-match-card or the M1 aria-label
+     * instead. */
     await adminPage.waitForFunction(() => {
-      const text = document.body.innerText;
-      return text.includes('0 / 17') && (text.includes('M1') || text.includes('Match 1'));
+      const cards = document.querySelectorAll('[data-testid="bracket-match-card"]');
+      return cards.length > 0
+        || !!document.querySelector('[aria-label^="Match 1:"]');
     }, null, { timeout: 20000 });
 
     // Fetch generated bracket
@@ -396,7 +444,10 @@ async function runTc605(adminPage) {
     const m1 = before.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Bracket missing match 1');
 
-    const score = await setMrFinalsScore(adminPage, tournamentId, m1.id, 3, 0);
+    /* Use the QF round's per-round target (FT5 since #559) — bare 3 wins are
+     * no longer accepted by the finals validator. */
+    const tw1 = mrFinalsTargetWinsForMatch(m1);
+    const score = await setMrFinalsScore(adminPage, tournamentId, m1.id, tw1, 0);
     if (score.s !== 200) throw new Error(`Score put failed (${score.s})`);
 
     const completedBefore = (await fetchMrFinalsMatches(adminPage, tournamentId))
@@ -430,14 +481,17 @@ async function runTc606(adminPage) {
     const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* Drive M1..M16 sequentially. P1 wins 3-0 so seeds propagate deterministically. */
+    /* Drive M1..M16 sequentially. P1 wins (targetWins)-0 per round so seeds
+     * propagate deterministically; targetWins varies by round (FT5/FT7/FT9
+     * since #559). */
     for (let mn = 1; mn <= 16; mn++) {
       const matches = await fetchMrFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) {
         throw new Error(`Match ${mn} not ready (p1=${match?.player1Id} p2=${match?.player2Id})`);
       }
-      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      const tw = mrFinalsTargetWinsForMatch(match);
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, tw, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
@@ -449,7 +503,8 @@ async function runTc606(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
     const pageText = await adminPage.locator('body').innerText();
-    const m16Completed = m16?.completed === true && m16.score1 === 3 && m16.score2 === 0;
+    const expectedM16Wins = mrFinalsTargetWinsForMatch(m16);
+    const m16Completed = m16?.completed === true && m16.score1 === expectedM16Wins && m16.score2 === 0;
     const championShown = pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
 
@@ -476,21 +531,23 @@ async function runTc607(adminPage) {
     const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
-    /* M1..M15: P1 wins 3-0 each */
+    /* M1..M15: P1 wins (targetWins)-0 each — per-round FT since #559 */
     for (let mn = 1; mn <= 15; mn++) {
       const matches = await fetchMrFinalsMatches(adminPage, tournamentId);
       const match = matches.find((m) => m.matchNumber === mn);
       if (!match || !match.player1Id || !match.player2Id) throw new Error(`Match ${mn} not ready`);
-      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      const tw = mrFinalsTargetWinsForMatch(match);
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, tw, 0);
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
-    /* M16: L-side champion (P2) wins 0-3 → triggers M17 */
+    /* M16 (Grand Final, FT9): L-side champion (P2) wins 0-FT → triggers M17 */
     let matches = await fetchMrFinalsMatches(adminPage, tournamentId);
     const m16 = matches.find((m) => m.matchNumber === 16);
     if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
     const expectedResetChampionId = m16.player2Id;
-    const m16Res = await setMrFinalsScore(adminPage, tournamentId, m16.id, 0, 3);
+    const m16Tw = mrFinalsTargetWinsForMatch(m16);
+    const m16Res = await setMrFinalsScore(adminPage, tournamentId, m16.id, 0, m16Tw);
     if (m16Res.s !== 200) throw new Error(`M16 put failed (${m16Res.s})`);
 
     matches = await fetchMrFinalsMatches(adminPage, tournamentId);
@@ -500,9 +557,10 @@ async function runTc607(adminPage) {
 
     /* Play M17. The L-side champion's slot may be P1 or P2 depending on routing. */
     const m17ScoreP1Wins = m17.player1Id === expectedResetChampionId;
+    const m17Tw = mrFinalsTargetWinsForMatch(m17);
     const m17Res = await setMrFinalsScore(adminPage, tournamentId, m17.id,
-      m17ScoreP1Wins ? 3 : 0,
-      m17ScoreP1Wins ? 0 : 3);
+      m17ScoreP1Wins ? m17Tw : 0,
+      m17ScoreP1Wins ? 0 : m17Tw);
     if (m17Res.s !== 200) throw new Error(`M17 put failed (${m17Res.s})`);
 
     const finalMatches = await fetchMrFinalsMatches(adminPage, tournamentId);
@@ -828,6 +886,10 @@ async function runTc612(adminPage) {
     const tournamentId = sharedFixture.normalTournament.id;
     const players = sharedFixture.players.slice(0, 2);
 
+    /* Reset qualificationConfirmed in case earlier suites locked the shared
+     * tournament — score PUTs are 403'd otherwise. */
+    await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+
     // Setup GP qualification with 2 players on the shared tournament.
     // POST /gp is upsert-friendly: re-running replaces the previous GP setup.
     const setup = await adminPage.evaluate(async ([url, data]) => {
@@ -1127,9 +1189,6 @@ async function runTc615(adminPage) {
     });
     const hasStartPlayoff = await startPlayoffBtn.count() > 0;
 
-    // Clear any stale sessionStorage
-    await adminPage.evaluate(() => sessionStorage.removeItem('mr_finals_topN'));
-
     if (hasStartPlayoff) {
       await startPlayoffBtn.click();
       await adminPage.waitForTimeout(3000);
@@ -1137,31 +1196,37 @@ async function runTc615(adminPage) {
       throw new Error('Start Playoff button not found on MR qualification page');
     }
 
-    // Verify sessionStorage was set by the qualification page
-    const storedTopN = await adminPage.evaluate(() => sessionStorage.getItem('mr_finals_topN'));
+    /* The button POSTs /mr/finals with topN=24 directly; it does not write
+     * sessionStorage (the mr_finals_topN read in finals/page.tsx has no
+     * producer in src/). Verify the playoff was created server-side. */
+    const playoffState = await apiFetchMrFinalsState(adminPage, tournamentId);
+    const playoffCreated = (playoffState.playoffMatches?.length ?? 0) > 0
+      && playoffState.phase === 'playoff';
 
-    // Navigate to finals page — it should read sessionStorage and land on playoff phase
+    // Navigate to finals page — it should land on playoff phase
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
 
     const finalsText = await adminPage.locator('body').innerText();
     const hasPlayoffLabel = finalsText.includes('Playoff (Barrage)') || finalsText.includes('Playoff');
     const hasM1 = finalsText.includes('M1');
 
-    // Score all playoff_r1 matches (M1..M4) — MR targetWins defaults to 3
+    /* Score all playoff_r1 matches (M1..M4) and r2 matches (M5..M8) using the
+     * per-round MR target (playoff_r1=3, playoff_r2=4 since #559). */
     for (let mn = 1; mn <= 4; mn++) {
       const state = await apiFetchMrFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R1 M${mn} missing`);
-      const res = await apiSetMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      const tw = mrFinalsTargetWinsForMatch(match);
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, tw, 0);
       if (res.s !== 200) throw new Error(`Playoff R1 M${mn} score failed (${res.s})`);
     }
 
-    // Score all playoff_r2 matches (M5..M8)
     for (let mn = 5; mn <= 8; mn++) {
       const state = await apiFetchMrFinalsState(adminPage, tournamentId);
       const match = state.playoffMatches.find((m) => m.matchNumber === mn);
       if (!match) throw new Error(`Playoff R2 M${mn} missing`);
-      const res = await apiSetMrFinalsScore(adminPage, tournamentId, match.id, 3, 0);
+      const tw = mrFinalsTargetWinsForMatch(match);
+      const res = await setMrFinalsScore(adminPage, tournamentId, match.id, tw, 0);
       if (res.s !== 200) throw new Error(`Playoff R2 M${mn} score failed (${res.s})`);
     }
 
@@ -1169,7 +1234,7 @@ async function runTc615(adminPage) {
     const playoffComplete = finalState.playoffComplete === true;
 
     // Trigger Phase 2 (Upper Bracket creation) via API
-    const phase2 = await apiGenerateMrFinals(adminPage, tournamentId, 24);
+    const phase2 = await generateMrFinalsBracket(adminPage, tournamentId, 24);
     const phase2Ok = phase2.s === 201 && phase2.b?.data?.phase === 'finals';
 
     // Re-navigate to finals page and verify finals phase is shown
@@ -1177,10 +1242,10 @@ async function runTc615(adminPage) {
     const postPhase2Text = await adminPage.locator('body').innerText();
     const hasFinalsPhase = postPhase2Text.includes('Upper Bracket') || postPhase2Text.includes('アッパーブラケット');
 
-    const ok = hasStartPlayoff && storedTopN === '24' && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
+    const ok = hasStartPlayoff && playoffCreated && hasPlayoffLabel && hasM1 && playoffComplete && phase2Ok && hasFinalsPhase;
     log('TC-615', ok ? 'PASS' : 'FAIL',
       !hasStartPlayoff ? 'Start Playoff button missing'
-      : storedTopN !== '24' ? `sessionStorage topN=${storedTopN}`
+      : !playoffCreated ? `Playoff not created server-side (matches=${playoffState.playoffMatches?.length ?? 0}, phase=${playoffState.phase})`
       : !hasPlayoffLabel ? 'Playoff label missing on finals page'
       : !hasM1 ? 'M1 missing on playoff bracket'
       : !playoffComplete ? 'playoffComplete not true'
@@ -1209,7 +1274,7 @@ async function runTc616(adminPage) {
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     // Generate an 8-player finals bracket
-    const gen = await apiGenerateMrFinals(adminPage, tournamentId, 8);
+    const gen = await generateMrFinalsBracket(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
 
     // Go back to qualification page
