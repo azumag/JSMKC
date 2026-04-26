@@ -6,11 +6,13 @@
  * this module only does the shape transformation and Japanese title rendering.
  */
 
+import { msToDisplayTime } from "@/lib/ta/time-utils";
 import type {
   BuildOverlayEventsInput,
   OverlayEvent,
   OverlayMatchInput,
   OverlayMode,
+  OverlayTaTimeRecord,
 } from "./types";
 
 const NICKNAME_PLACEHOLDER = "BYE";
@@ -105,28 +107,66 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
 
   for (const e of ttEntries) {
     if (e.updatedAt.getTime() <= sinceMs) continue;
-    // Skip until the row has both columns populated — pre-migration rows or
-    // entries created without a time yet shouldn't fire a generic toast.
-    if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
     const stageLabel = TA_STAGE_LABEL[e.stage] ?? "";
     const rankSuffix = e.rank ? `（現在 ${e.rank} 位）` : "";
     const prefix = stageLabel ? `[${stageLabel}] ` : "";
-    events.push({
-      id: `ta_time_recorded:${e.id}:${e.updatedAt.getTime()}`,
-      type: "ta_time_recorded",
-      timestamp: e.updatedAt.toISOString(),
-      mode: "ta",
-      title: `${prefix}${nick(e.player)} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`,
-      // Structured payload powers the dashboard timeline's TA card. Subtitle
-      // is left undefined here because the TA card consumes the components
-      // directly — falling back to title would render a redundant sentence.
-      taTimeRecord: {
-        player: nick(e.player),
+    const playerName = nick(e.player);
+
+    let title: string;
+    let taTimeRecord: OverlayTaTimeRecord;
+    let eventId: string;
+
+    if (e.stage === "qualification") {
+      // Qualification fires a single notification once all 20 courses are in
+      // (totalTime becomes non-null). This collapses what used to be 20
+      // per-course toasts per player into one summary card.
+      //
+      // Important: `recalculateRanks` (rank-calculation.ts) writes to *every*
+      // TTEntry row in the stage on every PUT, which bumps every completed
+      // player's `updatedAt`. If the event id were keyed on `updatedAt`, that
+      // would re-fire the completion toast for every previously-completed
+      // player whenever any other player edits a course. Keying on `totalTime`
+      // instead makes the id content-addressable: same totalTime → same id →
+      // client-side `seenRef` dedupe (see overlay/page.tsx + dashboard/page.tsx)
+      // suppresses the duplicate. A genuine correction (totalTime changes by
+      // even 10ms) produces a fresh id and re-fires intentionally.
+      if (e.totalTime == null) continue;
+      const totalTimeFormatted = msToDisplayTime(e.totalTime);
+      const rankPart = e.rank ? `, 現在 ${e.rank} 位` : "";
+      title = `${prefix}${playerName} が予選を完走しました（タイム ${totalTimeFormatted}${rankPart}）`;
+      taTimeRecord = {
+        player: playerName,
+        phaseLabel: stageLabel || undefined,
+        rank: e.rank ?? null,
+        totalTimeMs: e.totalTime,
+        totalTimeFormatted,
+      };
+      eventId = `ta_time_recorded:qualification:${e.id}:${e.totalTime}`;
+    } else {
+      // Phase rounds (phase1/2/3) are single-course; per-course notification
+      // remains the right granularity. Skip until lastRecorded* is populated.
+      if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
+      title = `${prefix}${playerName} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`;
+      taTimeRecord = {
+        player: playerName,
         course: e.lastRecordedCourse,
         time: e.lastRecordedTime,
         phaseLabel: stageLabel || undefined,
         rank: e.rank ?? null,
-      },
+      };
+      eventId = `ta_time_recorded:${e.id}:${e.updatedAt.getTime()}`;
+    }
+
+    events.push({
+      id: eventId,
+      type: "ta_time_recorded",
+      timestamp: e.updatedAt.toISOString(),
+      mode: "ta",
+      title,
+      // Subtitle stays undefined: the dashboard's TA card consumes the
+      // structured payload directly, and falling back to title would render
+      // a redundant sentence.
+      taTimeRecord,
     });
   }
 

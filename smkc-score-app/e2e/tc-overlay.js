@@ -470,15 +470,18 @@ async function runTc908(adminPage) {
   }
 }
 
-/* ───────── TC-910: ta_time_recorded ─────────
+/* ───────── TC-910: ta_time_recorded (qualification = total-time gate) ─────────
  * Seeds qualification times for both TA entries — both fire ta_time_recorded
- * events. The aggregator emits one per TTEntry whose totalTime is non-null
- * and updatedAt > since.
+ * events. The aggregator emits one per TTEntry per qualification stage once
+ * `totalTime` is non-null (all 20 courses present). The notification carries
+ * the formatted total time, NOT a per-course value (issue: switch from
+ * per-course toasts to one summary card per player).
  *
  * IMPORTANT: makeTaTimesForRank produces all 20 TA_COURSES. The PUT route
  * runs recalculateRanks which RECOMPUTES totalTime from the times object
  * (ignoring the totalTime field we send). Partial times (< 20 courses)
- * collapse to null totalTime, which would suppress the event. */
+ * collapse to null totalTime, which suppresses the qualification event —
+ * see TC-924. */
 async function runTc910(adminPage) {
   try {
     const t1 = makeTaTimesForRank(1);
@@ -491,21 +494,57 @@ async function runTc910(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'ta_time_recorded');
     const hasMode = evt && evt.mode === 'ta';
-    // title format: "[phaseLabel] playerNick が course で time を記録しました（現在 N 位）"
-    // The literal "TA" was intentionally removed from the title in 779e988;
-    // mode is carried by evt.mode and evt.taTimeRecord instead.
-    const hasTitle = evt && /記録しました/.test(evt.title || '');
-    const hasTaPayload = evt && evt.taTimeRecord?.course && evt.taTimeRecord?.time;
+    // Qualification title format: "[予選] playerNick が予選を完走しました（タイム M:SS.cc, 現在 N 位）"
+    const hasTitle = evt && /予選を完走/.test(evt.title || '');
+    // Structured payload carries totals; per-course course/time absent.
+    const hasTaPayload = !!(
+      evt &&
+      evt.taTimeRecord &&
+      typeof evt.taTimeRecord.totalTimeMs === 'number' &&
+      typeof evt.taTimeRecord.totalTimeFormatted === 'string' &&
+      evt.taTimeRecord.totalTimeFormatted.length > 0 &&
+      !evt.taTimeRecord.course &&
+      !evt.taTimeRecord.time
+    );
     const pass = !!(evt && hasMode && hasTitle && hasTaPayload);
     log('TC-910',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'ta_time_recorded event missing' :
       !hasMode ? `wrong mode ${evt.mode}` :
-      !hasTitle ? `title missing 記録しました: "${evt.title}"` :
-      `taTimeRecord payload incomplete: ${JSON.stringify(evt.taTimeRecord)}`);
+      !hasTitle ? `title missing 予選を完走: "${evt.title}"` :
+      `taTimeRecord payload wrong shape: ${JSON.stringify(evt.taTimeRecord)}`);
   } catch (err) {
     log('TC-910', 'FAIL', err instanceof Error ? err.message : 'TC-910 threw');
+  }
+}
+
+/* ───────── TC-924: dashboard renders TA qualification total-time card ─────────
+ * Companion to TC-923. TC-923 only verifies that *some* `dashboard-timeline-
+ * ta-time` card was rendered. TC-924 asserts the qualification-completion
+ * variant — the new `dashboard-timeline-ta-total` element with a non-empty
+ * total-time string — is what gets rendered now that qualification fires
+ * one summary card per player instead of 20 per-course toasts.
+ *
+ * Runs on the same page opened by TC-921 (no extra navigation). The
+ * negative case (partial times → no event) is covered by the unit test in
+ * events.test.ts. */
+async function runTc924(adminPage) {
+  try {
+    const totalLocator = adminPage.locator('[data-testid="dashboard-timeline-ta-total"]');
+    const totalCount = await totalLocator.count();
+    if (totalCount === 0) {
+      log('TC-924', 'FAIL', 'no dashboard-timeline-ta-total element found — qualification card did not switch to total-time variant');
+      return;
+    }
+    const firstText = (await totalLocator.first().textContent() || '').trim();
+    /* Total-time format is "M:SS.cc" — at minimum must contain ':' and '.' */
+    const looksLikeTime = /^\d+:\d{2}\.\d{2}$/.test(firstText);
+    log('TC-924',
+      looksLikeTime ? 'PASS' : 'FAIL',
+      looksLikeTime ? '' : `total-time element text "${firstText}" does not match M:SS.cc`);
+  } catch (err) {
+    log('TC-924', 'FAIL', err instanceof Error ? err.message : 'TC-924 threw');
   }
 }
 
@@ -984,12 +1023,16 @@ function getSuite() {
       /* TC-920 must run after TC-918/919 set matchLabel/wins/ft,
          and before TC-906 navigates away. */
       { name: 'TC-920', fn: runTc920 },
-      /* TC-921/922/923 check dashboard timeline, progress bar, and TA time
-         cards. TC-921 navigates to /overlay/dashboard; TC-922/923 reuse that
-         page. Must run before TC-906 navigates to /overlay. */
+      /* TC-921/922/923/924 check dashboard timeline, progress bar, and TA
+         time cards. TC-921 navigates to /overlay/dashboard; TC-922/923/924
+         reuse that page. Must run before TC-906 navigates to /overlay.
+         TC-924 specifically asserts the qualification-completion total-time
+         card variant introduced when TA qualification switched from
+         per-course toasts to one summary card. */
       { name: 'TC-921', fn: runTc921 },
       { name: 'TC-922', fn: runTc922 },
       { name: 'TC-923', fn: runTc923 },
+      { name: 'TC-924', fn: runTc924 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -999,7 +1042,7 @@ module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   runTc916, runTc917, runTc918, runTc919, runTc920,
-  runTc921, runTc922, runTc923,
+  runTc921, runTc922, runTc923, runTc924,
   getSuite,
   results,
 };

@@ -150,25 +150,22 @@ describe("buildOverlayEvents", () => {
     expect(events[0].subtitle).toContain("Charlie");
   });
 
-  it("emits ta_time_recorded only when a course/time was recorded", () => {
+  // Qualification (`stage='qualification'`) is now total-time-based: a single
+  // notification fires once `totalTime` is non-null (all 20 courses in), not
+  // per individual course entry. Phase rounds (phase1/2/3) are single-course
+  // and keep the per-course event semantics.
+
+  it("does NOT emit ta_time_recorded for qualification entries with totalTime=null", () => {
+    // Even when lastRecordedCourse/Time are populated (mid-fill), the
+    // qualification entry must stay silent until totalTime is computed.
     const events = buildOverlayEvents(
       emptyInput({
         ttEntries: [
           {
-            id: "tt-empty",
+            id: "tt-partial",
             player: { nickname: "Dave" },
             totalTime: null,
             rank: null,
-            updatedAt: AFTER,
-            stage: "qualification",
-            lastRecordedCourse: null,
-            lastRecordedTime: null,
-          },
-          {
-            id: "tt-good",
-            player: { nickname: "Eve" },
-            totalTime: 90_000,
-            rank: 3,
             updatedAt: AFTER,
             stage: "qualification",
             lastRecordedCourse: "MC1",
@@ -177,21 +174,167 @@ describe("buildOverlayEvents", () => {
         ],
       }),
     );
+    expect(events).toHaveLength(0);
+  });
+
+  it("emits ta_time_recorded for qualification once totalTime is set, with total-time payload", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [
+          {
+            id: "tt-done",
+            player: { nickname: "Eve" },
+            totalTime: 90_000,
+            rank: 3,
+            updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "RR",
+            lastRecordedTime: "0:42.500",
+          },
+        ],
+      }),
+    );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_time_recorded");
+    expect(events[0].mode).toBe("ta");
+    // Title now talks about completing qualification with the total time,
+    // not the most recent course.
     expect(events[0].title).toContain("Eve");
-    expect(events[0].title).toContain("MC1");
-    expect(events[0].title).toContain("1:23.45");
-    expect(events[0].title).toContain("3 位");
     expect(events[0].title).toContain("予選");
-    expect(events[0].subtitle).toBeUndefined();
-    // Structured TA payload powers the dashboard's rich TA card.
+    expect(events[0].title).toContain("完走");
+    expect(events[0].title).toContain("1:30.00");
+    expect(events[0].title).toContain("3 位");
+    // Structured payload carries totals; per-course course/time are absent.
     expect(events[0].taTimeRecord).toEqual({
       player: "Eve",
-      course: "MC1",
-      time: "1:23.45",
       phaseLabel: "予選",
       rank: 3,
+      totalTimeMs: 90_000,
+      totalTimeFormatted: "1:30.00",
+    });
+  });
+
+  it("dedupes qualification completion across recalculateRanks bumps via content-keyed id", () => {
+    // recalculateRanks writes every TTEntry row in the stage on every PUT,
+    // which bumps every completed player's updatedAt. The qualification
+    // event id must be keyed on totalTime (not updatedAt) so client-side
+    // seenRef dedupe collapses the duplicate emission to one toast.
+    const FIRST_BUMP = new Date("2026-04-25T10:00:05.000Z");
+    const SECOND_BUMP = new Date("2026-04-25T10:00:25.000Z");
+    const baseEntry = {
+      id: "tt-A",
+      player: { nickname: "Alice" },
+      totalTime: 90_000,
+      rank: 1,
+      stage: "qualification",
+      lastRecordedCourse: "MC1",
+      lastRecordedTime: "1:23.45",
+    };
+    const firstPoll = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [{ ...baseEntry, updatedAt: FIRST_BUMP }],
+      }),
+    );
+    const secondPoll = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [{ ...baseEntry, updatedAt: SECOND_BUMP }],
+      }),
+    );
+    expect(firstPoll[0].id).toBe(secondPoll[0].id);
+    expect(firstPoll[0].id).toContain("90000");
+  });
+
+  it("emits a fresh qualification event when totalTime changes (correction)", () => {
+    // Genuine corrections must re-fire so the dashboard reflects the
+    // updated total time and rank. The id must change with totalTime.
+    const before = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [
+          {
+            id: "tt-A",
+            player: { nickname: "Alice" },
+            totalTime: 90_000,
+            rank: 2,
+            updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "1:23.45",
+          },
+        ],
+      }),
+    );
+    const afterCorrection = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [
+          {
+            id: "tt-A",
+            player: { nickname: "Alice" },
+            totalTime: 89_500,
+            rank: 1,
+            updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "1:23.40",
+          },
+        ],
+      }),
+    );
+    expect(before[0].id).not.toBe(afterCorrection[0].id);
+  });
+
+  it("rounds totalTime to centiseconds in the title (89999ms -> 1:30.00)", () => {
+    // Pin msToDisplayTime contract: ms divisible-by-10 boundary rounds up,
+    // so the formatter is what's wired in (not e.lastRecordedTime).
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [
+          {
+            id: "tt-A",
+            player: { nickname: "Alice" },
+            totalTime: 89_999,
+            rank: 1,
+            updatedAt: AFTER,
+            stage: "qualification",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "0:00.01",
+          },
+        ],
+      }),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toContain("1:30.00");
+    expect(events[0].taTimeRecord?.totalTimeFormatted).toBe("1:30.00");
+  });
+
+  it("keeps per-course ta_time_recorded for phase rounds (single-course stages)", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttEntries: [
+          {
+            id: "tt-phase1",
+            player: { nickname: "Frank" },
+            totalTime: null,
+            rank: 2,
+            updatedAt: AFTER,
+            stage: "phase1",
+            lastRecordedCourse: "MC1",
+            lastRecordedTime: "1:23.45",
+          },
+        ],
+      }),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("ta_time_recorded");
+    expect(events[0].title).toContain("Frank");
+    expect(events[0].title).toContain("MC1");
+    expect(events[0].title).toContain("1:23.45");
+    expect(events[0].title).toContain("敗者復活1");
+    expect(events[0].taTimeRecord).toEqual({
+      player: "Frank",
+      course: "MC1",
+      time: "1:23.45",
+      phaseLabel: "敗者復活1",
+      rank: 2,
     });
   });
 
