@@ -43,9 +43,28 @@ jobs:
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
 
+  # Wait for the Cloudflare Workers build (external "Workers Builds: smkc" check).
+  # If the deploy build fails we should not spend tokens on a review or attempt
+  # auto-merge — block the downstream jobs by failing this gate.
+  wait-cloudflare-build:
+    name: Wait for Cloudflare Workers Build
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for "Workers Builds: smkc" check
+        uses: fountainhead/action-wait-for-check@v1.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: "Workers Builds: smkc"
+          ref: ${{ github.event.pull_request.head.sha }}
+          timeoutSeconds: 1800
+          intervalSeconds: 20
+
   claude-review:
     # Only run after CI passes — satisfies issue #596.
-    needs: lint-and-test
+    # Also gate on the Cloudflare Workers build so we don't review/merge a
+    # PR whose deploy build is broken.
+    needs: [lint-and-test, wait-cloudflare-build]
     if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
