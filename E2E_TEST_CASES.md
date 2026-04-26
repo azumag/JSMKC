@@ -558,6 +558,92 @@
 - **期待結果**: 作成・更新・取得の全段階で noCamera フラグが正しく反映される
 - **スクリプト**: tc-all.js TC-344
 
+## TC-345: BM 予選 — 同一ラウンドへの TV 番号重複割り当ての拒否 (issue #668)
+- **URL**: /api/tournaments/[id]/bm PATCH
+- **authRequired**: true (admin)
+- **背景**: 予選マッチに TV 番号を割り当てる際、同じラウンド内で同じ TV 番号を 2 試合に割り当てると 400 で拒否される必要がある。
+- **手順**:
+  1. 4名のプレイヤーと独立トーナメントを作成
+  2. BM グループを設定して試合を 2 つ生成
+  3. PATCH で TV#1 を M1 に割り当て → 200
+  4. PATCH で TV#1 を M2 に割り当て → 400（重複拒否）
+  5. クリーンアップ
+- **期待結果**: 同じラウンドへの TV 番号重複は 400 で拒否される
+- **スクリプト**: tc-all.js TC-345
+
+## TC-346: BM 決勝 — QF 試合完了後のルーザーズ R1 スロット TBD 検出 (issue #669)
+- **URL**: /api/tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: ブラケット生成直後はルーザーズ R1 の player1Id === player2Id（プレースホルダー）。QF 1 試合が完了してルーザーが routing されると player1Id ≠ player2Id になる。
+- **手順**:
+  1. 8名ブラケット生成 → ルーザーズ R1 の player1Id === player2Id を確認
+  2. QF M1 に有効スコアを PUT → ルーザーが losers_r1 にルーティング
+  3. losers_r1 マッチの player1Id ≠ player2Id（片方は実プレイヤー）を確認
+- **期待結果**: QF 完了後にルーザーズスロットが実プレイヤー ID に更新される
+- **スクリプト**: tc-all.js TC-346
+
+## TC-347: エクスポート API — CSV with BOM レスポンス確認
+- **URL**: /api/tournaments/[id]/export
+- **authRequired**: true (admin)
+- **背景**: `GET /export` は UTF-8 BOM 付き CSV を返す。Content-Type 確認と CSV 形式（ヘッダー行）の確認。
+- **手順**:
+  1. 共有トーナメント ID で `GET /api/tournaments/:id/export`
+  2. HTTP 200 かつ Content-Type が text/csv または application/csv であること
+  3. レスポンスボディがカンマ区切り（ヘッダー行あり）であること
+- **期待結果**: 200 + CSV Content-Type + ヘッダー行が返る
+- **スクリプト**: tc-all.js TC-347
+
+## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)
+- **URL**: /api/players/[id]/character-stats
+- **authRequired**: true (admin) / false → 401
+- **背景**: admin はレスポンスの形状を確認できる; 非認証は 401。
+- **手順**:
+  1. 管理者で `GET /api/players/:id/character-stats` → 200 + 統計オブジェクト
+  2. 非認証で同エンドポイント → 401
+- **期待結果**: admin のみ取得可能
+- **スクリプト**: tc-all.js TC-348
+
+## TC-349: レスポンシブ — BM/MR/GP 予選ページが 375px 幅で JS エラーなしに表示される
+- **authRequired**: true (admin)
+- **背景**: スマートフォン幅でも JS エラーなしにレンダリングできること。
+- **手順**:
+  1. ビューポートを 375×812 に設定
+  2. /bm, /mr, /gp を順に nav → pageerror がゼロ、body に内容あり
+  3. ビューポートを元の 1280×720 に戻す
+- **期待結果**: 3ページとも JS エラーなし、コンテンツあり
+- **スクリプト**: tc-all.js TC-349
+
+## TC-350: BM 決勝 — QF 完了後のルーザーズ R1 UI が実名/TBD を正しく表示する (issue #673)
+- **URL**: /tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: TC-346 は API インバリアント確認。本 TC は UI が実プレイヤー名 + TBD プレースホルダーを正しくレンダリングすることを確認する。
+- **手順**:
+  1. 8名ブラケット生成・/bm/finals に移動し M8/M9 が "TBD" x2 であることを確認
+  2. M1 に有効スコアを PUT → ルーザーが losers_r1 にルーティング
+  3. /bm/finals を再読込 → losers_r1 カードに実ニックネームと TBD が表示されること
+- **期待結果**: 片スロットが実名、もう片方が TBD
+- **スクリプト**: tc-all.js TC-350
+
+## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
+- **authRequired**: true (admin)
+- **背景**: `setupAllModes28PlayerQualification` で28名 × 4モードの予選を完了させた後、各モード API が有効なデータを返すことを確認する統合テスト。
+- **手順**:
+  1. 28名プレイヤーを作成し TA/BM/MR/GP それぞれの予選を完了
+  2. 各モードの GET API → エントリ/マッチが存在することを確認
+- **期待結果**: 4モードすべてで予選データが正常に返る
+- **スクリプト**: tc-all.js TC-401
+
+## TC-402: 総合ランキング計算・表示 — 全モード予選完了後の集計確認
+- **URL**: /api/tournaments/[id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: TC-401 の共有トーナメントで総合ランキングを計算し、全モードの集計が含まれ、順位が正しく返ることを確認する。
+- **手順**:
+  1. TC-401 完了後、POST /overall-ranking (recalculate) → 200
+  2. GET /overall-ranking → mode フィールドに ta/bm/mr/gp が含まれること、rank/total が number であること
+  3. /overall-ranking ページを表示 → コンテンツが表示されること
+- **期待結果**: 4モード対応の総合ランキングが返り、ページも正常に表示される
+- **スクリプト**: tc-all.js TC-402
+
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
 - **authRequired**: true (admin)
@@ -882,6 +968,44 @@
   7. `null` （`-`）を選択するとクリアされ、API でも `null` になることを確認
 - **期待結果**: 選択即保存。ダイアログを開いたまま開始コースだけが永続化される
 - **スクリプト**: tc-bm.js TC-525
+
+## TC-518: BM 予選 — 2名トーナメントで TV 番号セレクトが描画される
+- **URL**: /tournaments/[id]/bm
+- **authRequired**: true (admin)
+- **背景**: 最小構成（2名、グループA）でも TV 番号ドロップダウン（`select.w-14`）が管理者向けに描画されること。
+- **手順**:
+  1. プレイヤー 2名を作成
+  2. BM グループA に 2名を設定（1試合、BYE なし）
+  3. /bm を表示、`select.w-14` が存在し 1〜4 の option を持つことを確認
+  4. TV#4 を選択 → API で tvNumber=4 が永続化されることを確認
+  5. クリーンアップ
+- **期待結果**: 2名 BM でも TV セレクトが機能する
+- **スクリプト**: tc-all.js TC-518
+
+## TC-524: BM 決勝 — ブラケット生成後の startingCourseNumber ランダム割り当て (issue #671)
+- **URL**: /api/tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: `createBmRoundStartingCourses` が Fisher-Yates シャッフルで [1,2,3,4] をランダム化し、ラウンドごとに同一の開始コースを割り当てる。
+- **手順**:
+  1. 8名ブラケットを生成
+  2. 全決勝マッチを取得し、`startingCourseNumber` が 1〜4 の整数であることを確認
+  3. 同一ラウンド内の全マッチが同じ `startingCourseNumber` を共有することを確認
+- **期待結果**: 全マッチが有効な開始コースを持ち、同じラウンド内は統一される
+- **スクリプト**: tc-bm.js TC-524
+
+## TC-526: BM 決勝 — noCamera プレイヤーへの TV# 割り当て時に警告 toast が出る (issue #674)
+- **URL**: /tournaments/[id]/bm/finals
+- **authRequired**: true (admin)
+- **背景**: TV 番号割り当て後、試合のいずれかのプレイヤーが `noCamera: true` の場合、配信設定確認を促す warning toast が表示される（割り当て自体は成功する）。
+- **手順**:
+  1. 8名ブラケットを生成
+  2. M1 の player1 の `noCamera` を true に設定
+  3. /bm/finals を開き、M1 スコアダイアログで TV# を選択
+  4. success toast（TV# 割り当て成功）が表示されることを確認
+  5. warning toast（`[data-sonner-toast][data-type="warning"]`）が表示されることを確認
+  6. `noCamera` を false に戻してクリーンアップ
+- **期待結果**: TV# 割り当ては成功し、noCamera 警告 toast が追加で表示される
+- **スクリプト**: tc-bm.js TC-526
 
 ---
 
