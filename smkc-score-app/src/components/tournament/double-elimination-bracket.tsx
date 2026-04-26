@@ -149,6 +149,7 @@ function MatchCard({
       onClick={onClick}
       role="button"
       tabIndex={0}
+      data-testid="bracket-match-card"
       aria-label={`Match ${bracketMatch.matchNumber}: ${player1?.nickname || tc('tbd')} vs ${player2?.nickname || tc('tbd')}${showTBD ? ' (Pending)' : ''}`}
       onKeyDown={(e) => {
         /* Support keyboard activation for accessibility */
