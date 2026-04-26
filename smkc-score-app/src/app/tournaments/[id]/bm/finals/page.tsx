@@ -208,8 +208,8 @@ export default function BattleModeFinals({
    * `onChange`, so an admin scrubbing through a dropdown can race multiple
    * PATCH responses; whichever resolves last wins on the server. We abort the
    * pending request when a new selection arrives so the latest pick is the
-   * authoritative write. Keyed by match-id+field to avoid cross-talk between
-   * dialogs reopened on different matches. */
+   * authoritative write. Only one score dialog is open at a time, so a single
+   * ref per field is sufficient — no per-match keying is needed. */
   const tvAbortRef = useRef<AbortController | null>(null);
   const courseAbortRef = useRef<AbortController | null>(null);
 
@@ -415,6 +415,11 @@ export default function BattleModeFinals({
         toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
       } else {
         toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+        /* Warn when assigning a TV slot to a match containing a NoCamera player
+         * so the admin can reconsider the broadcast layout (issue #674). */
+        if (match.player1?.noCamera || match.player2?.noCamera) {
+          toast.warning(tFinals('noCameraWarning'));
+        }
       }
       refetch();
     } catch (err) {

@@ -168,7 +168,7 @@ function MatchScoreboardCard({
           cup name as a single chip. Source-of-truth is the aggregator — we
           render whichever field is populated and skip the row entirely when
           neither is, so legacy rows without context don't get a stray gap. */}
-      {(r.courses?.length || r.cup) && (
+      {((r.courses && r.courses.length > 0) || r.cup) && (
         <div
           className="mt-2 flex flex-wrap items-center gap-1.5"
           data-testid="dashboard-timeline-context"

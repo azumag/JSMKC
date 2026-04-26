@@ -142,7 +142,6 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
   for (const e of ttEntries) {
     if (e.updatedAt.getTime() <= sinceMs) continue;
     const stageLabel = TA_STAGE_LABEL[e.stage] ?? "";
-    const rankSuffix = e.rank ? `（現在 ${e.rank} 位）` : "";
     const prefix = stageLabel ? `[${stageLabel}] ` : "";
     const playerName = nick(e.player);
 
@@ -180,6 +179,7 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       // Phase rounds (phase1/2/3) are single-course; per-course notification
       // remains the right granularity. Skip until lastRecorded* is populated.
       if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
+      const rankSuffix = e.rank ? `（現在 ${e.rank} 位）` : "";
       title = `${prefix}${playerName} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`;
       taTimeRecord = {
         player: playerName,

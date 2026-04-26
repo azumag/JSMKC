@@ -690,11 +690,14 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
 
-      /* Uniqueness guard: prevent the same TV number in the same round (issue #668). */
+      /* Uniqueness guard: prevent the same TV number in the same round (issue #668).
+       * Scope to `stage` so a finals match in a same-named round cannot create
+       * a false conflict with a qualification match (issue #673). */
       if (tvNumber !== null && tvNumber !== undefined) {
         const tvConflict = await matchModel(prisma).findFirst({
           where: {
             tournamentId,
+            stage: existingMatch.stage,
             round: existingMatch.round,
             tvNumber,
             id: { not: matchId },

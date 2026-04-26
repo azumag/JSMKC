@@ -500,6 +500,7 @@
     "tvAssigned": "TV{n} assigned to M{matchNumber}",
     "tvCleared": "TV cleared from M{matchNumber}",
     "failedAssignTv": "Failed to assign TV",
+    "noCameraWarning": "No Camera player in this match — check broadcast setup",
     "saveTvNumber": "Save TV#",
     "courseAssigned": "Start course set to BC{n} for M{matchNumber}",
     "courseCleared": "Start course cleared for M{matchNumber}",

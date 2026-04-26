@@ -500,6 +500,7 @@
     "tvAssigned": "M{matchNumber} に TV{n} を割り当てました",
     "tvCleared": "M{matchNumber} の TV 割り当てを解除しました",
     "failedAssignTv": "TV の割り当てに失敗しました",
+    "noCameraWarning": "このマッチにカメラなしのプレイヤーがいます — 配信設定を確認してください",
     "saveTvNumber": "TV# 保存",
     "courseAssigned": "M{matchNumber} の開始コースをBC{n}に設定しました",
     "courseCleared": "M{matchNumber} の開始コースをクリアしました",
