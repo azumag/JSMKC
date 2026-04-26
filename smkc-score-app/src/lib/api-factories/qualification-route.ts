@@ -21,7 +21,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { EventTypeConfig } from '@/lib/event-types/types';
 import { CupMismatchError } from '@/lib/event-types/gp-config';
-import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { generateETag, invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
@@ -100,10 +100,25 @@ export function createQualificationHandlers(config: EventTypeConfig) {
     ) {
       const logger = createLogger(config.loggerName);
     const { id } = await params;
-    const tournamentId = await resolveTournamentId(id);
+    // Pre-declared so the catch block below can include it in error logs
+    // even when resolveTournament throws before assigning the resolved id.
+    let tournamentId: string = id;
 
     try {
-      const [qualifications, matches, tournament] = await Promise.all([
+      // Resolve identifier (id or slug) AND read qualificationConfirmed in
+      // a single findFirst. The previous flow ran resolveTournamentId →
+      // findFirst, then fanned out into a parallel findUnique to grab
+      // qualificationConfirmed; merging them collapses one D1 round-trip.
+      const tournament = await resolveTournament(id, {
+        id: true,
+        qualificationConfirmed: true,
+      });
+      if (!tournament) {
+        return createErrorResponse(`${config.eventDisplayName} tournament not found`, 404, 'NOT_FOUND');
+      }
+      tournamentId = tournament.id;
+
+      const [qualifications, matches] = await Promise.all([
         qualModel(prisma).findMany({
           where: { tournamentId },
           include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -113,10 +128,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           where: { tournamentId, stage: 'qualification' },
           include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: { matchNumber: 'asc' },
-        }),
-        prisma.tournament.findUnique({
-          where: { id: tournamentId },
-          select: { qualificationConfirmed: true },
         }),
       ]);
 
@@ -136,7 +147,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const responseBody = {
         qualifications: rankedQualifications,
         matches,
-        qualificationConfirmed: tournament?.qualificationConfirmed ?? false,
+        qualificationConfirmed: tournament.qualificationConfirmed,
       };
       const etag = generateETag([responseBody]);
       const ifNoneMatch = request.headers.get('if-none-match');

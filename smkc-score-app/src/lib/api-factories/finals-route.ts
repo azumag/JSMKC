@@ -28,7 +28,7 @@ import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
-import { resolveTournamentId } from '@/lib/tournament-identifier';
+import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
@@ -426,15 +426,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
   ) {
     const logger = createLogger(config.loggerName);
     const { id } = await params;
-    const tournamentId = await resolveTournamentId(id);
 
-    // Defensive: verify tournament exists before querying matches
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
+    // Resolve and verify in one D1 round-trip. The previous flow did a
+    // findFirst inside resolveTournamentId followed by a findUnique here,
+    // both reading the same row. The handler only consumes
+    // `qualificationConfirmed` from the response, so the projection stays
+    // tight to keep the payload small.
+    const tournament = await resolveTournament(id, {
+      id: true,
+      qualificationConfirmed: true,
     });
     if (!tournament) {
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
+    const tournamentId = tournament.id;
 
     try {
       /* Shared playoff data for all GET styles.

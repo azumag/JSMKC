@@ -110,6 +110,14 @@ describe('Qualification Route Factory', () => {
     mockSanitizeInput.mockImplementation((input) => input);
     mockCreateAuditLog.mockResolvedValue(undefined);
     mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1');
+
+    // Default tournament for resolveTournament(); individual tests override
+    // this when they need a specific qualificationConfirmed flag or to
+    // simulate a missing tournament.
+    (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+      id: 'tournament-123',
+      qualificationConfirmed: false,
+    });
   });
 
   // ============================================================

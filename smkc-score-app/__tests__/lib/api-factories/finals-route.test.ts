@@ -103,6 +103,7 @@ describe('Finals Route Factory', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma.tournament.findFirst as jest.Mock).mockImplementation((args: any) => Promise.resolve({ id: args?.where?.OR?.[0]?.id ?? 't1', qualificationConfirmed: false }));
 
     // Setup mocks
     mockAuth = auth as jest.MockedFunction<typeof auth>;
