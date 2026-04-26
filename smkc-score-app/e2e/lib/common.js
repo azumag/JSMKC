@@ -1964,6 +1964,9 @@ async function setupMrQualViaUi(
   { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {},
 ) {
   await uiActivateTournament(adminPage, tournamentId);
+  /* BM suite leaves qualificationConfirmed=true on the shared tournament,
+   * which disables the MR score-entry button. Reset before re-seeding. */
+  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
   await uiPutAllMrQualScores(adminPage, tournamentId, { score1, score2, randomize });
   if (resolveTies) {
@@ -1981,6 +1984,9 @@ async function setupGpQualViaUi(
   { points1 = 45, points2 = 0, randomize = true, resolveTies = true } = {},
 ) {
   await uiActivateTournament(adminPage, tournamentId);
+  /* BM suite leaves qualificationConfirmed=true on the shared tournament,
+   * which disables the GP score-entry button. Reset before re-seeding. */
+  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
   await uiPutAllGpQualScores(adminPage, tournamentId, { points1, points2, randomize });
   if (resolveTies) {

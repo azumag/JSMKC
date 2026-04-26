@@ -2507,6 +2507,71 @@ async function main() {
     }
   }
 
+  // TC-340: Layout publish button — "Unpublished" badge disappears from tab after publishing TA
+  // Verifies that the publicModesChanged event emitted by ModePublishSwitch causes the layout
+  // to re-fetch tournament state and remove the "Unpublished" tab badge without a page reload.
+  // Then toggles back to confirm the badge reappears (issue #614 / issue #621).
+  let tc340TournamentId = null;
+  try {
+    // Create a private tournament (publicModes defaults to [])
+    const tc340Created = await page.evaluate(async () => {
+      const r = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `E2E TC-340 Badge ${Date.now()}`, date: new Date().toISOString() }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    tc340TournamentId = tc340Created.body?.data?.id ?? null;
+    if (!tc340TournamentId) throw new Error(`Tournament creation failed (${tc340Created.status})`);
+
+    // Activate so the TA page renders content (score pages require status='active')
+    await page.evaluate(async (tid) => {
+      await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+    }, tc340TournamentId);
+
+    // Navigate to the TA page — layout renders the tab nav with "Unpublished" badge for TA
+    await nav(page, `/tournaments/${tc340TournamentId}/ta`);
+
+    // Step 1: TA tab must show the "Unpublished"/"未公開" badge since publicModes=[]
+    const tabNav = page.locator('nav[aria-label="Tournament sections"]');
+    const hiddenBadge = () => tabNav.getByText(/^(Unpublished|未公開)$/).first();
+    const badgeBeforePublish = await hiddenBadge().isVisible().catch(() => false);
+
+    // Step 2: Click the ModePublishSwitch for TA to publish it
+    // aria-label pattern: "Time Trial: Publish" / "タイムトライアル: 公開"
+    const publishSwitch = page.getByRole('switch', { name: /Time Trial|タイムトライアル/ });
+    await publishSwitch.click();
+    // Allow the publicModesChanged event handler + re-fetch to resolve
+    await page.waitForTimeout(3000);
+
+    // Step 3: Badge must be gone from the tab without a reload
+    const badgeAfterPublish = await hiddenBadge().isVisible().catch(() => false);
+
+    // Step 4: Toggle back to unpublish — badge must reappear
+    await publishSwitch.click();
+    await page.waitForTimeout(3000);
+    const badgeAfterUnpublish = await hiddenBadge().isVisible().catch(() => false);
+
+    log('TC-340',
+      badgeBeforePublish && !badgeAfterPublish && badgeAfterUnpublish ? 'PASS' : 'FAIL',
+      !badgeBeforePublish ? 'Unpublished badge not visible in tab before publish' :
+      badgeAfterPublish ? 'Unpublished badge still visible after publish (re-render failed?)' :
+      !badgeAfterUnpublish ? 'Unpublished badge did not reappear after unpublish' : '');
+  } catch (err) {
+    log('TC-340', 'FAIL', err instanceof Error ? err.message : 'Layout badge toggle test failed');
+  } finally {
+    if (tc340TournamentId) {
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
+      }, tc340TournamentId).catch(() => {});
+    }
+  }
+
   // TC-341: Authenticated player can access private tournament detail API (publicModes: [])
   // Regression test for the #615 fix regression: the visibility check was too strict,
   // blocking authenticated non-admin users (players) when publicModes was empty.
