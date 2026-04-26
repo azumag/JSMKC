@@ -32,6 +32,8 @@
  *   TC-921  Dashboard timeline renders event entries and match scoreboard cards
  *   TC-922  Dashboard progress bar renders on /overlay/dashboard
  *   TC-923  Dashboard timeline renders TA time card (ta_time_recorded events)
+ *   TC-924  Match notifications expose course (BM/MR) / cup (GP) on
+ *           matchResult and the dashboard scoreboard cards render them
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -890,6 +892,58 @@ async function runTc923(adminPage) {
   }
 }
 
+/* ───────── TC-924: match notifications expose course (BM/MR) and cup (GP) ─────────
+ * After TC-903/907/908 created BM/MR/GP match_completed events with their
+ * source matches' assignedCourses / cup populated, the dashboard backfill
+ * (?initial=1) must include those fields on matchResult, and the dashboard
+ * timeline scoreboard cards must render them so broadcast viewers can see
+ * which courses / cup the match was played on.
+ *
+ * Two-part check:
+ *   1. API: poll until BM and GP match_completed events appear, then assert
+ *      the BM event carries matchResult.courses (string[]) and the GP event
+ *      carries matchResult.cup (string).
+ *   2. UI: reuse the dashboard page opened by TC-921. The scoreboard card
+ *      stack must contain at least one course abbreviation (e.g. MC1) AND
+ *      one cup label (Mushroom/Flower/Star/Special). */
+async function runTc924(adminPage) {
+  try {
+    const resp = await pollForEvent(
+      fixture.tournamentId,
+      (e) => e.type === 'match_completed' && e.mode === 'gp',
+    );
+    const events = resp.body?.data?.events || [];
+    const bmEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'bm');
+    const mrEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'mr');
+    const gpEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'gp');
+
+    const bmHasCourses = Array.isArray(bmEvt?.matchResult?.courses) && bmEvt.matchResult.courses.length > 0;
+    const mrHasCourses = Array.isArray(mrEvt?.matchResult?.courses) && mrEvt.matchResult.courses.length > 0;
+    const gpHasCup = typeof gpEvt?.matchResult?.cup === 'string' && gpEvt.matchResult.cup.length > 0;
+
+    /* UI: at least one scoreboard card on the dashboard exposes a context chip. */
+    const cards = await adminPage.locator('[data-testid="dashboard-timeline-scoreboard"]').all();
+    let stackText = '';
+    for (const c of cards) {
+      stackText += '\n' + (await c.innerText());
+    }
+    const uiHasCourse = /\b(MC|DP|GV|BC|CI|KB|VL|RR)\d?\b/.test(stackText);
+    const uiHasCup = /(Mushroom|Flower|Star|Special)/.test(stackText);
+
+    const pass = bmHasCourses && mrHasCourses && gpHasCup && uiHasCourse && uiHasCup;
+    log('TC-924',
+      pass ? 'PASS' : 'FAIL',
+      pass ? '' :
+      !bmHasCourses ? `BM event missing courses array (got ${JSON.stringify(bmEvt?.matchResult)})` :
+      !mrHasCourses ? `MR event missing courses array (got ${JSON.stringify(mrEvt?.matchResult)})` :
+      !gpHasCup ? `GP event missing cup string (got ${JSON.stringify(gpEvt?.matchResult)})` :
+      !uiHasCourse ? `dashboard scoreboard cards missing course label: "${stackText.slice(0, 200)}"` :
+      `dashboard scoreboard cards missing cup label: "${stackText.slice(0, 200)}"`);
+  } catch (err) {
+    log('TC-924', 'FAIL', err instanceof Error ? err.message : 'TC-924 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -990,6 +1044,10 @@ function getSuite() {
       { name: 'TC-921', fn: runTc921 },
       { name: 'TC-922', fn: runTc922 },
       { name: 'TC-923', fn: runTc923 },
+      /* TC-924 reuses the dashboard page from TC-921/922/923 to inspect
+         scoreboard cards, so it must run after them and before TC-906
+         navigates away. */
+      { name: 'TC-924', fn: runTc924 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -999,7 +1057,7 @@ module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   runTc916, runTc917, runTc918, runTc919, runTc920,
-  runTc921, runTc922, runTc923,
+  runTc921, runTc922, runTc923, runTc924,
   getSuite,
   results,
 };
