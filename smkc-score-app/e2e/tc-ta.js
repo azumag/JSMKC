@@ -188,7 +188,8 @@ async function runTc802(adminPage) {
      * in document order. When no partner is set the partner card is absent
      * and both `.first()` and `.last()` refer to the single self widgets. */
     const submitBtn = ctx.page.getByRole('button', { name: /タイム送信|Submit Times/ }).last();
-    await submitBtn.waitFor({ timeout: 15000 });
+    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
+    await submitBtn.waitFor({ timeout: 25000 });
 
     const allTimeInputs = ctx.page.locator('input[placeholder="M:SS.mm"]');
     const inputCount = await allTimeInputs.count();
