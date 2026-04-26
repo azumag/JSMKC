@@ -83,25 +83,39 @@ export async function GET(request: NextRequest) {
       // Run queries sequentially to avoid D1 (SQLite) concurrent query failures.
       // D1 can intermittently fail under parallel query load (Promise.all with 8 queries),
       // causing the entire /api/players endpoint to return 500.
-      // Gracefully degrade: if hasTournamentData fails, return players without the flag
-      // rather than failing the entire request.
+      //
+      // Match-table lookups split player1Id and player2Id into two separate
+      // findMany calls instead of an OR clause. With limit=100 the OR form
+      // bound 200 SQL variables in a single statement, tripping D1's
+      // SQLITE_LIMIT_VARIABLE_NUMBER (100) and surfacing as
+      // "D1_ERROR: too many SQL variables". Two queries × 100 vars each
+      // stay safely under the limit and the merged Set has the same shape.
+      //
+      // Gracefully degrade: if hasTournamentData fails, return players without
+      // the flag rather than failing the entire request.
       try {
         const bmqIds = await prisma.bMQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const bmmRows = await prisma.bMMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const bmmP1 = await prisma.bMMatch.findMany({ where: { player1Id: { in: pagePlayerIds } }, select: { player1Id: true } });
+        const bmmP2 = await prisma.bMMatch.findMany({ where: { player2Id: { in: pagePlayerIds } }, select: { player2Id: true } });
         const mrqIds = await prisma.mRQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const mrmRows = await prisma.mRMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const mrmP1 = await prisma.mRMatch.findMany({ where: { player1Id: { in: pagePlayerIds } }, select: { player1Id: true } });
+        const mrmP2 = await prisma.mRMatch.findMany({ where: { player2Id: { in: pagePlayerIds } }, select: { player2Id: true } });
         const gpqIds = await prisma.gPQualification.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
-        const gpmRows = await prisma.gPMatch.findMany({ where: { OR: [{ player1Id: { in: pagePlayerIds } }, { player2Id: { in: pagePlayerIds } }] }, select: { player1Id: true, player2Id: true } });
+        const gpmP1 = await prisma.gPMatch.findMany({ where: { player1Id: { in: pagePlayerIds } }, select: { player1Id: true } });
+        const gpmP2 = await prisma.gPMatch.findMany({ where: { player2Id: { in: pagePlayerIds } }, select: { player2Id: true } });
         const tteIds = await prisma.tTEntry.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
         const tpsIds = await prisma.tournamentPlayerScore.findMany({ where: { playerId: { in: pagePlayerIds } }, select: { playerId: true } });
 
         const registeredIds = new Set<string>([
           ...bmqIds.map(r => r.playerId),
-          ...bmmRows.flatMap(r => [r.player1Id, r.player2Id]),
+          ...bmmP1.map(r => r.player1Id),
+          ...bmmP2.map(r => r.player2Id),
           ...mrqIds.map(r => r.playerId),
-          ...mrmRows.flatMap(r => [r.player1Id, r.player2Id]),
+          ...mrmP1.map(r => r.player1Id),
+          ...mrmP2.map(r => r.player2Id),
           ...gpqIds.map(r => r.playerId),
-          ...gpmRows.flatMap(r => [r.player1Id, r.player2Id]),
+          ...gpmP1.map(r => r.player1Id),
+          ...gpmP2.map(r => r.player2Id),
           ...tteIds.map(r => r.playerId),
           ...tpsIds.map(r => r.playerId),
         ]);
