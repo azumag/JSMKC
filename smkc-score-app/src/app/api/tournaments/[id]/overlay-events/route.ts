@@ -48,6 +48,59 @@ const INITIAL_BACKFILL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 /** Hard cap on backfilled events (per dashboard contract). */
 const INITIAL_BACKFILL_LIMIT = 100;
 
+/**
+ * Per-tournament early-return cache.
+ *
+ * Records the timestamp of the most recent change observed across every
+ * table this route reads. The next poll within `LATEST_PROBE_TTL_MS` skips
+ * the seven aggregate queries entirely when its `since` is at or after the
+ * cached value — there is provably no new event to surface. The TTL is
+ * short (1s) so a write that lands while the cache is warm is observed by
+ * the next polling cycle, not after a multi-second blackout.
+ *
+ * The cache is intentionally small and bounded: tournaments rotate, so a
+ * 32-entry LRU is plenty.
+ */
+interface LatestChangeProbe {
+  /** Newest updatedAt/timestamp observed across every event-source table. */
+  latest: number;
+  /** Wall-clock time the probe was recorded; entries past TTL are recomputed. */
+  observedAt: number;
+}
+const LATEST_PROBE_TTL_MS = 1_000;
+const LATEST_PROBE_MAX_SIZE = 32;
+const latestProbeCache = new Map<string, LatestChangeProbe>();
+
+function readProbe(tournamentId: string): LatestChangeProbe | undefined {
+  const entry = latestProbeCache.get(tournamentId);
+  if (!entry) return undefined;
+  if (Date.now() - entry.observedAt > LATEST_PROBE_TTL_MS) {
+    latestProbeCache.delete(tournamentId);
+    return undefined;
+  }
+  // LRU bump: re-insert to push to most-recently-used end.
+  latestProbeCache.delete(tournamentId);
+  latestProbeCache.set(tournamentId, entry);
+  return entry;
+}
+
+function writeProbe(tournamentId: string, latest: number): void {
+  if (latestProbeCache.has(tournamentId)) {
+    latestProbeCache.delete(tournamentId);
+  }
+  latestProbeCache.set(tournamentId, { latest, observedAt: Date.now() });
+  while (latestProbeCache.size > LATEST_PROBE_MAX_SIZE) {
+    const oldest = latestProbeCache.keys().next().value;
+    if (oldest === undefined) break;
+    latestProbeCache.delete(oldest);
+  }
+}
+
+/** Internal: invalidate when a write path knows the cache will become stale. */
+export function invalidateOverlayProbe(tournamentId: string): void {
+  latestProbeCache.delete(tournamentId);
+}
+
 function parseSince(raw: string | null, now: Date, initial: boolean): Date {
   if (initial) return new Date(now.getTime() - INITIAL_BACKFILL_MS);
   if (!raw) return new Date(now.getTime() - INITIAL_WINDOW_MS);
@@ -89,6 +142,90 @@ export async function GET(
     });
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
+    }
+
+    /*
+     * Early-return path.
+     *
+     * The dashboard polls this route every 3s, but tournament tables only
+     * change when an admin enters a score. The vast majority of polls have
+     * no new events. Detect that with a single round of `_max(updatedAt)`
+     * aggregates (one per source table, run in parallel) and skip the 17
+     * detail queries when nothing happened since the caller's `since`.
+     *
+     * The `latestProbe` cache memoises the aggregate result for 1s. Many
+     * viewers polling the same tournament land on the same cached probe
+     * and pay zero D1 cost beyond the initial poll's aggregates.
+     *
+     * Skipped on the `initial=1` first-load path: the dashboard expects a
+     * filled-in event list there even when there was no recent activity,
+     * so the full event build has to run.
+     */
+    let latestChange: number | null = null;
+    if (!initial) {
+      const cached = readProbe(tournamentId);
+      if (cached) {
+        latestChange = cached.latest;
+      } else {
+        const [bmMax, mrMax, gpMax, ttMax, ttPhaseMax, scoreMax, tpsMax] = await Promise.all([
+          prisma.bMMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
+          prisma.mRMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
+          prisma.gPMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
+          prisma.tTEntry.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
+          prisma.tTPhaseRound.aggregate({ where: { tournamentId }, _max: { createdAt: true } }),
+          prisma.scoreEntryLog.aggregate({ where: { tournamentId }, _max: { timestamp: true } }),
+          prisma.tournamentPlayerScore.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
+        ]);
+        const candidates = [
+          bmMax._max.updatedAt,
+          mrMax._max.updatedAt,
+          gpMax._max.updatedAt,
+          ttMax._max.updatedAt,
+          ttPhaseMax._max.createdAt,
+          scoreMax._max.timestamp,
+          tpsMax._max.updatedAt,
+        ];
+        latestChange = candidates.reduce<number>((acc, d) => {
+          const t = d?.getTime() ?? 0;
+          return t > acc ? t : acc;
+        }, 0);
+        writeProbe(tournamentId, latestChange);
+      }
+
+      if (latestChange <= since.getTime()) {
+        // Nothing changed since the caller's last poll. Build a minimal
+        // response that still carries the tournament-state fields the
+        // dashboard footer reads on every tick (currentPhase, broadcast
+        // labels). We keep `events: []` so the merge-on-client step is a
+        // no-op. Skipping the 17 detail queries is the whole point.
+        const minimalPhaseInput = {
+          qualificationConfirmed: tournament.qualificationConfirmed,
+          taCurrentPhase: "qualification" as const,
+          taLatestPhaseRoundNumber: null as number | null,
+          latestFinalsRound: null as string | null,
+          latestFinalsMode: null as OverlayMode | null,
+        };
+        // currentPhase/format from the cached state we don't refresh on
+        // an empty-delta tick. Recomputing them would force the existence
+        // checks back in, defeating the early return; the dashboard
+        // tolerates a 1-tick delay on phase transitions.
+        const response = createSuccessResponse({
+          serverTime: now.toISOString(),
+          events: [],
+          currentPhase: computeCurrentPhase(minimalPhaseInput),
+          currentPhaseFormat: computeCurrentPhaseFormat(minimalPhaseInput),
+          overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
+          overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+          overlayMatchLabel: tournament.overlayMatchLabel ?? null,
+          overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,
+          overlayPlayer2Wins: tournament.overlayPlayer2Wins ?? null,
+          overlayMatchFt: tournament.overlayMatchFt ?? null,
+        });
+        if (response instanceof NextResponse) {
+          response.headers.set("Cache-Control", "no-store");
+        }
+        return response;
+      }
     }
 
     const matchSelect = {
