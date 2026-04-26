@@ -101,6 +101,9 @@ export async function GET(
       createdAt: true,
       score1: true,
       score2: true,
+      // BM/MR pre-assigned courses, surfaced on match_completed events so
+      // the dashboard scoreboard can show which courses the match used.
+      assignedCourses: true,
       player1: { select: { nickname: true } },
       player2: { select: { nickname: true } },
     } as const;
@@ -115,6 +118,9 @@ export async function GET(
       createdAt: true,
       points1: true,
       points2: true,
+      // GP cup label ("Mushroom" / "Flower" / ...), shown on the dashboard
+      // scoreboard so viewers can identify which cup the match was on.
+      cup: true,
       player1: { select: { nickname: true } },
       player2: { select: { nickname: true } },
     } as const;
