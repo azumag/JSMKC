@@ -418,7 +418,7 @@ export default function GrandPrixFinals({
    * don't have to enter the score dialog just to assign a broadcast slot.
    */
   const handleBracketTvNumberChange = async (
-    match: { id: string; matchNumber: number },
+    match: { id: string; matchNumber: number; player1?: { noCamera?: boolean } | null; player2?: { noCamera?: boolean } | null },
     tvNumber: number | null,
   ) => {
     try {
@@ -436,6 +436,10 @@ export default function GrandPrixFinals({
         toast.success(tFinals('tvCleared', { matchNumber: match.matchNumber }));
       } else {
         toast.success(tFinals('tvAssigned', { n: tvNumber, matchNumber: match.matchNumber }));
+        /* Warn when assigning a TV slot to a match containing a NoCamera player (issue #674). */
+        if (match.player1?.noCamera || match.player2?.noCamera) {
+          toast.warning(tFinals('noCameraWarning'));
+        }
       }
       refetch();
     } catch (err) {
