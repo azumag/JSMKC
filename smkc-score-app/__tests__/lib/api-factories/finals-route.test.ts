@@ -1762,4 +1762,116 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
     });
   });
+
+  // ============================================================
+  // PATCH Handler Tests — startingCourseNumber select-to-save
+  // ============================================================
+
+  describe('PATCH Handler (startingCourseNumber)', () => {
+    it('updates startingCourseNumber on a finals match without touching scores or tvNumber', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({ id: 'match-1', stage: 'finals', startingCourseNumber: null });
+      /* Only an IDOR check runs for startingCourseNumber — there is no per-round
+       * uniqueness rule like tvNumber, so the second findFirst is not called. */
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(existing);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, startingCourseNumber: 2 });
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', startingCourseNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'match-1' },
+          data: { startingCourseNumber: 2 },
+        }),
+      );
+    });
+
+    it('clears startingCourseNumber when given null', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({ id: 'match-1', stage: 'finals', startingCourseNumber: 3 });
+      (prisma.bMMatch as any).findFirst.mockResolvedValue(existing);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, startingCourseNumber: null });
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', startingCourseNumber: null }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { startingCourseNumber: null } }),
+      );
+    });
+
+    it('returns 400 when startingCourseNumber is out of range', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', startingCourseNumber: 5 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 400 when neither tvNumber nor startingCourseNumber is supplied', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1' }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(400);
+      expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
+    });
+
+    it('updates tvNumber and startingCourseNumber together in a single PATCH', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        id: 'match-1',
+        stage: 'finals',
+        tvNumber: null,
+        startingCourseNumber: null,
+      });
+      /* IDOR + uniqueness check (no conflict) — both tvNumber and course are
+       * written atomically so the route shouldn't issue two updates. */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(null);
+      (prisma.bMMatch as any).update.mockResolvedValue({
+        ...existing,
+        tvNumber: 2,
+        startingCourseNumber: 3,
+      });
+
+      const { PATCH } = createFinalsHandlers(createMockConfig());
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2, startingCourseNumber: 3 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledTimes(1);
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'match-1' },
+          data: { tvNumber: 2, startingCourseNumber: 3 },
+        }),
+      );
+    });
+  });
 });

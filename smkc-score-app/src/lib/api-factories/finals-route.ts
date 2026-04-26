@@ -1501,18 +1501,44 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
     try {
       const body = sanitizeInput(await request.json());
-      const { matchId, tvNumber } = body;
+      const { matchId, tvNumber, startingCourseNumber } = body;
 
       if (!matchId || typeof matchId !== 'string') {
         return handleValidationError('matchId is required', 'matchId');
       }
 
-      if (tvNumber !== null && tvNumber !== undefined &&
+      /* PATCH supports two field types: tvNumber (broadcast slot) and
+       * startingCourseNumber (BM start course). At least one must be supplied
+       * — otherwise the request is a no-op and very likely a client bug. */
+      const hasTv = tvNumber !== undefined;
+      const hasCourse = startingCourseNumber !== undefined;
+      if (!hasTv && !hasCourse) {
+        return handleValidationError(
+          'tvNumber or startingCourseNumber is required',
+          'body',
+        );
+      }
+
+      if (hasTv && tvNumber !== null &&
           (typeof tvNumber !== 'number' || !Number.isInteger(tvNumber) ||
            tvNumber < 1 || tvNumber > MAX_TV_NUMBER)) {
         return handleValidationError(
           `tvNumber must be an integer between 1 and ${MAX_TV_NUMBER}, or null`,
           'tvNumber',
+        );
+      }
+
+      /* startingCourseNumber must be 1–4 (battle courses) or null to clear.
+       * Only meaningful for BM finals (config.assignBmStartingCourseByRound)
+       * but accepting it on every finals PATCH keeps the route generic — MR/GP
+       * brackets simply never expose a UI to send this field. */
+      if (hasCourse && startingCourseNumber !== null &&
+          (typeof startingCourseNumber !== 'number' ||
+           !Number.isInteger(startingCourseNumber) ||
+           startingCourseNumber < 1 || startingCourseNumber > 4)) {
+        return handleValidationError(
+          'startingCourseNumber must be an integer between 1 and 4, or null',
+          'startingCourseNumber',
         );
       }
 
@@ -1531,7 +1557,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       /* Uniqueness guard: prevent the same TV number being assigned to two
        * different matches in the same round (issue #668). */
-      if (tvNumber !== null && tvNumber !== undefined) {
+      if (hasTv && tvNumber !== null) {
         const conflict = await model(prisma).findFirst({
           where: {
             tournamentId,
@@ -1549,16 +1575,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
+      const updateData: Record<string, unknown> = {};
+      if (hasTv) updateData.tvNumber = tvNumber ?? null;
+      if (hasCourse) updateData.startingCourseNumber = startingCourseNumber ?? null;
+
       const match = await model(prisma).update({
         where: { id: matchId },
-        data: { tvNumber: tvNumber ?? null },
+        data: updateData,
         include: { player1: true, player2: true },
       });
 
       return createSuccessResponse({ match });
     } catch (error) {
-      logger.error('Failed to update finals tvNumber', { error, tournamentId });
-      return createErrorResponse('Failed to update tvNumber', 500, 'INTERNAL_ERROR');
+      logger.error('Failed to update finals match (PATCH)', { error, tournamentId });
+      return createErrorResponse('Failed to update match', 500, 'INTERNAL_ERROR');
     }
   }
 

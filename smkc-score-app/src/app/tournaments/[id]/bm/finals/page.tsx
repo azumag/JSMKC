@@ -25,7 +25,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -203,8 +203,15 @@ export default function BattleModeFinals({
   /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
-  /* Loading state for the explicit TV# save button in the score dialog (#651) */
-  const [tvSaving, setTvSaving] = useState(false);
+
+  /* In-flight PATCH abort controllers per field. Autosave fires on every
+   * `onChange`, so an admin scrubbing through a dropdown can race multiple
+   * PATCH responses; whichever resolves last wins on the server. We abort the
+   * pending request when a new selection arrives so the latest pick is the
+   * authoritative write. Keyed by match-id+field to avoid cross-talk between
+   * dialogs reopened on different matches. */
+  const tvAbortRef = useRef<AbortController | null>(null);
+  const courseAbortRef = useRef<AbortController | null>(null);
 
   /**
    * Fetch finals data including matches, bracket structure, and round names.
@@ -387,11 +394,17 @@ export default function BattleModeFinals({
     match: BMMatch,
     tvNumber: number | null,
   ) => {
+    /* Cancel any in-flight TV# PATCH so a slower earlier response cannot
+     * overwrite the latest selection. */
+    tvAbortRef.current?.abort();
+    const controller = new AbortController();
+    tvAbortRef.current = controller;
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId: match.id, tvNumber }),
+        signal: controller.signal,
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -405,9 +418,51 @@ export default function BattleModeFinals({
       }
       refetch();
     } catch (err) {
+      /* AbortError is expected when a newer change supersedes this PATCH. */
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to assign TV number from bracket:', metadata);
       toast.error(tFinals('failedAssignTv'));
+    }
+  };
+
+  /**
+   * Persist a starting-course (BC1–BC4) selection from the score dialog
+   * immediately. Mirrors `handleBracketTvNumberChange` so admins don't have
+   * to submit the score form just to record which battle course a match
+   * starts on. The PATCH endpoint accepts `startingCourseNumber: 1..4 | null`
+   * and is shared with the TV# autosave path.
+   */
+  const handleBracketStartingCourseChange = async (
+    match: BMMatch,
+    startingCourseNumber: number | null,
+  ) => {
+    courseAbortRef.current?.abort();
+    const controller = new AbortController();
+    courseAbortRef.current = controller;
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.id, startingCourseNumber }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error?.error || tFinals('failedAssignCourse'));
+        return;
+      }
+      if (startingCourseNumber === null) {
+        toast.success(tFinals('courseCleared', { matchNumber: match.matchNumber }));
+      } else {
+        toast.success(tFinals('courseAssigned', { n: startingCourseNumber, matchNumber: match.matchNumber }));
+      }
+      refetch();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to assign starting course:', metadata);
+      toast.error(tFinals('failedAssignCourse'));
     }
   };
 
@@ -812,7 +867,9 @@ export default function BattleModeFinals({
               </div>
             </div>
             {/* §5.4: Start course — randomly assigned per round at bracket creation (issue #671).
-                Admins can override per-match from this dropdown. */}
+                Admins can override per-match from this dropdown. The selection
+                autosaves via PATCH the moment the value changes (matches the
+                TV# autosave UX below); no explicit save button is needed. */}
             <div className="flex items-center justify-center gap-3">
               <Label htmlFor="bm-finals-start-course" className="text-sm text-muted-foreground shrink-0">
                 {tFinals('startCourse')}
@@ -822,7 +879,13 @@ export default function BattleModeFinals({
                   id="bm-finals-start-course"
                   className="h-8 px-2 text-sm border rounded bg-background"
                   value={scoreForm.startingCourseNumber ?? ""}
-                  onChange={(e) => setScoreForm({ ...scoreForm, startingCourseNumber: e.target.value ? parseInt(e.target.value) : null })}
+                  onChange={(e) => {
+                    const next = e.target.value ? parseInt(e.target.value) : null;
+                    setScoreForm({ ...scoreForm, startingCourseNumber: next });
+                    if (selectedMatch) {
+                      void handleBracketStartingCourseChange(selectedMatch, next);
+                    }
+                  }}
                 >
                   <option value="">-</option>
                   {[1, 2, 3, 4].map((n) => (
@@ -838,8 +901,10 @@ export default function BattleModeFinals({
               )}
             </div>
             {/* TV number assignment for broadcast: admin selects TV 1–4.
-                The explicit save button (#651) lets admins assign TV# before
-                scores are ready, without having to submit the full score form. */}
+                The dropdown autosaves on change via PATCH (same UX as the
+                start-course selector above and the bracket-card TV# inline
+                select), so the previous explicit "Save TV#" button is no
+                longer needed. */}
             <div className="flex items-center justify-center gap-3">
               <Label htmlFor="bm-finals-tv" className="text-sm text-muted-foreground shrink-0">
                 TV#
@@ -848,25 +913,17 @@ export default function BattleModeFinals({
                 id="bm-finals-tv"
                 className="w-20 h-8 text-center text-sm border rounded bg-background"
                 value={scoreForm.tvNumber ?? ""}
-                onChange={(e) => setScoreForm({ ...scoreForm, tvNumber: e.target.value ? parseInt(e.target.value) : null })}
+                onChange={(e) => {
+                  const next = e.target.value ? parseInt(e.target.value) : null;
+                  setScoreForm({ ...scoreForm, tvNumber: next });
+                  if (selectedMatch) {
+                    void handleBracketTvNumberChange(selectedMatch, next);
+                  }
+                }}
               >
                 <option value="">-</option>
                 {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
-              {selectedMatch && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={tvSaving}
-                  onClick={async () => {
-                    setTvSaving(true);
-                    await handleBracketTvNumberChange(selectedMatch, scoreForm.tvNumber);
-                    setTvSaving(false);
-                  }}
-                >
-                  {tvSaving ? tCommon("saving") : tFinals("saveTvNumber")}
-                </Button>
-              )}
             </div>
             {/* Always rendered to reserve vertical space and prevent layout shift. */}
             <p className={`text-sm text-center ${
