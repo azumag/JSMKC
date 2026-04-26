@@ -104,6 +104,21 @@ function createGpRoundAssignments(
 }
 
 /**
+ * Assign a random starting Battle Course (1-4) to each round in the BM
+ * bracket. All matches in the same round share the same starting course,
+ * satisfying issue #671: "そのラウンドで使用される開始コースはどの試合も同じにしたい".
+ */
+function createBmRoundStartingCourses(
+  bracketStructure: Array<{ round: string }>,
+): Map<string, number> {
+  const rounds = getOrderedRounds(bracketStructure);
+  // Fisher-Yates over [1,2,3,4] then repeat cyclically across rounds so each
+  // starting course appears roughly equally across the bracket.
+  const base = fisherYatesShuffle([1, 2, 3, 4]);
+  return new Map(rounds.map((round, index) => [round, base[index % 4]]));
+}
+
+/**
  * Normalize per-round GP cup assignments so every match in the same round
  * shares one cup (Playoff and Finals rule: M1=M2=M3=M4 for a round).
  *
@@ -344,6 +359,8 @@ export interface FinalsConfig {
   assignMrCoursesByRound?: boolean;
   /** Whether finals/playoff matches should receive shared GP cup assignments */
   assignGpCupByRound?: boolean;
+  /** Whether BM bracket matches should receive a random shared starting course (1-4) per round */
+  assignBmStartingCourseByRound?: boolean;
   /** Optional custom winner/loser resolution for event-specific score rules. */
   resolveMatchResult?: (
     match: Record<string, unknown>,
@@ -369,10 +386,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
     round: string,
     mrAssignments?: Map<string, string[]>,
     gpAssignments?: Map<string, string>,
+    bmStartingCourses?: Map<string, number>,
   ): Record<string, unknown> {
     return {
       ...(config.assignMrCoursesByRound ? { assignedCourses: mrAssignments?.get(round) ?? [] } : {}),
       ...(config.assignGpCupByRound ? { cup: gpAssignments?.get(round) ?? null } : {}),
+      ...(config.assignBmStartingCourseByRound ? { startingCourseNumber: bmStartingCourses?.get(round) ?? null } : {}),
     };
   }
 
@@ -750,6 +769,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const gpAssignments = config.assignGpCupByRound
         ? createGpRoundAssignments(bracketStructure)
         : undefined;
+      const bmStartingCourses = config.assignBmStartingCourseByRound
+        ? createBmRoundStartingCourses(bracketStructure)
+        : undefined;
 
       const matchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
@@ -770,7 +792,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments),
+            ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments, bmStartingCourses),
           },
         };
       });
@@ -921,6 +943,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         const playoffGpAssignments = config.assignGpCupByRound
           ? createGpRoundAssignments(playoffStructure)
           : undefined;
+        const playoffBmStartingCourses = config.assignBmStartingCourseByRound
+          ? createBmRoundStartingCourses(playoffStructure)
+          : undefined;
 
         /* Playoff-local seeds 1-12 are the barrage entrants, interleaved by group. */
         const playoffSeededPlayers = selection.barrage.map((q, index) => ({
@@ -949,7 +974,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
-              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments),
+              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
             },
             include: { player1: true, player2: true },
           });
@@ -1029,6 +1054,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const finalsGpAssignments = config.assignGpCupByRound
         ? createGpRoundAssignments(bracketStructure)
         : undefined;
+      const finalsBmStartingCourses = config.assignBmStartingCourseByRound
+        ? createBmRoundStartingCourses(bracketStructure)
+        : undefined;
 
       /* Clean slate on any previous finals for reset scenarios.
        * Keep playoff stage rows intact so the admin can still view the
@@ -1056,7 +1084,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments),
+            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
           },
           include: { player1: true, player2: true },
         });
@@ -1198,6 +1226,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
               `TV${tv} is already assigned to match ${tvConflict.matchNumber} in this round`,
               'tvNumber',
             );
+          }
+        }
+        /* Validate startingCourseNumber when present: must be 1-4 or null. */
+        if (body.startingCourseNumber !== undefined && body.startingCourseNumber !== null) {
+          const sn = body.startingCourseNumber;
+          if (!Number.isInteger(sn) || sn < 1 || sn > 4) {
+            return handleValidationError('startingCourseNumber must be 1–4', 'startingCourseNumber');
           }
         }
         for (const field of config.putAdditionalFields) {

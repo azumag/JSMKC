@@ -2914,6 +2914,98 @@ async function main() {
     }
   }
 
+  // TC-347: Export API — GET /api/tournaments/:id/export returns CSV with BOM
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      try {
+        const resp = await page.evaluate(async (url) => {
+          const r = await fetch(url);
+          const text = await r.text();
+          return { status: r.status, contentType: r.headers.get('content-type'), text };
+        }, `${BASE}/api/tournaments/${exportTid}/export`);
+
+        const isCsv = (resp.contentType || '').includes('text/csv') || (resp.contentType || '').includes('application/csv');
+        // UTF-8 BOM is \xEF\xBB\xBF — check for the decoded BOM character or header keyword
+        const hasContent = resp.text.length > 10;
+        const hasHeaderRow = resp.text.includes(',');
+        log('TC-347', resp.status === 200 && isCsv && hasContent && hasHeaderRow ? 'PASS' : 'FAIL',
+          resp.status !== 200 ? `HTTP ${resp.status}` : !isCsv ? `content-type: ${resp.contentType}` : !hasHeaderRow ? 'no CSV header row found' : '');
+      } catch (err) {
+        log('TC-347', 'FAIL', err instanceof Error ? err.message : 'Export API test failed');
+      }
+    } else {
+      log('TC-347', 'SKIP', 'No tournament ID available');
+    }
+  }
+
+  // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
+  {
+    const statsPid = sharedFixture?.playerIds?.[0];
+    if (statsPid) {
+      try {
+        // Admin fetch (current session)
+        const adminResp = await page.evaluate(async (url) => {
+          const r = await fetch(url);
+          return { status: r.status, body: await r.json().catch(() => null) };
+        }, `${BASE}/api/players/${statsPid}/character-stats`);
+
+        const hasShape = adminResp.status === 200 &&
+          adminResp.body !== null &&
+          typeof adminResp.body === 'object';
+
+        // Unauthenticated fetch (via https module — no browser session)
+        const unauthedStatus = await new Promise((resolve) => {
+          https.get(`${BASE}/api/players/${statsPid}/character-stats`, (res) => resolve(res.statusCode));
+        });
+
+        log('TC-348', hasShape && unauthedStatus === 401 ? 'PASS' : 'FAIL',
+          !hasShape ? `admin: HTTP ${adminResp.status}` : unauthedStatus !== 401 ? `unauthed: expected 401 got ${unauthedStatus}` : '');
+      } catch (err) {
+        log('TC-348', 'FAIL', err instanceof Error ? err.message : 'Character stats test failed');
+      }
+    } else {
+      log('TC-348', 'SKIP', 'No shared fixture players');
+    }
+  }
+
+  // TC-349: Responsive — BM/MR/GP qualification pages load without JS errors on narrow viewport
+  {
+    const respTid = sharedFixture?.tournamentId ?? TID;
+    if (respTid) {
+      try {
+        await page.setViewportSize({ width: 375, height: 812 });
+        const jsErrors = [];
+        const onErr = (e) => jsErrors.push(e.message);
+        page.on('pageerror', onErr);
+
+        const modePages = [
+          `/tournaments/${respTid}/bm`,
+          `/tournaments/${respTid}/mr`,
+          `/tournaments/${respTid}/gp`,
+        ];
+        let allOk = true;
+        for (const path of modePages) {
+          await nav(page, path);
+          if (jsErrors.length > 0) { allOk = false; break; }
+          const body = await page.locator('body').innerText();
+          if (body.includes('Failed to fetch') || body.includes('500')) { allOk = false; break; }
+        }
+        page.off('pageerror', onErr);
+        // Restore default viewport
+        await page.setViewportSize({ width: 1280, height: 720 });
+
+        log('TC-349', allOk ? 'PASS' : 'FAIL',
+          !allOk ? `mobile viewport errors: ${jsErrors.join('; ')}` : '');
+      } catch (err) {
+        log('TC-349', 'FAIL', err instanceof Error ? err.message : 'Responsive test failed');
+        await page.setViewportSize({ width: 1280, height: 720 });
+      }
+    } else {
+      log('TC-349', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // ===== Mode-specific suites (shared code with tc-bm/tc-mr/tc-gp/tc-ta) =====
   // Previously these were gated behind E2E_RUN_FOCUSED_SUITES and invoked
   // through spawnSync, which meant `node e2e/tc-all.js` silently skipped

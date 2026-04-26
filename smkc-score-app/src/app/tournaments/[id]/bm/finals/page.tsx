@@ -89,6 +89,7 @@ interface BMMatch {
   round: string | null;
   stage?: string | null;
   tvNumber?: number | null;
+  startingCourseNumber?: number | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -196,7 +197,7 @@ export default function BattleModeFinals({
   /* Score entry dialog state */
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<BMMatch | null>(null);
-  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, tvNumber: null as number | null });
+  const [scoreForm, setScoreForm] = useState({ score1: 0, score2: 0, tvNumber: null as number | null, startingCourseNumber: null as number | null });
   const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
@@ -413,7 +414,7 @@ export default function BattleModeFinals({
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
-    setScoreForm({ score1: match.score1, score2: match.score2, tvNumber: match.tvNumber ?? null });
+    setScoreForm({ score1: match.score1, score2: match.score2, tvNumber: match.tvNumber ?? null, startingCourseNumber: match.startingCourseNumber ?? null });
     setIsScoreDialogOpen(true);
   };
 
@@ -434,6 +435,7 @@ export default function BattleModeFinals({
           score1: scoreForm.score1,
           score2: scoreForm.score2,
           tvNumber: scoreForm.tvNumber,
+          startingCourseNumber: scoreForm.startingCourseNumber,
         }),
       });
 
@@ -446,7 +448,7 @@ export default function BattleModeFinals({
         }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ score1: 0, score2: 0, tvNumber: null });
+        setScoreForm({ score1: 0, score2: 0, tvNumber: null, startingCourseNumber: null });
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -809,17 +811,31 @@ export default function BattleModeFinals({
                  />
               </div>
             </div>
-            {/* §5.4: Start course selection (guidance for which BC to start from) */}
-            <div className="text-center">
-              <Label className="text-sm text-muted-foreground">{tFinals('startCourse')}</Label>
-              <p className="text-xs text-muted-foreground mb-1">{tFinals('startCourseDesc')}</p>
-              <div className="flex justify-center gap-2">
-                {[1, 2, 3, 4].map((n) => (
-                  <Badge key={n} variant="outline" className="text-sm px-3 py-1">
-                    {tFinals('battleCourse', { number: n })}
-                  </Badge>
-                ))}
-              </div>
+            {/* §5.4: Start course — randomly assigned per round at bracket creation (issue #671).
+                Admins can override per-match from this dropdown. */}
+            <div className="flex items-center justify-center gap-3">
+              <Label htmlFor="bm-finals-start-course" className="text-sm text-muted-foreground shrink-0">
+                {tFinals('startCourse')}
+              </Label>
+              {isAdmin ? (
+                <select
+                  id="bm-finals-start-course"
+                  className="h-8 px-2 text-sm border rounded bg-background"
+                  value={scoreForm.startingCourseNumber ?? ""}
+                  onChange={(e) => setScoreForm({ ...scoreForm, startingCourseNumber: e.target.value ? parseInt(e.target.value) : null })}
+                >
+                  <option value="">-</option>
+                  {[1, 2, 3, 4].map((n) => (
+                    <option key={n} value={n}>{tFinals('battleCourse', { number: n })}</option>
+                  ))}
+                </select>
+              ) : (
+                <Badge variant="outline" className="text-sm px-3 py-1">
+                  {scoreForm.startingCourseNumber
+                    ? tFinals('battleCourse', { number: scoreForm.startingCourseNumber })
+                    : '-'}
+                </Badge>
+              )}
             </div>
             {/* TV number assignment for broadcast: admin selects TV 1–4.
                 The explicit save button (#651) lets admins assign TV# before
