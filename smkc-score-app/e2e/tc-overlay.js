@@ -29,6 +29,9 @@
  *   TC-918  PUT /broadcast with matchLabel/wins/ft → GET returns new fields (#644/#645/#649)
  *   TC-919  overlay-events includes overlayMatchLabel / overlayPlayer1Wins / overlayPlayer2Wins / overlayMatchFt
  *   TC-920  Dashboard page renders matchLabel and score display in real browser (#644/#645/#649)
+ *   TC-921  Dashboard timeline renders event entries and match scoreboard cards
+ *   TC-922  Dashboard progress bar renders on /overlay/dashboard
+ *   TC-923  Dashboard timeline renders TA time card (ta_time_recorded events)
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -814,6 +817,79 @@ async function runTc920(adminPage) {
   }
 }
 
+/* ───────── TC-921: dashboard timeline renders event entries and match scoreboard ─────────
+ * After TC-903/907/908 created BM/MR/GP match_completed events, the dashboard
+ * timeline must backfill them via ?initial=1 and render:
+ *   - data-testid="dashboard-timeline" wrapper element
+ *   - at least one data-testid="dashboard-timeline-entry" card
+ *   - at least one data-testid="dashboard-timeline-scoreboard" card (match results)
+ *
+ * Must run after TC-920 (which sets up the dashboard page context) and before
+ * TC-906 (which navigates away to the toast overlay). */
+async function runTc921(adminPage) {
+  try {
+    await adminPage.goto(
+      `${BASE}/tournaments/${fixture.tournamentId}/overlay/dashboard`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    await adminPage.waitForSelector('[data-testid="dashboard-root"]', { timeout: 10_000 });
+    /* Allow initial backfill poll (POLLING_INTERVAL = 3s) plus render. */
+    await adminPage.waitForTimeout(8000);
+
+    const timelineCount = await adminPage.locator('[data-testid="dashboard-timeline"]').count();
+    const entryCount = await adminPage.locator('[data-testid="dashboard-timeline-entry"]').count();
+    /* TC-903 created a BM match_completed with matchResult — must yield a scoreboard card. */
+    const scoreboardCount = await adminPage.locator('[data-testid="dashboard-timeline-scoreboard"]').count();
+
+    const pass = timelineCount > 0 && entryCount > 0 && scoreboardCount > 0;
+    log('TC-921', pass ? 'PASS' : 'FAIL',
+      timelineCount === 0 ? 'dashboard-timeline element missing' :
+      entryCount === 0 ? 'no dashboard-timeline-entry cards rendered' :
+      scoreboardCount === 0 ? `no scoreboard cards found (total entries: ${entryCount})` : '');
+  } catch (err) {
+    log('TC-921', 'FAIL', err instanceof Error ? err.message : 'TC-921 threw');
+  }
+}
+
+/* ───────── TC-922: dashboard progress bar renders ─────────
+ * The DashboardProgressBar component is always rendered on /overlay/dashboard.
+ * It receives currentPhase from overlay-events and shows a 3-step indicator
+ * (予選 → バラッジ → 決勝). After the suite's beforeAll creates events, the
+ * initial backfill includes currentPhase so the bar is not in its default
+ * empty state.
+ *
+ * Runs on the same page opened by TC-921 (no extra navigation). */
+async function runTc922(adminPage) {
+  try {
+    /* Reuse the dashboard page already open from TC-921. */
+    const progressBarCount = await adminPage.locator('[data-testid="dashboard-progress-bar"]').count();
+    const pass = progressBarCount > 0;
+    log('TC-922', pass ? 'PASS' : 'FAIL',
+      pass ? '' : 'dashboard-progress-bar element missing from dashboard page');
+  } catch (err) {
+    log('TC-922', 'FAIL', err instanceof Error ? err.message : 'TC-922 threw');
+  }
+}
+
+/* ───────── TC-923: dashboard timeline renders TA time card ─────────
+ * TC-910 seeded 2 TA entries with full 20-course time maps, which emits
+ * ta_time_recorded overlay events. The dashboard timeline must render each
+ * such event as a data-testid="dashboard-timeline-ta-time" card.
+ *
+ * Runs on the same page opened by TC-921 (no extra navigation). */
+async function runTc923(adminPage) {
+  try {
+    /* Reuse the dashboard page already open from TC-921. */
+    const taTimeCount = await adminPage.locator('[data-testid="dashboard-timeline-ta-time"]').count();
+    const totalEntries = await adminPage.locator('[data-testid="dashboard-timeline-entry"]').count();
+    const pass = taTimeCount > 0;
+    log('TC-923', pass ? 'PASS' : 'FAIL',
+      pass ? '' : `no dashboard-timeline-ta-time cards found (total entries: ${totalEntries})`);
+  } catch (err) {
+    log('TC-923', 'FAIL', err instanceof Error ? err.message : 'TC-923 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -880,6 +956,8 @@ function getSuite() {
      *     blocks qualification edits once this flag is set.
      *   - TC-916 / TC-917 (broadcast): TC-916 sets names, TC-917 reads them
      *     back from overlay-events. Both after TC-909 to avoid races.
+     *   - TC-921/922/923 after TC-920: TC-921 re-navigates to dashboard for
+     *     a clean backfill; TC-922/923 reuse that page.
      *   - TC-906 (real-browser render) last: navigates the admin page
      *     away from anything cleanup might need. */
     tests: [
@@ -906,6 +984,12 @@ function getSuite() {
       /* TC-920 must run after TC-918/919 set matchLabel/wins/ft,
          and before TC-906 navigates away. */
       { name: 'TC-920', fn: runTc920 },
+      /* TC-921/922/923 check dashboard timeline, progress bar, and TA time
+         cards. TC-921 navigates to /overlay/dashboard; TC-922/923 reuse that
+         page. Must run before TC-906 navigates to /overlay. */
+      { name: 'TC-921', fn: runTc921 },
+      { name: 'TC-922', fn: runTc922 },
+      { name: 'TC-923', fn: runTc923 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -915,6 +999,7 @@ module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   runTc916, runTc917, runTc918, runTc919, runTc920,
+  runTc921, runTc922, runTc923,
   getSuite,
   results,
 };
