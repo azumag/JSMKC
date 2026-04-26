@@ -40,6 +40,25 @@ const TA_STAGE_LABEL: Record<string, string> = {
   phase3: "決勝",
 };
 
+/**
+ * Coerce a raw `assignedCourses` JSON value into a `string[]` of non-empty
+ * course abbreviations. The DB column is `Json?` so the value may be null,
+ * an array, or (in legacy / corrupted rows) an arbitrary shape — we defend
+ * against all three and drop anything that isn't a usable string.
+ *
+ * Returns `undefined` when no usable courses remain so the resulting
+ * `matchResult` payload simply omits the field instead of carrying an
+ * empty array (which the dashboard would otherwise render as a stray
+ * empty row).
+ */
+function normalizeCourses(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const courses = raw.filter(
+    (c): c is string => typeof c === "string" && c.length > 0,
+  );
+  return courses.length > 0 ? courses : undefined;
+}
+
 function matchEvents(
   matches: OverlayMatchInput[],
   mode: OverlayMode,
@@ -51,6 +70,19 @@ function matchEvents(
     if (m.updatedAt.getTime() <= since.getTime()) continue;
     const stageLabel = m.stage === "finals" ? "決勝" : "予選";
     const scoreLabel = `${m.score1}-${m.score2}`;
+    // BM/MR carry `assignedCourses`; GP carries a single `cup`. Build both
+    // the structured payload and the subtitle suffix so the legacy toast
+    // overlay (which only reads `subtitle`) shows the new context too.
+    const courses = mode === "gp" ? undefined : normalizeCourses(m.assignedCourses);
+    const cup =
+      mode === "gp" && typeof m.cup === "string" && m.cup.length > 0
+        ? m.cup
+        : undefined;
+    const contextSuffix = cup
+      ? ` [${cup}]`
+      : courses
+        ? ` [${courses.join(", ")}]`
+        : "";
     out.push({
       // Deterministic id ties the event to the underlying row so repeated
       // polls (or `since` overlap) collapse to the same event.
@@ -59,7 +91,7 @@ function matchEvents(
       timestamp: m.updatedAt.toISOString(),
       mode,
       title: `${MODE_LABEL[mode]} ${stageLabel} 試合 #${m.matchNumber} 終了`,
-      subtitle: `${nick(m.player1)} ${scoreLabel} ${nick(m.player2)}`,
+      subtitle: `${nick(m.player1)} ${scoreLabel} ${nick(m.player2)}${contextSuffix}`,
       // Structured payload for the dashboard scoreboard renderer. Keeping
       // `subtitle` populated alongside means consumers that don't know
       // about `matchResult` (e.g. the legacy toast overlay) still work.
@@ -68,6 +100,8 @@ function matchEvents(
         player2: nick(m.player2),
         score1: m.score1,
         score2: m.score2,
+        ...(courses ? { courses } : {}),
+        ...(cup ? { cup } : {}),
       },
     });
   }

@@ -32,6 +32,11 @@
  *   TC-921  Dashboard timeline renders event entries and match scoreboard cards
  *   TC-922  Dashboard progress bar renders on /overlay/dashboard
  *   TC-923  Dashboard timeline renders TA time card (ta_time_recorded events)
+ *   TC-924  Match notifications expose course (BM/MR) / cup (GP) on
+ *           matchResult and the dashboard scoreboard cards render them
+ *   TC-925  Dashboard TA card renders the qualification total-time
+ *           variant (dashboard-timeline-ta-total) — qualification toast
+ *           collapsed from per-course to one summary per player
  *
  * Setup is API-only: the suite owns a 2-player tournament with one match
  * per mode (BM/MR/GP) plus 2 TA entries, then tears everything down at the
@@ -519,9 +524,9 @@ async function runTc910(adminPage) {
   }
 }
 
-/* ───────── TC-924: dashboard renders TA qualification total-time card ─────────
+/* ───────── TC-925: dashboard renders TA qualification total-time card ─────────
  * Companion to TC-923. TC-923 only verifies that *some* `dashboard-timeline-
- * ta-time` card was rendered. TC-924 asserts the qualification-completion
+ * ta-time` card was rendered. TC-925 asserts the qualification-completion
  * variant — the new `dashboard-timeline-ta-total` element with a non-empty
  * total-time string — is what gets rendered now that qualification fires
  * one summary card per player instead of 20 per-course toasts.
@@ -529,22 +534,22 @@ async function runTc910(adminPage) {
  * Runs on the same page opened by TC-921 (no extra navigation). The
  * negative case (partial times → no event) is covered by the unit test in
  * events.test.ts. */
-async function runTc924(adminPage) {
+async function runTc925(adminPage) {
   try {
     const totalLocator = adminPage.locator('[data-testid="dashboard-timeline-ta-total"]');
     const totalCount = await totalLocator.count();
     if (totalCount === 0) {
-      log('TC-924', 'FAIL', 'no dashboard-timeline-ta-total element found — qualification card did not switch to total-time variant');
+      log('TC-925', 'FAIL', 'no dashboard-timeline-ta-total element found — qualification card did not switch to total-time variant');
       return;
     }
     const firstText = (await totalLocator.first().textContent() || '').trim();
     /* Total-time format is "M:SS.cc" — at minimum must contain ':' and '.' */
     const looksLikeTime = /^\d+:\d{2}\.\d{2}$/.test(firstText);
-    log('TC-924',
+    log('TC-925',
       looksLikeTime ? 'PASS' : 'FAIL',
       looksLikeTime ? '' : `total-time element text "${firstText}" does not match M:SS.cc`);
   } catch (err) {
-    log('TC-924', 'FAIL', err instanceof Error ? err.message : 'TC-924 threw');
+    log('TC-925', 'FAIL', err instanceof Error ? err.message : 'TC-925 threw');
   }
 }
 
@@ -929,6 +934,58 @@ async function runTc923(adminPage) {
   }
 }
 
+/* ───────── TC-924: match notifications expose course (BM/MR) and cup (GP) ─────────
+ * After TC-903/907/908 created BM/MR/GP match_completed events with their
+ * source matches' assignedCourses / cup populated, the dashboard backfill
+ * (?initial=1) must include those fields on matchResult, and the dashboard
+ * timeline scoreboard cards must render them so broadcast viewers can see
+ * which courses / cup the match was played on.
+ *
+ * Two-part check:
+ *   1. API: poll until BM and GP match_completed events appear, then assert
+ *      the BM event carries matchResult.courses (string[]) and the GP event
+ *      carries matchResult.cup (string).
+ *   2. UI: reuse the dashboard page opened by TC-921. The scoreboard card
+ *      stack must contain at least one course abbreviation (e.g. MC1) AND
+ *      one cup label (Mushroom/Flower/Star/Special). */
+async function runTc924(adminPage) {
+  try {
+    const resp = await pollForEvent(
+      fixture.tournamentId,
+      (e) => e.type === 'match_completed' && e.mode === 'gp',
+    );
+    const events = resp.body?.data?.events || [];
+    const bmEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'bm');
+    const mrEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'mr');
+    const gpEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'gp');
+
+    const bmHasCourses = Array.isArray(bmEvt?.matchResult?.courses) && bmEvt.matchResult.courses.length > 0;
+    const mrHasCourses = Array.isArray(mrEvt?.matchResult?.courses) && mrEvt.matchResult.courses.length > 0;
+    const gpHasCup = typeof gpEvt?.matchResult?.cup === 'string' && gpEvt.matchResult.cup.length > 0;
+
+    /* UI: at least one scoreboard card on the dashboard exposes a context chip. */
+    const cards = await adminPage.locator('[data-testid="dashboard-timeline-scoreboard"]').all();
+    let stackText = '';
+    for (const c of cards) {
+      stackText += '\n' + (await c.innerText());
+    }
+    const uiHasCourse = /\b(MC|DP|GV|BC|CI|KB|VL|RR)\d?\b/.test(stackText);
+    const uiHasCup = /(Mushroom|Flower|Star|Special)/.test(stackText);
+
+    const pass = bmHasCourses && mrHasCourses && gpHasCup && uiHasCourse && uiHasCup;
+    log('TC-924',
+      pass ? 'PASS' : 'FAIL',
+      pass ? '' :
+      !bmHasCourses ? `BM event missing courses array (got ${JSON.stringify(bmEvt?.matchResult)})` :
+      !mrHasCourses ? `MR event missing courses array (got ${JSON.stringify(mrEvt?.matchResult)})` :
+      !gpHasCup ? `GP event missing cup string (got ${JSON.stringify(gpEvt?.matchResult)})` :
+      !uiHasCourse ? `dashboard scoreboard cards missing course label: "${stackText.slice(0, 200)}"` :
+      `dashboard scoreboard cards missing cup label: "${stackText.slice(0, 200)}"`);
+  } catch (err) {
+    log('TC-924', 'FAIL', err instanceof Error ? err.message : 'TC-924 threw');
+  }
+}
+
 /* ───────── TC-906: real-browser render of the overlay page ─────────
  * Navigates the admin page away to /overlay and writes a fresh score so the
  * running poll cycle picks it up. Must be the LAST test because it leaves
@@ -1023,16 +1080,19 @@ function getSuite() {
       /* TC-920 must run after TC-918/919 set matchLabel/wins/ft,
          and before TC-906 navigates away. */
       { name: 'TC-920', fn: runTc920 },
-      /* TC-921/922/923/924 check dashboard timeline, progress bar, and TA
-         time cards. TC-921 navigates to /overlay/dashboard; TC-922/923/924
-         reuse that page. Must run before TC-906 navigates to /overlay.
-         TC-924 specifically asserts the qualification-completion total-time
-         card variant introduced when TA qualification switched from
-         per-course toasts to one summary card. */
+      /* TC-921/922/923/924/925 check dashboard timeline, progress bar, TA
+         time cards, and scoreboard course/cup chips. TC-921 navigates to
+         /overlay/dashboard; the others reuse that page. Must run before
+         TC-906 navigates to /overlay.
+         TC-924: dashboard scoreboard cards expose BM/MR course chips and
+         GP cup label.
+         TC-925: dashboard TA card switched to qualification-completion
+         total-time variant (per-course toasts collapsed). */
       { name: 'TC-921', fn: runTc921 },
       { name: 'TC-922', fn: runTc922 },
       { name: 'TC-923', fn: runTc923 },
       { name: 'TC-924', fn: runTc924 },
+      { name: 'TC-925', fn: runTc925 },
       { name: 'TC-906', fn: runTc906 },
     ],
   };
@@ -1042,7 +1102,7 @@ module.exports = {
   runTc901, runTc902, runTc903, runTc904, runTc905, runTc906,
   runTc907, runTc908, runTc909, runTc910, runTc911, runTc913, runTc914, runTc915,
   runTc916, runTc917, runTc918, runTc919, runTc920,
-  runTc921, runTc922, runTc923, runTc924,
+  runTc921, runTc922, runTc923, runTc924, runTc925,
   getSuite,
   results,
 };

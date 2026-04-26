@@ -120,6 +120,103 @@ describe("buildOverlayEvents", () => {
     });
   });
 
+  it("attaches BM/MR assignedCourses to matchResult.courses and to subtitle", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [
+          match({
+            id: "bm-with-courses",
+            assignedCourses: ["MC1", "DP1", "GV1", "BC1"],
+          }),
+        ],
+        mrMatches: [
+          match({
+            id: "mr-with-courses",
+            assignedCourses: ["KB1", "CI2", "VL1", "BC3"],
+            updatedAt: FAR_AFTER,
+          }),
+        ],
+      }),
+    );
+    const bm = events.find((e) => e.mode === "bm")!;
+    const mr = events.find((e) => e.mode === "mr")!;
+    expect(bm.matchResult?.courses).toEqual(["MC1", "DP1", "GV1", "BC1"]);
+    expect(mr.matchResult?.courses).toEqual(["KB1", "CI2", "VL1", "BC3"]);
+    // Subtitle still carries the score line; course suffix is appended so
+    // legacy toast overlays surface the courses as well.
+    expect(bm.subtitle).toContain("MC1");
+    expect(mr.subtitle).toContain("KB1");
+    // GP-only `cup` field must not bleed into BM/MR results.
+    expect(bm.matchResult?.cup).toBeUndefined();
+    expect(mr.matchResult?.cup).toBeUndefined();
+  });
+
+  it("attaches GP cup to matchResult.cup and to subtitle", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        gpMatches: [
+          match({
+            id: "gp-with-cup",
+            cup: "Mushroom",
+            score1: 45,
+            score2: 0,
+          }),
+        ],
+      }),
+    );
+    const gp = events[0];
+    expect(gp.mode).toBe("gp");
+    expect(gp.matchResult?.cup).toBe("Mushroom");
+    // Courses array is absent for GP — cup labels the whole match.
+    expect(gp.matchResult?.courses).toBeUndefined();
+    expect(gp.subtitle).toContain("Mushroom");
+  });
+
+  it("omits courses/cup when DB rows have no values (legacy data)", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [match({ id: "bm-legacy", assignedCourses: null })],
+        gpMatches: [
+          // Both `null` and `""` are legacy/empty cup values — neither
+          // should bleed onto the matchResult or the subtitle suffix.
+          match({ id: "gp-legacy-null", cup: null, updatedAt: FAR_AFTER }),
+          match({
+            id: "gp-legacy-empty",
+            cup: "",
+            updatedAt: new Date(FAR_AFTER.getTime() + 1),
+          }),
+        ],
+      }),
+    );
+    const bm = events.find((e) => e.mode === "bm")!;
+    const gpEvents = events.filter((e) => e.mode === "gp");
+    expect(bm.matchResult?.courses).toBeUndefined();
+    expect(gpEvents).toHaveLength(2);
+    for (const gp of gpEvents) {
+      expect(gp.matchResult?.cup).toBeUndefined();
+      expect(gp.subtitle).not.toMatch(/\[\s*\]/);
+    }
+  });
+
+  it("ignores empty / non-string assignedCourses entries", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [
+          match({ id: "bm-empty", assignedCourses: [] }),
+          match({
+            id: "bm-mixed",
+            assignedCourses: ["MC1", "", null, 42, "BC1"] as unknown as string[],
+            updatedAt: FAR_AFTER,
+          }),
+        ],
+      }),
+    );
+    const empty = events.find((e) => e.id.includes("bm-empty"))!;
+    const mixed = events.find((e) => e.id.includes("bm-mixed"))!;
+    expect(empty.matchResult?.courses).toBeUndefined();
+    expect(mixed.matchResult?.courses).toEqual(["MC1", "BC1"]);
+  });
+
   it("labels finals stage differently from qualification stage", () => {
     const events = buildOverlayEvents(
       emptyInput({

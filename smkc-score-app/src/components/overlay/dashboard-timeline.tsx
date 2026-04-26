@@ -164,6 +164,31 @@ function MatchScoreboardCard({
       <div className="my-1 h-px bg-white/10" />
       <PlayerScoreRow name={r.player2} score={r.score2} winner={p2Wins} />
 
+      {/* Course/cup row: BM/MR show a chip per assigned course; GP shows the
+          cup name as a single chip. Source-of-truth is the aggregator — we
+          render whichever field is populated and skip the row entirely when
+          neither is, so legacy rows without context don't get a stray gap. */}
+      {(r.courses?.length || r.cup) && (
+        <div
+          className="mt-2 flex flex-wrap items-center gap-1.5"
+          data-testid="dashboard-timeline-context"
+        >
+          {r.cup && (
+            <span className="rounded bg-white/10 px-2 py-0.5 text-sm font-medium text-white/85">
+              {r.cup}
+            </span>
+          )}
+          {r.courses?.map((course) => (
+            <span
+              key={course}
+              className="rounded bg-white/10 px-2 py-0.5 text-sm font-medium text-white/85"
+            >
+              {course}
+            </span>
+          ))}
+        </div>
+      )}
+
       {!p1Wins && !p2Wins && (
         <div className="mt-1 text-center text-xs text-white/50">引き分け</div>
       )}

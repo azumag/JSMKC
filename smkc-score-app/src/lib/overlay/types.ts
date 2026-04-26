@@ -43,6 +43,19 @@ export interface OverlayMatchResult {
   player2: string;
   score1: number;
   score2: number;
+  /**
+   * BM/MR only. Pre-assigned courses for this match (e.g. ["MC1","DP1",
+   * "GV1","BC1"]). Omitted when the source row has null/empty
+   * `assignedCourses` (legacy data, BREAK byes). Renders as a chip row
+   * on the dashboard scoreboard card.
+   */
+  courses?: string[];
+  /**
+   * GP only. Cup the match was played on ("Mushroom" / "Flower" / "Star" /
+   * "Special"). Omitted when the source row has no cup set. Renders as a
+   * label on the dashboard scoreboard card.
+   */
+  cup?: string;
 }
 
 /**
@@ -116,6 +129,11 @@ export interface OverlayMatchInput {
   player2: OverlayPlayerRef | null;
   score1: number;
   score2: number;
+  /** BM/MR only. Raw `assignedCourses` JSON column. Aggregator filters this
+      to a string[] of valid course abbreviations before exposing it. */
+  assignedCourses?: unknown;
+  /** GP only. The `cup` column ("Mushroom" / "Flower" / "Star" / "Special"). */
+  cup?: string | null;
 }
 
 export interface OverlayScoreLogInput {
