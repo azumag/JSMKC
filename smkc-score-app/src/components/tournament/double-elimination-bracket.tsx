@@ -318,10 +318,10 @@ export function DoubleEliminationBracket({
   /**
    * Reverse routing map: `${matchNumber}-${slot}` → source match number.
    *
-   * When a source match completes, its winner/loser is routed into a specific
-   * slot of a later match. A slot is "filled" only after its source match has
-   * been completed. This mirrors the getNextMatchInfo server-side logic for
-   * computing loser positions (issue #669).
+   * `bracketStructure` is always produced by `generateBracketStructure()` on the
+   * server, which guarantees `winnerGoesTo`, `loserGoesTo`, and `position` are
+   * populated for every non-terminal match. The map will therefore contain an
+   * entry for every non-seeded slot under normal circumstances.
    *
    * Loser position rules (same as getNextMatchInfo in double-elimination.ts):
    *   winners_r1:  (matchNumber - 1) % 2 + 1
@@ -331,6 +331,7 @@ export function DoubleEliminationBracket({
    */
   const slotSourceMap = (() => {
     const map = new Map<string, number>();
+    /* 8-player bracket = 17 matches; 16-player = 31 matches. */
     const is16Player = bracketStructure.length > 17;
     for (const bm of bracketStructure) {
       if (bm.winnerGoesTo) {
@@ -377,7 +378,13 @@ export function DoubleEliminationBracket({
       if (slot === 1 && bracket?.player1Seed != null) return false;
       if (slot === 2 && bracket?.player2Seed != null) return false;
       const sourceMatchNumber = slotSourceMap.get(`${matchNumber}-${slot}`);
-      if (sourceMatchNumber == null) return true;
+      if (sourceMatchNumber == null) {
+        /* Routing fields absent (should not happen with generateBracketStructure,
+         * but degrade gracefully using the placeholder heuristic: bracket creation
+         * initialises unfilled slots to seededPlayers[0].playerId for both players,
+         * so equal IDs means both slots are still placeholders. */
+        return !match.completed && match.player1Id === match.player2Id;
+      }
       return !getMatch(sourceMatchNumber)?.completed;
     };
 
