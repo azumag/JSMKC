@@ -521,6 +521,42 @@
   2. ステータスが 200 かつ `{ success: true, data: { totalRequests, averageResponseTime, activeConnections, errorRate, warnings, timePeriod } }` 形式であることを確認する
   3. 未認証リクエストが 401 または 403 で拒否されることを確認する
 - **期待結果**: 管理者は監視統計を取得できる。未認証リクエストは拒否される
+- **スクリプト**: tc-all.js TC-333
+
+## TC-334: トーナメント可視性 — 未公開トーナメントは未認証ユーザーにブロックされる
+- **URL**: /api/tournaments/:id
+- **authRequired**: false (unauthenticated access test)
+- **背景**: `publicModes: []` のプライベートトーナメントは未認証ユーザーからは 403 で保護される。管理者は引き続きアクセスできる。
+- **手順**:
+  1. 管理者 API で新しいプライベートトーナメントを作成（publicModes デフォルト=[]）
+  2. `https` モジュールで未認証 GET `/api/tournaments/:id` → 403 であることを確認
+  3. 管理者セッションで同エンドポイントを GET → 200 であることを確認
+- **期待結果**: 未認証: 403。管理者セッション: 200
+- **スクリプト**: tc-all.js TC-334
+
+## TC-335: トーナメント可視性切り替え — 管理者が最初のモードを公開すると未認証アクセスが許可される
+- **URL**: /api/tournaments/:id, /api/tournaments (list)
+- **authRequired**: true (admin PUT), then false (anon GET)
+- **背景**: TC-334 の続き。`publicModes: ['ta']` に PUT して公開すると、未認証ユーザーが詳細 API と一覧 API で参照できるようになる。
+- **手順**:
+  1. TC-334 で作成したトーナメントに PUT `{ publicModes: ['ta'] }` を送信
+  2. `https` モジュールで未認証 GET `/api/tournaments/:id?fields=summary` → 200 かつ `publicModes` に `'ta'` が含まれることを確認
+  3. 未認証で GET `/api/tournaments` (一覧) → レスポンスにトーナメントが出現することを確認
+- **期待結果**: 公開後は未認証ユーザーも詳細・一覧で参照可能
+- **スクリプト**: tc-all.js TC-335
+
+## TC-344: noCamera フラグ — 作成・取得・編集で正しく永続化される
+- **URL**: /api/players (POST, GET, PUT)
+- **authRequired**: true (admin)
+- **背景**: プレイヤーの `noCamera` フラグはカメラ不参加プレイヤーを示す。作成時に `true` を設定し、GET で確認、PUT で `false` に更新・再確認するフルライフサイクルテスト。
+- **手順**:
+  1. POST `/api/players` `{ noCamera: true }` でプレイヤーを作成
+  2. GET `/api/players/:id` → `data.noCamera === true` を確認
+  3. PUT `/api/players/:id` `{ noCamera: false }` で更新 → レスポンスの `data.noCamera === false` を確認
+  4. 再度 GET → `data.noCamera === false` を確認
+  5. クリーンアップ（プレイヤー削除）
+- **期待結果**: 作成・更新・取得の全段階で noCamera フラグが正しく反映される
+- **スクリプト**: tc-all.js TC-344
 
 ## TC-320: BM/MR/GP マッチリスト行レベルのスコア入力リンク非表示化 ✅ FIXED (PR #407)
 - **URL**: /tournaments/[temp-id]/bm, /mr, /gp → Matches タブ
@@ -1494,7 +1530,7 @@
   - 公開ボタンはタブバー直下のコントロール行に常に表示される
   - 公開/未公開切替後に「未公開」バッジがリロードなしで更新される
   - 操作後のページに「未公開」の古い表示が残らない
-- **スクリプト**: 未スクリプト化（UI インタラクションのため手動確認）
+- **スクリプト**: `e2e/tc-all.js` TC-340
 
 ---
 
