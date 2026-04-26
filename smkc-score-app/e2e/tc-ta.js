@@ -39,6 +39,7 @@ const {
   apiFetchTa, apiFetchTaPhase,
   makeTaTimesForRank,
   setupTaQualViaUi,
+  escapeRegex,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -356,8 +357,18 @@ async function runTc805(adminPage) {
     /* Re-check p1 and save so shared 28-player state is restored for the
      * downstream phase-promotion chain (TC-804 onward). Without this, the
      * qualification would stay at 27 entries and promote_phase1 would pull
-     * different source ranks. */
-    await setupDialog.getByLabel(new RegExp(`^${p1.nickname} \\(${p1.name}\\)$`)).check();
+     * different source ranks.
+     *
+     * Use label[for] → button[id] + .click() rather than getByLabel().check() —
+     * see uiSetupTaPlayers comment in lib/common.js for why .check() times out
+     * on this dialog's Radix checkboxes (the button is removed from DOM after
+     * click, breaking aria-checked verification). */
+    const labelText = new RegExp(`^${escapeRegex(p1.nickname)} \\(${escapeRegex(p1.name)}\\)$`);
+    const labelEl = setupDialog.locator('label').filter({ hasText: labelText }).first();
+    await labelEl.waitFor({ state: 'visible', timeout: 10000 });
+    const forId = await labelEl.getAttribute('for');
+    if (!forId) throw new Error(`No for attribute on player label for ${p1.nickname}`);
+    await setupDialog.locator(`button[id="${forId}"]`).click();
     await setupDialog.getByPlaceholder(/プレイヤーを検索|Search players/).fill('');
     /* Seed input uses aria-label `${nickname} seeding` — restore the seeding
      * slot that matches the original sharedTaEntry rank so rank 1..28 ordering

@@ -109,7 +109,11 @@ async function prepareSharedBmFinalsSetup(adminPage) {
    * qualification from scratch. Finals-bracket mutations (generate/reset/
    * grand-final) happen on top of this fixture — individual tests must clean
    * up any bracket they generated to avoid leaking state into later tests. */
-  if (!sharedBmFinalsReady) {
+  /* Re-seed if the pair tests reduced qualifications to 2 (see comment in
+   * tc-gp.js:prepareSharedGpFinalsSetup). */
+  const bmData = await apiFetchBm(adminPage, tournamentId);
+  const qualCount = (bmData.qualifications || bmData.data?.qualifications || []).length;
+  if (!sharedBmFinalsReady || qualCount < 28) {
     await setupBmQualViaUi(adminPage, tournamentId, players);
     sharedBmFinalsReady = true;
   }
@@ -349,7 +353,9 @@ async function runTc512(adminPage) {
       return r.status;
     }, [tournamentId, match.id]);
 
-    /* PATCH with tvNumber=5 — must return 422 */
+    /* PATCH with tvNumber=5 — must return 400 (handleValidationError returns
+     * HTTP 400 with code=VALIDATION_ERROR; older comments said 422 but the
+     * factory in src/lib/error-handling.ts has always emitted 400). */
     const bad5 = await adminPage.evaluate(async ([tid, mid]) => {
       const r = await fetch(`/api/tournaments/${tid}/bm`, {
         method: 'PATCH',
@@ -369,7 +375,7 @@ async function runTc512(adminPage) {
       return r.status;
     }, [tournamentId, match.id]);
 
-    const pass = ok4 === 200 && bad5 === 422 && okNull === 200;
+    const pass = ok4 === 200 && bad5 === 400 && okNull === 200;
     log('TC-512', pass ? 'PASS' : 'FAIL',
       !pass ? `tvNumber=4 → ${ok4}, tvNumber=5 → ${bad5}, tvNumber=null → ${okNull}` : '');
   } catch (err) {
@@ -415,7 +421,11 @@ async function runTc513(adminPage) {
     await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
     await anonPage.waitForTimeout(8000);
     const anonText = await anonPage.innerText('body');
-    const anonHasPrompt = anonText.includes('Sign in to report scores');
+    /* Accept either locale — the persistent admin profile defaults to EN, but a
+     * fresh anon context follows the system Accept-Language and lands on JA on
+     * dev machines. */
+    const anonHasPrompt = anonText.includes('Sign in to report scores')
+      || anonText.includes('スコアを報告するにはログインしてください');
     await anonContext.close();
 
     /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
@@ -430,10 +440,13 @@ async function runTc513(adminPage) {
       adminText.includes('Open score entry page') ||
       adminText.includes('スコア入力ページを開く');
 
-    /* 3. Authenticated player sees score entry guidance + button */
+    /* 3. Authenticated player sees score entry guidance + button.
+     *  loginPlayerBrowser returns `{ browser, context, page }` — destructure
+     *  the page directly rather than calling .contexts() on the returned
+     *  object (which is not a Browser handle). */
     await ensurePlayerPassword(adminPage, player1);
-    const playerBrowser = await loginPlayerBrowser(player1.nickname, player1.password);
-    const playerPage = playerBrowser.contexts()[0].pages()[0];
+    const { browser: playerBrowser, page: playerPage } =
+      await loginPlayerBrowser(player1.nickname, player1.password);
     await playerPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
     await playerPage.waitForTimeout(8000);
     const playerText = await playerPage.innerText('body');
@@ -1166,22 +1179,30 @@ async function runTc519(adminPage) {
      * have completed yet to populate the loser slots. */
     const bodyText = await adminPage.locator('body').innerText();
 
-    /* Find the losers bracket section — look for the "Losers Bracket" heading
-     * or the match cards M8/M9. We verify TBD appears near M8/M9 context. */
-    const m8Card = adminPage.locator('[role="button"]').filter({ hasText: /M8/ }).first();
-    const m9Card = adminPage.locator('[role="button"]').filter({ hasText: /M9/ }).first();
+    /* Locate cards via the dedicated `data-testid="bracket-match-card"` (added
+     * in commit bcf769d for TC-523), then filter by exact "M8"/"M9" text so a
+     * card whose text just happens to contain "M8" as a substring (e.g. "M85"
+     * from a future bracket size, or a connector hint) doesn't shadow the
+     * real card. */
+    const m8Card = adminPage.locator('[data-testid="bracket-match-card"]')
+      .filter({ hasText: /\bM8\b/ }).first();
+    const m9Card = adminPage.locator('[data-testid="bracket-match-card"]')
+      .filter({ hasText: /\bM9\b/ }).first();
     const hasM8 = await m8Card.count() > 0;
     const hasM9 = await m9Card.count() > 0;
 
-    /* TBD should be rendered as player names in the losers_r1 cards.
-     * The card text contains the match number and both player rows. */
+    /* TBD should be rendered as player names in the losers_r1 cards. The
+     * label is i18n: en="TBD", ja="未定". Persistent profile may run in either
+     * locale (admin preferences), so accept both. */
     let m8Text = '';
     let m9Text = '';
     if (hasM8) m8Text = await m8Card.innerText();
     if (hasM9) m9Text = await m9Card.innerText();
 
-    const m8Tbd = m8Text.split('TBD').length - 1 >= 2; /* both players TBD */
-    const m9Tbd = m9Text.split('TBD').length - 1 >= 2;
+    const countTbd = (t) =>
+      (t.match(/TBD/g)?.length ?? 0) + (t.match(/未定/g)?.length ?? 0);
+    const m8Tbd = countTbd(m8Text) >= 2; /* both players TBD */
+    const m9Tbd = countTbd(m9Text) >= 2;
 
     log('TC-519', hasM8 && hasM9 && m8Tbd && m9Tbd ? 'PASS' : 'FAIL',
       !hasM8 ? 'M8 card not found in bracket'
@@ -1354,10 +1375,13 @@ async function runTc521(adminPage) {
   }
 }
 
-/* ───────── TC-522: BM finals tvNumber via PUT (Issue #634) ─────────
- * Verifies that the finals route's putAdditionalFields now includes tvNumber:
+/* ───────── TC-522: BM finals tvNumber via PATCH (Issue #634/#651) ─────────
+ * The finals PUT requires score1+score2 (it's the score-submit path); tvNumber
+ * is only stored alongside scores there. Standalone TV# saves go through the
+ * dedicated PATCH endpoint added for the bracket-card "select to save TV#"
+ * flow (commit aebe4f3). This test exercises that PATCH:
  *   - tvNumber=2 → 200, value persisted on the match
- *   - tvNumber=5 → 422 (exceeds MAX_TV_NUMBER=4)
+ *   - tvNumber=5 → 400 (exceeds MAX_TV_NUMBER=4; handleValidationError → 400)
  *   - tvNumber=null → 200 (clears TV assignment) */
 async function runTc522(adminPage) {
   let setup = null;
@@ -1370,40 +1394,23 @@ async function runTc522(adminPage) {
     const m1 = matches.find((m) => m.matchNumber === 1);
     if (!m1) throw new Error('Bracket missing match 1');
 
-    /* PUT tvNumber=2 — valid range is 1–4 */
-    const res2 = await adminPage.evaluate(async ([url, body]) => {
+    const patchTv = async (tvNumber) => adminPage.evaluate(async ([url, body]) => {
       const r = await fetch(url, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 2 }]);
+      return { s: r.status };
+    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber }]);
 
+    const res2 = await patchTv(2);
     const after2 = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
     const tvSaved = after2.find((m) => m.id === m1.id)?.tvNumber === 2;
 
-    /* PUT tvNumber=5 — must be rejected (422) */
-    const res5 = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: 5 }]);
+    const res5 = await patchTv(5);
+    const resNull = await patchTv(null);
 
-    /* PUT tvNumber=null — must clear TV (200) */
-    const resNull = await adminPage.evaluate(async ([url, body]) => {
-      const r = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status };
-    }, [`/api/tournaments/${setup.tournamentId}/bm/finals`, { matchId: m1.id, tvNumber: null }]);
-
-    const pass = res2.s === 200 && tvSaved && res5.s === 422 && resNull.s === 200;
+    const pass = res2.s === 200 && tvSaved && res5.s === 400 && resNull.s === 200;
     log('TC-522', pass ? 'PASS' : 'FAIL',
       !pass ? `tvNumber=2 → ${res2.s} (saved=${tvSaved}), tvNumber=5 → ${res5.s}, tvNumber=null → ${resNull.s}` : '');
   } catch (err) {
