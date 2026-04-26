@@ -286,7 +286,7 @@ export async function POST(
      */
     // Explicit payload type so TypeScript knows `.player.nickname` is
     // safe on each entry after the later findMany runs with the include.
-    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: { select: PLAYER_PUBLIC_SELECT } } }>[] = [];
+    let createdEntries: Prisma.TTEntryGetPayload<{ include: { player: { select: typeof PLAYER_PUBLIC_SELECT } } }>[] = [];
 
     if (playerIds.length > 0) {
       const existingEntries = await prisma.tTEntry.findMany({

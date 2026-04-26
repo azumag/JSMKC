@@ -24,3 +24,16 @@ export const PLAYER_PUBLIC_SELECT = {
   country: true,
   noCamera: true,
 } as const;
+
+/**
+ * Variant that additionally exposes `userId` for endpoints that have to
+ * cross-check the linked NextAuth user against the current session
+ * (score-report authorisation, participant edit). The field is not safe
+ * to surface in public API responses, so this select shape MUST stay
+ * confined to authorisation-aware code paths and never be returned
+ * verbatim to non-admin clients.
+ */
+export const PLAYER_AUTH_SELECT = {
+  ...PLAYER_PUBLIC_SELECT,
+  userId: true,
+} as const;

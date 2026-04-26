@@ -402,7 +402,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
 
         await Promise.all(byeRecipientList.map(async (playerId) => {
           const playerByeMatches = allByeMatches.filter(
-            (m) => m.player1Id === playerId || m.player2Id === playerId,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (m: any) => m.player1Id === playerId || m.player2Id === playerId,
           );
           const stats = config.aggregatePlayerStats(
             playerByeMatches,
