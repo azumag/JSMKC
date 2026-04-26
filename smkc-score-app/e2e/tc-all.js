@@ -2500,11 +2500,8 @@ async function main() {
   } catch (err) {
     log('TC-339', 'FAIL', err instanceof Error ? err.message : 'Independent mode publish test failed');
   } finally {
-    if (tc339TournamentId) {
-      await page.evaluate(async (tid) => {
-        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
-      }, tc339TournamentId).catch(() => {});
-    }
+    /* Must set status→draft first; DELETE rejects non-draft tournaments (issue #667). */
+    if (tc339TournamentId) await deleteTournament(page, tc339TournamentId);
   }
 
   // TC-340: Layout publish button — "Unpublished" badge disappears from tab after publishing TA
@@ -2574,11 +2571,8 @@ async function main() {
   } catch (err) {
     log('TC-340', 'FAIL', err instanceof Error ? err.message : 'Layout badge toggle test failed');
   } finally {
-    if (tc340TournamentId) {
-      await page.evaluate(async (tid) => {
-        await fetch(`/api/tournaments/${tid}`, { method: 'DELETE' }).catch(() => {});
-      }, tc340TournamentId).catch(() => {});
-    }
+    /* Must set status→draft first; DELETE rejects non-draft tournaments (issue #667). */
+    if (tc340TournamentId) await deleteTournament(page, tc340TournamentId);
   }
 
   // TC-341: Authenticated player can access private tournament detail API (publicModes: [])
@@ -2706,6 +2700,217 @@ async function main() {
       log('TC-344', 'FAIL', err instanceof Error ? err.message : 'noCamera flag test failed');
     } finally {
       if (tc344PlayerId) await deletePlayer(page, tc344PlayerId);
+    }
+  }
+
+  // TC-345: Duplicate TV number rejected in qualification round (issue #668)
+  // Verifies that assigning the same TV number to two different matches in the
+  // same round returns 400. Uses an isolated 2-player BM tournament so this
+  // test is independent of the shared 28-player setup.
+  {
+    let tc345TournamentId = null;
+    let tc345P1Id = null;
+    let tc345P2Id = null;
+    let tc345P3Id = null;
+    let tc345P4Id = null;
+    try {
+      const ts345 = Date.now();
+      const p345a = await uiCreatePlayer(page, 'E2E TV Dup A', `e2e_tvdup_a_${ts345}`);
+      tc345P1Id = p345a.id;
+      const p345b = await uiCreatePlayer(page, 'E2E TV Dup B', `e2e_tvdup_b_${ts345}`);
+      tc345P2Id = p345b.id;
+      const p345c = await uiCreatePlayer(page, 'E2E TV Dup C', `e2e_tvdup_c_${ts345}`);
+      tc345P3Id = p345c.id;
+      const p345d = await uiCreatePlayer(page, 'E2E TV Dup D', `e2e_tvdup_d_${ts345}`);
+      tc345P4Id = p345d.id;
+
+      tc345TournamentId = await uiCreateTournament(page, `E2E TC-345 TV Dup ${ts345}`);
+      await uiActivateTournament(page, tc345TournamentId);
+
+      // Set up BM with 4 players in group A — creates 2 non-BYE matches in the same round
+      const bmSetup345 = await page.evaluate(async ([tid, p1, p2, p3, p4]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [
+            { playerId: p1, group: 'A' },
+            { playerId: p2, group: 'A' },
+            { playerId: p3, group: 'A' },
+            { playerId: p4, group: 'A' },
+          ] }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [tc345TournamentId, tc345P1Id, tc345P2Id, tc345P3Id, tc345P4Id]);
+      if (bmSetup345.s !== 201) throw new Error(`BM setup failed (${bmSetup345.s})`);
+
+      // Fetch matches to find two matches in the same round
+      const bmData345 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`);
+        return r.json().catch(() => ({}));
+      }, tc345TournamentId);
+      const matches345 = bmData345.data?.matches ?? bmData345.matches ?? [];
+      if (matches345.length < 2) throw new Error(`Expected ≥2 matches, got ${matches345.length}`);
+
+      // Assign TV1 to first match — should succeed
+      const patch1 = await page.evaluate(async ([tid, mid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: mid, tvNumber: 1 }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [tc345TournamentId, matches345[0].id]);
+      const firstOk = patch1.s === 200;
+
+      // Assign TV1 to second match in same round — must be rejected (409/400)
+      const sameRound345 = matches345.filter((m) => m.round === matches345[0].round);
+      const secondMatchId = sameRound345.length > 1 ? sameRound345[1].id : matches345[1]?.id;
+      const patch2 = await page.evaluate(async ([tid, mid]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: mid, tvNumber: 1 }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [tc345TournamentId, secondMatchId]);
+      const dupRejected = patch2.s === 400 || patch2.s === 409;
+
+      log('TC-345', firstOk && dupRejected ? 'PASS' : 'FAIL',
+        !firstOk ? `First TV1 assignment failed (${patch1.s})`
+        : !dupRejected ? `Duplicate TV1 was accepted (${patch2.s}) — uniqueness guard missing`
+        : '');
+    } catch (err) {
+      log('TC-345', 'FAIL', err instanceof Error ? err.message : 'TV duplicate test failed');
+    } finally {
+      if (tc345TournamentId) await deleteTournament(page, tc345TournamentId);
+      if (tc345P1Id) await deletePlayer(page, tc345P1Id);
+      if (tc345P2Id) await deletePlayer(page, tc345P2Id);
+      if (tc345P3Id) await deletePlayer(page, tc345P3Id);
+      if (tc345P4Id) await deletePlayer(page, tc345P4Id);
+    }
+  }
+
+  // TC-346: Loser bracket slot TBD detection after partial QF completion (issue #669)
+  // After bracket creation, all losers_r1 match player IDs are identical placeholders
+  // (player1Id === player2Id). After one QF match completes and its loser is routed,
+  // the losers_r1 match should have player1Id ≠ player2Id (one real, one placeholder).
+  // The UI must show the real player name for the filled slot and "TBD" for the unfilled.
+  // This test covers the API-level invariant; the component fix is covered by the type check.
+  {
+    let tc346TournamentId = null;
+    let tc346Players = [];
+    try {
+      const ts346 = Date.now();
+      const playerNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((l) => `e2e_lb_${l}_${ts346}`);
+      for (const nick of playerNames) {
+        const p = await uiCreatePlayer(page, `E2E LB ${nick}`, nick);
+        tc346Players.push(p.id);
+      }
+      tc346TournamentId = await uiCreateTournament(page, `E2E TC-346 LB TBD ${ts346}`);
+      await uiActivateTournament(page, tc346TournamentId);
+
+      // Enroll all 8 players in BM qualification (4 per group)
+      const bmSetup346 = await page.evaluate(async ([tid, pids]) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: [
+            { playerId: pids[0], group: 'A' }, { playerId: pids[1], group: 'A' },
+            { playerId: pids[2], group: 'A' }, { playerId: pids[3], group: 'A' },
+            { playerId: pids[4], group: 'B' }, { playerId: pids[5], group: 'B' },
+            { playerId: pids[6], group: 'B' }, { playerId: pids[7], group: 'B' },
+          ] }),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, [tc346TournamentId, tc346Players]);
+      if (bmSetup346.s !== 201) throw new Error(`BM setup failed (${bmSetup346.s})`);
+
+      // Give each player a score so they can be ranked for finals seeding
+      const bmMatches346 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`);
+        const j = await r.json().catch(() => ({}));
+        return j.data?.matches ?? j.matches ?? [];
+      }, tc346TournamentId);
+
+      // Complete all qualification matches with distinct scores (score1 > score2 always)
+      for (const m of bmMatches346) {
+        if (!m.completed && m.player1?.id && m.player2?.id) {
+          await page.evaluate(async ([tid, mid]) => {
+            await fetch(`/api/tournaments/${tid}/bm`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ matchId: mid, score1: 4, score2: 1 }),
+            });
+          }, [tc346TournamentId, m.id]);
+        }
+      }
+
+      // Confirm qualification so finals can be created
+      await page.evaluate(async (tid) => {
+        await fetch(`/api/tournaments/${tid}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qualificationConfirmed: true }),
+        });
+      }, tc346TournamentId);
+
+      // Create the 8-player finals bracket
+      const finalsCreate346 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm/finals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        return { s: r.status, b: await r.json().catch(() => ({})) };
+      }, tc346TournamentId);
+      if (finalsCreate346.s !== 200 && finalsCreate346.s !== 201) {
+        throw new Error(`Finals bracket creation failed (${finalsCreate346.s})`);
+      }
+
+      // Fetch the bracket
+      const finalsData346 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm/finals`);
+        return r.json().catch(() => ({}));
+      }, tc346TournamentId);
+      const allMatches346 = finalsData346.data?.matches ?? finalsData346.matches ?? [];
+
+      // Verify: all losers_r1 matches initially have player1Id === player2Id (placeholder state)
+      const losersR1 = allMatches346.filter((m) => m.round === 'losers_r1');
+      const allPlaceholder = losersR1.length > 0 && losersR1.every((m) => m.player1Id === m.player2Id);
+
+      // Complete one WB QF match so its loser is routed into losers_r1
+      const qfMatches346 = allMatches346.filter((m) => m.round === 'winners_qf');
+      let partiallyFilled = false;
+      if (qfMatches346.length > 0) {
+        const firstQf = qfMatches346[0];
+        await page.evaluate(async ([tid, mid]) => {
+          await fetch(`/api/tournaments/${tid}/bm/finals`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId: mid, score1: 5, score2: 0 }),
+          });
+        }, [tc346TournamentId, firstQf.id]);
+
+        // Re-fetch bracket; the losers_r1 match fed by this QF should now have player1Id ≠ player2Id
+        const finalsAfter346 = await page.evaluate(async (tid) => {
+          const r = await fetch(`/api/tournaments/${tid}/bm/finals`);
+          return r.json().catch(() => ({}));
+        }, tc346TournamentId);
+        const matchesAfter = finalsAfter346.data?.matches ?? finalsAfter346.matches ?? [];
+        const losersR1After = matchesAfter.filter((m) => m.round === 'losers_r1');
+        // At least one losers_r1 match should now have player1Id ≠ player2Id (one slot filled by QF loser)
+        partiallyFilled = losersR1After.some((m) => m.player1Id !== m.player2Id);
+      }
+
+      log('TC-346',
+        allPlaceholder && partiallyFilled ? 'PASS' : 'FAIL',
+        !allPlaceholder ? `losers_r1 initial placeholder check failed (${losersR1.length} matches, allSame=${allPlaceholder})`
+        : !partiallyFilled ? 'After QF completion, no losers_r1 match was partially filled (routing failed?)'
+        : '');
+    } catch (err) {
+      log('TC-346', 'FAIL', err instanceof Error ? err.message : 'Loser bracket TBD test failed');
+    } finally {
+      if (tc346TournamentId) await deleteTournament(page, tc346TournamentId);
+      for (const pid of tc346Players) await deletePlayer(page, pid);
     }
   }
 

@@ -47,16 +47,6 @@ export default function Home() {
         <p className="mt-5 max-w-xl text-base sm:text-lg text-muted-foreground">
           {t('tagline')}
         </p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Button asChild size="lg">
-            <Link href="/tournaments">{t('viewTournamentsButton')}</Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/players">
-              {isAdmin ? t('managePlayers') : t('viewPlayers')}
-            </Link>
-          </Button>
-        </div>
       </section>
 
       {/* Entry panels */}
