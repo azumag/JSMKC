@@ -1208,8 +1208,11 @@ describe('Qualification Route Factory', () => {
       };
       /* PATCH now short-circuits with 404 when the match doesn't belong to
        * the tournament (IDOR prevention via findFirst). Provide a stub so
-       * the update path runs. */
-      (prisma.bMMatch as any).findFirst.mockResolvedValue(mockMatch);
+       * the update path runs. The second findFirst is the TV# uniqueness check;
+       * null means no conflict. */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce(mockMatch)  // IDOR check: match found
+        .mockResolvedValueOnce(null);       // uniqueness check: no conflict
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -1244,7 +1247,10 @@ describe('Qualification Route Factory', () => {
         player1: { id: 'p1', nickname: 'Alice' },
         player2: { id: 'p2', nickname: 'Bob' },
       };
-      (prisma.bMMatch as any).findFirst.mockResolvedValue(mockMatch);
+      /* Two findFirst calls: IDOR check (returns match) + uniqueness check (null = no conflict) */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce(null);
       (prisma.bMMatch as any).update.mockResolvedValue(mockMatch);
 
       const config = createMockConfig();
@@ -1431,6 +1437,10 @@ describe('Qualification Route Factory', () => {
 
     it('should return 500 on database error', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
+      /* IDOR check passes, uniqueness check finds no conflict, then update throws. */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce({ id: 'match-1', round: 'round-1', tournamentId: 'tournament-123' })
+        .mockResolvedValueOnce(null);
       (prisma.bMMatch as any).update.mockRejectedValue(new Error('DB error'));
 
       const config = createMockConfig();

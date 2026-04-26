@@ -1649,7 +1649,10 @@ describe('Finals Route Factory', () => {
     it('updates tvNumber on a finals match without touching scores', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
       const existing = createMockMatch({ id: 'match-1', stage: 'finals', tvNumber: null });
-      (prisma.bMMatch as any).findFirst.mockResolvedValue(existing);
+      /* Two findFirst calls: IDOR check (returns match) + uniqueness check (null = no conflict) */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(null);
       (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, tvNumber: 2 });
 
       const { PATCH } = createFinalsHandlers(createMockConfig());
