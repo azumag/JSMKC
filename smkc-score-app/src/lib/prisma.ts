@@ -28,6 +28,40 @@ import { recordQuery } from '@/lib/perf/query-counter';
 const clientCache = new WeakMap<D1Database, PrismaClient>();
 
 /*
+ * Per-request session cache for D1 Read Replication.
+ *
+ * `env.DB` is a fresh binding instance per Worker invocation, so storing
+ * the resulting session on a WeakMap keyed by that binding gives us a
+ * single session per request without any explicit teardown — the binding
+ * (and therefore the session) is GC'd when the request finishes.
+ *
+ * `withSession()` is what tells D1 it can serve reads from a regional
+ * replica while still routing writes to the primary and ensuring
+ * "read-your-own-writes" within this Worker invocation. On runtimes
+ * without read replication enabled (local `wrangler dev`, older
+ * compatibility dates) the method is undefined, in which case we fall
+ * back to the primary binding so the rest of the code path is unchanged.
+ *
+ * The Prisma client cache is keyed by the *session* binding, not the raw
+ * binding, so all queries in a request share one session-aware client.
+ */
+type SessionCapable = D1Database & {
+  withSession?: (constraintOrBookmark?: string) => D1Database;
+};
+const sessionCache = new WeakMap<D1Database, D1Database>();
+
+function getSessionDb(raw: D1Database): D1Database {
+  const cached = sessionCache.get(raw);
+  if (cached) return cached;
+  const withSession = (raw as SessionCapable).withSession;
+  const session = typeof withSession === 'function'
+    ? withSession.call(raw)
+    : raw;
+  sessionCache.set(raw, session);
+  return session;
+}
+
+/*
  * Performance instrumentation. When PERF_LOG=1, every Prisma operation is
  * wrapped via $extends so we can:
  *   1. Record per-query duration into the current request's AsyncLocalStorage
@@ -47,7 +81,8 @@ const perfLog = createLogger('prisma-perf');
 
 function getOrCreateClient(): PrismaClient {
   const { env } = getCloudflareContext();
-  const db = env.DB as unknown as D1Database;
+  const rawDb = env.DB as unknown as D1Database;
+  const db = getSessionDb(rawDb);
   let client = clientCache.get(db);
   if (!client) {
     const adapter = new PrismaD1(db);
