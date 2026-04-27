@@ -395,10 +395,20 @@ async function normalizeRoundStartingCoursesToSingleValue(
      *   - distinctValues === 1 && totalWithValue < roundMatchCount: one value exists
      *     but some matches still have null — fill the gaps with the dominant value.
      *
-     * All-null rounds (distinctValues === 0) are intentionally skipped.
-     * New brackets are created with values from createBmRoundStartingCourses, so
-     * an all-null round means the admin explicitly cleared it via PATCH. Re-filling
-     * would silently undo that intentional clear (TC-525). */
+     * All-null rounds (distinctValues === 0) are intentionally skipped (#771).
+     * New brackets are always created with values from createBmRoundStartingCourses,
+     * so an all-null round is treated as an intentional admin clear via PATCH.
+     * Re-filling would silently undo that clear (TC-525).
+     *
+     * LEGACY NOTE (#776): Brackets created before createBmRoundStartingCourses was
+     * introduced are also all-null and cannot be distinguished from intentional clears.
+     * Those legacy rounds stay unrepaired. To backfill them run on the production D1:
+     *   SELECT tournamentId, round, COUNT(*) c FROM BMMatch
+     *   WHERE stage IN ('finals','playoff') AND startingCourseNumber IS NULL
+     *   GROUP BY tournamentId, round
+     *   HAVING c = (SELECT COUNT(*) FROM BMMatch m2
+     *               WHERE m2.tournamentId=BMMatch.tournamentId AND m2.round=BMMatch.round);
+     * If meaningful data is found, apply a targeted one-time migration. */
     if (distinctValues > 1 || (distinctValues === 1 && totalWithValue < roundMatchCount)) {
       roundsNeedingRepair.add(round);
     }
