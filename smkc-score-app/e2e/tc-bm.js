@@ -1940,6 +1940,42 @@ async function runTc530(adminPage) {
   }
 }
 
+/* ───────── TC-531: BM finals bracket UI shows startingCourseNumber under round header (issue #731) ─────────
+ * After bracket generation, the /bm/finals page must display "バトルコース N"
+ * below at least one round name heading in the Winners bracket section. */
+async function runTc531(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await adminPage.goto(`/tournaments/${tournamentId}/bm/finals`, { waitUntil: 'networkidle' });
+
+    /* Wait for bracket content to load — look for a match card or round header */
+    await adminPage.waitForFunction(
+      () => document.body.textContent?.includes('バトルコース') || document.body.textContent?.includes('Battle Course'),
+      { timeout: 15000 },
+    );
+
+    const hasCourseLabel = await adminPage.evaluate(() =>
+      document.body.textContent?.includes('バトルコース') || document.body.textContent?.includes('Battle Course'),
+    );
+    log('TC-531', hasCourseLabel ? 'PASS' : 'FAIL',
+      hasCourseLabel ? '' : 'No battle course label found under round headers on /bm/finals page');
+  } catch (err) {
+    log('TC-531', 'FAIL', err instanceof Error ? err.message : 'TC-531 failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1990,6 +2026,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-528', fn: runTc528 },
       { name: 'TC-529', fn: runTc529 },
       { name: 'TC-530', fn: runTc530 },
+      { name: 'TC-531', fn: runTc531 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1998,7 +2035,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

@@ -1054,6 +1054,18 @@
 - **期待結果**: null 値が GET 応答で自動補充され、同一ラウンド内が揃い、後続 GET で値が安定する
 - **スクリプト**: tc-bm.js TC-530
 
+## TC-531: BM 決勝ブラケット — ラウンド名の下に startingCourseNumber が表示される (issue #731)
+- **URL**: /tournaments/[id]/bm/finals (UI)
+- **authRequired**: true (admin)
+- **背景**: issue #731 の要求に基づき、BM 決勝・プレイオフブラケットの各ラウンドヘッダー下に「バトルコース {n}」を表示するようになった。ブラケット生成後に UI ページを開き、コース番号が正しく表示されているかを確認する。
+- **手順**:
+  1. 8名 BM 決勝ブラケットを生成（TC-524 と同じ手順）
+  2. /tournaments/[id]/bm/finals を開く
+  3. 少なくとも 1 つのラウンドヘッダー下に「バトルコース」テキストが表示されていることを確認
+  4. playoff_r1 / playoff_r2 がある場合（topN=24 モード）も同様に確認
+- **期待結果**: winners_qf 等のラウンドヘッダー下に startingCourseNumber が「バトルコース {n}」として表示される
+- **スクリプト**: tc-bm.js TC-531
+
 ---
 
 ## MR (Match Race) フルワークフローテスト

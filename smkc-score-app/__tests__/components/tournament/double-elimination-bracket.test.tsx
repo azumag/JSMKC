@@ -169,3 +169,52 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersQF1!.textContent).toContain(seed8.nickname);
   });
 });
+
+describe("DoubleEliminationBracket startingCourseNumber display (issue #731)", () => {
+  /* Verify that when matches carry a startingCourseNumber, the round header
+   * shows the battle course label below the round name. */
+  const player = { id: "p1", name: "Alice A", nickname: "Alice" };
+  const buildMatchesWithCourse = (courseByRound: Record<string, number>) =>
+    build8PlayerStructure().map((b) => ({
+      id: `m${b.matchNumber}`,
+      matchNumber: b.matchNumber,
+      round: b.round,
+      stage: "finals",
+      player1Id: "p1",
+      player2Id: "p1",
+      score1: 0,
+      score2: 0,
+      completed: false,
+      player1: player,
+      player2: player,
+      startingCourseNumber: b.round && courseByRound[b.round] != null ? courseByRound[b.round] : null,
+    }));
+
+  it("shows battleCourse label under round header when startingCourseNumber is set", () => {
+    const matches = buildMatchesWithCourse({ winners_qf: 2, losers_r1: 3, grand_final: 1 });
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={matches}
+        bracketStructure={build8PlayerStructure()}
+        roundNames={{}}
+      />,
+    );
+    /* finals.battleCourse translation resolves to "Battle Course {number}" in test env */
+    const text = container.textContent || "";
+    expect(text).toContain("Battle Course 2"); /* winners_qf */
+    expect(text).toContain("Battle Course 3"); /* losers_r1 */
+    expect(text).toContain("Battle Course 1"); /* grand_final */
+  });
+
+  it("hides battleCourse label when startingCourseNumber is null", () => {
+    const matches = buildMatchesWithCourse({});
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={matches}
+        bracketStructure={build8PlayerStructure()}
+        roundNames={{}}
+      />,
+    );
+    expect(container.textContent).not.toContain("Battle Course");
+  });
+});
