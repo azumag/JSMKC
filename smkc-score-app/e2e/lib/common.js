@@ -1001,7 +1001,7 @@ async function uiCreatePlayer(page, name, nickname) {
  *  - Observes POST /api/tournaments via waitForResponse to pick up the id.
  *  Returns the new tournament id. */
 async function uiCreateTournament(page, name, opts = {}) {
-  const { dualReportEnabled = false, taPlayerSelfEdit, slug } = opts;
+  const { dualReportEnabled = false, taPlayerSelfEdit, slug, debugMode = false } = opts;
   if (!page.url().includes('/tournaments')) {
     await nav(page, '/tournaments');
   } else {
@@ -1021,14 +1021,16 @@ async function uiCreateTournament(page, name, opts = {}) {
   await dialog.locator('#date').fill(dateStr);
   if (slug) await dialog.locator('#slug').fill(slug);
 
-  /* Default form state: dualReportEnabled=false, taPlayerSelfEdit=true. Only
-   * toggle if the requested value differs from the default to avoid double
-   * clicks that would re-flip the checkbox. */
+  /* Default form state: dualReportEnabled=false, taPlayerSelfEdit=true, debugMode=false.
+   * Only toggle if the requested value differs from default. */
   if (dualReportEnabled) {
     await dialog.locator('#dualReport').check();
   }
   if (taPlayerSelfEdit === false) {
     await dialog.locator('#taPlayerSelfEdit').uncheck();
+  }
+  if (debugMode) {
+    await dialog.locator('#debugMode').check();
   }
 
   const responsePromise = page.waitForResponse((res) =>

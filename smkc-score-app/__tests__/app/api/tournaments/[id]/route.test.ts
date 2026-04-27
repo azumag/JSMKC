@@ -544,6 +544,34 @@ describe('PUT /api/tournaments/[id]', () => {
         data: mockTournament,
       });
     });
+
+    it('should enable debugMode on an existing tournament (#746)', async () => {
+      const mockTournament = { id: 't1', debugMode: true };
+
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (sanitizeMock.sanitizeInput as jest.Mock).mockReturnValue({ debugMode: true });
+      (prisma.tournament.update as jest.Mock).mockResolvedValue(mockTournament);
+      auditLogMock.createAuditLog.mockResolvedValue(undefined);
+      (rateLimitMock.getServerSideIdentifier as jest.Mock).mockResolvedValue('127.0.0.1');
+
+      await tournamentRoute.PUT(
+        new NextRequest('http://localhost:3000/api/tournaments/t1', {
+          method: 'PUT',
+          body: JSON.stringify({ debugMode: true }),
+        }),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { debugMode: true } })
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTournament,
+      });
+    });
   });
 
   describe('Error Cases', () => {
