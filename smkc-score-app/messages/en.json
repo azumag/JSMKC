@@ -250,6 +250,7 @@
     "createTournament": "Create Tournament",
     "dualReportEnabled": "Enable Dual Report (both players must confirm scores)",
     "taPlayerSelfEdit": "Allow players to edit their own TA times (disable for partner-only entry)",
+    "debugMode": "Debug mode (enables auto-fill score buttons for testing)",
     "loadingTournaments": "Loading tournaments...",
     "createNewTournament": "Create New Tournament",
     "enterTournamentDetails": "Enter the tournament details below.",

@@ -250,6 +250,7 @@
     "createTournament": "トーナメント作成",
     "dualReportEnabled": "二重報告を有効にする（両プレイヤーがスコアを確認）",
     "taPlayerSelfEdit": "プレイヤーが自分のTAタイムを編集可能にする（無効時はパートナーのみ入力）",
+    "debugMode": "デバッグモード（テスト用の予選スコア自動入力ボタンを有効化）",
     "loadingTournaments": "トーナメントを読み込み中...",
     "createNewTournament": "新規トーナメント作成",
     "enterTournamentDetails": "トーナメントの詳細を入力してください。",

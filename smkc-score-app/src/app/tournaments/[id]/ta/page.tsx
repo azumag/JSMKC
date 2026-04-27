@@ -60,6 +60,8 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
+import { DebugFillButton } from "@/components/tournament/debug-fill-button";
+import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
@@ -179,9 +181,10 @@ export default function TimeAttackPage({
   // Search query used inside the unified setup dialog
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
-  // Public modes visibility state (for admin toggle).
-  // Development-only flag: inlined at build time, tree-shaken in production
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Tournament-level debug flag controls auto-fill availability.
+  // Replaces the previous NODE_ENV gate so debug tournaments can also be
+  // populated on staging/production for E2E verification.
+  const debugMode = useTournamentDebugMode(tournamentId);
 
   // Fill random times for all courses in the single-player time entry dialog
   const handleFillRandomTimes = () => {
@@ -191,43 +194,6 @@ export default function TimeAttackPage({
     });
     setTimeInputs(randomTimes);
     toast.success('Random times filled for all courses');
-  };
-
-  // Track bulk fill progress (null = not running)
-  const [bulkFillProgress, setBulkFillProgress] = useState<string | null>(null);
-
-  /**
-   * Fill and save random times for ALL players in one click (Dev only).
-   * Sequentially calls the PUT API for each entry to avoid race conditions.
-   */
-  const handleFillAllPlayersTimes = async () => {
-    if (!confirm(`Fill random times for all ${entries.length} players?`)) return;
-    setBulkFillProgress(`0 / ${entries.length}`);
-    let successCount = 0;
-
-    for (const entry of entries) {
-      // Generate random times for all 20 courses
-      const randomTimes: Record<string, string> = {};
-      COURSE_INFO.forEach((course) => {
-        randomTimes[course.abbr] = generateRandomTimeString();
-      });
-
-      try {
-        const response = await fetch(`/api/tournaments/${tournamentId}/ta`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entryId: entry.id, times: randomTimes }),
-        });
-        if (response.ok) successCount++;
-      } catch {
-        // Continue with remaining players even if one fails
-      }
-      setBulkFillProgress(`${successCount} / ${entries.length}`);
-    }
-
-    setBulkFillProgress(null);
-    toast.success(`Random times saved for ${successCount} / ${entries.length} players`);
-    refetch();
   };
 
   // Phase promotion states
@@ -1315,20 +1281,16 @@ export default function TimeAttackPage({
                     ))}
                   </TableBody>
                 </Table>
-                {/* Development-only: Fill random times for ALL players at once */}
-                {isDevelopment && isAdmin && entries.length > 0 && (
+                {/* Debug-mode-only: Fill random times for ALL players via the
+                  * server-side debug-fill API. Skips entries that already have
+                  * a full set of 20 course times. */}
+                {debugMode && isAdmin && entries.length > 0 && (
                   <div className="mt-4">
-                    <Button
-                      onClick={handleFillAllPlayersTimes}
-                      variant="outline"
-                      disabled={bulkFillProgress !== null}
-                      className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
-                    >
-                      <Dice5 className="h-4 w-4 mr-2" />
-                      {bulkFillProgress !== null
-                        ? `Filling... (${bulkFillProgress})`
-                        : `Fill All Players Random Times (${entries.length} players, Dev Only)`}
-                    </Button>
+                    <DebugFillButton
+                      tournamentId={tournamentId}
+                      mode="ta"
+                      onFilled={refetch}
+                    />
                   </div>
                 )}
               </CardContent>
@@ -1483,8 +1445,10 @@ export default function TimeAttackPage({
             </div>
           </div>
           
-          {/* Development-only: Fill random times button (admin only) */}
-          {isDevelopment && isAdmin && (
+          {/* Debug-mode-only: Fill random times in the single-player dialog.
+            * Operates on the local input state — saving requires the user to
+            * still click the dialog's submit button. */}
+          {debugMode && isAdmin && (
             <div className="px-6 py-2">
               <Button
                 onClick={handleFillRandomTimes}
@@ -1493,7 +1457,7 @@ export default function TimeAttackPage({
                 className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
               >
                 <Dice5 className="h-4 w-4 mr-2" />
-                Fill Random Times (Dev Only)
+                Fill Random Times (Debug)
               </Button>
             </div>
           )}

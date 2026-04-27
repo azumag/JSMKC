@@ -24,6 +24,7 @@ const mockPrisma = {
   },
   bMQualification: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
   },
   mRMatch: {
@@ -34,6 +35,7 @@ const mockPrisma = {
   },
   mRQualification: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
   },
   gPMatch: {
@@ -44,6 +46,7 @@ const mockPrisma = {
   },
   gPQualification: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
   },
   tTEntry: {

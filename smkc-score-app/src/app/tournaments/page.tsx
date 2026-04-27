@@ -108,6 +108,7 @@ export default function TournamentsPage() {
     date: "",
     dualReportEnabled: false,
     taPlayerSelfEdit: true,
+    debugMode: false,
   });
   const [error, setError] = useState("");
 
@@ -168,7 +169,7 @@ export default function TournamentsPage() {
       });
 
       if (response.ok) {
-        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true });
+        setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true, debugMode: false });
         setIsAddDialogOpen(false);
         if (currentPage === 1) {
           fetchTournaments();
@@ -284,7 +285,7 @@ export default function TournamentsPage() {
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true })}>
+              <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true, debugMode: false })}>
                 {t('createTournament')}
               </Button>
             </DialogTrigger>
@@ -364,6 +365,20 @@ export default function TournamentsPage() {
                   />
                   <Label htmlFor="taPlayerSelfEdit" className="text-sm font-normal cursor-pointer">
                     {t('taPlayerSelfEdit')}
+                  </Label>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    id="debugMode"
+                    type="checkbox"
+                    checked={formData.debugMode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, debugMode: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="debugMode" className="text-sm font-normal cursor-pointer">
+                    {t('debugMode')}
                   </Label>
                 </div>
               </div>

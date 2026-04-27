@@ -60,6 +60,8 @@ import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { QualificationPlayoffManager } from "@/components/tournament/qualification-playoff-manager";
 import { RankCell } from "@/components/tournament/rank-cell";
 import { TieWarningBanner } from "@/components/tournament/tie-warning-banner";
+import { DebugFillButton } from "@/components/tournament/debug-fill-button";
+import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
@@ -136,6 +138,7 @@ export default function BattleModePage({
   const { data: session } = useSession();
   /* Check admin role for conditional UI rendering */
   const isAdmin = session?.user && session.user.role === 'admin';
+  const debugMode = useTournamentDebugMode(tournamentId);
 
   /* State for group setup dialog */
   const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
@@ -446,6 +449,11 @@ export default function BattleModePage({
             >
               {qualificationConfirmed ? tc('unconfirmQualification') : tc('confirmQualification')}
             </Button>
+          )}
+
+          {/* Debug-only auto-fill button — visible only on tournaments created with debugMode */}
+          {isAdmin && debugMode && !qualificationConfirmed && qualifications.length > 0 && (
+            <DebugFillButton tournamentId={tournamentId} mode="bm" onFilled={refetch} />
           )}
 
           {/* Admin-only bracket reset — visible only when a bracket exists */}

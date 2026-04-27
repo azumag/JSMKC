@@ -139,6 +139,7 @@ model Tournament {
   bmQualificationConfirmed Boolean @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可
   mrQualificationConfirmed Boolean @default(false) // MRモード予選確定フラグ。trueの場合MRスコア編集不可
   gpQualificationConfirmed Boolean @default(false) // GPモード予選確定フラグ。trueの場合GPスコア編集不可
+  debugMode     Boolean  @default(false) // デバッグ用トーナメント。trueの場合、admin に予選スコア自動入力ボタンを表示
   publicModes   Json     @default("[]") // 公開中のモード配列。空の場合全モード非表示（新建時は非公開）
   deletedAt     DateTime? // ソフトデリート用タイムスタンプ
   version       Int      @default(0) // 楽観的ロック用

@@ -80,6 +80,7 @@ export async function GET(
             publicModes: true,
             frozenStages: true,
             qualificationConfirmed: true,
+            debugMode: true,
             createdAt: true,
             updatedAt: true,
           }
@@ -92,6 +93,7 @@ export async function GET(
             publicModes: true,
             frozenStages: true,
             qualificationConfirmed: true,
+            debugMode: true,
             createdAt: true,
             updatedAt: true,
             bmQualifications: {
@@ -123,6 +125,17 @@ export async function GET(
     const publicModes = tournament.publicModes as string[] || [];
     if (!isAuthenticated && publicModes.length === 0) {
       return handleAuthzError("This tournament has no visible modes");
+    }
+
+    // `debugMode` exposes internal QA state and signals which tournaments
+    // accept the auto-fill API. Hide it from non-admin callers entirely so
+    // it's not visible to scrapers or curious users probing the public
+    // summary endpoint. Admins still see the flag (used to render the
+    // auto-fill button on qualification pages).
+    if (!isAdmin && 'debugMode' in tournament) {
+      const { debugMode: _hiddenDebugMode, ...rest } = tournament as { debugMode?: boolean } & Record<string, unknown>;
+      void _hiddenDebugMode;
+      return createSuccessResponse(rest);
     }
 
     return createSuccessResponse(tournament);

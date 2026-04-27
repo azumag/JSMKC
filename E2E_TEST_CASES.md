@@ -1834,6 +1834,78 @@
 
 ---
 
+## TC-DBG-01: デバッグモードトーナメント作成 → 4モード予選スコア自動入力
+- **URL**: POST /api/tournaments, POST /api/tournaments/:id/{bm,mr,gp,ta}/debug-fill
+- **authRequired**: true (admin)
+- **背景**: トーナメント作成時に「デバッグモード」チェックを ON にすると、
+  `Tournament.debugMode = true` で保存される。各モード予選ページに admin
+  限定の「予選スコア自動入力」ボタンが表示され、押下するとサーバ側で
+  全試合に有効な乱数スコアが入る。本番環境でも E2E 検証用に使える。
+- **手順**:
+  1. admin で `POST /api/tournaments` body に `debugMode: true` を含めて作成
+  2. プレイヤー 8 名追加
+  3. BM/MR/GP/TA それぞれの予選 setup を実行（POST `/api/tournaments/:id/{mode}`）
+  4. 各モードで `POST /api/tournaments/:id/{mode}/debug-fill` を呼ぶ
+  5. 各モードの GET でスコアが入っていること、順位表が描画されることを確認
+- **期待結果**:
+  - 4 モードすべてで `success: true, data: { filled: N, skipped: 0 }` が返る
+  - BM/MR の score1+score2 はすべて 4
+  - GP の各試合で `races.length === 5`, position 重複なし
+  - TA の各エントリーで `Object.keys(times).length === 20`
+  - 順位表に `winRounds`/`points`/`qualificationPoints` が反映される
+- **スクリプト**: 未スクリプト化（手動 / E2E ループ追加予定）
+
+---
+
+## TC-DBG-02: 通常モードトーナメントでは debug-fill が拒否される
+- **URL**: POST /api/tournaments/:id/{bm,mr,gp,ta}/debug-fill
+- **authRequired**: true (admin)
+- **背景**: `debugMode = false` のトーナメントでは、admin であってもサーバが
+  `403 DEBUG_MODE_DISABLED` で拒否する（誤操作・本番事故の防止）。
+- **手順**:
+  1. `debugMode` を **付けずに**通常トーナメントを作成
+  2. プレイヤー 8 名 + 各モード予選 setup
+  3. `POST /api/tournaments/:id/bm/debug-fill` を admin で呼ぶ
+- **期待結果**:
+  - HTTP 403, `error.code === 'DEBUG_MODE_DISABLED'`
+  - 試合の score1/score2 はすべて 0 のまま
+  - UI（BM/MR/GP/TA ページ）に「予選スコア自動入力」ボタンが**表示されない**
+
+---
+
+## TC-DBG-03: 既入力試合は debug-fill で上書きされない
+- **URL**: POST /api/tournaments/:id/bm/debug-fill
+- **authRequired**: true (admin)
+- **背景**: debug-fill は「未入力試合のみ埋める」仕様。既に admin が手で入力した
+  スコアや確定済み結果は保持する（idempotent な再実行を可能にする）。
+- **手順**:
+  1. debug トーナメント + BM 予選 setup
+  2. 試合の中から 1 件だけ手動で 4-0 を入れて完了させる
+  3. `POST .../bm/debug-fill` を実行
+  4. レスポンス `data.filled` と `data.skipped` を確認
+  5. 手で入れた試合の score1/score2 が 4-0 のまま保持されていること
+- **期待結果**:
+  - `data.filled` = 残り未入力試合数
+  - `data.skipped` ≧ 1 （手で入れた試合 + bye 試合）
+  - 手で入れた試合のスコアは保持
+
+---
+
+## TC-DBG-04: 確定済みグループは debug-fill でロックされる
+- **URL**: POST /api/tournaments/:id/{bm,mr,gp}/debug-fill
+- **authRequired**: true (admin)
+- **背景**: 各モード `*QualificationConfirmed = true` のときは予選編集不可。
+  debug-fill もこの lock に従い、409 を返してフェイルクローズする。
+- **手順**:
+  1. debug トーナメント + BM 予選 setup
+  2. BM 予選確定 (`PUT /api/tournaments/:id` で `bmQualificationConfirmed: true`)
+  3. `POST .../bm/debug-fill` を実行
+- **期待結果**:
+  - HTTP 409, `error.code === 'QUALIFICATION_LOCKED'`
+  - 試合スコアは変更されない
+
+---
+
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）

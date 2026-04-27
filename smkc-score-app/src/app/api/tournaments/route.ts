@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
   try {
     // Sanitize input to prevent XSS and injection attacks
     const body = sanitizeInput(await request.json());
-    const { name, date, dualReportEnabled, taPlayerSelfEdit } = body;
+    const { name, date, dualReportEnabled, taPlayerSelfEdit, debugMode } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
     // Validate required fields
@@ -135,6 +135,7 @@ export async function POST(request: NextRequest) {
         status: "draft",
         dualReportEnabled: dualReportEnabled === true,
         taPlayerSelfEdit: taPlayerSelfEdit !== false,
+        debugMode: debugMode === true,
         publicModes: [],
       },
     });
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
           name,
           slug,
           date,
+          debugMode: debugMode === true,
         },
       });
     } catch (logError) {
