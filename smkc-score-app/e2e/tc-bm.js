@@ -425,12 +425,15 @@ async function runTc513(adminPage) {
     const anonContext = await chromium.launchPersistentContext('/tmp/playwright-smkc-anon', { headless: true });
     const anonPage = await anonContext.newPage();
     await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
-    /* 20s: NextAuth sessionStatus may stay 'loading' during D1 cold start
-     * (issue #678 class-C). Active poll is faster than a fixed sleep when warm. */
+    /* 35s: NextAuth sessionStatus stays 'loading' until D1 resolves the session lookup;
+     * D1 cold starts can exceed 20s (issue #700). Wait for any CTA variant to confirm
+     * hydration is complete before checking for the specific sign-in prompt. */
     await anonPage.waitForFunction(
       () => document.body.innerText.includes('Sign in to report scores') ||
-            document.body.innerText.includes('スコアを報告するにはログインしてください'),
-      null, { timeout: 20000 },
+            document.body.innerText.includes('スコアを報告するにはログインしてください') ||
+            document.body.innerText.includes('Admins can view this shared page') ||
+            document.body.innerText.includes('管理者はこの共有ページを閲覧できます'),
+      null, { timeout: 35000 },
     ).catch(() => {});
     const anonText = await anonPage.innerText('body');
     /* Accept either locale — the persistent admin profile defaults to EN, but a

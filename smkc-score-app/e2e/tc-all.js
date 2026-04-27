@@ -1993,9 +1993,19 @@ async function main() {
         throw new Error(`No version in GET response: ${JSON.stringify(readResp.body).slice(0, 200)}`);
       }
 
-      // Submit PUT with a stale version (currentVersion - 1) and no times — must return 409.
-      // Note: times is intentionally omitted so the partial-times validation (issue #624) is not
-      // triggered before the optimistic-lock check has a chance to run.
+      // A fresh entry has version=0, so (currentVersion-1) = -1 which the server rejects
+      // with 400 before the optimistic-lock comparator runs (#765). Advance the version first
+      // so the stale value is a positive integer that passes input validation.
+      await page.evaluate(async ([tid, eid, v]) => {
+        await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: v }),
+        });
+      }, [tc332TournamentId, entry.id, currentVersion]);
+
+      // Now submit with the original version (now stale since the PUT above bumped it to v+1).
+      // Must return 409, not 400 — the version is valid but behind the current row.
       const conflictResp = await page.evaluate(async ([tid, eid, staleVersion]) => {
         const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
           method: 'PUT',
@@ -2003,7 +2013,7 @@ async function main() {
           body: JSON.stringify({ version: staleVersion }),
         });
         return { status: r.status };
-      }, [tc332TournamentId, entry.id, currentVersion - 1]);
+      }, [tc332TournamentId, entry.id, currentVersion]);
 
       log('TC-332', conflictResp.status === 409 ? 'PASS' : 'FAIL',
         `Expected 409 for stale version, got ${conflictResp.status}`);
