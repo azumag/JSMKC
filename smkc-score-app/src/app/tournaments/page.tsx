@@ -388,7 +388,7 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={isSubmitting}>{t('createTournament')}</Button>
+                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('creating') : t('createTournament')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
