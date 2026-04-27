@@ -59,9 +59,6 @@ export const bmConfig: EventTypeConfig = {
    * Course, distinct from the Bowser Castle racing courses in the racing-mode pool.
    */
   fixedCourseList: ['BC1', 'BC2', 'BC3', 'BC4'] as const,
-  /* §5.4: Each round-robin day gets a random starting Battle Course (1-4) shared
-   * across ALL groups. Different days may differ; same day always shares one course. */
-  assignBmStartingCourseByDay: true,
 
   parsePutBody: (body) => {
     const { matchId, score1, score2, rounds } = body as {

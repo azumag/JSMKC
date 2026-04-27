@@ -967,17 +967,18 @@
 - **期待結果**: 選択即保存。ダイアログを開いたまま TV 番号だけが永続化され、toast が出る
 - **スクリプト**: tc-bm.js TC-523
 
-## TC-525: BM 決勝スコアダイアログ — 開始コースが選択時に自動保存される
-- **背景**: スコアダイアログ内の「開始コース」ドロップダウンは、選択した瞬間に PATCH で永続化され、toast を表示する。スコア保存ボタンを押さなくても保存される（TV# と同じUI）。
+## TC-525: BM 決勝スコアダイアログ — 開始コースが選択時に自動保存され、同一ラウンド全試合へ伝播する
+- **背景**: スコアダイアログ内の「開始コース」ドロップダウンは、選択した瞬間に PATCH で永続化され、toast を表示する。スコア保存ボタンを押さなくても保存される（TV# と同じUI）。仕様（issue #671 / #728）として「同一ラウンド内の全試合は同じ `startingCourseNumber` を持つ」必要があるため、PATCH は対象マッチだけでなく **同じ stage / 同じ round の全マッチ** に同じ値を反映する。
 - **手順**:
   1. 8名ブラケットを生成し `/bm/finals` に移動
-  2. `bracket-match-card` をクリックしてスコアダイアログを開く（matchNumber=1）
+  2. `bracket-match-card` をクリックしてスコアダイアログを開く（matchNumber=1, round=`wb-r1` など複数試合あるラウンド）
   3. 開始コースドロップダウン (`#bm-finals-start-course`) で `2` （バトルコース2）を選択
   4. ダイアログが閉じないことを確認
   5. toast (`courseAssigned` または同等のメッセージ) が表示されることを確認
   6. API で matchNumber=1 の `startingCourseNumber` が 2 に永続化されていることを確認
-  7. `null` （`-`）を選択するとクリアされ、API でも `null` になることを確認
-- **期待結果**: 選択即保存。ダイアログを開いたまま開始コースだけが永続化される
+  7. **同じ round に属する他の全マッチも `startingCourseNumber=2` になっていることを API レスポンスで確認**
+  8. `null` （`-`）を選択するとクリアされ、API でも同じ round の全マッチが `null` になることを確認
+- **期待結果**: 選択即保存。同一ラウンド全試合に同じ値が伝播する。
 - **スクリプト**: tc-bm.js TC-525
 
 ## TC-518: BM 予選 — 2名トーナメントで TV 番号セレクトが描画される
@@ -996,7 +997,7 @@
 ## TC-524: BM 決勝 — ブラケット生成後の startingCourseNumber ランダム割り当て (issue #671)
 - **URL**: /api/tournaments/[id]/bm/finals
 - **authRequired**: true (admin)
-- **背景**: `createBmRoundStartingCourses` が Fisher-Yates シャッフルで [1,2,3,4] をランダム化し、ラウンドごとに同一の開始コースを割り当てる。
+- **背景**: `createBmRoundStartingCourses` が Fisher-Yates シャッフルで [1,2,3,4] をランダム化し、ラウンドごとに同一の開始コースを割り当てる。8 名 / 16 名 / Top-24 の playoff 段すべてで同じ性質を満たす。
 - **手順**:
   1. 8名ブラケットを生成
   2. 全決勝マッチを取得し、`startingCourseNumber` が 1〜4 の整数であることを確認
@@ -1018,16 +1019,40 @@
 - **期待結果**: TV# 割り当ては成功し、noCamera 警告 toast が追加で表示される
 - **スクリプト**: tc-bm.js TC-526
 
-## TC-527: BM 予選 — 同じ round-robin day の全試合が同じ startingCourseNumber を持つ (issue #724)
+## TC-528: BM 予選 — startingCourseNumber は常に null である（リグレッション防止 / issue #728）
 - **URL**: /api/tournaments/[id]/bm (GET)
 - **authRequired**: false (GET)
-- **背景**: BM 予選セットアップ後、同じラウンドロビン Day に属する全実試合が共通の開始コース番号 (1-4) を持つ必要がある (issue #724)。
+- **背景**: BM 予選では「開始コース」割り当ては仕様外。issue #724 で導入された per-day ランダム割り当ては誤実装のため撤去された。予選セットアップ直後の全マッチが `startingCourseNumber === null` であることを保証する。
 - **手順**:
   1. 28名予選済みの共有トーナメントの BM qualification データを GET で取得
-  2. 実試合（BYE でないもの）に `startingCourseNumber` が 1-4 の範囲で存在することを確認
-  3. 同じ `roundNumber` を持つ全試合の `startingCourseNumber` が同一であることを確認
-- **期待結果**: 全実試合が有効な `startingCourseNumber` を持ち、同一 Day 内では全て同じコース番号になる
-- **スクリプト**: tc-bm.js TC-527
+  2. 全マッチ（BYE 含む）の `startingCourseNumber` が `null` であることを確認
+- **期待結果**: BM 予選 API レスポンスのどのマッチも `startingCourseNumber === null`
+- **スクリプト**: tc-bm.js TC-528
+
+## TC-529: BM 決勝 Top-24 経路 — playoff_r1 / playoff_r2 でラウンドごとに startingCourseNumber が揃う (issue #728)
+- **URL**: /api/tournaments/[id]/bm/finals (POST → GET)
+- **authRequired**: true (admin)
+- **背景**: Top-24（24名）モードの BM 決勝は最初に「playoff」ステージ 8 試合（playoff_r1 ×4 + playoff_r2 ×4）を作る。BM 決勝バグ修正（issue #728）後、playoff ステージのマッチも `startingCourseNumber` を持ち、各 round で 4 試合の値が揃う。
+- **手順**:
+  1. 24名以上の予選済みトーナメントで `POST /bm/finals topN=24` を実行（Phase 1: playoff ステージ作成）
+  2. `GET /bm/finals` で playoff ステージのマッチを取得
+  3. playoff_r1 の 4 試合の `startingCourseNumber` がすべて 1〜4 の同じ値であることを確認
+  4. playoff_r2 の 4 試合の `startingCourseNumber` がすべて 1〜4 の同じ値であることを確認（playoff_r1 と異なる値でも OK）
+- **期待結果**: playoff ステージの全マッチが 1〜4 の値を持ち、同一 round 内で揃う
+- **スクリプト**: tc-bm.js TC-529
+
+## TC-530: BM 決勝/プレーオフ — レガシー null 値の自動修復（issue #728）
+- **URL**: /api/tournaments/[id]/bm/finals (GET)
+- **authRequired**: true (admin)
+- **背景**: issue #671 のロールアウト前に作成されたブラケットや、過去に admin が個別にクリアしたマッチでは `startingCourseNumber === null` の行が残っている。これを GET 時に自動修復し、レスポンスでは全マッチに 1〜4 が入った状態にする。GP の `cup` 正規化、MR の `assignedCourses` 正規化と同等の挙動。
+- **手順**:
+  1. 8名ブラケットを生成（TC-524 と同じ手順）
+  2. 直接 API（または DB マニピュレータ用エンドポイント）で `wb-r1` の全 4 マッチの `startingCourseNumber` を null に上書き
+  3. `GET /bm/finals` を呼び出し
+  4. レスポンス上で `wb-r1` の全 4 マッチが 1〜4 の同じ値（自動補充された値）になっていることを確認
+  5. 再度 GET しても値が安定（変動しない）ことを確認
+- **期待結果**: null 値が GET 応答で自動補充され、同一ラウンド内が揃い、後続 GET で値が安定する
+- **スクリプト**: tc-bm.js TC-530
 
 ---
 

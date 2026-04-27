@@ -393,6 +393,107 @@ describe('Finals Route Factory', () => {
       expect(json.data.bracketSize).toBe(8);
     });
 
+    /* Issue #728: GET must repair legacy bracket rows whose startingCourseNumber
+     * is null or desynced within a round. The repair should call updateMany
+     * scoped to (tournamentId, stage, round) with a value in [1,4]. */
+    it('repairs mixed-null startingCourseNumber on the playoff stage GET', async () => {
+      const playoffMatches = [
+        createMockMatch({ id: 'p1', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: null }),
+        createMockMatch({ id: 'p2', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: 3 }),
+        createMockMatch({ id: 'p3', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: null }),
+        createMockMatch({ id: 'p4', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: 3 }),
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(playoffMatches);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 2 });
+
+      const config = createMockConfig({
+        getStyle: 'grouped',
+        assignBmStartingCourseByRound: true,
+      });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      /* Dominant value (3) must win and be applied to the null rows in the
+       * same round only. Scoping by tournamentId+stage+round prevents
+       * cross-round / cross-tournament writes. */
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tournamentId: 'tournament-123',
+            stage: 'playoff',
+            round: 'playoff_r1',
+            NOT: { startingCourseNumber: 3 },
+          }),
+          data: { startingCourseNumber: 3 },
+        }),
+      );
+    });
+
+    it('repairs all-null round by drawing a fresh value in [1,4] (BM finals)', async () => {
+      const finalsMatches = [
+        createMockMatch({ id: 'f1', stage: 'finals', round: 'winners_qf', startingCourseNumber: null }),
+        createMockMatch({ id: 'f2', stage: 'finals', round: 'winners_qf', startingCourseNumber: null }),
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve([]);
+        if (args?.where?.stage === 'finals') return Promise.resolve(finalsMatches);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 2 });
+
+      const config = createMockConfig({
+        getStyle: 'grouped',
+        assignBmStartingCourseByRound: true,
+      });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      const updateManyCalls = (prisma.bMMatch as any).updateMany.mock.calls;
+      const repairCall = updateManyCalls.find(
+        (c: any[]) => c[0]?.where?.stage === 'finals' && c[0]?.where?.round === 'winners_qf',
+      );
+      expect(repairCall).toBeDefined();
+      const value = repairCall[0].data.startingCourseNumber;
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(1);
+      expect(value).toBeLessThanOrEqual(4);
+    });
+
+    it('does not repair when assignBmStartingCourseByRound is off', async () => {
+      const playoffMatches = [
+        createMockMatch({ id: 'p1', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: null }),
+        createMockMatch({ id: 'p2', stage: 'playoff', round: 'playoff_r1', startingCourseNumber: 3 }),
+      ];
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(playoffMatches);
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig({ getStyle: 'grouped' }); // flag off
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      /* No BM-specific repair should fire — verify no updateMany was scoped
+       * to startingCourseNumber. (Other normalize functions for cup/courses
+       * may still run if their flags are on, but those aren't enabled here.) */
+      const startingCourseWrites = (prisma.bMMatch as any).updateMany.mock.calls.filter(
+        (c: any[]) => c[0]?.data?.startingCourseNumber !== undefined,
+      );
+      expect(startingCourseWrites).toHaveLength(0);
+    });
+
     it('should return 500 on database error', async () => {
       // Mock paginate to reject with error for paginated getStyle
       mockPaginate.mockRejectedValue(new Error('DB error'));
@@ -1777,7 +1878,7 @@ describe('Finals Route Factory', () => {
   // ============================================================
 
   describe('PATCH Handler (startingCourseNumber)', () => {
-    it('updates startingCourseNumber on a finals match without touching scores or tvNumber', async () => {
+    it('updates startingCourseNumber on a finals match (per-match path, propagation off)', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
       const existing = createMockMatch({ id: 'match-1', stage: 'finals', startingCourseNumber: null });
       /* Only an IDOR check runs for startingCourseNumber — there is no per-round
@@ -1785,6 +1886,8 @@ describe('Finals Route Factory', () => {
       (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(existing);
       (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, startingCourseNumber: 2 });
 
+      /* Default config does NOT enable assignBmStartingCourseByRound, so the
+       * route falls through to the legacy per-match update. */
       const { PATCH } = createFinalsHandlers(createMockConfig());
       const request = new NextRequest('http://localhost:3000', {
         method: 'PATCH',
@@ -1798,6 +1901,49 @@ describe('Finals Route Factory', () => {
           where: { id: 'match-1' },
           data: { startingCourseNumber: 2 },
         }),
+      );
+      expect((prisma.bMMatch as any).updateMany).not.toHaveBeenCalled();
+    });
+
+    it('propagates startingCourseNumber to the entire round when assignBmStartingCourseByRound is on (#728)', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        id: 'match-1',
+        stage: 'finals',
+        round: 'winners_qf',
+        startingCourseNumber: null,
+      });
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(existing);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ ...existing, startingCourseNumber: 2 });
+
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({ assignBmStartingCourseByRound: true }),
+      );
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', startingCourseNumber: 2 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      /* updateMany scopes the write to the round so all 4 winners_qf matches
+       * converge on the same value. */
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tournamentId: 'tournament-123',
+            stage: 'finals',
+            round: 'winners_qf',
+          }),
+          data: { startingCourseNumber: 2 },
+        }),
+      );
+      /* The targeted match's row update goes through updateMany, not update,
+       * so the per-match update() must not fire for the course field. */
+      expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
+      expect((prisma.bMMatch as any).findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'match-1' } }),
       );
     });
 
@@ -1817,6 +1963,36 @@ describe('Finals Route Factory', () => {
       expect(response.status).toBe(200);
       expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { startingCourseNumber: null } }),
+      );
+    });
+
+    it('propagates a null clear across the round when assignBmStartingCourseByRound is on', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        id: 'match-1',
+        stage: 'finals',
+        round: 'winners_qf',
+        startingCourseNumber: 3,
+      });
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(existing);
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({ ...existing, startingCourseNumber: null });
+
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({ assignBmStartingCourseByRound: true }),
+      );
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', startingCourseNumber: null }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ stage: 'finals', round: 'winners_qf' }),
+          data: { startingCourseNumber: null },
+        }),
       );
     });
 
@@ -1847,7 +2023,7 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).update).not.toHaveBeenCalled();
     });
 
-    it('updates tvNumber and startingCourseNumber together in a single PATCH', async () => {
+    it('updates tvNumber and startingCourseNumber together in a single PATCH (propagation off)', async () => {
       mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
       const existing = createMockMatch({
         id: 'match-1',
@@ -1879,6 +2055,52 @@ describe('Finals Route Factory', () => {
         expect.objectContaining({
           where: { id: 'match-1' },
           data: { tvNumber: 2, startingCourseNumber: 3 },
+        }),
+      );
+    });
+
+    it('writes tvNumber per-match and propagates startingCourseNumber across the round when propagation is on', async () => {
+      mockAuth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } } as any);
+      const existing = createMockMatch({
+        id: 'match-1',
+        stage: 'finals',
+        round: 'winners_qf',
+        tvNumber: null,
+        startingCourseNumber: null,
+      });
+      /* IDOR + tv-uniqueness check (no conflict). */
+      (prisma.bMMatch as any).findFirst
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(null);
+      (prisma.bMMatch as any).update.mockResolvedValue({ ...existing, tvNumber: 2 });
+      (prisma.bMMatch as any).updateMany.mockResolvedValue({ count: 4 });
+      (prisma.bMMatch as any).findUnique.mockResolvedValue({
+        ...existing,
+        tvNumber: 2,
+        startingCourseNumber: 3,
+      });
+
+      const { PATCH } = createFinalsHandlers(
+        createMockConfig({ assignBmStartingCourseByRound: true }),
+      );
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PATCH',
+        body: JSON.stringify({ matchId: 'match-1', tvNumber: 2, startingCourseNumber: 3 }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      expect(response.status).toBe(200);
+      /* tvNumber is per-match, course is round-wide. */
+      expect((prisma.bMMatch as any).update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'match-1' },
+          data: { tvNumber: 2 },
+        }),
+      );
+      expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ stage: 'finals', round: 'winners_qf' }),
+          data: { startingCourseNumber: 3 },
         }),
       );
     });

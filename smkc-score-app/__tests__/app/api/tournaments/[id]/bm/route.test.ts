@@ -235,10 +235,11 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       }));
     });
 
-    // Issue #724: per-day startingCourseNumber assignment
-    it('should assign same startingCourseNumber to all matches on the same round-robin day', async () => {
+    // Issue #728 (revert of #724): BM qualification rows must never carry a
+    // startingCourseNumber. The per-day random assignment was a misimplementation
+    // and is removed; only finals/playoff stages use the field.
+    it('should never set startingCourseNumber on qualification matches', async () => {
       (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
-      // 4-player group → 3 days, 2 real matches each (6 matches total, no BYEs)
       const mockPlayers = [
         { playerId: 'p1', group: 'A', seeding: 1 },
         { playerId: 'p2', group: 'A', seeding: 2 },
@@ -254,22 +255,9 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
 
       expect(result.status).toBe(201);
       const matchData: any[] = (prisma.bMMatch.createMany as jest.Mock).mock.calls[0][0].data;
-      const realMatches = matchData.filter((m: any) => !m.isBye);
-
-      // Every real match must have a valid startingCourseNumber (1-4)
-      for (const m of realMatches) {
-        expect(m.startingCourseNumber).toBeGreaterThanOrEqual(1);
-        expect(m.startingCourseNumber).toBeLessThanOrEqual(4);
-      }
-
-      // All matches on the same day must share one startingCourseNumber
-      const byDay = new Map<number, Set<number>>();
-      for (const m of realMatches) {
-        if (!byDay.has(m.roundNumber)) byDay.set(m.roundNumber, new Set());
-        byDay.get(m.roundNumber)!.add(m.startingCourseNumber);
-      }
-      for (const [, values] of byDay) {
-        expect(values.size).toBe(1);
+      // No qualification row (BYE or real) should carry startingCourseNumber.
+      for (const m of matchData) {
+        expect(m.startingCourseNumber).toBeUndefined();
       }
     });
 

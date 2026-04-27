@@ -20,7 +20,9 @@
  *   TC-524  BM bracket startingCourseNumber randomisation per round (#671)
  *   TC-525  BM finals score dialog — startingCourseNumber autosaves on select
  *   TC-526  NoCamera player warning toast when TV# assigned to their match (#674)
- *   TC-527  BM qualification startingCourseNumber shared per round-robin day (#724)
+ *   TC-528  BM qualification startingCourseNumber must always be null (#728 revert)
+ *   TC-529  BM Top-24 playoff stage startingCourseNumber per-round (#728)
+ *   TC-530  BM finals/playoff legacy null repair on GET (#728)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1619,6 +1621,11 @@ async function runTc525(adminPage) {
     const afterSelect = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
     const m1 = afterSelect.find((m) => m.matchNumber === 1);
     const courseSaved = m1?.startingCourseNumber === 2;
+    /* Same-round propagation (#728): every match sharing M1's round must
+     * have the same startingCourseNumber after a single PATCH. */
+    const m1Round = m1?.round;
+    const sameRound = afterSelect.filter((m) => m.round && m.round === m1Round);
+    const propagatedToAll = sameRound.length > 0 && sameRound.every((m) => m.startingCourseNumber === 2);
 
     /* Clear by selecting the empty option ("-"). */
     await adminPage.locator('#bm-finals-start-course').selectOption('');
@@ -1627,13 +1634,21 @@ async function runTc525(adminPage) {
     const afterClear = await apiFetchBmFinalsMatches(adminPage, setup.tournamentId);
     const m1Clear = afterClear.find((m) => m.matchNumber === 1);
     const courseCleared = m1Clear?.startingCourseNumber === null;
+    const sameRoundCleared = afterClear.filter((m) => m.round && m.round === m1Round);
+    /* After clear PATCH, normalization on GET is allowed to refill values; we
+     * only require that the round stays uniform (all same value, possibly
+     * non-null) — a per-match clear must not leave the round desynced. */
+    const clearedRoundUniform = sameRoundCleared.length > 0 &&
+      new Set(sameRoundCleared.map((m) => m.startingCourseNumber)).size === 1;
 
-    const pass = dialogVisible && stillOpen && courseSaved && courseCleared;
+    const pass = dialogVisible && stillOpen && courseSaved && propagatedToAll && courseCleared && clearedRoundUniform;
     log('TC-525', pass ? 'PASS' : 'FAIL',
       !dialogVisible ? 'Score dialog did not open' :
       !stillOpen ? 'Dialog closed unexpectedly after start-course select' :
       !courseSaved ? `startingCourseNumber not saved: got ${m1?.startingCourseNumber}` :
-      !courseCleared ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}` : '');
+      !propagatedToAll ? `startingCourseNumber did not propagate to round '${m1Round}': ${JSON.stringify(sameRound.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}` :
+      !courseCleared ? `startingCourseNumber not cleared: got ${m1Clear?.startingCourseNumber}` :
+      !clearedRoundUniform ? `Round '${m1Round}' desynced after clear: ${JSON.stringify(sameRoundCleared.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}` : '');
   } catch (err) {
     log('TC-525', 'FAIL', err instanceof Error ? err.message : 'TC-525 failed');
   } finally {
@@ -1759,41 +1774,169 @@ async function runTc526(adminPage) {
   }
 }
 
-/* ───────── TC-527: BM qualification startingCourseNumber per round-robin day ─────────
- * After qualification setup, every real (non-BYE) match on the same round-robin day
- * must share one startingCourseNumber (1-4), satisfying issue #724.
- * Matches on different days may have different courses. */
-async function runTc527(adminPage) {
+/* ───────── TC-528: BM qualification startingCourseNumber must always be null (#728) ─────────
+ * Reverts the per-day random assignment introduced in #724. BM qualification
+ * does not use startingCourseNumber — the column must remain null on every
+ * qualification row, including BYE rows. */
+async function runTc528(adminPage) {
   try {
     if (!sharedFixture) throw new Error('shared fixture not initialised');
     const tournamentId = sharedFixture.normalTournament.id;
     const bmData = await apiFetchBm(adminPage, tournamentId);
-    const realMatches = (bmData.matches || []).filter((m) => !m.isBye && m.stage === 'qualification');
-    if (realMatches.length === 0) throw new Error('No real qualification matches found');
+    const qualMatches = (bmData.matches || []).filter((m) => m.stage === 'qualification' || !m.stage);
+    if (qualMatches.length === 0) throw new Error('No qualification matches found');
 
-    // Every real match must have a valid startingCourseNumber
-    const allValid = realMatches.every(
+    const violators = qualMatches.filter((m) => m.startingCourseNumber !== null && m.startingCourseNumber !== undefined);
+    const pass = violators.length === 0;
+    log('TC-528', pass ? 'PASS' : 'FAIL',
+      !pass
+        ? `Qualification rows with non-null startingCourseNumber: ${JSON.stringify(violators.slice(0, 5).map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+        : '');
+  } catch (err) {
+    log('TC-528', 'FAIL', err instanceof Error ? err.message : 'TC-528 failed');
+  }
+}
+
+/* ───────── TC-529: BM Top-24 playoff stage startingCourseNumber per-round (#728) ─────────
+ * The pre-bracket "playoff" (barrage) stage created from a Top-24 POST must
+ * also satisfy the per-round invariant: each of playoff_r1 (4 matches) and
+ * playoff_r2 (4 matches) carries one shared startingCourseNumber in [1,4]. */
+async function runTc529(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    /* Confirm qualification so topN=24 POST is allowed. */
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
+    if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
+
+    /* Reset any prior bracket so we hit Phase-1 (playoff creation). */
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/bm/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`Bracket reset failed (${resetRes.s})`);
+    }
+
+    const phase1 = await apiGenerateBmFinals(adminPage, tournamentId, 24);
+    if (phase1.s !== 201) throw new Error(`Top-24 Phase-1 POST failed (${phase1.s})`);
+
+    const state = await apiFetchBmFinalsState(adminPage, tournamentId);
+    const playoff = state.playoffMatches || [];
+    if (playoff.length === 0) throw new Error('No playoff matches returned');
+
+    const allValid = playoff.every(
       (m) => Number.isInteger(m.startingCourseNumber) && m.startingCourseNumber >= 1 && m.startingCourseNumber <= 4,
     );
 
-    // All matches on the same roundNumber (day) must share one startingCourseNumber
-    const byDay = new Map();
-    for (const m of realMatches) {
-      if (m.roundNumber == null) continue;
-      if (!byDay.has(m.roundNumber)) byDay.set(m.roundNumber, new Set());
-      byDay.get(m.roundNumber).add(m.startingCourseNumber);
+    const byRound = new Map();
+    for (const m of playoff) {
+      if (!m.round) continue;
+      if (!byRound.has(m.round)) byRound.set(m.round, new Set());
+      byRound.get(m.round).add(m.startingCourseNumber);
     }
-    const daysUniform = [...byDay.values()].every((vals) => vals.size === 1);
+    const roundsUniform = [...byRound.values()].every((vals) => vals.size === 1);
+    const hasBothRounds = byRound.has('playoff_r1') && byRound.has('playoff_r2');
 
-    const pass = allValid && daysUniform;
-    log('TC-527', pass ? 'PASS' : 'FAIL',
+    const pass = allValid && roundsUniform && hasBothRounds;
+    log('TC-529', pass ? 'PASS' : 'FAIL',
       !allValid
-        ? `Some matches have invalid startingCourseNumber: ${JSON.stringify(realMatches.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
-        : !daysUniform
-        ? `Matches on same day have different courses: ${JSON.stringify([...byDay.entries()].map(([d, s]) => ({ day: d, values: [...s] })))}`
+        ? `Some playoff matches have invalid startingCourseNumber: ${JSON.stringify(playoff.map((m) => ({ mn: m.matchNumber, r: m.round, sn: m.startingCourseNumber })))}`
+        : !hasBothRounds
+        ? `Missing playoff_r1 or playoff_r2 in result: rounds=${[...byRound.keys()].join(',')}`
+        : !roundsUniform
+        ? `Playoff round desynced: ${JSON.stringify([...byRound.entries()].map(([r, s]) => ({ round: r, values: [...s] })))}`
         : '');
   } catch (err) {
-    log('TC-527', 'FAIL', err instanceof Error ? err.message : 'TC-527 failed');
+    log('TC-529', 'FAIL', err instanceof Error ? err.message : 'TC-529 failed');
+  } finally {
+    /* Clean up the bracket so subsequent tests get a fresh state. */
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
+  }
+}
+
+/* ───────── TC-530: BM finals legacy null repair on GET (#728) ─────────
+ * Existing tournaments created before #671 deployment have null
+ * startingCourseNumber on bracket rows. The GET handler must auto-repair so
+ * that every bracket match has a value in [1,4] and every round is uniform.
+ *
+ * Scope: this E2E covers the "uniform-null round → refilled value" flow
+ * (legacy data created before per-round assignment shipped). The "mixed
+ * null/non-null within one round" scenario is harder to seed via the public
+ * API because PATCH propagation (#728) overwrites the entire round; that
+ * mixed-null repair is covered by unit tests in
+ * `__tests__/lib/api-factories/finals-route.test.ts` instead.
+ *
+ * Flow: PATCH null on one match in winners_qf — propagation nulls the whole
+ * round. GET should refill the round with a value in [1,4] and stay stable
+ * across subsequent GETs. */
+async function runTc530(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+    const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const initial = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const targetRound = 'winners_qf';
+    const targetMatches = initial.filter((m) => m.round === targetRound);
+    if (targetMatches.length === 0) throw new Error(`No ${targetRound} matches`);
+
+    /* One PATCH propagates null across the whole round; we don't need to
+     * iterate every match. */
+    const seedNull = await adminPage.evaluate(async ([url, body]) => {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { s: res.status };
+    }, [`/api/tournaments/${tournamentId}/bm/finals`, { matchId: targetMatches[0].id, startingCourseNumber: null }]);
+    if (seedNull.s !== 200) throw new Error(`Initial null PATCH failed (${seedNull.s})`);
+
+    /* First GET — normalization is expected to refill the round. */
+    const repaired = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const repairedTarget = repaired.filter((m) => m.round === targetRound);
+    const allHaveValue = repairedTarget.every(
+      (m) => Number.isInteger(m.startingCourseNumber) && m.startingCourseNumber >= 1 && m.startingCourseNumber <= 4,
+    );
+    const repairedSet = new Set(repairedTarget.map((m) => m.startingCourseNumber));
+    const repairedUniform = repairedSet.size === 1;
+    const repairedValue = [...repairedSet][0];
+
+    /* Second GET — value must be stable (idempotent normalization). */
+    const second = await apiFetchBmFinalsMatches(adminPage, tournamentId);
+    const secondTarget = second.filter((m) => m.round === targetRound);
+    const stable = secondTarget.every((m) => m.startingCourseNumber === repairedValue);
+
+    const pass = allHaveValue && repairedUniform && stable;
+    log('TC-530', pass ? 'PASS' : 'FAIL',
+      !allHaveValue
+        ? `Round ${targetRound} still has null after GET: ${JSON.stringify(repairedTarget.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+        : !repairedUniform
+        ? `Round ${targetRound} not uniform after repair: values=[${[...repairedSet].join(',')}]`
+        : !stable
+        ? `Round ${targetRound} value drifted between GETs: first=${repairedValue}, second=${JSON.stringify(secondTarget.map((m) => m.startingCourseNumber))}`
+        : '');
+  } catch (err) {
+    log('TC-530', 'FAIL', err instanceof Error ? err.message : 'TC-530 failed');
+  } finally {
+    if (setup) {
+      await adminPage.evaluate(async (url) => {
+        await fetch(url, { method: 'DELETE' }).catch(() => {});
+      }, `/api/tournaments/${setup.tournamentId}/bm/finals`);
+    }
   }
 }
 
@@ -1844,7 +1987,9 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-524', fn: runTc524 },
       { name: 'TC-525', fn: runTc525 },
       { name: 'TC-526', fn: runTc526 },
-      { name: 'TC-527', fn: runTc527 },
+      { name: 'TC-528', fn: runTc528 },
+      { name: 'TC-529', fn: runTc529 },
+      { name: 'TC-530', fn: runTc530 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1853,7 +1998,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc527,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

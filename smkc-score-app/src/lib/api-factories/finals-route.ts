@@ -344,6 +344,93 @@ async function normalizeRoundCoursesToSingleSet(
 }
 
 /**
+ * BM counterpart of normalizeRoundCupsToSingleCup: every match in the same
+ * bracket round must share one starting Battle Course (1–4). Fixes:
+ *   1. Legacy rows created before #671 with startingCourseNumber = null.
+ *   2. Divergent state caused by per-match admin overrides (a single PATCH
+ *      could set one match in a round to a different value than its peers).
+ *
+ * Strategy mirrors the GP cup version: pick the most common non-null value
+ * in each round; if the round is entirely null, draw a fresh value from a
+ * Fisher-Yates shuffle of [1,2,3,4]. Then `updateMany` rows where the stored
+ * value differs from canonical, scoped by tournament/stage/round.
+ *
+ * Returns the per-round canonical map plus a `repaired` flag so callers can
+ * patch their in-memory matches without a refetch.
+ */
+interface BmStartingCourseNormalizationResult {
+  repaired: boolean;
+  canonicalByRound: Map<string, number>;
+}
+
+async function normalizeRoundStartingCoursesToSingleValue(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  modelInstance: any,
+  tournamentId: string,
+  stage: 'finals' | 'playoff',
+  matches: Array<{ startingCourseNumber?: number | null; round?: string | null }>,
+): Promise<BmStartingCourseNormalizationResult> {
+  /* Tally per-round value occurrences. Null is treated as "no value yet". */
+  const valueCountsByRound = new Map<string, Map<number, number>>();
+  const roundsNeedingRepair = new Set<string>();
+
+  for (const match of matches) {
+    if (!match.round) continue;
+    let counts = valueCountsByRound.get(match.round);
+    if (!counts) {
+      counts = new Map();
+      valueCountsByRound.set(match.round, counts);
+    }
+    if (typeof match.startingCourseNumber === 'number') {
+      counts.set(match.startingCourseNumber, (counts.get(match.startingCourseNumber) ?? 0) + 1);
+    }
+  }
+
+  for (const [round, counts] of valueCountsByRound) {
+    const distinctValues = counts.size;
+    const totalWithValue = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+    const roundMatchCount = matches.filter((m) => m.round === round).length;
+    /* Repair when: round has no value yet, values disagree, or some null gaps. */
+    if (distinctValues !== 1 || totalWithValue !== roundMatchCount) {
+      roundsNeedingRepair.add(round);
+    }
+  }
+
+  if (roundsNeedingRepair.size === 0) {
+    return { repaired: false, canonicalByRound: new Map() };
+  }
+
+  const shuffledFallback = fisherYatesShuffle([1, 2, 3, 4]);
+  let cursor = 0;
+  const canonicalByRound = new Map<string, number>();
+  for (const round of roundsNeedingRepair) {
+    const counts = valueCountsByRound.get(round) ?? new Map<number, number>();
+    /* Most-common existing value wins; entirely-null rounds fall back to a
+     * freshly shuffled course from [1..4] (cursor wraps modulo 4). */
+    let dominant: number | undefined;
+    let dominantCount = 0;
+    for (const [value, count] of counts) {
+      if (count > dominantCount) {
+        dominant = value;
+        dominantCount = count;
+      }
+    }
+    canonicalByRound.set(round, dominant ?? shuffledFallback[cursor++ % shuffledFallback.length]);
+  }
+
+  for (const [round, value] of canonicalByRound) {
+    /* Skip writes when stored already matches; updateMany scopes the write
+     * to mismatched rows in this tournament/stage/round. */
+    await modelInstance.updateMany({
+      where: { tournamentId, stage, round, NOT: { startingCourseNumber: value } },
+      data: { startingCourseNumber: value },
+    });
+  }
+
+  return { repaired: true, canonicalByRound };
+}
+
+/**
  * Configuration for a finals route handler set.
  *
  * Each event type (BM, MR, GP) supplies its own config to produce
@@ -509,6 +596,29 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
+      /* BM counterpart: same rule for startingCourseNumber. Repairs both
+       * legacy null rows (#671 pre-deployment data) and admin-induced
+       * round desync. Patches in-memory so the response reflects the
+       * canonical value without a refetch. */
+      if (config.assignBmStartingCourseByRound && playoffMatches.length > 0) {
+        const courseResult = await normalizeRoundStartingCoursesToSingleValue(
+          model(prisma),
+          tournamentId,
+          'playoff',
+          playoffMatches,
+        );
+        if (courseResult.repaired) {
+          for (const m of playoffMatches) {
+            const round = (m as { round?: string | null }).round;
+            if (!round) continue;
+            const canonical = courseResult.canonicalByRound.get(round);
+            if (canonical !== undefined) {
+              (m as { startingCourseNumber?: number | null }).startingCourseNumber = canonical;
+            }
+          }
+        }
+      }
+
       const playoffStructure = playoffMatches.length > 0
         ? generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT)
         : [];
@@ -595,6 +705,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
         if (legacyFinals.length > 0) {
           await normalizeRoundCoursesToSingleSet(
+            model(prisma),
+            tournamentId,
+            'finals',
+            legacyFinals,
+          );
+        }
+      }
+
+      /* BM counterpart for finals stage. DB-only repair; the subsequent
+       * findMany at the shared fetch below picks up the updated values. */
+      if (config.assignBmStartingCourseByRound) {
+        const legacyFinals = await model(prisma).findMany({
+          where: { tournamentId, stage: 'finals' },
+          select: { id: true, round: true, startingCourseNumber: true },
+        });
+        if (legacyFinals.length > 0) {
+          await normalizeRoundStartingCoursesToSingleValue(
             model(prisma),
             tournamentId,
             'finals',
@@ -1663,15 +1790,41 @@ export function createFinalsHandlers(config: FinalsConfig) {
         }
       }
 
+      /* Spec (#671/#728): every match in the same bracket round shares one
+       * startingCourseNumber. The score-dialog dropdown is a round-level
+       * control disguised as a per-match select, so a startingCourseNumber
+       * PATCH propagates to all matches in the same stage+round via
+       * updateMany. tvNumber stays per-match (it's a broadcast slot). */
+      const propagateCourse =
+        hasCourse && Boolean(config.assignBmStartingCourseByRound) && Boolean(existing.round);
+
       const updateData: Record<string, unknown> = {};
       if (hasTv) updateData.tvNumber = tvNumber ?? null;
-      if (hasCourse) updateData.startingCourseNumber = startingCourseNumber ?? null;
+      if (hasCourse && !propagateCourse) {
+        updateData.startingCourseNumber = startingCourseNumber ?? null;
+      }
 
-      const match = await model(prisma).update({
-        where: { id: matchId },
-        data: updateData,
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
-      });
+      let match: unknown = null;
+      if (Object.keys(updateData).length > 0) {
+        match = await model(prisma).update({
+          where: { id: matchId },
+          data: updateData,
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        });
+      }
+
+      if (propagateCourse) {
+        await model(prisma).updateMany({
+          where: { tournamentId, stage: existing.stage, round: existing.round },
+          data: { startingCourseNumber: startingCourseNumber ?? null },
+        });
+        /* Re-fetch the targeted row with player includes so the response
+         * shape matches the non-propagation path. */
+        match = await model(prisma).findUnique({
+          where: { id: matchId },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        });
+      }
 
       return createSuccessResponse({ match });
     } catch (error) {
