@@ -65,7 +65,7 @@ async function prepareSharedGpPair(adminPage, { dualReport = false } = {}) {
 
   /* Reset qualificationConfirmed before re-seeding so score PUTs aren't 403'd
    * by state left over from the BM/MR suites. Mirrors prepareSharedBmPair. */
-  await apiUpdateTournament(adminPage, tournament.id, { qualificationConfirmed: false });
+  await apiUpdateTournament(adminPage, tournament.id, { gpQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'gp', tournament.id, players);
 
   const data = await apiFetchGp(adminPage, tournament.id);
@@ -691,7 +691,7 @@ async function runTc715(adminPage) {
     const { tournamentId } = setup;
 
     /* The bracket action button requires qualificationConfirmed. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     /* Previous tests may have left a bracket behind. Reset it so
@@ -802,7 +802,7 @@ async function runTc716(adminPage) {
     const { tournamentId } = setup;
 
     /* Confirm qualification so the bracket action button is visible. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
