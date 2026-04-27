@@ -371,7 +371,7 @@ export async function promoteToPhase2(
 
         // Audit log for accountability (non-critical)
         try {
-        await createAuditLog({
+        void createAuditLog({
           userId,
           ipAddress,
           userAgent,
@@ -500,7 +500,7 @@ export async function promoteToPhase3(
 
         // Audit log for accountability (non-critical)
         try {
-        await createAuditLog({
+        void createAuditLog({
           userId,
           ipAddress,
           userAgent,
@@ -602,7 +602,7 @@ export async function processEliminationPhaseResult(
 
   // Audit log for elimination event (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -705,7 +705,7 @@ export async function processPhase3Result(
 
       // Audit log for life loss / elimination (non-critical)
       try {
-        await createAuditLog({
+        void createAuditLog({
           userId,
           ipAddress,
           userAgent,
@@ -762,7 +762,7 @@ export async function processPhase3Result(
 
     // Audit log for life reset event (non-critical)
     try {
-      await createAuditLog({
+      void createAuditLog({
         userId,
         ipAddress,
         userAgent,
@@ -992,7 +992,7 @@ export async function startPhaseRound(
 
   // Audit log for round start (non-critical, outside transaction)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -1163,7 +1163,7 @@ export async function submitRoundResults(
 
   // Audit log for round submission (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -1250,7 +1250,7 @@ export async function cancelPhaseRound(
 
   // Audit log for round cancellation (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -1426,7 +1426,7 @@ export async function undoLastPhaseRound(
 
   // Audit log for undo operation (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,

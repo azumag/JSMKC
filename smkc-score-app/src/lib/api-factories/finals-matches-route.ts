@@ -156,7 +156,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
 
       /* Record audit log for match creation (security and accountability) */
       try {
-        await createAuditLog({
+        void createAuditLog({
           userId: session.user.id,
           ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
           userAgent: request.headers.get('user-agent') || 'unknown',

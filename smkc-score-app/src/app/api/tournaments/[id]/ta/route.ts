@@ -486,7 +486,7 @@ export async function PUT(
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
       try {
-        await createAuditLog({
+        void createAuditLog({
           userId: resolveAuditUserId(authResult.session),
           ipAddress,
           userAgent,
@@ -541,7 +541,7 @@ export async function PUT(
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
       try {
-        await createAuditLog({
+        void createAuditLog({
           userId: resolveAuditUserId(authResult.session),
           ipAddress,
           userAgent,
@@ -683,7 +683,7 @@ export async function PUT(
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
     try {
-      await createAuditLog({
+      void createAuditLog({
         userId: resolveAuditUserId(authResult.session),
         ipAddress,
         userAgent,
@@ -772,7 +772,7 @@ export async function DELETE(
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
     try {
-      await createAuditLog({
+      void createAuditLog({
         userId: resolveAuditUserId(authResult.session),
         ipAddress,
         userAgent,

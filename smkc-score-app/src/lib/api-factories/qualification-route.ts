@@ -452,7 +452,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         try {
           const ip = await getServerSideIdentifier();
           const userAgent = request.headers.get('user-agent') || 'unknown';
-          await createAuditLog({
+          void createAuditLog({
             userId: currentSession.user.id,
             ipAddress: ip,
             userAgent,

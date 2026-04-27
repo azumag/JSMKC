@@ -121,7 +121,7 @@ export async function PUT(
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
+      void createAuditLog({
         userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
@@ -253,7 +253,7 @@ export async function DELETE(
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
+      void createAuditLog({
         userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,

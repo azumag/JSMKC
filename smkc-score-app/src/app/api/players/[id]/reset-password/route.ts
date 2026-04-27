@@ -54,7 +54,7 @@ export async function POST(
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
+      void createAuditLog({
         userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,

@@ -372,7 +372,7 @@ export async function handleDebugFillRequest(
     try {
       const ip = await getServerSideIdentifier();
       const ua = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
+      void createAuditLog({
         userId: userId ?? undefined,
         ipAddress: ip,
         userAgent: ua,
