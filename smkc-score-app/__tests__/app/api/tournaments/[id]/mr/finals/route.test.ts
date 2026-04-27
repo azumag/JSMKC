@@ -402,12 +402,16 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-      /* Phase 1 findMany sequence: existingPlayoff ([]), existingFinals ([]),
-       * then the re-fetch after createMany ([] — content not tested here). */
+      /* Three findMany calls in sequence:
+       *   1. existingPlayoff check  → []  (triggers Phase 1)
+       *   2. existingFinals check   → []  (not a reset)
+       *   3. post-createMany lookup → []  (assignedCourses verified via createMany data) */
       (prisma.mRMatch.findMany as jest.Mock)
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
+      /* Phase 1 uses createMany (#703) not sequential create calls. */
+      (prisma.mRMatch as any).createMany.mockResolvedValue({ count: 3 });
       (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 24 });
@@ -415,14 +419,10 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const createManyCall = (prisma.mRMatch as any).createMany.mock.calls[0][0];
-      const matchDataList: Array<{ round: string; assignedCourses: string[] }> = createManyCall.data;
-      const r1Matches = matchDataList.filter((d) => d.round === 'playoff_r1');
-      const r2Matches = matchDataList.filter((d) => d.round === 'playoff_r2');
-      expect(r1Matches[0].assignedCourses).toEqual(r1Matches[1].assignedCourses);
-      expect(r1Matches[0].assignedCourses).toHaveLength(5);
-      expect(r2Matches[0].assignedCourses).toHaveLength(7);
+      const createManyData = (prisma.mRMatch as any).createMany.mock.calls[0][0].data as Array<Record<string, unknown>>;
+      expect(createManyData[0].assignedCourses).toEqual(createManyData[1].assignedCourses);
+      expect(createManyData[0].assignedCourses).toHaveLength(5);
+      expect(createManyData[2].assignedCourses).toHaveLength(7);
     });
   });
 

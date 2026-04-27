@@ -292,6 +292,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        */
       const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
       /*
+       * §5.4 fixed course assignment: BM always uses the same 4 battle courses
+       * in order for every qualification match. `fixedCourseList` stores these
+       * abbreviations on each match row so overlay events can expose them on
+       * `matchResult.courses`. This is separate from MR's random assignment.
+       */
+      const fixedCourses = config.fixedCourseList ? [...config.fixedCourseList] : null;
+      /*
        * §7.4 cup assignment: shuffle the cup list once and distribute cyclically.
        * Each match gets one cup (modulo wrapping when matches > cups).
        * Only applies when config.assignCupRandomly is true (GP only).
@@ -351,9 +358,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
            * the courses, so skip assignment for BYE matches.
            */
           const isRealMatch = !m.isBye;
+          // MR: random per-match course draw from the shuffled list
+          // BM: fixed battle-course list (same for every real match)
           const assignedCourses = shuffledCourses && isRealMatch
             ? getAssignedCourses(shuffledCourses, matchSequenceIndex)
-            : undefined;
+            : fixedCourses && isRealMatch
+              ? fixedCourses
+              : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this match (GP only) */
           const assignedCup = shuffledCups && isRealMatch
@@ -370,7 +381,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             player2Side: 2,
             roundNumber: m.day,
             isBye: m.isBye,
-            /* Pre-assigned courses for the match (undefined for BM/GP without course assignment) */
+            /* Pre-assigned courses: MR uses random draw, BM uses fixed battle-course list */
             ...(assignedCourses ? { assignedCourses } : {}),
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),

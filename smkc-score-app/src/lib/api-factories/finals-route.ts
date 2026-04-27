@@ -998,9 +998,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
           player: q.player,
         }));
 
-        /* Build match plans in-memory — player data is already available from
-         * playoffSeededPlayers, so the include in the old per-row create was redundant.
-         * createMany + findMany collapses N round-trips (~1.8s) into 2 (~250ms). */
+        /*
+         * Bulk-insert playoff matches (#703). Replaces an 8-sequential-create
+         * loop (~1.8 s on D1) with createMany + one findMany (~300 ms total).
+         * player1/player2 are already resolved from in-memory playoffSeededPlayers,
+         * so the per-row include used by the old loop is redundant.
+         */
         const playoffMatchPlans = playoffStructure.map((bracketMatch) => {
           const player1 = bracketMatch.player1Seed
             ? playoffSeededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player1Seed)
@@ -1017,8 +1020,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
               matchNumber: bracketMatch.matchNumber,
               stage: 'playoff',
               round: bracketMatch.round,
-              /* Fallback player IDs satisfy the NOT NULL constraint for R2 matches
-               * whose player2 comes from an R1 winner (not known yet). */
+              /* Fallback player IDs satisfy NOT NULL on player1Id/player2Id for R2 slots
+               * whose player2 comes from an R1 winner (not yet known at creation time). */
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
@@ -1034,12 +1037,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
           include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: { matchNumber: 'asc' },
         });
-        const playoffByNumber = new Map<number, (typeof insertedPlayoffMatches)[number]>(
+        const insertedPlayoffByNumber = new Map(
           insertedPlayoffMatches.map((m: { matchNumber: number }) => [m.matchNumber, m]),
         );
         const createdPlayoffMatches = playoffMatchPlans
           .map((p) => {
-            const match = playoffByNumber.get(p.bracketMatch.matchNumber);
+            const match = insertedPlayoffByNumber.get(p.bracketMatch.matchNumber);
             if (!match) return null;
             return {
               ...match,
@@ -1129,8 +1132,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId, stage: 'finals' },
       });
 
-      /* createMany + findMany collapses N per-row round-trips into 2, matching
-       * the optimized pattern already used in the 8/16-player POST branch. */
+      /*
+       * Bulk-insert finals matches (#703). Same pattern as the topN=8/16 path
+       * (createMany + findMany) — collapses 16 sequential creates (~3.7 s on D1)
+       * into 2 round-trips (~300 ms). Player objects are already in-memory from
+       * seededPlayers, so the per-row include is redundant.
+       */
       const finalsMatchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
           ? seededPlayers.find(p => p.seed === bracketMatch.player1Seed)
@@ -1157,17 +1164,17 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       await matchModel(prisma).createMany({ data: finalsMatchPlans.map((p) => p.data) });
 
-      const insertedFinals = await matchModel(prisma).findMany({
+      const insertedFinalsMatches = await matchModel(prisma).findMany({
         where: { tournamentId, stage: 'finals' },
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: { matchNumber: 'asc' },
       });
-      const finalsByNumber = new Map<number, (typeof insertedFinals)[number]>(
-        insertedFinals.map((m: { matchNumber: number }) => [m.matchNumber, m]),
+      const insertedFinalsByNumber = new Map(
+        insertedFinalsMatches.map((m: { matchNumber: number }) => [m.matchNumber, m]),
       );
       const createdMatches = finalsMatchPlans
         .map((p) => {
-          const match = finalsByNumber.get(p.bracketMatch.matchNumber);
+          const match = insertedFinalsByNumber.get(p.bracketMatch.matchNumber);
           if (!match) return null;
           return {
             ...match,

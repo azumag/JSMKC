@@ -1185,6 +1185,18 @@ async function runTc519(adminPage) {
     setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    /* Reset any leftover bracket state (e.g. playoff matches from TC-510/TC-516)
+     * before generating a clean Top-8 bracket. Without this, stage='playoff' rows
+     * left by a prior topN=24 test cause the page to render tabs instead of the
+     * direct bracket view, making M8/M9 cards unreachable. */
+    await adminPage.evaluate(async (tid) => {
+      await fetch(`/api/tournaments/${tid}/bm/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+    }, tournamentId);
+
     /* Generate a standard Top-8 finals bracket (no playoff). */
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);

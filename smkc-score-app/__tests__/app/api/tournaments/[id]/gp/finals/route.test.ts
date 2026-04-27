@@ -496,12 +496,14 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       ];
 
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-      /* Phase 1 findMany sequence: existingPlayoff ([]), existingFinals ([]),
-       * then the re-fetch after createMany ([] — content not tested here). */
+      /* Three findMany calls: existingPlayoff → [], existingFinals → [],
+       * post-createMany lookup → [] (cup verified via createMany data). */
       (prisma.gPMatch.findMany as jest.Mock)
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
+      /* Phase 1 uses createMany (#703) not sequential create calls. */
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: 3 });
       (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 24 });
@@ -509,13 +511,9 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const createManyCall = (prisma.gPMatch as any).createMany.mock.calls[0][0];
-      const matchDataList: Array<{ round: string; cup: string }> = createManyCall.data;
-      const r1Matches = matchDataList.filter((d) => d.round === 'playoff_r1');
-      const r2Matches = matchDataList.filter((d) => d.round === 'playoff_r2');
-      expect(r1Matches[0].cup).toBe(r1Matches[1].cup);
-      expect(r1Matches[0].cup).not.toBe(r2Matches[0].cup);
+      const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
+      expect(createManyData[0].cup).toBe(createManyData[1].cup);
+      expect(createManyData[0].cup).not.toBe(createManyData[2].cup);
     });
   });
 

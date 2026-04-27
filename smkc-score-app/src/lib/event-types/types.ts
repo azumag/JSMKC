@@ -69,6 +69,15 @@ export interface EventTypeConfig {
   assignCoursesRandomly?: boolean;
 
   /**
+   * Fixed course list assigned to every non-BYE match at qualification setup time.
+   * Used for BM: every match uses the 4 battle courses in order (BC1–BC4).
+   * When set, all real (non-BYE) matches receive `assignedCourses` equal to this array,
+   * enabling overlay events to expose the courses played on `matchResult.courses`.
+   * Takes precedence over `assignCoursesRandomly` for BM.
+   */
+  fixedCourseList?: readonly string[];
+
+  /**
    * Whether to randomly assign a cup to each match at qualification setup time (§7.4).
    * When true, the POST handler shuffles cupList and assigns one cup per match (cycling via modulo).
    * GP uses this to pre-assign cups; BM/MR do not.
