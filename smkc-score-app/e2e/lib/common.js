@@ -1152,8 +1152,8 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
     await page.waitForTimeout(300);
   }
   const startBtn = page.getByRole('button', { name: /^(Start Round \d+|ラウンド\s*\d+\s*開始)$/ }).first();
-  /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
-  await startBtn.waitFor({ state: 'visible', timeout: 25000 });
+  /* 40s to absorb D1 cold-start + fetchWithRetry delays (issue #678, #701) */
+  await startBtn.waitFor({ state: 'visible', timeout: 40000 });
 
   const responsePromise = page.waitForResponse((res) =>
     res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&

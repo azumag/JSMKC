@@ -823,16 +823,26 @@ describe('Finals Route Factory', () => {
 
     it('Phase 1: creates 8 playoff matches when no playoff exists yet', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
-      /* No existing playoff rows → triggers Phase 1 creation. */
-      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
-      (prisma.bMMatch as any).create.mockImplementation(
-        ({ data }: { data: { matchNumber: number; round: string } }) => ({
-          id: `playoff-${data.matchNumber}`,
-          ...data,
-          player1: { id: data.matchNumber },
-          player2: { id: data.matchNumber },
-        }),
-      );
+      /* playoff-stage createMany + findMany pattern (issue #703):
+       * 1st findMany: check existing playoff rows → empty
+       * createMany: bulk-insert 8 playoff rows
+       * 2nd findMany: fetch inserted rows with player include */
+      const mockPlayoffMatches = Array.from({ length: 8 }, (_, i) => ({
+        id: `playoff-${i + 1}`,
+        matchNumber: i + 1,
+        stage: 'playoff',
+        round: i < 4 ? 'playoff_r1' : 'playoff_r2',
+        player1Id: `player-${6 + i}`,
+        player2Id: `player-${18 + i}`,
+        player1: { id: `player-${6 + i}`, name: `P${6 + i}`, nickname: `p${6 + i}` },
+        player2: { id: `player-${18 + i}`, name: `P${18 + i}`, nickname: `p${18 + i}` },
+        completed: false,
+      }));
+      (prisma.bMMatch as any).findMany
+        .mockResolvedValueOnce([])             // 1st call: no existing playoff
+        .mockResolvedValueOnce([])             // 2nd call: no existing finals
+        .mockResolvedValueOnce(mockPlayoffMatches); // 3rd call: fetch inserted playoff
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
 
       const config = createMockConfig();
       const { POST } = createFinalsHandlers(config);
@@ -849,21 +859,17 @@ describe('Finals Route Factory', () => {
       const json = await response.json();
       expect(json.data.phase).toBe('playoff');
       expect(json.data.playoffMatches).toHaveLength(8);
-      /* Verifies 8 matches were created with stage='playoff' — the key
-       * distinction from Top-8/Top-16 paths which write stage='finals'. */
-      expect((prisma.bMMatch as any).create).toHaveBeenCalledTimes(8);
-      const createdStages = (prisma.bMMatch as any).create.mock.calls.map(
-        (c: [{ data: { stage: string } }]) => c[0].data.stage,
-      );
+      /* Verifies bulk-insert was used for playoff creation (issue #703) */
+      expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
+      const createManyCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      const createdStages = createManyCall.data.map((d: { stage: string }) => d.stage);
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
       /* Per issue #454 the barrage pool = each group's rank 7..12, interleaved.
        * Top-6 of each group (A: player-0..5, B: player-12..17) must NOT appear
        * as player1 in any playoff match — they advance directly to the Upper
        * Bracket. Top 7-12 of each group (player-6..11, player-18..23) are the
        * pool from which playoff player1Id values are drawn. */
-      const createdPlayerIds = (prisma.bMMatch as any).create.mock.calls.map(
-        (c: [{ data: { player1Id: string } }]) => c[0].data.player1Id,
-      );
+      const createdPlayerIds = createManyCall.data.map((d: { player1Id: string }) => d.player1Id);
       const directAdvancers = [
         'player-0', 'player-1', 'player-2', 'player-3', 'player-4', 'player-5',
         'player-12', 'player-13', 'player-14', 'player-15', 'player-16', 'player-17',

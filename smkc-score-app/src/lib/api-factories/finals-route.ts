@@ -437,9 +437,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       | 'bmQualificationConfirmed'
       | 'mrQualificationConfirmed'
       | 'gpQualificationConfirmed';
+    // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
     const tournament = await resolveTournament(id, {
       id: true,
-      [modeField]: true,
+      bmQualificationConfirmed: true,
+      mrQualificationConfirmed: true,
+      gpQualificationConfirmed: true,
     });
     if (!tournament) {
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
@@ -687,7 +690,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure,
         bracketSize,
         roundNames,
-        qualificationConfirmed: tournament.qualificationConfirmed ?? false,
+        qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
         phase,
         playoffMatches,
         playoffStructure,
@@ -995,40 +998,59 @@ export function createFinalsHandlers(config: FinalsConfig) {
           player: q.player,
         }));
 
-        const createdPlayoffMatches = [];
-        for (const bracketMatch of playoffStructure) {
+        /* Build match plans in-memory — player data is already available from
+         * playoffSeededPlayers, so the include in the old per-row create was redundant.
+         * createMany + findMany collapses N round-trips (~1.8s) into 2 (~250ms). */
+        const playoffMatchPlans = playoffStructure.map((bracketMatch) => {
           const player1 = bracketMatch.player1Seed
             ? playoffSeededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player1Seed)
             : null;
           const player2 = bracketMatch.player2Seed
             ? playoffSeededPlayers.find((p: { seed: number }) => p.seed === bracketMatch.player2Seed)
             : null;
-
-          /* Fallback player IDs satisfy the NOT NULL constraint on player1Id/player2Id
-           * for R2 matches whose player2 comes from an R1 winner (not known yet). */
-          const match = await matchModel(prisma).create({
+          return {
+            bracketMatch,
+            player1,
+            player2,
             data: {
               tournamentId,
               matchNumber: bracketMatch.matchNumber,
               stage: 'playoff',
               round: bracketMatch.round,
+              /* Fallback player IDs satisfy the NOT NULL constraint for R2 matches
+               * whose player2 comes from an R1 winner (not known yet). */
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
               ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
             },
-            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
-          });
+          };
+        });
 
-          createdPlayoffMatches.push({
-            ...match,
-            hasPlayer1: !!player1,
-            hasPlayer2: !!player2,
-            player1Seed: bracketMatch.player1Seed,
-            player2Seed: bracketMatch.player2Seed,
-            advancesToUpperSeed: bracketMatch.advancesToUpperSeed,
-          });
-        }
+        await matchModel(prisma).createMany({ data: playoffMatchPlans.map((p) => p.data) });
+
+        const insertedPlayoffMatches = await matchModel(prisma).findMany({
+          where: { tournamentId, stage: 'playoff' },
+          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          orderBy: { matchNumber: 'asc' },
+        });
+        const playoffByNumber = new Map<number, (typeof insertedPlayoffMatches)[number]>(
+          insertedPlayoffMatches.map((m: { matchNumber: number }) => [m.matchNumber, m]),
+        );
+        const createdPlayoffMatches = playoffMatchPlans
+          .map((p) => {
+            const match = playoffByNumber.get(p.bracketMatch.matchNumber);
+            if (!match) return null;
+            return {
+              ...match,
+              hasPlayer1: !!p.player1,
+              hasPlayer2: !!p.player2,
+              player1Seed: p.bracketMatch.player1Seed,
+              player2Seed: p.bracketMatch.player2Seed,
+              advancesToUpperSeed: p.bracketMatch.advancesToUpperSeed,
+            };
+          })
+          .filter((m): m is NonNullable<typeof m> => m !== null);
 
         return createSuccessResponse({
           message: 'Playoff bracket created',
@@ -1107,16 +1129,19 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId, stage: 'finals' },
       });
 
-      const createdMatches = [];
-      for (const bracketMatch of bracketStructure) {
+      /* createMany + findMany collapses N per-row round-trips into 2, matching
+       * the optimized pattern already used in the 8/16-player POST branch. */
+      const finalsMatchPlans = bracketStructure.map((bracketMatch) => {
         const player1 = bracketMatch.player1Seed
           ? seededPlayers.find(p => p.seed === bracketMatch.player1Seed)
           : null;
         const player2 = bracketMatch.player2Seed
           ? seededPlayers.find(p => p.seed === bracketMatch.player2Seed)
           : null;
-
-        const match = await matchModel(prisma).create({
+        return {
+          bracketMatch,
+          player1,
+          player2,
           data: {
             tournamentId,
             matchNumber: bracketMatch.matchNumber,
@@ -1127,17 +1152,32 @@ export function createFinalsHandlers(config: FinalsConfig) {
             completed: false,
             ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
           },
-          include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
-        });
+        };
+      });
 
-        createdMatches.push({
-          ...match,
-          hasPlayer1: !!player1,
-          hasPlayer2: !!player2,
-          player1Seed: bracketMatch.player1Seed,
-          player2Seed: bracketMatch.player2Seed,
-        });
-      }
+      await matchModel(prisma).createMany({ data: finalsMatchPlans.map((p) => p.data) });
+
+      const insertedFinals = await matchModel(prisma).findMany({
+        where: { tournamentId, stage: 'finals' },
+        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        orderBy: { matchNumber: 'asc' },
+      });
+      const finalsByNumber = new Map<number, (typeof insertedFinals)[number]>(
+        insertedFinals.map((m: { matchNumber: number }) => [m.matchNumber, m]),
+      );
+      const createdMatches = finalsMatchPlans
+        .map((p) => {
+          const match = finalsByNumber.get(p.bracketMatch.matchNumber);
+          if (!match) return null;
+          return {
+            ...match,
+            hasPlayer1: !!p.player1,
+            hasPlayer2: !!p.player2,
+            player1Seed: p.bracketMatch.player1Seed,
+            player2Seed: p.bracketMatch.player2Seed,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null);
 
       return createSuccessResponse({
         message: 'Finals bracket created from playoff results',

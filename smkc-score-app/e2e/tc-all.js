@@ -1269,11 +1269,11 @@ async function main() {
        * the session-driven `isAdmin` flag flips true. Wait until the table
        * row + admin TV select are mounted (15 s for D1 cold start), then
        * assert. */
-      /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
+      /* 40s to absorb D1 cold-start + fetchWithRetry delays (issue #678, #690) */
       await page.waitForFunction(
         () => document.querySelectorAll('select.w-14').length > 0,
         null,
-        { timeout: 25000 },
+        { timeout: 40000 },
       ).catch(() => {});
       const tvSelect = page.locator('select.w-14').first();
       const hasSelect = await tvSelect.count() > 0;
@@ -2862,7 +2862,7 @@ async function main() {
             await fetch(`/api/tournaments/${tid}/bm`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ matchId: mid, score1: 4, score2: 1 }),
+              body: JSON.stringify({ matchId: mid, score1: 3, score2: 1 }),
             });
           }, [tc346TournamentId, m.id]);
         }
@@ -3072,7 +3072,7 @@ async function main() {
             await fetch(`/api/tournaments/${tid}/bm`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ matchId: mid, score1: 4, score2: 1 }),
+              body: JSON.stringify({ matchId: mid, score1: 3, score2: 1 }),
             });
           }, [tc350TournamentId, m.id]);
         }

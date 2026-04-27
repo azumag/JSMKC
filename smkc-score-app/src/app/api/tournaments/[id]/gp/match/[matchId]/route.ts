@@ -24,6 +24,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: false,
+  qualMode: 'gp',
   recalcStatsConfig: {
     matchModel: 'gPMatch',
     qualificationModel: 'gPQualification',

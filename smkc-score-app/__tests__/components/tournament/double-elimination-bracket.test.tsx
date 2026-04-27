@@ -78,14 +78,14 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
    * finals-route.ts POST handler fallback). The UI must render those slots
    * as "TBD" rather than showing seed 1 on both sides, which misled users
    * into thinking the top seed was dropping straight into the losers bracket. */
-  const seed1 = { id: "p1", nickname: "Alice" };
-  const seed2 = { id: "p2", nickname: "Bob" };
-  const seed3 = { id: "p3", nickname: "Carol" };
-  const seed4 = { id: "p4", nickname: "Dan" };
-  const seed5 = { id: "p5", nickname: "Eve" };
-  const seed6 = { id: "p6", nickname: "Frank" };
-  const seed7 = { id: "p7", nickname: "Grace" };
-  const seed8 = { id: "p8", nickname: "Heidi" };
+  const seed1 = { id: "p1", name: "Alice A", nickname: "Alice" };
+  const seed2 = { id: "p2", name: "Bob B", nickname: "Bob" };
+  const seed3 = { id: "p3", name: "Carol C", nickname: "Carol" };
+  const seed4 = { id: "p4", name: "Dan D", nickname: "Dan" };
+  const seed5 = { id: "p5", name: "Eve E", nickname: "Eve" };
+  const seed6 = { id: "p6", name: "Frank F", nickname: "Frank" };
+  const seed7 = { id: "p7", name: "Grace G", nickname: "Grace" };
+  const seed8 = { id: "p8", name: "Heidi H", nickname: "Heidi" };
 
   const seededPlayers = [seed1, seed2, seed3, seed4, seed5, seed6, seed7, seed8].map(
     (player, i) => ({ seed: i + 1, playerId: player.id, player }),

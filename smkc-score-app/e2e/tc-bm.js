@@ -1358,8 +1358,8 @@ async function runTc521(adminPage) {
 
     // Click the score entry button for the first non-BYE match
     const scoreBtn = adminPage.getByRole('button', { name: /スコア入力|Enter Score/i }).first();
-    /* 25s to absorb D1 cold-start + fetchWithRetry delays (issue #678) */
-    await scoreBtn.waitFor({ state: 'visible', timeout: 25000 });
+    /* 40s to absorb D1 cold-start + fetchWithRetry delays (issue #678, #701) */
+    await scoreBtn.waitFor({ state: 'visible', timeout: 40000 });
     await scoreBtn.click();
     await adminPage.waitForTimeout(1500);
 

@@ -52,6 +52,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: false,
+  qualMode: 'mr',
   recalcStatsConfig: {
     matchModel: 'mRMatch',
     qualificationModel: 'mRQualification',

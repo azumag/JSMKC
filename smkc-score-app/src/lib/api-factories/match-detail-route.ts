@@ -102,6 +102,8 @@ export interface MatchDetailConfig {
    * admin edits left all gPQualification rows at 0).
    */
   recalcStatsConfig?: RecalculateStatsConfig;
+  /** Mode identifier for qualification lock check ('bm' | 'mr' | 'gp') */
+  qualMode: 'bm' | 'mr' | 'gp';
 }
 
 /**
@@ -216,7 +218,7 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');
       }
       if (matchMeta?.stage === 'qualification') {
-        const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId);
+        const lockError = await checkQualificationConfirmed(prisma, matchMeta.tournamentId, config.qualMode);
         if (lockError) return lockError;
       }
 

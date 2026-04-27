@@ -191,79 +191,84 @@ export async function promoteToPhase1(
     };
   }
 
-  const createdEntries: TTEntry[] = [];
   const skippedPlayers: string[] = [];
 
-  for (const qual of qualifiers) {
-    // Skip players without total time (incomplete qualification)
+  // Filter out players without total time first (incomplete qualification)
+  const eligible = qualifiers.filter((qual) => {
     if (qual.totalTime === null) {
       const playerEntry = qual as TTEntry & { player: { nickname: string } };
       skippedPlayers.push(playerEntry.player.nickname);
-      continue;
+      return false;
     }
+    return true;
+  });
 
-    // Check if already exists in phase1 to prevent duplicate promotion
-    const existing = await prisma.tTEntry.findUnique({
-      where: {
-        tournamentId_playerId_stage: {
-          tournamentId,
-          playerId: qual.playerId,
-          stage: "phase1",
-        },
+  if (eligible.length === 0) {
+    return { entries: [], skipped: skippedPlayers, message: "Phase 1 skipped — no eligible players with total time" };
+  }
+
+  // Bulk-check existing phase1 entries — collapses N findUnique calls into one D1 round-trip
+  const playerIds = eligible.map((q) => q.playerId);
+  const existingEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase1", playerId: { in: playerIds } },
+    select: { playerId: true },
+  });
+  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+
+  const toCreate = eligible.filter((q) => !existingIds.has(q.playerId));
+  if (toCreate.length === 0) {
+    skippedPlayers.push(...playerIds.filter((id) => existingIds.has(id)));
+    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 1" };
+  }
+
+  // Batch-insert all new phase1 entries in one D1 round-trip (avoids N sequential creates
+  // that previously caused ~3s latency and intermittent 500s on D1, issue #689)
+  try {
+    await prisma.tTEntry.createMany({
+      data: toCreate.map((qual) => ({
+        tournamentId,
+        playerId: qual.playerId,
+        stage: "phase1",
+        lives: 0, // Phase1 uses direct elimination, not the life system
+        eliminated: false,
+        times: qual.times as Prisma.InputJsonValue,
+        totalTime: qual.totalTime,
+        rank: qual.rank,
+      })),
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("P2002")) {
+      // Concurrent request already created some entries — fetch below picks them up
+      logger.warn("promoteToPhase1: P2002 on createMany, treating as idempotent");
+    } else {
+      throw e;
+    }
+  }
+
+  // Fetch created entries with player data for the response and audit logs
+  const createdEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase1", playerId: { in: toCreate.map((q) => q.playerId) } },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
+    orderBy: { rank: "asc" },
+  });
+
+  // Fire-and-forget audit logs — createAuditLog internally handles errors;
+  // using void keeps them off the critical response path
+  for (const entry of createdEntries) {
+    void createAuditLog({
+      userId,
+      ipAddress,
+      userAgent,
+      action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+      targetId: entry.id,
+      targetType: "TTEntry",
+      details: {
+        tournamentId,
+        playerId: entry.playerId,
+        playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
+        promotedTo: "phase1",
       },
     });
-
-    if (!existing) {
-      // Create phase1 entry with qualification data carried forward
-      // Lives set to 0 because phase1 uses direct elimination (no life system)
-      try {
-        const entry = await prisma.tTEntry.create({
-          data: {
-            tournamentId,
-            playerId: qual.playerId,
-            stage: "phase1",
-            lives: 0, // No lives in phase1
-            eliminated: false,
-            times: qual.times as Prisma.InputJsonValue,
-            totalTime: qual.totalTime,
-            rank: qual.rank,
-          },
-          include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        });
-        createdEntries.push(entry);
-
-      // Audit log for accountability (failure is non-critical)
-      try {
-        await createAuditLog({
-          userId,
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-          targetId: entry.id,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerId: qual.playerId,
-            playerNickname: entry.player.nickname,
-            qualRank: qual.rank,
-            promotedTo: "phase1",
-          },
-        });
-      } catch (logError) {
-        logger.error("Failed to create audit log", {
-          error: logError instanceof Error ? logError.message : logError,
-        });
-      }
-      } catch (e) {
-        // P2002 = unique constraint violation = entry created by concurrent request
-        if (e instanceof Error && e.message.includes("P2002")) {
-          // Race condition handled: another request created the entry first
-          skippedPlayers.push(qual.playerId);
-        } else {
-          throw e;
-        }
-      }
-    }
   }
 
   return {

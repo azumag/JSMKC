@@ -402,15 +402,12 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       ];
 
       (prisma.mRQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      /* Phase 1 findMany sequence: existingPlayoff ([]), existingFinals ([]),
+       * then the re-fetch after createMany ([] — content not tested here). */
       (prisma.mRMatch.findMany as jest.Mock)
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      (prisma.mRMatch.create as jest.Mock).mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({
-        id: `m${data.matchNumber}`,
-        ...data,
-        player1: { id: data.player1Id },
-        player2: { id: data.player2Id },
-      }));
       (generatePlayoffStructure as jest.Mock).mockReturnValue(playoffStructure);
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/mr/finals', { topN: 24 });
@@ -418,10 +415,14 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
-      const createCalls = (prisma.mRMatch.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
-      expect(createCalls[0].assignedCourses).toEqual(createCalls[1].assignedCourses);
-      expect(createCalls[0].assignedCourses).toHaveLength(5);
-      expect(createCalls[2].assignedCourses).toHaveLength(7);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const createManyCall = (prisma.mRMatch as any).createMany.mock.calls[0][0];
+      const matchDataList: Array<{ round: string; assignedCourses: string[] }> = createManyCall.data;
+      const r1Matches = matchDataList.filter((d) => d.round === 'playoff_r1');
+      const r2Matches = matchDataList.filter((d) => d.round === 'playoff_r2');
+      expect(r1Matches[0].assignedCourses).toEqual(r1Matches[1].assignedCourses);
+      expect(r1Matches[0].assignedCourses).toHaveLength(5);
+      expect(r2Matches[0].assignedCourses).toHaveLength(7);
     });
   });
 
