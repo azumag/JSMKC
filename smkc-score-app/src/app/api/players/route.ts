@@ -18,7 +18,7 @@ import prisma from "@/lib/prisma";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
 import { generateSecurePassword, hashPassword } from "@/lib/password-utils";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
       await createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.CREATE_PLAYER,

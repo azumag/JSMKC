@@ -11,7 +11,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
@@ -122,7 +122,7 @@ export async function PUT(
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
       await createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_PLAYER,
@@ -254,7 +254,7 @@ export async function DELETE(
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
       await createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_PLAYER,

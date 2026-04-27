@@ -23,7 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
@@ -39,19 +39,6 @@ import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
-
-/**
- * Resolve the User.id for audit logging from a session.
- * Admin sessions (Discord OAuth) carry a real User.id; player sessions
- * (credential-based) carry a Player.id which has no User FK and would cause
- * a FK violation on AuditLog.userId. Return undefined for player sessions so
- * the audit log row stores NULL and doesn't fail (#734).
- */
-function resolveAuditUserId(session: Session | null | undefined): string | undefined {
-  if (!session?.user) return undefined;
-  if (session.user.userType === 'player') return undefined;
-  return session.user.id ?? undefined;
-}
 
 /**
  * Admin authentication helper that returns the session.

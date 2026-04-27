@@ -72,7 +72,8 @@ export const PHASE_CONFIG = {
  */
 export interface PhaseContext {
   tournamentId: string;
-  userId: string;
+  /** undefined when called from a player session (no User FK) — audit row stores NULL */
+  userId: string | undefined;
   ipAddress: string;
   userAgent: string;
 }

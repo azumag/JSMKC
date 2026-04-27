@@ -18,7 +18,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
@@ -55,7 +55,7 @@ export async function POST(
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
       await createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.RESET_PLAYER_PASSWORD,

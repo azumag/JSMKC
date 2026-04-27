@@ -46,6 +46,8 @@ import { getAvailableCourses, getPlayedCourses } from "@/lib/ta/course-selection
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveAuditUserId } from "@/lib/audit-log";
+import type { Session } from "next-auth";
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
   return {
@@ -62,7 +64,7 @@ function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unkno
  */
 async function requireAdminAndGetSession(): Promise<{
   error?: NextResponse;
-  session?: { user: { id: string; role: string } };
+  session?: Session;
 }> {
   const session = await auth();
   if (!session?.user || session.user.role !== "admin") {
@@ -70,7 +72,7 @@ async function requireAdminAndGetSession(): Promise<{
       error: handleAuthzError(),
     };
   }
-  return { session: session as { user: { id: string; role: string } } };
+  return { session };
 }
 
 /** Valid phase names for URL query parameters and request bodies */
@@ -255,7 +257,7 @@ export async function POST(
     // Build context for audit logging and phase operations
     const context: PhaseContext = {
       tournamentId,
-      userId: session!.user.id,
+      userId: resolveAuditUserId(session),
       ipAddress: getClientIdentifier(request),
       userAgent: getUserAgent(request),
     };
