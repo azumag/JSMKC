@@ -220,44 +220,50 @@ export async function recalculateRanks(
   // Early return avoids sending an empty WHERE IN () clause to D1.
   if (entriesWithTotal.length === 0) return;
 
-  // Collapse N sequential TTEntry.update round-trips into a single bulk UPDATE
-  // using CASE WHEN expressions. On D1 (Cloudflare SQLite), each individual
-  // update costs ~185ms, so 27 entries would block the response for ~5s (#710).
-  // A single statement reduces this to ~200ms regardless of entry count.
-  const totalTimeCases = Prisma.join(
-    entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.totalTime ?? null}`),
-    ' '
-  );
-  const rankCases = Prisma.join(
-    entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${rankMap.get(e.id) ?? null}`),
-    ' '
-  );
-  const ids = Prisma.join(entriesWithTotal.map((e) => Prisma.sql`${e.id}`));
+  // D1 enforces a ~100 bound-parameter limit per SQL statement.
+  // Qualification CASE WHEN uses 9 params/entry (4 CASE blocks × 2 + 1 WHERE IN id).
+  // Other stages use 5 params/entry (2 CASE blocks × 2 + 1 WHERE IN id).
+  // Chunk into batches that stay under the limit (#732).
+  const BATCH_SIZE = stage === "qualification" ? 10 : 18;
 
-  if (stage === "qualification") {
-    // courseScores is a JSON column stored as text; pass the serialized string directly.
-    const courseScoresCases = Prisma.join(
-      entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${JSON.stringify(e.courseScores)}`),
+  for (let offset = 0; offset < entriesWithTotal.length; offset += BATCH_SIZE) {
+    const batch = entriesWithTotal.slice(offset, offset + BATCH_SIZE);
+
+    const totalTimeCases = Prisma.join(
+      batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.totalTime ?? null}`),
       ' '
     );
-    const qualPointsCases = Prisma.join(
-      entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.qualificationPoints ?? null}`),
+    const rankCases = Prisma.join(
+      batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${rankMap.get(e.id) ?? null}`),
       ' '
     );
-    await prisma.$executeRaw`
-      UPDATE TTEntry SET
-        totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
-        rank = CASE id ${rankCases} ELSE rank END,
-        courseScores = CASE id ${courseScoresCases} ELSE courseScores END,
-        qualificationPoints = CASE id ${qualPointsCases} ELSE qualificationPoints END
-      WHERE id IN (${ids})
-    `;
-  } else {
-    await prisma.$executeRaw`
-      UPDATE TTEntry SET
-        totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
-        rank = CASE id ${rankCases} ELSE rank END
-      WHERE id IN (${ids})
-    `;
+    const ids = Prisma.join(batch.map((e) => Prisma.sql`${e.id}`));
+
+    if (stage === "qualification") {
+      // courseScores is a JSON column stored as text; pass the serialized string directly.
+      const courseScoresCases = Prisma.join(
+        batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${JSON.stringify(e.courseScores)}`),
+        ' '
+      );
+      const qualPointsCases = Prisma.join(
+        batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.qualificationPoints ?? null}`),
+        ' '
+      );
+      await prisma.$executeRaw`
+        UPDATE TTEntry SET
+          totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
+          rank = CASE id ${rankCases} ELSE rank END,
+          courseScores = CASE id ${courseScoresCases} ELSE courseScores END,
+          qualificationPoints = CASE id ${qualPointsCases} ELSE qualificationPoints END
+        WHERE id IN (${ids})
+      `;
+    } else {
+      await prisma.$executeRaw`
+        UPDATE TTEntry SET
+          totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
+          rank = CASE id ${rankCases} ELSE rank END
+        WHERE id IN (${ids})
+      `;
+    }
   }
 }
