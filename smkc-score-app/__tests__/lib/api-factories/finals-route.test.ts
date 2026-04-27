@@ -823,25 +823,28 @@ describe('Finals Route Factory', () => {
 
     it('Phase 1: creates 8 playoff matches when no playoff exists yet', async () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
-      /* playoff-stage createMany + findMany pattern (issue #703):
-       * 1st findMany: check existing playoff rows → empty
-       * createMany: bulk-insert 8 playoff rows
-       * 2nd findMany: fetch inserted rows with player include */
-      const mockPlayoffMatches = Array.from({ length: 8 }, (_, i) => ({
+      /* No existing playoff rows → triggers Phase 1 creation.
+       * Implementation uses createMany (#703) then re-fetches via findMany for the
+       * response shape. Three findMany calls in sequence:
+       *   1. existingPlayoff check  → []   (triggers Phase 1)
+       *   2. existingFinals check   → []   (not a reset)
+       *   3. post-createMany lookup → 8 rows */
+      const expectedPlayoffRows = Array.from({ length: 8 }, (_, i) => ({
         id: `playoff-${i + 1}`,
         matchNumber: i + 1,
         stage: 'playoff',
         round: i < 4 ? 'playoff_r1' : 'playoff_r2',
-        player1Id: `player-${6 + i}`,
-        player2Id: `player-${18 + i}`,
-        player1: { id: `player-${6 + i}`, name: `P${6 + i}`, nickname: `p${6 + i}` },
-        player2: { id: `player-${18 + i}`, name: `P${18 + i}`, nickname: `p${18 + i}` },
+        tournamentId: 'tournament-123',
+        player1: { id: `p-barrage-${i}` },
+        player2: { id: `p-barrage-${i}` },
         completed: false,
+        score1: 0,
+        score2: 0,
       }));
       (prisma.bMMatch as any).findMany
-        .mockResolvedValueOnce([])             // 1st call: no existing playoff
-        .mockResolvedValueOnce([])             // 2nd call: no existing finals
-        .mockResolvedValueOnce(mockPlayoffMatches); // 3rd call: fetch inserted playoff
+        .mockResolvedValueOnce([])              // existingPlayoff
+        .mockResolvedValueOnce([])              // existingFinals
+        .mockResolvedValueOnce(expectedPlayoffRows); // post-createMany
       (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
 
       const config = createMockConfig();
@@ -859,9 +862,11 @@ describe('Finals Route Factory', () => {
       const json = await response.json();
       expect(json.data.phase).toBe('playoff');
       expect(json.data.playoffMatches).toHaveLength(8);
-      /* Verifies bulk-insert was used for playoff creation (issue #703) */
+      /* Verifies 8 matches were bulk-inserted via a single createMany call
+       * (issue #703: replaces 8 sequential creates). All rows must have stage='playoff'. */
       expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
       const createManyCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
+      expect(createManyCall.data).toHaveLength(8);
       const createdStages = createManyCall.data.map((d: { stage: string }) => d.stage);
       expect(createdStages.every((s: string) => s === 'playoff')).toBe(true);
       /* Per issue #454 the barrage pool = each group's rank 7..12, interleaved.
@@ -980,14 +985,9 @@ describe('Finals Route Factory', () => {
         return Promise.resolve(playoffRows);
       });
       (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
-      (prisma.bMMatch as any).create.mockImplementation(
-        ({ data }: { data: { matchNumber: number; round: string; stage: string } }) => ({
-          id: `finals-${data.matchNumber}`,
-          ...data,
-          player1: { id: data.matchNumber },
-          player2: { id: data.matchNumber },
-        }),
-      );
+      /* Phase 2 uses createMany (#703) then re-fetches via findMany.
+       * Finals findMany returns [] here; seededPlayers is validated separately. */
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 31 });
 
       const config = createMockConfig();
       const { POST } = createFinalsHandlers(config);

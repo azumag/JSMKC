@@ -52,7 +52,13 @@ export const bmConfig: EventTypeConfig = {
    * Unlike MR (§6.3, §10.5), BM does NOT need random course assignment from the
    * 20 racing courses. The battle courses are always played in fixed order.
    * assignCoursesRandomly is intentionally NOT set (defaults to false).
+   *
+   * fixedCourseList stores the battle-course abbreviations (BC1–BC4) on every
+   * non-BYE qualification match so overlay events can expose `matchResult.courses`
+   * on match_completed notifications. In the BM context "BC" stands for Battle
+   * Course, distinct from the Bowser Castle racing courses in the racing-mode pool.
    */
+  fixedCourseList: ['BC1', 'BC2', 'BC3', 'BC4'] as const,
 
   parsePutBody: (body) => {
     const { matchId, score1, score2, rounds } = body as {
