@@ -188,6 +188,44 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(result.status).toBe(500);
       expect(loggerMock.error).toHaveBeenCalled();
     });
+
+    // TC-530/#741: null startingCourseNumber repair must update all rows without NOT condition
+    // SQL `NOT (col = ?)` evaluates to NULL (not TRUE) when col IS NULL, so the
+    // old NOT filter silently skipped null rows — the primary legacy case to repair.
+    it('should repair all-null startingCourseNumber rows without NOT condition in updateMany (#741)', async () => {
+      const nullMatches = [
+        { id: 'm1', round: 'winners_qf', startingCourseNumber: null },
+        { id: 'm2', round: 'winners_qf', startingCourseNumber: null },
+        { id: 'm3', round: 'winners_qf', startingCourseNumber: null },
+        { id: 'm4', round: 'winners_qf', startingCourseNumber: null },
+      ];
+
+      // Call 1: playoff matches (empty — skips playoff normalization)
+      // Call 2: finals normalization lookup (select: { id, round, startingCourseNumber })
+      // Call 3: main data fetch (include: { player1, player2 })
+      (prisma.bMMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce([])        // playoff
+        .mockResolvedValueOnce(nullMatches) // normalization select
+        .mockResolvedValueOnce(nullMatches); // main data
+
+      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 4 });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const updateManyCalls = (prisma.bMMatch.updateMany as jest.Mock).mock.calls;
+      const repairCall = updateManyCalls.find(([args]) =>
+        args?.where?.stage === 'finals' && args?.where?.round === 'winners_qf',
+      );
+      expect(repairCall).toBeTruthy();
+      // Fixed: no NOT condition — SQL null rows would be skipped by NOT
+      expect(repairCall[0].where.NOT).toBeUndefined();
+      // Assigned value must be in valid [1, 4] range
+      const assigned = repairCall[0].data.startingCourseNumber;
+      expect(assigned).toBeGreaterThanOrEqual(1);
+      expect(assigned).toBeLessThanOrEqual(4);
+    });
   });
 
   describe('POST - Create finals tournament from qualification results', () => {
