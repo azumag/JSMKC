@@ -23,7 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
@@ -36,22 +36,10 @@ import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
+import { withApiTiming } from "@/lib/perf/api-timing";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
-
-/**
- * Resolve the User.id for audit logging from a session.
- * Admin sessions (Discord OAuth) carry a real User.id; player sessions
- * (credential-based) carry a Player.id which has no User FK and would cause
- * a FK violation on AuditLog.userId. Return undefined for player sessions so
- * the audit log row stores NULL and doesn't fail (#734).
- */
-function resolveAuditUserId(session: Session | null | undefined): string | undefined {
-  if (!session?.user) return undefined;
-  if (session.user.userType === 'player') return undefined;
-  return session.user.id ?? undefined;
-}
 
 /**
  * Admin authentication helper that returns the session.
@@ -173,30 +161,29 @@ const PutRequestSchema = z.object({
  * Query parameters:
  * - stage: "qualification" | "revival_1" | "revival_2" (default: "qualification")
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
   try {
     // Parse optional stage query parameter (defaults to "qualification")
     const { searchParams } = new URL(request.url);
     const stage = StageSchema.safeParse(searchParams.get("stage"));
     const stageToQuery = stage.success ? stage.data : "qualification";
 
-    // Fetch entries and tournament frozenStages in parallel for efficiency
-    const [entries, tournament, qualCount, knockoutStarted] = await Promise.all([
+    /* Single query: resolve slug/id AND fetch frozenStages/taPlayerSelfEdit (#692).
+       Then run the remaining three queries in parallel using the resolved id. */
+    const tournament = await resolveTournament(id, { id: true, frozenStages: true, taPlayerSelfEdit: true });
+    const tournamentId = tournament?.id ?? id;
+
+    const [entries, qualCount, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: stageToQuery },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-      }),
-      prisma.tournament.findUnique({
-        where: { id: tournamentId },
-        select: { frozenStages: true, taPlayerSelfEdit: true },
       }),
       prisma.tTEntry.count({
         where: { tournamentId, stage: "qualification" },
@@ -217,10 +204,15 @@ export async function GET(
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to fetch TA data", { error, tournamentId });
+    logger.error("Failed to fetch TA data", { error, tournamentId: id });
     return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
 }
+
+export const GET = (
+  ...args: Parameters<typeof handleGET>
+): ReturnType<typeof handleGET> =>
+  withApiTiming('ta.GET', () => handleGET(...args));
 
 /**
  * POST /api/tournaments/[id]/ta
@@ -498,23 +490,19 @@ export async function PUT(
 
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
-      try {
-        await createAuditLog({
-          userId: resolveAuditUserId(authResult.session),
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
-          targetId: entryId,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerNickname: updatedEntry.player.nickname,
-            action,
-          },
-        });
-      } catch (logError) {
-        logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_LIVES' });
-      }
+      createAuditLog({
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entryId,
+        targetType: "TTEntry",
+        details: {
+          tournamentId,
+          playerNickname: updatedEntry.player.nickname,
+          action,
+        },
+      }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_LIVES' }));
 
       return createSuccessResponse({ entry: updatedEntry });
     }
@@ -553,25 +541,20 @@ export async function PUT(
 
       const ipAddress = getClientIdentifier(request);
       const userAgent = getUserAgent(request);
-      try {
-        await createAuditLog({
-          userId: resolveAuditUserId(authResult.session),
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
-          targetId: entryId,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerNickname: updatedEntry.player.nickname,
-            eliminated,
-            manualUpdate: true,
-          },
-        });
-      } catch (logError) {
-        // Audit log failure is non-critical but should be logged for security tracking
-        logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_ELIMINATE' });
-      }
+      createAuditLog({
+        userId: resolveAuditUserId(authResult.session),
+        ipAddress,
+        userAgent,
+        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+        targetId: entryId,
+        targetType: "TTEntry",
+        details: {
+          tournamentId,
+          playerNickname: updatedEntry.player.nickname,
+          eliminated,
+          manualUpdate: true,
+        },
+      }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_ELIMINATE' }));
 
       return createSuccessResponse({ entry: updatedEntry });
     }
@@ -695,24 +678,19 @@ export async function PUT(
 
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
-    try {
-      await createAuditLog({
-        userId: resolveAuditUserId(authResult.session),
-        ipAddress,
-        userAgent,
-        action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
-        targetId: entryId,
-        targetType: "TTEntry",
-        details: {
-          tournamentId,
-          updatedTimes: updatedTimes,
-          playerNickname: finalEntry?.player.nickname,
-        },
-        });
-    } catch (logError) {
-      // Audit log failure is non-critical but should be logged for security tracking
-      logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' });
-    }
+    createAuditLog({
+      userId: resolveAuditUserId(authResult.session),
+      ipAddress,
+      userAgent,
+      action: AUDIT_ACTIONS.UPDATE_TA_ENTRY,
+      targetId: entryId,
+      targetType: "TTEntry",
+      details: {
+        tournamentId,
+        updatedTimes: updatedTimes,
+        playerNickname: finalEntry?.player.nickname,
+      },
+    }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'UPDATE_TA_ENTRY_TIMES' }));
 
     return createSuccessResponse({ entry: finalEntry });
   } catch (error) {
@@ -784,24 +762,19 @@ export async function DELETE(
     // Audit log for deletion accountability
     const ipAddress = getClientIdentifier(request);
     const userAgent = getUserAgent(request);
-    try {
-      await createAuditLog({
-        userId: resolveAuditUserId(authResult.session),
-        ipAddress,
-        userAgent,
-        action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
-        targetId: entryId,
-        targetType: "TTEntry",
-        details: {
-          tournamentId,
-          playerNickname: entryToDelete.player.nickname,
-          deletedBy: authResult.session!.user.id,
-        },
-        });
-    } catch (logError) {
-      // Audit log failure is non-critical but should be logged for security tracking
-      logger.warn("Failed to create audit log", { error: logError, tournamentId, entryId, action: 'DELETE_TA_ENTRY' });
-    }
+    createAuditLog({
+      userId: resolveAuditUserId(authResult.session),
+      ipAddress,
+      userAgent,
+      action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
+      targetId: entryId,
+      targetType: "TTEntry",
+      details: {
+        tournamentId,
+        playerNickname: entryToDelete.player.nickname,
+        deletedBy: authResult.session!.user.id,
+      },
+    }).catch((err) => logger.warn("Failed to create audit log", { error: err, tournamentId, entryId, action: 'DELETE_TA_ENTRY' }));
 
     return createSuccessResponse({ message: "Entry deleted successfully" });
   } catch (error) {

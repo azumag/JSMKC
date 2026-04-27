@@ -15,6 +15,7 @@ jobs:
   apply:
     name: Apply D1 migrations (remote)
     runs-on: ubuntu-latest
+    environment: production
 
     defaults:
       run:

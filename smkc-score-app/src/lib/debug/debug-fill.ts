@@ -368,11 +368,11 @@ export async function handleDebugFillRequest(
     }
     invalidateOverallRankingsCache(tournamentId);
 
-    /* Audit log: best-effort, don't fail the response */
+    /* Audit log: best-effort, fire-and-forget via .catch() */
     try {
       const ip = await getServerSideIdentifier();
       const ua = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
+      createAuditLog({
         userId: userId ?? undefined,
         ipAddress: ip,
         userAgent: ua,
@@ -380,7 +380,7 @@ export async function handleDebugFillRequest(
         targetId: tournamentId,
         targetType: 'Tournament',
         details: { mode, ...result },
-      });
+      }).catch((err) => logger.warn('Failed to write debug-fill audit log', { error: err, tournamentId, mode }));
     } catch (err) {
       logger.warn('Failed to write debug-fill audit log', { error: err, tournamentId, mode });
     }

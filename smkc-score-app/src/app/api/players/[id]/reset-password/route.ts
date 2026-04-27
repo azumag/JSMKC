@@ -18,7 +18,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleAuthzError } from '@/lib/error-handling';
@@ -50,20 +50,25 @@ export async function POST(
       data: { password: hashedPassword },
     });
 
-    // Audit log — non-critical, wrapped in try/catch
+    // Audit log — fire-and-forget via .catch(), non-critical
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.RESET_PLAYER_PASSWORD,
         targetId: id,
         targetType: 'Player',
         details: { playerNickname: player.nickname, passwordRegenerated: true },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        playerId: id,
+        action: 'reset_player_password',
+      }));
     } catch (logError) {
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         playerId: id,

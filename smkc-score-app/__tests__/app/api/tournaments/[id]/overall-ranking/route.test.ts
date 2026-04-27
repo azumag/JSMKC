@@ -95,7 +95,7 @@ describe('Overall Ranking Route', () => {
 
   describe('GET /api/tournaments/[id]/overall-ranking', () => {
     it('returns stored rankings for a valid tournament', async () => {
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
 
       const response = await GET(
@@ -111,7 +111,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns empty rankings array when no rankings calculated yet', async () => {
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue([]);
 
       const response = await GET(
@@ -128,7 +128,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns a valid lastUpdated timestamp derived from rankings', async () => {
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
 
       const response = await GET(
@@ -144,7 +144,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 404 when tournament is not found', async () => {
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
       const response = await GET(
         {} as any,
@@ -157,7 +157,7 @@ describe('Overall Ranking Route', () => {
     });
 
     it('returns 500 on database errors', async () => {
-      (prisma.tournament.findUnique as jest.Mock).mockRejectedValue(
+      (prisma.tournament.findFirst as jest.Mock).mockRejectedValue(
         new Error('Database connection failed')
       );
 
@@ -202,7 +202,7 @@ describe('Overall Ranking Route', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(null);
 
       const response = await POST(
         {} as any,
@@ -217,7 +217,7 @@ describe('Overall Ranking Route', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
       (saveOverallRankings as jest.Mock).mockResolvedValue(undefined);
 
@@ -245,7 +245,7 @@ describe('Overall Ranking Route', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (calculateOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
       (saveOverallRankings as jest.Mock).mockRejectedValue(
         new Error('DB write failed')
@@ -264,7 +264,7 @@ describe('Overall Ranking Route', () => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
-      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(mockTournament);
       (calculateOverallRankings as jest.Mock).mockRejectedValue(
         new Error('Calculation failed')
       );

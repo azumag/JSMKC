@@ -12,9 +12,10 @@
  * JSMKC tournaments have ~50 players max, so pagination is unnecessary.
  */
 
+import { withApiTiming } from '@/lib/perf/api-timing';
 import { createStandingsHandlers } from '@/lib/api-factories/standings-route';
 
-const { GET } = createStandingsHandlers({
+const { GET: _GET } = createStandingsHandlers({
   loggerName: 'bm-standings-api',
   errorMessage: 'Failed to fetch BM standings',
   qualificationModel: 'bMQualification',
@@ -45,4 +46,5 @@ const { GET } = createStandingsHandlers({
   }),
 });
 
-export { GET };
+export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
+  withApiTiming('bm.standings.GET', () => _GET(...args));

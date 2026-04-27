@@ -11,7 +11,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
@@ -116,13 +116,12 @@ export async function PUT(
       },
     });
 
-    // Create audit log for the update operation.
-    // Wrapped in try/catch so audit failures don't block the main response.
+    // Create audit log for the update operation — fire-and-forget via .catch()
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_PLAYER,
@@ -133,9 +132,13 @@ export async function PUT(
           nickname,
           country,
         },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        playerId: id,
+        action: 'update_player',
+      }));
     } catch (logError) {
-      // Audit log failures are non-critical; log for monitoring but don't fail the request
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         playerId: id,
@@ -248,13 +251,12 @@ export async function DELETE(
       where: { id }
     });
 
-    // Create audit log for the deletion.
-    // Important for security tracking: who deleted which player and when.
+    // Create audit log for the deletion — fire-and-forget via .catch()
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_PLAYER,
@@ -263,9 +265,13 @@ export async function DELETE(
         details: {
           playerId: id,
         },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        playerId: id,
+        action: 'delete_player',
+      }));
     } catch (logError) {
-      // Audit log failures are non-critical; log for monitoring but don't fail the request
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         playerId: id,

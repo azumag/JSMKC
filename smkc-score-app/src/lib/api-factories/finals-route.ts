@@ -419,12 +419,18 @@ async function normalizeRoundStartingCoursesToSingleValue(
   }
 
   for (const [round, value] of canonicalByRound) {
-    /* Update all rows in the round unconditionally.
-     * SQL `NOT (col = ?)` evaluates to NULL (not TRUE) when col IS NULL, so
-     * the previous `NOT: { startingCourseNumber: value }` filter silently
-     * skipped null rows — the main legacy case we need to repair (#741). */
+    /* OR condition catches both null rows (IS NULL) and disagreeing rows (!= value).
+     * `NOT: { col: value }` alone silently skips null rows in SQL because
+     * NOT(NULL = ?) evaluates to NULL (not TRUE) — so we combine with the
+     * explicit null check to form `IS NULL OR col != value` (#753). */
     await modelInstance.updateMany({
-      where: { tournamentId, stage, round },
+      where: {
+        tournamentId, stage, round,
+        OR: [
+          { startingCourseNumber: null },
+          { NOT: { startingCourseNumber: value } },
+        ],
+      },
       data: { startingCourseNumber: value },
     });
   }

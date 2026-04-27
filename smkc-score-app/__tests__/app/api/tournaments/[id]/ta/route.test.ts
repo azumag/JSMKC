@@ -53,12 +53,13 @@ jest.mock('@/lib/sanitize', () => ({
 
 // Mock audit-log
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     CREATE_TA_ENTRY: 'CREATE_TA_ENTRY',
     UPDATE_TA_ENTRY: 'UPDATE_TA_ENTRY',
     DELETE_TA_ENTRY: 'DELETE_TA_ENTRY',
   },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id ?? undefined),
 }));
 
 // Mock rank-calculation

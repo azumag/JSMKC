@@ -14,7 +14,7 @@
 import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveTournament } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -38,19 +38,16 @@ export async function GET(
 ) {
   const logger = createLogger("broadcast-api");
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
 
   try {
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      select: {
-        overlayPlayer1Name: true,
-        overlayPlayer2Name: true,
-        overlayMatchLabel: true,
-        overlayPlayer1Wins: true,
-        overlayPlayer2Wins: true,
-        overlayMatchFt: true,
-      },
+    /* Single query: fold slug/id resolution + field fetch (#692) */
+    const tournament = await resolveTournament(id, {
+      overlayPlayer1Name: true,
+      overlayPlayer2Name: true,
+      overlayMatchLabel: true,
+      overlayPlayer1Wins: true,
+      overlayPlayer2Wins: true,
+      overlayMatchFt: true,
     });
 
     if (!tournament) {
@@ -66,7 +63,7 @@ export async function GET(
       matchFt: tournament.overlayMatchFt ?? null,
     });
   } catch (error) {
-    logger.error("Failed to fetch broadcast state", { error, tournamentId });
+    logger.error("Failed to fetch broadcast state", { error, tournamentId: id });
     return createErrorResponse("Failed to fetch broadcast state", 500);
   }
 }
@@ -94,7 +91,6 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
 
   try {
     const body = sanitizeInput(await request.json()) as Record<string, unknown>;
@@ -129,13 +125,12 @@ export async function PUT(
       return handleValidationError("matchFt must be a number", "matchFt");
     }
 
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      select: { id: true },
-    });
+    /* Single query: fold slug/id resolution + existence check (#692) */
+    const tournament = await resolveTournament(id, { id: true });
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
     }
+    const tournamentId = tournament.id;
 
     const updateData: Record<string, string | number | null> = {};
     if (player1Name !== undefined) {
@@ -187,7 +182,7 @@ export async function PUT(
         : undefined,
     });
   } catch (error) {
-    logger.error("Failed to update broadcast state", { error, tournamentId });
+    logger.error("Failed to update broadcast state", { error, tournamentId: id });
     return createErrorResponse("Failed to update broadcast state", 500);
   }
 }

@@ -25,9 +25,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveTournament } from "@/lib/tournament-identifier";
 import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
 import { buildOverlayEvents } from "@/lib/overlay/events";
+import { withApiTiming } from "@/lib/perf/api-timing";
 import { computeCurrentPhase, computeCurrentPhaseFormat } from "@/lib/overlay/phase";
 import type { OverlayMatchInput, OverlayMode } from "@/lib/overlay/types";
 
@@ -110,42 +111,37 @@ function parseSince(raw: string | null, now: Date, initial: boolean): Date {
   return new Date(Math.max(parsed, lowerBound));
 }
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const logger = createLogger("overlay-events-api");
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
   const now = new Date();
   const initial = request.nextUrl.searchParams.get("initial") === "1";
   const since = parseSince(request.nextUrl.searchParams.get("since"), now, initial);
 
   try {
-    /* findUnique short-circuits all the relation queries below if the
-       tournament doesn't exist. We deliberately don't gate on `publicModes`
-       here — the overlay is meant to be visible whenever the tournament
-       exists (the URL itself is the access token for the broadcast). */
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      select: {
-        id: true,
-        // Per-mode flags (issue #696); OR of all three = "any qual confirmed" for phase display
-        bmQualificationConfirmed: true,
-        mrQualificationConfirmed: true,
-        gpQualificationConfirmed: true,
-        qualificationConfirmedAt: true,
-        overlayPlayer1Name: true,
-        overlayPlayer2Name: true,
-        overlayMatchLabel: true,
-        overlayPlayer1Wins: true,
-        overlayPlayer2Wins: true,
-        overlayMatchFt: true,
-      },
+    /* Single query: resolve slug/id AND fetch overlay fields (#692).
+       Previously resolveTournamentId + findUnique = 2 sequential D1 round-trips. */
+    const tournament = await resolveTournament(id, {
+      // Per-mode flags (issue #696); OR of all three = "any qual confirmed" for phase display
+      bmQualificationConfirmed: true,
+      mrQualificationConfirmed: true,
+      gpQualificationConfirmed: true,
+      qualificationConfirmedAt: true,
+      overlayPlayer1Name: true,
+      overlayPlayer2Name: true,
+      overlayMatchLabel: true,
+      overlayPlayer1Wins: true,
+      overlayPlayer2Wins: true,
+      overlayMatchFt: true,
+      id: true,
     });
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
     }
+    const tournamentId = tournament.id;
 
     /*
      * Early-return path.
@@ -495,7 +491,12 @@ export async function GET(
     }
     return response;
   } catch (error) {
-    logger.error("Failed to build overlay events", { error, tournamentId });
+    logger.error("Failed to build overlay events", { error, tournamentId: id });
     return createErrorResponse("Failed to build overlay events", 500);
   }
 }
+
+export const GET = (
+  ...args: Parameters<typeof handleGET>
+): ReturnType<typeof handleGET> =>
+  withApiTiming('overlay-events.GET', () => handleGET(...args));

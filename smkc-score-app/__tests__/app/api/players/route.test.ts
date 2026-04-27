@@ -66,10 +66,11 @@ jest.mock('@/lib/password-utils', () => ({
 }));
 
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     CREATE_PLAYER: 'CREATE_PLAYER',
   },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id ?? undefined),
 }));
 
 jest.mock('@/lib/rate-limit', () => ({

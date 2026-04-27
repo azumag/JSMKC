@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
@@ -140,13 +140,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create audit log for tournament creation.
-    // Wrapped in try/catch so audit failures don't block the response.
+    // Create audit log for tournament creation — fire-and-forget via .catch()
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
@@ -158,10 +157,13 @@ export async function POST(request: NextRequest) {
           date,
           debugMode: debugMode === true,
         },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        tournamentId: tournament.id,
+        action: 'create_tournament',
+      }));
     } catch (logError) {
-      // Audit log failures are non-critical; the tournament was created successfully.
-      // Log the failure for monitoring but don't roll back the creation.
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         tournamentId: tournament.id,

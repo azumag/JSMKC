@@ -162,26 +162,22 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
         totalPlayers: players.length,
       };
 
-      /* Record audit log for bracket generation (security and accountability) */
-      try {
-        await createAuditLog({
-          userId: session.user.id,
-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          userAgent: request.headers.get('user-agent') || 'unknown',
-          action: AUDIT_ACTIONS.CREATE_BRACKET,
-          targetId: tournamentId,
-          targetType: 'Tournament',
-          details: {
-            tournamentId,
-            bracketSize: players.length,
-            winnerCount: bracket.winnerBracket.length,
-            loserCount: bracket.loserBracket.length,
-          },
-        });
-      } catch (logError) {
-        /* Audit log failure is non-critical but should be logged for security tracking */
-        logger.warn('Failed to create audit log', { error: logError, tournamentId, action: 'CREATE_BRACKET' });
-      }
+      /* Record audit log for bracket generation (security and accountability).
+       * Fire-and-forget: .catch() handles async failures without blocking the response. */
+      createAuditLog({
+        userId: session.user.id,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+        action: AUDIT_ACTIONS.CREATE_BRACKET,
+        targetId: tournamentId,
+        targetType: 'Tournament',
+        details: {
+          tournamentId,
+          bracketSize: players.length,
+          winnerCount: bracket.winnerBracket.length,
+          loserCount: bracket.loserBracket.length,
+        },
+      }).catch((err) => logger.warn('Failed to create audit log', { error: err, tournamentId, action: 'CREATE_BRACKET' }));
 
       return createSuccessResponse(bracketData);
     } catch (error) {

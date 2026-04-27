@@ -16,7 +16,7 @@ import { NextRequest } from "next/server";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
@@ -256,12 +256,12 @@ export async function PUT(
       },
     });
 
-    // Audit log for the update operation
+    // Audit log for the update operation — fire-and-forget via .catch()
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.UPDATE_TOURNAMENT,
@@ -278,9 +278,13 @@ export async function PUT(
           gpQualificationConfirmed,
           publicModes,
         },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        id: resolvedId,
+        action: 'UPDATE_TOURNAMENT',
+      }));
     } catch (logError) {
-      // Audit log failure is non-critical but logged for security tracking
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         id: resolvedId,
@@ -371,8 +375,8 @@ export async function DELETE(
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      await createAuditLog({
-        userId: session.user.id,
+      createAuditLog({
+        userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
         action: AUDIT_ACTIONS.DELETE_TOURNAMENT,
@@ -381,9 +385,13 @@ export async function DELETE(
         details: {
           tournamentId: resolvedId,
         },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        id: resolvedId,
+        action: 'DELETE_TOURNAMENT',
+      }));
     } catch (logError) {
-      // Audit log failure is non-critical but logged for security tracking
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         id: resolvedId,

@@ -27,7 +27,7 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' } }));
+jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' } }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
@@ -54,12 +54,12 @@ class MockNextRequest {
   constructor(
     private url: string,
     private body?: any,
-    private headers: Map<string, string> = new Map()
+    private headersMap: Map<string, string> = new Map()
   ) {}
   async json() { return this.body; }
-  get header() { return { get: (key: string) => this.headers.get(key) }; }
+  get header() { return { get: (key: string) => this.headersMap.get(key) }; }
   headers = {
-    get: (key: string) => this.headers.get(key)
+    get: (key: string) => this.headersMap.get(key) ?? null
   };
 }
 

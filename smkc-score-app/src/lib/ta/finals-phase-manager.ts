@@ -72,7 +72,8 @@ export const PHASE_CONFIG = {
  */
 export interface PhaseContext {
   tournamentId: string;
-  userId: string;
+  /** undefined when called from a player session (no User FK) — audit row stores NULL */
+  userId: string | undefined;
   ipAddress: string;
   userAgent: string;
 }
@@ -328,77 +329,69 @@ export async function promoteToPhase2(
     };
   }
 
-  const createdEntries: TTEntry[] = [];
   const skippedPlayers: string[] = [];
 
-  for (const source of allPlayers) {
-    // Skip players without completed times
+  // Filter out players without total time
+  const eligible = allPlayers.filter((source) => {
     if (source.totalTime === null) {
       const playerEntry = source as TTEntry & { player: { nickname: string } };
       skippedPlayers.push(playerEntry.player.nickname);
-      continue;
+      return false;
     }
+    return true;
+  });
 
-    // Prevent duplicate promotion
-    const existing = await prisma.tTEntry.findUnique({
-      where: {
-        tournamentId_playerId_stage: {
-          tournamentId,
-          playerId: source.playerId,
-          stage: "phase2",
-        },
-      },
+  // Bulk-check existing phase2 entries — collapses N findUnique calls into one D1 round-trip
+  const playerIds = eligible.map((s) => s.playerId);
+  const existingEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase2", playerId: { in: playerIds } },
+    select: { playerId: true },
+  });
+  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+
+  const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
+  if (toCreate.length === 0) {
+    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 2" };
+  }
+
+  // Batch-insert all new phase2 entries in one D1 round-trip (#689)
+  try {
+    await prisma.tTEntry.createMany({
+      data: toCreate.map((source) => ({
+        tournamentId,
+        playerId: source.playerId,
+        stage: "phase2",
+        lives: 0,
+        eliminated: false,
+        times: source.times as Prisma.InputJsonValue,
+        totalTime: source.totalTime,
+        rank: source.rank,
+      })),
     });
-
-    if (!existing) {
-      // Create phase2 entry with source stage data carried forward
-      try {
-        const entry = await prisma.tTEntry.create({
-          data: {
-            tournamentId,
-            playerId: source.playerId,
-            stage: "phase2",
-            lives: 0, // No lives in phase2
-            eliminated: false,
-            times: source.times as Prisma.InputJsonValue,
-            totalTime: source.totalTime,
-            rank: source.rank,
-          },
-          include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        });
-        createdEntries.push(entry);
-
-        // Audit log for accountability (non-critical)
-        try {
-        await createAuditLog({
-          userId,
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-          targetId: entry.id,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerId: source.playerId,
-            playerNickname: entry.player.nickname,
-            sourceStage: source.stage,
-            promotedTo: "phase2",
-          },
-        });
-      } catch (logError) {
-        logger.error("Failed to create audit log", {
-          error: logError instanceof Error ? logError.message : logError,
-        });
-      }
-      } catch (e) {
-        // P2002 = unique constraint violation = entry created by concurrent request
-        if (e instanceof Error && e.message.includes("P2002")) {
-          skippedPlayers.push(source.playerId);
-        } else {
-          throw e;
-        }
-      }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("P2002")) {
+      logger.warn("promoteToPhase2: P2002 on createMany, treating as idempotent");
+    } else {
+      throw e;
     }
+  }
+
+  const createdEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase2", playerId: { in: toCreate.map((s) => s.playerId) } },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
+    orderBy: { rank: "asc" },
+  });
+
+  for (const entry of createdEntries) {
+    void createAuditLog({
+      userId, ipAddress, userAgent,
+      action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+      targetId: entry.id,
+      targetType: "TTEntry",
+      details: { tournamentId, playerId: entry.playerId,
+        playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
+        promotedTo: "phase2" },
+    });
   }
 
   return {
@@ -457,78 +450,69 @@ export async function promoteToPhase3(
     throw new Error("No players available for Phase 3 (Finals)");
   }
 
-  const createdEntries: TTEntry[] = [];
   const skippedPlayers: string[] = [];
 
-  for (const source of allPlayers) {
-    // Skip players without completed times
+  // Filter out players without total time
+  const eligible = allPlayers.filter((source) => {
     if (source.totalTime === null) {
       const playerEntry = source as TTEntry & { player: { nickname: string } };
       skippedPlayers.push(playerEntry.player.nickname);
-      continue;
+      return false;
     }
+    return true;
+  });
 
-    // Prevent duplicate promotion
-    const existing = await prisma.tTEntry.findUnique({
-      where: {
-        tournamentId_playerId_stage: {
-          tournamentId,
-          playerId: source.playerId,
-          stage: "phase3",
-        },
-      },
+  // Bulk-check existing phase3 entries — collapses N findUnique calls into one D1 round-trip
+  const playerIds = eligible.map((s) => s.playerId);
+  const existingEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase3", playerId: { in: playerIds } },
+    select: { playerId: true },
+  });
+  const existingIds = new Set(existingEntries.map((e) => e.playerId));
+
+  const toCreate = eligible.filter((s) => !existingIds.has(s.playerId));
+  if (toCreate.length === 0) {
+    return { entries: [], skipped: skippedPlayers, message: "All players already promoted to Phase 3" };
+  }
+
+  // Batch-insert all new phase3 entries in one D1 round-trip (#689)
+  try {
+    await prisma.tTEntry.createMany({
+      data: toCreate.map((source) => ({
+        tournamentId,
+        playerId: source.playerId,
+        stage: "phase3",
+        lives: config.initialLives,
+        eliminated: false,
+        times: source.times as Prisma.InputJsonValue,
+        totalTime: source.totalTime,
+        rank: source.rank,
+      })),
     });
-
-    if (!existing) {
-      // Create phase3 entry with initial lives for life-based elimination
-      try {
-        const entry = await prisma.tTEntry.create({
-          data: {
-            tournamentId,
-            playerId: source.playerId,
-            stage: "phase3",
-            lives: config.initialLives, // Start with 3 lives
-            eliminated: false,
-            times: source.times as Prisma.InputJsonValue,
-            totalTime: source.totalTime,
-            rank: source.rank,
-          },
-          include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        });
-        createdEntries.push(entry);
-
-        // Audit log for accountability (non-critical)
-        try {
-        await createAuditLog({
-          userId,
-          ipAddress,
-          userAgent,
-          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-          targetId: entry.id,
-          targetType: "TTEntry",
-          details: {
-            tournamentId,
-            playerId: source.playerId,
-            playerNickname: entry.player.nickname,
-            sourceStage: source.stage,
-            promotedTo: "phase3",
-            initialLives: config.initialLives,
-          },
-        });
-      } catch (logError) {
-        logger.error("Failed to create audit log", {
-          error: logError instanceof Error ? logError.message : logError,
-        });
-      }
-      } catch (e) {
-        // P2002 = unique constraint violation = entry created by concurrent request
-        if (e instanceof Error && e.message.includes("P2002")) {
-          skippedPlayers.push(source.playerId);
-        } else {
-          throw e;
-        }
-      }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("P2002")) {
+      logger.warn("promoteToPhase3: P2002 on createMany, treating as idempotent");
+    } else {
+      throw e;
     }
+  }
+
+  const createdEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase3", playerId: { in: toCreate.map((s) => s.playerId) } },
+    include: { player: { select: PLAYER_PUBLIC_SELECT } },
+    orderBy: { rank: "asc" },
+  });
+
+  for (const entry of createdEntries) {
+    void createAuditLog({
+      userId, ipAddress, userAgent,
+      action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+      targetId: entry.id,
+      targetType: "TTEntry",
+      details: { tournamentId, playerId: entry.playerId,
+        playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
+        promotedTo: "phase3", initialLives: config.initialLives },
+    });
   }
 
   return {
@@ -601,7 +585,7 @@ export async function processEliminationPhaseResult(
 
   // Audit log for elimination event (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -704,7 +688,7 @@ export async function processPhase3Result(
 
       // Audit log for life loss / elimination (non-critical)
       try {
-        await createAuditLog({
+        void createAuditLog({
           userId,
           ipAddress,
           userAgent,
@@ -761,7 +745,7 @@ export async function processPhase3Result(
 
     // Audit log for life reset event (non-critical)
     try {
-      await createAuditLog({
+      void createAuditLog({
         userId,
         ipAddress,
         userAgent,
@@ -836,16 +820,12 @@ export async function getPhaseStatus(
   };
 
   const phase3Base = buildBase(phase3Entries);
-  const phase3Status = phase3Base
-    ? {
-        ...phase3Base,
-        winner:
-          phase3Base.active === 1
-            ? (phase3Entries.find((e) => !e.eliminated) as { eliminated: boolean; player: { nickname: string } } | undefined)
-                ?.player.nickname ?? null
-            : null,
-      }
-    : null;
+  type Phase3Entry = { eliminated: boolean; player: { nickname: string } };
+  const phase3Winner =
+    phase3Base?.active === 1
+      ? (phase3Entries.find((e) => !e.eliminated) as Phase3Entry | undefined)?.player.nickname ?? null
+      : null;
+  const phase3Status = phase3Base ? { ...phase3Base, winner: phase3Winner } : null;
 
   const currentPhase =
     phase3Entries.length > 0
@@ -995,7 +975,7 @@ export async function startPhaseRound(
 
   // Audit log for round start (non-critical, outside transaction)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -1166,7 +1146,7 @@ export async function submitRoundResults(
 
   // Audit log for round submission (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -1253,7 +1233,7 @@ export async function cancelPhaseRound(
 
   // Audit log for round cancellation (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId: context.userId,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
@@ -1429,7 +1409,7 @@ export async function undoLastPhaseRound(
 
   // Audit log for undo operation (non-critical)
   try {
-    await createAuditLog({
+    void createAuditLog({
       userId,
       ipAddress,
       userAgent,

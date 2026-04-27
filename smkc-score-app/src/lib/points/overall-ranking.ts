@@ -793,6 +793,14 @@ export async function saveOverallRankings(
 
   // Array-form $transaction batches deleteMany + createMany in one D1 request,
   // collapsing N upsert round-trips into 2 operations (#752).
+  //
+  // Non-atomicity note (#764): deleteMany and createMany are two separate D1
+  // round-trips inside the array-form $transaction (D1 does not support true
+  // interactive transactions). A concurrent call for the same tournamentId
+  // between these two statements could observe an empty table window or have
+  // its createMany overwritten. In practice this is safe because
+  // saveOverallRankings is admin-triggered and concurrent admin submissions on
+  // the same tournament are an exceedingly rare edge case.
   await prisma.$transaction([
     prisma.tournamentPlayerScore.deleteMany({ where: { tournamentId } }),
     prisma.tournamentPlayerScore.createMany({ data: rows }),

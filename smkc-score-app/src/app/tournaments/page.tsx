@@ -27,7 +27,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -112,6 +112,8 @@ export default function TournamentsPage() {
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Ref guards against two rapid form-submits racing before the first re-render.
+  const isSubmittingRef = useRef(false);
 
   /**
    * Fetches the tournament list from the API.
@@ -160,7 +162,8 @@ export default function TournamentsPage() {
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setError("");
     setIsSubmitting(true);
 
@@ -187,6 +190,7 @@ export default function TournamentsPage() {
       logger.error("Failed to create tournament:", { error: err });
       setError(t('failedToCreate'));
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

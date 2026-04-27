@@ -11,9 +11,10 @@
  * - ETag caching with If-None-Match: * bypass
  */
 
+import { withApiTiming } from '@/lib/perf/api-timing';
 import { createStandingsHandlers } from '@/lib/api-factories/standings-route';
 
-const { GET } = createStandingsHandlers({
+const { GET: _GET } = createStandingsHandlers({
   loggerName: 'gp-standings-api',
   errorMessage: 'Failed to fetch GP standings',
   qualificationModel: 'gPQualification',
@@ -43,4 +44,5 @@ const { GET } = createStandingsHandlers({
   }),
 });
 
-export { GET };
+export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
+  withApiTiming('gp.standings.GET', () => _GET(...args));

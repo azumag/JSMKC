@@ -1318,7 +1318,16 @@ async function main() {
   // When setupAllModes fails, TID is an empty tournament with no MR groups — in that
   // case we only verify the page renders without error messages (no group check).
   await nav(page, `/tournaments/${TID}/mr`);
-  const mrSharedText = await vis(page);
+  // Wait up to an extra 12 s for group headers to appear (D1 cold-start can exceed
+  // the baseline 8 s WAIT for a fresh Cloudflare Worker invocation).
+  let mrSharedText = await vis(page);
+  if (!mrSharedText.includes('Group A') && !mrSharedText.includes('グループ A') && !setupAllModesError) {
+    for (let i = 0; i < 4; i++) {
+      await page.waitForTimeout(3000);
+      mrSharedText = await vis(page);
+      if (mrSharedText.includes('Group A') || mrSharedText.includes('グループ A')) break;
+    }
+  }
   const mrPageLoaded =
     (mrSharedText.includes('Match Race') || mrSharedText.includes('マッチレース')) &&
     !mrSharedText.includes('Please wait') &&
@@ -1545,7 +1554,7 @@ async function main() {
       if (m === 'bm') {
         // Only check for Details link when the Matches tab exists (i.e. BM is set up for TID).
         // Without a Matches tab, there are no match rows and no Details link to check.
-        if (!hasMatchesTab) continue;
+        if (!hasMatchesTab) { log('TC-320', 'SKIP', 'BM Matches tab absent (no BM setup for TID)'); continue; }
         const hasDetailsLabel = bodyText.includes('Details') || bodyText.includes('詳細');
         if (!hasDetailsLabel) {
           tc320 = false;
@@ -1984,9 +1993,19 @@ async function main() {
         throw new Error(`No version in GET response: ${JSON.stringify(readResp.body).slice(0, 200)}`);
       }
 
-      // Submit PUT with a stale version (currentVersion - 1) and no times — must return 409.
-      // Note: times is intentionally omitted so the partial-times validation (issue #624) is not
-      // triggered before the optimistic-lock check has a chance to run.
+      // A fresh entry has version=0, so (currentVersion-1) = -1 which the server rejects
+      // with 400 before the optimistic-lock comparator runs (#765). Advance the version first
+      // so the stale value is a positive integer that passes input validation.
+      await page.evaluate(async ([tid, eid, v]) => {
+        await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: v }),
+        });
+      }, [tc332TournamentId, entry.id, currentVersion]);
+
+      // Now submit with the original version (now stale since the PUT above bumped it to v+1).
+      // Must return 409, not 400 — the version is valid but behind the current row.
       const conflictResp = await page.evaluate(async ([tid, eid, staleVersion]) => {
         const r = await fetch(`/api/tournaments/${tid}/tt/entries/${eid}`, {
           method: 'PUT',
@@ -1994,7 +2013,7 @@ async function main() {
           body: JSON.stringify({ version: staleVersion }),
         });
         return { status: r.status };
-      }, [tc332TournamentId, entry.id, currentVersion - 1]);
+      }, [tc332TournamentId, entry.id, currentVersion]);
 
       log('TC-332', conflictResp.status === 409 ? 'PASS' : 'FAIL',
         `Expected 409 for stale version, got ${conflictResp.status}`);
@@ -3234,6 +3253,43 @@ async function main() {
     } finally {
       if (tc351TournamentId) await deleteTournament(page, tc351TournamentId);
       for (const p of tc351Players) await deletePlayer(page, p.id);
+    }
+  }
+
+  // TC-352: PUT /api/tournaments/:id can toggle debugMode on an existing tournament (#756)
+  // Creates a tournament with debugMode=false, PUTs {debugMode:true}, then verifies via GET.
+  {
+    let tc352TournamentId = null;
+    try {
+      const tc352Name = `E2E TC-352 ${Date.now()}`;
+      tc352TournamentId = await uiCreateTournament(page, tc352Name, { debugMode: false });
+
+      // PUT debugMode=true on the newly created tournament
+      const putRes = await page.evaluate(async ({ tid }) => {
+        const r = await fetch(`/api/tournaments/${tid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ debugMode: true }),
+        });
+        const body = await r.json().catch(() => ({}));
+        return { status: r.status, debugMode: (body.data ?? body)?.debugMode };
+      }, { tid: tc352TournamentId });
+
+      const putOk = putRes.status === 200 && putRes.debugMode === true;
+
+      // Verify via GET that the flag is persisted
+      const getRes = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
+        const body = await r.json().catch(() => ({}));
+        return (body.data ?? body)?.debugMode;
+      }, tc352TournamentId);
+
+      log('TC-352', putOk && getRes === true ? 'PASS' : 'FAIL',
+        putOk && getRes === true ? '' : `put_ok=${putOk} put_debugMode=${putRes.debugMode} get_debugMode=${getRes}`);
+    } catch (err) {
+      log('TC-352', 'FAIL', err instanceof Error ? err.message : 'TC-352 failed');
+    } finally {
+      await deleteTournament(page, tc352TournamentId);
     }
   }
 

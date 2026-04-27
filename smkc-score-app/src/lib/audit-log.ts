@@ -31,6 +31,7 @@
  *   });
  */
 
+import type { Session } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
 
@@ -106,6 +107,24 @@ function sanitizeObjectForAuditLog(
   }
 
   return sanitized;
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+/**
+ * Resolves the userId to store in AuditLog from a NextAuth session.
+ *
+ * Admin sessions (Discord OAuth) carry a real User.id; player sessions
+ * (credential-based) carry a Player.id which has no User FK and would cause
+ * a FK violation on AuditLog.userId (#734). Returns undefined for player
+ * sessions so the audit log row stores NULL instead.
+ */
+export function resolveAuditUserId(session: Session | null | undefined): string | undefined {
+  if (!session?.user) return undefined;
+  if (session.user.userType === 'player') return undefined;
+  return session.user.id ?? undefined;
 }
 
 // ============================================================

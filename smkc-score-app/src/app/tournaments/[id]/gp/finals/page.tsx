@@ -18,7 +18,7 @@
  * - Real-time polling at the standard interval
  */
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -622,6 +622,18 @@ export default function GrandPrixFinals({
       scoreForm.races.every((r) => r.position1 !== null && r.position2 !== null);
   const tiedAndReady = scoreInputsReady && livePoints1 === livePoints2;
 
+  // GP stores driver points in points1/points2 (not score1/score2 like BM/MR).
+  // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
+  // These must be declared before any early returns to satisfy rules-of-hooks.
+  const gpBracketMatches = useMemo(
+    () => matches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    [matches],
+  );
+  const gpPlayoffBracketMatches = useMemo(
+    () => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    [playoffMatches],
+  );
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -766,20 +778,22 @@ export default function GrandPrixFinals({
           </TabsList>
           <TabsContent value="finals">
         <DoubleEliminationBracket
-          matches={matches}
+          matches={gpBracketMatches}
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          getTargetWins={() => 1}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
           </TabsContent>
           <TabsContent value="playoff">
             <PlayoffBracket
-              playoffMatches={playoffMatches}
+              playoffMatches={gpPlayoffBracketMatches}
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
+              getTargetWins={() => 1}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
@@ -788,10 +802,11 @@ export default function GrandPrixFinals({
       ) : playoffMatches.length > 0 ? (
         <>
           <PlayoffBracket
-            playoffMatches={playoffMatches}
+            playoffMatches={gpPlayoffBracketMatches}
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
+            getTargetWins={() => 1}
             onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           />
@@ -806,10 +821,11 @@ export default function GrandPrixFinals({
         </>
       ) : (
         <DoubleEliminationBracket
-          matches={matches}
+          matches={gpBracketMatches}
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
+          getTargetWins={() => 1}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />

@@ -81,6 +81,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
 import type { Player } from "@/lib/types";
+import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -181,9 +182,8 @@ export default function TimeAttackFinals({
   const [undoingRound, setUndoingRound] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
-  // Development-only flag: uses NODE_ENV which is inlined at build time by Next.js,
-  // ensuring the dev button JSX is tree-shaken from production builds entirely.
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Show random-fill button when tournament debugMode is enabled (admin only).
+  const isDebugMode = useTournamentDebugMode(tournamentId);
 
   // Track if user is currently editing to pause polling
   const [isEditing, setIsEditing] = useState(false);
@@ -768,8 +768,8 @@ export default function TimeAttackFinals({
                   </div>
                 ))}
               </div>
-              {/* Development-only: Fill random times for all active players */}
-              {isDevelopment && (
+              {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
+              {isAdmin && isDebugMode && (
                 <div className="mt-4">
                   <Button
                     onClick={handleFillRandomTimes}
@@ -778,7 +778,7 @@ export default function TimeAttackFinals({
                     className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
                   >
                     <Dice5 className="h-4 w-4 mr-2" />
-                    Fill Random Times (Dev Only)
+                    Fill Random Times (Debug)
                   </Button>
                 </div>
               )}
