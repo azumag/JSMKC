@@ -51,7 +51,7 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for "Workers Builds: smkc" check
+      - name: 'Wait for Workers Builds: smkc check'
         uses: fountainhead/action-wait-for-check@v1.2.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
