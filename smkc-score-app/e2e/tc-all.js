@@ -1318,7 +1318,16 @@ async function main() {
   // When setupAllModes fails, TID is an empty tournament with no MR groups — in that
   // case we only verify the page renders without error messages (no group check).
   await nav(page, `/tournaments/${TID}/mr`);
-  const mrSharedText = await vis(page);
+  // Wait up to an extra 12 s for group headers to appear (D1 cold-start can exceed
+  // the baseline 8 s WAIT for a fresh Cloudflare Worker invocation).
+  let mrSharedText = await vis(page);
+  if (!mrSharedText.includes('Group A') && !mrSharedText.includes('グループ A') && !setupAllModesError) {
+    for (let i = 0; i < 4; i++) {
+      await page.waitForTimeout(3000);
+      mrSharedText = await vis(page);
+      if (mrSharedText.includes('Group A') || mrSharedText.includes('グループ A')) break;
+    }
+  }
   const mrPageLoaded =
     (mrSharedText.includes('Match Race') || mrSharedText.includes('マッチレース')) &&
     !mrSharedText.includes('Please wait') &&
