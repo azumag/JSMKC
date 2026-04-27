@@ -390,8 +390,16 @@ async function normalizeRoundStartingCoursesToSingleValue(
     const distinctValues = counts.size;
     const totalWithValue = Array.from(counts.values()).reduce((a, b) => a + b, 0);
     const roundMatchCount = matches.filter((m) => m.round === round).length;
-    /* Repair when: round has no value yet, values disagree, or some null gaps. */
-    if (distinctValues !== 1 || totalWithValue !== roundMatchCount) {
+    /* Repair only genuine inconsistencies:
+     *   - distinctValues > 1: matches in the round have different non-null values.
+     *   - distinctValues === 1 && totalWithValue < roundMatchCount: one value exists
+     *     but some matches still have null — fill the gaps with the dominant value.
+     *
+     * All-null rounds (distinctValues === 0) are intentionally skipped.
+     * New brackets are created with values from createBmRoundStartingCourses, so
+     * an all-null round means the admin explicitly cleared it via PATCH. Re-filling
+     * would silently undo that intentional clear (TC-525). */
+    if (distinctValues > 1 || (distinctValues === 1 && totalWithValue < roundMatchCount)) {
       roundsNeedingRepair.add(round);
     }
   }

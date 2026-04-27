@@ -432,7 +432,11 @@ describe('Finals Route Factory', () => {
       expect(updateCall[0].where).not.toHaveProperty('NOT');
     });
 
-    it('repairs all-null round by drawing a fresh value in [1,4] (BM finals)', async () => {
+    /* Issue #771: all-null rounds must NOT be re-filled by normalization.
+     * POST (bracket creation) assigns values via createBmRoundStartingCourses.
+     * An all-null round means the admin explicitly cleared it via PATCH.
+     * Re-filling would silently undo that intentional clear. */
+    it('does not repair all-null round — preserves intentional clear (BM finals, #771)', async () => {
       const finalsMatches = [
         createMockMatch({ id: 'f1', stage: 'finals', round: 'winners_qf', startingCourseNumber: null }),
         createMockMatch({ id: 'f2', stage: 'finals', round: 'winners_qf', startingCourseNumber: null }),
@@ -454,15 +458,12 @@ describe('Finals Route Factory', () => {
       const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       expect(response.status).toBe(200);
+      /* No updateMany should target this all-null round. */
       const updateManyCalls = (prisma.bMMatch as any).updateMany.mock.calls;
       const repairCall = updateManyCalls.find(
         (c: any[]) => c[0]?.where?.stage === 'finals' && c[0]?.where?.round === 'winners_qf',
       );
-      expect(repairCall).toBeDefined();
-      const value = repairCall[0].data.startingCourseNumber;
-      expect(Number.isInteger(value)).toBe(true);
-      expect(value).toBeGreaterThanOrEqual(1);
-      expect(value).toBeLessThanOrEqual(4);
+      expect(repairCall).toBeUndefined();
     });
 
     it('does not repair when assignBmStartingCourseByRound is off', async () => {
