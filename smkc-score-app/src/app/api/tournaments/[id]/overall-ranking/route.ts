@@ -31,7 +31,7 @@ import {
   handleAuthError,
   handleAuthzError,
 } from "@/lib/error-handling";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveTournament } from "@/lib/tournament-identifier";
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -49,17 +49,15 @@ export async function GET(
   const logger = createLogger("overall-ranking-api");
 
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
 
   try {
-    /* Verify the tournament exists before querying rankings */
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-    });
+    /* Single query: fold slug/id resolution + field fetch (#692) */
+    const tournament = await resolveTournament(id, { id: true, name: true });
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
     }
+    const tournamentId = tournament.id;
 
     /* Fetch stored rankings (pre-calculated via POST) */
     const rankings = await getOverallRankings(prisma, tournamentId);
@@ -81,7 +79,7 @@ export async function GET(
       rankings,
     });
   } catch (error) {
-    logger.error("Failed to fetch overall rankings", { error, tournamentId });
+    logger.error("Failed to fetch overall rankings", { error, tournamentId: id });
     return createErrorResponse("Failed to fetch overall rankings", 500);
   }
 }
@@ -121,17 +119,15 @@ export async function POST(
   }
 
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
 
   try {
-    /* Verify the tournament exists */
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-    });
+    /* Single query: fold slug/id resolution + field fetch (#692) */
+    const tournament = await resolveTournament(id, { id: true, name: true });
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
     }
+    const tournamentId = tournament.id;
 
     /* Calculate rankings from current data across all 4 modes */
     const rankings = await calculateOverallRankings(prisma, tournamentId);
@@ -153,7 +149,7 @@ export async function POST(
   } catch (error) {
     logger.error("Failed to recalculate overall rankings", {
       error,
-      tournamentId,
+      tournamentId: id,
     });
     return createErrorResponse("Failed to recalculate overall rankings", 500);
   }
