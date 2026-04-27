@@ -36,7 +36,7 @@ import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
-import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
 
@@ -167,23 +167,22 @@ export async function GET(
   // Logger created inside function for proper test mocking
   const logger = createLogger('ta-api');
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
   try {
     // Parse optional stage query parameter (defaults to "qualification")
     const { searchParams } = new URL(request.url);
     const stage = StageSchema.safeParse(searchParams.get("stage"));
     const stageToQuery = stage.success ? stage.data : "qualification";
 
-    // Fetch entries and tournament frozenStages in parallel for efficiency
-    const [entries, tournament, qualCount, knockoutStarted] = await Promise.all([
+    /* Single query: resolve slug/id AND fetch frozenStages/taPlayerSelfEdit (#692).
+       Then run the remaining three queries in parallel using the resolved id. */
+    const tournament = await resolveTournament(id, { id: true, frozenStages: true, taPlayerSelfEdit: true });
+    const tournamentId = tournament?.id ?? id;
+
+    const [entries, qualCount, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: stageToQuery },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ rank: "asc" }, { totalTime: "asc" }],
-      }),
-      prisma.tournament.findUnique({
-        where: { id: tournamentId },
-        select: { frozenStages: true, taPlayerSelfEdit: true },
       }),
       prisma.tTEntry.count({
         where: { tournamentId, stage: "qualification" },
@@ -204,7 +203,7 @@ export async function GET(
     });
   } catch (error) {
     // Use structured logging for error tracking and debugging
-    logger.error("Failed to fetch TA data", { error, tournamentId });
+    logger.error("Failed to fetch TA data", { error, tournamentId: id });
     return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
 }
