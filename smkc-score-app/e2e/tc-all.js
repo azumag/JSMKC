@@ -3315,6 +3315,8 @@ async function main() {
         const r = await fetch(`/api/tournaments/${tid}/bm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // seeding is optional in the API schema (seeding?: number); omitted here
+          // to verify chunking works regardless of seeding presence (#768).
           body: JSON.stringify({ players: pids.map(id => ({ playerId: id, group: 'A' })) }),
         });
         return { s: r.status, ms: Date.now() - start };
@@ -3335,6 +3337,7 @@ async function main() {
         const r = await fetch(`/api/tournaments/${tid}/mr`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // seeding is optional; same omission as BM above (#768)
           body: JSON.stringify({ players: pids.map(id => ({ playerId: id, group: 'A' })) }),
         });
         return { s: r.status };
