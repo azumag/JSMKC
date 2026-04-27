@@ -1315,8 +1315,11 @@ export default function TimeAttackPage({
                     ))}
                   </TableBody>
                 </Table>
-                {/* Development-only: Fill random times for ALL players at once */}
-                {isDevelopment && isAdmin && entries.length > 0 && (
+                {/* Development-only: Fill random times for ALL players at once.
+                 *  Hidden once qualification is frozen, since bulk-writing times
+                 *  would conflict with the locked stage (mirrors BM/MR/GP, which
+                 *  hide their debug fill button when qualificationConfirmed). */}
+                {isDevelopment && isAdmin && entries.length > 0 && !frozenStages.includes("qualification") && (
                   <div className="mt-4">
                     <Button
                       onClick={handleFillAllPlayersTimes}
