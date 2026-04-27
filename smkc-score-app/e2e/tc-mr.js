@@ -329,6 +329,9 @@ async function runTc604(adminPage) {
 
     // Navigate to finals page and generate bracket via UI
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
+    /* 40s to absorb D1 cold-start + admin role determination delays (issue #701) */
+    await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i })
+      .waitFor({ state: 'visible', timeout: 40000 });
     await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i }).click();
     await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
     /* Wait for the bracket to render. The MR finals page only displays an

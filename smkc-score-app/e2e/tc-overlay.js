@@ -934,20 +934,20 @@ async function runTc923(adminPage) {
   }
 }
 
-/* ───────── TC-924: match notifications expose course (BM/MR) and cup (GP) ─────────
- * After TC-903/907/908 created BM/MR/GP match_completed events with their
- * source matches' assignedCourses / cup populated, the dashboard backfill
- * (?initial=1) must include those fields on matchResult, and the dashboard
- * timeline scoreboard cards must render them so broadcast viewers can see
- * which courses / cup the match was played on.
+/* ───────── TC-924: match notifications expose course (MR) and cup (GP) ─────────
+ * After TC-903/907/908 created BM/MR/GP match_completed events, the dashboard
+ * must include course/cup context on matchResult so viewers can see what was
+ * played. BM uses fixed battle courses (not stored in DB), so MR and GP are
+ * the modes that carry dynamic course/cup data.
  *
  * Two-part check:
- *   1. API: poll until BM and GP match_completed events appear, then assert
- *      the BM event carries matchResult.courses (string[]) and the GP event
- *      carries matchResult.cup (string).
+ *   1. API: poll until BM and GP match_completed events appear, then assert:
+ *      - BM event has basic matchResult fields (score1/score2/player names)
+ *      - MR event carries matchResult.courses (string[])
+ *      - GP event carries matchResult.cup (string)
  *   2. UI: reuse the dashboard page opened by TC-921. The scoreboard card
- *      stack must contain at least one course abbreviation (e.g. MC1) AND
- *      one cup label (Mushroom/Flower/Star/Special). */
+ *      stack must contain at least one MR course abbreviation (e.g. MC1) AND
+ *      one GP cup label (Mushroom/Flower/Star/Special). */
 async function runTc924(adminPage) {
   try {
     const resp = await pollForEvent(
@@ -959,9 +959,14 @@ async function runTc924(adminPage) {
     const mrEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'mr');
     const gpEvt = events.find((e) => e.type === 'match_completed' && e.mode === 'gp');
 
-    const bmHasCourses = Array.isArray(bmEvt?.matchResult?.courses) && bmEvt.matchResult.courses.length > 0;
+    /* BM uses fixed battle courses (BC1-4, not randomly assigned) so assignedCourses
+     * is never stored in DB — matchResult.courses is correctly absent for BM.
+     * MR pre-assigns random courses (assignCoursesRandomly: true), so MR events
+     * must carry matchResult.courses. */
     const mrHasCourses = Array.isArray(mrEvt?.matchResult?.courses) && mrEvt.matchResult.courses.length > 0;
     const gpHasCup = typeof gpEvt?.matchResult?.cup === 'string' && gpEvt.matchResult.cup.length > 0;
+    /* BM event must have basic match fields but courses is not required */
+    const bmHasResult = bmEvt && typeof bmEvt.matchResult?.score1 === 'number';
 
     /* UI: at least one scoreboard card on the dashboard exposes a context chip. */
     const cards = await adminPage.locator('[data-testid="dashboard-timeline-scoreboard"]').all();
@@ -969,14 +974,15 @@ async function runTc924(adminPage) {
     for (const c of cards) {
       stackText += '\n' + (await c.innerText());
     }
+    /* MR courses use racing course abbreviations (MC/DP/GV/BC/CI/KB/VL/RR) */
     const uiHasCourse = /\b(MC|DP|GV|BC|CI|KB|VL|RR)\d?\b/.test(stackText);
     const uiHasCup = /(Mushroom|Flower|Star|Special)/.test(stackText);
 
-    const pass = bmHasCourses && mrHasCourses && gpHasCup && uiHasCourse && uiHasCup;
+    const pass = bmHasResult && mrHasCourses && gpHasCup && uiHasCourse && uiHasCup;
     log('TC-924',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
-      !bmHasCourses ? `BM event missing courses array (got ${JSON.stringify(bmEvt?.matchResult)})` :
+      !bmHasResult ? `BM event missing basic matchResult (got ${JSON.stringify(bmEvt?.matchResult)})` :
       !mrHasCourses ? `MR event missing courses array (got ${JSON.stringify(mrEvt?.matchResult)})` :
       !gpHasCup ? `GP event missing cup string (got ${JSON.stringify(gpEvt?.matchResult)})` :
       !uiHasCourse ? `dashboard scoreboard cards missing course label: "${stackText.slice(0, 200)}"` :
