@@ -301,9 +301,56 @@ describe('Qualification Route Factory', () => {
       expect(response.status).toBe(201);
       // Group A: 3 players (odd) → BREAK added → 3 days × 2 matches = 6 (3 real + 3 bye)
       // Group B: 2 players → 1 day × 1 match = 1
-      // Total: 6 + 1 = 7 matches inserted in a single createMany call
+      // Total: 6 + 1 = 7 matches — fits in one MATCH_CHUNK=8, so still 1 createMany call
       const matchCall = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(matchCall.data).toHaveLength(7);
+    });
+
+    it('should chunk createMany into batches of 8 for matches when row count exceeds chunk size (#736)', async () => {
+      // 8 players in a single group → 8×7/2 = 28 matches (exceeds MATCH_CHUNK=8)
+      // Expected: ceil(28/8) = 4 createMany calls with slices [0-8, 8-16, 16-24, 24-28]
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+        { playerId: 'player-3', group: 'A', seeding: 3 },
+        { playerId: 'player-4', group: 'A', seeding: 4 },
+        { playerId: 'player-5', group: 'A', seeding: 5 },
+        { playerId: 'player-6', group: 'A', seeding: 6 },
+        { playerId: 'player-7', group: 'A', seeding: 7 },
+        { playerId: 'player-8', group: 'A', seeding: 8 },
+      ];
+
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+
+      // 8 qual records fit in 1 QUAL_CHUNK=24 → 1 call
+      expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(1);
+
+      // 28 matches split into 4 chunks of [8, 8, 8, 4]
+      const matchCalls = (prisma.bMMatch as any).createMany.mock.calls;
+      expect(matchCalls).toHaveLength(4);
+      expect(matchCalls[0][0].data).toHaveLength(8);
+      expect(matchCalls[1][0].data).toHaveLength(8);
+      expect(matchCalls[2][0].data).toHaveLength(8);
+      expect(matchCalls[3][0].data).toHaveLength(4);
+      // Total matches across all chunks = 28
+      const totalMatches = matchCalls.reduce((sum: number, call: any[]) => sum + call[0].data.length, 0);
+      expect(totalMatches).toBe(28);
     });
 
     it('should create audit log when auditAction is configured', async () => {
