@@ -73,7 +73,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      issues: read
+      issues: write
       id-token: write
 
     steps:
@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*)"'
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api:*),Bash(gh issue list:*),Bash(gh issue create:*)"'
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
@@ -101,15 +101,18 @@ jobs:
             1. Run `gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get PR metadata.
             2. Run `gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}` to get the diff.
             3. Assess the change against CLAUDE.md review aspects: code quality, bugs/edge cases, performance, security, simplicity (no over-abstraction), test coverage, YAGNI.
-            4. Decide a verdict:
-               - If there are NO blocking issues (bugs, security risks, missing critical tests): submit APPROVE.
-               - If there are blocking issues: submit REQUEST_CHANGES.
-               - Minor style suggestions alone should not block — approve with comments.
-            5. Submit the review with a concise body summarizing findings:
-               - Approve: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --approve --body "<summary>"`
-               - Request changes: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --request-changes --body "<summary>"`
+            4. Classify each finding:
+               - BLOCKING: bugs, security risks, missing critical tests, broken behavior.
+               - MINOR: style, naming, refactor suggestion, doc/typo, follow-up improvement, low-impact perf nit.
+            5. For each MINOR finding, file a follow-up issue (do NOT block the PR for these):
+               - Run `gh issue list --repo ${{ github.repository }} --state open --label "review-followup" --search "<keywords>" --limit 5` to check for duplicates.
+               - If no duplicate, run `gh issue create --repo ${{ github.repository }} --title "<concise title>" --body "<finding + suggested fix>\n\nFound during review of #${{ github.event.pull_request.number }} (${{ github.event.pull_request.head.sha }})." --label "review-followup"`.
+               - Collect the created issue numbers for the review summary.
+            6. Decide verdict and submit review:
+               - No BLOCKING findings: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --approve --body "<summary + 関連 issue 番号>"`
+               - BLOCKING findings exist: `gh pr review ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --request-changes --body "<summary>"`
 
-            Write the review body in Japanese. Keep it focused on actionable findings.
+            Write the review body in Japanese. Keep it focused on actionable findings. Issue titles/bodies may also be in Japanese.
 
       # Auto-merge every non-draft PR. `--auto` waits for required status checks
       # and approving reviews defined in branch protection before merging.
