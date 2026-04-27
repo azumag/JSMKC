@@ -419,20 +419,30 @@ describe('Finals Route Factory', () => {
       const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       expect(response.status).toBe(200);
-      /* Dominant value (3) must win and be applied to the null rows in the
-       * same round only. Scoping by tournamentId+stage+round prevents
-       * cross-round / cross-tournament writes. */
+      /* Dominant value (3) must win and be applied to ALL rows in the same
+       * round (not just the null ones). Using NOT in SQL WHERE skips NULL rows
+       * (NULL != 3 evaluates to NULL, not TRUE), so the fix unconditionally
+       * updates all rows in the round. Scoping by tournamentId+stage+round
+       * prevents cross-round / cross-tournament writes. */
       expect((prisma.bMMatch as any).updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             tournamentId: 'tournament-123',
             stage: 'playoff',
             round: 'playoff_r1',
-            NOT: { startingCourseNumber: 3 },
+            // No NOT condition: SQL NOT (col = ?) evaluates to NULL (not TRUE)
+            // when col IS NULL, so it would silently skip null rows. The fix
+            // removes the NOT clause to ensure all rows are updated (#741).
           }),
           data: { startingCourseNumber: 3 },
         }),
       );
+      // Verify the NOT condition is absent (the bug was that NOT skipped NULLs)
+      const updateCall = (prisma.bMMatch as any).updateMany.mock.calls.find(
+        (c: any[]) => c[0]?.where?.stage === 'playoff' && c[0]?.where?.round === 'playoff_r1',
+      );
+      expect(updateCall).toBeDefined();
+      expect(updateCall[0].where.NOT).toBeUndefined();
     });
 
     it('repairs all-null round by drawing a fresh value in [1,4] (BM finals)', async () => {
