@@ -235,6 +235,44 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       }));
     });
 
+    // Issue #724: per-day startingCourseNumber assignment
+    it('should assign same startingCourseNumber to all matches on the same round-robin day', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin1', role: 'admin' } });
+      // 4-player group → 3 days, 2 real matches each (6 matches total, no BYEs)
+      const mockPlayers = [
+        { playerId: 'p1', group: 'A', seeding: 1 },
+        { playerId: 'p2', group: 'A', seeding: 2 },
+        { playerId: 'p3', group: 'A', seeding: 3 },
+        { playerId: 'p4', group: 'A', seeding: 4 },
+      ];
+      (prisma.bMQualification.createMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.bMMatch.createMany as jest.Mock).mockResolvedValue({ count: 6 });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm', { players: mockPlayers });
+      const result = await POST(request, { params: Promise.resolve({ id: 't1' }) });
+
+      expect(result.status).toBe(201);
+      const matchData: any[] = (prisma.bMMatch.createMany as jest.Mock).mock.calls[0][0].data;
+      const realMatches = matchData.filter((m: any) => !m.isBye);
+
+      // Every real match must have a valid startingCourseNumber (1-4)
+      for (const m of realMatches) {
+        expect(m.startingCourseNumber).toBeGreaterThanOrEqual(1);
+        expect(m.startingCourseNumber).toBeLessThanOrEqual(4);
+      }
+
+      // All matches on the same day must share one startingCourseNumber
+      const byDay = new Map<number, Set<number>>();
+      for (const m of realMatches) {
+        if (!byDay.has(m.roundNumber)) byDay.set(m.roundNumber, new Set());
+        byDay.get(m.roundNumber)!.add(m.startingCourseNumber);
+      }
+      for (const [, values] of byDay) {
+        expect(values.size).toBe(1);
+      }
+    });
+
     // Authorization failure case - Returns 403 when user is not authenticated
     it('should return 403 when user is not authenticated', async () => {
       (auth as jest.Mock).mockResolvedValue(null);
