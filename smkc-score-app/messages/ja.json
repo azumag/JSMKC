@@ -269,6 +269,7 @@
     "draft": "下書き",
     "activeStatus": "進行中",
     "completed": "完了",
+    "creating": "作成中...",
     "failedToCreate": "トーナメントの作成に失敗しました",
     "failedToDelete": "トーナメントの削除に失敗しました",
     "cannotDeleteStartedTournament": "開始済みのトーナメントは削除できません",

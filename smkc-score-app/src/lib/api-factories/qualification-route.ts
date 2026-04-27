@@ -540,49 +540,45 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const { match, score1OrPoints1, score2OrPoints2 } = await config.updateMatch(prisma, putData);
       const { result1, result2 } = config.calculateMatchResult(score1OrPoints1, score2OrPoints2);
 
-      /* Fetch all completed matches for player1 to recalculate standings */
-      const player1Matches = await matchModel(prisma).findMany({
-        where: {
-          tournamentId,
-          stage: 'qualification',
-          completed: true,
-          OR: [{ player1Id: match.player1Id }, { player2Id: match.player1Id }],
-        },
-      });
-
-      /* Aggregate stats and update player1's qualification record */
-      const p1 = config.aggregatePlayerStats(
-        player1Matches, match.player1Id, config.calculateMatchResult,
-      );
-
-      await qualModel(prisma).updateMany({
-        where: { tournamentId, playerId: match.player1Id },
-        data: p1.qualificationData,
-      });
-
-      /*
-       * Skip player2 recalculation for BYE matches.
-       * BREAK player has no qualification record, so aggregation is unnecessary.
-       */
-      if (!match.isBye) {
-        const player2Matches = await matchModel(prisma).findMany({
+      /* Fetch all completed matches for both players in one parallel round-trip.
+       * For BYE matches player2 has no qualification record, so skip its fetch. */
+      const [player1Matches, player2Matches] = await Promise.all([
+        matchModel(prisma).findMany({
+          where: {
+            tournamentId,
+            stage: 'qualification',
+            completed: true,
+            OR: [{ player1Id: match.player1Id }, { player2Id: match.player1Id }],
+          },
+        }),
+        match.isBye ? Promise.resolve(null) : matchModel(prisma).findMany({
           where: {
             tournamentId,
             stage: 'qualification',
             completed: true,
             OR: [{ player1Id: match.player2Id }, { player2Id: match.player2Id }],
           },
-        });
+        }),
+      ]);
 
-        const p2 = config.aggregatePlayerStats(
-          player2Matches, match.player2Id, config.calculateMatchResult,
-        );
+      const p1 = config.aggregatePlayerStats(
+        player1Matches, match.player1Id, config.calculateMatchResult,
+      );
+      const p2 = player2Matches && config.aggregatePlayerStats(
+        player2Matches, match.player2Id, config.calculateMatchResult,
+      );
 
-        await qualModel(prisma).updateMany({
+      /* Update both players' qualification records in parallel (#707). */
+      await Promise.all([
+        qualModel(prisma).updateMany({
+          where: { tournamentId, playerId: match.player1Id },
+          data: p1.qualificationData,
+        }),
+        p2 && qualModel(prisma).updateMany({
           where: { tournamentId, playerId: match.player2Id },
           data: p2.qualificationData,
-        });
-      }
+        }),
+      ].filter(Boolean));
 
       /* Score updates change both per-mode standings and the cross-mode
        * overall ranking. Drop both caches so the next GET reflects the new

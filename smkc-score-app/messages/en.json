@@ -269,6 +269,7 @@
     "draft": "Draft",
     "activeStatus": "Active",
     "completed": "Completed",
+    "creating": "Creating...",
     "failedToCreate": "Failed to create tournament",
     "failedToDelete": "Failed to delete tournament",
     "cannotDeleteStartedTournament": "Started tournaments cannot be deleted",
