@@ -283,11 +283,8 @@ describe('TA Rank Calculation', () => {
 
   describe('recalculateRanks', () => {
     let mockPrisma: Partial<PrismaClient> & {
-      tTEntry: {
-        findMany: jest.Mock;
-        update: jest.Mock;
-      };
-      $transaction: jest.Mock;
+      tTEntry: { findMany: jest.Mock };
+      $executeRaw: jest.Mock;
     };
 
     beforeEach(() => {
@@ -311,9 +308,9 @@ describe('TA Rank Calculation', () => {
               player: { id: 'player-2' },
             },
           ]),
-          update: jest.fn().mockResolvedValue({}),
         },
-        $transaction: jest.fn((callbacks: unknown[]) => Promise.all(callbacks as unknown as Promise<unknown>[])),
+        // $executeRaw is the bulk-update path (replaces N sequential updates, #710)
+        $executeRaw: jest.fn().mockResolvedValue(2),
       };
     });
 
@@ -325,28 +322,26 @@ describe('TA Rank Calculation', () => {
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
       });
 
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // Bulk UPDATE replaces the old $transaction([...N updates...]) pattern
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
-    it('should persist courseScores and qualificationPoints for qualification', async () => {
+    it('should include courseScores and qualificationPoints in bulk UPDATE for qualification', async () => {
       await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
-      // Verify that update calls include courseScores and qualificationPoints
-      const updateCalls = mockPrisma.tTEntry.update.mock.calls;
-      expect(updateCalls.length).toBe(2);
-
-      // Each update should include courseScores and qualificationPoints
-      for (const call of updateCalls) {
-        expect(call[0].data).toHaveProperty('courseScores');
-        expect(call[0].data).toHaveProperty('qualificationPoints');
-      }
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      // $executeRaw is called as a tagged template literal: first arg is TemplateStringsArray
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      const sqlText = templateStrings.raw.join('');
+      expect(sqlText).toContain('courseScores');
+      expect(sqlText).toContain('qualificationPoints');
     });
 
-    it('should handle entries with incomplete times', async () => {
+    it('should handle entries with incomplete times (totalTime = null in bulk UPDATE)', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValue([
         {
           id: '1',
-          times: { MC1: '1:23.456' }, // Incomplete
+          times: { MC1: '1:23.456' }, // Incomplete — only 1 of 20 courses
           lives: 3,
           eliminated: false,
           stage: 'qualification',
@@ -356,19 +351,11 @@ describe('TA Rank Calculation', () => {
 
       await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
-      expect(mockPrisma.tTEntry.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            totalTime: null,
-            // Should still have courseScores and qualificationPoints
-            courseScores: expect.any(Object),
-            qualificationPoints: expect.any(Number),
-          }),
-        })
-      );
+      // $executeRaw should still be called once even when totalTime is null
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
-    it('should not persist courseScores for non-qualification stages', async () => {
+    it('should omit courseScores / qualificationPoints for non-qualification stages', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValue([
         {
           id: '1',
@@ -382,9 +369,19 @@ describe('TA Rank Calculation', () => {
 
       await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
 
-      const updateCall = mockPrisma.tTEntry.update.mock.calls[0];
-      expect(updateCall[0].data).not.toHaveProperty('courseScores');
-      expect(updateCall[0].data).not.toHaveProperty('qualificationPoints');
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      const sqlText = templateStrings.raw.join('');
+      expect(sqlText).not.toContain('courseScores');
+      expect(sqlText).not.toContain('qualificationPoints');
+    });
+
+    it('should return early without a DB call when there are no entries', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValue([]);
+
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
+
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
   });
 });

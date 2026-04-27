@@ -15,6 +15,8 @@
  *   TC-808  TA Finals page renders with champion banner on completion.
  *   TC-812  TA qualification tie resolution — identical times yield averaged
  *           course points and ordered ranks without manual override.
+ *   TC-813  TA qualification rank recalculation after entry deletion — ranks
+ *           are re-compacted (no gaps) after removing one entrant (#710).
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -804,6 +806,75 @@ async function runTc812(adminPage) {
   }
 }
 
+/* ───────── TC-813: TA qualification rank recalculation after entry deletion ─────────
+ * Issue #710: recalculateRanks previously issued N sequential TTEntry.update calls
+ * (~185ms each on D1), causing ~5s response times for 27-entry stages. The fix
+ * collapses N round-trips into a single bulk UPDATE CASE WHEN statement.
+ *
+ * This test verifies the functional correctness of rank recalculation after an
+ * entry is deleted: the surviving entries must receive consecutive ranks with no
+ * gaps, reflecting the removed player's absence.
+ *
+ * Uses an isolated tournament so it does not disturb the shared phase chain. */
+async function runTc813(adminPage) {
+  const createdPlayers = [];
+  let tournamentId = null;
+  try {
+    const stamp = Date.now();
+
+    for (let i = 1; i <= 4; i++) {
+      const p = await uiCreatePlayer(adminPage, `TA Rank P${i} ${stamp}`, `ta_rank_${i}_${stamp}`);
+      createdPlayers.push({ id: p.id });
+    }
+    tournamentId = await uiCreateTournament(adminPage, `TA Rank Del ${stamp}`, { dualReportEnabled: false });
+
+    /* Register all 4 with unique deterministic times (rank 1=fastest, 4=slowest). */
+    const { entries } = await setupTaQualViaUi(adminPage, tournamentId, createdPlayers, { seedTimes: false });
+    for (let i = 0; i < 4; i++) {
+      const { times, totalMs } = makeTaTimesForRank(i + 1);
+      await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, null);
+    }
+
+    /* Assert initial rank assignment. */
+    const beforeRows = (await apiFetchTa(adminPage, tournamentId)).b?.data?.entries ?? [];
+    const beforeMap = new Map(beforeRows.map((e) => [e.playerId, e]));
+    const [b1, b2, b3, b4] = createdPlayers.map((p) => beforeMap.get(p.id));
+    if (b1?.rank !== 1 || b2?.rank !== 2 || b3?.rank !== 3 || b4?.rank !== 4) {
+      log('TC-813', 'FAIL', `Initial ranks wrong: P1=${b1?.rank} P2=${b2?.rank} P3=${b3?.rank} P4=${b4?.rank}`);
+      return;
+    }
+
+    /* Delete P2's entry — triggers recalculateRanks on the server. */
+    const del = await adminPage.evaluate(async (u) => {
+      const r = await fetch(u, { method: 'DELETE' });
+      return { s: r.status, ok: r.ok };
+    }, `/api/tournaments/${tournamentId}/ta?entryId=${entries[1].entryId}`);
+    if (!del.ok) {
+      log('TC-813', 'FAIL', `DELETE entry failed (${del.s})`);
+      return;
+    }
+
+    /* After deletion the server must re-compact ranks: P1=1, P3=2, P4=3. */
+    const afterRows = (await apiFetchTa(adminPage, tournamentId)).b?.data?.entries ?? [];
+    const afterMap = new Map(afterRows.map((e) => [e.playerId, e]));
+    const p2Gone = !afterMap.has(createdPlayers[1].id);
+    const a1 = afterMap.get(createdPlayers[0].id);
+    const a3 = afterMap.get(createdPlayers[2].id);
+    const a4 = afterMap.get(createdPlayers[3].id);
+    const ranksCompacted = a1?.rank === 1 && a3?.rank === 2 && a4?.rank === 3;
+
+    log('TC-813', p2Gone && ranksCompacted ? 'PASS' : 'FAIL',
+      !p2Gone ? 'P2 entry still present after DELETE'
+      : !ranksCompacted ? `ranks not re-compacted after deletion: P1=${a1?.rank} P3=${a3?.rank} P4=${a4?.rank}`
+      : '');
+  } catch (err) {
+    log('TC-813', 'FAIL', err instanceof Error ? err.message : 'TA rank recalc after delete failed');
+  } finally {
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId);
+    for (const p of createdPlayers) await apiDeletePlayer(adminPage, p.id);
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -858,13 +929,14 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
       { name: 'TC-812', fn: runTc812 },
+      { name: 'TC-813', fn: runTc813 },
     ],
   };
 }
 
 module.exports = {
   runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
-  runTc812,
+  runTc812, runTc813,
   getSuite,
   results,
 };
