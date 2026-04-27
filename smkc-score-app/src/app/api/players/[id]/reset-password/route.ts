@@ -50,11 +50,11 @@ export async function POST(
       data: { password: hashedPassword },
     });
 
-    // Audit log — non-critical, wrapped in try/catch
+    // Audit log — fire-and-forget via .catch(), non-critical
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      void createAuditLog({
+      createAuditLog({
         userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
@@ -62,8 +62,13 @@ export async function POST(
         targetId: id,
         targetType: 'Player',
         details: { playerNickname: player.nickname, passwordRegenerated: true },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        playerId: id,
+        action: 'reset_player_password',
+      }));
     } catch (logError) {
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         playerId: id,

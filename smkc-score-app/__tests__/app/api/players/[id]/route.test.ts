@@ -43,11 +43,12 @@ jest.mock('@/lib/pagination', () => ({
 }));
 
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     UPDATE_PLAYER: 'UPDATE_PLAYER',
     DELETE_PLAYER: 'DELETE_PLAYER',
   },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id ?? undefined),
 }));
 
 jest.mock('@/lib/rate-limit', () => ({

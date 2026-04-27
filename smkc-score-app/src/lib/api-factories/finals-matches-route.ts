@@ -154,28 +154,24 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
         include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
       });
 
-      /* Record audit log for match creation (security and accountability) */
-      try {
-        void createAuditLog({
-          userId: session.user.id,
-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          userAgent: request.headers.get('user-agent') || 'unknown',
-          action: config.auditAction,
-          targetId: match.id,
-          targetType: config.auditTargetType,
-          details: {
-            tournamentId,
-            player1Nickname: player1.nickname,
-            player2Nickname: player2.nickname,
-            bracket: data.bracket,
-            bracketPosition: data.bracketPosition,
-            isGrandFinal: data.isGrandFinal,
-          },
-        });
-      } catch (logError) {
-        /* Audit log failure is non-critical but should be logged for security tracking */
-        logger.warn('Failed to create audit log', { error: logError, tournamentId, action: config.auditAction });
-      }
+      /* Record audit log for match creation (security and accountability).
+       * Fire-and-forget: .catch() handles async failures without blocking the response. */
+      createAuditLog({
+        userId: session.user.id,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown',
+        action: config.auditAction,
+        targetId: match.id,
+        targetType: config.auditTargetType,
+        details: {
+          tournamentId,
+          player1Nickname: player1.nickname,
+          player2Nickname: player2.nickname,
+          bracket: data.bracket,
+          bracketPosition: data.bracketPosition,
+          isGrandFinal: data.isGrandFinal,
+        },
+      }).catch((err) => logger.warn('Failed to create audit log', { error: err, tournamentId, action: config.auditAction }));
 
       return createSuccessResponse({ match }, 'Match created successfully', { status: 201 });
     } catch (error) {

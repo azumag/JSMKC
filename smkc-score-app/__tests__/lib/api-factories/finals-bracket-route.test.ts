@@ -25,7 +25,7 @@ jest.mock('@/lib/tournament/double-elimination', () => ({
   BracketPlayer: {},
 }));
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: { CREATE_BRACKET: 'CREATE_BRACKET' },
 }));
 jest.mock('@/lib/logger', () => ({

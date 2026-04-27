@@ -39,11 +39,12 @@ jest.mock('@/lib/sanitize', () => ({
 }));
 
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     UPDATE_TOURNAMENT: 'UPDATE_TOURNAMENT',
     DELETE_TOURNAMENT: 'DELETE_TOURNAMENT',
   },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id ?? undefined),
 }));
 
 jest.mock('@/lib/rate-limit', () => ({

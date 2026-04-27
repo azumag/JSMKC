@@ -57,10 +57,11 @@ jest.mock('@/lib/logger', () => {
 
 jest.mock('@/lib/audit-log', () => ({
   __esModule: true,
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     CREATE_TOURNAMENT: 'CREATE_TOURNAMENT',
   },
+  resolveAuditUserId: jest.fn((s) => s?.user?.id ?? undefined),
 }));
 
 jest.mock('@/lib/rate-limit', () => ({

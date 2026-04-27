@@ -447,12 +447,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }));
       }
 
-      /* Audit logging if configured */
+      /* Audit logging if configured.
+       * Fire-and-forget: .catch() handles async failures without blocking the response. */
       if (config.auditAction && currentSession) {
         try {
           const ip = await getServerSideIdentifier();
           const userAgent = request.headers.get('user-agent') || 'unknown';
-          void createAuditLog({
+          createAuditLog({
             userId: currentSession.user.id,
             ipAddress: ip,
             userAgent,
@@ -460,7 +461,11 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             targetId: tournamentId,
             targetType: 'Tournament',
             details: { mode: 'qualification', playerCount: players.length },
-          });
+          }).catch((err) => logger.warn('Failed to create audit log', {
+            error: err,
+            tournamentId,
+            action: config.auditAction,
+          }));
         } catch (logError) {
           logger.warn('Failed to create audit log', {
             error: logError,

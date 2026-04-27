@@ -20,7 +20,7 @@
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/audit-log', () => ({
-  createAuditLog: jest.fn(),
+  createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' },
 }));
 jest.mock('@/lib/sanitize', () => ({

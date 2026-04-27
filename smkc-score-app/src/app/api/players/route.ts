@@ -243,13 +243,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create audit log entry for the player creation.
-    // Audit logging is wrapped in try/catch so that failures in logging
-    // do not prevent the main operation from succeeding.
+    // Create audit log entry for the player creation — fire-and-forget via .catch()
     try {
       const ip = await getServerSideIdentifier();
       const userAgent = request.headers.get('user-agent') || 'unknown';
-      void createAuditLog({
+      createAuditLog({
         userId: resolveAuditUserId(session),
         ipAddress: ip,
         userAgent,
@@ -257,10 +255,13 @@ export async function POST(request: NextRequest) {
         targetId: player.id,
         targetType: 'Player',
         details: { name, nickname, country, passwordGenerated: true },
-      });
+      }).catch((err) => logger.warn('Failed to create audit log', {
+        error: err,
+        playerId: player.id,
+        action: 'create_player',
+      }));
     } catch (logError) {
-      // Audit log failures are non-critical: the player was already created
-      // successfully. We log the failure for monitoring but do not roll back.
+      // Covers sync failures (e.g. getServerSideIdentifier, resolveAuditUserId)
       logger.warn('Failed to create audit log', {
         error: logError,
         playerId: player.id,
