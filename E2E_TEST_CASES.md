@@ -1018,6 +1018,17 @@
 - **期待結果**: TV# 割り当ては成功し、noCamera 警告 toast が追加で表示される
 - **スクリプト**: tc-bm.js TC-526
 
+## TC-527: BM 予選 — 同じ round-robin day の全試合が同じ startingCourseNumber を持つ (issue #724)
+- **URL**: /api/tournaments/[id]/bm (GET)
+- **authRequired**: false (GET)
+- **背景**: BM 予選セットアップ後、同じラウンドロビン Day に属する全実試合が共通の開始コース番号 (1-4) を持つ必要がある (issue #724)。
+- **手順**:
+  1. 28名予選済みの共有トーナメントの BM qualification データを GET で取得
+  2. 実試合（BYE でないもの）に `startingCourseNumber` が 1-4 の範囲で存在することを確認
+  3. 同じ `roundNumber` を持つ全試合の `startingCourseNumber` が同一であることを確認
+- **期待結果**: 全実試合が有効な `startingCourseNumber` を持ち、同一 Day 内では全て同じコース番号になる
+- **スクリプト**: tc-bm.js TC-527
+
 ---
 
 ## MR (Match Race) フルワークフローテスト

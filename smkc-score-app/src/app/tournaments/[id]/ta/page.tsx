@@ -717,11 +717,7 @@ export default function TimeAttackPage({
               )}
             </Button>
           )}
-          {/* Debug-only auto-fill button — visible only on tournaments created
-           * with debugMode. Placed in the header action row to match
-           * BM/MR/GP qualification pages. TA has no `qualificationConfirmed`
-           * field; the lifecycle equivalent is `frozenStages.includes("qualification")`,
-           * which mirrors the server-side gate in fillTATimes (debug-fill.ts:296). */}
+          {/* debug: header行に配置（BM/MR/GP統一）; freeze gate は fillTATimes (debug-fill.ts:296) と対称 */}
           {isAdmin && debugMode && !frozenStages.includes("qualification") && entries.length > 0 && (
             <DebugFillButton tournamentId={tournamentId} mode="ta" onFilled={refetch} />
           )}

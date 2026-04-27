@@ -5,8 +5,8 @@
  * app API using the existing admin session stored in E2E_PROFILE_DIR.
  *
  * Deletes:
- * - tournaments named "E2E ..." or "Finals Ready ..." plus tc-all legacy temp
- *   names TC-315-test-* and TC-316-test-*
+ * - tournaments matching TOURNAMENT_NAME_RE (E2E, Finals Ready, TC-315/316 legacy,
+ *   BM-position-check, MR/GP/TA standalone tie/rank tests)
  * - players whose nickname starts with "e2e_" or "finals_ready_"
  *
  * Run:
@@ -19,7 +19,9 @@ const { closeBrowser, envMs, formatDuration } = require('./lib/runner');
 
 const PROFILE_DIR = process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile';
 const PAGE_LIMIT = 100;
-const TOURNAMENT_NAME_RE = /^(E2E\b|Finals Ready\b|TC-315-test-|TC-316-test-)/i;
+// Matches all tournament names created by e2e test suites.
+// Includes legacy non-E2E-prefixed names from tc-bm/mr/gp/ta standalone runs.
+const TOURNAMENT_NAME_RE = /^(E2E\b|Finals Ready\b|TC-315-test-|TC-316-test-|BM-position-check\b|MR Tie\b|GP Tie\b|TA Tie\b|TA Rank Del\b)/i;
 const PLAYER_NICKNAME_RE = /^(e2e_|finals_ready_)/i;
 
 function parseArgs(argv) {

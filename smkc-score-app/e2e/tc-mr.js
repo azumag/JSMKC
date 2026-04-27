@@ -1352,13 +1352,13 @@ async function runTc620(adminPage) {
     const stamp = Date.now();
 
     for (let i = 1; i <= 3; i++) {
-      const name = `MR Tie P${i}`;
-      const nickname = `mr_tie_${i}_${stamp}`;
+      const name = `E2E MR Tie P${i}`;
+      const nickname = `e2e_mr_tie_${i}_${stamp}`;
       const p = await createPlayer(adminPage, name, nickname);
       createdPlayers.push({ id: p.id, name, nickname });
     }
 
-    tournamentId = await createTournament(adminPage, `MR Tie ${stamp}`, { dualReportEnabled: false });
+    tournamentId = await createTournament(adminPage, `E2E MR Tie ${stamp}`, { dualReportEnabled: false });
 
     await setupModePlayersViaUi(adminPage, 'mr', tournamentId, createdPlayers);
 

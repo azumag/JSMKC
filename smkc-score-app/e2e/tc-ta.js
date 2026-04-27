@@ -746,13 +746,13 @@ async function runTc812(adminPage) {
     const stamp = Date.now();
 
     for (let i = 1; i <= 3; i++) {
-      const name = `TA Tie P${i}`;
-      const nickname = `ta_tie_${i}_${stamp}`;
+      const name = `E2E TA Tie P${i}`;
+      const nickname = `e2e_ta_tie_${i}_${stamp}`;
       const p = await uiCreatePlayer(adminPage, name, nickname);
       createdPlayers.push({ id: p.id, name, nickname });
     }
 
-    tournamentId = await uiCreateTournament(adminPage, `TA Tie ${stamp}`, { dualReportEnabled: false });
+    tournamentId = await uiCreateTournament(adminPage, `E2E TA Tie ${stamp}`, { dualReportEnabled: false });
 
     /* Register all 3 players with seeding but no time seeding — we supply our
      * own tied times below. */
@@ -823,10 +823,10 @@ async function runTc813(adminPage) {
     const stamp = Date.now();
 
     for (let i = 1; i <= 4; i++) {
-      const p = await uiCreatePlayer(adminPage, `TA Rank P${i} ${stamp}`, `ta_rank_${i}_${stamp}`);
+      const p = await uiCreatePlayer(adminPage, `E2E TA Rank P${i} ${stamp}`, `e2e_ta_rank_${i}_${stamp}`);
       createdPlayers.push({ id: p.id });
     }
-    tournamentId = await uiCreateTournament(adminPage, `TA Rank Del ${stamp}`, { dualReportEnabled: false });
+    tournamentId = await uiCreateTournament(adminPage, `E2E TA Rank Del ${stamp}`, { dualReportEnabled: false });
 
     /* Register all 4 with unique deterministic times (rank 1=fastest, 4=slowest). */
     const { entries } = await setupTaQualViaUi(adminPage, tournamentId, createdPlayers, { seedTimes: false });

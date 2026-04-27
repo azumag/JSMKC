@@ -78,6 +78,14 @@ export interface EventTypeConfig {
   fixedCourseList?: readonly string[];
 
   /**
+   * Whether to assign a random starting Battle Course (1-4) per round-robin day at
+   * qualification setup time. When true, all real matches on the same day share one
+   * startingCourseNumber. Days cycle through [1,2,3,4] in shuffled order.
+   * Only used for BM qualification (issue #724).
+   */
+  assignBmStartingCourseByDay?: boolean;
+
+  /**
    * Whether to randomly assign a cup to each match at qualification setup time (§7.4).
    * When true, the POST handler shuffles cupList and assigns one cup per match (cycling via modulo).
    * GP uses this to pre-assign cups; BM/MR do not.

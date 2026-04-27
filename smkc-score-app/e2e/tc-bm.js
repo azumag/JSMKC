@@ -20,6 +20,7 @@
  *   TC-524  BM bracket startingCourseNumber randomisation per round (#671)
  *   TC-525  BM finals score dialog — startingCourseNumber autosaves on select
  *   TC-526  NoCamera player warning toast when TV# assigned to their match (#674)
+ *   TC-527  BM qualification startingCourseNumber shared per round-robin day (#724)
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1758,6 +1759,44 @@ async function runTc526(adminPage) {
   }
 }
 
+/* ───────── TC-527: BM qualification startingCourseNumber per round-robin day ─────────
+ * After qualification setup, every real (non-BYE) match on the same round-robin day
+ * must share one startingCourseNumber (1-4), satisfying issue #724.
+ * Matches on different days may have different courses. */
+async function runTc527(adminPage) {
+  try {
+    if (!sharedFixture) throw new Error('shared fixture not initialised');
+    const tournamentId = sharedFixture.normalTournament.id;
+    const bmData = await apiFetchBm(adminPage, tournamentId);
+    const realMatches = (bmData.matches || []).filter((m) => !m.isBye && m.stage === 'qualification');
+    if (realMatches.length === 0) throw new Error('No real qualification matches found');
+
+    // Every real match must have a valid startingCourseNumber
+    const allValid = realMatches.every(
+      (m) => Number.isInteger(m.startingCourseNumber) && m.startingCourseNumber >= 1 && m.startingCourseNumber <= 4,
+    );
+
+    // All matches on the same roundNumber (day) must share one startingCourseNumber
+    const byDay = new Map();
+    for (const m of realMatches) {
+      if (m.roundNumber == null) continue;
+      if (!byDay.has(m.roundNumber)) byDay.set(m.roundNumber, new Set());
+      byDay.get(m.roundNumber).add(m.startingCourseNumber);
+    }
+    const daysUniform = [...byDay.values()].every((vals) => vals.size === 1);
+
+    const pass = allValid && daysUniform;
+    log('TC-527', pass ? 'PASS' : 'FAIL',
+      !allValid
+        ? `Some matches have invalid startingCourseNumber: ${JSON.stringify(realMatches.map((m) => ({ mn: m.matchNumber, sn: m.startingCourseNumber })))}`
+        : !daysUniform
+        ? `Matches on same day have different courses: ${JSON.stringify([...byDay.entries()].map(([d, s]) => ({ day: d, values: [...s] })))}`
+        : '');
+  } catch (err) {
+    log('TC-527', 'FAIL', err instanceof Error ? err.message : 'TC-527 failed');
+  }
+}
+
 /**
  * Builds the BM suite spec for composition by tc-all. When `sharedFixture` is
  * provided (tc-all flow), we reuse it and skip cleanup — the orchestrator owns
@@ -1805,6 +1844,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-524', fn: runTc524 },
       { name: 'TC-525', fn: runTc525 },
       { name: 'TC-526', fn: runTc526 },
+      { name: 'TC-527', fn: runTc527 },
       { name: 'TC-505', fn: runTc505 },
       { name: 'TC-506', fn: runTc506 },
     ],
@@ -1813,7 +1853,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc527,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },

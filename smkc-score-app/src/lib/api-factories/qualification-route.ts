@@ -306,6 +306,17 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const shuffledCups = config.assignCupRandomly && config.cupList
         ? fisherYatesShuffle(config.cupList)
         : null;
+      /*
+       * BM per-round starting course: one random Battle Course (1-4) per round-robin
+       * day, shared by ALL real matches on that day across all groups (issue #724).
+       * Days in a round-robin are 1-based; we generate assignments lazily in a Map so
+       * the shuffle stays deterministic even with sparse day numbers.
+       */
+      const bmDayStartingCourses: Map<number, number> | null =
+        config.assignBmStartingCourseByDay ? new Map() : null;
+      const bmCoursePool = config.assignBmStartingCourseByDay
+        ? fisherYatesShuffle([1, 2, 3, 4])
+        : null;
       // matchSequenceIndex tracks the overall match number across all groups
       // for consistent sequential course assignment from the shared list.
       let matchSequenceIndex = 0;
@@ -371,6 +382,18 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ? shuffledCups[matchSequenceIndex % shuffledCups.length]
             : undefined;
 
+          /* BM qualification per-day starting course (issue #724).
+           * All real matches on the same round-robin day share one course (1-4).
+           * Assign lazily so the pool index stays in sync with the observed days. */
+          let bmDayStartingCourse: number | undefined;
+          if (bmDayStartingCourses && bmCoursePool && isRealMatch) {
+            if (!bmDayStartingCourses.has(m.day)) {
+              const poolIndex = bmDayStartingCourses.size % 4;
+              bmDayStartingCourses.set(m.day, bmCoursePool[poolIndex]);
+            }
+            bmDayStartingCourse = bmDayStartingCourses.get(m.day);
+          }
+
           matchData.push({
             tournamentId,
             matchNumber,
@@ -385,6 +408,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ...(assignedCourses ? { assignedCourses } : {}),
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),
+            /* BM: random starting Battle Course shared by all real matches on the same day */
+            ...(bmDayStartingCourse !== undefined ? { startingCourseNumber: bmDayStartingCourse } : {}),
             /* Auto-complete BYE matches with fixed scores (§10.2) */
             ...(m.isBye ? { completed: true, ...byeData } : {}),
           });

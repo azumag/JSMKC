@@ -977,14 +977,14 @@ async function runTc713(adminPage) {
 
     // Create 3 players via admin API
     for (let i = 1; i <= 3; i++) {
-      const name = `GP Tie P${i}`;
-      const nickname = `gp_tie_${i}_${stamp}`;
+      const name = `E2E GP Tie P${i}`;
+      const nickname = `e2e_gp_tie_${i}_${stamp}`;
       const p = await uiCreatePlayer(adminPage, name, nickname);
       createdPlayers.push({ id: p.id, name, nickname });
     }
 
     // Create & activate tournament with dualReport disabled
-    const tournamentId = await uiCreateTournament(adminPage, `GP Tie ${stamp}`, { dualReportEnabled: false });
+    const tournamentId = await uiCreateTournament(adminPage, `E2E GP Tie ${stamp}`, { dualReportEnabled: false });
     createdTournaments.push(tournamentId);
 
     // Setup GP qualification with 3 players

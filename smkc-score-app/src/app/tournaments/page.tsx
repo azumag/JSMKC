@@ -111,6 +111,7 @@ export default function TournamentsPage() {
     debugMode: false,
   });
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /**
    * Fetches the tournament list from the API.
@@ -159,7 +160,9 @@ export default function TournamentsPage() {
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError("");
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/tournaments", {
@@ -183,6 +186,8 @@ export default function TournamentsPage() {
     } catch (err) {
       logger.error("Failed to create tournament:", { error: err });
       setError(t('failedToCreate'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -283,7 +288,7 @@ export default function TournamentsPage() {
         </div>
         {/* Create Tournament dialog - only rendered for admin users */}
         {isAdmin && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) setIsSubmitting(false); }}>
             <DialogTrigger asChild>
               <Button onClick={() => setFormData({ name: "", slug: "", date: "", dualReportEnabled: false, taPlayerSelfEdit: true, debugMode: false })}>
                 {t('createTournament')}
@@ -383,7 +388,7 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">{t('createTournament')}</Button>
+                <Button type="submit" disabled={isSubmitting}>{t('createTournament')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
