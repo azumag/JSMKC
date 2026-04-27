@@ -166,9 +166,13 @@ export async function PUT(
 
     const { times, totalTime, rank, eliminated, lives, version } = body;
 
-    // Version field is mandatory for optimistic locking
-    if (typeof version !== 'number') {
-      return handleValidationError("version is required and must be a number", "version");
+    // Version field is mandatory for optimistic locking.
+    // Must be a non-negative integer — version starts at 0 for new entries.
+    // Rejecting negative values prevents the sentinel -1 (from missing/undefined
+    // version on the client) from reaching the comparator and causing a misleading
+    // OptimisticLockError (#735).
+    if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
+      return handleValidationError("version is required and must be a non-negative integer", "version");
     }
 
     // Validate time strings before update so malformed values such as "0:84:00"

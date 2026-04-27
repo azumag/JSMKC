@@ -433,7 +433,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
       expect(result.status).toBe(400);
     });
 
@@ -446,7 +446,23 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
+      expect(result.status).toBe(400);
+    });
+
+    it('should return 400 when version is -1 (sentinel value, #735)', async () => {
+      // version: -1 is a sentinel that indicates the client did not supply a real
+      // version. Without this guard it reaches the optimistic-lock comparator and
+      // causes a misleading "expected -1, got 0" OptimisticLockError.
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/tt/entries/e1', {
+        times: [1000],
+        totalTime: 1000,
+        version: -1,
+      });
+      const params = Promise.resolve({ id: 't1', entryId: 'e1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
       expect(result.status).toBe(400);
     });
 
@@ -570,7 +586,7 @@ describe('TT Entry API Route - /api/tournaments/[id]/tt/entries/[entryId]', () =
       const params = Promise.resolve({ id: 't1', entryId: 'e1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a number' });
+      expect(result.data).toMatchObject({ success: false, error: 'version is required and must be a non-negative integer' });
       expect(result.status).toBe(400);
     });
 
