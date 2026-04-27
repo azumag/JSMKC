@@ -3153,7 +3153,7 @@ async function main() {
       // Create minimal tournament and 2 players
       tc351TournamentId = await uiCreateTournament(page, `E2E TC-351 QualConf ${ts351}`);
       for (let i = 0; i < 2; i++) {
-        const p = await createPlayer(page, `tc351p${i}_${ts351}`, `351p${i}`);
+        const p = await uiCreatePlayer(page, `tc351p${i}_${ts351}`, `351p${i}`);
         tc351Players.push(p);
       }
 
