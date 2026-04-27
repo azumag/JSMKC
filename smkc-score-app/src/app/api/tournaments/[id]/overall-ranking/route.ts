@@ -32,6 +32,7 @@ import {
   handleAuthzError,
 } from "@/lib/error-handling";
 import { resolveTournament } from "@/lib/tournament-identifier";
+import { withApiTiming } from "@/lib/perf/api-timing";
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -42,7 +43,7 @@ import { resolveTournament } from "@/lib/tournament-identifier";
  *
  * Public endpoint: no authentication required.
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -101,7 +102,7 @@ export async function GET(
  *
  * Requires admin authentication (returns 401 for unauthenticated, 403 for non-admin users).
  */
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -154,3 +155,13 @@ export async function POST(
     return createErrorResponse("Failed to recalculate overall rankings", 500);
   }
 }
+
+export const GET = (
+  ...args: Parameters<typeof handleGET>
+): ReturnType<typeof handleGET> =>
+  withApiTiming('overall-ranking.GET', () => handleGET(...args));
+
+export const POST = (
+  ...args: Parameters<typeof handlePOST>
+): ReturnType<typeof handlePOST> =>
+  withApiTiming('overall-ranking.POST', () => handlePOST(...args));

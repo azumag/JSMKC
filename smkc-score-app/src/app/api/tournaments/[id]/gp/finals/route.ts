@@ -5,10 +5,11 @@
  * Uses 'paginated' GET style and maps score1/score2 to points1/points2 fields.
  */
 
+import { withApiTiming } from '@/lib/perf/api-timing';
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
   eventTypeCode: 'gp',
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
@@ -64,4 +65,6 @@ const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   },
 });
 
-export { GET, POST, PUT, PATCH };
+export { POST, PUT, PATCH };
+export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
+  withApiTiming('gp.finals.GET', () => _GET(...args));

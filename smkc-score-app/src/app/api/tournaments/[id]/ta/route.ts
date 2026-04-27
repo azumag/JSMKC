@@ -37,6 +37,7 @@ import { createLogger } from "@/lib/logger";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
+import { withApiTiming } from "@/lib/perf/api-timing";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
 
@@ -160,7 +161,7 @@ const PutRequestSchema = z.object({
  * Query parameters:
  * - stage: "qualification" | "revival_1" | "revival_2" (default: "qualification")
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -207,6 +208,11 @@ export async function GET(
     return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
 }
+
+export const GET = (
+  ...args: Parameters<typeof handleGET>
+): ReturnType<typeof handleGET> =>
+  withApiTiming('ta.GET', () => handleGET(...args));
 
 /**
  * POST /api/tournaments/[id]/ta

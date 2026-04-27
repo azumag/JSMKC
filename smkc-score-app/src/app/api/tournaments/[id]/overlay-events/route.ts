@@ -28,6 +28,7 @@ import { createLogger } from "@/lib/logger";
 import { resolveTournament } from "@/lib/tournament-identifier";
 import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
 import { buildOverlayEvents } from "@/lib/overlay/events";
+import { withApiTiming } from "@/lib/perf/api-timing";
 import { computeCurrentPhase, computeCurrentPhaseFormat } from "@/lib/overlay/phase";
 import type { OverlayMatchInput, OverlayMode } from "@/lib/overlay/types";
 
@@ -110,7 +111,7 @@ function parseSince(raw: string | null, now: Date, initial: boolean): Date {
   return new Date(Math.max(parsed, lowerBound));
 }
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -494,3 +495,8 @@ export async function GET(
     return createErrorResponse("Failed to build overlay events", 500);
   }
 }
+
+export const GET = (
+  ...args: Parameters<typeof handleGET>
+): ReturnType<typeof handleGET> =>
+  withApiTiming('overlay-events.GET', () => handleGET(...args));

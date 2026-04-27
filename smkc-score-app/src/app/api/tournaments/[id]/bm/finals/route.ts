@@ -6,10 +6,11 @@
  * score1/score2 fields for match updates.
  */
 
+import { withApiTiming } from '@/lib/perf/api-timing';
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getBmFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
   eventTypeCode: 'bm',
   matchModel: 'bMMatch',
   qualificationModel: 'bMQualification',
@@ -33,4 +34,6 @@ const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   putRequiresAuth: true,
 });
 
-export { GET, POST, PUT, PATCH };
+export { POST, PUT, PATCH };
+export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
+  withApiTiming('bm.finals.GET', () => _GET(...args));

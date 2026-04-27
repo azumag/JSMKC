@@ -6,10 +6,11 @@
  * Includes 'rounds' as an additional PUT field.
  */
 
+import { withApiTiming } from '@/lib/perf/api-timing';
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getMrFinalsTargetWins } from '@/lib/finals-target-wins';
 
-const { GET, POST, PUT, PATCH } = createFinalsHandlers({
+const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
   eventTypeCode: 'mr',
   matchModel: 'mRMatch',
   qualificationModel: 'mRQualification',
@@ -28,4 +29,6 @@ const { GET, POST, PUT, PATCH } = createFinalsHandlers({
   assignMrCoursesByRound: true,
 });
 
-export { GET, POST, PUT, PATCH };
+export { POST, PUT, PATCH };
+export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
+  withApiTiming('mr.finals.GET', () => _GET(...args));
