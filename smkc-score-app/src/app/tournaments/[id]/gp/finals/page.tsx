@@ -622,6 +622,18 @@ export default function GrandPrixFinals({
       scoreForm.races.every((r) => r.position1 !== null && r.position2 !== null);
   const tiedAndReady = scoreInputsReady && livePoints1 === livePoints2;
 
+  // GP stores driver points in points1/points2 (not score1/score2 like BM/MR).
+  // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
+  // These must be declared before any early returns to satisfy rules-of-hooks.
+  const gpBracketMatches = useMemo(
+    () => matches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    [matches],
+  );
+  const gpPlayoffBracketMatches = useMemo(
+    () => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
+    [playoffMatches],
+  );
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -636,17 +648,6 @@ export default function GrandPrixFinals({
       </div>
     );
   }
-
-  // GP stores driver points in points1/points2 (not score1/score2 like BM/MR).
-  // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
-  const gpBracketMatches = useMemo(
-    () => matches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
-    [matches],
-  );
-  const gpPlayoffBracketMatches = useMemo(
-    () => playoffMatches.map((m) => ({ ...m, score1: m.points1, score2: m.points2 })),
-    [playoffMatches],
-  );
 
   return (
     <div className="space-y-6">
