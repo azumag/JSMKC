@@ -31,7 +31,10 @@ import { NavLabelClient } from "@/components/NavLabel";
 import { WebVitalsReporter } from "./web-vitals";
 
 /* Font wiring using @fontsource local files — no build-time network calls.
- * CSS variable names match globals.css @theme declarations. */
+ * CSS variable names match globals.css @theme declarations.
+ * NOTE: paths reference node_modules directly using @fontsource v5.x file layout
+ * (files/<family>-<subset>-<weight>-normal.woff2). When upgrading @fontsource
+ * packages, verify the file naming convention has not changed (#774). */
 const fontDisplay = localFont({
   src: "../../node_modules/@fontsource/anton/files/anton-latin-400-normal.woff2",
   variable: "--font-anton",

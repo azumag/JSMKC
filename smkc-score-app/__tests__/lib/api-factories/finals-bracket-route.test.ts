@@ -27,6 +27,7 @@ jest.mock('@/lib/tournament/double-elimination', () => ({
 jest.mock('@/lib/audit-log', () => ({
   createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: { CREATE_BRACKET: 'CREATE_BRACKET' },
+  resolveAuditUserId: jest.fn((s: { user?: { id?: string } } | null) => s?.user?.id),
 }));
 jest.mock('@/lib/logger', () => ({
   createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() })),

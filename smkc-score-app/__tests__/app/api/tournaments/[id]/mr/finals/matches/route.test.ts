@@ -27,7 +27,7 @@
 
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' } }));
+jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_MR_MATCH: 'CREATE_MR_MATCH' }, resolveAuditUserId: jest.fn((s) => s?.user?.id) }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));

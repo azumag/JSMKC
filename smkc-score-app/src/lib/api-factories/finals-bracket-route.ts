@@ -17,7 +17,7 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateDoubleEliminationBracket, BracketPlayer } from '@/lib/tournament/double-elimination';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, handleValidationError, handleRateLimitError } from '@/lib/error-handling';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -165,7 +165,7 @@ export function createFinalsBracketHandlers(config: FinalsBracketConfig) {
       /* Record audit log for bracket generation (security and accountability).
        * Fire-and-forget: .catch() handles async failures without blocking the response. */
       createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
         action: AUDIT_ACTIONS.CREATE_BRACKET,

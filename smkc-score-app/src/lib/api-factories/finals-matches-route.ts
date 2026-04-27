@@ -15,7 +15,7 @@ import { NextRequest } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog } from '@/lib/audit-log';
+import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { sanitizeInput } from '@/lib/sanitize';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
@@ -157,7 +157,7 @@ export function createFinalsMatchesHandlers(config: FinalsMatchesConfig) {
       /* Record audit log for match creation (security and accountability).
        * Fire-and-forget: .catch() handles async failures without blocking the response. */
       createAuditLog({
-        userId: session.user.id,
+        userId: resolveAuditUserId(session),
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
         action: config.auditAction,

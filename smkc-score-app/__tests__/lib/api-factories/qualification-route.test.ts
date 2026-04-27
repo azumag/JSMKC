@@ -58,7 +58,7 @@ jest.mock('@/lib/standings-cache', () => ({
 }));
 
 import { auth } from '@/lib/auth';
-import { createAuditLog } from '@/lib/audit-log';
+import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -109,6 +109,10 @@ describe('Qualification Route Factory', () => {
     (createLogger as jest.Mock).mockReturnValue(mockLogger);
     mockSanitizeInput.mockImplementation((input) => input);
     mockCreateAuditLog.mockResolvedValue(undefined);
+    /* resolveAuditUserId returns the session user's id for admin sessions */
+    (resolveAuditUserId as jest.Mock).mockImplementation(
+      (s: { user?: { id?: string } } | null) => s?.user?.id,
+    );
     mockGetServerSideIdentifier.mockResolvedValue('192.168.1.1');
 
     // Default tournament for resolveTournament(); individual tests override

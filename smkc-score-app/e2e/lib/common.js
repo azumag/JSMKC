@@ -18,6 +18,10 @@ const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const NAV_WAIT_MS = 8000;
+/** D1 cold-start can push page render well past the default 30s Playwright timeout.
+ * Use this constant for any waitFor/click/locator that depends on admin-gated UI
+ * or API responses that may be delayed by D1 initialization (#777). */
+const D1_COLD_START_TIMEOUT_MS = 40_000;
 const apiLogContexts = new WeakSet();
 
 function formatApiLogUrl(rawUrl) {
@@ -1155,7 +1159,7 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
   }
   const startBtn = page.getByRole('button', { name: /^(Start Round \d+|ラウンド\s*\d+\s*開始)$/ }).first();
   /* 40s to absorb D1 cold-start + fetchWithRetry delays (issue #678, #701) */
-  await startBtn.waitFor({ state: 'visible', timeout: 40000 });
+  await startBtn.waitFor({ state: 'visible', timeout: D1_COLD_START_TIMEOUT_MS });
 
   const responsePromise = page.waitForResponse((res) =>
     res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
@@ -1865,7 +1869,7 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
    * Wait for the row to appear before clicking (D1 cold-start can push render
    * past the default 30s timeout — TC-312/313 regression #770). */
   const row = page.getByRole('row').filter({ hasText: entry.nickname }).first();
-  await row.waitFor({ state: 'visible', timeout: 40000 });
+  await row.waitFor({ state: 'visible', timeout: D1_COLD_START_TIMEOUT_MS });
   await row.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).click();
 
   const dialog = page.getByRole('dialog').filter({
