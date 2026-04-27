@@ -82,6 +82,8 @@ const mockPrisma = {
   tournamentPlayerScore: {
     findMany: jest.fn(),
     upsert: jest.fn(),
+    deleteMany: jest.fn(),
+    createMany: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -459,8 +461,7 @@ describe('Overall Ranking module', () => {
 
   // =========================================================================
   describe('saveOverallRankings', () => {
-    it('calls $transaction with one upsert per player', async () => {
-      mockPrisma.tournamentPlayerScore.upsert.mockResolvedValue({});
+    it('uses deleteMany + createMany instead of N upserts (#752)', async () => {
       mockPrisma.$transaction.mockResolvedValue([]);
 
       const scores = [
@@ -482,16 +483,26 @@ describe('Overall Ranking module', () => {
 
       await saveOverallRankings(mockPrisma as any, TOURNAMENT_ID, scores);
 
+      // Should use deleteMany+createMany (2 ops) not N upserts
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockPrisma.tournamentPlayerScore.upsert).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.tournamentPlayerScore.upsert).not.toHaveBeenCalled();
+      expect(mockPrisma.tournamentPlayerScore.deleteMany).toHaveBeenCalledWith({
+        where: { tournamentId: TOURNAMENT_ID },
+      });
+      expect(mockPrisma.tournamentPlayerScore.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ playerId: 'p1', totalPoints: 800, overallRank: 1 }),
+          expect.objectContaining({ playerId: 'p2', totalPoints: 600, overallRank: 2 }),
+        ]),
+      });
     });
 
     it('no-ops gracefully when given an empty array', async () => {
-      mockPrisma.$transaction.mockResolvedValue([]);
-
       await saveOverallRankings(mockPrisma as any, TOURNAMENT_ID, []);
 
-      expect(mockPrisma.$transaction).toHaveBeenCalledWith([]);
+      // Early return: no DB calls at all when scores is empty
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.tournamentPlayerScore.deleteMany).not.toHaveBeenCalled();
     });
   });
 });
