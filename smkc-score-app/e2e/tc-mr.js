@@ -111,7 +111,7 @@ async function prepareSharedMrPair(adminPage, { dualReport = false } = {}) {
    * (TC-603) and the participant page winner buttons (TC-602) are both gated
    * on this flag, so reset it before re-seeding. Mirrors prepareSharedBmPair
    * in tc-bm.js. */
-  await apiUpdateTournament(adminPage, tournament.id, { qualificationConfirmed: false });
+  await apiUpdateTournament(adminPage, tournament.id, { mrQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'mr', tournament.id, players);
 
   const data = await apiFetchMr(adminPage, tournament.id);
@@ -153,7 +153,7 @@ async function prepareSharedMrFinalsSetup(adminPage) {
   /* The UI "Generate Bracket" button is gated on qualificationConfirmed=true
    * (mr/finals/page.tsx). TC-604 clicks that button, so confirm here.
    * Idempotent — safe even when finals are already in progress. */
-  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+  await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
 
   return {
     tournamentId,
@@ -814,7 +814,7 @@ async function runTc611(adminPage) {
         body: JSON.stringify(body),
       });
       return { s: r.status };
-    }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: true }]);
+    }, [`/api/tournaments/${tournamentId}`, { mrQualificationConfirmed: true }]);
     const confirmOk = confirmRes.s === 200;
 
     // Step 3: Score edit should be blocked (403)
@@ -841,7 +841,7 @@ async function runTc611(adminPage) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: false }]);
+    }, [`/api/tournaments/${tournamentId}`, { mrQualificationConfirmed: false }]);
 
     // Step 6: Score edit should work again
     const postUnlock = await apiPutMrQualScore(adminPage, tournamentId, match.id, 2, 2);
@@ -862,7 +862,7 @@ async function runTc611(adminPage) {
     if (tournamentId) {
       await adminPage.evaluate(async ([url, body]) => {
         await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      }, [`/api/tournaments/${tournamentId}`, { qualificationConfirmed: false }]).catch(() => {});
+      }, [`/api/tournaments/${tournamentId}`, { mrQualificationConfirmed: false }]).catch(() => {});
       await deleteTournament(adminPage, tournamentId);
     }
     if (player1) await deletePlayer(adminPage, player1.id);
@@ -889,7 +889,7 @@ async function runTc612(adminPage) {
 
     /* Reset qualificationConfirmed in case earlier suites locked the shared
      * tournament — score PUTs are 403'd otherwise. */
-    await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+    await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
 
     // Setup GP qualification with 2 players on the shared tournament.
     // POST /gp is upsert-friendly: re-running replaces the previous GP setup.
@@ -1157,7 +1157,7 @@ async function runTc615(adminPage) {
     const { tournamentId } = setup;
 
     /* The bracket action button requires qualificationConfirmed. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     /* Previous tests may have left a bracket behind. Reset it so
@@ -1271,7 +1271,7 @@ async function runTc616(adminPage) {
     const { tournamentId } = setup;
 
     /* Confirm qualification so the bracket action button is visible. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     // Generate an 8-player finals bracket

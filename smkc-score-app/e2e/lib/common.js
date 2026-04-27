@@ -2029,9 +2029,9 @@ async function setupBmQualViaUi(adminPage, tournamentId, players, { score1 = 3, 
    * hangs on waitForResponse. Idempotent for already-active tournaments. */
   await uiActivateTournament(adminPage, tournamentId);
   /* The shared fixture tournament persists across suite invocations.
-   * If a previous run left qualificationConfirmed=true, score PUTs are
+   * If a previous run left bmQualificationConfirmed=true, score PUTs are
    * blocked with 403. Reset the lock before re-seeding qualification. */
-  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+  await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players);
   /* Use API-based bulk scoring to avoid persistent-context renderer OOM
    * crashes during the 182-match 28-player qualification loop (issue #517).
@@ -2054,9 +2054,9 @@ async function setupMrQualViaUi(
   { score1 = 3, score2 = 1, randomize = true, resolveTies = true } = {},
 ) {
   await uiActivateTournament(adminPage, tournamentId);
-  /* BM suite leaves qualificationConfirmed=true on the shared tournament,
-   * which disables the MR score-entry button. Reset before re-seeding. */
-  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+  /* Reset the MR per-mode confirmation flag so score PUTs are unblocked
+   * when re-running the shared tournament. */
+  await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'mr', tournamentId, players);
   /* Use API bulk scoring to avoid renderer OOM and suite timeout on 182-match
    * 28-player tournaments (issue #661). Individual UI flow covered by TC-601/602. */
@@ -2077,9 +2077,9 @@ async function setupGpQualViaUi(
   { points1 = 45, points2 = 0, randomize = true, resolveTies = true } = {},
 ) {
   await uiActivateTournament(adminPage, tournamentId);
-  /* BM suite leaves qualificationConfirmed=true on the shared tournament,
-   * which disables the GP score-entry button. Reset before re-seeding. */
-  await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+  /* Reset the GP per-mode confirmation flag so score PUTs are unblocked
+   * when re-running the shared tournament. */
+  await apiUpdateTournament(adminPage, tournamentId, { gpQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
   /* Use API bulk scoring (manual-score endpoint) to avoid renderer OOM and
    * suite timeout on 182-match 28-player tournaments (issue #661). Individual
