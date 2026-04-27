@@ -204,7 +204,7 @@ describe('Audit Log', () => {
         ipAddress: '192.168.1.1',
         userAgent: 'Mozilla/5.0',
         action: AUDIT_ACTIONS.CREATE_TOURNAMENT,
-        details: null,
+        details: undefined,
       };
 
       const result = await createAuditLog(params);

@@ -437,9 +437,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       | 'bmQualificationConfirmed'
       | 'mrQualificationConfirmed'
       | 'gpQualificationConfirmed';
+    // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
     const tournament = await resolveTournament(id, {
       id: true,
-      [modeField]: true,
+      bmQualificationConfirmed: true,
+      mrQualificationConfirmed: true,
+      gpQualificationConfirmed: true,
     });
     if (!tournament) {
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
@@ -687,7 +690,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         bracketStructure,
         bracketSize,
         roundNames,
-        qualificationConfirmed: tournament.qualificationConfirmed ?? false,
+        qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
         phase,
         playoffMatches,
         playoffStructure,

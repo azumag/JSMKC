@@ -54,6 +54,7 @@ const { GET, PUT } = createMatchDetailHandlers({
   sanitizeBody: true,
   putRequiresAuth: true,
   getRequiresAuth: false,
+  qualMode: 'bm',
   recalcStatsConfig: {
     matchModel: 'bMMatch',
     qualificationModel: 'bMQualification',

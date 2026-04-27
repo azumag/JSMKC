@@ -94,6 +94,7 @@ describe('Match Detail Route Factory', () => {
     scoreFields: { field1: 'score1', field2: 'score2' },
     detailField: 'rounds',
     updateMatchScore: jest.fn(),
+    qualMode: 'bm' as const,
   };
 
   beforeEach(() => {

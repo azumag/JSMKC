@@ -63,7 +63,7 @@ describe('aggregatePlayerStats', () => {
   const player1Id = 'p1';
   const player2Id = 'p2';
 
-  function makeMatch(score1, score2) {
+  function makeMatch(score1: number, score2: number) {
     return {
       id: 'm1',
       tournamentId: 't1',
