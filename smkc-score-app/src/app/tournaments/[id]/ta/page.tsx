@@ -717,6 +717,14 @@ export default function TimeAttackPage({
               )}
             </Button>
           )}
+          {/* Debug-only auto-fill button — visible only on tournaments created
+           * with debugMode. Placed in the header action row to match
+           * BM/MR/GP qualification pages. TA has no `qualificationConfirmed`
+           * field; the lifecycle equivalent is `frozenStages.includes("qualification")`,
+           * which mirrors the server-side gate in fillTATimes (debug-fill.ts:296). */}
+          {isAdmin && debugMode && !frozenStages.includes("qualification") && entries.length > 0 && (
+            <DebugFillButton tournamentId={tournamentId} mode="ta" onFilled={refetch} />
+          )}
           {/* Legacy "Promote to Finals" button and dialog removed.
            * All promotion is now handled via the Phase 1/2/3 management card below.
            * See Phase 3 card "Go to Finals" link for the finals page entry point. */}
@@ -1281,18 +1289,6 @@ export default function TimeAttackPage({
                     ))}
                   </TableBody>
                 </Table>
-                {/* Debug-mode-only: Fill random times for ALL players via the
-                  * server-side debug-fill API. Skips entries that already have
-                  * a full set of 20 course times. */}
-                {debugMode && isAdmin && entries.length > 0 && (
-                  <div className="mt-4">
-                    <DebugFillButton
-                      tournamentId={tournamentId}
-                      mode="ta"
-                      onFilled={refetch}
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
