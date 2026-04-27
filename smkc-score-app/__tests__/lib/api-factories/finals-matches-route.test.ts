@@ -22,6 +22,7 @@ jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@/lib/audit-log', () => ({
   createAuditLog: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' },
+  resolveAuditUserId: jest.fn((s: { user?: { id?: string } } | null) => s?.user?.id),
 }));
 jest.mock('@/lib/sanitize', () => ({
   sanitizeInput: jest.fn((data: unknown) => data),

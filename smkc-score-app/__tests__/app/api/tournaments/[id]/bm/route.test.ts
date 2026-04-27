@@ -29,7 +29,7 @@ jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn
 jest.mock('@/lib/rate-limit', () => ({ checkRateLimit: jest.fn().mockResolvedValue({ success: true, remaining: 100 }) }));
 jest.mock('@/lib/request-utils', () => ({ getServerSideIdentifier: jest.fn(), getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'), getUserAgent: jest.fn().mockReturnValue('jest-test') }));
 jest.mock('@/lib/sanitize', () => ({ sanitizeInput: jest.fn((data) => data) }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' } }));
+jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(), AUDIT_ACTIONS: { CREATE_BM_MATCH: 'CREATE_BM_MATCH' }, resolveAuditUserId: jest.fn((s) => s?.user?.id) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 /* Mock qualification-confirmed-check: the qualification-route factory now checks
  * if qualification is locked before allowing score edits. Return null (= not locked). */

@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { createAuditLog } from '@/lib/audit-log';
+import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier, getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
@@ -468,7 +468,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const ip = await getServerSideIdentifier();
           const userAgent = request.headers.get('user-agent') || 'unknown';
           createAuditLog({
-            userId: currentSession.user.id,
+            userId: resolveAuditUserId(currentSession),
             ipAddress: ip,
             userAgent,
             action: config.auditAction,

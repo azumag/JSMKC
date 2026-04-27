@@ -35,7 +35,7 @@ jest.mock('@/lib/tournament/double-elimination', () => ({
     grandFinal: null,
   })),
 }));
-jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_BRACKET: 'CREATE_BRACKET' } }));
+jest.mock('@/lib/audit-log', () => ({ createAuditLog: jest.fn(() => Promise.resolve()), AUDIT_ACTIONS: { CREATE_BRACKET: 'CREATE_BRACKET' }, resolveAuditUserId: jest.fn((s) => s?.user?.id) }));
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('next/server', () => ({ NextResponse: { json: jest.fn() } }));
 

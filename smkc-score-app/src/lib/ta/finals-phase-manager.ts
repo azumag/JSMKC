@@ -253,10 +253,8 @@ export async function promoteToPhase1(
     orderBy: { rank: "asc" },
   });
 
-  // Fire-and-forget audit logs — createAuditLog internally handles errors;
-  // using void keeps them off the critical response path
   for (const entry of createdEntries) {
-    void createAuditLog({
+    createAuditLog({
       userId,
       ipAddress,
       userAgent,
@@ -269,7 +267,7 @@ export async function promoteToPhase1(
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
         promotedTo: "phase1",
       },
-    });
+    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
   }
 
   return {
@@ -383,7 +381,7 @@ export async function promoteToPhase2(
   });
 
   for (const entry of createdEntries) {
-    void createAuditLog({
+    createAuditLog({
       userId, ipAddress, userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
@@ -391,7 +389,7 @@ export async function promoteToPhase2(
       details: { tournamentId, playerId: entry.playerId,
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
         promotedTo: "phase2" },
-    });
+    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
   }
 
   return {
@@ -504,7 +502,7 @@ export async function promoteToPhase3(
   });
 
   for (const entry of createdEntries) {
-    void createAuditLog({
+    createAuditLog({
       userId, ipAddress, userAgent,
       action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
       targetId: entry.id,
@@ -512,7 +510,7 @@ export async function promoteToPhase3(
       details: { tournamentId, playerId: entry.playerId,
         playerNickname: (entry as TTEntry & { player: { nickname: string } }).player.nickname,
         promotedTo: "phase3", initialLives: config.initialLives },
-    });
+    }).catch((err) => logger.warn("Failed to create audit log", { error: err }));
   }
 
   return {
