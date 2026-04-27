@@ -64,6 +64,7 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import type { Player } from "@/lib/types";
 import { createLogger } from "@/lib/client-logger";
+import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'ta-elimination-phase' });
@@ -151,9 +152,8 @@ export default function TAEliminationPhase({
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Development-only flag: uses NODE_ENV which is inlined at build time by Next.js,
-  // ensuring the dev button JSX is tree-shaken from production builds entirely.
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Show random-fill button when tournament debugMode is enabled (admin only).
+  const isDebugMode = useTournamentDebugMode(tournamentId);
 
   // Tracks whether the user is actively editing times.
   // When true, polling is paused to prevent fetchData from overwriting input.
@@ -694,8 +694,8 @@ export default function TAEliminationPhase({
                   </div>
                 ))}
               </div>
-              {/* Development-only: Fill random times for all active players */}
-              {isDevelopment && (
+              {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
+              {isAdmin && isDebugMode && (
                 <div className="mt-4">
                   <Button
                     onClick={handleFillRandomTimes}
@@ -704,7 +704,7 @@ export default function TAEliminationPhase({
                     className="w-full border-dashed border-orange-400 text-orange-600 hover:bg-orange-50"
                   >
                     <Dice5 className="h-4 w-4 mr-2" />
-                    Fill Random Times (Dev Only)
+                    Fill Random Times (Debug)
                   </Button>
                 </div>
               )}
