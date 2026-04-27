@@ -189,6 +189,8 @@ export async function PUT(
       bmQualificationConfirmed,
       mrQualificationConfirmed,
       gpQualificationConfirmed,
+      // debugMode: enables auto-fill buttons; admin-only toggle (#746)
+      debugMode,
     } = body;
     const slug = normalizeTournamentSlug(body.slug);
 
@@ -250,6 +252,7 @@ export async function PUT(
           ...(gpQualificationConfirmed === true && { qualificationConfirmedAt: new Date() }),
         }),
         ...(publicModes !== undefined && { publicModes }),
+        ...(debugMode !== undefined && { debugMode: debugMode === true }),
       },
     });
 

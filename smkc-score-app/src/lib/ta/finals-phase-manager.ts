@@ -806,52 +806,62 @@ export async function getPhaseStatus(
   phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
   currentPhase: string;
 }> {
-  const phases = ["phase1", "phase2", "phase3"] as const;
-  const status: {
-    phase1: { total: number; active: number; eliminated: number } | null;
-    phase2: { total: number; active: number; eliminated: number } | null;
-    phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
-    currentPhase: string;
-  } = {
-    phase1: null,
-    phase2: null,
-    phase3: null,
-    currentPhase: "qualification",
+  /* Previously this ran 3 sequential findMany with full player includes.
+   * Each D1 round-trip is ~150–250 ms; 3 sequential = 450–750 ms, pushing the
+   * GET handler past the Workers wall-time budget (#733).
+   *
+   * Fix: run all three queries in parallel and use minimal selects.
+   * Phases 1 & 2 only need `eliminated` (no player join).
+   * Phase 3 additionally needs the winner's nickname when exactly 1 player is active.
+   */
+  const [phase1Entries, phase2Entries, phase3Entries] = await Promise.all([
+    prisma.tTEntry.findMany({
+      where: { tournamentId, stage: "phase1" },
+      select: { eliminated: true },
+    }),
+    prisma.tTEntry.findMany({
+      where: { tournamentId, stage: "phase2" },
+      select: { eliminated: true },
+    }),
+    prisma.tTEntry.findMany({
+      where: { tournamentId, stage: "phase3" },
+      select: { eliminated: true, player: { select: { nickname: true } } },
+    }),
+  ]);
+
+  const buildBase = (entries: { eliminated: boolean }[]) => {
+    if (entries.length === 0) return null;
+    const active = entries.filter((e) => !e.eliminated).length;
+    return { total: entries.length, active, eliminated: entries.length - active };
   };
 
-  // Check each phase in order to determine current phase and status
-  for (const phase of phases) {
-    const entries = await prisma.tTEntry.findMany({
-      where: { tournamentId, stage: phase },
-      include: { player: { select: PLAYER_PUBLIC_SELECT } },
-    });
-
-    if (entries.length > 0) {
-      const active = entries.filter((e) => !e.eliminated);
-      const eliminated = entries.filter((e) => e.eliminated);
-
-      if (phase === "phase3") {
-        // Phase 3 has special winner detection (last player standing)
-        status.phase3 = {
-          total: entries.length,
-          active: active.length,
-          eliminated: eliminated.length,
-          winner: active.length === 1 ? active[0].player.nickname : null,
-        };
-      } else {
-        status[phase] = {
-          total: entries.length,
-          active: active.length,
-          eliminated: eliminated.length,
-        };
+  const phase3Base = buildBase(phase3Entries);
+  const phase3Status = phase3Base
+    ? {
+        ...phase3Base,
+        winner:
+          phase3Base.active === 1
+            ? (phase3Entries.find((e) => !e.eliminated) as { eliminated: boolean; player: { nickname: string } } | undefined)
+                ?.player.nickname ?? null
+            : null,
       }
+    : null;
 
-      // Update current phase to the latest phase with entries
-      status.currentPhase = phase;
-    }
-  }
+  const currentPhase =
+    phase3Entries.length > 0
+      ? "phase3"
+      : phase2Entries.length > 0
+        ? "phase2"
+        : phase1Entries.length > 0
+          ? "phase1"
+          : "qualification";
 
-  return status;
+  return {
+    phase1: buildBase(phase1Entries),
+    phase2: buildBase(phase2Entries),
+    phase3: phase3Status,
+    currentPhase,
+  };
 }
 
 /**
