@@ -419,10 +419,12 @@ async function normalizeRoundStartingCoursesToSingleValue(
   }
 
   for (const [round, value] of canonicalByRound) {
-    /* Skip writes when stored already matches; updateMany scopes the write
-     * to mismatched rows in this tournament/stage/round. */
+    /* Update all rows in the round unconditionally.
+     * SQL `NOT (col = ?)` evaluates to NULL (not TRUE) when col IS NULL, so
+     * the previous `NOT: { startingCourseNumber: value }` filter silently
+     * skipped null rows — the main legacy case we need to repair (#741). */
     await modelInstance.updateMany({
-      where: { tournamentId, stage, round, NOT: { startingCourseNumber: value } },
+      where: { tournamentId, stage, round },
       data: { startingCourseNumber: value },
     });
   }

@@ -282,9 +282,8 @@ export function PlayoffBracket({
   const r1RoundName = roundNames["playoff_r1"] || tf("roundOne");
   const r2RoundName = roundNames["playoff_r2"] || tf("roundTwo");
 
-  /* Returns the startingCourseNumber for a given playoff round (all matches share the same value). */
-  const getCourseForRound = (round: string): number | null =>
-    playoffMatches.find((m) => m.round === round && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
+  const courseR1 = playoffMatches.find((m) => m.round === "playoff_r1" && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
+  const courseR2 = playoffMatches.find((m) => m.round === "playoff_r2" && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
 
   return (
     <Card className="border-blue-500/30">
@@ -305,7 +304,7 @@ export function PlayoffBracket({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r1RoundName}</h4>
-              {(() => { const c = getCourseForRound("playoff_r1"); return c != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: c })}</p>; })()}
+              {courseR1 != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: courseR1 })}</p>}
             </div>
             <div className="flex flex-col gap-2">
               {playoffR1.map((b) => (
@@ -331,7 +330,7 @@ export function PlayoffBracket({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r2RoundName}</h4>
-              {(() => { const c = getCourseForRound("playoff_r2"); return c != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: c })}</p>; })()}
+              {courseR2 != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: courseR2 })}</p>}
             </div>
             <div className="flex flex-col gap-2">
               {playoffR2.map((b) => (
