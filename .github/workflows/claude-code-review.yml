@@ -50,6 +50,8 @@ jobs:
     name: Wait for Cloudflare Workers Build
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    permissions:
+      checks: read
     steps:
       - name: 'Wait for Workers Builds: smkc check'
         uses: fountainhead/action-wait-for-check@v1.2.0
