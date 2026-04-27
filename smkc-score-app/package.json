@@ -25,6 +25,9 @@
     "deploy": "npm run build:cf && wrangler deploy"
   },
   "dependencies": {
+    "@fontsource/anton": "^5.2.7",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/manrope": "^5.2.8",
     "@opennextjs/cloudflare": "^1.17.1",
     "@prisma/adapter-d1": "^7.5.0",
     "@prisma/client": "^6.19.2",

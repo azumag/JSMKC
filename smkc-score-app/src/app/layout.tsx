@@ -17,7 +17,7 @@
  * OBS browser-source compositing and must not regress.
  */
 import type { Metadata } from "next";
-import { Anton, Manrope, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
@@ -30,28 +30,28 @@ import { Toaster } from "sonner";
 import { NavLabelClient } from "@/components/NavLabel";
 import { WebVitalsReporter } from "./web-vitals";
 
-/*
- * Font wiring. CSS variable names match the @theme inline declarations
- * in globals.css (`--font-display`, `--font-sans`, `--font-mono`).
- *
- * Anton has a single 400 weight — using it at large sizes with letter
- * tracking gives the condensed-display "race programme cover" feel.
- * Manrope ships variable-weight axes for the body. JetBrains Mono is
- * the workhorse for tabular figures (times, scores, ranks).
- */
-const fontDisplay = Anton({
-  weight: "400",
-  subsets: ["latin"],
+/* Font wiring using @fontsource local files — no build-time network calls.
+ * CSS variable names match globals.css @theme declarations. */
+const fontDisplay = localFont({
+  src: "../../node_modules/@fontsource/anton/files/anton-latin-400-normal.woff2",
   variable: "--font-anton",
   display: "swap",
 });
-const fontSans = Manrope({
-  subsets: ["latin"],
+const fontSans = localFont({
+  src: [
+    { path: "../../node_modules/@fontsource/manrope/files/manrope-latin-400-normal.woff2", weight: "400" },
+    { path: "../../node_modules/@fontsource/manrope/files/manrope-latin-500-normal.woff2", weight: "500" },
+    { path: "../../node_modules/@fontsource/manrope/files/manrope-latin-600-normal.woff2", weight: "600" },
+    { path: "../../node_modules/@fontsource/manrope/files/manrope-latin-700-normal.woff2", weight: "700" },
+  ],
   variable: "--font-manrope",
   display: "swap",
 });
-const fontMono = JetBrains_Mono({
-  subsets: ["latin"],
+const fontMono = localFont({
+  src: [
+    { path: "../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2", weight: "400" },
+    { path: "../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2", weight: "500" },
+  ],
   variable: "--font-jetbrains",
   display: "swap",
 });
