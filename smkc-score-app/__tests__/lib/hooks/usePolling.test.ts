@@ -919,4 +919,70 @@ describe('usePolling', () => {
       }
     });
   });
+
+  describe('initialData - Server Component pre-fetch seed', () => {
+    beforeEach(() => {
+      clearPollingCache();
+    });
+
+    // When initialData is provided and no fetch has happened yet, data should
+    // be the server-supplied value immediately (no loading skeleton flash).
+    it('should initialize data from initialData when no cache exists', () => {
+      const serverData = { entries: [{ id: 'e1' }], frozenStages: [] };
+      const mockFetch = jest.fn().mockResolvedValue({ entries: [{ id: 'e2' }] });
+      const { result } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, initialData: serverData })
+      );
+
+      expect(result.current.data).toEqual(serverData);
+    });
+
+    // Cache takes precedence over initialData: a returning visitor already has
+    // client-side data that is at least as fresh as the server render.
+    it('should prefer cached data over initialData when cache is warm', async () => {
+      const cacheKey = 'test/prefer-cache';
+      const cachedData = { entries: [{ id: 'cached' }] };
+      const serverData = { entries: [{ id: 'server' }] };
+      const mockFetch = jest.fn().mockResolvedValue(cachedData);
+
+      // Warm the cache via a first mount
+      const { unmount } = await act(async () =>
+        renderHook(() => usePolling(mockFetch, { cacheKey }))
+      );
+      await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      unmount();
+
+      mockFetch.mockClear();
+
+      // Second mount with initialData — cache hit must win
+      const { result } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false, cacheKey, initialData: serverData })
+      );
+
+      expect(result.current.data).toEqual(cachedData);
+    });
+
+    // Without initialData the hook still starts with null (regression guard).
+    it('should start with null when neither initialData nor cache is present', () => {
+      const mockFetch = jest.fn().mockResolvedValue({ id: 1 });
+      const { result } = renderHook(() =>
+        usePolling(mockFetch, { immediate: false })
+      );
+
+      expect(result.current.data).toBeNull();
+    });
+
+    // After the first poll, initialData should be replaced by the fetched value.
+    it('should replace initialData with fetched data on first successful poll', async () => {
+      const serverData = { entries: [{ id: 'server' }] };
+      const fetchedData = { entries: [{ id: 'fetched' }] };
+      const mockFetch = jest.fn().mockResolvedValue(fetchedData);
+
+      const { result } = await act(async () =>
+        renderHook(() => usePolling(mockFetch, { initialData: serverData }))
+      );
+
+      await waitFor(() => expect(result.current.data).toEqual(fetchedData));
+    });
+  });
 });

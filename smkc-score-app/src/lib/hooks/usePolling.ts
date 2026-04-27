@@ -144,6 +144,11 @@ export function clearPollingCache(): void {
  * @property pauseWhenHidden - When true (default), pause polling while the tab is hidden
  *                       (`document.hidden`) and resume on `visibilitychange`. Set to false
  *                       only for use cases that must keep ticking in background tabs.
+ * @property initialData - Pre-fetched data from a Server Component. Used as the initial
+ *                       state when the module-level cache has no entry for this key, so
+ *                       the loading skeleton never flashes on first paint. Cache takes
+ *                       precedence when warm (returning visitor), since it is at least as
+ *                       fresh as the server render.
  */
 export interface UsePollingOptions {
   enabled?: boolean;
@@ -153,6 +158,7 @@ export interface UsePollingOptions {
   onError?: (error: Error) => void;
   cacheKey?: string;
   pauseWhenHidden?: boolean;
+  initialData?: unknown;
 }
 
 /**
@@ -176,18 +182,22 @@ export function usePolling<T>(
     onError,
     cacheKey,
     pauseWhenHidden = true,
+    initialData,
   } = options;
 
   // Public state for the fetched data and last error.
   // Uses a lazy initializer (function form) so the cache lookup runs only
   // on the initial mount, not on every render.
   const [data, setData] = useState<T | null>(() => {
-    /* Normalize cache miss (undefined) to null so callers can rely on
-     * data === null before the first fetch regardless of whether a
-     * cacheKey is configured. */
-    if (!cacheKey) return null;
-    const cached = getCacheEntry(cacheKey) as T | undefined;
-    return cached ?? null;
+    // Cache takes precedence: a warm cache entry is at least as fresh as the
+    // server render, and the returning-visitor path must not regress to server data.
+    if (cacheKey) {
+      const cached = getCacheEntry(cacheKey) as T | undefined;
+      if (cached !== undefined) return cached;
+    }
+    // Fall back to server-provided initial data (eliminates loading skeleton flash
+    // on first paint when a Server Component pre-fetched the data).
+    return (initialData as T | undefined) ?? null;
   });
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
