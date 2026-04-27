@@ -23,7 +23,7 @@ import { COURSES } from "@/lib/constants";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from "@/lib/ta/time-utils";
 import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.
@@ -217,28 +217,47 @@ export async function recalculateRanks(
   const sorted = sortByStage(entriesWithTotal, stage);
   const rankMap = assignRanks(sorted);
 
-  // Build update operations for all entries (including those without ranks)
-  const updateOperations = entriesWithTotal.map((entry: EntryWithTotal) => {
-    const rank = rankMap.get(entry.id) ?? null;
+  // Early return avoids sending an empty WHERE IN () clause to D1.
+  if (entriesWithTotal.length === 0) return;
 
-    // Base data: always update totalTime and rank
-    const data: Record<string, unknown> = {
-      totalTime: entry.totalTime,
-      rank,
-    };
+  // Collapse N sequential TTEntry.update round-trips into a single bulk UPDATE
+  // using CASE WHEN expressions. On D1 (Cloudflare SQLite), each individual
+  // update costs ~185ms, so 27 entries would block the response for ~5s (#710).
+  // A single statement reduces this to ~200ms regardless of entry count.
+  const totalTimeCases = Prisma.join(
+    entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.totalTime ?? null}`),
+    ' '
+  );
+  const rankCases = Prisma.join(
+    entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${rankMap.get(e.id) ?? null}`),
+    ' '
+  );
+  const ids = Prisma.join(entriesWithTotal.map((e) => Prisma.sql`${e.id}`));
 
-    // For qualification: also persist course scores and total points
-    if (stage === "qualification") {
-      data.courseScores = entry.courseScores;
-      data.qualificationPoints = entry.qualificationPoints;
-    }
-
-    return prisma.tTEntry.update({
-      where: { id: entry.id },
-      data,
-    });
-  });
-
-  // Execute all updates in a single transaction for atomicity
-  await prisma.$transaction(updateOperations);
+  if (stage === "qualification") {
+    // courseScores is a JSON column stored as text; pass the serialized string directly.
+    const courseScoresCases = Prisma.join(
+      entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${JSON.stringify(e.courseScores)}`),
+      ' '
+    );
+    const qualPointsCases = Prisma.join(
+      entriesWithTotal.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.qualificationPoints ?? null}`),
+      ' '
+    );
+    await prisma.$executeRaw`
+      UPDATE TTEntry SET
+        totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
+        rank = CASE id ${rankCases} ELSE rank END,
+        courseScores = CASE id ${courseScoresCases} ELSE courseScores END,
+        qualificationPoints = CASE id ${qualPointsCases} ELSE qualificationPoints END
+      WHERE id IN (${ids})
+    `;
+  } else {
+    await prisma.$executeRaw`
+      UPDATE TTEntry SET
+        totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
+        rank = CASE id ${rankCases} ELSE rank END
+      WHERE id IN (${ids})
+    `;
+  }
 }
