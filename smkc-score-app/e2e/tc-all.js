@@ -3293,6 +3293,73 @@ async function main() {
     }
   }
 
+  // TC-353: BM/MR qualification setup with 8-player group — verifies createMany chunking (#736)
+  // D1 has a ~100 bind-parameter limit per SQL statement. 8-player round-robin = 28 matches ×
+  // up to 12 columns = 336 params, which Prisma silently splits. Explicit chunking (MATCH_CHUNK=8)
+  // caps each round-trip at 96 params and limits D1 retry tail from ~6s to ~2s.
+  {
+    let tc353TournamentId = null;
+    const tc353Players = [];
+    const ts353 = Date.now();
+    try {
+      tc353TournamentId = await uiCreateTournament(page, `E2E TC-353 chunk ${ts353}`);
+      for (let i = 0; i < 8; i++) {
+        const p = await uiCreatePlayer(page, `tc353p${i}_${ts353}`, `353p${i}`);
+        tc353Players.push(p);
+      }
+      const pids353 = tc353Players.map(p => p.id);
+
+      // BM qualification setup: 8 players in 1 group → 28 round-robin matches
+      const bmSetup353 = await page.evaluate(async ([tid, pids]) => {
+        const start = Date.now();
+        const r = await fetch(`/api/tournaments/${tid}/bm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: pids.map(id => ({ playerId: id, group: 'A' })) }),
+        });
+        return { s: r.status, ms: Date.now() - start };
+      }, [tc353TournamentId, pids353]);
+
+      if (bmSetup353.s !== 201) throw new Error(`BM setup failed (${bmSetup353.s})`);
+
+      // Verify 28 matches were created (8×7/2 = 28)
+      const bmData353 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/bm`);
+        const j = await r.json().catch(() => ({}));
+        return (j.data ?? j).matches ?? [];
+      }, tc353TournamentId);
+      const bmMatchCount = bmData353.length;
+
+      // MR qualification setup: same 8 players → 28 matches
+      const mrSetup353 = await page.evaluate(async ([tid, pids]) => {
+        const r = await fetch(`/api/tournaments/${tid}/mr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: pids.map(id => ({ playerId: id, group: 'A' })) }),
+        });
+        return { s: r.status };
+      }, [tc353TournamentId, pids353]);
+
+      if (mrSetup353.s !== 201) throw new Error(`MR setup failed (${mrSetup353.s})`);
+
+      const mrData353 = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/mr`);
+        const j = await r.json().catch(() => ({}));
+        return (j.data ?? j).matches ?? [];
+      }, tc353TournamentId);
+      const mrMatchCount = mrData353.length;
+
+      const ok = bmMatchCount === 28 && mrMatchCount === 28;
+      log('TC-353', ok ? 'PASS' : 'FAIL',
+        `bm_matches=${bmMatchCount} mr_matches=${mrMatchCount} bm_ms=${bmSetup353.ms}`);
+    } catch (err) {
+      log('TC-353', 'FAIL', err instanceof Error ? err.message : '8-player chunked setup failed');
+    } finally {
+      if (tc353TournamentId) await deleteTournament(page, tc353TournamentId);
+      for (const p of tc353Players) await deletePlayer(page, p.id);
+    }
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)
