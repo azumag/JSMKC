@@ -189,10 +189,12 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       expect(loggerMock.error).toHaveBeenCalled();
     });
 
-    // TC-530/#741: null startingCourseNumber repair must update all rows without NOT condition
-    // SQL `NOT (col = ?)` evaluates to NULL (not TRUE) when col IS NULL, so the
-    // old NOT filter silently skipped null rows — the primary legacy case to repair.
-    it('should repair all-null startingCourseNumber rows without NOT condition in updateMany (#741)', async () => {
+    // Issue #771: all-null rounds must NOT be repaired — an all-null round means
+    // the admin explicitly cleared via PATCH, so normalization must preserve it.
+    // POST (bracket creation) always assigns values via createBmRoundStartingCourses.
+    // The NOT-condition bug fix (#741) remains valid for mixed-null rounds (some
+    // matches have a value, others are null — those are still repaired without NOT).
+    it('should NOT repair all-null startingCourseNumber round — preserves intentional clear (#771)', async () => {
       const nullMatches = [
         { id: 'm1', round: 'winners_qf', startingCourseNumber: null },
         { id: 'm2', round: 'winners_qf', startingCourseNumber: null },
@@ -208,7 +210,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
         .mockResolvedValueOnce(nullMatches) // normalization select
         .mockResolvedValueOnce(nullMatches); // main data
 
-      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 4 });
+      (prisma.bMMatch.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals');
       const params = Promise.resolve({ id: 't1' });
@@ -218,13 +220,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const repairCall = updateManyCalls.find(([args]) =>
         args?.where?.stage === 'finals' && args?.where?.round === 'winners_qf',
       );
-      expect(repairCall).toBeTruthy();
-      // Fixed: no NOT condition — SQL null rows would be skipped by NOT
-      expect(repairCall[0].where.NOT).toBeUndefined();
-      // Assigned value must be in valid [1, 4] range
-      const assigned = repairCall[0].data.startingCourseNumber;
-      expect(assigned).toBeGreaterThanOrEqual(1);
-      expect(assigned).toBeLessThanOrEqual(4);
+      // All-null rounds must not be touched — no repair updateMany should fire
+      expect(repairCall).toBeUndefined();
     });
   });
 

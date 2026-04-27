@@ -353,6 +353,44 @@ describe('Qualification Route Factory', () => {
       expect(totalMatches).toBe(28);
     });
 
+    it('should chunk qual createMany when record count exceeds QUAL_CHUNK=24 (#769)', async () => {
+      // 28 players in one group → 28 qual records > QUAL_CHUNK=24
+      // Expected: ceil(28/24) = 2 createMany calls with slices [0..24, 24..28]
+      // 28 is even so no BYE rounds are generated.
+      const players = Array.from({ length: 28 }, (_, i) => ({
+        playerId: `player-${i + 1}`,
+        group: 'A',
+        seeding: i + 1,
+      }));
+
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 24 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+
+      // 28 qual records → 2 chunks: first 24, then remaining 4
+      const qualCalls = (prisma.bMQualification as any).createMany.mock.calls;
+      expect(qualCalls).toHaveLength(2);
+      expect(qualCalls[0][0].data).toHaveLength(24);
+      expect(qualCalls[1][0].data).toHaveLength(4);
+      // Total qual records across all chunks = 28
+      const totalQuals = qualCalls.reduce((sum: number, call: any[]) => sum + call[0].data.length, 0);
+      expect(totalQuals).toBe(28);
+    });
+
     it('should create audit log when auditAction is configured', async () => {
       const players = createMockPlayers();
 

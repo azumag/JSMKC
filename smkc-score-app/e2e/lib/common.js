@@ -1861,8 +1861,11 @@ async function uiSetTaEntryTimes(page, tournamentId, entry, times) {
     await timesTab.first().click().catch(() => {});
   }
 
-  /* Each entry row has an "Edit Times" button; filter the row by nickname. */
+  /* Each entry row has an "Edit Times" button; filter the row by nickname.
+   * Wait for the row to appear before clicking (D1 cold-start can push render
+   * past the default 30s timeout — TC-312/313 regression #770). */
   const row = page.getByRole('row').filter({ hasText: entry.nickname }).first();
+  await row.waitFor({ state: 'visible', timeout: 40000 });
   await row.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).click();
 
   const dialog = page.getByRole('dialog').filter({
