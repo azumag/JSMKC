@@ -1545,7 +1545,7 @@ async function main() {
       if (m === 'bm') {
         // Only check for Details link when the Matches tab exists (i.e. BM is set up for TID).
         // Without a Matches tab, there are no match rows and no Details link to check.
-        if (!hasMatchesTab) continue;
+        if (!hasMatchesTab) { log('TC-320', 'SKIP', 'BM Matches tab absent (no BM setup for TID)'); continue; }
         const hasDetailsLabel = bodyText.includes('Details') || bodyText.includes('詳細');
         if (!hasDetailsLabel) {
           tc320 = false;

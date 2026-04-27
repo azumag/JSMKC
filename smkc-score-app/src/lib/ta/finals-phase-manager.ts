@@ -836,16 +836,12 @@ export async function getPhaseStatus(
   };
 
   const phase3Base = buildBase(phase3Entries);
-  const phase3Status = phase3Base
-    ? {
-        ...phase3Base,
-        winner:
-          phase3Base.active === 1
-            ? (phase3Entries.find((e) => !e.eliminated) as { eliminated: boolean; player: { nickname: string } } | undefined)
-                ?.player.nickname ?? null
-            : null,
-      }
-    : null;
+  type Phase3Entry = { eliminated: boolean; player: { nickname: string } };
+  const phase3Winner =
+    phase3Base?.active === 1
+      ? (phase3Entries.find((e) => !e.eliminated) as Phase3Entry | undefined)?.player.nickname ?? null
+      : null;
+  const phase3Status = phase3Base ? { ...phase3Base, winner: phase3Winner } : null;
 
   const currentPhase =
     phase3Entries.length > 0
