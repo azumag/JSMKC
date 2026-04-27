@@ -263,7 +263,14 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           seeding: p.seeding,
         }),
       );
-      await qualModel(prisma).createMany({ data: qualData });
+      // D1 bound-parameter limit is ~100 per SQL statement (#736).
+      // qualData rows have 4 columns each → chunk at 24 rows (96 params) to stay safely under the limit.
+      // Sequential insertion: if a chunk is retried due to D1 "Network connection lost", only that
+      // chunk pays the retry penalty (~2s) instead of the full batch.
+      const QUAL_CHUNK = 24;
+      for (let i = 0; i < qualData.length; i += QUAL_CHUNK) {
+        await qualModel(prisma).createMany({ data: qualData.slice(i, i + QUAL_CHUNK) });
+      }
       /*
        * Unqualified findMany is safe only because the deleteMany at the
        * top of this handler cleared every qualification row for this
@@ -399,8 +406,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }
       }
 
+      // D1 bound-parameter limit is ~100 per SQL statement (#736).
+      // Match rows have up to 12 columns (9 base + isBye BYE fields: completed/score1/score2,
+      // and optional MR/GP fields: assignedCourses/cup) → chunk at 8 rows (96 params worst-case)
+      // to stay safely under the limit regardless of which optional fields are present.
       if (matchData.length > 0) {
-        await matchModel(prisma).createMany({ data: matchData });
+        const MATCH_CHUNK = 8;
+        for (let i = 0; i < matchData.length; i += MATCH_CHUNK) {
+          await matchModel(prisma).createMany({ data: matchData.slice(i, i + MATCH_CHUNK) });
+        }
       }
 
       /*
