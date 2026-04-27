@@ -146,68 +146,55 @@ export async function GET(
   const tournamentId = await resolveTournamentId(id);
 
   try {
-    // Validate tournament exists
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-    });
-    if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
-    }
-
-    // Parse optional phase filter from query params
+    // Parse optional phase filter from query params early (no async needed)
     const { searchParams } = new URL(request.url);
     const phaseParam = searchParams.get("phase");
     const phase = phaseParam ? PhaseSchema.safeParse(phaseParam) : null;
 
-    // Return 400 if a phase parameter was provided but is not a valid phase name.
-    // Without this check, invalid values are silently ignored, which confuses API consumers.
-    // Note: phaseParam is not reflected in the error message to avoid user input reflection.
     if (phaseParam && !phase?.success) {
       return handleValidationError("Invalid phase parameter. Must be one of: phase1, phase2, phase3");
     }
 
-    // Fetch phase status summary (counts for all three phases)
-    const phaseStatus = await getPhaseStatus(prisma, tournamentId);
+    /* Run tournament existence check and phase-status summary in parallel.
+     * Previously sequential: tournament.findUnique then getPhaseStatus (3 queries).
+     * Now: both start simultaneously, reducing the critical path by ~200–400 ms (#733). */
+    const [tournament, phaseStatus] = await Promise.all([
+      prisma.tournament.findUnique({ where: { id: tournamentId } }),
+      getPhaseStatus(prisma, tournamentId),
+    ]);
 
-    // Build response with optional phase-specific data.
-    // Note: createSuccessResponse adds { success: true, data: ... } wrapping,
-    // so we don't include success here.
-    const response: Record<string, unknown> = {
-      phaseStatus,
-    };
+    if (!tournament) {
+      return createErrorResponse("Tournament not found", 404);
+    }
+
+    const response: Record<string, unknown> = { phaseStatus };
 
     if (phase?.success) {
       const phaseValue = phase.data;
 
-      // Fetch entries for the specified phase, ordered by rank.
-      // Player.password is globally omitted via PrismaClient config in lib/prisma.ts.
-      const entries = await prisma.tTEntry.findMany({
-        where: { tournamentId, stage: phaseValue },
-        include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        orderBy: [
-          { eliminated: "asc" }, // Active players first
-          { lives: "desc" },     // Most lives first (relevant for phase3)
-          { totalTime: "asc" },  // Fastest time first
-        ],
-      });
-
-      // Fetch round history for the specified phase
-      const rounds = await prisma.tTPhaseRound.findMany({
-        where: { tournamentId, phase: phaseValue },
-        orderBy: { roundNumber: "asc" },
-      });
-
-      // Calculate available courses for the next round
-      const playedCourses = await getPlayedCourses(
-        prisma,
-        tournamentId,
-        phaseValue
-      );
-      const availableCourses = getAvailableCourses(playedCourses);
+      /* Run all three phase-specific queries in parallel.
+       * Previously sequential (entries → rounds → playedCourses), adding ~450 ms.
+       * Now one parallel batch: entries + rounds + playedCourses simultaneously. */
+      const [entries, rounds, playedCourses] = await Promise.all([
+        prisma.tTEntry.findMany({
+          where: { tournamentId, stage: phaseValue },
+          include: { player: { select: PLAYER_PUBLIC_SELECT } },
+          orderBy: [
+            { eliminated: "asc" },
+            { lives: "desc" },
+            { totalTime: "asc" },
+          ],
+        }),
+        prisma.tTPhaseRound.findMany({
+          where: { tournamentId, phase: phaseValue },
+          orderBy: { roundNumber: "asc" },
+        }),
+        getPlayedCourses(prisma, tournamentId, phaseValue),
+      ]);
 
       response.entries = entries;
       response.rounds = rounds.map(normalizePhaseRound);
-      response.availableCourses = availableCourses;
+      response.availableCourses = getAvailableCourses(playedCourses);
       response.playedCourses = playedCourses;
     }
 
