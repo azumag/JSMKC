@@ -569,16 +569,19 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       );
 
       /* Update both players' qualification records in parallel (#707). */
-      await Promise.all([
+      const updates = [
         qualModel(prisma).updateMany({
           where: { tournamentId, playerId: match.player1Id },
           data: p1.qualificationData,
         }),
-        p2 && qualModel(prisma).updateMany({
+      ];
+      if (p2) {
+        updates.push(qualModel(prisma).updateMany({
           where: { tournamentId, playerId: match.player2Id },
           data: p2.qualificationData,
-        }),
-      ].filter(Boolean));
+        }));
+      }
+      await Promise.all(updates);
 
       /* Score updates change both per-mode standings and the cross-mode
        * overall ranking. Drop both caches so the next GET reflects the new

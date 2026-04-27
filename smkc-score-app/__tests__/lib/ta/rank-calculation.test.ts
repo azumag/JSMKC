@@ -383,5 +383,55 @@ describe('TA Rank Calculation', () => {
 
       expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
+
+    // D1 caps bound parameters at ~100. Qualification uses 9 params/entry,
+    // so batches of 10 keep each statement at 90 params (#732).
+    it('should chunk qualification updates into batches of 10 to stay under D1 param limit', async () => {
+      const makeEntry = (i: number) => ({
+        id: `entry-${i}`,
+        times: {
+          MC1: '1:00.000', DP1: '1:00.000', GV1: '1:00.000', BC1: '1:00.000',
+          MC2: '1:00.000', DP2: '1:00.000', GV2: '1:00.000', BC2: '1:00.000',
+          MC3: '1:00.000', DP3: '1:00.000', GV3: '1:00.000', BC3: '1:00.000',
+          CI1: '1:00.000', CI2: '1:00.000', RR: '1:00.000',
+          VL1: '1:00.000', VL2: '1:00.000', KB2: '1:00.000', MC4: '1:00.000', KB1: '1:00.000',
+        },
+        lives: 3,
+        eliminated: false,
+        stage: 'qualification',
+        player: { id: `player-${i}` },
+      });
+
+      // 25 entries → ceil(25/10) = 3 batches
+      mockPrisma.tTEntry.findMany.mockResolvedValue(Array.from({ length: 25 }, (_, i) => makeEntry(i)));
+
+      await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
+
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(3);
+    });
+
+    it('should chunk non-qualification updates into batches of 18 to stay under D1 param limit', async () => {
+      const makeEntry = (i: number) => ({
+        id: `entry-${i}`,
+        times: {
+          MC1: '1:00.000', DP1: '1:00.000', GV1: '1:00.000', BC1: '1:00.000',
+          MC2: '1:00.000', DP2: '1:00.000', GV2: '1:00.000', BC2: '1:00.000',
+          MC3: '1:00.000', DP3: '1:00.000', GV3: '1:00.000', BC3: '1:00.000',
+          CI1: '1:00.000', CI2: '1:00.000', RR: '1:00.000',
+          VL1: '1:00.000', VL2: '1:00.000', KB2: '1:00.000', MC4: '1:00.000', KB1: '1:00.000',
+        },
+        lives: 3,
+        eliminated: false,
+        stage: 'revival_1',
+        player: { id: `player-${i}` },
+      });
+
+      // 36 entries → ceil(36/18) = 2 batches
+      mockPrisma.tTEntry.findMany.mockResolvedValue(Array.from({ length: 36 }, (_, i) => makeEntry(i)));
+
+      await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
+
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
+    });
   });
 });

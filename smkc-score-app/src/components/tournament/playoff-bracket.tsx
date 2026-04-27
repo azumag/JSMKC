@@ -305,9 +305,7 @@ export function PlayoffBracket({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r1RoundName}</h4>
-              {getCourseForRound("playoff_r1") != null && (
-                <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: getCourseForRound("playoff_r1")! })}</p>
-              )}
+              {(() => { const c = getCourseForRound("playoff_r1"); return c != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: c })}</p>; })()}
             </div>
             <div className="flex flex-col gap-2">
               {playoffR1.map((b) => (
@@ -333,9 +331,7 @@ export function PlayoffBracket({
           <div className="space-y-2">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">{r2RoundName}</h4>
-              {getCourseForRound("playoff_r2") != null && (
-                <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: getCourseForRound("playoff_r2")! })}</p>
-              )}
+              {(() => { const c = getCourseForRound("playoff_r2"); return c != null && <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: c })}</p>; })()}
             </div>
             <div className="flex flex-col gap-2">
               {playoffR2.map((b) => (
