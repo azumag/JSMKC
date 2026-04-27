@@ -824,7 +824,7 @@ async function runTc813(adminPage) {
 
     for (let i = 1; i <= 4; i++) {
       const p = await uiCreatePlayer(adminPage, `E2E TA Rank P${i} ${stamp}`, `e2e_ta_rank_${i}_${stamp}`);
-      createdPlayers.push({ id: p.id });
+      createdPlayers.push(p);
     }
     tournamentId = await uiCreateTournament(adminPage, `E2E TA Rank Del ${stamp}`, { dualReportEnabled: false });
 

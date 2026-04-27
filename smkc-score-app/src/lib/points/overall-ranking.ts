@@ -759,9 +759,11 @@ export async function calculateOverallRankings(
 /**
  * Persist calculated rankings to the TournamentPlayerScore database table.
  *
- * Uses Prisma upsert for each player to handle both initial creation and
- * subsequent updates. All upserts are wrapped in a transaction for atomicity,
- * ensuring the ranking table is never in a partially-updated state.
+ * Previously N sequential upserts (~5.7 s for 22 players on D1, #752).
+ * Now uses deleteMany + createMany in two round-trips regardless of player count.
+ * deleteMany first clears stale rows; createMany re-inserts the fresh calculated set.
+ * This is safe because saveOverallRankings is admin-triggered and its caller holds
+ * no references to the old row IDs.
  *
  * @param prisma       - Prisma client instance
  * @param tournamentId - Tournament the scores belong to
@@ -772,48 +774,29 @@ export async function saveOverallRankings(
   tournamentId: string,
   scores: PlayerTournamentScore[]
 ): Promise<void> {
-  // Build an array of upsert operations -- one per player.
-  // Upsert ensures idempotency: first call creates, subsequent calls update.
-  const operations = scores.map((score) =>
-    prisma.tournamentPlayerScore.upsert({
-      where: {
-        // Composite unique key: one score record per tournament+player pair
-        tournamentId_playerId: {
-          tournamentId,
-          playerId: score.playerId,
-        },
-      },
-      create: {
-        tournamentId,
-        playerId: score.playerId,
-        taQualificationPoints: score.taQualificationPoints,
-        bmQualificationPoints: score.bmQualificationPoints,
-        mrQualificationPoints: score.mrQualificationPoints,
-        gpQualificationPoints: score.gpQualificationPoints,
-        taFinalsPoints: score.taFinalsPoints,
-        bmFinalsPoints: score.bmFinalsPoints,
-        mrFinalsPoints: score.mrFinalsPoints,
-        gpFinalsPoints: score.gpFinalsPoints,
-        totalPoints: score.totalPoints,
-        overallRank: score.overallRank,
-      },
-      update: {
-        taQualificationPoints: score.taQualificationPoints,
-        bmQualificationPoints: score.bmQualificationPoints,
-        mrQualificationPoints: score.mrQualificationPoints,
-        gpQualificationPoints: score.gpQualificationPoints,
-        taFinalsPoints: score.taFinalsPoints,
-        bmFinalsPoints: score.bmFinalsPoints,
-        mrFinalsPoints: score.mrFinalsPoints,
-        gpFinalsPoints: score.gpFinalsPoints,
-        totalPoints: score.totalPoints,
-        overallRank: score.overallRank,
-      },
-    })
-  );
+  if (scores.length === 0) return;
 
-  // Execute all upserts atomically within a single transaction
-  await prisma.$transaction(operations);
+  const rows = scores.map((score) => ({
+    tournamentId,
+    playerId: score.playerId,
+    taQualificationPoints: score.taQualificationPoints,
+    bmQualificationPoints: score.bmQualificationPoints,
+    mrQualificationPoints: score.mrQualificationPoints,
+    gpQualificationPoints: score.gpQualificationPoints,
+    taFinalsPoints: score.taFinalsPoints,
+    bmFinalsPoints: score.bmFinalsPoints,
+    mrFinalsPoints: score.mrFinalsPoints,
+    gpFinalsPoints: score.gpFinalsPoints,
+    totalPoints: score.totalPoints,
+    overallRank: score.overallRank ?? null,
+  }));
+
+  // Array-form $transaction batches deleteMany + createMany in one D1 request,
+  // collapsing N upsert round-trips into 2 operations (#752).
+  await prisma.$transaction([
+    prisma.tournamentPlayerScore.deleteMany({ where: { tournamentId } }),
+    prisma.tournamentPlayerScore.createMany({ data: rows }),
+  ]);
 }
 
 /**
