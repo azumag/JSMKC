@@ -20,7 +20,7 @@ const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const NAV_WAIT_MS = 8000;
 /** D1 cold-start can push page render well past the default 30s Playwright timeout.
  * Use this constant for any waitFor/click/locator that depends on admin-gated UI
- * or API responses that may be delayed by D1 initialization (#777). */
+ * or API responses that may be delayed by D1 initialization (#678, #701, #777). */
 const D1_COLD_START_TIMEOUT_MS = 40_000;
 const apiLogContexts = new WeakSet();
 
@@ -1158,7 +1158,6 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
     await page.waitForTimeout(300);
   }
   const startBtn = page.getByRole('button', { name: /^(Start Round \d+|ラウンド\s*\d+\s*開始)$/ }).first();
-  /* 40s to absorb D1 cold-start + fetchWithRetry delays (issue #678, #701) */
   await startBtn.waitFor({ state: 'visible', timeout: D1_COLD_START_TIMEOUT_MS });
 
   const responsePromise = page.waitForResponse((res) =>

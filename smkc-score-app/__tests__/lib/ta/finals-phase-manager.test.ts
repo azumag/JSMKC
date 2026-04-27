@@ -14,7 +14,12 @@ import {
   getPhaseStatus,
   undoLastPhaseRound,
   startPhaseRound,
+  promoteToPhase1,
+  promoteToPhase2,
+  promoteToPhase3,
 } from "@/lib/ta/finals-phase-manager";
+import { createAuditLog } from "@/lib/audit-log";
+import { createLogger } from "@/lib/logger";
 
 // Mock Prisma client
 const mockPrismaClient = {
@@ -22,6 +27,7 @@ const mockPrismaClient = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
   },
@@ -617,5 +623,107 @@ describe("TA Finals Phase Manager", () => {
     // which cannot be reliably mocked in Jest without module-level mocking.
     // The retry loop logic (continue on P2002, throw on non-P2002 or
     // exhausted attempts) is verified through code review.
+  });
+
+  // === AUDIT LOG .catch() ERROR PATH (#779) ===
+
+  describe("promoteToPhase audit log .catch() resilience", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "u1",
+      ipAddress: "127.0.0.1",
+      userAgent: "jest",
+    };
+
+    /** Minimal qual-player shape returned by getQualificationPlayersByRank */
+    const makeQualPlayer = (playerId: string, rank: number) => ({
+      id: `entry-${playerId}`,
+      playerId,
+      stage: "qualification",
+      rank,
+      totalTime: 100,
+      lives: 0,
+      eliminated: false,
+      times: [],
+      player: { id: playerId, name: `P${rank}`, nickname: `P${rank}` },
+    });
+
+    /** Phase-entry shape returned by the post-createMany findMany */
+    const makePhaseEntry = (playerId: string) => ({
+      id: `phase-entry-${playerId}`,
+      playerId,
+      player: { id: playerId, name: `P-${playerId}`, nickname: `P-${playerId}` },
+    });
+
+    it("should call logger.warn when audit log rejects in promoteToPhase1", async () => {
+      (createAuditLog as jest.Mock).mockRejectedValue(new Error("Audit failed"));
+
+      // 1) getQualificationPlayersByRank — ranks 17-24
+      (mockPrismaClient.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([makeQualPlayer("p1", 17)])
+        // 2) bulk-check existing phase1 entries
+        .mockResolvedValueOnce([])
+        // 3) fetch created entries for audit loop
+        .mockResolvedValueOnce([makePhaseEntry("p1")]);
+      (mockPrismaClient.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const result = await promoteToPhase1(mockPrismaClient as never, context);
+
+      // Drain the micro-task queue so the fire-and-forget .catch() callback runs
+      await Promise.resolve();
+
+      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Failed to create audit log",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+      expect(result.entries).toHaveLength(1);
+    });
+
+    it("should call logger.warn when audit log rejects in promoteToPhase2", async () => {
+      (createAuditLog as jest.Mock).mockRejectedValue(new Error("Audit failed"));
+
+      // promoteToPhase2: 1) phase1 survivors, 2) qual ranks 13-16, 3) existing check, 4) created entries
+      (mockPrismaClient.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([])                          // phase1 survivors (none)
+        .mockResolvedValueOnce([makeQualPlayer("p2", 13)]) // qualification ranks 13-16
+        .mockResolvedValueOnce([])                          // existing phase2 entries
+        .mockResolvedValueOnce([makePhaseEntry("p2")]);     // created entries for audit loop
+      (mockPrismaClient.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const result = await promoteToPhase2(mockPrismaClient as never, context);
+
+      await Promise.resolve();
+
+      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Failed to create audit log",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+      expect(result.entries).toHaveLength(1);
+    });
+
+    it("should call logger.warn when audit log rejects in promoteToPhase3", async () => {
+      (createAuditLog as jest.Mock).mockRejectedValue(new Error("Audit failed"));
+
+      // promoteToPhase3: 1) phase2 survivors, 2) qual ranks 1-12, 3) existing check, 4) created entries
+      (mockPrismaClient.tTEntry.findMany as jest.Mock)
+        .mockResolvedValueOnce([])                         // phase2 survivors (none)
+        .mockResolvedValueOnce([makeQualPlayer("p3", 1)]) // qualification ranks 1-12
+        .mockResolvedValueOnce([])                         // existing phase3 entries
+        .mockResolvedValueOnce([makePhaseEntry("p3")]);    // created entries for audit loop
+      (mockPrismaClient.tTEntry.createMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      const result = await promoteToPhase3(mockPrismaClient as never, context);
+
+      await Promise.resolve();
+
+      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Failed to create audit log",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+      expect(result.entries).toHaveLength(1);
+    });
   });
 });

@@ -407,7 +407,8 @@ async function normalizeRoundStartingCoursesToSingleValue(
      *   WHERE stage IN ('finals','playoff') AND startingCourseNumber IS NULL
      *   GROUP BY tournamentId, round
      *   HAVING c = (SELECT COUNT(*) FROM BMMatch m2
-     *               WHERE m2.tournamentId=BMMatch.tournamentId AND m2.round=BMMatch.round);
+     *               WHERE m2.tournamentId=BMMatch.tournamentId AND m2.round=BMMatch.round
+     *               AND m2.stage IN ('finals','playoff'));
      * If meaningful data is found, apply a targeted one-time migration. */
     if (distinctValues > 1 || (distinctValues === 1 && totalWithValue < roundMatchCount)) {
       roundsNeedingRepair.add(round);
