@@ -11,7 +11,7 @@
  *   TC-907  MR admin score PUT surfaces a `match_completed` event (mode='mr')
  *   TC-908  GP admin score PUT surfaces a `match_completed` event (mode='gp',
  *           covers the points1/points2 → score1/score2 remap in the route)
- *   TC-909  PUT { qualificationConfirmed: true } surfaces a
+ *   TC-909  PUT { bmQualificationConfirmed: true } surfaces a
  *           `qualification_confirmed` event
  *   TC-910  TT entry seed (totalTime + rank) surfaces a `ta_time_recorded`
  *   TC-911  POST /overall-ranking surfaces an `overall_ranking_updated`
@@ -611,9 +611,11 @@ async function runTc911(adminPage) {
 /* ───────── TC-909: qualification_confirmed (LAST: blocks score writes) ───────── */
 async function runTc909(adminPage) {
   try {
-    const res = await apiUpdateTournament(adminPage, fixture.tournamentId, { qualificationConfirmed: true });
+    /* qualificationConfirmedAt (overlay event source) updates whenever any
+     * per-mode flag transitions to true. Use BM as the trigger here. */
+    const res = await apiUpdateTournament(adminPage, fixture.tournamentId, { bmQualificationConfirmed: true });
     if (res.s !== 200) {
-      log('TC-909', 'FAIL', `PUT qualificationConfirmed failed: ${res.s} ${JSON.stringify(res.b).slice(0, 200)}`);
+      log('TC-909', 'FAIL', `PUT bmQualificationConfirmed failed: ${res.s} ${JSON.stringify(res.b).slice(0, 200)}`);
       return;
     }
     const resp = await pollForEvent(

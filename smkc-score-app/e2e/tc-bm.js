@@ -77,7 +77,7 @@ async function prepareSharedBmPair(adminPage, { dualReport = false } = {}) {
   /* The shared fixture tournament persists across suite invocations.
    * If a previous run left qualificationConfirmed=true, score PUTs are
    * blocked with 403 and the participant page hides score buttons. */
-  await apiUpdateTournament(adminPage, tournament.id, { qualificationConfirmed: false });
+  await apiUpdateTournament(adminPage, tournament.id, { bmQualificationConfirmed: false });
   await setupModePlayersViaUi(adminPage, 'bm', tournament.id, players);
 
   const data = await apiFetchBm(adminPage, tournament.id);
@@ -339,7 +339,7 @@ async function runTc512(adminPage) {
   const tournamentId = normalTournament.id;
 
   try {
-    await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: false });
+    await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
     await setupModePlayersViaUi(adminPage, 'bm', tournamentId, players.slice(0, 2));
 
     const bmData = await apiFetchBm(adminPage, tournamentId);
@@ -585,7 +585,7 @@ async function runTc515(adminPage) {
     /* The "Generate Bracket" / "Start Playoff" button is gated by
      * canCreateFinalsFromQualification which requires qualificationConfirmed.
      * Confirm qualification first so the button appears. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     /* Previous tests (TC-510) may have left a bracket behind. Reset it so
@@ -681,7 +681,7 @@ async function runTc516(adminPage) {
     /* Confirm qualification so the bracket action button is visible.
      * Without this, canCreateFinalsFromQualification returns false and
      * the button is hidden both before and after reset. */
-    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { qualificationConfirmed: true });
+    const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
     const gen = await apiGenerateBmFinals(adminPage, tournamentId, 8);
