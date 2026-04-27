@@ -38,6 +38,7 @@ interface BMMatch {
   round: string | null;
   stage?: string | null;
   tvNumber?: number | null;
+  startingCourseNumber?: number | null;
   player1Id: string;
   player2Id: string;
   score1: number;
@@ -289,6 +290,19 @@ function BracketSection({
   );
 }
 
+/** Displays a round name with the assigned starting course below it. */
+function RoundHeader({ label, course }: { label: string; course: number | null }) {
+  const tf = useTranslations("finals");
+  return (
+    <div>
+      <h4 className="text-sm font-medium text-muted-foreground">{label}</h4>
+      {course != null && (
+        <p className="text-xs font-semibold text-blue-500">{tf("battleCourse", { number: course })}</p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Main Double Elimination Bracket component.
  * Renders the complete bracket with winners, losers, and grand final sections.
@@ -391,6 +405,10 @@ export function DoubleEliminationBracket({
     return { player1: isSlotTBD(1), player2: isSlotTBD(2) };
   };
 
+  /* Returns the startingCourseNumber for a given round (all matches in a round share the same value). */
+  const getCourseForRound = (round: string): number | null =>
+    matches.find((m) => m.round === round && m.startingCourseNumber != null)?.startingCourseNumber ?? null;
+
   /* Group bracket positions by round for organized display */
   const winnersR1 = bracketStructure.filter((b) => b.round === "winners_r1");
   const winnersQF = bracketStructure.filter((b) => b.round === "winners_qf");
@@ -426,9 +444,7 @@ export function DoubleEliminationBracket({
           {/* Round 1 - Only in 16-player brackets */}
           {is16Player && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                {tf("roundOne")}
-              </h4>
+              <RoundHeader label={tf("roundOne")} course={getCourseForRound("winners_r1")} />
               <div className="flex flex-col gap-2">
                 {winnersR1.map((b) => (
                   <MatchCard
@@ -451,9 +467,7 @@ export function DoubleEliminationBracket({
 
           {/* Quarter Finals */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("quarterFinals")}
-            </h4>
+            <RoundHeader label={tf("quarterFinals")} course={getCourseForRound("winners_qf")} />
             <div className="flex flex-col gap-2">
               {winnersQF.map((b) => (
                 <MatchCard
@@ -475,9 +489,7 @@ export function DoubleEliminationBracket({
 
           {/* Semi Finals - Winners of QF matches */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("semiFinals")}
-            </h4>
+            <RoundHeader label={tf("semiFinals")} course={getCourseForRound("winners_sf")} />
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersSF.map((b) => (
                 <MatchCard
@@ -499,7 +511,7 @@ export function DoubleEliminationBracket({
 
           {/* Winners Final - Winner proceeds to Grand Final undefeated */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">{tf("bracketFinalRound")}</h4>
+            <RoundHeader label={tf("bracketFinalRound")} course={getCourseForRound("winners_final")} />
             <div className="flex flex-col gap-2 justify-center h-full">
               {winnersFinal.map((b) => (
                 <MatchCard
@@ -529,9 +541,7 @@ export function DoubleEliminationBracket({
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Losers Round 1 - First matchups of eliminated players */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("roundOne")}
-            </h4>
+            <RoundHeader label={tf("roundOne")} course={getCourseForRound("losers_r1")} />
             <div className="flex flex-col gap-2">
               {losersR1.map((b) => (
                 <MatchCard
@@ -553,9 +563,7 @@ export function DoubleEliminationBracket({
 
           {/* Losers Round 2 */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("roundTwo")}
-            </h4>
+            <RoundHeader label={tf("roundTwo")} course={getCourseForRound("losers_r2")} />
             <div className="flex flex-col gap-2">
               {losersR2.map((b) => (
                 <MatchCard
@@ -577,9 +585,7 @@ export function DoubleEliminationBracket({
 
           {/* Losers Round 3 */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("roundThree")}
-            </h4>
+            <RoundHeader label={tf("roundThree")} course={getCourseForRound("losers_r3")} />
             <div className="flex flex-col gap-2">
               {losersR3.map((b) => (
                 <MatchCard
@@ -602,9 +608,7 @@ export function DoubleEliminationBracket({
           {/* Losers Round 4 - Only in 16-player brackets */}
           {losersR4.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                {tf("roundFour")}
-              </h4>
+              <RoundHeader label={tf("roundFour")} course={getCourseForRound("losers_r4")} />
               <div className="flex flex-col gap-2">
                 {losersR4.map((b) => (
                   <MatchCard
@@ -627,9 +631,7 @@ export function DoubleEliminationBracket({
 
           {/* Losers Semi Final */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("semiFinals")}
-            </h4>
+            <RoundHeader label={tf("semiFinals")} course={getCourseForRound("losers_sf")} />
             <div className="flex flex-col gap-2">
               {losersSF.map((b) => (
                 <MatchCard
@@ -651,7 +653,7 @@ export function DoubleEliminationBracket({
 
           {/* Losers Final - Winner advances to Grand Final */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">{tf("bracketFinalRound")}</h4>
+            <RoundHeader label={tf("bracketFinalRound")} course={getCourseForRound("losers_final")} />
             <div className="flex flex-col gap-2">
               {losersFinal.map((b) => (
                 <MatchCard
@@ -680,9 +682,7 @@ export function DoubleEliminationBracket({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-8 overflow-x-auto pb-4">
           {/* Grand Final match */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("grandFinalMatch")}
-            </h4>
+            <RoundHeader label={tf("grandFinalMatch")} course={getCourseForRound("grand_final")} />
             {grandFinal.map((b) => (
               <MatchCard
                 key={b.matchNumber}
@@ -706,9 +706,7 @@ export function DoubleEliminationBracket({
            * In true double elimination, both players must lose to be eliminated.
            */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              {tf("resetMatchLabel")}
-            </h4>
+            <RoundHeader label={tf("resetMatchLabel")} course={getCourseForRound("grand_final_reset")} />
             {grandFinalReset.map((b) => (
               <MatchCard
                 key={b.matchNumber}
