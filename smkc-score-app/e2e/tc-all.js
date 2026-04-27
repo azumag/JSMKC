@@ -3246,6 +3246,43 @@ async function main() {
     }
   }
 
+  // TC-352: PUT /api/tournaments/:id can toggle debugMode on an existing tournament (#756)
+  // Creates a tournament with debugMode=false, PUTs {debugMode:true}, then verifies via GET.
+  {
+    let tc352TournamentId = null;
+    try {
+      const tc352Name = `E2E TC-352 ${Date.now()}`;
+      tc352TournamentId = await uiCreateTournament(page, tc352Name, { debugMode: false });
+
+      // PUT debugMode=true on the newly created tournament
+      const putRes = await page.evaluate(async ({ tid }) => {
+        const r = await fetch(`/api/tournaments/${tid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ debugMode: true }),
+        });
+        const body = await r.json().catch(() => ({}));
+        return { status: r.status, debugMode: (body.data ?? body)?.debugMode };
+      }, { tid: tc352TournamentId });
+
+      const putOk = putRes.status === 200 && putRes.debugMode === true;
+
+      // Verify via GET that the flag is persisted
+      const getRes = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}?fields=summary`);
+        const body = await r.json().catch(() => ({}));
+        return (body.data ?? body)?.debugMode;
+      }, tc352TournamentId);
+
+      log('TC-352', putOk && getRes === true ? 'PASS' : 'FAIL',
+        putOk && getRes === true ? '' : `put_ok=${putOk} put_debugMode=${putRes.debugMode} get_debugMode=${getRes}`);
+    } catch (err) {
+      log('TC-352', 'FAIL', err instanceof Error ? err.message : 'TC-352 failed');
+    } finally {
+      await deleteTournament(page, tc352TournamentId);
+    }
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)
