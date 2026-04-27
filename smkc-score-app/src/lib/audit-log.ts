@@ -299,6 +299,10 @@ export const AUDIT_ACTIONS = {
   /** A finals bracket was generated (double elimination) */
   CREATE_BRACKET: 'CREATE_BRACKET',
 
+  // Debug-mode actions (only available on tournaments with debugMode === true)
+  /** Admin auto-filled qualification scores for a debug tournament */
+  DEBUG_FILL_SCORES: 'DEBUG_FILL_SCORES',
+
   // Authentication events
   /** A user successfully authenticated via OAuth */
   LOGIN_SUCCESS: 'LOGIN_SUCCESS',
