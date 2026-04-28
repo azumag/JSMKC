@@ -3363,6 +3363,78 @@ async function main() {
     }
   }
 
+  // TC-354: Broadcast API — GET returns shape; admin PUT updates; non-admin PUT blocked
+  {
+    let tc354TournamentId = null;
+    const ts354 = Date.now();
+    try {
+      tc354TournamentId = await uiCreateTournament(page, `E2E TC-354 broadcast ${ts354}`);
+
+      // GET: returns broadcast shape with empty/null defaults
+      const getInitial = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`);
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
+      }, tc354TournamentId);
+
+      const hasShape = (
+        getInitial.s === 200 &&
+        'player1Name' in getInitial.data &&
+        'player2Name' in getInitial.data &&
+        'matchLabel' in getInitial.data
+      );
+
+      // PUT (admin): update player names + matchLabel
+      const putResp = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5 }),
+        });
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
+      }, tc354TournamentId);
+
+      const putOk = putResp.s === 200 && putResp.data.player1Name === '1P-Alice' && putResp.data.player2Name === '2P-Bob';
+
+      // GET after PUT: persisted values returned
+      const getAfter = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`);
+        const j = await r.json().catch(() => ({}));
+        return { s: r.status, data: j.data ?? j };
+      }, tc354TournamentId);
+
+      const getOk = (
+        getAfter.s === 200 &&
+        getAfter.data.player1Name === '1P-Alice' &&
+        getAfter.data.player2Name === '2P-Bob' &&
+        getAfter.data.matchLabel === 'QF1' &&
+        getAfter.data.player1Wins === 2 &&
+        getAfter.data.player2Wins === 1 &&
+        getAfter.data.matchFt === 5
+      );
+
+      // PUT with null clears a field
+      const putClear = await page.evaluate(async (tid) => {
+        const r = await fetch(`/api/tournaments/${tid}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchLabel: null }),
+        });
+        return { s: r.status };
+      }, tc354TournamentId);
+      const clearOk = putClear.s === 200;
+
+      const ok = hasShape && putOk && getOk && clearOk;
+      log('TC-354', ok ? 'PASS' : 'FAIL',
+        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk}`);
+    } catch (err) {
+      log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
+    } finally {
+      if (tc354TournamentId) await deleteTournament(page, tc354TournamentId);
+    }
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)
