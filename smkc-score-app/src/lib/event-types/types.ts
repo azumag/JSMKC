@@ -30,6 +30,12 @@ export type QualificationPutData = {
   races?: Array<{ course: string; position1: number; position2: number }>;
 };
 
+/** Prisma client property keys for qualification delegate models (camelCase). */
+export type QualificationModelKey = 'bMQualification' | 'mRQualification' | 'gPQualification';
+
+/** Prisma client property keys for match delegate models (camelCase). */
+export type MatchModelKey = 'bMMatch' | 'mRMatch' | 'gPMatch';
+
 /**
  * Configuration interface for a tournament event type.
  *
@@ -41,10 +47,10 @@ export type QualificationPutData = {
 export interface EventTypeConfig {
   /** Event type code for mode-specific logic (e.g., bye scores) */
   eventTypeCode: 'bm' | 'mr' | 'gp';
-  /** Prisma model name for qualification records (e.g., 'bMQualification') */
-  qualificationModel: string;
-  /** Prisma model name for match records (e.g., 'bMMatch') */
-  matchModel: string;
+  /** Prisma client property for qualification records. */
+  qualificationModel: QualificationModelKey;
+  /** Prisma client property for match records. */
+  matchModel: MatchModelKey;
 
   /**
    * Score field names on the match model used to determine H2H winner.

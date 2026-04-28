@@ -15,14 +15,20 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { resolveTournament } from '@/lib/tournament-identifier';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import type { EventTypeConfig } from '@/lib/event-types/types';
+import type { Player } from '@/lib/types';
 
-/** Combined initial data shape that usePolling seeds from.
- *  Must stay in sync with the return value of fetchTournamentData in
- *  each bm/mr/gp page-client.tsx. */
+/**
+ * Combined initial data shape that usePolling seeds from.
+ * Must stay in sync with the return value of fetchTournamentData in each bm/mr/gp page-client.tsx.
+ *
+ * `qualifications` and `matches` are mode-specific Prisma records (BM/MR/GP delegate payloads
+ * augmented with computed rank fields). They remain `unknown[]` here because this interface is
+ * shared across all three modes; each page-client casts to its concrete type.
+ */
 export interface QualInitialData {
   qualifications: unknown[];
   matches: unknown[];
-  allPlayers: unknown[];
+  allPlayers: Player[];
   qualificationConfirmed: boolean;
 }
 
@@ -54,10 +60,8 @@ export async function fetchQualInitialData(
     if (!tournament) return null;
 
     const tournamentId = tournament.id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const qualModel = (p: any) => p[config.qualificationModel];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const matchModel = (p: any) => p[config.matchModel];
+    const qualModel = (p: typeof prisma) => p[config.qualificationModel];
+    const matchModel = (p: typeof prisma) => p[config.matchModel];
 
     const [qualifications, matches, allPlayers] = await Promise.all([
       qualModel(prisma).findMany({
