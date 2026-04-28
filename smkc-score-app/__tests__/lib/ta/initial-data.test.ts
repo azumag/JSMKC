@@ -9,6 +9,7 @@
  */
 
 import { fetchTaInitialData } from '@/lib/ta/initial-data';
+import type { TTEntry, Player } from '@prisma/client';
 
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/tournament-identifier');
@@ -54,9 +55,9 @@ describe('fetchTaInitialData', () => {
     // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call needed.
     // jest.mocked() on individual methods is required because jest.mocked(prisma) shallow-mocks
     // only the top-level delegate references, not the methods within each delegate.
-    jest.mocked(prisma.tTEntry.findMany).mockResolvedValueOnce(mockEntries as never);
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValueOnce(mockEntries as unknown as TTEntry[]);
     jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue(null);
-    jest.mocked(prisma.player.findMany).mockResolvedValue(mockPlayers as never);
+    jest.mocked(prisma.player.findMany).mockResolvedValue(mockPlayers as unknown as Player[]);
 
     const result = await fetchTaInitialData('tid-1');
 
@@ -70,9 +71,9 @@ describe('fetchTaInitialData', () => {
   it('returns qualificationRegistrationLocked=true when a phase1 entry exists', async () => {
     mockResolveTournament.mockResolvedValue({ id: 'tid-2', frozenStages: ['phase1'] });
 
-    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([] as never);
-    jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue({ id: 'phase-entry' } as never);
-    jest.mocked(prisma.player.findMany).mockResolvedValue([] as never);
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([] as unknown as TTEntry[]);
+    jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue({ id: 'phase-entry' } as unknown as TTEntry);
+    jest.mocked(prisma.player.findMany).mockResolvedValue([] as unknown as Player[]);
 
     const result = await fetchTaInitialData('tid-2');
 

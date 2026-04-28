@@ -86,8 +86,28 @@ function getAssignedCourses(shuffled: string[], matchIndex: number): string[] {
  * @returns Object with GET, POST, PUT, PATCH handler functions
  */
 export function createQualificationHandlers(config: EventTypeConfig) {
-  const qualModel = (p: typeof prisma) => p[config.qualificationModel];
-  const matchModel = (p: typeof prisma) => p[config.matchModel];
+  // Cast to minimal delegate types to avoid the union findMany/updateMany
+  // signature incompatibility: p[QualificationModelKey] produces a union of
+  // three Prisma delegates whose type parameters are mutually incompatible (#788).
+  type QualDelegate = {
+    findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
+    findFirst: (args: Record<string, unknown>) => Promise<unknown>;
+    deleteMany: (args: Record<string, unknown>) => Promise<unknown>;
+    createMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
+    updateMany: (args: Record<string, unknown>) => Promise<unknown>;
+    update: (args: Record<string, unknown>) => Promise<unknown>;
+  };
+  // Minimal shape covering the fields accessed from findFirst results in this file.
+  type MinimalMatch = { id: string; tournamentId: string; stage: string; round: unknown; matchNumber: number };
+  type MatchDelegate = {
+    findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
+    findFirst: (args: Record<string, unknown>) => Promise<MinimalMatch | null>;
+    deleteMany: (args: Record<string, unknown>) => Promise<unknown>;
+    createMany: (args: Record<string, unknown>) => Promise<{ count: number }>;
+    update: (args: Record<string, unknown>) => Promise<unknown>;
+  };
+  const qualModel = (p: typeof prisma): QualDelegate => p[config.qualificationModel] as unknown as QualDelegate;
+  const matchModel = (p: typeof prisma): MatchDelegate => p[config.matchModel] as unknown as MatchDelegate;
 
   /**
    * GET handler: Fetch qualification standings and matches for a tournament.
