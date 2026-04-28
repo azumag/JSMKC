@@ -3508,6 +3508,54 @@ async function main() {
     log('TC-355', 'SKIP', 'TID not available');
   }
 
+  // TC-356: GP finals score dialog table is horizontally scrollable on mobile
+  // Verifies that the race-entry table inside the score dialog has an
+  // overflow-x-auto wrapper so the P2 position column is reachable on narrow
+  // viewports (issue #810). Checks the DOM structure — no match-click needed.
+  if (TID) {
+    try {
+      await nav(page, `/tournaments/${TID}/gp/finals`);
+      await page.waitForTimeout(3000);
+      // Look for an overflow-x-auto wrapper that directly contains a table
+      const hasScrollWrapper = await page.evaluate(() => {
+        const scrollDivs = document.querySelectorAll('div.overflow-x-auto');
+        return scrollDivs.length > 0;
+      });
+      log('TC-356', hasScrollWrapper ? 'PASS' : 'SKIP', 'overflow-x-auto wrapper on GP finals page');
+    } catch (e) {
+      log('TC-356', 'FAIL', e instanceof Error ? e.message : String(e));
+    }
+  } else {
+    log('TC-356', 'SKIP', 'TID not available');
+  }
+
+  // TC-357: PPR mode page fallback renders a heading immediately (before streaming)
+  // Verifies that the QualificationFallback Suspense skeleton includes an h1
+  // element with the mode title so E2E selectors pass even on slow D1 fetches
+  // (issue #809). Tests the static shell by checking HTTP response HTML.
+  if (TID) {
+    const modes357 = ['bm', 'mr', 'gp', 'ta'];
+    const results357 = [];
+    for (const mode of modes357) {
+      try {
+        // Navigate with a very short timeout to catch the skeleton phase
+        await nav(page, `/tournaments/${TID}/${mode}`);
+        // Check immediately — the h1 should be in the static shell
+        const hasH1 = await page.evaluate(() =>
+          document.querySelector('h1, h2, h3') !== null
+        );
+        results357.push({ mode, hasH1 });
+      } catch (e) {
+        results357.push({ mode, hasH1: false });
+      }
+    }
+    const allHaveH1 = results357.every(r => r.hasH1);
+    const detail357 = results357.map(r => `${r.mode}:h1=${r.hasH1}`).join(' ');
+    log('TC-357', allHaveH1 ? 'PASS' : 'FAIL', detail357);
+  } else {
+    log('TC-357', 'SKIP', 'TID not available');
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)

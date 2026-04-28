@@ -15,14 +15,16 @@ import GrandPrixPageClient from './page-client';
 import { fetchQualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { gpConfig } from '@/lib/event-types';
 import { QualificationFallback } from '@/components/ui/loading-skeleton';
+import { useTranslations } from 'next-intl';
 
 export default function GrandPrixPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useTranslations('gp');
   return (
-    <Suspense fallback={<QualificationFallback />}>
+    <Suspense fallback={<QualificationFallback title={t('title')} />}>
       <GpContent params={params} />
     </Suspense>
   );

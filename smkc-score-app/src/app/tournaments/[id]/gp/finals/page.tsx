@@ -934,8 +934,12 @@ export default function GrandPrixFinals({
               )}
             </div>
 
-            {/* Race-by-race entry table (5 races per cup) */}
+            {/* Race-by-race entry table (5 races per cup).
+                Wrapped in overflow-x-auto so the P2 position column is
+                reachable via horizontal scroll on narrow mobile viewports
+                (issue #810). */}
             {!manualScoreEnabled && scoreForm.cup && (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1000,6 +1004,7 @@ export default function GrandPrixFinals({
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
 
             {/* Live driver points calculation preview */}

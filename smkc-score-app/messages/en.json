@@ -133,7 +133,8 @@
     "generatingBracket": "Generating bracket... Please wait.",
     "broadcastReflect": "Broadcast",
     "broadcastReflected": "Broadcast updated",
-    "broadcastError": "Broadcast failed"
+    "broadcastError": "Broadcast failed",
+    "broadcastTv12Only": "TV3/TV4 players are not reflected in the broadcast"
   },
   "home": {
     "tagline": "SMKC Score Management",
