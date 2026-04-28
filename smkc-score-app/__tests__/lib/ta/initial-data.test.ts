@@ -1,4 +1,3 @@
-// @ts-nocheck - uses complex mock types
 /**
  * Unit tests for fetchTaInitialData (src/lib/ta/initial-data.ts).
  *
@@ -17,7 +16,8 @@ jest.mock('@/lib/tournament-identifier');
 import prisma from '@/lib/prisma';
 import { resolveTournament } from '@/lib/tournament-identifier';
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+// jest.mocked provides proper TypeScript types for the auto-mocked module.
+const mockPrisma = jest.mocked(prisma);
 const mockResolveTournament = resolveTournament as jest.Mock;
 
 describe('fetchTaInitialData', () => {
@@ -50,13 +50,11 @@ describe('fetchTaInitialData', () => {
     const mockEntries = [{ id: 'e1', stage: 'qualification' }];
     const mockPlayers = [{ id: 'p1', name: 'Alice', nickname: 'alice', country: null, noCamera: false }];
 
-    mockPrisma.tTEntry.findMany
-      // qualification entries
-      .mockResolvedValueOnce(mockEntries)
-      // knockout check (findFirst returns null → not started)
-      .mockResolvedValueOnce(null as never);
-    mockPrisma.tTEntry.findFirst = jest.fn().mockResolvedValue(null);
-    mockPrisma.player.findMany.mockResolvedValue(mockPlayers);
+    // findMany is called once for qualification entries.
+    // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call needed.
+    (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValueOnce(mockEntries);
+    (mockPrisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
 
     const result = await fetchTaInitialData('tid-1');
 
@@ -70,9 +68,9 @@ describe('fetchTaInitialData', () => {
   it('returns qualificationRegistrationLocked=true when a phase1 entry exists', async () => {
     mockResolveTournament.mockResolvedValue({ id: 'tid-2', frozenStages: ['phase1'] });
 
-    mockPrisma.tTEntry.findMany.mockResolvedValue([]);
-    mockPrisma.tTEntry.findFirst = jest.fn().mockResolvedValue({ id: 'phase-entry' });
-    mockPrisma.player.findMany.mockResolvedValue([]);
+    (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
+    (mockPrisma.tTEntry.findFirst as jest.Mock).mockResolvedValue({ id: 'phase-entry' });
+    (mockPrisma.player.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await fetchTaInitialData('tid-2');
 
