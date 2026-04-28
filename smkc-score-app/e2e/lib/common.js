@@ -851,6 +851,17 @@ async function apiFetchTaPhase(page, tournamentId, phase) {
   }, [tournamentId, phase]);
 }
 
+async function apiPostTaPhase(page, tournamentId, body) {
+  return page.evaluate(async ([id, d]) => {
+    const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [tournamentId, body]);
+}
+
 /** Format a ms duration as the "M:SS.mm" string the TT API accepts. */
 function formatTtTime(ms) {
   const minutes = Math.floor(ms / 60000);
@@ -2422,6 +2433,7 @@ module.exports = {
   apiTaParticipantEditTime,
   apiFetchTa,
   apiFetchTaPhase,
+  apiPostTaPhase,
   formatTtTime,
   makeTaTimesForRank,
   setupTa28PlayerQual,

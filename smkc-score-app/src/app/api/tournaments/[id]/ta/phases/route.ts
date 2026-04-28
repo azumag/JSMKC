@@ -37,12 +37,14 @@ import {
   getPhaseStatus,
   startPhaseRound,
   submitRoundResults,
+  submitSuddenDeathResults,
+  changeSuddenDeathCourse,
   cancelPhaseRound,
   undoLastPhaseRound,
   type PhaseContext,
   type RoundResultInput,
 } from "@/lib/ta/finals-phase-manager";
-import { getAvailableCourses, getPlayedCourses } from "@/lib/ta/course-selection";
+import { getAvailableCourses, getPlayedCoursesWithSuddenDeath } from "@/lib/ta/course-selection";
 import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
@@ -127,6 +129,26 @@ const PostRequestSchema = z.discriminatedUnion("action", [
       })
     ).min(1),
   }),
+
+  z.object({
+    action: z.literal("submit_sudden_death"),
+    phase: PhaseSchema,
+    suddenDeathRoundId: z.string().cuid(),
+    results: z.array(
+      z.object({
+        playerId: z.string().cuid(),
+        timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
+        isRetry: z.boolean().optional(),
+      })
+    ).min(2),
+  }),
+
+  z.object({
+    action: z.literal("change_sudden_death_course"),
+    phase: PhaseSchema,
+    suddenDeathRoundId: z.string().cuid(),
+    course: z.string(),
+  }),
 ]);
 
 /**
@@ -191,9 +213,14 @@ export async function GET(
         }),
         prisma.tTPhaseRound.findMany({
           where: { tournamentId, phase: phaseValue },
+          include: {
+            suddenDeathRounds: {
+              orderBy: { sequence: "asc" },
+            },
+          },
           orderBy: { roundNumber: "asc" },
         }),
-        getPlayedCourses(prisma, tournamentId, phaseValue),
+        getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue),
       ]);
 
       response.entries = entries;
@@ -328,6 +355,34 @@ export async function POST(
       return createSuccessResponse(result);
     }
 
+    if (action === "submit_sudden_death") {
+      const { phase, suddenDeathRoundId, results } = parsed.data;
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
+      const result = await submitSuddenDeathResults(
+        prisma,
+        context,
+        phase,
+        suddenDeathRoundId,
+        results
+      );
+      return createSuccessResponse(result);
+    }
+
+    if (action === "change_sudden_death_course") {
+      const { phase, suddenDeathRoundId, course } = parsed.data;
+      const freezeError = await checkStageFrozen(prisma, tournamentId, phase);
+      if (freezeError) return freezeError;
+      const result = await changeSuddenDeathCourse(
+        prisma,
+        context,
+        phase,
+        suddenDeathRoundId,
+        course
+      );
+      return createSuccessResponse(result);
+    }
+
     // Should not reach here due to discriminated union validation
     return handleValidationError("Unknown action");
   } catch (err) {
@@ -354,6 +409,10 @@ export async function POST(
         internalMessage.includes("already promoted") ||
         internalMessage.includes("Promote players first") ||
         internalMessage.startsWith("Tie detected") ||
+        internalMessage.includes("sudden-death") ||
+        internalMessage.includes("Sudden-death") ||
+        internalMessage.startsWith("Unresolved sudden-death") ||
+        internalMessage.startsWith("Missing sudden-death") ||
         // Manual course override validation errors (start_round with course param)
         internalMessage.startsWith("Invalid course abbreviation") ||
         internalMessage.startsWith('Course "') ||

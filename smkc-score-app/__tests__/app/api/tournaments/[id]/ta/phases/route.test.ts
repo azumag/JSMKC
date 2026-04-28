@@ -15,7 +15,7 @@
  * - @/lib/prisma: Database client (via __mocks__/lib/prisma.ts)
  * - @/lib/logger: Structured logging
  * - @/lib/ta/finals-phase-manager: getPhaseStatus
- * - @/lib/ta/course-selection: getPlayedCourses, getAvailableCourses
+ * - @/lib/ta/course-selection: getPlayedCoursesWithSuddenDeath, getAvailableCourses
  * - @/lib/auth: Imported by route but unused in GET handler
  * - @/lib/rate-limit: Imported by route but unused in GET handler
  * - @/lib/sanitize: Imported by route but unused in GET handler
@@ -46,6 +46,13 @@ jest.mock('@/lib/prisma', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    tTPhaseSuddenDeathRound: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -80,6 +87,8 @@ jest.mock('@/lib/ta/finals-phase-manager', () => ({
   promoteToPhase3: jest.fn(),
   startPhaseRound: jest.fn(),
   submitRoundResults: jest.fn(),
+  submitSuddenDeathResults: jest.fn(),
+  changeSuddenDeathCourse: jest.fn(),
   cancelPhaseRound: jest.fn(),
   undoLastPhaseRound: jest.fn(),
 }));
@@ -92,6 +101,7 @@ jest.mock('@/lib/ta/freeze-check', () => ({
 // Mock course-selection: getPlayedCourses and getAvailableCourses used by GET handler
 jest.mock('@/lib/ta/course-selection', () => ({
   getPlayedCourses: jest.fn(),
+  getPlayedCoursesWithSuddenDeath: jest.fn(),
   getAvailableCourses: jest.fn(),
 }));
 
@@ -152,7 +162,7 @@ import {
   cancelPhaseRound,
   undoLastPhaseRound,
 } from '@/lib/ta/finals-phase-manager';
-import { getPlayedCourses, getAvailableCourses } from '@/lib/ta/course-selection';
+import { getPlayedCoursesWithSuddenDeath, getAvailableCourses } from '@/lib/ta/course-selection';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
 import { auth } from '@/lib/auth';
 import * as phasesRoute from '@/app/api/tournaments/[id]/ta/phases/route';
@@ -297,7 +307,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue(mockEntries);
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
-      (getPlayedCourses as jest.Mock).mockResolvedValue([]);
+      (getPlayedCoursesWithSuddenDeath as jest.Mock).mockResolvedValue([]);
       (getAvailableCourses as jest.Mock).mockReturnValue([
         'MC1', 'DP1', 'GV1', 'BC1', 'MC2', 'DP2', 'GV2', 'BC2',
         'MC3', 'DP3', 'GV3', 'BC3', 'CI1', 'CI2', 'RR', 'VL1',
@@ -343,10 +353,10 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
-    it('should pass phase to getPlayedCourses', async () => {
+    it('should pass phase to getPlayedCoursesWithSuddenDeath', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
-      expect(getPlayedCourses).toHaveBeenCalledWith(
+      expect(getPlayedCoursesWithSuddenDeath).toHaveBeenCalledWith(
         prisma,
         'tournament-1',
         'phase3'
@@ -414,7 +424,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
-      (getPlayedCourses as jest.Mock).mockResolvedValue([]);
+      (getPlayedCoursesWithSuddenDeath as jest.Mock).mockResolvedValue([]);
       (getAvailableCourses as jest.Mock).mockReturnValue([]);
     });
 
@@ -499,12 +509,12 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
-    it('should return 500 when getPlayedCourses throws', async () => {
+    it('should return 500 when getPlayedCoursesWithSuddenDeath throws', async () => {
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({ id: 'tournament-1' });
       (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
       (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([]);
-      (getPlayedCourses as jest.Mock).mockRejectedValue(
+      (getPlayedCoursesWithSuddenDeath as jest.Mock).mockRejectedValue(
         new Error('Course query failed')
       );
 

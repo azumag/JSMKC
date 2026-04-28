@@ -60,6 +60,14 @@ const mockPrisma = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
+  tTPhaseSuddenDeathRound: {
+    create: jest.fn(),
+    update: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    count: jest.fn(),
+  },
   tournamentPlayerScore: {
     upsert: jest.fn(),
     findMany: jest.fn(),
