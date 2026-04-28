@@ -1,20 +1,20 @@
 /**
- * Battle Mode Qualification Page — Server Component shell with PPR
+ * Battle Mode Qualification Page — Server Component shell with RSC streaming
  *
- * With PPR enabled (`experimental_ppr = true`), Next.js pre-renders the static
- * shell (the Suspense fallback skeleton) at build time and streams the dynamic
- * D1 data per request. This eliminates the blank-page wait: users see the
- * loading skeleton immediately from cache, then the live standings stream in.
+ * The outer component immediately returns a <Suspense> boundary so the loading
+ * skeleton is sent to the client before the D1 data fetch completes (RSC
+ * streaming). The inner async `BmContent` awaits Prisma and renders the client
+ * component with pre-fetched `initialData`, eliminating the blank-page wait.
  *
- * The inner `BmContent` async component accesses dynamic params and calls Prisma,
- * so it is automatically treated as a dynamic island — no `force-dynamic` needed.
+ * Dynamic route params make this page server-rendered per request; no
+ * `force-dynamic` override is needed.
  */
 
 import { Suspense } from 'react';
 import BattleModePageClient from './page-client';
 import { fetchQualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { bmConfig } from '@/lib/event-types';
-import { CardSkeleton, TableSkeleton } from '@/components/ui/loading-skeleton';
+import { QualificationFallback } from '@/components/ui/loading-skeleton';
 
 export default function BattleModePage({
   params,
@@ -22,7 +22,7 @@ export default function BattleModePage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense fallback={<BmFallback />}>
+    <Suspense fallback={<QualificationFallback />}>
       <BmContent params={params} />
     </Suspense>
   );
@@ -32,13 +32,4 @@ async function BmContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const initialData = await fetchQualInitialData(bmConfig, id);
   return <BattleModePageClient tournamentId={id} initialData={initialData} />;
-}
-
-function BmFallback() {
-  return (
-    <div className="space-y-6">
-      <CardSkeleton />
-      <TableSkeleton rows={8} columns={5} />
-    </div>
-  );
 }
