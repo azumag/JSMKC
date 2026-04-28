@@ -762,6 +762,51 @@ describe('POST /api/tournaments/[id]/ta/phases', () => {
     expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: ['player-1'] } });
   });
 
+  it('should pass per-player tvNumber in results to submitRoundResults', async () => {
+    // Per-player TV assignments are passed through in the results array (Issue #800)
+    (submitRoundResults as jest.Mock).mockResolvedValue({ eliminated: [] });
+    const body = {
+      action: 'submit_results',
+      phase: 'phase3',
+      roundNumber: 2,
+      results: [
+        { playerId: 'claaaaaaaaaaaaaaaaaaaaaaaaaa', timeMs: 63000, tvNumber: 1 },
+        { playerId: 'clbbbbbbbbbbbbbbbbbbbbbbbbbb', timeMs: 65000, tvNumber: 2 },
+        { playerId: 'clcccccccccccccccccccccccccc', timeMs: 70000, tvNumber: 3 },
+      ],
+    };
+
+    await phasesRoute.POST(createPostRequest(body), { params: mockParams });
+
+    expect(submitRoundResults).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ tournamentId: 'tournament-1' }),
+      'phase3',
+      2,
+      body.results
+    );
+    expect(NextResponse.json).toHaveBeenCalledWith({ success: true, data: { eliminated: [] } });
+  });
+
+  it('should reject submit_results with invalid tvNumber (out of range)', async () => {
+    const body = {
+      action: 'submit_results',
+      phase: 'phase1',
+      roundNumber: 1,
+      results: [
+        { playerId: 'claaaaaaaaaaaaaaaaaaaaaaaaaa', timeMs: 63000, tvNumber: 5 }, // invalid: max is 4
+        { playerId: 'clbbbbbbbbbbbbbbbbbbbbbbbbbb', timeMs: 65000 },
+      ],
+    };
+
+    await phasesRoute.POST(createPostRequest(body), { params: mockParams });
+
+    expect(NextResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+      { status: 400 }
+    );
+  });
+
   it('should return 500 for unexpected errors', async () => {
     (promoteToPhase1 as jest.Mock).mockRejectedValue(new Error('DB connection lost'));
 
