@@ -82,6 +82,7 @@ import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
 import type { Player } from "@/lib/types";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
+import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 
 const logger = createLogger({ serviceName: 'tournaments-ta-finals' });
 
@@ -165,8 +166,6 @@ export default function TimeAttackFinals({
   const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
   // Per-player TV assignments for the active round: playerId → TV number (1-4) or null.
   const [tvAssignments, setTvAssignments] = useState<Record<string, number | null>>({});
-  // Broadcast button feedback: 'idle' | 'success' | 'error'
-  const [broadcastStatus, setBroadcastStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -187,6 +186,14 @@ export default function TimeAttackFinals({
 
   // Show random-fill button when tournament debugMode is enabled (admin only).
   const isDebugMode = useTournamentDebugMode(tournamentId);
+
+  // Broadcast overlay state and handler — shared with ta-elimination-phase via hook.
+  const {
+    broadcastStatus,
+    handleBroadcastReflect,
+    resetBroadcastStatus,
+    hasUnbroadcastedTvAssignment,
+  } = useBroadcastReflect(tournamentId, tvAssignments, entries);
 
   // Track if user is currently editing to pause polling
   const [isEditing, setIsEditing] = useState(false);
@@ -334,7 +341,7 @@ export default function TimeAttackFinals({
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
       setTvAssignments(initialTv);
-      setBroadcastStatus('idle');
+      resetBroadcastStatus();
       setSelectedCourse("__random__"); // Reset manual selection after round is started
       fetchData();
     } catch (err) {
@@ -375,7 +382,7 @@ export default function TimeAttackFinals({
       setCourseTimes({});
       setRetryFlags({});
       setTvAssignments({});
-      setBroadcastStatus('idle');
+      resetBroadcastStatus();
       setIsEditing(false);
       setShowCancelConfirm(false);
       fetchData();
@@ -414,7 +421,7 @@ export default function TimeAttackFinals({
       setCourseTimes({});
       setRetryFlags({});
       setTvAssignments({});
-      setBroadcastStatus('idle');
+      resetBroadcastStatus();
       setIsEditing(false);
       fetchData();
     } catch (err) {
@@ -550,7 +557,7 @@ export default function TimeAttackFinals({
       setCourseTimes({});
       setRetryFlags({});
       setTvAssignments({});
-      setBroadcastStatus('idle');
+      resetBroadcastStatus();
       setIsEditing(false);
       fetchData();
     } catch (err) {
@@ -562,30 +569,6 @@ export default function TimeAttackFinals({
     }
   };
 
-  /**
-   * Send per-player TV assignments to the broadcast overlay.
-   * Maps TV1 player → player1Name, TV2 player → player2Name.
-   */
-  const handleBroadcastReflect = async () => {
-    const activePlayerEntries = entries.filter((e) => !e.eliminated);
-    const tv1Player = activePlayerEntries.find((e) => tvAssignments[e.playerId] === 1);
-    const tv2Player = activePlayerEntries.find((e) => tvAssignments[e.playerId] === 2);
-    try {
-      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          player1Name: tv1Player?.player.nickname ?? '',
-          player2Name: tv2Player?.player.nickname ?? '',
-        }),
-      });
-      setBroadcastStatus(res.ok ? 'success' : 'error');
-      setTimeout(() => setBroadcastStatus('idle'), 3000);
-    } catch {
-      setBroadcastStatus('error');
-      setTimeout(() => setBroadcastStatus('idle'), 3000);
-    }
-  };
 
   /** Manually eliminate a specific player (admin override) */
   const handleEliminatePlayer = async () => {
@@ -797,7 +780,7 @@ export default function TimeAttackFinals({
                           ...prev,
                           [entry.playerId]: e.target.value ? parseInt(e.target.value) : null,
                         }));
-                        setBroadcastStatus('idle');
+                        resetBroadcastStatus();
                       }}
                       aria-label={`${tCommon('tvNumber')} ${entry.player.nickname}`}
                     >
@@ -830,26 +813,36 @@ export default function TimeAttackFinals({
                 ))}
               </div>
               {/* 配信に反映: push TV1→player1Name, TV2→player2Name to broadcast overlay */}
-              <div className="mt-3 flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBroadcastReflect}
-                  disabled={submitting}
-                  className={
-                    broadcastStatus === 'success'
-                      ? 'border-green-500 text-green-700'
+              <div className="mt-3 flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBroadcastReflect}
+                    disabled={submitting}
+                    className={
+                      broadcastStatus === 'success'
+                        ? 'border-green-500 text-green-700'
+                        : broadcastStatus === 'error'
+                          ? 'border-destructive text-destructive'
+                          : ''
+                    }
+                  >
+                    {broadcastStatus === 'success'
+                      ? tCommon('broadcastReflected')
                       : broadcastStatus === 'error'
-                        ? 'border-destructive text-destructive'
-                        : ''
-                  }
-                >
-                  {broadcastStatus === 'success'
-                    ? tCommon('broadcastReflected')
-                    : broadcastStatus === 'error'
-                      ? tCommon('broadcastError')
-                      : tCommon('broadcastReflect')}
-                </Button>
+                        ? tCommon('broadcastError')
+                        : tCommon('broadcastReflect')}
+                  </Button>
+                </div>
+                {/* TV3/TV4 assignments are not sent to the broadcast overlay
+                    (which only supports TV1/TV2). Inform the operator so
+                    they know the button won't affect those players (issue #808). */}
+                {hasUnbroadcastedTvAssignment && (
+                  <p className="text-xs text-muted-foreground">
+                    {tCommon('broadcastTv12Only')}
+                  </p>
+                )}
               </div>
               {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
               {isAdmin && isDebugMode && (

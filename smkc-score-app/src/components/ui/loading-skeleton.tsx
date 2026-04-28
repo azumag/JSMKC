@@ -141,10 +141,13 @@ export function TableSkeleton({ rows = 5, columns = 4 }: TableSkeletonProps) {
   );
 }
 
-/** Shared Suspense fallback for BM/MR/GP/TA qualification pages (#802). */
-export function QualificationFallback() {
+/** Shared Suspense fallback for BM/MR/GP/TA qualification pages (#802).
+ * title: page heading rendered immediately so E2E selectors (h1/h2/h3) match
+ * before the RSC streaming boundary resolves (issue #809). */
+export function QualificationFallback({ title }: { title?: string } = {}) {
   return (
     <div className="space-y-6">
+      {title && <h1 className="text-2xl font-semibold">{title}</h1>}
       <CardSkeleton />
       <TableSkeleton rows={8} columns={5} />
     </div>

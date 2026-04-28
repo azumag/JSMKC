@@ -15,14 +15,16 @@ import { Suspense } from 'react';
 import TimeAttackPageClient from './page-client';
 import { fetchTaInitialData } from '@/lib/ta/initial-data';
 import { QualificationFallback } from '@/components/ui/loading-skeleton';
+import { useTranslations } from 'next-intl';
 
 export default function TimeAttackPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useTranslations('ta');
   return (
-    <Suspense fallback={<QualificationFallback />}>
+    <Suspense fallback={<QualificationFallback title={t('title')} />}>
       <TaContent params={params} />
     </Suspense>
   );

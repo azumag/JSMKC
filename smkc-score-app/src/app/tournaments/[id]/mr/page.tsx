@@ -15,14 +15,16 @@ import MatchRacePageClient from './page-client';
 import { fetchQualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { mrConfig } from '@/lib/event-types';
 import { QualificationFallback } from '@/components/ui/loading-skeleton';
+import { useTranslations } from 'next-intl';
 
 export default function MatchRacePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useTranslations('mr');
   return (
-    <Suspense fallback={<QualificationFallback />}>
+    <Suspense fallback={<QualificationFallback title={t('title')} />}>
       <MrContent params={params} />
     </Suspense>
   );

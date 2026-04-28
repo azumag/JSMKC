@@ -15,14 +15,16 @@ import BattleModePageClient from './page-client';
 import { fetchQualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { bmConfig } from '@/lib/event-types';
 import { QualificationFallback } from '@/components/ui/loading-skeleton';
+import { useTranslations } from 'next-intl';
 
 export default function BattleModePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useTranslations('bm');
   return (
-    <Suspense fallback={<QualificationFallback />}>
+    <Suspense fallback={<QualificationFallback title={t('title')} />}>
       <BmContent params={params} />
     </Suspense>
   );
