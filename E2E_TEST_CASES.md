@@ -647,6 +647,18 @@
 - **期待結果**: POST が 201 を返し、マッチ数が 28 (BM) / 28 (MR) であること。タイムアウトや 500 エラーが発生しないこと
 - **スクリプト**: tc-all.js TC-353
 
+## TC-354: Broadcast API — GET/PUT の形状・永続化・バリデーション確認
+- **authRequired**: false (GET), true/admin (PUT)
+- **背景**: `/api/tournaments/[id]/broadcast` は OBS オーバーレイ表示用の 1P/2P 名・マッチラベル・勝利数・FT を管理する。GET は公開・PUT は管理者のみ。
+- **手順**:
+  1. 新規トーナメントを作成
+  2. GET → `{ player1Name, player2Name, matchLabel, player1Wins, player2Wins, matchFt }` の形状が返ること（初期値は空文字/null）
+  3. 管理者として PUT `{ player1Name: '1P-Alice', player2Name: '2P-Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5 }` → 200
+  4. GET → PUT した値が永続化されていること
+  5. PUT `{ matchLabel: null }` → フィールドがクリアされること（200）
+- **期待結果**: GET は正しい形状を返し、PUT は値を永続化・クリアできる
+- **スクリプト**: tc-all.js TC-354
+
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
 - **authRequired**: true (admin)
 - **背景**: `setupAllModes28PlayerQualification` で28名 × 4モードの予選を完了させた後、各モード API が有効なデータを返すことを確認する統合テスト。
