@@ -33,7 +33,7 @@ jest.mock('@/lib/tournament-identifier', () => ({
   resolveTournament: jest.fn(),
 }));
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { resolveTournament } from '@/lib/tournament-identifier';
@@ -43,7 +43,7 @@ const mockParams = (id: string) => ({ params: Promise.resolve({ id }) });
 const mockReq = (body?: unknown) =>
   ({
     json: () => Promise.resolve(body ?? {}),
-  }) as unknown as Request;
+  }) as unknown as NextRequest;
 
 const mockResolveTournament = resolveTournament as jest.Mock;
 
@@ -62,7 +62,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       overlayMatchFt: null,
     });
 
-    await GET({} as Request, mockParams('t1'));
+    await GET({} as unknown as NextRequest, mockParams('t1'));
 
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
@@ -87,7 +87,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       overlayMatchFt: 5,
     });
 
-    await GET({} as Request, mockParams('t1'));
+    await GET({} as unknown as NextRequest, mockParams('t1'));
 
     expect(NextResponse.json).toHaveBeenCalledWith({
       success: true,
@@ -105,7 +105,7 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
   it('returns 404 when tournament not found', async () => {
     mockResolveTournament.mockResolvedValue(null);
 
-    await GET({} as Request, mockParams('nonexistent'));
+    await GET({} as unknown as NextRequest, mockParams('nonexistent'));
 
     expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(404);
   });
