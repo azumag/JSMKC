@@ -112,7 +112,8 @@ const PostRequestSchema = z.discriminatedUnion("action", [
     phase: PhaseSchema,
   }),
 
-  // Submit results for a round: triggers elimination processing
+  // Submit results for a round: triggers elimination processing.
+  // Optional `tvNumber` per result records which TV screen the player used (for history display).
   z.object({
     action: z.literal("submit_results"),
     phase: PhaseSchema,
@@ -122,6 +123,7 @@ const PostRequestSchema = z.discriminatedUnion("action", [
         playerId: z.string().cuid(),
         timeMs: z.number().min(0).max(RETRY_PENALTY_MS),
         isRetry: z.boolean().optional(),
+        tvNumber: z.number().int().min(1).max(4).nullable().optional(),
       })
     ).min(1),
   }),

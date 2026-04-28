@@ -850,6 +850,8 @@ export interface RoundResultInput {
   playerId: string;
   timeMs: number;
   isRetry?: boolean;
+  /** Broadcast TV screen number (1-4) assigned to this player for the round. Stored in results JSON for history display. */
+  tvNumber?: number | null;
 }
 
 /**

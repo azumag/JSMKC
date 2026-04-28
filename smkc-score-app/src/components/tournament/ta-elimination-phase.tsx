@@ -133,8 +133,11 @@ export default function TAEliminationPhase({
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
   const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
-  // Admin-selected TV number for the next round (null = no TV assigned).
-  const [selectedTvNumber, setSelectedTvNumber] = useState<number | null>(null);
+  // Per-player TV assignments for the active round: playerId → TV number (1-4) or null.
+  // Set after round starts; sent with submit_results to store in the results JSON.
+  const [tvAssignments, setTvAssignments] = useState<Record<string, number | null>>({});
+  // Broadcast button feedback: 'idle' | 'success' | 'error'
+  const [broadcastStatus, setBroadcastStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -213,9 +216,11 @@ export default function TAEliminationPhase({
           const activeEntries = fetchedEntries.filter((e) => !e.eliminated);
           const initialTimes: Record<string, string> = {};
           const initialRetry: Record<string, boolean> = {};
+          const initialTv: Record<string, number | null> = {};
           activeEntries.forEach((entry) => {
             initialTimes[entry.playerId] = "";
             initialRetry[entry.playerId] = false;
+            initialTv[entry.playerId] = null;
           });
           setCurrentRound({
             roundNumber: lastRound.roundNumber,
@@ -223,6 +228,7 @@ export default function TAEliminationPhase({
           });
           setCourseTimes(initialTimes);
           setRetryFlags(initialRetry);
+          setTvAssignments(initialTv);
         }
       }
     } catch (err) {
@@ -272,7 +278,6 @@ export default function TAEliminationPhase({
             // Only include course when admin has manually selected one;
             // omitting it lets the server choose randomly (default behaviour).
             ...(selectedCourse && selectedCourse !== "__random__" ? { course: selectedCourse } : {}),
-            ...(selectedTvNumber !== null ? { tvNumber: selectedTvNumber } : {}),
           }),
         }
       );
@@ -284,13 +289,15 @@ export default function TAEliminationPhase({
       // Unwrap createSuccessResponse wrapper
       const data = json2.data ?? json2;
 
-      // Initialize time entry form for all active players
+      // Initialize time entry form and per-player TV assignments for all active players
       const activeEntries = entries.filter((e) => !e.eliminated);
       const initialTimes: Record<string, string> = {};
       const initialRetry: Record<string, boolean> = {};
+      const initialTv: Record<string, number | null> = {};
       activeEntries.forEach((entry) => {
         initialTimes[entry.playerId] = "";
         initialRetry[entry.playerId] = false;
+        initialTv[entry.playerId] = null;
       });
 
       setCurrentRound({
@@ -299,8 +306,9 @@ export default function TAEliminationPhase({
       });
       setCourseTimes(initialTimes);
       setRetryFlags(initialRetry);
+      setTvAssignments(initialTv);
+      setBroadcastStatus('idle');
       setSelectedCourse("__random__"); // Reset manual selection after round is started
-      setSelectedTvNumber(null); // Reset TV selection after round is started
       fetchData();
     } catch (err) {
       const errorMessage =
@@ -341,6 +349,8 @@ export default function TAEliminationPhase({
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setTvAssignments({});
+      setBroadcastStatus('idle');
       setIsEditing(false);
       setShowCancelConfirm(false);
       fetchData();
@@ -378,6 +388,8 @@ export default function TAEliminationPhase({
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setTvAssignments({});
+      setBroadcastStatus('idle');
       setIsEditing(false);
       fetchData();
     } catch (err) {
@@ -459,12 +471,14 @@ export default function TAEliminationPhase({
 
       for (const entry of activeEntries) {
         const isRetry = retryFlags[entry.playerId];
+        const tvNumber = tvAssignments[entry.playerId] ?? null;
         if (isRetry) {
           // Retry penalty: server will enforce RETRY_PENALTY_MS
           results.push({
             playerId: entry.playerId,
             timeMs: RETRY_PENALTY_MS,
             isRetry: true,
+            ...(tvNumber !== null ? { tvNumber } : {}),
           });
         } else {
           const timeStr = courseTimes[entry.playerId] || "";
@@ -476,7 +490,11 @@ export default function TAEliminationPhase({
             setSubmitting(false);
             return;
           }
-          results.push({ playerId: entry.playerId, timeMs });
+          results.push({
+            playerId: entry.playerId,
+            timeMs,
+            ...(tvNumber !== null ? { tvNumber } : {}),
+          });
         }
       }
 
@@ -509,6 +527,8 @@ export default function TAEliminationPhase({
       setCurrentRound(null);
       setCourseTimes({});
       setRetryFlags({});
+      setTvAssignments({});
+      setBroadcastStatus('idle');
       setIsEditing(false);
       fetchData();
     } catch (err) {
@@ -517,6 +537,34 @@ export default function TAEliminationPhase({
       setSaveError(errorMessage);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /**
+   * Send per-player TV assignments to the broadcast overlay.
+   * Maps TV1 player → player1Name, TV2 player → player2Name.
+   * TV number is selected per-player in the active round form.
+   */
+  const handleBroadcastReflect = async () => {
+    const activePlayerEntries = entries.filter((e) => !e.eliminated);
+    // Find players assigned to TV1 and TV2 for the 1P/2P broadcast slots
+    const tv1Player = activePlayerEntries.find((e) => tvAssignments[e.playerId] === 1);
+    const tv2Player = activePlayerEntries.find((e) => tvAssignments[e.playerId] === 2);
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player1Name: tv1Player?.player.nickname ?? '',
+          player2Name: tv2Player?.player.nickname ?? '',
+        }),
+      });
+      setBroadcastStatus(res.ok ? 'success' : 'error');
+      // Reset status feedback after 3 seconds
+      setTimeout(() => setBroadcastStatus('idle'), 3000);
+    } catch {
+      setBroadcastStatus('error');
+      setTimeout(() => setBroadcastStatus('idle'), 3000);
     }
   };
 
@@ -664,12 +712,28 @@ export default function TAEliminationPhase({
               )}
               <div className="space-y-3">
                 {activeEntries.map((entry) => (
-                  <div key={entry.id} className="flex items-center gap-3">
+                  <div key={entry.id} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
                       <Label className="truncate block">
                         {entry.player.nickname}
                       </Label>
                     </div>
+                    {/* Per-player TV number selector: assign which screen this player uses */}
+                    <select
+                      className="w-16 h-8 text-center text-sm border rounded bg-background shrink-0"
+                      value={tvAssignments[entry.playerId] ?? ""}
+                      onChange={(e) => {
+                        setTvAssignments((prev) => ({
+                          ...prev,
+                          [entry.playerId]: e.target.value ? parseInt(e.target.value) : null,
+                        }));
+                        setBroadcastStatus('idle');
+                      }}
+                      aria-label={`${tCommon('tvNumber')} ${entry.player.nickname}`}
+                    >
+                      <option value="">-</option>
+                      {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>TV{n}</option>)}
+                    </select>
                     <Input
                       type="text"
                       placeholder="M:SS.mm"
@@ -693,6 +757,28 @@ export default function TAEliminationPhase({
                     </Button>
                   </div>
                 ))}
+              </div>
+              {/* 配信に反映: push TV1→player1Name, TV2→player2Name to broadcast overlay */}
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBroadcastReflect}
+                  disabled={submitting}
+                  className={
+                    broadcastStatus === 'success'
+                      ? 'border-green-500 text-green-700'
+                      : broadcastStatus === 'error'
+                        ? 'border-destructive text-destructive'
+                        : ''
+                  }
+                >
+                  {broadcastStatus === 'success'
+                    ? tCommon('broadcastReflected')
+                    : broadcastStatus === 'error'
+                      ? tCommon('broadcastError')
+                      : tCommon('broadcastReflect')}
+                </Button>
               </div>
               {/* Debug mode: Fill random times for all active players (admin + debugMode only) */}
               {isAdmin && isDebugMode && (
@@ -807,19 +893,6 @@ export default function TAEliminationPhase({
                       })}
                     </SelectContent>
                   </Select>
-                </div>
-                {/* TV number selector for the next round */}
-                <div className="flex items-center gap-3">
-                  <Label className="text-sm text-muted-foreground shrink-0">{tCommon('tvNumber')}</Label>
-                  <select
-                    className="w-20 h-8 text-center text-sm border rounded bg-background"
-                    value={selectedTvNumber ?? ""}
-                    disabled={startingRound || hasOpenRound}
-                    onChange={(e) => setSelectedTvNumber(e.target.value ? parseInt(e.target.value) : null)}
-                  >
-                    <option value="">-</option>
-                    {TV_NUMBER_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
                 </div>
                 <Button
                   className="w-full"

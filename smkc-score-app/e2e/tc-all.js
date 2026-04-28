@@ -3445,11 +3445,13 @@ async function main() {
         req.end();
       });
       // Status 0 = network error (connection refused, timeout, DNS failure).
-      // Log a WARN and treat as blocked to avoid false FAIL from transient network issues (#799).
+      // Treat as SKIP — transient network failure means auth check could not be verified (#804).
+      // Avoids false PASS when the endpoint is unreachable for reasons unrelated to auth.
       if (nonAdminPutStatus === 0) {
-        log('TC-354', 'WARN', 'nonAdmin PUT: network error — treating as blocked (auth check skipped)');
+        log('TC-354', 'SKIP', 'nonAdmin PUT: network error — auth check could not be verified (skipping)');
+        return;
       }
-      const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403 || nonAdminPutStatus === 0;
+      const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
 
       const ok = hasShape && putOk && getOk && clearOk && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
