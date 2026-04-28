@@ -59,7 +59,9 @@ async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
 export async function fetchTaInitialData(id: string): Promise<TaInitialData | null> {
   try {
     const tournament = await resolveTournament(id, { id: true, frozenStages: true });
-    const tournamentId = tournament?.id ?? id;
+    // Return null so the client falls back to its own first poll, same as qual-initial-data.ts.
+    if (!tournament) return null;
+    const tournamentId = tournament.id;
 
     const [entries, knockoutStarted, allPlayers] = await Promise.all([
       prisma.tTEntry.findMany({
@@ -80,7 +82,7 @@ export async function fetchTaInitialData(id: string): Promise<TaInitialData | nu
       entries,
       allPlayers,
       qualificationRegistrationLocked: knockoutStarted,
-      frozenStages: (tournament?.frozenStages as string[]) ?? [],
+      frozenStages: (tournament.frozenStages as string[]) ?? [],
     };
   } catch {
     // Intentionally swallowed: the client component handles data === null

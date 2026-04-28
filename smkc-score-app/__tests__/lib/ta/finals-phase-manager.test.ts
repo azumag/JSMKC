@@ -672,7 +672,7 @@ describe("TA Finals Phase Manager", () => {
       // Drain the micro-task queue so the fire-and-forget .catch() callback runs
       await Promise.resolve();
 
-      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      const mockLogger = (createLogger as jest.Mock).mock.results.at(-1)!.value;
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Failed to create audit log",
         expect.objectContaining({ error: expect.any(Error) }),
@@ -695,7 +695,7 @@ describe("TA Finals Phase Manager", () => {
 
       await Promise.resolve();
 
-      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      const mockLogger = (createLogger as jest.Mock).mock.results.at(-1)!.value;
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Failed to create audit log",
         expect.objectContaining({ error: expect.any(Error) }),
@@ -718,7 +718,7 @@ describe("TA Finals Phase Manager", () => {
 
       await Promise.resolve();
 
-      const mockLogger = (createLogger as jest.Mock).mock.results[0].value;
+      const mockLogger = (createLogger as jest.Mock).mock.results.at(-1)!.value;
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Failed to create audit log",
         expect.objectContaining({ error: expect.any(Error) }),

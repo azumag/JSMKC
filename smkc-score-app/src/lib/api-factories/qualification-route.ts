@@ -86,10 +86,8 @@ function getAssignedCourses(shuffled: string[], matchIndex: number): string[] {
  * @returns Object with GET, POST, PUT, PATCH handler functions
  */
 export function createQualificationHandlers(config: EventTypeConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const qualModel = (p: any) => p[config.qualificationModel];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const matchModel = (p: any) => p[config.matchModel];
+  const qualModel = (p: typeof prisma) => p[config.qualificationModel];
+  const matchModel = (p: typeof prisma) => p[config.matchModel];
 
   /**
    * GET handler: Fetch qualification standings and matches for a tournament.
