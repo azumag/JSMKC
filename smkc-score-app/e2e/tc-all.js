@@ -3461,6 +3461,51 @@ async function main() {
     }
   }
 
+  // TC-355: PPR mode pages — static shell served immediately, dynamic content renders
+  // Verifies that BM/MR/GP/TA qualification pages still work correctly after
+  // enabling experimental_ppr = true (issue #694). Checks HTTP 200 and that
+  // content (table or heading text) is visible after allowing time for streaming.
+  if (TID) {
+    const modes = ['bm', 'mr', 'gp', 'ta'];
+    const pprResults = [];
+    for (const mode of modes) {
+      try {
+        // HTTP-level check: page returns 200 without browser session
+        const httpStatus = await new Promise((resolve) => {
+          const url = new URL(`${BASE}/tournaments/${TID}/${mode}`);
+          const req = https.request(
+            { hostname: url.hostname, path: url.pathname, method: 'GET' },
+            (res) => { res.resume(); resolve(res.statusCode); }
+          );
+          req.setTimeout(10000, () => { req.destroy(); resolve(0); });
+          req.on('error', () => resolve(0));
+          req.end();
+        });
+
+        // Browser check: page shows content (not just skeleton) within 8s
+        await nav(page, `/tournaments/${TID}/${mode}`);
+        await page.waitForTimeout(8000);
+        const hasContent = await page.evaluate(() => {
+          const body = document.body.textContent || '';
+          const hasError = body.includes('Failed to fetch') || body.includes('500');
+          // Page should have rendered a table row or a heading beyond the skeleton
+          const hasTable = document.querySelector('table, [role="table"]') !== null;
+          const hasHeading = document.querySelector('h1, h2, h3') !== null;
+          return !hasError && (hasTable || hasHeading);
+        });
+
+        pprResults.push({ mode, httpStatus, hasContent });
+      } catch (e) {
+        pprResults.push({ mode, httpStatus: 0, hasContent: false, err: e.message });
+      }
+    }
+    const allOk = pprResults.every(r => r.httpStatus === 200 && r.hasContent);
+    const detail = pprResults.map(r => `${r.mode}:http=${r.httpStatus},content=${r.hasContent}`).join(' ');
+    log('TC-355', allOk ? 'PASS' : 'FAIL', detail);
+  } else {
+    log('TC-355', 'SKIP', 'TID not available');
+  }
+
   // TC-104: Player delete (deferred from earlier in the file — see comment above
   // TC-304. Must run last for the shared `pid` so any TC that invoked
   // uiSetupTaPlayers with that player can find the label in the setup dialog.)

@@ -60,16 +60,21 @@ export async function fetchQualInitialData(
     if (!tournament) return null;
 
     const tournamentId = tournament.id;
-    const qualModel = (p: typeof prisma) => p[config.qualificationModel];
-    const matchModel = (p: typeof prisma) => p[config.matchModel];
+    // Cast to a minimal delegate type to avoid the union findMany signature
+    // incompatibility: p[QualificationModelKey] produces a union of three Prisma
+    // delegates whose findMany type parameters are mutually incompatible in TS.
+    // Results are typed as unknown[] in QualInitialData so the cast is safe (#788).
+    type FindManyDelegate = { findMany: (args: Record<string, unknown>) => Promise<unknown[]> };
+    const qualModel = prisma[config.qualificationModel] as unknown as FindManyDelegate;
+    const matchModel = prisma[config.matchModel] as unknown as FindManyDelegate;
 
     const [qualifications, matches, allPlayers] = await Promise.all([
-      qualModel(prisma).findMany({
+      qualModel.findMany({
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
       }),
-      matchModel(prisma).findMany({
+      matchModel.findMany({
         where: { tournamentId, stage: 'qualification' },
         include: {
           player1: { select: PLAYER_PUBLIC_SELECT },

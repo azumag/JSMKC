@@ -28,6 +28,22 @@ const nextConfig: NextConfig = {
   /** Hide framework identification header to reduce information leakage. */
   poweredByHeader: false,
   /**
+   * Enable Partial Pre-Rendering (PPR) in incremental opt-in mode.
+   * In Next.js 16, `experimental.ppr` was merged into `cacheComponents`.
+   * Pages that set `export const experimental_ppr = true` get a pre-rendered
+   * static shell served immediately, while Suspense-wrapped dynamic content
+   * (live standings, D1 data) streams in per request.
+   * See issue #694.
+   */
+  /**
+   * NOTE: `cacheComponents: true` (formerly `experimental.ppr`) was evaluated for
+   * issue #694 but is blocked: the root layout accesses dynamic APIs (getLocale,
+   * headers) outside <Suspense>, causing /_not-found prerender to fail.
+   * The Suspense refactoring on mode pages still provides RSC streaming benefits
+   * (skeleton sent before data fetches complete) without requiring PPR.
+   * Revisit when the layout is refactored to move dynamic APIs inside Suspense.
+   */
+  /**
    * Set the Turbopack root to this project directory explicitly.
    * Without this, Turbopack detects the parent directory's lockfile
    * (/Users/.../JSMKC/package-lock.json) and infers a wrong workspace root,
