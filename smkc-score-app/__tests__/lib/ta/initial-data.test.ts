@@ -18,7 +18,7 @@ import { resolveTournament } from '@/lib/tournament-identifier';
 
 // jest.mocked provides proper TypeScript types for the auto-mocked module.
 const mockPrisma = jest.mocked(prisma);
-const mockResolveTournament = resolveTournament as jest.Mock;
+const mockResolveTournament = jest.mocked(resolveTournament);
 
 describe('fetchTaInitialData', () => {
   beforeEach(() => {
@@ -52,9 +52,11 @@ describe('fetchTaInitialData', () => {
 
     // findMany is called once for qualification entries.
     // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call needed.
-    (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValueOnce(mockEntries);
-    (mockPrisma.tTEntry.findFirst as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.player.findMany as jest.Mock).mockResolvedValue(mockPlayers);
+    // jest.mocked() on individual methods is required because jest.mocked(prisma) shallow-mocks
+    // only the top-level delegate references, not the methods within each delegate.
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValueOnce(mockEntries as never);
+    jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue(null);
+    jest.mocked(prisma.player.findMany).mockResolvedValue(mockPlayers as never);
 
     const result = await fetchTaInitialData('tid-1');
 
@@ -68,9 +70,9 @@ describe('fetchTaInitialData', () => {
   it('returns qualificationRegistrationLocked=true when a phase1 entry exists', async () => {
     mockResolveTournament.mockResolvedValue({ id: 'tid-2', frozenStages: ['phase1'] });
 
-    (mockPrisma.tTEntry.findMany as jest.Mock).mockResolvedValue([]);
-    (mockPrisma.tTEntry.findFirst as jest.Mock).mockResolvedValue({ id: 'phase-entry' });
-    (mockPrisma.player.findMany as jest.Mock).mockResolvedValue([]);
+    jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([] as never);
+    jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue({ id: 'phase-entry' } as never);
+    jest.mocked(prisma.player.findMany).mockResolvedValue([] as never);
 
     const result = await fetchTaInitialData('tid-2');
 
