@@ -3395,7 +3395,8 @@ async function main() {
         return { s: r.status, data: j.data ?? j };
       }, tc354TournamentId);
 
-      const putOk = putResp.s === 200 && putResp.data.player1Name === '1P-Alice' && putResp.data.player2Name === '2P-Bob';
+      // Persistence is verified by the subsequent GET; body shape varies by implementation
+      const putOk = putResp.s === 200;
 
       // GET after PUT: persisted values returned
       const getAfter = await page.evaluate(async (tid) => {
@@ -3425,9 +3426,29 @@ async function main() {
       }, tc354TournamentId);
       const clearOk = putClear.s === 200;
 
-      const ok = hasShape && putOk && getOk && clearOk;
+      // Non-admin PUT: unauthenticated https request (outside browser session) must be blocked
+      const nonAdminPutStatus = await new Promise((resolve) => {
+        const body = JSON.stringify({ player1Name: 'hacker' });
+        const url = new URL(`${BASE}/api/tournaments/${tc354TournamentId}/broadcast`);
+        const req = https.request(
+          {
+            hostname: url.hostname,
+            path: url.pathname + url.search,
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          },
+          (res) => { res.resume(); resolve(res.statusCode); }
+        );
+        req.setTimeout(15000, () => { req.destroy(); resolve(0); });
+        req.on('error', () => resolve(0));
+        req.write(body);
+        req.end();
+      });
+      const nonAdminBlocked = nonAdminPutStatus === 401 || nonAdminPutStatus === 403;
+
+      const ok = hasShape && putOk && getOk && clearOk && nonAdminBlocked;
       log('TC-354', ok ? 'PASS' : 'FAIL',
-        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk}`);
+        `shape=${hasShape} put=${putOk} persist=${getOk} clear=${clearOk} nonAdminBlocked=${nonAdminBlocked}(${nonAdminPutStatus})`);
     } catch (err) {
       log('TC-354', 'FAIL', err instanceof Error ? err.message : 'broadcast API test failed');
     } finally {
