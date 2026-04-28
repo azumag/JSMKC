@@ -140,3 +140,13 @@ export function TableSkeleton({ rows = 5, columns = 4 }: TableSkeletonProps) {
     </div>
   );
 }
+
+/** Shared Suspense fallback for BM/MR/GP/TA qualification pages (#802). */
+export function QualificationFallback() {
+  return (
+    <div className="space-y-6">
+      <CardSkeleton />
+      <TableSkeleton rows={8} columns={5} />
+    </div>
+  );
+}

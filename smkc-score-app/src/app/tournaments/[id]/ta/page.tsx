@@ -1,21 +1,20 @@
 /**
- * Time Attack Qualification Page — Server Component shell with PPR
+ * Time Attack Qualification Page — Server Component shell with RSC streaming
  *
- * With PPR enabled (`experimental_ppr = true`), Next.js pre-renders the static
- * shell (the Suspense fallback skeleton) at build time and streams the dynamic
- * D1 data per request. This eliminates the blank-page wait: users see the
- * loading skeleton immediately from cache, then the live standings stream in.
+ * The outer component immediately returns a <Suspense> boundary so the loading
+ * skeleton is sent to the client before the D1 data fetch completes (RSC
+ * streaming). The inner async `TaContent` awaits Prisma and renders the client
+ * component with pre-fetched `initialData`, eliminating the blank-page wait.
  *
- * The inner `TaContent` async component accesses dynamic params and calls Prisma,
- * so it is automatically treated as a dynamic island — no `force-dynamic` needed.
- * Tournament data changes in real time; no static caching occurs because params
- * is a dynamic route segment.
+ * Dynamic route params make this page server-rendered per request; no
+ * `force-dynamic` override is needed. Tournament data changes in real time;
+ * the Prisma call is inherently dynamic.
  */
 
 import { Suspense } from 'react';
 import TimeAttackPageClient from './page-client';
 import { fetchTaInitialData } from '@/lib/ta/initial-data';
-import { CardSkeleton, TableSkeleton } from '@/components/ui/loading-skeleton';
+import { QualificationFallback } from '@/components/ui/loading-skeleton';
 
 export default function TimeAttackPage({
   params,
@@ -23,7 +22,7 @@ export default function TimeAttackPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense fallback={<TaFallback />}>
+    <Suspense fallback={<QualificationFallback />}>
       <TaContent params={params} />
     </Suspense>
   );
@@ -33,13 +32,4 @@ async function TaContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const initialData = await fetchTaInitialData(id);
   return <TimeAttackPageClient tournamentId={id} initialData={initialData} />;
-}
-
-function TaFallback() {
-  return (
-    <div className="space-y-6">
-      <CardSkeleton />
-      <TableSkeleton rows={8} columns={5} />
-    </div>
-  );
 }
