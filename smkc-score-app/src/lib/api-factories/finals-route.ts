@@ -1657,7 +1657,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
 
         let loserPosition: 1 | 2 = 1;
-        if (currentBracketMatch.round === 'winners_qf') {
+        if (currentBracketMatch.round === 'winners_r1') {
+          loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
+        } else if (currentBracketMatch.round === 'winners_qf') {
           /* 16-player: losers from QF enter L_R2 at position 2.
            * 8-player: uses parity-based calculation ((matchNumber-1)%2 + 1). */
           loserPosition = bracketSize === 16 ? 2 : (((matchNumber - 1) % 2) + 1) as 1 | 2;

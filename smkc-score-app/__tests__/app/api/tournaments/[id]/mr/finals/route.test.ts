@@ -484,6 +484,51 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
       expect(result.status).toBe(200);
     });
 
+    it('should place a 16-player Winners R1 loser into the paired Losers R1 player2 slot', async () => {
+      const mockMatch = {
+        id: 'm2',
+        matchNumber: 2,
+        round: 'winners_r1',
+        stage: 'finals',
+        player1Id: 'p8',
+        player2Id: 'p9',
+        player1: { id: 'p8', name: 'Player 8' },
+        player2: { id: 'p9', name: 'Player 9' },
+      };
+      const mockUpdatedMatch = { ...mockMatch, score1: 5, score2: 1, completed: true };
+
+      (prisma.mRMatch.count as jest.Mock).mockResolvedValue(31);
+      (generateBracketStructure as jest.Mock).mockReturnValue([
+        { matchNumber: 2, round: 'winners_r1', winnerGoesTo: 9, loserGoesTo: 16, position: 2 },
+      ]);
+      (prisma.mRMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.mRMatch.update as jest.Mock).mockResolvedValue(mockUpdatedMatch);
+      (prisma.mRMatch.findFirst as jest.Mock)
+        .mockResolvedValueOnce({ id: 'm9' })
+        .mockResolvedValueOnce({ id: 'm16' });
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/mr/finals',
+        { matchId: 'm2', score1: 5, score2: 1 },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(prisma.mRMatch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'm16' },
+          data: { player2Id: 'p9' },
+        }),
+      );
+      expect(prisma.mRMatch.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tournamentId: 't1', matchNumber: 16, stage: 'finals' },
+          data: { player2Id: 'p9' },
+        }),
+      );
+    });
+
     /**
      * Admin manual total-score override: when only score1/score2 are sent
      * without rounds[], the existing rounds[] breakdown must be preserved.
