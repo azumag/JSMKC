@@ -44,8 +44,9 @@ const {
   setupTaQualViaUi,
   escapeRegex,
 } = require('./lib/common');
+require('ts-node/register/transpile-only');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
-const { assertStackedCardBoxes } = require('./lib/layout-assertions');
+const { assertStackedCardBoxes } = require('./lib/layout-assertions.ts');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
