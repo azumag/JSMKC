@@ -201,7 +201,7 @@
   4. `/players` ページを開き、プレイヤー数が既定 limit (50) を超える場合にページャー UI が出ること
 - **期待結果**: ページネーションが API/UI 双方で機能し、limit クランプが効いている
 
-## TC-109: CDM Export 失敗時の原因ヒント表示
+## TC-359: CDM Export 失敗時の原因ヒント表示
 - **URL**: /tournaments/[id]
 - **authRequired**: true (admin)
 - **手順**:

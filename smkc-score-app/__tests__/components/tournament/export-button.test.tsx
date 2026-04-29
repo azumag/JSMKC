@@ -114,6 +114,26 @@ describe('ExportButton', () => {
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
 
+  it('shows a forbidden export hint when the API returns 401', async () => {
+    global.fetch = jest.fn().mockResolvedValue(new Response('Unauthorized', { status: 401 }));
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+
+    render(
+      <ExportButton tournamentId="tournament-1" tournamentName="Grand Prix" format="cdm">
+        CDM Export
+      </ExportButton>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /CDM Export/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: Forbidden or session expired');
+    });
+
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
   it('logs and skips download when fetch throws', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
