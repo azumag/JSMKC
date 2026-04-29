@@ -241,6 +241,22 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
     });
 
+    it('should return 403 when CDM export is requested by a non-admin user', async () => {
+      (auth as jest.Mock).mockResolvedValue({ user: { id: 'player-1', role: 'player' } });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.data).toEqual(expect.objectContaining({
+        success: false,
+        error: 'Admin access required',
+        code: 'FORBIDDEN',
+      }));
+      expect(result.status).toBe(403);
+      expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should return 500 when the CDM template self-fetch fails', async () => {
       const mockTournament = {
         id: 't1',
