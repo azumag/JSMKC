@@ -63,12 +63,15 @@ import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { DebugFillButton } from "@/components/tournament/debug-fill-button";
 import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
+import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
-import { TA_TIME_ENTRY_CUP_GRID_CLASS } from "@/lib/ta/time-entry-layout";
+import { canEditTaEntry } from "@/lib/ta/entry-access";
+import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_PROPS } from "@/lib/ta/time-entry-layout";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
+import { useBroadcastReflect } from "@/lib/hooks/use-broadcast-reflect";
 import type { TaInitialData } from "@/lib/ta/initial-data";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from "lucide-react";
@@ -124,7 +127,7 @@ export default function TimeAttackPageClient({
    * Admin role check: only admin users can add/remove players,
    * promote to finals, and edit any player's times.
    */
-  const isAdmin = session?.user && session.user.role === 'admin';
+  const isAdmin = Boolean(session?.user && session.user.role === 'admin');
 
   /**
    * Player self-edit check: logged-in players can edit their own times.
@@ -140,10 +143,11 @@ export default function TimeAttackPageClient({
    * Otherwise: admins can edit any entry; players can only edit their own.
    */
   const canEditEntry = (entry: TTEntry): boolean => {
-    if (frozenStages.includes(entry.stage)) return false;
-    if (isAdmin) return true;
-    if (currentPlayerId && entry.playerId === currentPlayerId) return true;
-    return false;
+    return canEditTaEntry(entry, {
+      isAdmin,
+      currentPlayerId,
+      frozenStages,
+    });
   };
 
   /** Whether the current user can edit any entries (admin or player with own entry).
@@ -180,6 +184,10 @@ export default function TimeAttackPageClient({
 
   // Course rankings accordion state: tracks which courses are expanded
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
+
+  // Admin-only TA qualification TV assignment state. Persisting is unnecessary:
+  // the selected TV slots are immediately reflected to the broadcast endpoint.
+  const [qualificationTvAssignments, setQualificationTvAssignments] = useState<Record<string, number | null>>({});
 
   // Search query used inside the unified setup dialog
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
@@ -271,6 +279,16 @@ export default function TimeAttackPageClient({
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
+  const firstPlaceCounts = useMemo(
+    () => calculateCourseFirstPlaceCounts(entries),
+    [entries],
+  );
+  const {
+    broadcastStatus,
+    handleBroadcastReflect,
+    resetBroadcastStatus,
+    hasUnbroadcastedTvAssignment,
+  } = useBroadcastReflect(tournamentId, qualificationTvAssignments, entries);
   const showQualificationRegistrationLockedToast = () => {
     toast.info(t('qualificationRegistrationLocked'));
   };
@@ -1173,6 +1191,7 @@ export default function TimeAttackPageClient({
                       <TableHead>{t('pairPartner')}</TableHead>
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{tc('points')}</TableHead>
+                      <TableHead className="text-right">{t('firstPlaceCount')}</TableHead>
                       <TableHead className="text-right">{t('totalTime')}</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1203,6 +1222,12 @@ export default function TimeAttackPageClient({
                           <TableCell className="text-right font-mono">
                             {entry.qualificationPoints ?? "-"}
                           </TableCell>
+                          <TableCell
+                            className="text-right font-mono"
+                            data-testid={`ta-first-place-count-${entry.id}`}
+                          >
+                            {firstPlaceCounts.get(entry.id) ?? 0}
+                          </TableCell>
                           <TableCell className="text-right font-mono">
                             {msToDisplayTime(entry.totalTime)}
                           </TableCell>
@@ -1225,21 +1250,48 @@ export default function TimeAttackPageClient({
                     <CardDescription>
                       {canEditAnyEntry ? t('timeEntryDesc') : t('timeListDesc')}
                     </CardDescription>
+                    {isAdmin && hasUnbroadcastedTvAssignment && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {tc('broadcastTv12Only')}
+                      </p>
+                    )}
                   </div>
+                  <div className="flex items-center gap-2">
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleBroadcastReflect}
+                        className={
+                          broadcastStatus === 'success'
+                            ? 'border-green-500 text-green-700'
+                            : broadcastStatus === 'error'
+                              ? 'border-destructive text-destructive'
+                              : ''
+                        }
+                      >
+                        {broadcastStatus === 'success'
+                          ? tc('broadcastReflected')
+                          : broadcastStatus === 'error'
+                            ? tc('broadcastError')
+                            : tc('broadcastReflect')}
+                      </Button>
+                    )}
                   {/* Quick-access button: lets logged-in players open their own
                    *  time entry dialog directly without scrolling the table.
                    *  Only shown when the player has an entry in this tournament. */}
-                  {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId) && (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        const myEntry = entries.find((e) => e.playerId === currentPlayerId);
-                        if (myEntry) openTimeEntryDialog(myEntry);
-                      }}
-                    >
-                      {t('editTimes')}
-                    </Button>
-                  )}
+                    {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId) && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const myEntry = entries.find((e) => e.playerId === currentPlayerId);
+                          if (myEntry) openTimeEntryDialog(myEntry);
+                        }}
+                      >
+                        {t('editTimes')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1247,6 +1299,7 @@ export default function TimeAttackPageClient({
                   <TableHeader>
                     <TableRow>
                       <TableHead>{tc('player')}</TableHead>
+                      {isAdmin && <TableHead className="text-center w-24">{tc('tvNumber')}</TableHead>}
                       <TableHead className="text-center">{t('progress')}</TableHead>
                       <TableHead className="text-right">{t('total')}</TableHead>
                       <TableHead className="text-right w-32">{t('action')}</TableHead>
@@ -1258,6 +1311,27 @@ export default function TimeAttackPageClient({
                         <TableCell className="font-medium">
                           {entry.player.nickname}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-center">
+                            <select
+                              className="h-9 w-20 rounded border bg-background px-2 text-center text-sm"
+                              value={qualificationTvAssignments[entry.playerId] ?? ""}
+                              onChange={(event) => {
+                                setQualificationTvAssignments((prev) => ({
+                                  ...prev,
+                                  [entry.playerId]: event.target.value ? Number(event.target.value) : null,
+                                }));
+                                resetBroadcastStatus();
+                              }}
+                              aria-label={`${tc('tvNumber')} ${entry.player.nickname}`}
+                            >
+                              <option value="">-</option>
+                              {TV_NUMBER_OPTIONS.map((tv) => (
+                                <option key={tv} value={tv}>TV{tv}</option>
+                              ))}
+                            </select>
+                          </TableCell>
+                        )}
                         <TableCell className="text-center">
                           {getEnteredTimesCount(entry)} / {TOTAL_COURSES}
                         </TableCell>
@@ -1265,7 +1339,7 @@ export default function TimeAttackPageClient({
                           {msToDisplayTime(entry.totalTime)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                          {/* Edit button: admin can edit all; player can edit own entry only */}
+                          {/* Edit button: admin can edit all; players can edit own or paired entries. */}
                           {canEditEntry(entry) ? (
                             <Button
                               size="sm"
@@ -1425,6 +1499,7 @@ export default function TimeAttackPageClient({
                         </Label>
                         <Input
                           type="text"
+                          {...TA_TIME_INPUT_PROPS}
                           placeholder="M:SS.mm"
                           value={timeInputs[course.abbr] || ""}
                           onChange={(e) =>

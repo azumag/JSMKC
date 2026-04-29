@@ -348,6 +348,7 @@
     "rank": "順位",
     "progress": "進捗",
     "totalTime": "合計タイム",
+    "firstPlaceCount": "Nb #1",
     "timeEntry": "タイム入力",
     "timeEntryDesc": "各プレイヤーのタイムを入力 (形式: M:SS.mm)",
     "total": "合計",

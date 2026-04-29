@@ -60,6 +60,14 @@ import {
 } from "@/components/ui/select";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS, TV_NUMBER_OPTIONS } from "@/lib/constants";
 import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
+import {
+  TA_FINALS_ROUND_CONTROLS_CLASS,
+  TA_FINALS_ROUND_ENTRY_ROW_CLASS,
+  TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
+  TA_FINALS_ROUND_PLAYER_NAME_CLASS,
+  TA_FINALS_TIME_INPUT_CLASS,
+  TA_TIME_INPUT_PROPS,
+} from "@/lib/ta/time-entry-layout";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import type { Player } from "@/lib/types";
@@ -803,10 +811,11 @@ export default function TAEliminationPhase({
                   <Label className="flex-1 truncate">{entry.player.nickname}</Label>
                   <Input
                     type="text"
+                    {...TA_TIME_INPUT_PROPS}
                     placeholder="M:SS.mm"
                     value={suddenDeathTimes[entry.playerId] || ""}
                     onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
-                    className="font-mono w-32"
+                    className={TA_FINALS_TIME_INPUT_CLASS}
                   />
                 </div>
               ))}
@@ -839,15 +848,23 @@ export default function TAEliminationPhase({
               )}
               <div className="space-y-3">
                 {activeEntries.map((entry) => (
-                  <div key={entry.id} className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <Label className="truncate block">
+                  <div
+                    key={entry.id}
+                    className={TA_FINALS_ROUND_ENTRY_ROW_CLASS}
+                    data-testid="ta-finals-round-entry-row"
+                  >
+                    <div className={TA_FINALS_ROUND_PLAYER_LABEL_CLASS}>
+                      <Label
+                        className={TA_FINALS_ROUND_PLAYER_NAME_CLASS}
+                        data-testid="ta-finals-round-player-name"
+                      >
                         {entry.player.nickname}
                       </Label>
                     </div>
+                    <div className={TA_FINALS_ROUND_CONTROLS_CLASS}>
                     {/* Per-player TV number selector: assign which screen this player uses */}
                     <select
-                      className="w-16 h-8 text-center text-sm border rounded bg-background shrink-0"
+                      className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
                       value={tvAssignments[entry.playerId] ?? ""}
                       onChange={(e) => {
                         setTvAssignments((prev) => ({
@@ -863,13 +880,14 @@ export default function TAEliminationPhase({
                     </select>
                     <Input
                       type="text"
+                      {...TA_TIME_INPUT_PROPS}
                       placeholder="M:SS.mm"
                       value={courseTimes[entry.playerId] || ""}
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)
                       }
                       disabled={retryFlags[entry.playerId]}
-                      className="font-mono w-32"
+                      className={TA_FINALS_TIME_INPUT_CLASS}
                     />
                     {/* Retry penalty button: sets time to 9:59.990 */}
                     <Button
@@ -882,6 +900,7 @@ export default function TAEliminationPhase({
                     >
                       {tElim('pass')}
                     </Button>
+                    </div>
                   </div>
                 ))}
               </div>

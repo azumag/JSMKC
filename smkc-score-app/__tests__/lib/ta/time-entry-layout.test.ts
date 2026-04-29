@@ -1,4 +1,9 @@
-import { TA_TIME_ENTRY_CUP_GRID_CLASS } from "@/lib/ta/time-entry-layout";
+import {
+  TA_FINALS_ROUND_ENTRY_ROW_CLASS,
+  TA_FINALS_ROUND_PLAYER_NAME_CLASS,
+  TA_TIME_ENTRY_CUP_GRID_CLASS,
+  TA_TIME_INPUT_PROPS,
+} from "@/lib/ta/time-entry-layout";
 
 describe("TA time entry layout", () => {
   it("stacks cup cards on mobile and restores two columns from md", () => {
@@ -6,5 +11,22 @@ describe("TA time entry layout", () => {
       expect.arrayContaining(["grid", "grid-cols-1", "md:grid-cols-2", "gap-4"]),
     );
     expect(TA_TIME_ENTRY_CUP_GRID_CLASS).not.toContain("grid-cols-2 gap-4");
+  });
+
+  it("uses mobile numeric keyboard hints for TA time fields", () => {
+    expect(TA_TIME_INPUT_PROPS).toEqual({
+      inputMode: "decimal",
+      pattern: "[0-9:.]*",
+      autoComplete: "off",
+    });
+  });
+
+  it("keeps TA finals player names on their own mobile row before sm layout", () => {
+    expect(TA_FINALS_ROUND_ENTRY_ROW_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["space-y-2", "sm:flex", "sm:space-y-0"]),
+    );
+    expect(TA_FINALS_ROUND_PLAYER_NAME_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["block", "truncate", "text-base", "sm:text-sm"]),
+    );
   });
 });
