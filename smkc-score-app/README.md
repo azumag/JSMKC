@@ -287,7 +287,7 @@ This is a monorepo, so set these values in Cloudflare:
 - Build watch path: `smkc-score-app/**` (recommended)
 
 Cloudflare's docs state that Workers Builds runs the build command first and then the deploy command, and that the root directory should point at the app directory in monorepos.
-`npm run deploy:cf` applies pending D1 migrations with `wrangler d1 migrations apply DB --remote --yes` before `wrangler deploy`, so new Worker code is not promoted against an old production schema.
+`npm run deploy:cf` applies pending D1 migrations with `wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker code is not promoted against an old production schema.
 
 ### Runtime variables and secrets
 
