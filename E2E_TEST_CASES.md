@@ -1854,6 +1854,16 @@
   3. `pattern` が数字・コロン・ドット向けであることを確認する
 - **期待結果**: TAタイム入力欄はスマホで数字キーボードを促す属性を持つ
 
+## TC-913: TAタイム入力欄のtitleヒントとplaceholderをi18nで表示
+- **URL**: /auth/signin -> /tournaments/[temp-id]/ta
+- **authRequired**: true (player)
+- **背景**: issue #913。TAタイム入力欄の title ヒントが英語ハードコードになり、placeholder も翻訳キーから外れていた。
+- **手順**:
+  1. モバイル viewport で `/ta` のタイム入力ダイアログを開く
+  2. 最初のタイム入力欄の `title` が `例: 123.45 または 1:23.45` または `Example: 123.45 or 1:23.45` であることを確認する
+  3. `placeholder` が翻訳キー由来の `M:SS.mm` であることを確認する
+- **期待結果**: TAタイム入力欄の入力例ヒントとplaceholderは各画面のi18n文字列から描画される
+
 ## TC-896: TA決勝フェーズのモバイル管理画面でプレイヤー名が見える
 - **URL**: /tournaments/[temp-id]/ta/finals
 - **authRequired**: true (admin)

@@ -66,8 +66,7 @@ import {
   TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_FINALS_TIME_INPUT_CLASS,
-  TA_TIME_INPUT_PLACEHOLDER,
-  TA_TIME_INPUT_PROPS,
+  getTaTimeInputProps,
 } from "@/lib/ta/time-entry-layout";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
@@ -135,6 +134,7 @@ export default function TAEliminationPhase({
   // 'common' namespace for shared UI labels (e.g., "Player")
   const tElim = useTranslations('taElimination');
   const tCommon = useTranslations('common');
+  const taTimeInputProps = getTaTimeInputProps(tElim('timeInputTitle'));
 
   /**
    * Admin role check: only admin users can start rounds, enter times,
@@ -812,8 +812,8 @@ export default function TAEliminationPhase({
                   <Label className="flex-1 truncate">{entry.player.nickname}</Label>
                   <Input
                     type="text"
-                    {...TA_TIME_INPUT_PROPS}
-                    placeholder={TA_TIME_INPUT_PLACEHOLDER}
+                    {...taTimeInputProps}
+                    placeholder={tElim('timePlaceholder')}
                     value={suddenDeathTimes[entry.playerId] || ""}
                     onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
                     className={TA_FINALS_TIME_INPUT_CLASS}
@@ -884,8 +884,8 @@ export default function TAEliminationPhase({
                     </select>
                     <Input
                       type="text"
-                      {...TA_TIME_INPUT_PROPS}
-                      placeholder={TA_TIME_INPUT_PLACEHOLDER}
+                      {...taTimeInputProps}
+                      placeholder={tElim('timePlaceholder')}
                       value={courseTimes[entry.playerId] || ""}
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)
