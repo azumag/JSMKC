@@ -223,6 +223,18 @@
 - **期待結果**: ボタンが `Exporting...` 表示になり disabled/`aria-busy=true` になる。遅延中に二重クリックしても `/export?format=cdm` リクエストは1回だけ送信される。
 - **スクリプト**: tc-all.js TC-360
 
+## TC-361: CDM Export エラー後の再試行
+- **URL**: /tournaments/[id]
+- **authRequired**: true (admin)
+- **背景**: CDM エクスポート API が失敗しても、ボタンが disabled のまま残ると管理者が再試行できない。
+- **手順**:
+  1. 管理者で大会詳細ページを開く
+  2. CDM Export API が 500 を返す状態を作る
+  3. `CDM Export` ボタンをクリック
+  4. エラー alert 表示後のボタン状態を確認し、もう一度クリックする
+- **期待結果**: エラー alert が表示され、ボタンは disabled 解除かつ `aria-busy=false` になる。再クリックで `/export?format=cdm` リクエストが再送される。
+- **スクリプト**: tc-all.js TC-361
+
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
 - **authRequired**: true (admin)
