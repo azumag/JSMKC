@@ -32,7 +32,6 @@ import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
 import {
   selectRandomCourse,
-  getPlayedCourses,
   getAvailableCourses,
   getPlayedCoursesWithSuddenDeath,
   selectRandomAvailableCourse,
@@ -1044,7 +1043,7 @@ async function createSuddenDeathRound(
 /**
  * Start a new round for a phase.
  *
- * Selects a random course from the unused pool (20-course cycle per phase),
+ * Selects a random course from the unused pool (20-course cycle shared across TA finals phases),
  * creates a TTPhaseRound record with an empty results array,
  * and returns the round number and selected course.
  *
@@ -1109,7 +1108,7 @@ export async function startPhaseRound(
       }
       // Validate the course is still available in the current cycle
       // (not already played in the current 20-course block)
-      const playedCourses = await getPlayedCourses(prisma, tournamentId, phase);
+      const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
       const available = getAvailableCourses(playedCourses);
       if (!available.includes(manualCourse as CourseAbbr)) {
         throw new Error(
