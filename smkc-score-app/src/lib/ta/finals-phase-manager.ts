@@ -73,6 +73,18 @@ export const PHASE_CONFIG = {
   },
 } as const;
 
+function getNextPhase3ResetThreshold(activeCount: number): number | null {
+  const thresholds = [...PHASE_CONFIG.phase3.lifeResetThresholds]
+    .filter((threshold) => threshold < activeCount)
+    .sort((a, b) => b - a);
+  return thresholds[0] ?? (activeCount > 1 ? 1 : null);
+}
+
+function getPhase3EliminationLimit(activeCount: number): number {
+  const nextThreshold = getNextPhase3ResetThreshold(activeCount);
+  return nextThreshold === null ? Number.POSITIVE_INFINITY : activeCount - nextThreshold;
+}
+
 /**
  * Context for promotion/phase operations.
  * Contains user identity and request metadata for audit logging.
@@ -660,6 +672,15 @@ export async function processPhase3Result(
   const halfwayPoint = Math.ceil(sortedResults.length / 2);
   const bottomHalf = sortedResults.slice(halfwayPoint);
 
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length);
+  const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
+  const selectedEliminationIds = new Set(
+    bottomHalf
+      .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? 0) - 1 <= 0)
+      .sort((a, b) => b.timeMs - a.timeMs)
+      .slice(0, eliminationLimit)
+      .map((result) => result.playerId)
+  );
   const eliminatedPlayers: string[] = [];
 
   for (const result of bottomHalf) {
@@ -677,17 +698,18 @@ export async function processPhase3Result(
     if (entry && !entry.eliminated) {
       const newLives = entry.lives - 1;
       const isEliminated = newLives <= 0;
+      const selectedForElimination = isEliminated && selectedEliminationIds.has(result.playerId);
 
       // Update lives and elimination status
       await prisma.tTEntry.update({
         where: { id: entry.id },
         data: {
           lives: Math.max(0, newLives),
-          eliminated: isEliminated,
+          eliminated: selectedForElimination,
         },
       });
 
-      if (isEliminated) {
+      if (selectedForElimination) {
         eliminatedPlayers.push(result.playerId);
       }
 
@@ -703,7 +725,7 @@ export async function processPhase3Result(
           details: {
             tournamentId,
             phase: "phase3",
-            action: isEliminated ? "eliminated" : "life_lost",
+            action: selectedForElimination ? "eliminated" : "life_lost",
             oldLives: entry.lives,
             newLives: Math.max(0, newLives),
             timeMs: result.timeMs,
@@ -869,16 +891,21 @@ export interface SuddenDeathResultInput {
 
 interface TieBreakDecision {
   targetPlayerIds: string[];
-  reason: "slowest_tie" | "phase3_boundary_tie";
+  reason: "slowest_tie" | "phase3_boundary_tie" | "phase3_reset_elimination_tie";
 }
 
 function detectTieBreakRequired(
   phase: "phase1" | "phase2" | "phase3",
-  courseResults: CourseResult[]
+  courseResults: CourseResult[],
+  activePlayers: TTEntry[] = []
 ): TieBreakDecision | null {
   if (courseResults.length < 2) return null;
 
   if (phase === "phase1" || phase === "phase2") {
+    const config = PHASE_CONFIG[phase];
+    if (activePlayers.length > 0 && activePlayers.length <= config.survivorsNeeded) {
+      return null;
+    }
     const maxTime = Math.max(...courseResults.map((result) => result.timeMs));
     const tiedSlowest = courseResults.filter((result) => result.timeMs === maxTime);
     return tiedSlowest.length > 1
@@ -889,6 +916,28 @@ function detectTieBreakRequired(
   const sorted = [...courseResults].sort((a, b) => a.timeMs - b.timeMs);
   const halfwayPoint = Math.ceil(sorted.length / 2);
   if (halfwayPoint <= 0 || halfwayPoint >= sorted.length) return null;
+  const bottomHalf = sorted.slice(halfwayPoint);
+
+  const eliminationLimit = getPhase3EliminationLimit(activePlayers.length || sorted.length);
+  if (Number.isFinite(eliminationLimit)) {
+    const currentLivesByPlayer = new Map(activePlayers.map((entry) => [entry.playerId, entry.lives]));
+    const eliminationCandidates = bottomHalf
+      .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0)
+      .sort((a, b) => b.timeMs - a.timeMs);
+    if (eliminationCandidates.length > eliminationLimit) {
+      const lastEliminated = eliminationCandidates[eliminationLimit - 1];
+      const firstSaved = eliminationCandidates[eliminationLimit];
+      if (lastEliminated?.timeMs === firstSaved?.timeMs) {
+        const boundaryTime = lastEliminated.timeMs;
+        return {
+          targetPlayerIds: eliminationCandidates
+            .filter((result) => result.timeMs === boundaryTime)
+            .map((result) => result.playerId),
+          reason: "phase3_reset_elimination_tie",
+        };
+      }
+    }
+  }
 
   const boundarySafe = sorted[halfwayPoint - 1];
   const boundaryUnsafe = sorted[halfwayPoint];
@@ -942,7 +991,9 @@ function getSuddenDeathContinuationTargets(
   const safeSuddenTime = suddenByPlayer.get(safeBoundary.playerId);
   const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
   if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
-    return [];
+    const slowestSuddenTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
+    const stillTiedForElimination = suddenDeathResults.filter((result) => result.timeMs === slowestSuddenTime);
+    return stillTiedForElimination.length > 1 ? stillTiedForElimination.map((result) => result.playerId) : [];
   }
 
   return suddenDeathResults
@@ -1257,7 +1308,7 @@ export async function submitRoundResults(
   let eliminatedIds: string[] = [];
   let livesReset = false;
 
-  const tieBreak = detectTieBreakRequired(phase, processedResults);
+  const tieBreak = detectTieBreakRequired(phase, processedResults, activePlayers);
   if (tieBreak) {
     await prisma.tTPhaseRound.update({
       where: { id: round.id },
