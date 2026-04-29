@@ -346,7 +346,7 @@ async function runTc837(adminPage) {
       .innerText({ timeout: 15000 })
       .catch(() => '');
     const expectedP1Count = TA_COURSES.length - 1;
-    const expectedP2Count = 1;
+    const expectedP2Count = TA_COURSES.length - expectedP1Count;
     const valueOk =
       p1CellText.trim() === String(expectedP1Count) &&
       p2CellText.trim() === String(expectedP2Count);
