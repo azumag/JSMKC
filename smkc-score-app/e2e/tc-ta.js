@@ -345,11 +345,15 @@ async function runTc837(adminPage) {
       .locator(`[data-testid="ta-first-place-count-${p2.entryId}"]`)
       .innerText({ timeout: 15000 })
       .catch(() => '');
-    const valueOk = p1CellText.trim() === '19' && p2CellText.trim() === '1';
+    const expectedP1Count = TA_COURSES.length - 1;
+    const expectedP2Count = 1;
+    const valueOk =
+      p1CellText.trim() === String(expectedP1Count) &&
+      p2CellText.trim() === String(expectedP2Count);
 
     log('TC-837', headerVisible && valueOk ? 'PASS' : 'FAIL',
       !headerVisible ? 'Nb #1 header not visible'
-      : !valueOk ? `Nb #1 cells expected ${p1.nickname}=19 ${p2.nickname}=1 actual=${p1CellText || 'missing'}/${p2CellText || 'missing'}`
+      : !valueOk ? `Nb #1 cells expected ${p1.nickname}=${expectedP1Count} ${p2.nickname}=${expectedP2Count} actual=${p1CellText || 'missing'}/${p2CellText || 'missing'}`
       : '');
   } catch (err) {
     log('TC-837', 'FAIL', err instanceof Error ? err.message : 'TA Nb #1 standings failed');
