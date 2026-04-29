@@ -267,6 +267,8 @@ function getChromiumLaunchConfig() {
   const config = {
     args: getChromiumArgs(),
     env,
+    executablePath: undefined,
+    channel: undefined,
   };
 
   if (executablePath) {

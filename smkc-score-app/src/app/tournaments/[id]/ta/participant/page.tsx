@@ -38,6 +38,7 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
+import { TA_TIME_ENTRY_CUP_GRID_CLASS } from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -565,7 +566,7 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Partner Time Input Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
                         {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                           <Card key={cup}>
                             <CardHeader className="py-3">
@@ -658,7 +659,7 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Time Input Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
                         {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                           <Card key={cup}>
                             <CardHeader className="py-3">

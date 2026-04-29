@@ -17,11 +17,12 @@
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
  *           are re-compacted (no gaps) after removing one entrant (#710).
+ *   TC-839  TA qualification time-entry dialog stacks cup cards on mobile.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
  *   - Admin Discord OAuth session must already be established in that profile.
- *   - TC-801/802/804/805/806/807/808 reuse the shared 28-player /
+ *   - TC-801/802/804/805/806/807/808/839 reuse the shared 28-player /
  *     normal-tournament fixture and reset the TA qualification state in
  *     beforeAll via setupTaEntriesFromShared.
  *   - TC-809/810/811 provision isolated tournaments because their round/freeze
@@ -228,6 +229,56 @@ async function runTc802(adminPage) {
       persisted ? observed : `submitted time not persisted (observed: ${observed || 'empty'})`);
   } catch (err) {
     log('TC-802', 'FAIL', err instanceof Error ? err.message : 'TA 802 failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/* ───────── TC-839: TA qualification time-entry mobile cup layout (#839) ───────── */
+async function runTc839(adminPage) {
+  let playerBrowser = null;
+
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [player] = sharedTaPlayers(1);
+
+    const ctx = await loginSharedPlayer(adminPage, player);
+    playerBrowser = ctx.browser;
+    await ctx.page.setViewportSize({ width: 375, height: 812 });
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
+
+    const timesTab = ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ });
+    await timesTab.first().click();
+    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+
+    const dialog = ctx.page.getByRole('dialog').filter({
+      has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid"]'),
+    }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const grid = dialog.locator('[data-testid="ta-time-entry-cup-grid"]').first();
+    const cards = grid.locator('[data-testid="ta-time-entry-cup-card"]');
+    const cardCount = await cards.count();
+    if (cardCount !== 4) throw new Error(`expected 4 cup cards, got ${cardCount}`);
+
+    const boxes = [];
+    for (let i = 0; i < cardCount; i++) {
+      const box = await cards.nth(i).boundingBox();
+      if (!box) throw new Error(`cup card ${i + 1} has no bounding box`);
+      boxes.push(box);
+    }
+
+    const stacked = boxes.every((box, index) => index === 0 || box.y > boxes[index - 1].y + 1);
+    const firstInput = await dialog.locator('input[placeholder="M:SS.mm"]').first().boundingBox();
+    const inputWideEnough = Boolean(firstInput && firstInput.width >= 150);
+
+    log('TC-839', stacked && inputWideEnough ? 'PASS' : 'FAIL',
+      stacked && inputWideEnough
+        ? `inputWidth=${Math.round(firstInput.width)}`
+        : `stacked=${stacked} inputWidth=${firstInput ? Math.round(firstInput.width) : 'none'}`);
+  } catch (err) {
+    log('TC-839', 'FAIL', err instanceof Error ? err.message : 'TA mobile time-entry layout failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
   }
@@ -1093,11 +1144,13 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     },
     /* Ordering note: TC-805 must run before TC-804 because phase1 promotion
      * freezes the qualification stage and disables the Setup Players dialog.
-     * TC-804 → 806 → 807 → 808 chain on the same tournament. TC-809/810/811
-     * use isolated tournaments, so they can run before the shared phase chain. */
+     * TC-804 → 806 → 807 → 808 chain on the same tournament. TC-839 only
+     * inspects layout, and TC-809/810/811 use isolated tournaments, so they
+     * can run before the shared phase chain. */
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-802', fn: runTc802 },
+      { name: 'TC-839', fn: runTc839 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-809', fn: runTc809 },
       { name: 'TC-810', fn: runTc810 },
@@ -1115,7 +1168,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 }
 
 module.exports = {
-  runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
+  runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc812, runTc813, runTc814, runTc815,
   getSuite,
   results,
