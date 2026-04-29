@@ -273,10 +273,34 @@ async function runTc839(adminPage) {
     const firstInput = await dialog.locator('input[placeholder="M:SS.mm"]').first().boundingBox();
     const inputWideEnough = Boolean(firstInput && firstInput.width >= 150);
 
-    log('TC-839', stacked && inputWideEnough ? 'PASS' : 'FAIL',
-      stacked && inputWideEnough
-        ? `inputWidth=${Math.round(firstInput.width)}`
-        : `stacked=${stacked} inputWidth=${firstInput ? Math.round(firstInput.width) : 'none'}`);
+    if (!stacked || !inputWideEnough) {
+      throw new Error(`edit layout stacked=${stacked} inputWidth=${firstInput ? Math.round(firstInput.width) : 'none'}`);
+    }
+    await dialog.getByRole('button', { name: /^(Cancel|キャンセル)$/ }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+
+    const otherRow = ctx.page.getByRole('row').filter({ hasNotText: player.nickname }).filter({
+      has: ctx.page.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }),
+    }).first();
+    await otherRow.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }).click();
+
+    const viewDialog = ctx.page.getByRole('dialog').filter({
+      has: ctx.page.locator('[data-testid="ta-time-entry-cup-grid-readonly"]'),
+    }).first();
+    await viewDialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const readonlyCards = viewDialog.locator('[data-testid="ta-time-entry-cup-card-readonly"]');
+    const readonlyBoxes = [];
+    for (let i = 0; i < await readonlyCards.count(); i++) {
+      const box = await readonlyCards.nth(i).boundingBox();
+      if (!box) throw new Error(`readonly cup card ${i + 1} has no bounding box`);
+      readonlyBoxes.push(box);
+    }
+    const readonlyStacked = readonlyBoxes.length === 4 &&
+      readonlyBoxes.every((box, index) => index === 0 || box.y > readonlyBoxes[index - 1].y + 1);
+    if (!readonlyStacked) throw new Error('readonly cup cards are not stacked on mobile');
+
+    log('TC-839', 'PASS', `editInputWidth=${Math.round(firstInput.width)} readonlyCards=${readonlyBoxes.length}`);
   } catch (err) {
     log('TC-839', 'FAIL', err instanceof Error ? err.message : 'TA mobile time-entry layout failed');
   } finally {
