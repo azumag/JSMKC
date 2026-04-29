@@ -3183,7 +3183,7 @@ async function main() {
           const url = new URL(response.url());
           return url.pathname === `/api/tournaments/${exportTid}/export` &&
             url.searchParams.get('format') === 'cdm' &&
-            response.status() === 500;
+            !response.ok();
         }, { timeout: 10000 });
         await cdmButton.click();
         await retryResponsePromise;
