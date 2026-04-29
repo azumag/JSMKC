@@ -317,6 +317,15 @@ export default function TournamentLayout({
                   tournamentName={tournament.name}
                 />
               )}
+              {isAdmin && (
+                <ExportButton
+                  tournamentId={id}
+                  tournamentName={tournament.name}
+                  format="cdm"
+                >
+                  CDM Export
+                </ExportButton>
+              )}
               <Button variant="outline" asChild>
                 <Link href="/tournaments">← {t("backToList")}</Link>
               </Button>

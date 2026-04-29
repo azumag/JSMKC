@@ -40,6 +40,7 @@ const logger = createLogger({ serviceName: 'export-button' });
 interface ExportButtonProps {
   tournamentId: string;
   tournamentName?: string;
+  format?: "csv" | "cdm";
   children?: React.ReactNode;
   variant?: "default" | "outline" | "ghost" | "secondary" | "destructive";
   size?: "default" | "sm" | "lg";
@@ -64,6 +65,7 @@ interface ExportButtonProps {
 export function ExportButton({
   tournamentId,
   tournamentName = "tournament",
+  format = "csv",
   children,
   variant = "outline",
   size = "sm",
@@ -77,7 +79,8 @@ export function ExportButton({
    */
   const handleExport = async () => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/export`);
+      const query = format === "cdm" ? "?format=cdm" : "";
+      const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
 
       if (!response.ok) {
         throw new Error("Failed to export tournament");
@@ -98,7 +101,8 @@ export function ExportButton({
        * If absent, fall back to a sanitized tournament-name based filename.
        */
       const contentDisposition = response.headers.get("content-disposition");
-      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.csv`;
+      const extension = format === "cdm" ? "xlsm" : "csv";
+      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.${extension}`;
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);

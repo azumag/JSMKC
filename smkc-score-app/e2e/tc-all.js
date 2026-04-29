@@ -2990,6 +2990,51 @@ async function main() {
     }
   }
 
+  // TC-358: CDM export API returns a downloadable XLSM for authenticated admins
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      try {
+        const resp = await page.evaluate(async (url) => {
+          const sessionResp = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
+          const sessionBody = await sessionResp.json().catch(() => ({}));
+          const r = await fetch(url, { credentials: 'same-origin' });
+          const buf = await r.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          return {
+            status: r.status,
+            authenticated: sessionBody?.data?.authenticated === true,
+            contentType: r.headers.get('content-type'),
+            disposition: r.headers.get('content-disposition'),
+            length: bytes.length,
+            signature: [bytes[0], bytes[1], bytes[2], bytes[3]],
+          };
+        }, `${BASE}/api/tournaments/${exportTid}/export?format=cdm`);
+
+        const contentType = (resp.contentType || '').toLowerCase();
+        const disposition = resp.disposition || '';
+        const isXlsm = contentType.includes('application/vnd.ms-excel.sheet.macroenabled.12');
+        const hasXlsmAttachment = disposition.includes('attachment') && /\.xlsm(?:[";]|$)/i.test(disposition);
+        const hasBody = resp.length > 1000;
+        const hasZipSignature = resp.signature[0] === 0x50 && resp.signature[1] === 0x4B;
+
+        log('TC-358',
+          resp.authenticated && resp.status === 200 && isXlsm && hasXlsmAttachment && hasBody && hasZipSignature ? 'PASS' : 'FAIL',
+          !resp.authenticated ? 'No authenticated admin session'
+          : resp.status !== 200 ? `HTTP ${resp.status}`
+          : !isXlsm ? `content-type: ${resp.contentType}`
+          : !hasXlsmAttachment ? `content-disposition: ${resp.disposition}`
+          : !hasBody ? `workbook too small: ${resp.length} bytes`
+          : !hasZipSignature ? `unexpected XLSM signature: ${resp.signature.join(',')}`
+          : '');
+      } catch (err) {
+        log('TC-358', 'FAIL', err instanceof Error ? err.message : 'CDM export API test failed');
+      }
+    } else {
+      log('TC-358', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
   {
     const statsPid = sharedFixture?.playerIds?.[0];
