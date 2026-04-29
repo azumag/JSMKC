@@ -25,6 +25,41 @@ import { useState } from "react";
  */
 const logger = createLogger({ serviceName: 'export-button' });
 
+class ExportRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, detail?: string) {
+    const suffix = detail ? `: ${detail}` : '';
+    super(`HTTP ${status}${suffix}`);
+    this.name = 'ExportRequestError';
+    this.status = status;
+  }
+}
+
+function buildExportErrorMessage(
+  error: unknown,
+  t: ReturnType<typeof useTranslations>,
+): string {
+  const baseMessage = t("exportFailed");
+
+  if (error instanceof ExportRequestError) {
+    const statusMessage = error.status === 401 || error.status === 403
+      ? t("exportFailedForbidden")
+      : t("exportFailedHttpStatus", { status: error.status });
+    return `${baseMessage}: ${statusMessage}`;
+  }
+
+  if (error instanceof TypeError) {
+    return `${baseMessage}: ${t("exportFailedNetwork")}`;
+  }
+
+  if (error instanceof Error && error.message) {
+    return `${baseMessage}: ${error.message}`;
+  }
+
+  return baseMessage;
+}
+
 /**
  * Props for the ExportButton component.
  *
@@ -86,7 +121,8 @@ export function ExportButton({
       const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
 
       if (!response.ok) {
-        throw new Error("Failed to export tournament");
+        const detail = await response.text().catch(() => '');
+        throw new ExportRequestError(response.status, detail.trim().slice(0, 160));
       }
 
       /** Convert the response to a binary blob for download */
@@ -132,7 +168,7 @@ export function ExportButton({
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error("Export failed", metadata);
-      setErrorMessage(t("exportFailed"));
+      setErrorMessage(buildExportErrorMessage(error, t));
     }
   };
 
