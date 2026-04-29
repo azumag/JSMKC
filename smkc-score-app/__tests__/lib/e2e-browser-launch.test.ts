@@ -62,6 +62,16 @@ describe('E2E browser launch helpers', () => {
     expect(env.PLAYWRIGHT_SKIP_BROWSER_GC).toBe('1');
   });
 
+  it('uses explicit Playwright browsers path env when provided', () => {
+    process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
+    process.env.PLAYWRIGHT_BROWSERS_PATH = '/tmp/jsmkc-explicit-browsers';
+
+    const env = common.createPlaywrightBrowserInstallEnv();
+
+    expect(common.resolvePlaywrightBrowsersPath()).toBe('/tmp/jsmkc-explicit-browsers');
+    expect(env.PLAYWRIGHT_BROWSERS_PATH).toBe('/tmp/jsmkc-explicit-browsers');
+  });
+
   it('syncs Playwright browser cache into process.env during explicit runtime initialization', () => {
     process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
 

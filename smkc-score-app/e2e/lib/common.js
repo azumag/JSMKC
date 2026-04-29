@@ -213,13 +213,13 @@ function resolveE2EBrowserHome() {
   return process.env.E2E_BROWSER_HOME || DEFAULT_E2E_BROWSER_HOME;
 }
 
-function resolvePlaywrightBrowsersPath(baseHome = resolveE2EBrowserHome()) {
-  return process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(baseHome, 'ms-playwright');
+function resolvePlaywrightBrowsersPath() {
+  return process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(resolveE2EBrowserHome(), 'ms-playwright');
 }
 
 function createPlaywrightBrowserInstallEnv() {
   const browserHome = resolveE2EBrowserHome();
-  const browsersPath = resolvePlaywrightBrowsersPath(browserHome);
+  const browsersPath = resolvePlaywrightBrowsersPath();
   fs.mkdirSync(browserHome, { recursive: true });
   fs.mkdirSync(browsersPath, { recursive: true });
   return {
