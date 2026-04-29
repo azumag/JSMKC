@@ -16,7 +16,7 @@
  * The CSV uses UTF-8 BOM encoding for proper display in Excel and
  * other spreadsheet applications, especially for Japanese characters.
  *
- * Access: Public (no authentication required)
+ * Access: CSV is public; CDM workbook export requires an admin session.
  * Response: CSV file download
  */
 import { NextResponse } from "next/server";
@@ -26,8 +26,9 @@ import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
-import { createErrorResponse } from "@/lib/error-handling";
+import { createErrorResponse, handleAuthError, handleAuthzError } from "@/lib/error-handling";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+import { auth } from "@/lib/auth";
 
 const CDM_TEMPLATE_PATH = "/templates/cdm-2025-template.xlsm";
 
@@ -173,19 +174,25 @@ function sortQualifications<T extends ModeQualification>(items: T[]): T[] {
 
 async function loadCDMTemplate(request: Request): Promise<
   | { ok: true; buffer: ArrayBuffer }
-  | { ok: false; status: number; source: string }
+  | { ok: false; status: number; source: string; error?: unknown }
 > {
+  let assets: { fetch?: (input: URL) => Promise<Response> } | undefined;
   try {
-    const assets = getCloudflareContext().env.ASSETS;
-    if (assets?.fetch) {
+    assets = getCloudflareContext().env.ASSETS;
+  } catch {
+    // Outside the Cloudflare runtime, fall back to the public asset URL below.
+  }
+
+  if (assets?.fetch) {
+    try {
       const response = await assets.fetch(new URL(CDM_TEMPLATE_PATH, "https://assets.local"));
       if (response.ok) {
         return { ok: true, buffer: await response.arrayBuffer() };
       }
       return { ok: false, status: response.status, source: "ASSETS" };
+    } catch (error) {
+      return { ok: false, status: 500, source: "ASSETS", error };
     }
-  } catch {
-    // Outside the Cloudflare runtime, fall back to the public asset URL below.
   }
 
   const response = await fetch(new URL(CDM_TEMPLATE_PATH, request.url));
@@ -574,6 +581,16 @@ export async function GET(
   const exportFormat = new URL(request.url).searchParams.get("format");
 
   try {
+    if (exportFormat === "cdm") {
+      const session = await auth();
+      if (!session?.user) {
+        return handleAuthError();
+      }
+      if (session.user.role !== "admin") {
+        return handleAuthzError("Admin access required");
+      }
+    }
+
     // Fetch tournament with ALL related data across all match types.
     // This is a heavy query but is acceptable for an export operation
     // that is called infrequently (typically once after a tournament ends).
@@ -602,6 +619,7 @@ export async function GET(
         logger.error("Failed to load CDM export template", {
           source: template.source,
           status: template.status,
+          ...(template.error !== undefined && { error: template.error }),
           tournamentId,
         });
         return createErrorResponse("Failed to load CDM export template", 500);

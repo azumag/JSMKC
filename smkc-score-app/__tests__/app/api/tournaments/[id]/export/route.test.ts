@@ -22,6 +22,7 @@
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/excel', () => ({ formatDate: jest.fn(() => '2024-01-15'), formatTime: jest.fn(() => '1:23.456') }));
+jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 jest.mock('@e965/xlsx', () => ({
   read: jest.fn(() => ({
     Sheets: {
@@ -39,7 +40,7 @@ jest.mock('@e965/xlsx', () => ({
     Workbook: {},
   })),
   write: jest.fn(() => Buffer.from('xlsm-data')),
-}));
+}), { virtual: true });
 /*
  * NextResponse is used as both a constructor (new NextResponse(csvContent, options))
  * for success CSV responses, and via its static .json() method for error/404 responses.
@@ -62,6 +63,7 @@ import prisma from '@/lib/prisma';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createLogger } from '@/lib/logger';
 import { formatDate, formatTime } from '@/lib/excel';
+import { auth } from '@/lib/auth';
 import { GET } from '@/app/api/tournaments/[id]/export/route';
 import { NextResponse } from 'next/server';
 import * as XLSX from '@e965/xlsx';
@@ -81,6 +83,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock | undefined) = undefined;
     (getCloudflareContext as jest.Mock).mockReturnValue({ env: { DB: {} } });
+    (auth as jest.Mock).mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     /* Re-configure NextResponse constructor and json after clearAllMocks */
     (NextResponse as unknown as jest.Mock).mockImplementation((body: string, options?: any) => ({
@@ -220,6 +223,107 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.headers['Content-Type']).toBe('application/vnd.ms-excel.sheet.macroEnabled.12');
       expect(result.headers['Content-Disposition']).toContain('.xlsm');
+    });
+
+    it('should return 401 when CDM export is requested without authentication', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.data).toEqual(expect.objectContaining({
+        success: false,
+        error: 'Authentication required',
+        code: 'UNAUTHORIZED',
+      }));
+      expect(result.status).toBe(401);
+      expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when the CDM template self-fetch fails', async () => {
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Tournament',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.data).toEqual(expect.objectContaining({
+        success: false,
+        error: 'Failed to load CDM export template',
+      }));
+      expect(result.status).toBe(500);
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
+        source: 'fetch',
+        status: 404,
+        tournamentId: 't1',
+      });
+      expect(XLSX.read).not.toHaveBeenCalled();
+    });
+
+    it('should return 500 when ASSETS.fetch throws during CDM template loading', async () => {
+      const mockTournament = {
+        id: 't1',
+        name: 'CDM Tournament',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+      const fetchError = new Error('ASSETS unavailable');
+      const assetFetch = jest.fn().mockRejectedValue(fetchError);
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      (getCloudflareContext as jest.Mock).mockReturnValue({
+        env: { DB: {}, ASSETS: { fetch: assetFetch } },
+      });
+      global.fetch = jest.fn();
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(assetFetch).toHaveBeenCalledWith(new URL('/templates/cdm-2025-template.xlsm', 'https://assets.local'));
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(result.data).toEqual(expect.objectContaining({
+        success: false,
+        error: 'Failed to load CDM export template',
+      }));
+      expect(result.status).toBe(500);
+      expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
+        source: 'ASSETS',
+        status: 500,
+        error: fetchError,
+        tournamentId: 't1',
+      });
+      expect(XLSX.read).not.toHaveBeenCalled();
     });
 
     it('should not pollute Object.prototype when CDM export receives malicious player names', async () => {

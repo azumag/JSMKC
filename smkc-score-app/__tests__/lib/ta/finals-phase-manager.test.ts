@@ -716,6 +716,43 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
+    it("handles a sudden-death parent round with null results", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase1",
+        phaseRoundId: "round1",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: null,
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase1", "sd1", [
+        { playerId: "p2", timeMs: 88000 },
+        { playerId: "p3", timeMs: 89000 },
+      ]);
+
+      expect(result.eliminatedIds).toEqual(["p3"]);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            resolved: true,
+          }),
+        })
+      );
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { eliminated: true },
+        })
+      );
+    });
+
     it("continues phase1 sudden death with only players still tied for slowest", async () => {
       mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
         id: "sd1",

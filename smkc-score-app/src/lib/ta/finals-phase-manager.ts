@@ -1425,7 +1425,9 @@ export async function submitSuddenDeathResults(
     isRetry: result.isRetry ?? false,
   }));
 
-  const baseResults = suddenDeathRound.phaseRound.results as unknown as CourseResult[];
+  const baseResults = Array.isArray(suddenDeathRound.phaseRound.results)
+    ? (suddenDeathRound.phaseRound.results as unknown as CourseResult[])
+    : [];
   const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
