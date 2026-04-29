@@ -1,13 +1,17 @@
 export const TA_TIME_ENTRY_CUP_GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2";
 
-export const TA_TIME_INPUT_PLACEHOLDER = "123.45";
-
-export const TA_TIME_INPUT_PROPS = {
+export const TA_TIME_INPUT_BASE_PROPS = {
   inputMode: "decimal",
   pattern: "[0-9:.]*",
   autoComplete: "off",
-  title: "Enter 123.45 or 1:23.45",
 } as const;
+
+export function getTaTimeInputProps(title: string) {
+  return {
+    ...TA_TIME_INPUT_BASE_PROPS,
+    title,
+  } as const;
+}
 
 export const TA_FINALS_ROUND_ENTRY_ROW_CLASS =
   "rounded-md border bg-background/60 p-3 space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0 sm:border-0 sm:bg-transparent sm:p-0";

@@ -23,6 +23,7 @@
  *   TC-878  TA qualification TV assignment reflects TV1/TV2 to broadcast.
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
+ *   TC-913  TA time input title/placeholder are localized.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -469,6 +470,38 @@ async function runTc897(adminPage) {
       : '');
   } catch (err) {
     log('TC-897', 'FAIL', err instanceof Error ? err.message : 'TA mobile keyboard input attrs failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/* ───────── TC-913: TA time input title/placeholder are localized ───────── */
+async function runTc913(adminPage) {
+  let playerBrowser = null;
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [player] = sharedTaPlayers(1);
+
+    const ctx = await loginSharedPlayer(adminPage, player);
+    playerBrowser = ctx.browser;
+    await ctx.page.setViewportSize({ width: 375, height: 812 });
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
+    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+
+    const input = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
+    await input.waitFor({ state: 'visible', timeout: 15000 });
+    const title = await input.getAttribute('title');
+    const placeholder = await input.getAttribute('placeholder');
+    const titleLocalized = /^(例: 123\.45 または 1:23\.45|Example: 123\.45 or 1:23\.45)$/.test(title || '');
+
+    log('TC-913', titleLocalized && placeholder === 'M:SS.mm' ? 'PASS' : 'FAIL',
+      !titleLocalized ? `title=${title || 'missing'}`
+      : placeholder !== 'M:SS.mm' ? `placeholder=${placeholder || 'missing'}`
+      : '');
+  } catch (err) {
+    log('TC-913', 'FAIL', err instanceof Error ? err.message : 'TA time input i18n attrs failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
   }
@@ -1386,7 +1419,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
       const selected = new Set(selectedTestNames());
       const needsSharedTaSeed = selected.size === 0 || [
-        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-897',
+        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-897', 'TC-913',
         'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808',
       ].some((name) => selected.has(name));
 
@@ -1422,6 +1455,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-840', fn: runTc840 },
       { name: 'TC-878', fn: runTc878 },
       { name: 'TC-897', fn: runTc897 },
+      { name: 'TC-913', fn: runTc913 },
       { name: 'TC-896', fn: runTc896 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-809', fn: runTc809 },
@@ -1441,7 +1475,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
-  runTc837, runTc840, runTc878, runTc896, runTc897,
+  runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
   runTc812, runTc813, runTc814, runTc815,
   getSuite,
   results,
