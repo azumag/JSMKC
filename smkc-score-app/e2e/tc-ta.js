@@ -38,7 +38,7 @@ const {
   uiCreateTournament, uiCreatePlayer,
   apiDeletePlayer,
   apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiTaParticipantEditTime, loginPlayerBrowser,
-  apiFetchTa, apiFetchTaPhase,
+  apiFetchTa, apiFetchTaPhase, apiPostTaPhase, apiPromoteTaPhase,
   makeTaTimesForRank,
   setupTaQualViaUi,
   escapeRegex,
@@ -875,6 +875,184 @@ async function runTc813(adminPage) {
   }
 }
 
+async function setupIsolatedPhase1SuddenDeath(adminPage, label) {
+  const stamp = Date.now();
+  const players = [];
+  for (let i = 1; i <= 8; i++) {
+    players.push(await uiCreatePlayer(adminPage, `E2E TA SD P1 ${i} ${stamp}`, `e2e_ta_sd_p1_${i}_${stamp}`));
+  }
+  const fixture = await createIsolatedTaQualification(adminPage, label, players, { seedTimes: false });
+  const seeded = await seedTaQualificationRanks(adminPage, fixture.tournamentId, fixture.entries, 17);
+  const promote = await apiPromoteTaPhase(adminPage, fixture.tournamentId, 'promote_phase1');
+  if (promote.s !== 200) throw new Error(`promote_phase1 failed (${promote.s})`);
+  return {
+    ...fixture,
+    seeded,
+    cleanup: async () => {
+      await fixture.cleanup();
+      for (const player of players) await apiDeletePlayer(adminPage, player.id);
+    },
+  };
+}
+
+/* ───────── TC-814: TA Phase1 sudden-death tiebreak ───────── */
+async function runTc814(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `Sudden Death P1 ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase = 'phase1';
+    const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+    if (start.s !== 200) throw new Error(`start_round failed (${start.s})`);
+    const roundNumber = start.b?.data?.roundNumber;
+    const phaseData = await apiFetchTaPhase(adminPage, tournamentId, phase);
+    const entries = phaseData.b?.data?.entries ?? [];
+    if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
+    const results = entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
+    }));
+
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber,
+      results,
+    });
+    const tieData = tied.b?.data ?? {};
+    if (tied.s !== 200 || tieData.tieBreakRequired !== true) {
+      log('TC-814', 'FAIL', `expected tieBreakRequired, got status=${tied.s} body=${JSON.stringify(tied.b).slice(0, 200)}`);
+      return;
+    }
+    const sudden = tieData.suddenDeathRound;
+    const targets = sudden?.targetPlayerIds ?? [];
+    if (!sudden?.id || targets.length !== 2 || !sudden.course) {
+      log('TC-814', 'FAIL', `invalid sudden death payload: ${JSON.stringify(sudden)}`);
+      return;
+    }
+
+    const phaseAfterTie = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const available = (phaseAfterTie.availableCourses ?? []).filter((c) => c !== sudden.course);
+    const changedCourse = available[0];
+    if (!changedCourse) throw new Error('No alternate course available for sudden death change');
+    const change = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'change_sudden_death_course',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      course: changedCourse,
+    });
+    if (change.s !== 200) throw new Error(`change_sudden_death_course failed (${change.s})`);
+
+    const sdSubmit = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: targets[0], timeMs: 90000 },
+        { playerId: targets[1], timeMs: 91000 },
+      ],
+    });
+    if (sdSubmit.s !== 200) throw new Error(`submit_sudden_death failed (${sdSubmit.s}): ${JSON.stringify(sdSubmit.b).slice(0, 200)}`);
+    const finalData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const finalEntries = finalData.entries ?? [];
+    const eliminated = finalEntries.filter((e) => e.eliminated).map((e) => e.playerId);
+    const round = (finalData.rounds ?? []).find((r) => r.roundNumber === roundNumber);
+    const suddenHistory = round?.suddenDeathRounds ?? [];
+    const ok = eliminated.length === 1 && eliminated[0] === targets[1] &&
+      suddenHistory.length === 1 && suddenHistory[0].course === changedCourse && suddenHistory[0].resolved === true;
+    log('TC-814', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `eliminated=${eliminated.join(',')} sudden=${JSON.stringify(suddenHistory)}`);
+  } catch (err) {
+    log('TC-814', 'FAIL', err instanceof Error ? err.message : 'TA phase1 sudden death failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
+/* ───────── TC-815: TA Phase3 boundary sudden-death + retie ───────── */
+async function runTc815(adminPage) {
+  let fixture = null;
+  try {
+    const stamp = Date.now();
+    const players = [];
+    for (let i = 1; i <= 4; i++) {
+      players.push(await uiCreatePlayer(adminPage, `E2E TA SD P3 ${i} ${stamp}`, `e2e_ta_sd_p3_${i}_${stamp}`));
+    }
+    const baseFixture = await createIsolatedTaQualification(adminPage, `Sudden Death P3 ${stamp}`, players, { seedTimes: false });
+    fixture = {
+      ...baseFixture,
+      cleanup: async () => {
+        await baseFixture.cleanup();
+        for (const player of players) await apiDeletePlayer(adminPage, player.id);
+      },
+    };
+    const { tournamentId } = fixture;
+    const seeded = await seedTaQualificationRanks(adminPage, tournamentId, fixture.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+    const phase = 'phase3';
+    const start = await apiPostTaPhase(adminPage, tournamentId, { action: 'start_round', phase });
+    if (start.s !== 200) throw new Error(`start_round phase3 failed (${start.s})`);
+    const roundNumber = start.b?.data?.roundNumber;
+    const phaseData = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data ?? {};
+    const entries = phaseData.entries ?? [];
+    const [p1, p2, p3, p4] = entries;
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase,
+      roundNumber,
+      results: [
+        { playerId: p1.playerId, timeMs: 80000 },
+        { playerId: p2.playerId, timeMs: 90000 },
+        { playerId: p3.playerId, timeMs: 90000 },
+        { playerId: p4.playerId, timeMs: 100000 },
+      ],
+    });
+    const firstSudden = tied.b?.data?.suddenDeathRound;
+    if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true || (firstSudden?.targetPlayerIds ?? []).length !== 2) {
+      log('TC-815', 'FAIL', `expected phase3 boundary sudden death, got ${JSON.stringify(tied.b).slice(0, 220)}`);
+      return;
+    }
+    const retie = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: firstSudden.id,
+      results: [
+        { playerId: p2.playerId, timeMs: 88000 },
+        { playerId: p3.playerId, timeMs: 88000 },
+      ],
+    });
+    const secondSudden = retie.b?.data?.suddenDeathRound;
+    if (retie.s !== 200 || retie.b?.data?.tieBreakRequired !== true || !secondSudden?.id) {
+      log('TC-815', 'FAIL', `expected second sudden death after retie, got ${JSON.stringify(retie.b).slice(0, 220)}`);
+      return;
+    }
+    const resolved = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase,
+      suddenDeathRoundId: secondSudden.id,
+      results: [
+        { playerId: p2.playerId, timeMs: 87000 },
+        { playerId: p3.playerId, timeMs: 89000 },
+      ],
+    });
+    if (resolved.s !== 200 || resolved.b?.data?.tieBreakRequired) {
+      throw new Error(`final sudden death did not resolve (${resolved.s}): ${JSON.stringify(resolved.b).slice(0, 220)}`);
+    }
+    const finalEntries = (await apiFetchTaPhase(adminPage, tournamentId, phase)).b?.data?.entries ?? [];
+    const p3After = finalEntries.find((e) => e.playerId === p3.playerId);
+    const p2After = finalEntries.find((e) => e.playerId === p2.playerId);
+    const p4After = finalEntries.find((e) => e.playerId === p4.playerId);
+    const ok = p2After?.lives === 3 && p3After?.lives === 2 && p4After?.lives === 2;
+    log('TC-815', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `lives p2=${p2After?.lives} p3=${p3After?.lives} p4=${p4After?.lives}`);
+  } catch (err) {
+    log('TC-815', 'FAIL', err instanceof Error ? err.message : 'TA phase3 sudden death failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -930,13 +1108,15 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-808', fn: runTc808 },
       { name: 'TC-812', fn: runTc812 },
       { name: 'TC-813', fn: runTc813 },
+      { name: 'TC-814', fn: runTc814 },
+      { name: 'TC-815', fn: runTc815 },
     ],
   };
 }
 
 module.exports = {
   runTc801, runTc802, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
-  runTc812, runTc813,
+  runTc812, runTc813, runTc814, runTc815,
   getSuite,
   results,
 };
