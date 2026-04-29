@@ -65,6 +65,7 @@ import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from "@/lib/constants";
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
+import { TA_TIME_ENTRY_CUP_GRID_CLASS } from "@/lib/ta/time-entry-layout";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -1407,9 +1408,9 @@ export default function TimeAttackPageClient({
               </div>
             )}
             {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className={TA_TIME_ENTRY_CUP_GRID_CLASS} data-testid="ta-time-entry-cup-grid">
               {CUP_NAMES.map((cup) => (
-                <Card key={cup}>
+                <Card key={cup} data-testid="ta-time-entry-cup-card">
                   <CardHeader className="py-2">
                     <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
                   </CardHeader>
@@ -1486,7 +1487,7 @@ export default function TimeAttackPageClient({
           </DialogHeader>
           <div className="py-4">
             {/* Course times displayed as read-only text, organized by cup */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
               {CUP_NAMES.map((cup) => (
                 <Card key={cup}>
                   <CardHeader className="py-2">
