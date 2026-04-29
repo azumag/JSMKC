@@ -131,6 +131,37 @@ describe('ExportButton', () => {
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
 
+  it('re-enables the button after an HTTP error so the export can be retried', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce(new Response('template missing', { status: 500 }))
+      .mockResolvedValueOnce(new Response('template missing', { status: 500 }));
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+
+    render(
+      <ExportButton tournamentId="tournament-1" tournamentName="Grand Prix" format="cdm">
+        CDM Export
+      </ExportButton>,
+    );
+
+    const button = screen.getByRole('button', { name: /CDM Export/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: Server returned HTTP 500');
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'false');
+    });
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
   it('shows a forbidden export hint when the API returns 403', async () => {
     global.fetch = jest.fn().mockResolvedValue(new Response('Forbidden', { status: 403 }));
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();

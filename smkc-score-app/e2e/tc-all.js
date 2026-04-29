@@ -3153,6 +3153,57 @@ async function main() {
     }
   }
 
+  // TC-361: CDM Export button re-enables after an HTTP error so admins can retry
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      let cdmExportHandler = null;
+      let requestCount = 0;
+      try {
+        await nav(page, `/tournaments/${exportTid}`);
+        cdmExportHandler = async (route) => {
+          requestCount += 1;
+          await route.fulfill({
+            status: 500,
+            contentType: 'text/plain',
+            body: 'template missing',
+          });
+        };
+        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+
+        const cdmButton = page.getByTestId('export-button-cdm');
+        await cdmButton.click();
+        const alert = page.getByRole('alert');
+        await alert.waitFor({ state: 'visible', timeout: 10000 });
+        const firstAlertText = await alert.innerText();
+        const reenabledAfterError = !(await cdmButton.isDisabled());
+        const busyAfterError = await cdmButton.getAttribute('aria-busy') === 'true';
+
+        await cdmButton.click();
+        await page.waitForTimeout(100);
+
+        log('TC-361',
+          firstAlertText.includes('Failed to export tournament') &&
+            reenabledAfterError &&
+            !busyAfterError &&
+            requestCount === 2 ? 'PASS' : 'FAIL',
+          !firstAlertText.includes('Failed to export tournament') ? firstAlertText
+          : !reenabledAfterError ? 'button stayed disabled after export error'
+          : busyAfterError ? 'aria-busy stayed true after export error'
+          : requestCount !== 2 ? `expected retry request count 2, got ${requestCount}`
+          : '');
+      } catch (err) {
+        log('TC-361', 'FAIL', err instanceof Error ? err.message : 'CDM export retry-after-error test failed');
+      } finally {
+        if (cdmExportHandler) {
+          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        }
+      }
+    } else {
+      log('TC-361', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
   {
     const statsPid = sharedFixture?.playerIds?.[0];
