@@ -45,6 +45,7 @@ const {
   escapeRegex,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
+const { assertStackedCardBoxes } = require('./lib/layout-assertions');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -296,9 +297,7 @@ async function runTc839(adminPage) {
       if (!box) throw new Error(`readonly cup card ${i + 1} has no bounding box`);
       readonlyBoxes.push(box);
     }
-    const readonlyStacked = readonlyBoxes.length === 4 &&
-      readonlyBoxes.every((box, index) => index === 0 || box.y > readonlyBoxes[index - 1].y + 1);
-    if (!readonlyStacked) throw new Error('readonly cup cards are not stacked on mobile');
+    assertStackedCardBoxes(readonlyBoxes, 'readonly cup');
 
     log('TC-839', 'PASS', `editInputWidth=${Math.round(firstInput.width)} readonlyCards=${readonlyBoxes.length}`);
   } catch (err) {
