@@ -71,6 +71,43 @@ describe('ExportButton', () => {
     expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:cdm-export');
   });
 
+  it('shows export progress and prevents duplicate clicks while a request is pending', async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    const responsePromise = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    global.fetch = jest.fn(() => responsePromise);
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+
+    render(
+      <ExportButton tournamentId="tournament-1" tournamentName="Grand Prix" format="cdm">
+        CDM Export
+      </ExportButton>,
+    );
+
+    const button = screen.getByRole('button', { name: /CDM Export/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: /Exporting/i })).toBeInTheDocument();
+
+    resolveResponse(new Response(new Blob(['PK\x03\x04 workbook']), {
+      status: 200,
+      headers: {
+        'content-disposition': 'attachment; filename="Grand_Prix-cdm-2026-04-29.xlsm"',
+      },
+    }));
+
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'false');
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('logs and skips download when the export response is not OK', async () => {
     global.fetch = jest.fn().mockResolvedValue(new Response('template missing', { status: 500 }));
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();

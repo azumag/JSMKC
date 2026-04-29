@@ -14,7 +14,7 @@
  */
 
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -109,13 +109,17 @@ export function ExportButton({
 }: ExportButtonProps) {
   const t = useTranslations("common");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   /**
    * Handles the export action: fetches the file, extracts the filename,
    * and triggers a browser download.
    */
   const handleExport = async () => {
+    if (disabled || isExporting) return;
+
     try {
+      setIsExporting(true);
       setErrorMessage(null);
       const query = format === "cdm" ? "?format=cdm" : "";
       const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
@@ -169,8 +173,13 @@ export function ExportButton({
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error("Export failed", metadata);
       setErrorMessage(buildExportErrorMessage(error, t));
+    } finally {
+      setIsExporting(false);
     }
   };
+
+  const isDisabled = disabled || isExporting;
+  const label = isExporting ? t("exporting") : children || t("exportAll");
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
@@ -178,10 +187,16 @@ export function ExportButton({
         onClick={handleExport}
         variant={variant}
         size={size}
-        disabled={disabled}
+        disabled={isDisabled}
+        aria-busy={isExporting}
+        data-testid={`export-button-${format}`}
       >
-        <Download className="w-4 h-4 mr-2" />
-        {children || t("exportAll")}
+        {isExporting ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
+        ) : (
+          <Download className="w-4 h-4 mr-2" aria-hidden="true" />
+        )}
+        {label}
       </Button>
       {errorMessage ? (
         <p role="alert" className="text-sm text-red-600">

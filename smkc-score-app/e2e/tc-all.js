@@ -3091,6 +3091,68 @@ async function main() {
     }
   }
 
+  // TC-360: CDM Export button shows progress and blocks duplicate requests
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      let cdmExportHandler = null;
+      let releaseExport = null;
+      let requestCount = 0;
+      try {
+        await nav(page, `/tournaments/${exportTid}`);
+        const releasePromise = new Promise((resolve) => {
+          releaseExport = resolve;
+        });
+        cdmExportHandler = async (route) => {
+          requestCount += 1;
+          await releasePromise;
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+            headers: {
+              'content-disposition': 'attachment; filename="e2e-cdm-export.xlsm"',
+            },
+            body: 'PK\u0003\u0004 workbook',
+          });
+        };
+        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+
+        const cdmButton = page.getByTestId('export-button-cdm');
+        await cdmButton.click();
+        const loadingVisible = await page.getByRole('button', { name: /Exporting|エクスポート中/i }).isVisible({ timeout: 5000 }).catch(() => false);
+        const isBusy = await cdmButton.getAttribute('aria-busy') === 'true';
+        const isDisabled = await cdmButton.isDisabled();
+        await cdmButton.click({ timeout: 1000 }).catch(() => {});
+        await page.waitForTimeout(250);
+
+        const responsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return url.pathname === `/api/tournaments/${exportTid}/export` &&
+            url.searchParams.get('format') === 'cdm';
+        }, { timeout: 10000 }).catch(() => null);
+        releaseExport();
+        await responsePromise;
+        await page.getByRole('button', { name: /CDM Export/i }).waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
+        log('TC-360',
+          loadingVisible && isBusy && isDisabled && requestCount === 1 ? 'PASS' : 'FAIL',
+          !loadingVisible ? 'Exporting label was not visible'
+          : !isBusy ? 'aria-busy was not true while exporting'
+          : !isDisabled ? 'button was not disabled while exporting'
+          : requestCount !== 1 ? `expected 1 export request, got ${requestCount}`
+          : '');
+      } catch (err) {
+        log('TC-360', 'FAIL', err instanceof Error ? err.message : 'CDM export progress test failed');
+      } finally {
+        if (cdmExportHandler) {
+          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        }
+      }
+    } else {
+      log('TC-360', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
   {
     const statsPid = sharedFixture?.playerIds?.[0];

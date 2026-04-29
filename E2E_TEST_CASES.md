@@ -211,6 +211,18 @@
   4. エラー alert の文言を確認
 - **期待結果**: 汎用エラーだけではなく、Forbidden / セッション切れなど原因を切り分けられるヒントが表示される
 
+## TC-360: CDM Export 進行中表示と連打防止
+- **URL**: /tournaments/[id]
+- **authRequired**: true (admin)
+- **背景**: CDM エクスポートは workbook 生成とダウンロードに時間がかかるため、クリック後に進行中であることを表示し、二重クリックで重複リクエストを送らない。
+- **手順**:
+  1. 管理者で大会詳細ページを開く
+  2. CDM Export API のレスポンスを一時的に遅延させる
+  3. `CDM Export` ボタンをクリック
+  4. API 応答前にボタンの状態とリクエスト数を確認
+- **期待結果**: ボタンが `Exporting...` 表示になり disabled/`aria-busy=true` になる。遅延中に二重クリックしても `/export?format=cdm` リクエストは1回だけ送信される。
+- **スクリプト**: tc-all.js TC-360
+
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
 - **authRequired**: true (admin)
