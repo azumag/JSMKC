@@ -17,6 +17,8 @@
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
  *           are re-compacted (no gaps) after removing one entrant (#710).
+ *   TC-816  TA finals course history carries across phases, including
+ *           sudden-death courses.
  *   TC-837  TA qualification standings show per-course No.1 count (Nb #1).
  *   TC-839  TA qualification time-entry dialog stacks cup cards on mobile.
  *   TC-840  TA partner can edit the paired player's times from the TA list UI.
@@ -117,19 +119,14 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
   for (let i = 0; i < entries.length; i++) {
     const rank = startRank + i;
     const { times, totalMs } = makeTaTimesForRank(rank);
-    /* apiSeedTtEntry triggers recalculateRanks which resets ranks to 1..N
-     * based on relative totalTime. Follow up with apiForceRankOnly to stamp
-     * the desired rank (e.g. 17..24 for Phase 1 promotion tests) without
-     * re-triggering rank recalculation (rank-only PUT skips recalculate). */
     await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, rank);
-    /* recalculateRanks (triggered inside the PUT route when `times` is present)
-     * reorders by actual time values and may derive a different rank than the
-     * requested one when fewer than 24 players are in the tournament. Force the
-     * desired rank with a separate rank-only PUT (no `times` → no recalculate)
-     * so the Finals Phases card sees ranks in the 17–24 range and shows the
-     * "Start Phase 1" button. Must run before uiFreezeTaQualification. */
-    await apiForceRankOnly(adminPage, tournamentId, entries[i].entryId, rank);
     seeded.push({ ...entries[i], rank, times, totalMs });
+  }
+  /* apiSeedTtEntry triggers recalculateRanks across the whole tournament.
+   * Force ranks only after all times are seeded; otherwise the next player's
+   * time PUT rewrites previously forced ranks back to 1..N. */
+  for (const entry of seeded) {
+    await apiForceRankOnly(adminPage, tournamentId, entry.entryId, entry.rank);
   }
   return seeded;
 }
@@ -1403,6 +1400,108 @@ async function runTc815(adminPage) {
   }
 }
 
+/* ───────── TC-816: TA finals course history spans phases + sudden death ───────── */
+async function runTc816(adminPage) {
+  let fixture = null;
+  try {
+    fixture = await setupIsolatedPhase1SuddenDeath(adminPage, `Course History ${Date.now()}`);
+    const { tournamentId } = fixture;
+    const phase1 = 'phase1';
+    const phase2 = 'phase2';
+    const phase1Course = 'KB1';
+    const suddenCourse = 'DP1';
+
+    const start = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'start_round',
+      phase: phase1,
+      course: phase1Course,
+    });
+    if (start.s !== 200) throw new Error(`start_round phase1 failed (${start.s})`);
+
+    const phase1Data = await apiFetchTaPhase(adminPage, tournamentId, phase1);
+    const entries = phase1Data.b?.data?.entries ?? [];
+    if (entries.length !== 8) throw new Error(`phase1 entries=${entries.length}, expected 8`);
+
+    const tied = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_results',
+      phase: phase1,
+      roundNumber: start.b?.data?.roundNumber,
+      results: entries.map((entry, index) => ({
+        playerId: entry.playerId,
+        timeMs: index >= 6 ? 100000 : 80000 + index * 1000,
+      })),
+    });
+    const sudden = tied.b?.data?.suddenDeathRound;
+    const targets = sudden?.targetPlayerIds ?? [];
+    if (tied.s !== 200 || tied.b?.data?.tieBreakRequired !== true || !sudden?.id || targets.length !== 2) {
+      throw new Error(`expected phase1 sudden death, got ${JSON.stringify(tied.b).slice(0, 220)}`);
+    }
+
+    const change = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'change_sudden_death_course',
+      phase: phase1,
+      suddenDeathRoundId: sudden.id,
+      course: suddenCourse,
+    });
+    if (change.s !== 200) throw new Error(`change_sudden_death_course failed (${change.s})`);
+
+    const sdSubmit = await apiPostTaPhase(adminPage, tournamentId, {
+      action: 'submit_sudden_death',
+      phase: phase1,
+      suddenDeathRoundId: sudden.id,
+      results: [
+        { playerId: targets[0], timeMs: 90000 },
+        { playerId: targets[1], timeMs: 91000 },
+      ],
+    });
+    if (sdSubmit.s !== 200) throw new Error(`submit_sudden_death failed (${sdSubmit.s})`);
+
+    /* Finish phase1 (7→4) using explicit non-conflicting courses so phase2 can start. */
+    for (const course of ['MC1', 'GV1', 'BC1']) {
+      const snapshot = await apiFetchTaPhase(adminPage, tournamentId, phase1);
+      const active = (snapshot.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+      if (active.length <= 4) break;
+      const nextRound = await apiPostTaPhase(adminPage, tournamentId, {
+        action: 'start_round',
+        phase: phase1,
+        course,
+      });
+      if (nextRound.s !== 200) throw new Error(`start_round ${course} failed (${nextRound.s})`);
+      const submit = await apiPostTaPhase(adminPage, tournamentId, {
+        action: 'submit_results',
+        phase: phase1,
+        roundNumber: nextRound.b?.data?.roundNumber,
+        results: active.map((entry, index) => ({
+          playerId: entry.playerId,
+          timeMs: 80000 + index * 1000,
+        })),
+      });
+      if (submit.s !== 200 || submit.b?.data?.tieBreakRequired) {
+        throw new Error(`phase1 submit ${course} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 220)}`);
+      }
+    }
+
+    const phase1Done = await apiFetchTaPhase(adminPage, tournamentId, phase1);
+    const survivors = (phase1Done.b?.data?.entries ?? []).filter((entry) => !entry.eliminated);
+    if (survivors.length !== 4) throw new Error(`phase1 survivors=${survivors.length}, expected 4`);
+
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase2');
+    if (promote.s !== 200) throw new Error(`promote_phase2 failed (${promote.s})`);
+    const phase2Data = await apiFetchTaPhase(adminPage, tournamentId, phase2);
+    const available = phase2Data.b?.data?.availableCourses ?? [];
+    const played = phase2Data.b?.data?.playedCourses ?? [];
+    const ok = played.includes(phase1Course) && played.includes(suddenCourse) &&
+      !available.includes(phase1Course) && !available.includes(suddenCourse);
+
+    log('TC-816', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `played=${JSON.stringify(played)} available=${JSON.stringify(available)}`);
+  } catch (err) {
+    log('TC-816', 'FAIL', err instanceof Error ? err.message : 'TA cross-phase course history failed');
+  } finally {
+    if (fixture) await fixture.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -1469,6 +1568,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-813', fn: runTc813 },
       { name: 'TC-814', fn: runTc814 },
       { name: 'TC-815', fn: runTc815 },
+      { name: 'TC-816', fn: runTc816 },
     ],
   };
 }
@@ -1476,7 +1576,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc815,
+  runTc812, runTc813, runTc814, runTc815, runTc816,
   getSuite,
   results,
 };
