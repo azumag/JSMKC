@@ -72,7 +72,7 @@ describe('ExportButton', () => {
   });
 
   it('logs and skips download when the export response is not OK', async () => {
-    global.fetch = jest.fn().mockResolvedValue(new Response(null, { status: 500 }));
+    global.fetch = jest.fn().mockResolvedValue(new Response('template missing', { status: 500 }));
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
 
     render(
@@ -85,11 +85,31 @@ describe('ExportButton', () => {
 
     await waitFor(() => {
       expect(mockLogger.error).toHaveBeenCalledWith('Export failed', expect.objectContaining({
-        message: 'Failed to export tournament',
+        message: 'HTTP 500: template missing',
       }));
     });
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament');
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: Server returned HTTP 500');
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('shows a forbidden export hint when the API returns 403', async () => {
+    global.fetch = jest.fn().mockResolvedValue(new Response('Forbidden', { status: 403 }));
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+
+    render(
+      <ExportButton tournamentId="tournament-1" tournamentName="Grand Prix" format="cdm">
+        CDM Export
+      </ExportButton>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /CDM Export/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: Forbidden or session expired');
+    });
+
     expect(clickSpy).not.toHaveBeenCalled();
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
@@ -112,7 +132,27 @@ describe('ExportButton', () => {
       }));
     });
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament');
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: network down');
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('shows a network export hint when fetch fails before a response arrives', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+
+    render(
+      <ExportButton tournamentId="tournament-1" tournamentName="Grand Prix" format="cdm">
+        CDM Export
+      </ExportButton>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /CDM Export/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: Network error while contacting the export API');
+    });
+
     expect(clickSpy).not.toHaveBeenCalled();
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });

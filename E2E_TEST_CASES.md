@@ -201,6 +201,16 @@
   4. `/players` ページを開き、プレイヤー数が既定 limit (50) を超える場合にページャー UI が出ること
 - **期待結果**: ページネーションが API/UI 双方で機能し、limit クランプが効いている
 
+## TC-109: CDM Export 失敗時の原因ヒント表示
+- **URL**: /tournaments/[id]
+- **authRequired**: true (admin)
+- **手順**:
+  1. トーナメント詳細ページにアクセス
+  2. CDM Export API が 403 を返す状態を作る
+  3. CDM Export ボタンをクリック
+  4. エラー alert の文言を確認
+- **期待結果**: 汎用エラーだけではなく、Forbidden / セッション切れなど原因を切り分けられるヒントが表示される
+
 ## TC-201: 各モードページのデータ読み込み確認
 - **URL**: /tournaments/[id]/ta, /bm, /mr, /gp
 - **authRequired**: true (admin)

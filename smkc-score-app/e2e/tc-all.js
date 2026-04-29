@@ -3067,6 +3067,43 @@ async function main() {
     }
   }
 
+  // TC-359: CDM Export button surfaces an actionable HTTP error hint
+  {
+    const exportTid = sharedFixture?.tournamentId ?? TID;
+    if (exportTid) {
+      let cdmExportHandler = null;
+      try {
+        await nav(page, `/tournaments/${exportTid}`);
+        cdmExportHandler = async (route) => {
+          await route.fulfill({
+            status: 403,
+            contentType: 'text/plain',
+            body: 'Forbidden',
+          });
+        };
+        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+
+        await page.getByRole('button', { name: /CDM Export/i }).click();
+        const alert = page.getByRole('alert');
+        await alert.waitFor({ state: 'visible', timeout: 10000 });
+        const alertText = await alert.innerText();
+
+        log('TC-359',
+          alertText.includes('Failed to export tournament') &&
+            (alertText.includes('Forbidden') || alertText.includes('session expired') || alertText.includes('権限')) ? 'PASS' : 'FAIL',
+          alertText);
+      } catch (err) {
+        log('TC-359', 'FAIL', err instanceof Error ? err.message : 'CDM export error hint test failed');
+      } finally {
+        if (cdmExportHandler) {
+          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        }
+      }
+    } else {
+      log('TC-359', 'SKIP', 'No tournament ID available');
+    }
+  }
+
   // TC-348: Character stats API — admin gets stats shape, non-admin gets 403
   {
     const statsPid = sharedFixture?.playerIds?.[0];
