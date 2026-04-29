@@ -14,7 +14,7 @@
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
- *   TC-719  GP sudden-death tiebreak in non-grand-final bracket match (issue #604)
+ *   TC-719  GP tied cup extends non-grand-final bracket match
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -29,7 +29,7 @@ const {
   makeResults, makeLog, nav,
   uiCreatePlayer, apiDeletePlayer, apiDeleteTournament, uiCreateTournament,
   apiFetchGp, apiPutGpQualScore,
-  apiSetGpFinalsScore, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
+  apiSetGpFinalsScore, apiSetGpFinalsCupResults, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
   apiUpdateTournament,
   makeRacesP1Wins, makeRacesP2Wins,
   loginPlayerBrowser,
@@ -227,7 +227,7 @@ async function runTc703(adminPage) {
     const qfNick = setup.nicknames[setup.playerIds.indexOf(qfMatches[0].player1Id)];
     const qfRendered = !!qfNick && pageText.includes(qfNick);
 
-    /* GP finals validation: targetWins=3 default. score1=9 (P1 1st in 1 race) >= 3, score2=0 < 3. */
+    /* Legacy raw score path now stores GP finals scores as cup wins. */
     const valid = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 9, 0);
     if (valid.s !== 200) throw new Error(`Score put failed (${valid.s})`);
 
@@ -236,7 +236,7 @@ async function runTc703(adminPage) {
     const winnerTarget = after.find((m) => m.matchNumber === 5);
     const loserTarget = after.find((m) => m.matchNumber === 8);
     const bracketCount = after.length === 17;
-    const scoreSaved = updated?.completed === true && updated.points1 === 9 && updated.points2 === 0;
+    const scoreSaved = updated?.completed === true && updated.points1 === 2 && updated.points2 === 0;
     const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id);
     const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
@@ -332,7 +332,7 @@ async function runTc705(adminPage) {
     const pageText = await adminPage.locator('body').innerText();
     const championShown = pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
-    const m16Ok = m16.completed === true && m16.points1 === 9 && m16.points2 === 0;
+    const m16Ok = m16.completed === true && m16.points1 === 3 && m16.points2 === 0;
 
     log('TC-705', m16Ok && championShown ? 'PASS' : 'FAIL',
       !m16Ok ? 'M16 not completed'
@@ -598,11 +598,9 @@ async function runTc717(adminPage) {
  *
  * Flow:
  *   1. Generate an 8-player finals bracket.
- *   2. Enter full race data for M1 first (sets match.races on the row).
- *   3. Reset with the raw totals (score1=15, score2=12) via the same
- *      endpoint but without cup/races in the body.
- *   4. Fetch back: points1/points2 reflect the manual totals, the stored
- *      cup stays the same as before, and the races array is unchanged. */
+ *   2. Enter two manual cup totals for M1 using cupResults.
+ *   3. Fetch back: points1/points2 are cup wins, cupResults preserves the
+ *      manual driver-point totals for each cup. */
 async function runTc718(adminPage) {
   let setup = null;
   try {
@@ -616,59 +614,24 @@ async function runTc718(adminPage) {
     if (!m1) throw new Error('Match 1 missing');
     if (!m1.cup) throw new Error('Match 1 cup not assigned — normalizer may have failed');
 
-    /* Step 1: seed races via the normal cup+races path. Total = 9 per race
-     * for P1 (1st), 6 for P2 (2nd), summed across 5 races: 45-30. */
-    const raceSeed = await adminPage.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${setup.tournamentId}/gp/finals`,
-      {
-        matchId: m1.id,
-        score1: 45,
-        score2: 30,
-        cup: m1.cup,
-        races: makeRacesP1Wins(m1.cup),
-      },
-    ]);
-    if (raceSeed.s !== 200) throw new Error(`Seed PUT failed (${raceSeed.s})`);
-
-    const afterSeed = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
-    const seeded = afterSeed.find((m) => m.id === m1.id);
-    const hadRaces = Array.isArray(seeded?.races) && seeded.races.length > 0;
-    if (!hadRaces) throw new Error('Seed PUT did not persist races');
-
-    /* Step 2: manual override — PUT without cup/races in the body. */
-    const manual = await adminPage.evaluate(async ([u, body]) => {
-      const r = await fetch(u, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      return { s: r.status, b: await r.json().catch(() => ({})) };
-    }, [
-      `/api/tournaments/${setup.tournamentId}/gp/finals`,
-      { matchId: m1.id, score1: 15, score2: 12 },
+    const manual = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
+      gpCupResult(m1.cup, 45, 30),
+      gpCupResult('Flower', 15, 12),
     ]);
     if (manual.s !== 200) throw new Error(`Manual PUT failed (${manual.s})`);
 
     const afterManual = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const finalMatch = afterManual.find((m) => m.id === m1.id);
-    const totalsUpdated = finalMatch?.points1 === 15 && finalMatch?.points2 === 12;
-    const cupPreserved = finalMatch?.cup === seeded.cup;
-    const racesPreserved =
-      Array.isArray(finalMatch?.races) &&
-      finalMatch.races.length === seeded.races.length;
+    const totalsUpdated = finalMatch?.points1 === 2 && finalMatch?.points2 === 0;
+    const cupResultsPreserved = Array.isArray(finalMatch?.cupResults) &&
+      finalMatch.cupResults.length === 2 &&
+      finalMatch.cupResults[1].points1 === 15 &&
+      finalMatch.cupResults[1].points2 === 12;
 
-    const ok = totalsUpdated && cupPreserved && racesPreserved;
+    const ok = totalsUpdated && cupResultsPreserved;
     log('TC-718', ok ? 'PASS' : 'FAIL',
       !totalsUpdated ? `totals: ${finalMatch?.points1}-${finalMatch?.points2}`
-      : !cupPreserved ? `cup changed: ${seeded.cup} → ${finalMatch?.cup}`
-      : !racesPreserved ? `races lost: ${finalMatch?.races?.length ?? 0}`
+      : !cupResultsPreserved ? `cupResults not preserved: ${finalMatch?.cupResults?.length ?? 0}`
       : '');
   } catch (err) {
     log('TC-718', 'FAIL', err instanceof Error ? err.message : 'GP 718 failed');
@@ -911,9 +874,8 @@ async function runTc710(adminPage) {
   }
 }
 
-/* ───────── TC-712: GP Grand Final sudden-death tiebreak ─────────
- * Validates #538: when the grand final ends in a tie, the admin can select
- * a sudden-death winner and the champion is determined correctly. */
+/* ───────── TC-712: GP Grand Final tied cup extends match ─────────
+ * Grand Final tied cups do not use sudden death; later cups decide the FT3. */
 async function runTc712(adminPage) {
   let setup = null;
   try {
@@ -934,12 +896,16 @@ async function runTc712(adminPage) {
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
-    /* M16 (grand final): tie 5-5 with sudden-death winner = player1. */
     const matchesBefore = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const m16 = matchesBefore.find((m) => m.matchNumber === 16);
     if (!m16 || !m16.player1Id) throw new Error('GF M16 not ready');
-    const sdRes = await apiSetGpFinalsScore(adminPage, tournamentId, m16.id, 5, 5, m16.player1Id);
-    if (sdRes.s !== 200) throw new Error(`M16 sudden-death put failed (${sdRes.s})`);
+    const cupRes = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, [
+      gpCupResult(m16.cup || 'Mushroom', 36, 36),
+      gpCupResult('Flower', 45, 0),
+      gpCupResult('Star', 45, 0),
+      gpCupResult('Special', 45, 0),
+    ]);
+    if (cupRes.s !== 200) throw new Error(`M16 cup-results put failed (${cupRes.s})`);
 
     const matchesAfter = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const m16After = matchesAfter.find((m) => m.matchNumber === 16);
@@ -950,10 +916,15 @@ async function runTc712(adminPage) {
     const pageText = await adminPage.locator('body').innerText();
     const championShown = pageText.includes(championNickname) &&
       (pageText.includes('Champion') || pageText.includes('チャンピオン') || pageText.includes('優勝'));
-    const m16Ok = m16After.completed === true && m16After.suddenDeathWinnerId === expectedChampionId;
+    const m16Ok = m16After.completed === true &&
+      m16After.points1 === 3 &&
+      m16After.points2 === 0 &&
+      Array.isArray(m16After.cupResults) &&
+      m16After.cupResults.length === 4 &&
+      !m16After.suddenDeathWinnerId;
 
     log('TC-712', m16Ok && championShown ? 'PASS' : 'FAIL',
-      !m16Ok ? `M16 sudden-death not persisted (completed=${m16After?.completed}, sdWinner=${m16After?.suddenDeathWinnerId})`
+      !m16Ok ? `M16 tied-cup FT3 not persisted (completed=${m16After?.completed}, score=${m16After?.points1}-${m16After?.points2})`
       : !championShown ? `Champion banner missing nickname ${championNickname}`
       : '');
   } catch (err) {
@@ -1077,17 +1048,14 @@ async function runTc821(adminPage) {
   }
 }
 
-/* ───────── TC-719: GP sudden-death tiebreak in non-grand-final bracket match ─────────
- * Issue #604: Validates that the GP finals API supports sudden-death winner
- * selection for tied driver points in ANY bracket match (not only grand final).
- * When score1 === score2, the PUT must be accompanied by a valid suddenDeathWinnerId.
- * Without it the API must return 400. With it, the match completes and the
- * bracket advances correctly. */
+/* ───────── TC-719: GP tied cup in non-grand-final bracket match ─────────
+ * Tied driver points for a cup do not require sudden death; the match stays
+ * pending until later cups supply enough cup wins for the round FT. */
 async function runTc719(adminPage) {
   let setup = null;
   try {
     setup = await prepareSharedGpFinalsSetup(adminPage);
-    const { tournamentId, playerIds } = setup;
+    const { tournamentId } = setup;
 
     const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -1097,43 +1065,220 @@ async function runTc719(adminPage) {
     const qfMatch = matches.find((m) => m.round === 'winners_qf' && m.player1Id && m.player2Id);
     if (!qfMatch) throw new Error('No ready winners_qf match for TC-719');
 
-    /* Tied score without suddenDeathWinnerId must be rejected. */
-    const noSd = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5);
-    const noSdRejected = noSd.s === 400;
+    const tied = await apiSetGpFinalsCupResults(adminPage, tournamentId, qfMatch.id, [
+      gpCupResult(qfMatch.cup || 'Mushroom', 36, 36),
+      gpCupResult('Flower', 45, 0),
+    ]);
+    const tiedAccepted = tied.s === 200;
+    let after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const qfAfterTie = after.find((m) => m.id === qfMatch.id);
+    const pending = qfAfterTie?.completed === false &&
+      qfAfterTie?.points1 === 1 &&
+      qfAfterTie?.points2 === 0 &&
+      !qfAfterTie?.suddenDeathWinnerId;
+    const notRouted = !after.find(
+      (m) => m.round === 'winners_sf' &&
+        (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
+    );
 
-    /* Tied score with invalid suddenDeathWinnerId must be rejected. */
-    const badSd = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5, 'invalid-id');
-    const badSdRejected = badSd.s === 400;
-
-    /* Tied score with a valid suddenDeathWinnerId must succeed. */
-    const sdRes = await apiSetGpFinalsScore(adminPage, tournamentId, qfMatch.id, 5, 5, qfMatch.player1Id);
-    const sdAccepted = sdRes.s === 200;
-
-    /* Winner must be recorded as the sudden-death winner.
-     * GPMatch schema has no dedicated winnerId column; routing is verified
-     * by checking that the SD winner appears in the next bracket match. */
-    const after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
-    const qfAfter = after.find((m) => m.id === qfMatch.id);
-    const sdPersisted = qfAfter?.completed === true &&
-      qfAfter?.suddenDeathWinnerId === qfMatch.player1Id;
-
-    /* Verify bracket advancement: winners_qf winner must appear in a winners_sf slot. */
+    const complete = await apiSetGpFinalsCupResults(adminPage, tournamentId, qfMatch.id, [
+      gpCupResult(qfMatch.cup || 'Mushroom', 36, 36),
+      gpCupResult('Flower', 45, 0),
+      gpCupResult('Star', 45, 0),
+    ]);
+    const completeAccepted = complete.s === 200;
+    after = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const qfAfterComplete = after.find((m) => m.id === qfMatch.id);
+    const completed = qfAfterComplete?.completed === true &&
+      qfAfterComplete?.points1 === 2 &&
+      qfAfterComplete?.points2 === 0;
     const nextMatch = after.find(
       (m) => m.round === 'winners_sf' &&
         (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
     );
-    const winnerRouted = sdPersisted && !!nextMatch;
+    const winnerRouted = completed && !!nextMatch;
 
-    const ok = noSdRejected && badSdRejected && sdAccepted && winnerRouted;
+    const ok = tiedAccepted && pending && notRouted && completeAccepted && winnerRouted;
     log('TC-719', ok ? 'PASS' : 'FAIL',
-      !noSdRejected ? `Tied score without suddenDeathWinnerId not rejected (${noSd.s})`
-      : !badSdRejected ? `Tied score with invalid suddenDeathWinnerId not rejected (${badSd.s})`
-      : !sdAccepted ? `Tied score with valid suddenDeathWinnerId not accepted (${sdRes.s})`
-      : !sdPersisted ? `SD not persisted (completed=${qfAfter?.completed}, sdWinner=${qfAfter?.suddenDeathWinnerId})`
-      : !winnerRouted ? `SD winner not routed to winners_sf`
+      !tiedAccepted ? `Tied cup not accepted (${tied.s})`
+      : !pending ? `Match not pending after tie completed=${qfAfterTie?.completed} score=${qfAfterTie?.points1}-${qfAfterTie?.points2}`
+      : !notRouted ? 'Winner routed before FT2'
+      : !completeAccepted ? `Completion not accepted (${complete.s})`
+      : !winnerRouted ? `Winner not routed after FT2`
       : '');
   } catch (err) {
     log('TC-719', 'FAIL', err instanceof Error ? err.message : 'GP 719 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+function gpCupResult(cup, points1, points2) {
+  const courses = {
+    Mushroom: ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'],
+    Flower: ['CI1', 'GV2', 'DP2', 'BC2', 'MC3'],
+    Star: ['KB1', 'CI2', 'VL1', 'BC3', 'MC4'],
+    Special: ['DP3', 'KB2', 'GV3', 'VL2', 'RR'],
+  }[cup] || ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'];
+  return {
+    cup,
+    points1,
+    points2,
+    races: courses.map((course) => ({ course, position1: 1, position2: 2, points1: 0, points2: 0 })),
+  };
+}
+
+/* ───────── TC-720: GP finals FT2 requires two cup wins ───────── */
+async function runTc720(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+
+    const oneCup = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
+      gpCupResult(m1.cup || 'Mushroom', 45, 0),
+    ]);
+    if (oneCup.s !== 200) throw new Error(`1-cup PUT failed (${oneCup.s})`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const afterOne = matches.find((m) => m.id === m1.id);
+    const m5AfterOne = matches.find((m) => m.matchNumber === 5);
+    const stillOpen = afterOne?.completed === false && afterOne?.points1 === 1 && afterOne?.points2 === 0;
+    const notRouted = m5AfterOne?.player1Id !== m1.player1Id && m5AfterOne?.player2Id !== m1.player1Id;
+
+    const twoCup = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
+      gpCupResult(m1.cup || 'Mushroom', 45, 0),
+      gpCupResult('Flower', 45, 0),
+    ]);
+    if (twoCup.s !== 200) throw new Error(`2-cup PUT failed (${twoCup.s})`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const afterTwo = matches.find((m) => m.id === m1.id);
+    const m5AfterTwo = matches.find((m) => m.matchNumber === 5);
+    const completed = afterTwo?.completed === true && afterTwo?.points1 === 2 && afterTwo?.points2 === 0;
+    const routed = [m5AfterTwo?.player1Id, m5AfterTwo?.player2Id].includes(m1.player1Id);
+
+    const ok = stillOpen && notRouted && completed && routed;
+    log('TC-720', ok ? 'PASS' : 'FAIL',
+      !stillOpen ? `after one cup completed=${afterOne?.completed} score=${afterOne?.points1}-${afterOne?.points2}`
+      : !notRouted ? 'winner routed before FT2'
+      : !completed ? `after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
+      : !routed ? 'winner not routed after FT2'
+      : '');
+  } catch (err) {
+    log('TC-720', 'FAIL', err instanceof Error ? err.message : 'GP 720 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-721: GP finals tied cups extend to additional cups ───────── */
+async function runTc721(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    let matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+
+    const tiedThenOne = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
+      gpCupResult(m1.cup || 'Mushroom', 36, 36),
+      gpCupResult('Flower', 45, 0),
+    ]);
+    if (tiedThenOne.s !== 200) throw new Error(`tie+one PUT failed (${tiedThenOne.s})`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const afterTwoPlayed = matches.find((m) => m.id === m1.id);
+    const openWithTie = afterTwoPlayed?.completed === false &&
+      afterTwoPlayed?.points1 === 1 && afterTwoPlayed?.points2 === 0 &&
+      Array.isArray(afterTwoPlayed?.cupResults) && afterTwoPlayed.cupResults.length === 2;
+
+    const extended = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
+      gpCupResult(m1.cup || 'Mushroom', 36, 36),
+      gpCupResult('Flower', 45, 0),
+      gpCupResult('Star', 45, 0),
+    ]);
+    if (extended.s !== 200) throw new Error(`extended PUT failed (${extended.s})`);
+
+    matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const afterExtended = matches.find((m) => m.id === m1.id);
+    const completedAfterExtension = afterExtended?.completed === true &&
+      afterExtended?.points1 === 2 && afterExtended?.points2 === 0 &&
+      Array.isArray(afterExtended?.cupResults) && afterExtended.cupResults.length === 3;
+
+    const ok = openWithTie && completedAfterExtension;
+    log('TC-721', ok ? 'PASS' : 'FAIL',
+      !openWithTie ? `tie state wrong completed=${afterTwoPlayed?.completed} score=${afterTwoPlayed?.points1}-${afterTwoPlayed?.points2} cups=${afterTwoPlayed?.cupResults?.length}`
+      : !completedAfterExtension ? `extended state wrong completed=${afterExtended?.completed} score=${afterExtended?.points1}-${afterExtended?.points2} cups=${afterExtended?.cupResults?.length}`
+      : '');
+  } catch (err) {
+    log('TC-721', 'FAIL', err instanceof Error ? err.message : 'GP 721 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-722: GP Grand Final FT3 requires three cup wins ───────── */
+async function runTc722(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const gen = await apiGenerateGpFinals(adminPage, tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    for (let mn = 1; mn <= 15; mn++) {
+      const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+      const match = matches.find((m) => m.matchNumber === mn);
+      if (!match || !match.player1Id || !match.player2Id || match.player1Id === match.player2Id) {
+        throw new Error(`Match ${mn} not ready`);
+      }
+      const res = await apiSetGpFinalsCupResults(adminPage, tournamentId, match.id, [
+        gpCupResult(match.cup || 'Mushroom', 45, 0),
+        gpCupResult('Flower', 45, 0),
+      ]);
+      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+    }
+
+    let matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const m16 = matches.find((m) => m.matchNumber === 16);
+    if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
+
+    const twoCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, [
+      gpCupResult(m16.cup || 'Mushroom', 45, 0),
+      gpCupResult('Flower', 45, 0),
+    ]);
+    if (twoCup.s !== 200) throw new Error(`M16 2-cup PUT failed (${twoCup.s})`);
+    matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const afterTwo = matches.find((m) => m.id === m16.id);
+    const stillOpen = afterTwo?.completed === false && afterTwo?.points1 === 2 && afterTwo?.points2 === 0;
+
+    const threeCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, [
+      gpCupResult(m16.cup || 'Mushroom', 45, 0),
+      gpCupResult('Flower', 45, 0),
+      gpCupResult('Star', 45, 0),
+    ]);
+    if (threeCup.s !== 200) throw new Error(`M16 3-cup PUT failed (${threeCup.s})`);
+    matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const afterThree = matches.find((m) => m.id === m16.id);
+    const completed = afterThree?.completed === true && afterThree?.points1 === 3 && afterThree?.points2 === 0;
+
+    const ok = stillOpen && completed;
+    log('TC-722', ok ? 'PASS' : 'FAIL',
+      !stillOpen ? `M16 after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
+      : !completed ? `M16 after three cups completed=${afterThree?.completed} score=${afterThree?.points1}-${afterThree?.points2}`
+      : '');
+  } catch (err) {
+    log('TC-722', 'FAIL', err instanceof Error ? err.message : 'GP 722 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -1173,6 +1318,9 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-710', fn: runTc710 },
       { name: 'TC-712', fn: runTc712 },
       { name: 'TC-719', fn: runTc719 },
+      { name: 'TC-720', fn: runTc720 },
+      { name: 'TC-721', fn: runTc721 },
+      { name: 'TC-722', fn: runTc722 },
       { name: 'TC-713', fn: runTc713 },
       { name: 'TC-821', fn: runTc821 },
     ],
@@ -1182,7 +1330,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc719, runTc821,
+  runTc715, runTc716, runTc717, runTc718, runTc719,
+  runTc720, runTc721, runTc722, runTc821,
   getSuite,
   results,
 };

@@ -1451,7 +1451,7 @@
 - **手順**:
   1. 28名予選 + 全予選マッチ完了（TC-701同様）
   2. `POST /api/.../gp/finals { topN: 8 }` でブラケット生成（17試合）
-  3. M1 に `{ score1: 9, score2: 0 }` で API PUT → 200 受理（targetWins=3、9 >= 3 XOR 0 < 3）
+  3. M1 に `{ score1: 9, score2: 0 }` で API PUT → 200 受理（互換入力としてP1が対象FT分のカップ勝利を得る）
   4. 勝者→M5、敗者→M8 にルーティングされること
   5. クリーンアップ
 - **期待結果**: 28名予選→上位8名→GP決勝ブラケット生成・スコア入力・進行が正常動作
@@ -1524,6 +1524,44 @@
   4. クリーンアップ
 - **期待結果**: GP 決勝スコア入力は管理者のみ許可、プレイヤーは 403 拒否
 
+## TC-720: GP決勝 — FT2 は2カップ先取で決着
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GP決勝のFTはドライバーズポイント合計ではなく、カップ勝利数の先取数。通常のUpper/Lower序盤ラウンドはFT2。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. M1 に1カップ分だけP1勝利の `cupResults` をPUTする
+  3. M1 は `points1=1, points2=0, completed=false` のままで、M5/M8へルーティングされないこと
+  4. M1 に2カップ分のP1勝利をPUTする
+  5. M1 は `points1=2, points2=0, completed=true` になり、勝者/敗者が次マッチへルーティングされること
+- **期待結果**: GP決勝FT2では1カップ勝利で試合が終わらず、2カップ先取で初めて完了する
+- **スクリプト**: tc-gp.js TC-720
+
+## TC-721: GP決勝 — 同点カップはサドンデスではなく次カップへ進む
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GPではドライバーズポイントが同点のカップは勝敗を付けず、次のカップを行って決着する。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. M1 に1カップ目 `36-36`、2カップ目P1勝利の `cupResults` をPUTする
+  3. サドンデス指定なしで200が返り、M1は `points1=1, points2=0, completed=false`
+  4. 3カップ目P1勝利を追加してPUTする
+  5. M1は `points1=2, points2=0, completed=true` になり、`cupResults` は3件保持されること
+- **期待結果**: 同点カップは誰にもカップ勝利を与えず、必要ならFT数を超えた追加カップで決着する
+- **スクリプト**: tc-gp.js TC-721
+
+## TC-722: GP Grand Final — FT3 は3カップ先取で決着
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT M16)
+- **authRequired**: true (admin)
+- **背景**: GPのUpper決勝/Lower決勝/最終決勝はFT3。Grand Finalも2カップ勝利では未完了で、3カップ先取が必要。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. M1〜M15をFT2で消化してM16 Grand Finalを準備する
+  3. M16に2カップ分のP1勝利をPUTし、`points1=2, completed=false` であることを確認する
+  4. M16に3カップ目P1勝利を追加してPUTし、`points1=3, completed=true` になることを確認する
+- **期待結果**: GP Grand Final はFT3として動作し、3カップ先取でチャンピオンが決まる
+- **スクリプト**: tc-gp.js TC-722
+
 ## TC-717: GP決勝 — 同じラウンドの全試合で同一カップ (PR #585 正規化)
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
@@ -1538,14 +1576,13 @@
 ## TC-718: GP決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)
-- **背景**: 予選ページ同様、決勝の管理者ダイアログでチェックボックスをオンにすると 5レース入力をスキップして driver-points 合計を直接入力できる。body に `cup` / `races` が含まれない場合、保存済みのレース breakdown は温存されなければならない（`putAdditionalFields` が undefined なフィールドをスキップする契約）。
+- **背景**: GP決勝の管理者ダイアログでは、カップごとに5レース入力をスキップして driver-points 合計を直接入力できる。保存値は `cupResults` にカップ単位で保持され、`points1`/`points2` はカップ勝利数になる。
 - **手順**:
   1. 28名予選 + 決勝ブラケット生成
-  2. M1 に通常の `{ matchId, score1, score2, cup, races }` で PUT → races 配列が保存される
-  3. 続けて M1 に `{ matchId, score1: 15, score2: 12 }` のみ（cup/races を**含まない**）で PUT → 200
-  4. `GET` で M1 を再取得し、`points1=15`、`points2=12`、`cup` と `races` は手順 2 で保存した値のまま残っていることを確認
+  2. M1 に2カップ分の手動 `cupResults` をPUT → 200
+  3. `GET` で M1 を再取得し、`points1=2`、`points2=0`、`cupResults[1].points1=15`、`cupResults[1].points2=12` が保持されていることを確認
   5. クリーンアップ
-- **期待結果**: 手動合計スコア PUT で score1/score2 は上書きされ、cup と races はクリアされない
+- **期待結果**: 手動合計スコア PUT でカップ勝利数が更新され、カップごとのドライバーズポイント内訳が保持される
 
 ## TC-710: GP カップ不一致修正の拒否
 - **URL**: /api/tournaments/[temp-id]/gp (PATCH with correction)
@@ -1558,17 +1595,17 @@
   4. クリーンアップ
 - **期待結果**: 修正スコア送信時にカップが一致しない場合は 422 で拒否される
 
-## TC-712: GP 決勝 Grand Final サドンデス タイブレーク
+## TC-712: GP 決勝 Grand Final — 同点カップ後に次カップで決着
 - **URL**: /tournaments/[temp-id]/gp/finals (PUT M16)
 - **authRequired**: true (admin)
-- **背景**: Grand Final で GP ポイントが同点の場合、サドンデス勝者を指定する必要がある
+- **背景**: Grand Final でカップ内のGPポイントが同点の場合、サドンデスではなく次カップを行い、FT3に到達した時点でチャンピオンを確定する
 - **手順**:
   1. 28名予選 + 決勝ブラケット生成
   2. M1〜M15 を API で入力して Grand Final (M16) まで進める
-  3. M16 に同点スコア（score1=score2）で PUT → サドンデス勝者が設定されていなければ 400 が返ること
-  4. `suddenDeathWinner` を含めて再 PUT → 200 が返り、チャンピオンが確定すること
+  3. M16 に同点カップ1つ + P1勝利カップ3つの `cupResults` をPUTする
+  4. `suddenDeathWinnerId` なしで200が返り、`points1=3, points2=0` でチャンピオンが確定すること
   5. クリーンアップ
-- **期待結果**: GP Grand Final 同点時のサドンデス勝者指定が正しく機能する
+- **期待結果**: GP Grand Final の同点カップは次カップ継続で処理され、FT3到達時に決着する
 
 ## TC-713: GP 予選同着解決 — 同順位バーが rankOverride 設定後に消える
 - **URL**: /tournaments/[temp-id]/gp
@@ -1610,14 +1647,14 @@
   5. クリーンアップ
 - **期待結果**: ブラケット生成後は「View Tournament + Reset Bracket」、リセット後は「Generate / Start Playoff」に戻る
 
-## TC-719: GP 決勝 — 非 Grand Final マッチでのサドンデス タイブレーク (issue #604)
-- **背景**: GP の Grand Final 以外のブラケットマッチでも、同点（draws）発生時にサドンデスレースで決着できること
+## TC-719: GP 決勝 — 非 Grand Final マッチの同点カップ継続
+- **背景**: GP の Grand Final 以外のブラケットマッチでも、カップ内同点時はサドンデスではなく次カップへ進むこと
 - **手順**:
   1. 28名予選完了済みフィクスチャで 8名ブラケットを生成する
   2. winners_qf の ready なマッチを取得する
-  3. 引き分け状態（totalScore1 === totalScore2）が生じるようにスコアを PUT する
-  4. GET で `isDraw=true` または `tiebreakApplied=true` が返ること
-- **期待結果**: QF などの非 GF マッチでも同点は正しく処理される
+  3. 同点カップ + P1勝利1カップをPUTし、M1が `points1=1, completed=false` のまま次マッチへ進まないこと
+  4. P1勝利カップをさらに追加し、FT2到達でM1が `points1=2, completed=true` になり次マッチへ進むこと
+- **期待結果**: QF などの非 GF マッチでも同点カップは未決着扱いになり、次カップでFT到達時のみ進行する
 - **スクリプト**: tc-gp.js TC-719
 
 ## TC-820: MR match/[matchId] ページがview-onlyであることを確認

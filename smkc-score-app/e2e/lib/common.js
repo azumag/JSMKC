@@ -611,6 +611,18 @@ async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2, 
   { label: `GP finals PUT ${matchId}` });
 }
 
+async function apiSetGpFinalsCupResults(page, tournamentId, matchId, cupResults, extra = {}) {
+  return withRetry(() => page.evaluate(async ([url, reqBody]) => {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/gp/finals`, { matchId, cupResults, ...extra }]),
+  { label: `GP finals cupResults PUT ${matchId}` });
+}
+
 async function apiGenerateGpFinals(page, tournamentId, topN = 8) {
   return withRetry(() => page.evaluate(async ([url, body]) => {
     const r = await fetch(url, {
@@ -2403,6 +2415,7 @@ module.exports = {
   apiPutGpQualScore,
   apiPutAllGpQualScores,
   apiSetGpFinalsScore,
+  apiSetGpFinalsCupResults,
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
   apiFetchGpFinalsState,
