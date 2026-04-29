@@ -521,10 +521,9 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
           data: { player2Id: 'p9' },
         }),
       );
-      expect(prisma.mRMatch.updateMany).toHaveBeenCalledWith(
+      expect(prisma.mRMatch.updateMany).not.toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { tournamentId: 't1', matchNumber: 16, stage: 'finals' },
-          data: { player2Id: 'p9' },
+          where: expect.objectContaining({ tournamentId: 't1', matchNumber: 16, stage: 'finals' }),
         }),
       );
     });
@@ -731,6 +730,16 @@ describe('MR Finals API Route - /api/tournaments/[id]/mr/finals', () => {
 
       expect(result.status).toBe(200);
       expect(prisma.mRMatch.update).toHaveBeenCalledTimes(3);
+      expect(prisma.mRMatch.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tournamentId: 't1', matchNumber: 5, stage: 'finals' }),
+        }),
+      );
+      expect(prisma.mRMatch.updateMany).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tournamentId: 't1', matchNumber: 8, stage: 'finals' }),
+        }),
+      );
     });
 
     // Edge case - Handles grand final reset scenario

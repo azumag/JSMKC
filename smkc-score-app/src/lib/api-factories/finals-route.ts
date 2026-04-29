@@ -1640,7 +1640,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
             data:
               position === 1 ? { player1Id: winnerId } : { player2Id: winnerId },
           });
-          await updateRoutedMatch(currentBracketMatch.winnerGoesTo, position, winnerId);
         } else {
           await updateRoutedMatch(currentBracketMatch.winnerGoesTo, currentBracketMatch.position || 1, winnerId);
         }
@@ -1679,7 +1678,6 @@ export function createFinalsHandlers(config: FinalsConfig) {
                 ? { player1Id: loserId }
                 : { player2Id: loserId },
           });
-          await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         } else {
           await updateRoutedMatch(currentBracketMatch.loserGoesTo, loserPosition, loserId);
         }
