@@ -1,4 +1,4 @@
-import { assertStackedCardBoxes } from '../../e2e/lib/layout-assertions';
+import { assertStackedCardBoxes } from '../../e2e/lib/layout-assertions.ts';
 
 describe('E2E layout assertions', () => {
   it('accepts stacked card boxes without requiring an exact card count', () => {

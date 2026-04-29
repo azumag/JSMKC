@@ -1,4 +1,8 @@
-function assertStackedCardBoxes(boxes, label) {
+export interface BoundingBox {
+  y: number;
+}
+
+export function assertStackedCardBoxes(boxes: BoundingBox[], label: string): void {
   if (boxes.length < 2) {
     throw new Error(`expected at least 2 ${label} cards, got ${boxes.length}`);
   }
@@ -8,7 +12,3 @@ function assertStackedCardBoxes(boxes, label) {
     throw new Error(`${label} cards are not stacked on mobile`);
   }
 }
-
-module.exports = {
-  assertStackedCardBoxes,
-};
