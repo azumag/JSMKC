@@ -10,6 +10,7 @@
     "test": "SKIP_OPENNEXT_CLOUDFLARE_DEV=1 NODE_ENV=test NODE_OPTIONS='--max-old-space-size=4096' jest",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
+    "e2e:install-browser": "node e2e/install-browser.js",
     "e2e:all": "node e2e/tc-all.js",
     "e2e:cleanup": "node e2e/cleanup.js",
     "e2e:bm": "node e2e/tc-bm.js",

@@ -49,6 +49,7 @@ const {
   uiActivateTournament,
   uiCreatePlayer,
   uiCreateTournament,
+  launchPersistentChromiumContext,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -421,8 +422,7 @@ async function runTc513(adminPage) {
     const matchUrl = `/tournaments/${tournamentId}/bm/match/${match.id}`;
 
     /* 1. Unauthenticated user sees sign-in prompt */
-    const { chromium } = require('playwright');
-    const anonContext = await chromium.launchPersistentContext('/tmp/playwright-smkc-anon', { headless: true });
+    const anonContext = await launchPersistentChromiumContext('/tmp/playwright-smkc-anon', { headless: true });
     const anonPage = await anonContext.newPage();
     await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
     /* 35s: NextAuth sessionStatus stays 'loading' until D1 resolves the session lookup;

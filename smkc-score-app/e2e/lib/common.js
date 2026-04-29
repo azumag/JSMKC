@@ -11,10 +11,26 @@
  *   without needing to know which IDs were created. The closure is also called
  *   internally if setup throws partway through, so partial state never leaks.
  */
-const { chromium } = require('playwright');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
+
+function bootstrapPlaywrightProcessEnv() {
+  const browserHome = process.env.E2E_BROWSER_HOME || DEFAULT_E2E_BROWSER_HOME;
+  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(browserHome, 'ms-playwright');
+  fs.mkdirSync(browserHome, { recursive: true });
+  fs.mkdirSync(browsersPath, { recursive: true });
+  process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+  if (!process.env.PLAYWRIGHT_SKIP_BROWSER_GC) {
+    process.env.PLAYWRIGHT_SKIP_BROWSER_GC = '1';
+  }
+}
+
+bootstrapPlaywrightProcessEnv();
+
+const { chromium } = require('playwright');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const NAV_WAIT_MS = 8000;
@@ -206,6 +222,35 @@ function getChromiumArgs() {
   ];
 }
 
+function resolveE2EBrowserHome() {
+  return process.env.E2E_BROWSER_HOME || DEFAULT_E2E_BROWSER_HOME;
+}
+
+function resolvePlaywrightBrowsersPath(baseHome = resolveE2EBrowserHome()) {
+  return process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(baseHome, 'ms-playwright');
+}
+
+function createPlaywrightBrowserInstallEnv() {
+  const browserHome = resolveE2EBrowserHome();
+  const browsersPath = resolvePlaywrightBrowsersPath(browserHome);
+  fs.mkdirSync(browserHome, { recursive: true });
+  fs.mkdirSync(browsersPath, { recursive: true });
+  return {
+    ...process.env,
+    PLAYWRIGHT_BROWSERS_PATH: browsersPath,
+    /* Prevent Playwright from garbage-collecting the shared cache between
+     * separate automation runs that all rely on the same temp location. */
+    PLAYWRIGHT_SKIP_BROWSER_GC: process.env.PLAYWRIGHT_SKIP_BROWSER_GC || '1',
+  };
+}
+
+function ensurePlaywrightBrowserRuntimeEnv() {
+  const env = createPlaywrightBrowserInstallEnv();
+  process.env.PLAYWRIGHT_BROWSERS_PATH = env.PLAYWRIGHT_BROWSERS_PATH;
+  process.env.PLAYWRIGHT_SKIP_BROWSER_GC = env.PLAYWRIGHT_SKIP_BROWSER_GC;
+  return env;
+}
+
 /* ───────── Browser launch environment setup ───────── */
 /**
  * Create isolated browser environment with crashpad disabled.
@@ -213,18 +258,78 @@ function getChromiumArgs() {
  * This prevents the admin's persistent browser profile from being corrupted.
  */
 function createBrowserLaunchEnv() {
-  const baseHome = process.env.E2E_BROWSER_HOME || path.join(os.tmpdir(), 'playwright-e2e-home');
+  const baseHome = resolveE2EBrowserHome();
   const configHome = path.join(baseHome, '.config');
   const cacheHome = path.join(baseHome, '.cache');
   for (const dir of [baseHome, configHome, cacheHome]) {
     fs.mkdirSync(dir, { recursive: true });
   }
   return {
-    ...process.env,
+    ...ensurePlaywrightBrowserRuntimeEnv(),
     HOME: baseHome,
     XDG_CONFIG_HOME: configHome,
     XDG_CACHE_HOME: cacheHome,
   };
+}
+
+function getChromiumLaunchConfig() {
+  const executablePath = process.env.E2E_EXECUTABLE_PATH?.trim();
+  const channel = process.env.E2E_BROWSER_CHANNEL?.trim();
+  const env = createBrowserLaunchEnv();
+
+  const config = {
+    args: getChromiumArgs(),
+    env,
+  };
+
+  if (executablePath) {
+    config.executablePath = executablePath;
+  } else if (channel) {
+    config.channel = channel;
+  }
+
+  return config;
+}
+
+function addChromiumLaunchHelp(error) {
+  if (!(error instanceof Error)) return error;
+  const msg = error.message || '';
+  if (!msg.includes("Executable doesn't exist")) return error;
+
+  const browsersPath = resolvePlaywrightBrowsersPath();
+  const installHint =
+    `\n` +
+    `Chromium is not installed in the Playwright cache for this E2E environment.\n` +
+    `Recommended bootstrap:\n` +
+    `  PLAYWRIGHT_BROWSERS_PATH=${browsersPath} npm run e2e:install-browser\n` +
+    `Optional overrides:\n` +
+    `  E2E_EXECUTABLE_PATH=/absolute/path/to/chromium-compatible-browser\n` +
+    `  E2E_BROWSER_CHANNEL=chrome`;
+
+  error.message = `${msg}${installHint}`;
+  return error;
+}
+
+async function launchChromium(options = {}) {
+  try {
+    return await chromium.launch({
+      ...options,
+      ...getChromiumLaunchConfig(),
+    });
+  } catch (error) {
+    throw addChromiumLaunchHelp(error);
+  }
+}
+
+async function launchPersistentChromiumContext(profileDir, options = {}) {
+  try {
+    return await chromium.launchPersistentContext(profileDir, {
+      ...options,
+      ...getChromiumLaunchConfig(),
+    });
+  } catch (error) {
+    throw addChromiumLaunchHelp(error);
+  }
 }
 
 /* ───────── Player credentials login (separate browser context) ─────────
@@ -232,11 +337,7 @@ function createBrowserLaunchEnv() {
  * untouched. Caller must close the returned browser. */
 
 async function loginPlayerBrowser(nickname, password) {
-  const browser = await chromium.launch({
-    headless: false,
-    args: getChromiumArgs(),
-    env: createBrowserLaunchEnv(),
-  });
+  const browser = await launchChromium({ headless: false });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   installApiLogging(context, 'player');
   const page = await context.newPage();
@@ -2396,6 +2497,13 @@ module.exports = {
   /* player browser */
   loginPlayerBrowser,
   createBrowserLaunchEnv,
+  createPlaywrightBrowserInstallEnv,
+  ensurePlaywrightBrowserRuntimeEnv,
+  resolveE2EBrowserHome,
+  resolvePlaywrightBrowsersPath,
+  getChromiumLaunchConfig,
+  launchChromium,
+  launchPersistentChromiumContext,
   /* retry */
   withRetry,
   /* BM */
