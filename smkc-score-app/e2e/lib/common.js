@@ -17,19 +17,6 @@ const path = require('path');
 
 const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
 
-function bootstrapPlaywrightProcessEnv() {
-  const browserHome = process.env.E2E_BROWSER_HOME || DEFAULT_E2E_BROWSER_HOME;
-  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(browserHome, 'ms-playwright');
-  fs.mkdirSync(browserHome, { recursive: true });
-  fs.mkdirSync(browsersPath, { recursive: true });
-  process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
-  if (!process.env.PLAYWRIGHT_SKIP_BROWSER_GC) {
-    process.env.PLAYWRIGHT_SKIP_BROWSER_GC = '1';
-  }
-}
-
-bootstrapPlaywrightProcessEnv();
-
 const { chromium } = require('playwright');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
@@ -244,11 +231,15 @@ function createPlaywrightBrowserInstallEnv() {
   };
 }
 
-function ensurePlaywrightBrowserRuntimeEnv() {
+function initializePlaywrightBrowserRuntimeEnv() {
   const env = createPlaywrightBrowserInstallEnv();
   process.env.PLAYWRIGHT_BROWSERS_PATH = env.PLAYWRIGHT_BROWSERS_PATH;
   process.env.PLAYWRIGHT_SKIP_BROWSER_GC = env.PLAYWRIGHT_SKIP_BROWSER_GC;
   return env;
+}
+
+function ensurePlaywrightBrowserRuntimeEnv() {
+  return initializePlaywrightBrowserRuntimeEnv();
 }
 
 /* ───────── Browser launch environment setup ───────── */
@@ -265,7 +256,7 @@ function createBrowserLaunchEnv() {
     fs.mkdirSync(dir, { recursive: true });
   }
   return {
-    ...ensurePlaywrightBrowserRuntimeEnv(),
+    ...initializePlaywrightBrowserRuntimeEnv(),
     HOME: baseHome,
     XDG_CONFIG_HOME: configHome,
     XDG_CACHE_HOME: cacheHome,
@@ -2498,6 +2489,7 @@ module.exports = {
   loginPlayerBrowser,
   createBrowserLaunchEnv,
   createPlaywrightBrowserInstallEnv,
+  initializePlaywrightBrowserRuntimeEnv,
   ensurePlaywrightBrowserRuntimeEnv,
   resolveE2EBrowserHome,
   resolvePlaywrightBrowsersPath,
