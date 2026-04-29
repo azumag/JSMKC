@@ -1658,6 +1658,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         let loserPosition: 1 | 2 = 1;
         if (currentBracketMatch.round === 'winners_r1') {
+          /* 16-player: Winners R1 losers pair into adjacent Losers R1 slots.
+           * Odd matchNumber (1,3,5,7) enters position 1; even (2,4,6,8) enters position 2. */
           loserPosition = (((matchNumber - 1) % 2) + 1) as 1 | 2;
         } else if (currentBracketMatch.round === 'winners_qf') {
           /* 16-player: losers from QF enter L_R2 at position 2.

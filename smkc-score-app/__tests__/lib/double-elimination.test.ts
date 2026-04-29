@@ -511,13 +511,20 @@ describe('Double Elimination Bracket Structure', () => {
     it('should route Winners R1 losers into paired Losers R1 slots', () => {
       const matches16 = generateBracketStructure(16);
 
-      expect(getNextMatchInfo(matches16, 1, false)).toEqual({
-        nextMatchNumber: 16,
-        position: 1,
-      });
-      expect(getNextMatchInfo(matches16, 2, false)).toEqual({
-        nextMatchNumber: 16,
-        position: 2,
+      [
+        [1, 16, 1],
+        [2, 16, 2],
+        [3, 17, 1],
+        [4, 17, 2],
+        [5, 18, 1],
+        [6, 18, 2],
+        [7, 19, 1],
+        [8, 19, 2],
+      ].forEach(([matchNumber, nextMatchNumber, position]) => {
+        expect(getNextMatchInfo(matches16, matchNumber, false)).toEqual({
+          nextMatchNumber,
+          position,
+        });
       });
     });
   });
