@@ -9,6 +9,7 @@
  * Run: node e2e/tc-all.js  (from smkc-score-app/)
  */
 const { chromium } = require('playwright');
+const fs = require('fs');
 const https = require('https');
 const {
   apiActivateTournament,
@@ -2990,45 +2991,68 @@ async function main() {
     }
   }
 
-  // TC-358: CDM export API returns a downloadable XLSM for authenticated admins
+  // TC-358: CDM Export button fetches the CDM workbook and triggers an XLSM download
   {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
       try {
-        const resp = await page.evaluate(async (url) => {
+        const session = await page.evaluate(async () => {
           const sessionResp = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
-          const sessionBody = await sessionResp.json().catch(() => ({}));
-          const r = await fetch(url, { credentials: 'same-origin' });
-          const buf = await r.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          return {
-            status: r.status,
-            authenticated: sessionBody?.data?.authenticated === true,
-            contentType: r.headers.get('content-type'),
-            disposition: r.headers.get('content-disposition'),
-            length: bytes.length,
-            signature: [bytes[0], bytes[1], bytes[2], bytes[3]],
-          };
-        }, `${BASE}/api/tournaments/${exportTid}/export?format=cdm`);
+          const body = await sessionResp.json().catch(() => ({}));
+          return { authenticated: body?.data?.authenticated === true };
+        });
 
-        const contentType = (resp.contentType || '').toLowerCase();
-        const disposition = resp.disposition || '';
+        await nav(page, `/tournaments/${exportTid}`);
+        const cdmButton = page.getByRole('button', { name: /CDM Export/i });
+        await cdmButton.waitFor({ state: 'visible', timeout: 30000 });
+
+        const responsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return url.pathname === `/api/tournaments/${exportTid}/export` &&
+            url.searchParams.get('format') === 'cdm';
+        }, { timeout: 60000 });
+        const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+
+        const [, apiResponse, download] = await Promise.all([
+          cdmButton.click(),
+          responsePromise,
+          downloadPromise,
+        ]);
+
+        const downloadPath = await download.path();
+        const downloadError = await download.failure();
+        const bytes = downloadPath ? fs.readFileSync(downloadPath) : Buffer.alloc(0);
+        const headers = apiResponse.headers();
+        const contentType = headers['content-type'] || '';
+        const disposition = headers['content-disposition'] || '';
+        const filename = download.suggestedFilename();
+
         const isXlsm = contentType.includes('application/vnd.ms-excel.sheet.macroenabled.12');
         const hasXlsmAttachment = disposition.includes('attachment') && /\.xlsm(?:[";]|$)/i.test(disposition);
-        const hasBody = resp.length > 1000;
-        const hasZipSignature = resp.signature[0] === 0x50 && resp.signature[1] === 0x4B;
+        const hasDownloadedXlsmName = /\.xlsm$/i.test(filename);
+        const hasBody = bytes.length > 1000;
+        const hasZipSignature = bytes[0] === 0x50 && bytes[1] === 0x4B;
 
         log('TC-358',
-          resp.authenticated && resp.status === 200 && isXlsm && hasXlsmAttachment && hasBody && hasZipSignature ? 'PASS' : 'FAIL',
-          !resp.authenticated ? 'No authenticated admin session'
-          : resp.status !== 200 ? `HTTP ${resp.status}`
-          : !isXlsm ? `content-type: ${resp.contentType}`
-          : !hasXlsmAttachment ? `content-disposition: ${resp.disposition}`
-          : !hasBody ? `workbook too small: ${resp.length} bytes`
-          : !hasZipSignature ? `unexpected XLSM signature: ${resp.signature.join(',')}`
+          session.authenticated &&
+            apiResponse.status() === 200 &&
+            !downloadError &&
+            isXlsm &&
+            hasXlsmAttachment &&
+            hasDownloadedXlsmName &&
+            hasBody &&
+            hasZipSignature ? 'PASS' : 'FAIL',
+          !session.authenticated ? 'No authenticated admin session'
+          : apiResponse.status() !== 200 ? `HTTP ${apiResponse.status()}`
+          : downloadError ? `download failed: ${downloadError}`
+          : !isXlsm ? `content-type: ${contentType}`
+          : !hasXlsmAttachment ? `content-disposition: ${disposition}`
+          : !hasDownloadedXlsmName ? `download filename: ${filename}`
+          : !hasBody ? `workbook too small: ${bytes.length} bytes`
+          : !hasZipSignature ? `unexpected XLSM signature: ${Array.from(bytes.slice(0, 4)).join(',')}`
           : '');
       } catch (err) {
-        log('TC-358', 'FAIL', err instanceof Error ? err.message : 'CDM export API test failed');
+        log('TC-358', 'FAIL', err instanceof Error ? err.message : 'CDM export button test failed');
       }
     } else {
       log('TC-358', 'SKIP', 'No tournament ID available');

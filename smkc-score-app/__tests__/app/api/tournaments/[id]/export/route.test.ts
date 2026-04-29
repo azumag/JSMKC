@@ -65,6 +65,7 @@ import { formatDate, formatTime } from '@/lib/excel';
 import { GET } from '@/app/api/tournaments/[id]/export/route';
 import { NextResponse } from 'next/server';
 import * as XLSX from '@e965/xlsx';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 class MockNextRequest {
   constructor(private url: string) {}
@@ -79,6 +80,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock | undefined) = undefined;
+    (getCloudflareContext as jest.Mock).mockReturnValue({ env: { DB: {} } });
     (createLogger as jest.Mock).mockReturnValue(loggerMock);
     /* Re-configure NextResponse constructor and json after clearAllMocks */
     (NextResponse as unknown as jest.Mock).mockImplementation((body: string, options?: any) => ({
@@ -201,16 +203,20 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       };
 
       (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
-      global.fetch = jest.fn().mockResolvedValue({
+      const assetFetch = jest.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+      (getCloudflareContext as jest.Mock).mockReturnValue({
+        env: { DB: {}, ASSETS: { fetch: assetFetch } },
       });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
       const params = Promise.resolve({ id: 't1' });
       const result = await GET(request, { params });
 
-      expect(global.fetch).toHaveBeenCalledWith(new URL('/templates/cdm-2025-template.xlsm', request.url));
+      expect(assetFetch).toHaveBeenCalledWith(new URL('/templates/cdm-2025-template.xlsm', 'https://assets.local'));
+      expect(global.fetch).toBeUndefined();
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.headers['Content-Type']).toBe('application/vnd.ms-excel.sheet.macroEnabled.12');
       expect(result.headers['Content-Disposition']).toContain('.xlsm');

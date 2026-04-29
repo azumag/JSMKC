@@ -20,6 +20,7 @@
  * Response: CSV file download
  */
 import { NextResponse } from "next/server";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import * as XLSX from "@e965/xlsx";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
@@ -27,6 +28,8 @@ import { formatDate, formatTime } from "@/lib/excel";
 import { createLogger } from "@/lib/logger";
 import { createErrorResponse } from "@/lib/error-handling";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
+
+const CDM_TEMPLATE_PATH = "/templates/cdm-2025-template.xlsm";
 
 type PlayerPublic = {
   id: string;
@@ -166,6 +169,30 @@ function sortQualifications<T extends ModeQualification>(items: T[]): T[] {
     (a.seeding ?? Number.MAX_SAFE_INTEGER) - (b.seeding ?? Number.MAX_SAFE_INTEGER) ||
     a.player.nickname.localeCompare(b.player.nickname)
   );
+}
+
+async function loadCDMTemplate(request: Request): Promise<
+  | { ok: true; buffer: ArrayBuffer }
+  | { ok: false; status: number; source: string }
+> {
+  try {
+    const assets = getCloudflareContext().env.ASSETS;
+    if (assets?.fetch) {
+      const response = await assets.fetch(new URL(CDM_TEMPLATE_PATH, "https://assets.local"));
+      if (response.ok) {
+        return { ok: true, buffer: await response.arrayBuffer() };
+      }
+      return { ok: false, status: response.status, source: "ASSETS" };
+    }
+  } catch {
+    // Outside the Cloudflare runtime, fall back to the public asset URL below.
+  }
+
+  const response = await fetch(new URL(CDM_TEMPLATE_PATH, request.url));
+  if (response.ok) {
+    return { ok: true, buffer: await response.arrayBuffer() };
+  }
+  return { ok: false, status: response.status, source: "fetch" };
 }
 
 function writePlayerHub(
@@ -570,13 +597,17 @@ export async function GET(
     }
 
     if (exportFormat === "cdm") {
-      const templateResponse = await fetch(new URL("/templates/cdm-2025-template.xlsm", request.url));
-      if (!templateResponse.ok) {
-        logger.error("Failed to load CDM export template", { status: templateResponse.status, tournamentId });
+      const template = await loadCDMTemplate(request);
+      if (!template.ok) {
+        logger.error("Failed to load CDM export template", {
+          source: template.source,
+          status: template.status,
+          tournamentId,
+        });
         return createErrorResponse("Failed to load CDM export template", 500);
       }
 
-      const workbookBuffer = createCDMWorkbook(await templateResponse.arrayBuffer(), tournament);
+      const workbookBuffer = createCDMWorkbook(template.buffer, tournament);
       const filename = `${tournament.name.replace(/[^a-zA-Z0-9]/g, "_")}-cdm-${formatDate(new Date(tournament.date))}.xlsm`;
 
       return new NextResponse(new Uint8Array(workbookBuffer), {
