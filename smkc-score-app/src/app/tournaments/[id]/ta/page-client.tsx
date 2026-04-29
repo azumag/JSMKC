@@ -1487,9 +1487,9 @@ export default function TimeAttackPageClient({
           </DialogHeader>
           <div className="py-4">
             {/* Course times displayed as read-only text, organized by cup */}
-            <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
+            <div className={TA_TIME_ENTRY_CUP_GRID_CLASS} data-testid="ta-time-entry-cup-grid-readonly">
               {CUP_NAMES.map((cup) => (
-                <Card key={cup}>
+                <Card key={cup} data-testid="ta-time-entry-cup-card-readonly">
                   <CardHeader className="py-2">
                     <CardTitle className="text-sm">{t('cup', { cup })}</CardTitle>
                   </CardHeader>
