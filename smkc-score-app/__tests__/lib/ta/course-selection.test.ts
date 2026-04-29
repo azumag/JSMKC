@@ -2,13 +2,13 @@
  * Tests for TA Finals Random Course Selection
  *
  * Validates the "no repeat until all 20 used" rule:
- * - Each phase has its own independent 20-course cycle
+ * - Finals phases share one 20-course cycle in phase order
  * - Courses are removed from the pool as they are played
  * - When all 20 are used, the cycle resets
  * - getAvailableCourses is a pure function for easy testing
  */
 
-import { getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
+import { getAvailableCourses, getPlayedCoursesWithSuddenDeath, isValidCourseAbbr } from "@/lib/ta/course-selection";
 import { COURSES } from "@/lib/constants";
 
 describe("getAvailableCourses", () => {
@@ -108,5 +108,96 @@ describe("isValidCourseAbbr", () => {
   it("returns false for a lowercase version of a valid abbreviation", () => {
     // Course abbreviations are case-sensitive; "mc1" is not in the list
     expect(isValidCourseAbbr("mc1")).toBe(false);
+  });
+});
+
+describe("getPlayedCoursesWithSuddenDeath", () => {
+  it("carries course history forward from phase1 to phase2", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p2-r1",
+            phase: "phase2",
+            roundNumber: 1,
+            course: "DP1",
+            suddenDeathRounds: [],
+          },
+          {
+            id: "p1-r1",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "KB1",
+            suddenDeathRounds: [],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase2");
+
+    expect(prisma.tTPhaseRound.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tournamentId: "t1", phase: { in: ["phase1", "phase2"] } },
+      })
+    );
+    expect(played).toEqual(["KB1", "DP1"]);
+    expect(getAvailableCourses(played)).not.toContain("KB1");
+  });
+
+  it("counts sudden-death courses from earlier phases as consumed", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p1-r1",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "MC1",
+            suddenDeathRounds: [
+              { id: "sd1", course: "KB1" },
+            ],
+          },
+          {
+            id: "p2-r1",
+            phase: "phase2",
+            roundNumber: 1,
+            course: "DP1",
+            suddenDeathRounds: [],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase2");
+
+    expect(played).toEqual(["MC1", "KB1", "DP1"]);
+    expect(getAvailableCourses(played)).not.toContain("KB1");
+  });
+
+  it("excludes an unresolved sudden-death round when changing that course", async () => {
+    const prisma = {
+      tTPhaseRound: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "p1-r1",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "MC1",
+            suddenDeathRounds: [
+              { id: "sd-old", course: "KB1" },
+              { id: "sd-current", course: "DP1" },
+            ],
+          },
+        ]),
+      },
+    };
+
+    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase1", {
+      excludeSuddenDeathRoundId: "sd-current",
+    });
+
+    expect(played).toEqual(["MC1", "KB1"]);
+    expect(played).not.toContain("DP1");
   });
 });

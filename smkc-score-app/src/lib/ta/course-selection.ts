@@ -2,7 +2,7 @@
  * Random Course Selection for TA Finals Phases
  *
  * Implements the "no repeat until all 20 used" rule from the SMK tournament rulebook:
- * - Each phase maintains its own independent course cycle
+ * - Finals phases share one course cycle in phase order
  * - Courses are selected randomly from the pool of unplayed courses
  * - Once all 20 courses have been played, the cycle resets (all become available again)
  * - Selection is server-side to prevent race conditions between concurrent admins
@@ -22,6 +22,14 @@ import type { PrismaTransaction } from "@/types/prisma-extended";
  * for race-condition-safe round creation.
  */
 type DbClient = PrismaClient | PrismaTransaction;
+
+const PHASE_ORDER = ["phase1", "phase2", "phase3"] as const;
+
+function getCourseHistoryPhases(phase: string): string[] {
+  const phaseIndex = PHASE_ORDER.indexOf(phase as (typeof PHASE_ORDER)[number]);
+  if (phaseIndex === -1) return [phase];
+  return PHASE_ORDER.slice(0, phaseIndex + 1);
+}
 
 /**
  * Fetch the ordered list of courses already played in the current phase.
@@ -48,6 +56,12 @@ export async function getPlayedCourses(
 
 /**
  * Fetch played courses including adopted sudden-death courses.
+ *
+ * Course history is shared across TA finals phases. Asking for phase2 includes
+ * phase1 and phase2 courses; asking for phase3 includes all finals phases up
+ * through phase3. This prevents repeats such as KB1 appearing in both phase1
+ * and phase2 before the 20-course cycle is exhausted.
+ *
  * A sudden-death course is "adopted" as soon as its row exists; if an admin
  * changes an unresolved sudden-death course, the row is updated, so only the
  * final selected course remains in this history.
@@ -58,12 +72,15 @@ export async function getPlayedCoursesWithSuddenDeath(
   phase: string,
   options: { excludeSuddenDeathRoundId?: string } = {}
 ): Promise<string[]> {
+  const phases = getCourseHistoryPhases(phase);
   const rounds = await prisma.tTPhaseRound.findMany({
-    where: { tournamentId, phase },
-    orderBy: { roundNumber: "asc" },
+    where: { tournamentId, phase: { in: phases } },
+    orderBy: [{ phase: "asc" }, { roundNumber: "asc" }],
     select: {
       id: true,
+      phase: true,
       course: true,
+      roundNumber: true,
       suddenDeathRounds: {
         orderBy: { sequence: "asc" },
         select: { id: true, course: true },
@@ -72,7 +89,11 @@ export async function getPlayedCoursesWithSuddenDeath(
   });
 
   const courses: string[] = [];
-  for (const round of rounds) {
+  const orderedRounds = [...rounds].sort((a, b) => {
+    const phaseDiff = phases.indexOf(a.phase) - phases.indexOf(b.phase);
+    return phaseDiff || a.roundNumber - b.roundNumber;
+  });
+  for (const round of orderedRounds) {
     courses.push(round.course);
     for (const suddenDeathRound of round.suddenDeathRounds ?? []) {
       if (suddenDeathRound.id !== options.excludeSuddenDeathRoundId) {
@@ -142,7 +163,7 @@ export function isValidCourseAbbr(value: string): value is CourseAbbr {
 /**
  * Select a random course for the next round in a phase.
  *
- * Combines getPlayedCourses + getAvailableCourses to select a random
+ * Combines cumulative played-course history + getAvailableCourses to select a random
  * unplayed course from the current 20-course cycle.
  *
  * @param prisma - Prisma client instance
