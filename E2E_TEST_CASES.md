@@ -1401,6 +1401,16 @@
 - **期待結果**: 有効値は受け付け、無効値は 422 で拒否される
 - **スクリプト**: tc-mr.js TC-621
 
+## TC-858: MR Top-24 決勝 Winners R1 敗者の Losers R1 反映 (issue #858)
+- **背景**: Top-24 から生成される16人決勝では Winners R1 の敗者が Losers R1 に落ちる。偶数側の Winners R1 敗者は Losers R1 の player2 スロットに入る必要がある
+- **手順**:
+  1. 28名予選完了済みフィクスチャで MR Top-24 playoff を生成する
+  2. playoff_r1/playoff_r2 を完了し、16人決勝ブラケットを生成する
+  3. Winners R1 M2 を player1 勝利で完了する
+  4. Losers R1 M16 の `player2Id` が Winners R1 M2 の敗者になっていることを確認
+- **期待結果**: Winners R1 M2 の敗者が M16 `player2Id` に反映され、`player1Id` を上書きしない
+- **スクリプト**: tc-mr.js TC-858
+
 ## TC-611: BM/MR/GP予選確定 — スコアロック検証
 - **URL**: /api/tournaments/[temp-id]/mr (PUT), /api/tournaments/[temp-id]/mr/match/[matchId]/report (POST)
 - **authRequired**: true (admin)

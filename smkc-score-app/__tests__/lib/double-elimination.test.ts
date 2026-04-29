@@ -507,6 +507,21 @@ describe('Double Elimination Bracket Structure', () => {
     });
   });
 
+  describe('getNextMatchInfo with 16-player finals bracket', () => {
+    it('should route Winners R1 losers into paired Losers R1 slots', () => {
+      const matches16 = generateBracketStructure(16);
+
+      expect(getNextMatchInfo(matches16, 1, false)).toEqual({
+        nextMatchNumber: 16,
+        position: 1,
+      });
+      expect(getNextMatchInfo(matches16, 2, false)).toEqual({
+        nextMatchNumber: 16,
+        position: 2,
+      });
+    });
+  });
+
   describe('roundNames', () => {
     it('should include playoff round names', () => {
       expect(roundNames.playoff_r1).toBeDefined();

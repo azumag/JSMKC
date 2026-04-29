@@ -27,6 +27,7 @@
  *  TC-618  MR finals admin manual total-score override (PR #585 manual form)
  *  TC-620  MR qualification tie resolution (tie warning → resolveAllTies)
  *  TC-621  MR per-round target-wins API validation (issue #528: FT3/FT4/FT5)
+ *  TC-858  MR Top-24 finals Winners R1 loser populates Losers R1 player2
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -1486,6 +1487,58 @@ async function runTc621(adminPage) {
   }
 }
 
+/* ───────── TC-858: MR Top-24 finals Winners R1 loser propagation (#858) ─────────
+ * Creates a Top-24 playoff, completes playoff matches to materialise the
+ * 16-player finals bracket, then completes Winners R1 match 2. Its loser must
+ * enter Losers R1 match 16 as player2, not overwrite player1. */
+async function runTc858(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const { tournamentId } = setup;
+
+    const genPlayoff = await generateMrFinalsBracket(adminPage, tournamentId, 24);
+    if (genPlayoff.s !== 201 && genPlayoff.s !== 200) {
+      throw new Error(`24-player MR playoff gen failed (${genPlayoff.s})`);
+    }
+
+    for (let guard = 0; guard < 8; guard++) {
+      const state = await apiFetchMrFinalsState(adminPage, tournamentId);
+      if (state.playoffComplete) break;
+      const ready = (state.playoffMatches || []).find((m) =>
+        !m.completed && m.player1Id && m.player2Id
+      );
+      if (!ready) throw new Error('No ready playoff match found while building Top-16 finals');
+      const target = mrFinalsTargetWinsForMatch(ready);
+      const put = await setMrFinalsScore(adminPage, tournamentId, ready.id, target, Math.max(0, target - 2));
+      if (put.s !== 200) throw new Error(`Playoff score PUT failed for M${ready.matchNumber} (${put.s})`);
+    }
+
+    const genFinals = await generateMrFinalsBracket(adminPage, tournamentId, 24);
+    if (genFinals.s !== 201 && genFinals.s !== 200) {
+      throw new Error(`16-player MR finals gen failed (${genFinals.s})`);
+    }
+
+    const before = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const r1m2 = before.find((m) => m.stage === 'finals' && m.matchNumber === 2 && m.round === 'winners_r1');
+    if (!r1m2?.player1Id || !r1m2?.player2Id) throw new Error('Winners R1 M2 is not ready');
+    const expectedLoserId = r1m2.player2Id;
+    const target = mrFinalsTargetWinsForMatch(r1m2);
+    const put = await setMrFinalsScore(adminPage, tournamentId, r1m2.id, target, Math.max(0, target - 3));
+    if (put.s !== 200) throw new Error(`Winners R1 M2 score PUT failed (${put.s})`);
+
+    const after = await fetchMrFinalsMatches(adminPage, tournamentId);
+    const losersR1M16 = after.find((m) => m.stage === 'finals' && m.matchNumber === 16 && m.round === 'losers_r1');
+    const ok = losersR1M16?.player2Id === expectedLoserId;
+    log('TC-858', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `expected loser ${expectedLoserId} in M16 player2, got ${losersR1M16?.player2Id || 'empty'}`);
+  } catch (err) {
+    log('TC-858', 'FAIL', err instanceof Error ? err.message : 'MR 858 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. */
 function getSuite({ sharedFixture: externalFixture = null } = {}) {
   const ownsFixture = !externalFixture;
@@ -1524,6 +1577,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-615', fn: runTc615 },
       { name: 'TC-616', fn: runTc616 },
       { name: 'TC-621', fn: runTc621 },
+      { name: 'TC-858', fn: runTc858 },
     ],
   };
 }
@@ -1531,7 +1585,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
-  runTc615, runTc616, runTc617, runTc618, runTc621,
+  runTc615, runTc616, runTc617, runTc618, runTc621, runTc858,
   getSuite,
   results,
 };
