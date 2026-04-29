@@ -238,10 +238,6 @@ function initializePlaywrightBrowserRuntimeEnv() {
   return env;
 }
 
-function ensurePlaywrightBrowserRuntimeEnv() {
-  return initializePlaywrightBrowserRuntimeEnv();
-}
-
 /* ───────── Browser launch environment setup ───────── */
 /**
  * Create isolated browser environment with crashpad disabled.
@@ -2490,7 +2486,6 @@ module.exports = {
   createBrowserLaunchEnv,
   createPlaywrightBrowserInstallEnv,
   initializePlaywrightBrowserRuntimeEnv,
-  ensurePlaywrightBrowserRuntimeEnv,
   resolveE2EBrowserHome,
   resolvePlaywrightBrowsersPath,
   getChromiumLaunchConfig,
