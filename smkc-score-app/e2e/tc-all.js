@@ -8,7 +8,6 @@
  *
  * Run: node e2e/tc-all.js  (from smkc-score-app/)
  */
-const { chromium } = require('playwright');
 const fs = require('fs');
 const https = require('https');
 const {
@@ -35,18 +34,18 @@ const {
   setupModePlayersViaUi,
   makeTaTimesForRank,
   resolveAllTies,
+  launchChromium,
+  launchPersistentChromiumContext,
 } = require('./lib/common');
 const { createSharedE2eFixture } = require('./lib/fixtures');
 const {
   closeBrowser,
-  createBrowserLaunchEnv,
   createProgressWatchdog,
   envMs,
   exitAfterCleanup,
   formatDuration,
   runSuiteInBrowser,
 } = require('./lib/runner');
-const { getChromiumArgs } = require('./lib/common');
 const bmModule = require('./tc-bm');
 const mrModule = require('./tc-mr');
 const gpModule = require('./tc-gp');
@@ -175,14 +174,12 @@ async function main() {
   };
 
   try {
-    browser = await chromium.launchPersistentContext(
+    browser = await launchPersistentChromiumContext(
       process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile',
       {
         headless: process.env.E2E_HEADLESS === '1',
         viewport: { width: 1280, height: 720 },
         acceptDownloads: true,
-        env: createBrowserLaunchEnv(),
-        args: getChromiumArgs(),
       },
     );
     installApiLogging(browser, 'tc-all');
@@ -653,10 +650,8 @@ async function main() {
   if (pid && playerTempPassword) {
     let playerBrowser = null;
     try {
-      playerBrowser = await chromium.launch({
+      playerBrowser = await launchChromium({
         headless: false,
-        env: createBrowserLaunchEnv(),
-        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -727,10 +722,8 @@ async function main() {
         { id: gpPlayer2Id, name: gpPlayer2Name, nickname: gpPlayer2Nick },
       ]);
 
-      playerBrowser = await chromium.launch({
+      playerBrowser = await launchChromium({
         headless: false,
-        env: createBrowserLaunchEnv(),
-        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -858,10 +851,8 @@ async function main() {
        * needed. */
       await uiPromoteTaPhase(page, taTournamentId, 'promote_phase1');
 
-      playerBrowser = await chromium.launch({
+      playerBrowser = await launchChromium({
         headless: false,
-        env: createBrowserLaunchEnv(),
-        args: getChromiumArgs(),
       });
       const playerContext = await playerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const playerPage = await playerContext.newPage();
@@ -1139,10 +1130,8 @@ async function main() {
       let partnerBrowser = null;
       let step3 = false;
       try {
-        partnerBrowser = await chromium.launch({
+        partnerBrowser = await launchChromium({
           headless: false,
-          env: createBrowserLaunchEnv(),
-          args: getChromiumArgs(),
         });
         const partnerCtx = await partnerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
         const partnerPage = await partnerCtx.newPage();
@@ -2658,10 +2647,8 @@ async function main() {
       });
 
       // 2. Log in as player and call the same endpoint — expect 200
-      tc341PlayerBrowser = await chromium.launch({
+      tc341PlayerBrowser = await launchChromium({
         headless: false,
-        env: createBrowserLaunchEnv(),
-        args: getChromiumArgs(),
       });
       const tc341PlayerCtx = await tc341PlayerBrowser.newContext({ viewport: { width: 1280, height: 720 } });
       const tc341PlayerPage = await tc341PlayerCtx.newPage();

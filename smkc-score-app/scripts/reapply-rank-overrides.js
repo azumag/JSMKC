@@ -14,11 +14,11 @@ if (baseUrlArg) {
   process.env.E2E_BASE_URL = baseUrlArg;
 }
 
-const { chromium } = require('playwright');
 const {
   BASE,
   installApiLogging,
   resolveAllTies,
+  launchPersistentChromiumContext,
 } = require('../e2e/lib/common');
 const { closeBrowser, envMs, formatDuration } = require('../e2e/lib/runner');
 
@@ -274,7 +274,7 @@ async function main() {
     console.log(`[rank-override] tournament: ${options.tournament}`);
     console.log(`[rank-override] modes: ${options.modes.join(', ')}`);
 
-    browser = await chromium.launchPersistentContext(options.profileDir, {
+    browser = await launchPersistentChromiumContext(options.profileDir, {
       headless: options.headless,
       viewport: { width: 1280, height: 720 },
     });

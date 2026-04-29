@@ -1,5 +1,9 @@
-const { chromium } = require('playwright');
-const { createBrowserLaunchEnv, installApiLogging, nav, getChromiumArgs } = require('./common');
+const {
+  createBrowserLaunchEnv,
+  installApiLogging,
+  nav,
+  launchPersistentChromiumContext,
+} = require('./common');
 
 const DEFAULT_PROFILE_DIR = '/tmp/playwright-smkc-profile';
 const DEFAULT_TEST_TIMEOUT_MS = 10 * 60 * 1000;
@@ -245,10 +249,9 @@ async function runSuite({ suiteName, results, log, tests, beforeAll = null, afte
   try {
     const profileDir = process.env.E2E_PROFILE_DIR || DEFAULT_PROFILE_DIR;
     const headless = process.env.E2E_HEADLESS === '1';
-    browser = await chromium.launchPersistentContext(profileDir, {
+    browser = await launchPersistentChromiumContext(profileDir, {
       headless,
       viewport: { width: 1280, height: 720 },
-      args: getChromiumArgs(),
     });
     installApiLogging(browser, suiteName);
     page = browser.pages()[0] || await browser.newPage();
