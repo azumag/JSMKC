@@ -33,6 +33,7 @@
     "noPlayersSelected": "プレイヤーが選択されていません",
     "selectedPlayers": "選択済みプレイヤー ({count})",
     "exportAll": "全データエクスポート",
+    "exporting": "エクスポート中...",
     "exportFailed": "トーナメントのエクスポートに失敗しました",
     "exportFailedForbidden": "権限がないか、セッションが切れています",
     "exportFailedHttpStatus": "サーバーが HTTP {status} を返しました",

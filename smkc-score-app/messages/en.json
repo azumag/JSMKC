@@ -33,6 +33,7 @@
     "noPlayersSelected": "No players selected yet",
     "selectedPlayers": "Selected Players ({count})",
     "exportAll": "Export All",
+    "exporting": "Exporting...",
     "exportFailed": "Failed to export tournament",
     "exportFailedForbidden": "Forbidden or session expired",
     "exportFailedHttpStatus": "Server returned HTTP {status}",
