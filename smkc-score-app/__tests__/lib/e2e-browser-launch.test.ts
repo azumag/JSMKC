@@ -1,10 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import os from 'os';
 import path from 'path';
-import * as common from '../../e2e/lib/common';
+
+type E2ECommon = typeof import('../../e2e/lib/common');
+
+function loadCommon() {
+  let loaded: E2ECommon | undefined;
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    loaded = require('../../e2e/lib/common') as E2ECommon;
+  });
+  if (!loaded) throw new Error('Failed to load e2e common helpers');
+  return loaded;
+}
 
 describe('E2E browser launch helpers', () => {
   const originalEnv = { ...process.env };
+  let common: E2ECommon;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -13,6 +25,7 @@ describe('E2E browser launch helpers', () => {
     delete process.env.PLAYWRIGHT_SKIP_BROWSER_GC;
     delete process.env.E2E_EXECUTABLE_PATH;
     delete process.env.E2E_BROWSER_CHANNEL;
+    common = loadCommon();
   });
 
   afterEach(() => {
@@ -26,6 +39,21 @@ describe('E2E browser launch helpers', () => {
     );
   });
 
+  it('does not mutate Playwright process env during module load', () => {
+    process.env = {
+      ...originalEnv,
+      E2E_BROWSER_HOME: '/tmp/jsmkc-browser-home',
+    };
+    delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    delete process.env.PLAYWRIGHT_SKIP_BROWSER_GC;
+
+    common = loadCommon();
+
+    expect(process.env.PLAYWRIGHT_BROWSERS_PATH).toBeUndefined();
+    expect(process.env.PLAYWRIGHT_SKIP_BROWSER_GC).toBeUndefined();
+    expect(common.resolvePlaywrightBrowsersPath()).toBe('/tmp/jsmkc-browser-home/ms-playwright');
+  });
+
   it('respects caller-provided browser home and installs path env', () => {
     process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
     const env = common.createPlaywrightBrowserInstallEnv();
@@ -34,10 +62,10 @@ describe('E2E browser launch helpers', () => {
     expect(env.PLAYWRIGHT_SKIP_BROWSER_GC).toBe('1');
   });
 
-  it('syncs Playwright browser cache into process.env before launch', () => {
+  it('syncs Playwright browser cache into process.env during explicit runtime initialization', () => {
     process.env.E2E_BROWSER_HOME = '/tmp/jsmkc-browser-home';
 
-    const env = common.ensurePlaywrightBrowserRuntimeEnv();
+    const env = common.initializePlaywrightBrowserRuntimeEnv();
 
     expect(process.env.PLAYWRIGHT_BROWSERS_PATH).toBe('/tmp/jsmkc-browser-home/ms-playwright');
     expect(process.env.PLAYWRIGHT_SKIP_BROWSER_GC).toBe('1');
