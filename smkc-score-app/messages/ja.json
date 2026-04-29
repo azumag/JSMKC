@@ -33,6 +33,7 @@
     "noPlayersSelected": "プレイヤーが選択されていません",
     "selectedPlayers": "選択済みプレイヤー ({count})",
     "exportAll": "全データエクスポート",
+    "exportFailed": "トーナメントのエクスポートに失敗しました",
     "goToFinals": "決勝へ",
     "setupGroups": "グループ設定",
     "resetSetup": "設定リセット",

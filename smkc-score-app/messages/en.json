@@ -33,6 +33,7 @@
     "noPlayersSelected": "No players selected yet",
     "selectedPlayers": "Selected Players ({count})",
     "exportAll": "Export All",
+    "exportFailed": "Failed to export tournament",
     "goToFinals": "Go to Finals",
     "setupGroups": "Setup Groups",
     "resetSetup": "Reset Setup",

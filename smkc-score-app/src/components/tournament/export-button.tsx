@@ -132,7 +132,7 @@ export function ExportButton({
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error("Export failed", metadata);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to export tournament");
+      setErrorMessage(t("exportFailed"));
     }
   };
 
