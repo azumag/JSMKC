@@ -17,7 +17,12 @@
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
  *           are re-compacted (no gaps) after removing one entrant (#710).
+ *   TC-837  TA qualification standings show per-course No.1 count (Nb #1).
  *   TC-839  TA qualification time-entry dialog stacks cup cards on mobile.
+ *   TC-840  TA partner can edit the paired player's times from the TA list UI.
+ *   TC-878  TA qualification TV assignment reflects TV1/TV2 to broadcast.
+ *   TC-896  TA finals mobile admin input rows keep player names visible.
+ *   TC-897  TA time inputs request the mobile numeric keyboard.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -41,7 +46,7 @@ const {
   uiPhaseStartRound, uiPhaseSubmitResults, uiPhaseCancelRound, uiPhaseUndoRound,
   uiCreateTournament, uiCreatePlayer,
   apiDeletePlayer,
-  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiTaParticipantEditTime, loginPlayerBrowser,
+  apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiSetTaPartner, apiTaParticipantEditTime, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase, apiPostTaPhase, apiPromoteTaPhase,
   makeTaTimesForRank,
   setupTaQualViaUi,
@@ -125,6 +130,39 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
     seeded.push({ ...entries[i], rank, times, totalMs });
   }
   return seeded;
+}
+
+function e2eTimeToMs(value) {
+  if (!value || typeof value !== 'string') return null;
+  const match = value.match(/^(\d+):([0-5]\d)\.(\d{1,3})$/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  const ms = Number(match[3].padEnd(3, '0').slice(0, 3));
+  return minutes * 60000 + seconds * 1000 + ms;
+}
+
+function calculateE2eFirstPlaceCounts(entries) {
+  const counts = new Map(entries.map((entry) => [entry.id, 0]));
+  const courses = new Set();
+  for (const entry of entries) {
+    for (const course of Object.keys(entry.times || {})) courses.add(course);
+  }
+
+  for (const course of courses) {
+    const valid = entries
+      .map((entry) => ({ entry, timeMs: e2eTimeToMs(entry.times?.[course]) }))
+      .filter((row) => row.timeMs !== null);
+    if (valid.length === 0) continue;
+    const fastest = Math.min(...valid.map((row) => row.timeMs));
+    for (const row of valid) {
+      if (row.timeMs === fastest) {
+        counts.set(row.entry.id, (counts.get(row.entry.id) || 0) + 1);
+      }
+    }
+  }
+
+  return counts;
 }
 
 /* ───────── TC-801: 28-player full qualification ─────────
@@ -307,6 +345,197 @@ async function runTc839(adminPage) {
     log('TC-839', 'FAIL', err instanceof Error ? err.message : 'TA mobile time-entry layout failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/* ───────── TC-837: TA standings show Nb #1 count ───────── */
+async function runTc837(adminPage) {
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+
+    const data = await apiFetchTa(adminPage, tournamentId);
+    const entries = data.b?.data?.entries ?? [];
+    const counts = calculateE2eFirstPlaceCounts(entries);
+    const target = entries
+      .map((entry) => ({ entry, count: counts.get(entry.id) || 0 }))
+      .sort((a, b) => b.count - a.count)[0];
+    if (!target) throw new Error('No TA entries available for Nb #1 check');
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    const bodyText = await adminPage.locator('body').innerText();
+    const headerVisible = bodyText.includes('Nb #1');
+    const cellText = await adminPage
+      .locator(`[data-testid="ta-first-place-count-${target.entry.id}"]`)
+      .innerText({ timeout: 15000 })
+      .catch(() => '');
+    const valueOk = cellText.trim() === String(target.count);
+
+    log('TC-837', headerVisible && valueOk ? 'PASS' : 'FAIL',
+      !headerVisible ? 'Nb #1 header not visible'
+      : !valueOk ? `Nb #1 cell for ${target.entry.player?.nickname} expected=${target.count} actual=${cellText || 'missing'}`
+      : '');
+  } catch (err) {
+    log('TC-837', 'FAIL', err instanceof Error ? err.message : 'TA Nb #1 standings failed');
+  }
+}
+
+/* ───────── TC-840: Partner can edit paired player's row from TA list ───────── */
+async function runTc840(adminPage) {
+  let playerBrowser = null;
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [owner, partner] = sharedTaPlayers(2);
+    const ownerEntry = sharedTaEntryByNickname(owner.nickname);
+    if (!ownerEntry) throw new Error(`Shared TA entry missing for ${owner.nickname}`);
+
+    const setPartner = await apiSetTaPartner(adminPage, tournamentId, ownerEntry.entryId, partner.id);
+    if (setPartner.s !== 200) throw new Error(`set_partner failed (${setPartner.s})`);
+
+    const ctx = await loginSharedPlayer(adminPage, partner);
+    playerBrowser = ctx.browser;
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
+    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+
+    const partnerRow = ctx.page.getByRole('row').filter({ hasText: owner.nickname }).first();
+    await partnerRow.waitFor({ state: 'visible', timeout: 15000 });
+    const editVisible = await partnerRow.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).count()
+      .then((count) => count > 0);
+    const viewVisible = await partnerRow.getByRole('button', { name: /^(View Times|タイム閲覧)$/ }).count()
+      .then((count) => count > 0);
+
+    log('TC-840', editVisible && !viewVisible ? 'PASS' : 'FAIL',
+      !editVisible ? 'partner row did not expose Edit Times'
+      : viewVisible ? 'partner row still exposed View Times'
+      : '');
+  } catch (err) {
+    log('TC-840', 'FAIL', err instanceof Error ? err.message : 'TA partner edit UI failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+    const tournamentId = sharedTaTournamentId;
+    const [owner] = sharedFixture ? sharedTaPlayers(1) : [];
+    const ownerEntry = owner ? sharedTaEntryByNickname(owner.nickname) : null;
+    if (tournamentId && ownerEntry) {
+      await apiSetTaPartner(adminPage, tournamentId, ownerEntry.entryId, null).catch(() => {});
+    }
+  }
+}
+
+/* ───────── TC-878: TA qualification TV assignment reflects broadcast names ───────── */
+async function runTc878(adminPage) {
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [p1, p2] = sharedTaPlayers(2);
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await adminPage.getByLabel(new RegExp(`^TV# ${escapeRegex(p1.nickname)}$`)).selectOption('1');
+    await adminPage.getByLabel(new RegExp(`^TV# ${escapeRegex(p2.nickname)}$`)).selectOption('2');
+    await adminPage.getByRole('button', { name: /^(Broadcast|配信に反映)$/ }).click();
+    await adminPage.waitForTimeout(1000);
+
+    const broadcast = await adminPage.evaluate(async (id) => {
+      const r = await fetch(`/api/tournaments/${id}/broadcast`);
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, tournamentId);
+    const data = broadcast.b?.data ?? broadcast.b;
+    const reflected = data.player1Name === p1.nickname && data.player2Name === p2.nickname;
+
+    log('TC-878', reflected ? 'PASS' : 'FAIL',
+      reflected ? ''
+      : `broadcast player1=${data.player1Name || ''} player2=${data.player2Name || ''}`);
+  } catch (err) {
+    log('TC-878', 'FAIL', err instanceof Error ? err.message : 'TA qualification TV broadcast failed');
+  } finally {
+    if (sharedTaTournamentId) {
+      await adminPage.evaluate(async (id) => {
+        await fetch(`/api/tournaments/${id}/broadcast`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player1Name: null, player2Name: null }),
+        });
+      }, sharedTaTournamentId).catch(() => {});
+    }
+  }
+}
+
+/* ───────── TC-897: TA time inputs request mobile numeric keyboard ───────── */
+async function runTc897(adminPage) {
+  let playerBrowser = null;
+  try {
+    const tournamentId = sharedTaTournamentId;
+    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    const [player] = sharedTaPlayers(1);
+
+    const ctx = await loginSharedPlayer(adminPage, player);
+    playerBrowser = ctx.browser;
+    await ctx.page.setViewportSize({ width: 375, height: 812 });
+    await nav(ctx.page, `/tournaments/${tournamentId}/ta`);
+    await ctx.page.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
+    await ctx.page.getByRole('button', { name: /^(Edit Times|タイム編集)$/ }).first().click();
+
+    const input = ctx.page.locator('input[placeholder="M:SS.mm"]').first();
+    await input.waitFor({ state: 'visible', timeout: 15000 });
+    const inputMode = await input.getAttribute('inputmode');
+    const pattern = await input.getAttribute('pattern');
+
+    log('TC-897', inputMode === 'decimal' && pattern === '[0-9:.]*' ? 'PASS' : 'FAIL',
+      inputMode !== 'decimal' ? `inputmode=${inputMode || 'missing'}`
+      : pattern !== '[0-9:.]*' ? `pattern=${pattern || 'missing'}`
+      : '');
+  } catch (err) {
+    log('TC-897', 'FAIL', err instanceof Error ? err.message : 'TA mobile keyboard input attrs failed');
+  } finally {
+    if (playerBrowser) await playerBrowser.close().catch(() => {});
+  }
+}
+
+/* ───────── TC-896: TA finals mobile row keeps player names visible ───────── */
+async function runTc896(adminPage) {
+  let setup = null;
+  try {
+    setup = await createIsolatedTaQualification(adminPage, 'Mobile Finals Visibility', sharedTaPlayers(2), { seedTimes: false });
+    const { tournamentId } = setup;
+    await seedTaQualificationRanks(adminPage, tournamentId, setup.entries, 1);
+    const promote = await apiPromoteTaPhase(adminPage, tournamentId, 'promote_phase3');
+    if (promote.s !== 200) throw new Error(`promote_phase3 failed (${promote.s})`);
+
+    await adminPage.setViewportSize({ width: 375, height: 812 });
+    await nav(adminPage, `/tournaments/${tournamentId}/ta/finals`);
+    await uiPhaseStartRound(adminPage, tournamentId, 'phase3');
+
+    const names = adminPage.locator('[data-testid="ta-finals-round-player-name"]');
+    const rowCount = await names.count();
+    if (rowCount < 2) throw new Error(`expected at least 2 visible player names, got ${rowCount}`);
+
+    const boxes = [];
+    for (let i = 0; i < rowCount; i++) {
+      const box = await names.nth(i).boundingBox();
+      if (!box) throw new Error(`player name ${i + 1} has no bounding box`);
+      boxes.push(box);
+    }
+    const wideEnough = boxes.every((box) => box.width >= 160 && box.height >= 18);
+    const rows = adminPage.locator('[data-testid="ta-finals-round-entry-row"]');
+    const firstRow = await rows.first().boundingBox();
+    const firstName = boxes[0];
+    const nameInsideRow = Boolean(
+      firstRow &&
+      firstName.x >= firstRow.x &&
+      firstName.y >= firstRow.y &&
+      firstName.y + firstName.height <= firstRow.y + firstRow.height,
+    );
+
+    log('TC-896', wideEnough && nameInsideRow ? 'PASS' : 'FAIL',
+      !wideEnough ? `player name boxes too small: ${boxes.map((b) => `${Math.round(b.width)}x${Math.round(b.height)}`).join(',')}`
+      : !nameInsideRow ? 'player name is not contained in the mobile row'
+      : '');
+  } catch (err) {
+    log('TC-896', 'FAIL', err instanceof Error ? err.message : 'TA finals mobile visibility failed');
+  } finally {
+    await adminPage.setViewportSize({ width: 1280, height: 720 }).catch(() => {});
+    if (setup) await setup.cleanup().catch(() => {});
   }
 }
 
@@ -1146,7 +1375,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       sharedFixture = externalFixture ?? await createSharedE2eFixture(adminPage);
       const selected = new Set(selectedTestNames());
       const needsSharedTaSeed = selected.size === 0 || [
-        'TC-801', 'TC-802', 'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808',
+        'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-897',
+        'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808',
       ].some((name) => selected.has(name));
 
       if (needsSharedTaSeed) {
@@ -1176,7 +1406,12 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
     tests: [
       { name: 'TC-801', fn: runTc801 },
       { name: 'TC-802', fn: runTc802 },
+      { name: 'TC-837', fn: runTc837 },
       { name: 'TC-839', fn: runTc839 },
+      { name: 'TC-840', fn: runTc840 },
+      { name: 'TC-878', fn: runTc878 },
+      { name: 'TC-897', fn: runTc897 },
+      { name: 'TC-896', fn: runTc896 },
       { name: 'TC-805', fn: runTc805 },
       { name: 'TC-809', fn: runTc809 },
       { name: 'TC-810', fn: runTc810 },
@@ -1195,6 +1430,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
+  runTc837, runTc840, runTc878, runTc896, runTc897,
   runTc812, runTc813, runTc814, runTc815,
   getSuite,
   results,

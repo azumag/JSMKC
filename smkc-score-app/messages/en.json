@@ -349,6 +349,7 @@
     "rank": "Rank",
     "progress": "Progress",
     "totalTime": "Total Time",
+    "firstPlaceCount": "Nb #1",
     "timeEntry": "Time Entry",
     "timeEntryDesc": "Enter times for each player (format: M:SS.mm)",
     "total": "Total",
