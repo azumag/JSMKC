@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 
 /**
  * Module-level logger for export operations.
@@ -72,6 +73,7 @@ export function ExportButton({
   disabled = false
 }: ExportButtonProps) {
   const t = useTranslations("common");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   /**
    * Handles the export action: fetches the file, extracts the filename,
@@ -79,6 +81,7 @@ export function ExportButton({
    */
   const handleExport = async () => {
     try {
+      setErrorMessage(null);
       const query = format === "cdm" ? "?format=cdm" : "";
       const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
 
@@ -129,18 +132,26 @@ export function ExportButton({
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error("Export failed", metadata);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to export tournament");
     }
   };
 
   return (
-    <Button
-      onClick={handleExport}
-      variant={variant}
-      size={size}
-      disabled={disabled}
-    >
-      <Download className="w-4 h-4 mr-2" />
-      {children || t("exportAll")}
-    </Button>
+    <div className="inline-flex flex-col items-start gap-1">
+      <Button
+        onClick={handleExport}
+        variant={variant}
+        size={size}
+        disabled={disabled}
+      >
+        <Download className="w-4 h-4 mr-2" />
+        {children || t("exportAll")}
+      </Button>
+      {errorMessage ? (
+        <p role="alert" className="text-sm text-red-600">
+          {errorMessage}
+        </p>
+      ) : null}
+    </div>
   );
 }

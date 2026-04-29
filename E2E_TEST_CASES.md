@@ -593,17 +593,18 @@
 - **期待結果**: 200 + CSV Content-Type + ヘッダー行が返る
 - **スクリプト**: tc-all.js TC-347
 
-## TC-358: CDM エクスポート API — format=cdm が XLSM を返す
+## TC-358: CDM エクスポートボタン — format=cdm が XLSM をダウンロードする
 - **URL**: /api/tournaments/[id]/export?format=cdm
 - **authRequired**: true (admin)
-- **背景**: CDM 向けエクスポートはマクロ有効 Excel テンプレートを元に `.xlsm` ワークブックを返す。CSV エクスポートとは別に、管理者セッションのダウンロード経路が workbook 形式で成功することを確認する。
+- **背景**: CDM 向けエクスポートはマクロ有効 Excel テンプレートを元に `.xlsm` ワークブックを返す。CSV エクスポートとは別に、管理者セッションのブラウザダウンロード経路が workbook 形式で成功することを確認する。
 - **手順**:
   1. 管理者セッションで共有トーナメント ID を使う
-  2. `GET /api/tournaments/:id/export?format=cdm` を呼び出す
+  2. 大会詳細ページの `CDM Export` ボタンをクリックし、`GET /api/tournaments/:id/export?format=cdm` と download イベントを待つ
   3. HTTP 200 かつ Content-Type が `application/vnd.ms-excel.sheet.macroEnabled.12` であること
   4. `Content-Disposition` が attachment で、filename が `.xlsm` で終わること
-  5. レスポンスボディが空でなく、XLSM/ZIP の先頭シグネチャ `PK` を持つこと
-- **期待結果**: 認証済み管理者の CDM エクスポートが `.xlsm` 添付として返る
+  5. Playwright download の `suggestedFilename()` が `.xlsm` で終わること
+  6. `download.path()` が取得でき、保存されたファイルが空でなく、XLSM/ZIP の先頭シグネチャ `PK` を持つこと
+- **期待結果**: 認証済み管理者の CDM エクスポートが `.xlsm` としてダウンロードされる。`download.path()` が取得できない場合は、永続コンテキストの `acceptDownloads` 設定を確認できる診断メッセージで FAIL する。
 - **スクリプト**: tc-all.js TC-358
 
 ## TC-348: キャラクター統計 API — admin のみアクセス可 (TC-328 と重複なし: 形式チェック)

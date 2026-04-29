@@ -180,6 +180,7 @@ async function main() {
       {
         headless: process.env.E2E_HEADLESS === '1',
         viewport: { width: 1280, height: 720 },
+        acceptDownloads: true,
         env: createBrowserLaunchEnv(),
         args: getChromiumArgs(),
       },
@@ -3019,7 +3020,11 @@ async function main() {
           downloadPromise,
         ]);
 
-        const downloadPath = await download.path();
+        let downloadPathError = '';
+        const downloadPath = await download.path().catch((error) => {
+          downloadPathError = error instanceof Error ? error.message : String(error);
+          return null;
+        });
         const downloadError = await download.failure();
         const bytes = downloadPath ? fs.readFileSync(downloadPath) : Buffer.alloc(0);
         const headers = apiResponse.headers();
@@ -3030,6 +3035,7 @@ async function main() {
         const isXlsm = contentType.includes('application/vnd.ms-excel.sheet.macroenabled.12');
         const hasXlsmAttachment = disposition.includes('attachment') && /\.xlsm(?:[";]|$)/i.test(disposition);
         const hasDownloadedXlsmName = /\.xlsm$/i.test(filename);
+        const hasDownloadPath = Boolean(downloadPath);
         const hasBody = bytes.length > 1000;
         const hasZipSignature = bytes[0] === 0x50 && bytes[1] === 0x4B;
 
@@ -3040,6 +3046,7 @@ async function main() {
             isXlsm &&
             hasXlsmAttachment &&
             hasDownloadedXlsmName &&
+            hasDownloadPath &&
             hasBody &&
             hasZipSignature ? 'PASS' : 'FAIL',
           !session.authenticated ? 'No authenticated admin session'
@@ -3048,6 +3055,7 @@ async function main() {
           : !isXlsm ? `content-type: ${contentType}`
           : !hasXlsmAttachment ? `content-disposition: ${disposition}`
           : !hasDownloadedXlsmName ? `download filename: ${filename}`
+          : !hasDownloadPath ? `download path unavailable${downloadPathError ? `: ${downloadPathError}` : ''}; ensure acceptDownloads=true on the persistent context`
           : !hasBody ? `workbook too small: ${bytes.length} bytes`
           : !hasZipSignature ? `unexpected XLSM signature: ${Array.from(bytes.slice(0, 4)).join(',')}`
           : '');

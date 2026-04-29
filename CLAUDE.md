@@ -59,7 +59,7 @@ under `./smkc-score-app`
 const { chromium } = require('playwright');
 const browser = await chromium.launchPersistentContext(
   '/tmp/playwright-smkc-profile',
-  { headless: false, viewport: { width: 1280, height: 720 } }
+  { headless: false, viewport: { width: 1280, height: 720 }, acceptDownloads: true }
 );
 ```
 
