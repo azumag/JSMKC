@@ -81,6 +81,7 @@ import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
+import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -92,10 +93,19 @@ interface Race {
   position2: number | null;
 }
 
+interface CupScoreForm {
+  cup: string;
+  races: Race[];
+  manualEnabled: boolean;
+  manualPoints1: string;
+  manualPoints2: string;
+}
+
 /** GP finals match with cup-based race results and driver points (§7.5) */
 interface GPMatch {
   id: string;
   matchNumber: number;
+  stage?: string | null;
   player1Id: string;
   player2Id: string;
   points1: number;
@@ -111,6 +121,19 @@ interface GPMatch {
     position2: number;
     points1: number;
     points2: number;
+  }[];
+  cupResults?: {
+    cup: string;
+    points1: number;
+    points2: number;
+    winner: 1 | 2 | null;
+    races?: {
+      course: string;
+      position1: number;
+      position2: number;
+      points1: number;
+      points2: number;
+    }[];
   }[];
   player1ReportedPoints1?: number;
   player1ReportedPoints2?: number;
@@ -161,10 +184,6 @@ function getMatchWinner(match: GPMatch): Player | null {
   const score2 = getGpScore(match, 2);
   if (score1 > score2) return match.player1;
   if (score2 > score1) return match.player2;
-  /* Tied scores resolved by sudden-death: winner is whichever player's id matches */
-  if (match.suddenDeathWinnerId) {
-    return match.player1?.id === match.suddenDeathWinnerId ? match.player1 : match.player2;
-  }
   return null;
 }
 
@@ -175,15 +194,6 @@ function getCompletedChampion(matches: GPMatch[]): Player | null {
   const grandFinal = matches.find((m) => m.round === "grand_final" && m.completed);
   if (!grandFinal) return null;
   return getMatchWinner(grandFinal);
-}
-
-function hasValidGpFinalsWinner(score1: number, score2: number, suddenDeathWinnerId?: string): boolean {
-  if (score1 < 0 || score2 < 0) return false;
-  if (score1 === score2) {
-    /* Tied GP finals require a sudden-death winner (§7.5). */
-    return !!suddenDeathWinnerId && suddenDeathWinnerId.length > 0;
-  }
-  return true;
 }
 
 export default function GrandPrixFinals({
@@ -234,17 +244,11 @@ export default function GrandPrixFinals({
   const [isScoreDialogOpen, setIsScoreDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<GPMatch | null>(null);
   const [scoreForm, setScoreForm] = useState<{
-    suddenDeathWinnerId: string;
     cup: string;
     races: Race[];
     tvNumber: number | null;
-  }>({ suddenDeathWinnerId: "", cup: "", races: [], tvNumber: null });
-  /* Admin override: skip race entry and write raw driver-points totals.
-   * Mirrors the qualification page's manual-total form — used when the
-   * cup total needs correcting but entering every race is overkill. */
-  const [manualScoreEnabled, setManualScoreEnabled] = useState(false);
-  const [manualPoints1, setManualPoints1] = useState<string>("");
-  const [manualPoints2, setManualPoints2] = useState<string>("");
+  }>({ cup: "", races: [], tvNumber: null });
+  const [cupForms, setCupForms] = useState<CupScoreForm[]>([]);
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
@@ -412,6 +416,52 @@ export default function GrandPrixFinals({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
+  const nextCupName = (index: number, preferred?: string) => {
+    const cups = ["Mushroom", "Flower", "Star", "Special"];
+    if (index === 0 && preferred) return preferred;
+    return cups[index % cups.length];
+  };
+
+  const makeBlankCupForm = (index: number, preferred?: string): CupScoreForm => {
+    const cup = nextCupName(index, preferred);
+    return {
+      cup,
+      races: getCupCourses(cup).map((course) => ({ course, position1: null, position2: null })),
+      manualEnabled: false,
+      manualPoints1: "",
+      manualPoints2: "",
+    };
+  };
+
+  const getTargetWinsForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
+    getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? "finals" });
+
+  const calculateCupPoints = (cup: CupScoreForm) => {
+    if (cup.manualEnabled) {
+      const p1 = parseManualScore(cup.manualPoints1);
+      const p2 = parseManualScore(cup.manualPoints2);
+      return { valid: p1 !== null && p2 !== null, points1: p1 ?? 0, points2: p2 ?? 0 };
+    }
+    const ready = cup.races.length === TOTAL_GP_RACES &&
+      cup.races.every((r) => r.position1 !== null && r.position2 !== null);
+    return {
+      valid: ready,
+      points1: cup.races.reduce((acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0), 0),
+      points2: cup.races.reduce((acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0), 0),
+    };
+  };
+
+  const calculateCupWins = (forms: CupScoreForm[]) => forms.reduce(
+    (acc, cup) => {
+      const points = calculateCupPoints(cup);
+      if (!points.valid) return acc;
+      if (points.points1 > points.points2) acc.p1 += 1;
+      else if (points.points2 > points.points1) acc.p2 += 1;
+      return acc;
+    },
+    { p1: 0, p2: 0 },
+  );
+
   /**
    * Persist a TV# selection from the bracket card immediately. See BM/MR
    * finals pages for rationale — the dropdown saves on change so admins
@@ -459,31 +509,40 @@ export default function GrandPrixFinals({
     const cup = match.cup || "";
     let races: Race[];
     if (match.races && match.races.length === TOTAL_GP_RACES) {
-      /* Pre-fill with existing race data for editing */
       races = match.races.map((r) => ({
         course: r.course as CourseAbbr,
         position1: r.position1,
         position2: r.position2,
       }));
     } else if (cup) {
-      /* Auto-fill courses from the assigned cup's fixed sequence */
       races = getCupCourses(cup).map((course) => ({ course, position1: null, position2: null }));
     } else {
       races = Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr, position1: null, position2: null }));
     }
+    const forms = match.cupResults && match.cupResults.length > 0
+      ? match.cupResults.map((result, index) => {
+          const resultCup = result.cup || nextCupName(index, cup);
+          return {
+            cup: resultCup,
+            races: result.races && result.races.length === TOTAL_GP_RACES
+              ? result.races.map((r) => ({
+                  course: r.course as CourseAbbr,
+                  position1: r.position1,
+                  position2: r.position2,
+                }))
+              : getCupCourses(resultCup).map((course) => ({ course, position1: null, position2: null })),
+            manualEnabled: !(result.races && result.races.length === TOTAL_GP_RACES),
+            manualPoints1: String(result.points1 ?? 0),
+            manualPoints2: String(result.points2 ?? 0),
+          };
+        })
+      : [makeBlankCupForm(0, cup)];
     setScoreForm({
-      suddenDeathWinnerId: match.suddenDeathWinnerId ?? "",
       cup,
       races,
       tvNumber: match.tvNumber ?? null,
     });
-    /* Reset the manual-override form; pre-fill with the stored totals so the
-     * admin can toggle into manual mode and tweak one side without retyping
-     * both. score1/score2 are the finals score fields; points1/points2 fall
-     * back for playoff rows. */
-    setManualScoreEnabled(false);
-    setManualPoints1(String(match.score1 ?? match.points1 ?? 0));
-    setManualPoints2(String(match.score2 ?? match.points2 ?? 0));
+    setCupForms(forms);
     setIsScoreDialogOpen(true);
   };
 
@@ -497,49 +556,34 @@ export default function GrandPrixFinals({
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
 
-    /* Manual-override path: write the raw driver-points totals and skip the
-     * cup/races breakdown. Used when a race-by-race entry isn't needed. */
-    let points1: number;
-    let points2: number;
     const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
-    if (manualScoreEnabled) {
-      /* Strict parse: reject "12.5", "1e2", etc. that parseInt would
-       * silently truncate into a valid-looking integer. */
-      const parsed1 = parseManualScore(manualPoints1);
-      const parsed2 = parseManualScore(manualPoints2);
-      if (parsed1 === null || parsed2 === null) {
+    const cupResults = [];
+    for (const cup of cupForms) {
+      const points = calculateCupPoints(cup);
+      if (!points.valid) {
         alert(tGp('manualScoreValidation'));
         return;
       }
-      points1 = parsed1;
-      points2 = parsed2;
-      body.score1 = points1;
-      body.score2 = points2;
-    } else {
-      /* Derive total driver points from race positions */
-      points1 = scoreForm.races.reduce(
-        (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
-        0
-      );
-      points2 = scoreForm.races.reduce(
-        (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
-        0
-      );
-      body.score1 = points1;
-      body.score2 = points2;
-      body.cup = scoreForm.cup;
-      body.races = scoreForm.races.map((r) => ({
-        course: r.course,
-        position1: r.position1,
-        position2: r.position2,
-        points1: r.position1 ? getDriverPoints(r.position1) : 0,
-        points2: r.position2 ? getDriverPoints(r.position2) : 0,
-      }));
+      cupResults.push({
+        cup: cup.cup,
+        points1: points.points1,
+        points2: points.points2,
+        races: cup.manualEnabled ? undefined : cup.races.map((r) => ({
+          course: r.course,
+          position1: r.position1,
+          position2: r.position2,
+          points1: r.position1 ? getDriverPoints(r.position1) : 0,
+          points2: r.position2 ? getDriverPoints(r.position2) : 0,
+        })),
+      });
     }
-    if (points1 === points2 && scoreForm.suddenDeathWinnerId) {
-      body.suddenDeathWinnerId = scoreForm.suddenDeathWinnerId;
-    }
+    const wins = calculateCupWins(cupForms);
+    body.score1 = wins.p1;
+    body.score2 = wins.p2;
+    body.cupResults = cupResults;
+    body.cup = cupResults[cupResults.length - 1]?.cup ?? scoreForm.cup;
+    body.races = cupResults[cupResults.length - 1]?.races;
     body.tvNumber = scoreForm.tvNumber;
 
     try {
@@ -554,10 +598,8 @@ export default function GrandPrixFinals({
         const data = unwrapApiData<{ isComplete?: boolean; champion?: string; playoffComplete?: boolean }>(json);
         setIsScoreDialogOpen(false);
         setSelectedMatch(null);
-        setScoreForm({ suddenDeathWinnerId: "", cup: "", races: [], tvNumber: null });
-        setManualScoreEnabled(false);
-        setManualPoints1("");
-        setManualPoints2("");
+        setScoreForm({ cup: "", races: [], tvNumber: null });
+        setCupForms([]);
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -587,40 +629,9 @@ export default function GrandPrixFinals({
     }
   };
 
-  const completedMatches = matches.filter((m) => m.completed).length;
-  const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
-  /* Live driver points preview. In manual-override mode, reflect the raw
-   * inputs so the tied-score branch (sudden-death prompt) still works. */
-  const racePoints1 = scoreForm.races.reduce(
-    (acc, r) => acc + (r.position1 ? getDriverPoints(r.position1) : 0),
-    0
-  );
-  const racePoints2 = scoreForm.races.reduce(
-    (acc, r) => acc + (r.position2 ? getDriverPoints(r.position2) : 0),
-    0
-  );
-  const manualPointsParsed1 = parseManualScore(manualPoints1);
-  const manualPointsParsed2 = parseManualScore(manualPoints2);
-  const manualPointsValid =
-    manualPointsParsed1 !== null && manualPointsParsed2 !== null;
-  const livePoints1 = manualScoreEnabled
-    ? (manualPointsParsed1 ?? 0)
-    : racePoints1;
-  const livePoints2 = manualScoreEnabled
-    ? (manualPointsParsed2 ?? 0)
-    : racePoints2;
-  /* Pre-tiebreak readiness: the inputs are filled in enough that a submit
-   * is imminent. Used to decide when to surface the sudden-death picker
-   * for tied scores (including 0-0) — the server rejects any tie without
-   * a suddenDeathWinnerId, so the admin must always have a way to pick
-   * one once the form is otherwise complete. */
-  const scoreInputsReady = manualScoreEnabled
-    ? manualPointsValid
-    : Boolean(scoreForm.cup) &&
-      scoreForm.races.length === TOTAL_GP_RACES &&
-      scoreForm.races.every((r) => r.position1 !== null && r.position2 !== null);
-  const tiedAndReady = scoreInputsReady && livePoints1 === livePoints2;
+  const cupWins = calculateCupWins(cupForms);
+  const scoreInputsReady = cupForms.length > 0 && cupForms.every((cup) => calculateCupPoints(cup).valid);
 
   // GP stores driver points in points1/points2 (not score1/score2 like BM/MR).
   // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
@@ -782,7 +793,7 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          getTargetWins={() => 1}
+          getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
@@ -793,7 +804,7 @@ export default function GrandPrixFinals({
               playoffStructure={playoffStructure}
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
-              getTargetWins={() => 1}
+              getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
               onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
@@ -806,7 +817,7 @@ export default function GrandPrixFinals({
             playoffStructure={playoffStructure}
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
-            getTargetWins={() => 1}
+            getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
             onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
           />
@@ -825,7 +836,7 @@ export default function GrandPrixFinals({
           bracketStructure={bracketStructure}
           roundNames={roundNames}
           seededPlayers={seededPlayers}
-          getTargetWins={() => 1}
+          getTargetWins={(match) => getTargetWinsForMatch(match as GPMatch | undefined)}
           onMatchClick={isAdmin ? (openScoreDialog as unknown as (match: { id: string }) => void) : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
         />
@@ -876,6 +887,11 @@ export default function GrandPrixFinals({
                         cup: next,
                         races: getCupCourses(next).map((course) => ({ course, position1: null, position2: null })),
                       }));
+                      setCupForms((current) => {
+                        const updated = [...current];
+                        updated[0] = makeBlankCupForm(0, next);
+                        return updated.length > 0 ? updated : [makeBlankCupForm(0, next)];
+                      });
                     }}
                   >
                     {scoreForm.cup === selectedMatch.cup
@@ -886,180 +902,158 @@ export default function GrandPrixFinals({
               </div>
             )}
 
-            {/* Manual total-score override (mirrors the qualification page).
-              When enabled, race entry is hidden and the raw driver-points
-              totals are written directly. */}
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="gp-finals-manual-score"
-                  checked={manualScoreEnabled}
-                  onCheckedChange={(checked) => setManualScoreEnabled(checked === true)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="gp-finals-manual-score">{tGp('manualTotalScore')}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {tGp('manualTotalScoreDesc')}
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-4">
+              {cupForms.map((cup, cupIndex) => {
+                const points = calculateCupPoints(cup);
+                return (
+                  <div key={`cup-${cupIndex}`} className="space-y-3 rounded-lg border p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">Cup {cupIndex + 1}</Badge>
+                        <Badge>{tGp('cupLabel', { cup: cup.cup })}</Badge>
+                      </div>
+                      <div className="text-sm font-medium">
+                        {selectedMatch?.player1.nickname}: {points.points1} pts / {selectedMatch?.player2.nickname}: {points.points2} pts
+                      </div>
+                    </div>
 
-              {manualScoreEnabled && selectedMatch && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="finals-manual-points1">{selectedMatch.player1.nickname}</Label>
-                    <Input
-                      id="finals-manual-points1"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      value={manualPoints1}
-                      onChange={(e) => setManualPoints1(e.target.value)}
-                    />
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={`gp-finals-manual-score-${cupIndex}`}
+                        checked={cup.manualEnabled}
+                        onCheckedChange={(checked) => {
+                          const next = [...cupForms];
+                          next[cupIndex] = { ...cup, manualEnabled: checked === true };
+                          setCupForms(next);
+                        }}
+                      />
+                      <Label htmlFor={`gp-finals-manual-score-${cupIndex}`}>{tGp('manualTotalScore')}</Label>
+                    </div>
+
+                    {cup.manualEnabled && selectedMatch ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>{selectedMatch.player1.nickname}</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            value={cup.manualPoints1}
+                            onChange={(e) => {
+                              const next = [...cupForms];
+                              next[cupIndex] = { ...cup, manualPoints1: e.target.value };
+                              setCupForms(next);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{selectedMatch.player2.nickname}</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            value={cup.manualPoints2}
+                            onChange={(e) => {
+                              const next = [...cupForms];
+                              next[cupIndex] = { ...cup, manualPoints2: e.target.value };
+                              setCupForms(next);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-16">{tCommon('race')}</TableHead>
+                              <TableHead>{tCommon('course')}</TableHead>
+                              <TableHead className="text-center">{tGp('p1Position')}</TableHead>
+                              <TableHead className="text-center">{tGp('p2Position')}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {cup.races.map((race, raceIndex) => (
+                              <TableRow key={`race-${selectedMatch?.id}-${cupIndex}-${raceIndex}`}>
+                                <TableCell className="font-medium">{tCommon('race')} {raceIndex + 1}</TableCell>
+                                <TableCell className="text-sm">
+                                  {COURSE_INFO.find((c) => c.abbr === race.course)?.name || race.course}
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={race.position1?.toString() || ""}
+                                    onValueChange={(value) => {
+                                      const next = [...cupForms];
+                                      const races = [...cup.races];
+                                      races[raceIndex] = { ...races[raceIndex], position1: value === "" ? null : parseInt(value, 10) };
+                                      next[cupIndex] = { ...cup, races };
+                                      setCupForms(next);
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={tCommon('position')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {GP_POSITION_OPTIONS.map((position) => (
+                                        <SelectItem key={`admin-p1-${cupIndex}-${raceIndex}-${position}`} value={position.toString()}>
+                                          {fmtPos(position)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={race.position2?.toString() || ""}
+                                    onValueChange={(value) => {
+                                      const next = [...cupForms];
+                                      const races = [...cup.races];
+                                      races[raceIndex] = { ...races[raceIndex], position2: value === "" ? null : parseInt(value, 10) };
+                                      next[cupIndex] = { ...cup, races };
+                                      setCupForms(next);
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={tCommon('position')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {GP_POSITION_OPTIONS.map((position) => (
+                                        <SelectItem key={`admin-p2-${cupIndex}-${raceIndex}-${position}`} value={position.toString()}>
+                                          {fmtPos(position)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="finals-manual-points2">{selectedMatch.player2.nickname}</Label>
-                    <Input
-                      id="finals-manual-points2"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      value={manualPoints2}
-                      onChange={(e) => setManualPoints2(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
 
-            {/* Race-by-race entry table (5 races per cup).
-                Wrapped in overflow-x-auto so the P2 position column is
-                reachable via horizontal scroll on narrow mobile viewports
-                (issue #810). */}
-            {!manualScoreEnabled && scoreForm.cup && (
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">{tCommon('race')}</TableHead>
-                    <TableHead>{tCommon('course')}</TableHead>
-                    <TableHead className="text-center">{tGp('p1Position')}</TableHead>
-                    <TableHead className="text-center">{tGp('p2Position')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {scoreForm.races.map((race, index) => (
-                    <TableRow key={`race-${selectedMatch?.id}-${index}`}>
-                      <TableCell className="font-medium">
-                        {tCommon('race')} {index + 1}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {COURSE_INFO.find((c) => c.abbr === race.course)?.name || race.course}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={race.position1?.toString() || ""}
-                          onValueChange={(value) => {
-                            const newRaces = [...scoreForm.races];
-                            newRaces[index] = { ...newRaces[index], position1: value === "" ? null : parseInt(value, 10) };
-                            setScoreForm((current) => ({ ...current, races: newRaces }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={tCommon('position')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GP_POSITION_OPTIONS.map((position) => (
-                              <SelectItem key={`admin-p1-${index}-${position}`} value={position.toString()}>
-                                {fmtPos(position)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={race.position2?.toString() || ""}
-                          onValueChange={(value) => {
-                            const newRaces = [...scoreForm.races];
-                            newRaces[index] = { ...newRaces[index], position2: value === "" ? null : parseInt(value, 10) };
-                            setScoreForm((current) => ({ ...current, races: newRaces }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={tCommon('position')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GP_POSITION_OPTIONS.map((position) => (
-                              <SelectItem key={`admin-p2-${index}-${position}`} value={position.toString()}>
-                                {fmtPos(position)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted p-4">
+              <div className="text-sm font-medium">
+                Cups: {selectedMatch?.player1.nickname} {cupWins.p1} - {cupWins.p2} {selectedMatch?.player2.nickname}
               </div>
-            )}
-
-            {/* Live driver points calculation preview */}
-            <div className="bg-muted p-4 rounded-lg">
-              <p className="text-sm font-medium mb-2">{tGp('driverPoints')}</p>
-              {selectedMatch && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-center sm:gap-4">
-                  <div>
-                    <span className="text-sm">{selectedMatch.player1.nickname}:</span>
-                    <span className="ml-2 font-bold">{livePoints1} pts</span>
-                  </div>
-                  <div>
-                    <span className="text-sm">{selectedMatch.player2.nickname}:</span>
-                    <span className="ml-2 font-bold">{livePoints2} pts</span>
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">FT{selectedMatch ? getTargetWinsForMatch(selectedMatch) : 1}</Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCupForms((current) => [...current, makeBlankCupForm(current.length)])}
+                >
+                  Add Cup
+                </Button>
+              </div>
             </div>
-
-            {/* Sudden-death winner selection for tied totals (§7.5). Shown
-              whenever the form is otherwise submit-ready and tied, including
-              the 0-0 case (manual override or all-game-over race mode). */}
-            {tiedAndReady && (
-              <div className="space-y-2">
-                <Label>{tFinals('suddenDeathWinner')}</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    variant={scoreForm.suddenDeathWinnerId === selectedMatch?.player1Id ? "default" : "outline"}
-                    onClick={() => setScoreForm((current) => ({
-                      ...current,
-                      suddenDeathWinnerId: selectedMatch?.player1Id ?? "",
-                    }))}
-                  >
-                    {selectedMatch?.player1.nickname}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={scoreForm.suddenDeathWinnerId === selectedMatch?.player2Id ? "default" : "outline"}
-                    onClick={() => setScoreForm((current) => ({
-                      ...current,
-                      suddenDeathWinnerId: selectedMatch?.player2Id ?? "",
-                    }))}
-                  >
-                    {selectedMatch?.player2.nickname}
-                  </Button>
-                </div>
-              </div>
-            )}
-            <p className={`text-sm text-center ${
-              tiedAndReady && !scoreForm.suddenDeathWinnerId
-                ? 'text-yellow-600' : 'invisible'
-            }`}>
-              {tFinals('gpTieNeedsWinner')}
-            </p>
           </div>
           {/* TV number assignment for broadcast: explicit save button (#651)
               lets admins assign TV# before scores are entered. */}
@@ -1099,8 +1093,7 @@ export default function GrandPrixFinals({
                   setBroadcasting(true);
                   try {
                     const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
-                    /* Finals matches expose driver points as score1/score2 (per GPMatch type).
-                       No FT threshold applies to GP — points are accumulated across races. */
+                    const targetWins = getTargetWinsForMatch(selectedMatch);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
@@ -1110,7 +1103,7 @@ export default function GrandPrixFinals({
                         matchLabel,
                         player1Wins: selectedMatch.score1,
                         player2Wins: selectedMatch.score2,
-                        matchFt: null,
+                        matchFt: targetWins,
                       }),
                     });
                     if (res.ok) {
@@ -1130,14 +1123,7 @@ export default function GrandPrixFinals({
             )}
             <Button
               onClick={handleScoreSubmit}
-              disabled={
-                !scoreInputsReady ||
-                /* Any tie — including 0-0 — needs a sudden-death winner. The
-                 * server rejects all tied scores without suddenDeathWinnerId,
-                 * so the client must not let a tie slip through even when
-                 * both totals are zero (Codex review, PR #588). */
-                (tiedAndReady && !scoreForm.suddenDeathWinnerId)
-              }
+              disabled={!scoreInputsReady}
             >
               {tCommon('saveScore')}
             </Button>

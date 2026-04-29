@@ -48,8 +48,9 @@ const BRACKET_SIZE_THRESHOLD = 20;
 const PLAYOFF_ENTRANT_COUNT = 12;
 
 interface FinalsMatchResult {
-  winnerId: string;
-  loserId: string;
+  winnerId?: string;
+  loserId?: string;
+  completed?: boolean;
   updateData?: Record<string, unknown>;
 }
 
@@ -1384,10 +1385,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
     try {
       /* Defense-in-depth: always sanitize user input */
       const body = sanitizeInput(await request.json());
-      const { matchId, score1, score2 } = body;
+      const { matchId } = body;
+      let { score1, score2 } = body;
 
-      if (!matchId || score1 === undefined || score2 === undefined) {
-        return handleValidationError('matchId, score1, and score2 are required', 'request');
+      if (!matchId || (score1 === undefined || score2 === undefined) && body.cupResults === undefined) {
+        return handleValidationError('matchId and score data are required', 'request');
       }
 
       const match = await model(prisma).findUnique({
@@ -1406,8 +1408,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         return createErrorResponse('Finals match not found', 404, 'NOT_FOUND');
       }
 
-      let winnerId: string;
-      let loserId: string;
+      let winnerId: string | undefined;
+      let loserId: string | undefined;
+      let matchCompleted = true;
       let resolvedUpdateData: Record<string, unknown> = {};
 
       if (config.resolveMatchResult) {
@@ -1424,7 +1427,14 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
         winnerId = resolved.winnerId;
         loserId = resolved.loserId;
+        matchCompleted = resolved.completed ?? true;
         resolvedUpdateData = resolved.updateData ?? {};
+        if (typeof resolvedUpdateData[config.putScoreFields.dbField1] === 'number') {
+          score1 = resolvedUpdateData[config.putScoreFields.dbField1];
+        }
+        if (typeof resolvedUpdateData[config.putScoreFields.dbField2] === 'number') {
+          score2 = resolvedUpdateData[config.putScoreFields.dbField2];
+        }
       } else {
         const targetWins = config.getTargetWins?.(match) ?? config.targetWins ?? 3;
         const player1ReachedTarget = score1 === targetWins && score2 < targetWins;
@@ -1443,7 +1453,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ...resolvedUpdateData,
         [config.putScoreFields.dbField1]: score1,
         [config.putScoreFields.dbField2]: score2,
-        completed: true,
+        completed: matchCompleted,
       };
 
       if (config.putAdditionalFields) {
@@ -1496,6 +1506,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
        * stay in the playoff stage — the Upper Bracket is materialised later
        * via a Phase-2 POST that reads completed playoff results. */
       if (match.stage === 'playoff') {
+        if (!matchCompleted) {
+          return createSuccessResponse({
+            match: updatedMatch,
+            winnerId: null,
+            loserId: null,
+            stage: 'playoff',
+            playoffComplete: await isPlayoffComplete(model, tournamentId),
+          });
+        }
+
+        if (!winnerId || !loserId) {
+          return handleValidationError('Completed match must have a winner and loser', 'score');
+        }
+
         const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
         const matchNumber = Number(match.matchNumber ?? updatedMatch.matchNumber);
         const currentPlayoff = playoffStructure.find(b => b.matchNumber === matchNumber);
@@ -1564,6 +1588,20 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
       if (!currentBracketMatch) {
         return createSuccessResponse({ match: updatedMatch });
+      }
+
+      if (!matchCompleted) {
+        return createSuccessResponse({
+          match: updatedMatch,
+          winnerId: null,
+          loserId: null,
+          isComplete: false,
+          champion: null,
+        });
+      }
+
+      if (!winnerId || !loserId) {
+        return handleValidationError('Completed match must have a winner and loser', 'score');
       }
 
       const updateRoutedMatch = async (

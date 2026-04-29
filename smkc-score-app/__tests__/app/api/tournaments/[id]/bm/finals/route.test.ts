@@ -630,7 +630,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId and score data are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
       expect(result.status).toBe(400);
     });
 
@@ -640,7 +640,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId and score data are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
       expect(result.status).toBe(400);
     });
 
@@ -650,7 +650,7 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'matchId, score1, and score2 are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
+      expect(result.data).toEqual({ success: false, error: 'matchId and score data are required', code: 'VALIDATION_ERROR', details: { field: 'request' } });
       expect(result.status).toBe(400);
     });
 

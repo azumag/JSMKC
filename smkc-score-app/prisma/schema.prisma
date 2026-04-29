@@ -368,6 +368,7 @@ model GPMatch {
   completed    Boolean    @default(false)
   suddenDeathWinnerId String? // Tied cup resolved by a one-race sudden-death playoff
   races        Json? // [{course: "MC1", position1: 1, position2: 2, points1: 9, points2: 6}, ...]
+  cupResults   Json? // Finals/playoff: [{cup, races, points1, points2, winner}], one entry per played cup
 
   // Player-reported scores (for participant score entry)
   player1ReportedPoints1 Int? // Player 1's report: points for player 1

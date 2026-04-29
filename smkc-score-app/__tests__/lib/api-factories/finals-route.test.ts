@@ -1666,7 +1666,7 @@ describe('Finals Route Factory', () => {
 
       expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toBe('matchId, score1, and score2 are required');
+      expect(json.error).toBe('matchId and score data are required');
     });
 
     it('should return 500 on database error', async () => {
