@@ -30,6 +30,9 @@
  *
  * Run: node e2e/tc-ta.js  (from smkc-score-app/)
  */
+// Required before loading TypeScript E2E helper modules.
+require('ts-node/register/transpile-only');
+
 const {
   makeResults, makeLog, nav,
   uiSetTaEntryTimes,
@@ -44,9 +47,8 @@ const {
   setupTaQualViaUi,
   escapeRegex,
 } = require('./lib/common');
-require('ts-node/register/transpile-only');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
-const { assertStackedCardBoxes } = require('./lib/layout-assertions.ts');
+const { assertStackedCardBoxes } = require('./lib/layout-assertions');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
