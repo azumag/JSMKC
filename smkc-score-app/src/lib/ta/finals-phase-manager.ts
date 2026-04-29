@@ -919,6 +919,37 @@ function applySuddenDeathOrder(
   });
 }
 
+function getSuddenDeathContinuationTargets(
+  phase: "phase1" | "phase2" | "phase3",
+  baseResults: CourseResult[],
+  suddenDeathResults: CourseResult[]
+): string[] {
+  if (suddenDeathResults.length < 2) return [];
+
+  if (phase === "phase1" || phase === "phase2") {
+    const maxTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
+    const tiedSlowest = suddenDeathResults.filter((result) => result.timeMs === maxTime);
+    return tiedSlowest.length > 1 ? tiedSlowest.map((result) => result.playerId) : [];
+  }
+
+  const suddenByPlayer = new Map(suddenDeathResults.map((result) => [result.playerId, result.timeMs]));
+  const orderedResults = applySuddenDeathOrder(baseResults, suddenDeathResults);
+  const halfwayPoint = Math.ceil(orderedResults.length / 2);
+  if (halfwayPoint <= 0 || halfwayPoint >= orderedResults.length) return [];
+
+  const safeBoundary = orderedResults[halfwayPoint - 1];
+  const unsafeBoundary = orderedResults[halfwayPoint];
+  const safeSuddenTime = suddenByPlayer.get(safeBoundary.playerId);
+  const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
+  if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
+    return [];
+  }
+
+  return suddenDeathResults
+    .filter((result) => result.timeMs === safeSuddenTime)
+    .map((result) => result.playerId);
+}
+
 async function ensureNoUnresolvedSuddenDeath(
   prisma: PrismaClient,
   tournamentId: string,
@@ -1394,23 +1425,23 @@ export async function submitSuddenDeathResults(
     isRetry: result.isRetry ?? false,
   }));
 
-  const tiedTime = processedResults[0]?.timeMs;
-  const stillTied = processedResults.length > 1 && processedResults.every((result) => result.timeMs === tiedTime);
+  const baseResults = suddenDeathRound.phaseRound.results as unknown as CourseResult[];
+  const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
     data: {
       results: storedResults as Prisma.InputJsonValue,
-      resolved: !stillTied,
+      resolved: true,
     },
   });
 
-  if (stillTied) {
+  if (continuationTargetIds.length > 0) {
     const nextRound = await createSuddenDeathRound(
       prisma,
       tournamentId,
       phase,
       suddenDeathRound.phaseRoundId,
-      targetPlayerIds
+      continuationTargetIds
     );
     return {
       eliminatedIds: [],
@@ -1421,7 +1452,6 @@ export async function submitSuddenDeathResults(
     };
   }
 
-  const baseResults = suddenDeathRound.phaseRound.results as unknown as CourseResult[];
   const orderedResults = applySuddenDeathOrder(baseResults, processedResults);
   let eliminatedIds: string[] = [];
   let livesReset = false;
