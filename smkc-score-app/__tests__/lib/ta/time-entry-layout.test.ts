@@ -2,6 +2,7 @@ import {
   TA_FINALS_ROUND_ENTRY_ROW_CLASS,
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_TIME_ENTRY_CUP_GRID_CLASS,
+  TA_TIME_INPUT_PLACEHOLDER,
   TA_TIME_INPUT_PROPS,
 } from "@/lib/ta/time-entry-layout";
 
@@ -18,7 +19,9 @@ describe("TA time entry layout", () => {
       inputMode: "decimal",
       pattern: "[0-9:.]*",
       autoComplete: "off",
+      title: "Enter 123.45 or 1:23.45",
     });
+    expect(TA_TIME_INPUT_PLACEHOLDER).toBe("123.45");
   });
 
   it("keeps TA finals player names on their own mobile row before sm layout", () => {

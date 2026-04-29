@@ -67,7 +67,7 @@ import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES, TV_NUMBER_OPTIONS } from 
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
 import { canEditTaEntry } from "@/lib/ta/entry-access";
 import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_PROPS } from "@/lib/ta/time-entry-layout";
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_PLACEHOLDER, TA_TIME_INPUT_PROPS } from "@/lib/ta/time-entry-layout";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -1500,7 +1500,7 @@ export default function TimeAttackPageClient({
                         <Input
                           type="text"
                           {...TA_TIME_INPUT_PROPS}
-                          placeholder="M:SS.mm"
+                          placeholder={TA_TIME_INPUT_PLACEHOLDER}
                           value={timeInputs[course.abbr] || ""}
                           onChange={(e) =>
                             handleTimeChange(course.abbr, e.target.value)

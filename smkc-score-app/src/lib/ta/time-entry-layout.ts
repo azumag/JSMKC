@@ -1,9 +1,12 @@
 export const TA_TIME_ENTRY_CUP_GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2";
 
+export const TA_TIME_INPUT_PLACEHOLDER = "123.45";
+
 export const TA_TIME_INPUT_PROPS = {
   inputMode: "decimal",
   pattern: "[0-9:.]*",
   autoComplete: "off",
+  title: "Enter 123.45 or 1:23.45",
 } as const;
 
 export const TA_FINALS_ROUND_ENTRY_ROW_CLASS =
