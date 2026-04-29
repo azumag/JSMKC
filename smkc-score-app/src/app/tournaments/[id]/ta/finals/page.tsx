@@ -83,6 +83,7 @@ import {
   TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_FINALS_TIME_INPUT_CLASS,
+  TA_TIME_INPUT_PLACEHOLDER,
   TA_TIME_INPUT_PROPS,
 } from "@/lib/ta/time-entry-layout";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -879,7 +880,7 @@ export default function TimeAttackFinals({
                   <Input
                     type="text"
                     {...TA_TIME_INPUT_PROPS}
-                    placeholder={tTaFinals('timePlaceholder')}
+                    placeholder={TA_TIME_INPUT_PLACEHOLDER}
                     value={suddenDeathTimes[entry.playerId] || ""}
                     onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
                     className={TA_FINALS_TIME_INPUT_CLASS}
@@ -958,7 +959,7 @@ export default function TimeAttackFinals({
                     <Input
                       type="text"
                       {...TA_TIME_INPUT_PROPS}
-                      placeholder={tTaFinals('timePlaceholder')}
+                      placeholder={TA_TIME_INPUT_PLACEHOLDER}
                       value={courseTimes[entry.playerId] || ""}
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)

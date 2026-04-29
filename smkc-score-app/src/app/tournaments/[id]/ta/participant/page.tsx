@@ -38,7 +38,7 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_PROPS } from '@/lib/ta/time-entry-layout';
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_PLACEHOLDER, TA_TIME_INPUT_PROPS } from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -579,7 +579,7 @@ export default function TimeAttackParticipantPage({
                                   <Input
                                     type="text"
                                     {...TA_TIME_INPUT_PROPS}
-                                    placeholder="M:SS.mm"
+                                    placeholder={TA_TIME_INPUT_PLACEHOLDER}
                                     value={partnerTimeInputs[course.abbr] || ''}
                                     onChange={(e) => handlePartnerTimeChange(course.abbr, e.target.value)}
                                     onBlur={() => handlePartnerTimeBlur(course.abbr)}
@@ -673,7 +673,7 @@ export default function TimeAttackParticipantPage({
                                   <Input
                                     type="text"
                                     {...TA_TIME_INPUT_PROPS}
-                                    placeholder="M:SS.mm"
+                                    placeholder={TA_TIME_INPUT_PLACEHOLDER}
                                     value={timeInputs[course.abbr] || ''}
                                     onChange={(e) => handleTimeChange(course.abbr, e.target.value)}
                                     onBlur={() => handleTimeBlur(course.abbr)}
