@@ -30,7 +30,14 @@ import { PrismaClient, TTEntry, Prisma } from "@prisma/client";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLog, AUDIT_ACTIONS } from "@/lib/audit-log";
 import { createLogger } from "@/lib/logger";
-import { selectRandomCourse, getPlayedCourses, getAvailableCourses, isValidCourseAbbr } from "@/lib/ta/course-selection";
+import {
+  selectRandomCourse,
+  getPlayedCourses,
+  getAvailableCourses,
+  getPlayedCoursesWithSuddenDeath,
+  selectRandomAvailableCourse,
+  isValidCourseAbbr,
+} from "@/lib/ta/course-selection";
 import { RETRY_PENALTY_MS, CourseAbbr } from "@/lib/constants";
 
 /**
@@ -854,6 +861,135 @@ export interface RoundResultInput {
   tvNumber?: number | null;
 }
 
+export interface SuddenDeathResultInput {
+  playerId: string;
+  timeMs: number;
+  isRetry?: boolean;
+}
+
+interface TieBreakDecision {
+  targetPlayerIds: string[];
+  reason: "slowest_tie" | "phase3_boundary_tie";
+}
+
+function detectTieBreakRequired(
+  phase: "phase1" | "phase2" | "phase3",
+  courseResults: CourseResult[]
+): TieBreakDecision | null {
+  if (courseResults.length < 2) return null;
+
+  if (phase === "phase1" || phase === "phase2") {
+    const maxTime = Math.max(...courseResults.map((result) => result.timeMs));
+    const tiedSlowest = courseResults.filter((result) => result.timeMs === maxTime);
+    return tiedSlowest.length > 1
+      ? { targetPlayerIds: tiedSlowest.map((result) => result.playerId), reason: "slowest_tie" }
+      : null;
+  }
+
+  const sorted = [...courseResults].sort((a, b) => a.timeMs - b.timeMs);
+  const halfwayPoint = Math.ceil(sorted.length / 2);
+  if (halfwayPoint <= 0 || halfwayPoint >= sorted.length) return null;
+
+  const boundarySafe = sorted[halfwayPoint - 1];
+  const boundaryUnsafe = sorted[halfwayPoint];
+  if (boundarySafe.timeMs !== boundaryUnsafe.timeMs) return null;
+
+  const boundaryTime = boundarySafe.timeMs;
+  return {
+    targetPlayerIds: sorted
+      .filter((result) => result.timeMs === boundaryTime)
+      .map((result) => result.playerId),
+    reason: "phase3_boundary_tie",
+  };
+}
+
+function applySuddenDeathOrder(
+  baseResults: CourseResult[],
+  suddenDeathResults: CourseResult[]
+): CourseResult[] {
+  const suddenByPlayer = new Map(suddenDeathResults.map((result) => [result.playerId, result.timeMs]));
+  return [...baseResults].sort((a, b) => {
+    const aSudden = suddenByPlayer.get(a.playerId);
+    const bSudden = suddenByPlayer.get(b.playerId);
+    if (aSudden !== undefined && bSudden !== undefined) {
+      if (aSudden !== bSudden) return aSudden - bSudden;
+      return a.timeMs - b.timeMs;
+    }
+    return a.timeMs - b.timeMs;
+  });
+}
+
+function getSuddenDeathContinuationTargets(
+  phase: "phase1" | "phase2" | "phase3",
+  baseResults: CourseResult[],
+  suddenDeathResults: CourseResult[]
+): string[] {
+  if (suddenDeathResults.length < 2) return [];
+
+  if (phase === "phase1" || phase === "phase2") {
+    const maxTime = Math.max(...suddenDeathResults.map((result) => result.timeMs));
+    const tiedSlowest = suddenDeathResults.filter((result) => result.timeMs === maxTime);
+    return tiedSlowest.length > 1 ? tiedSlowest.map((result) => result.playerId) : [];
+  }
+
+  const suddenByPlayer = new Map(suddenDeathResults.map((result) => [result.playerId, result.timeMs]));
+  const orderedResults = applySuddenDeathOrder(baseResults, suddenDeathResults);
+  const halfwayPoint = Math.ceil(orderedResults.length / 2);
+  if (halfwayPoint <= 0 || halfwayPoint >= orderedResults.length) return [];
+
+  const safeBoundary = orderedResults[halfwayPoint - 1];
+  const unsafeBoundary = orderedResults[halfwayPoint];
+  const safeSuddenTime = suddenByPlayer.get(safeBoundary.playerId);
+  const unsafeSuddenTime = suddenByPlayer.get(unsafeBoundary.playerId);
+  if (safeSuddenTime === undefined || unsafeSuddenTime === undefined || safeSuddenTime !== unsafeSuddenTime) {
+    return [];
+  }
+
+  return suddenDeathResults
+    .filter((result) => result.timeMs === safeSuddenTime)
+    .map((result) => result.playerId);
+}
+
+async function ensureNoUnresolvedSuddenDeath(
+  prisma: PrismaClient,
+  tournamentId: string,
+  phase: "phase1" | "phase2" | "phase3"
+) {
+  const unresolved = await prisma.tTPhaseSuddenDeathRound.findFirst({
+    where: { tournamentId, phase, resolved: false },
+    select: { id: true },
+  });
+  if (unresolved) {
+    throw new Error(`Unresolved sudden-death round exists for ${phase}`);
+  }
+}
+
+async function createSuddenDeathRound(
+  prisma: PrismaClient,
+  tournamentId: string,
+  phase: "phase1" | "phase2" | "phase3",
+  phaseRoundId: string,
+  targetPlayerIds: string[]
+) {
+  const count = await prisma.tTPhaseSuddenDeathRound.count({
+    where: { phaseRoundId },
+  });
+  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
+  const course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
+  return prisma.tTPhaseSuddenDeathRound.create({
+    data: {
+      tournamentId,
+      phase,
+      phaseRoundId,
+      sequence: count + 1,
+      course,
+      targetPlayerIds: targetPlayerIds as Prisma.InputJsonValue,
+      results: Prisma.JsonNull,
+      resolved: false,
+    },
+  });
+}
+
 /**
  * Start a new round for a phase.
  *
@@ -893,6 +1029,7 @@ export async function startPhaseRound(
   if (activePlayers.length === 0) {
     throw new Error(`No active players in ${phase}. Promote players first.`);
   }
+  await ensureNoUnresolvedSuddenDeath(prisma, tournamentId, phase);
 
   // Retry loop for round creation: handles the race condition where two concurrent
   // requests compute the same roundNumber. The @@unique([tournamentId, phase, roundNumber])
@@ -1024,7 +1161,13 @@ export async function submitRoundResults(
   phase: "phase1" | "phase2" | "phase3",
   roundNumber: number,
   results: RoundResultInput[]
-): Promise<{ eliminatedIds: string[]; livesReset: boolean; course: string }> {
+): Promise<{
+  eliminatedIds: string[];
+  livesReset: boolean;
+  course: string;
+  tieBreakRequired?: boolean;
+  suddenDeathRound?: unknown;
+}> {
   const logger = createLogger("ta-phase-manager");
   const { tournamentId } = context;
 
@@ -1108,10 +1251,37 @@ export async function submitRoundResults(
     playerId: r.playerId,
     timeMs: r.isRetry ? RETRY_PENALTY_MS : r.timeMs,
     isRetry: r.isRetry ?? false,
+    tvNumber: r.tvNumber ?? null,
   }));
 
   let eliminatedIds: string[] = [];
   let livesReset = false;
+
+  const tieBreak = detectTieBreakRequired(phase, processedResults);
+  if (tieBreak) {
+    await prisma.tTPhaseRound.update({
+      where: { id: round.id },
+      data: {
+        results: storedResults,
+        eliminatedIds: Prisma.JsonNull,
+        livesReset: false,
+      },
+    });
+    const suddenDeathRound = await createSuddenDeathRound(
+      prisma,
+      tournamentId,
+      phase,
+      round.id,
+      tieBreak.targetPlayerIds
+    );
+    return {
+      eliminatedIds: [],
+      livesReset: false,
+      course: round.course,
+      tieBreakRequired: true,
+      suddenDeathRound,
+    };
+  }
 
   // Delegate elimination processing to the appropriate handler.
   // Phase 1/2: Slowest player is eliminated (single elimination).
@@ -1171,6 +1341,156 @@ export async function submitRoundResults(
   }
 
   return { eliminatedIds, livesReset, course: round.course };
+}
+
+export async function changeSuddenDeathCourse(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3",
+  suddenDeathRoundId: string,
+  course: string
+) {
+  const { tournamentId } = context;
+  if (!isValidCourseAbbr(course)) {
+    throw new Error(`Invalid course abbreviation: "${course}". Must be one of the 20 standard courses.`);
+  }
+  const suddenDeathRound = await prisma.tTPhaseSuddenDeathRound.findUnique({
+    where: { id: suddenDeathRoundId },
+  });
+  if (!suddenDeathRound || suddenDeathRound.tournamentId !== tournamentId || suddenDeathRound.phase !== phase) {
+    throw new Error(`Sudden-death round ${suddenDeathRoundId} not found for ${phase}`);
+  }
+  if (suddenDeathRound.resolved || Array.isArray(suddenDeathRound.results)) {
+    throw new Error("Sudden-death course cannot be changed after results are submitted");
+  }
+  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
+    excludeSuddenDeathRoundId: suddenDeathRoundId,
+  });
+  const available = getAvailableCourses(playedCourses);
+  if (!available.includes(course as CourseAbbr)) {
+    throw new Error(`Course "${course}" has already been played in the current cycle. Available courses: ${available.join(", ")}`);
+  }
+  return prisma.tTPhaseSuddenDeathRound.update({
+    where: { id: suddenDeathRoundId },
+    data: { course },
+  });
+}
+
+export async function submitSuddenDeathResults(
+  prisma: PrismaClient,
+  context: PhaseContext,
+  phase: "phase1" | "phase2" | "phase3",
+  suddenDeathRoundId: string,
+  results: SuddenDeathResultInput[]
+): Promise<{
+  eliminatedIds: string[];
+  livesReset: boolean;
+  course: string;
+  tieBreakRequired?: boolean;
+  suddenDeathRound?: unknown;
+}> {
+  const { tournamentId } = context;
+  const suddenDeathRound = await prisma.tTPhaseSuddenDeathRound.findUnique({
+    where: { id: suddenDeathRoundId },
+    include: { phaseRound: true },
+  });
+  if (!suddenDeathRound || suddenDeathRound.tournamentId !== tournamentId || suddenDeathRound.phase !== phase) {
+    throw new Error(`Sudden-death round ${suddenDeathRoundId} not found for ${phase}`);
+  }
+  if (suddenDeathRound.resolved) {
+    throw new Error(`Sudden-death round ${suddenDeathRoundId} has already been resolved`);
+  }
+  const targetPlayerIds = suddenDeathRound.targetPlayerIds as string[];
+  const submittedIds = results.map((result) => result.playerId);
+  const uniqueIds = new Set(submittedIds);
+  if (uniqueIds.size !== submittedIds.length) {
+    throw new Error("Duplicate player IDs in sudden-death results");
+  }
+  const missingIds = targetPlayerIds.filter((id) => !uniqueIds.has(id));
+  const invalidIds = submittedIds.filter((id) => !targetPlayerIds.includes(id));
+  if (missingIds.length > 0) {
+    throw new Error(`Missing sudden-death results for players: ${missingIds.join(", ")}`);
+  }
+  if (invalidIds.length > 0) {
+    throw new Error(`Invalid sudden-death player IDs: ${invalidIds.join(", ")}`);
+  }
+
+  const processedResults: CourseResult[] = results.map((result) => ({
+    playerId: result.playerId,
+    timeMs: result.isRetry ? RETRY_PENALTY_MS : result.timeMs,
+  }));
+  const storedResults = results.map((result) => ({
+    playerId: result.playerId,
+    timeMs: result.isRetry ? RETRY_PENALTY_MS : result.timeMs,
+    isRetry: result.isRetry ?? false,
+  }));
+
+  const baseResults = suddenDeathRound.phaseRound.results as unknown as CourseResult[];
+  const continuationTargetIds = getSuddenDeathContinuationTargets(phase, baseResults, processedResults);
+  await prisma.tTPhaseSuddenDeathRound.update({
+    where: { id: suddenDeathRound.id },
+    data: {
+      results: storedResults as Prisma.InputJsonValue,
+      resolved: true,
+    },
+  });
+
+  if (continuationTargetIds.length > 0) {
+    const nextRound = await createSuddenDeathRound(
+      prisma,
+      tournamentId,
+      phase,
+      suddenDeathRound.phaseRoundId,
+      continuationTargetIds
+    );
+    return {
+      eliminatedIds: [],
+      livesReset: false,
+      course: suddenDeathRound.phaseRound.course,
+      tieBreakRequired: true,
+      suddenDeathRound: nextRound,
+    };
+  }
+
+  const orderedResults = applySuddenDeathOrder(baseResults, processedResults);
+  let eliminatedIds: string[] = [];
+  let livesReset = false;
+  if (phase === "phase1" || phase === "phase2") {
+    const slowest = [...processedResults].sort((a, b) => b.timeMs - a.timeMs)[0];
+    await prisma.tTEntry.update({
+      where: {
+        tournamentId_playerId_stage: {
+          tournamentId,
+          playerId: slowest.playerId,
+          stage: phase,
+        },
+      },
+      data: { eliminated: true },
+    });
+    eliminatedIds = [slowest.playerId];
+  } else {
+    const suddenRank = new Map(
+      [...processedResults]
+        .sort((a, b) => a.timeMs - b.timeMs)
+        .map((result, index) => [result.playerId, index])
+    );
+    const adjustedResults = orderedResults.map((result) => ({
+      ...result,
+      timeMs: result.timeMs + (suddenRank.get(result.playerId) ?? 0),
+    }));
+    const phase3Result = await processPhase3Result(prisma, context, adjustedResults);
+    eliminatedIds = phase3Result.eliminated;
+    livesReset = phase3Result.livesReset;
+  }
+
+  await prisma.tTPhaseRound.update({
+    where: { id: suddenDeathRound.phaseRoundId },
+    data: {
+      eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
+      livesReset,
+    },
+  });
+  return { eliminatedIds, livesReset, course: suddenDeathRound.phaseRound.course };
 }
 
 /**

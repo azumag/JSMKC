@@ -47,6 +47,43 @@ export async function getPlayedCourses(
 }
 
 /**
+ * Fetch played courses including adopted sudden-death courses.
+ * A sudden-death course is "adopted" as soon as its row exists; if an admin
+ * changes an unresolved sudden-death course, the row is updated, so only the
+ * final selected course remains in this history.
+ */
+export async function getPlayedCoursesWithSuddenDeath(
+  prisma: DbClient,
+  tournamentId: string,
+  phase: string,
+  options: { excludeSuddenDeathRoundId?: string } = {}
+): Promise<string[]> {
+  const rounds = await prisma.tTPhaseRound.findMany({
+    where: { tournamentId, phase },
+    orderBy: { roundNumber: "asc" },
+    select: {
+      id: true,
+      course: true,
+      suddenDeathRounds: {
+        orderBy: { sequence: "asc" },
+        select: { id: true, course: true },
+      },
+    },
+  });
+
+  const courses: string[] = [];
+  for (const round of rounds) {
+    courses.push(round.course);
+    for (const suddenDeathRound of round.suddenDeathRounds ?? []) {
+      if (suddenDeathRound.id !== options.excludeSuddenDeathRoundId) {
+        courses.push(suddenDeathRound.course);
+      }
+    }
+  }
+  return courses;
+}
+
+/**
  * Determine which courses are still available in the current 20-course cycle.
  *
  * The cycle works as follows:
@@ -73,6 +110,22 @@ export function getAvailableCourses(playedCourses: string[]): CourseAbbr[] {
   // Available = all 20 courses minus those already played in the current cycle
   const playedSet = new Set(currentCycleCourses);
   return COURSES.filter((c) => !playedSet.has(c));
+}
+
+export function selectRandomAvailableCourse(
+  playedCourses: string[],
+  previousCourse?: string | null
+): CourseAbbr {
+  const available = getAvailableCourses(playedCourses);
+  if (available.length === 0) {
+    throw new Error("No available courses");
+  }
+  const candidates =
+    previousCourse && available.length > 1
+      ? available.filter((course) => course !== previousCourse)
+      : available;
+  const pool = candidates.length > 0 ? candidates : available;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 /**
@@ -103,7 +156,7 @@ export async function selectRandomCourse(
   tournamentId: string,
   phase: string
 ): Promise<CourseAbbr> {
-  const playedCourses = await getPlayedCourses(prisma, tournamentId, phase);
+  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
   const available = getAvailableCourses(playedCourses);
 
   // Safety check: should never happen because getAvailableCourses resets at cycle boundary
@@ -114,7 +167,5 @@ export async function selectRandomCourse(
     );
   }
 
-  // Uniform random selection from available courses
-  const randomIndex = Math.floor(Math.random() * available.length);
-  return available[randomIndex];
+  return selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
 }
