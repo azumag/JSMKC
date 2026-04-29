@@ -1324,6 +1324,7 @@ export default function TimeAttackPageClient({
                                 resetBroadcastStatus();
                               }}
                               aria-label={`${tc('tvNumber')} ${entry.player.nickname}`}
+                              data-testid={`ta-tv-select-${entry.playerId}`}
                             >
                               <option value="">-</option>
                               {TV_NUMBER_OPTIONS.map((tv) => (

@@ -935,7 +935,10 @@ export default function TimeAttackFinals({
                         {renderLives(entry.lives, entry.eliminated, tTaFinals('eliminated'))}
                       </div>
                     </div>
-                    <div className={TA_FINALS_ROUND_CONTROLS_CLASS}>
+                    <div
+                      className={TA_FINALS_ROUND_CONTROLS_CLASS}
+                      data-testid="ta-finals-round-controls"
+                    >
                     {/* Per-player TV number selector: assign which screen this player uses */}
                     <select
                       className="h-9 w-full rounded border bg-background px-2 text-center text-sm sm:h-8 sm:w-16 sm:shrink-0"
