@@ -20,7 +20,7 @@
  * Response: CSV file download
  */
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/excel";
@@ -68,6 +68,7 @@ type MatchWithPlayers = {
   completed: boolean;
   assignedCourses?: unknown;
   cup?: string | null;
+  cupResults?: unknown;
   bracketPosition?: string | null;
   isGrandFinal?: boolean;
 };
@@ -308,6 +309,20 @@ function clearRange(ws: XLSX.WorkSheet, startCol: number, endCol: number, startR
   }
 }
 
+function gpCupResultsSummary(match: MatchWithPlayers): string {
+  if (!Array.isArray(match.cupResults) || match.cupResults.length === 0) {
+    return match.cup ?? "";
+  }
+
+  return match.cupResults.map((result, index) => {
+    const record = result && typeof result === "object" ? result as Record<string, unknown> : {};
+    const cup = typeof record.cup === "string" && record.cup.trim() ? record.cup : `Cup ${index + 1}`;
+    const points1 = typeof record.points1 === "number" && Number.isFinite(record.points1) ? record.points1 : "";
+    const points2 = typeof record.points2 === "number" && Number.isFinite(record.points2) ? record.points2 : "";
+    return `${cup}: ${points1}-${points2}`;
+  }).join("; ");
+}
+
 function writeMatchFinalsSheet(
   workbook: XLSX.WorkBook,
   sheetName: string,
@@ -319,7 +334,11 @@ function writeMatchFinalsSheet(
   if (!ws) return;
 
   const finalsMatches = matches
-    .filter((match) => match.stage === "finals" || match.stage === "grand_final")
+    .filter((match) =>
+      match.stage === "finals" ||
+      match.stage === "grand_final" ||
+      (mode === "gp" && match.stage === "playoff")
+    )
     .sort((a, b) => a.matchNumber - b.matchNumber);
 
   const qualifiedPlayers = finalsMatches.length > 0
@@ -353,7 +372,10 @@ function writeMatchFinalsSheet(
     setCell(ws, `${toColumn(blockStart + 4)}${row + 1}`, p2Score);
 
     if (mode === "gp") {
-      setCell(ws, `${toColumn(blockStart + 5)}${row}`, match.cup ?? "");
+      // GP finals store FT progress in points1/points2 and the actual
+      // per-cup driver points in cupResults; export the cup summary so CDM
+      // audits do not lose the played-cup score detail.
+      setCell(ws, `${toColumn(blockStart + 5)}${row}`, gpCupResultsSummary(match));
     }
     if (match.tvNumber) {
       setCell(ws, `${toColumn(blockStart + 6)}${row}`, `TV ${match.tvNumber}`);

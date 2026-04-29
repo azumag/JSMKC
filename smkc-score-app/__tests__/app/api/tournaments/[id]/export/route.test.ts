@@ -22,7 +22,7 @@
 
 jest.mock('@/lib/logger', () => ({ createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn() })) }));
 jest.mock('@/lib/excel', () => ({ formatDate: jest.fn(() => '2024-01-15'), formatTime: jest.fn(() => '1:23.456') }));
-jest.mock('xlsx', () => ({
+jest.mock('@e965/xlsx', () => ({
   read: jest.fn(() => ({
     Sheets: {
       "Main Hub": {},
@@ -64,6 +64,7 @@ import { createLogger } from '@/lib/logger';
 import { formatDate, formatTime } from '@/lib/excel';
 import { GET } from '@/app/api/tournaments/[id]/export/route';
 import { NextResponse } from 'next/server';
+import * as XLSX from '@e965/xlsx';
 
 class MockNextRequest {
   constructor(private url: string) {}
@@ -213,6 +214,130 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.data).toBeInstanceOf(Uint8Array);
       expect(result.headers['Content-Type']).toBe('application/vnd.ms-excel.sheet.macroEnabled.12');
       expect(result.headers['Content-Disposition']).toContain('.xlsm');
+    });
+
+    it('should not pollute Object.prototype when CDM export receives malicious player names', async () => {
+      const pollutionKey = 'cdmExportPolluted';
+      delete Object.prototype[pollutionKey];
+
+      const mockTournament = {
+        id: 't1',
+        name: '__proto__',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [{
+          player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
+          seeding: 1,
+          group: 'A',
+          mp: 1,
+          wins: 1,
+          ties: 0,
+          losses: 0,
+          winRounds: 4,
+          lossRounds: 1,
+          points: 3,
+          score: 1000,
+        }],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [],
+        ttEntries: [{
+          playerId: 'p1',
+          player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
+          stage: 'qualification',
+          seeding: 1,
+          lives: 3,
+          eliminated: false,
+          times: JSON.parse(`{"MC1":"0:12.345","__proto__":{"${pollutionKey}":true},"constructor":{"prototype":{"${pollutionKey}":true}}}`),
+          totalTime: 12345,
+        }],
+        ttPhaseRounds: [],
+        playerScores: [{
+          player: { id: 'p1', name: '__proto__', nickname: '__proto__', country: 'constructor' },
+          taQualificationPoints: 1000,
+          bmQualificationPoints: 1000,
+          mrQualificationPoints: 0,
+          gpQualificationPoints: 0,
+          taFinalsPoints: 0,
+          bmFinalsPoints: 0,
+          mrFinalsPoints: 0,
+          gpFinalsPoints: 0,
+          totalPoints: 2000,
+          overallRank: 1,
+        }],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      try {
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+        const params = Promise.resolve({ id: 't1' });
+        const result = await GET(request, { params });
+        const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+
+        expect(result.headers['Content-Disposition']).toContain('__proto__-cdm-2024-01-15.xlsm');
+        expect(workbook.Sheets["Main Hub"].B2.v).toBe('__proto__');
+        expect(workbook.Sheets["Main Hub"].C2.v).toBe('__proto__');
+        expect(({} as Record<string, unknown>)[pollutionKey]).toBeUndefined();
+        expect(Object.prototype[pollutionKey]).toBeUndefined();
+      } finally {
+        delete Object.prototype[pollutionKey];
+      }
+    });
+
+    it('should write GP finals cupResults details into the CDM workbook', async () => {
+      const mockTournament = {
+        id: 't1',
+        name: 'GP Finals CDM',
+        date: new Date('2024-01-15'),
+        status: 'completed',
+        bmQualifications: [],
+        mrQualifications: [],
+        gpQualifications: [],
+        bmMatches: [],
+        mrMatches: [],
+        gpMatches: [{
+          matchNumber: 1,
+          stage: 'playoff',
+          round: 'winners_final',
+          bracketPosition: 'WF',
+          player1: { id: 'p1', name: 'Player One', nickname: 'P1' },
+          player2: { id: 'p2', name: 'Player Two', nickname: 'P2' },
+          points1: 2,
+          points2: 1,
+          cup: 'Star',
+          cupResults: [
+            { cup: 'Mushroom', points1: 45, points2: 30, winner: 1 },
+            { cup: 'Flower', points1: 24, points2: 45, winner: 2 },
+            { cup: 'Star', points1: 48, points2: 21, winner: 1 },
+          ],
+          completed: true,
+        }],
+        ttEntries: [],
+        ttPhaseRounds: [],
+        playerScores: [],
+      };
+
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(mockTournament);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      });
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/export?format=cdm');
+      const params = Promise.resolve({ id: 't1' });
+      await GET(request, { params });
+
+      const workbook = (XLSX.write as jest.Mock).mock.calls[0][0];
+      expect(workbook.Sheets["GP Finals"].H5.v).toBe(2);
+      expect(workbook.Sheets["GP Finals"].H6.v).toBe(1);
+      expect(workbook.Sheets["GP Finals"].I5.v).toBe('Mushroom: 45-30; Flower: 24-45; Star: 48-21');
     });
 
     it('should export BM qualification data grouped by group', async () => {

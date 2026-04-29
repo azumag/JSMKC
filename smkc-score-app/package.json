@@ -20,11 +20,15 @@
     "finals:prepare": "node scripts/create-finals-ready-tournament.js",
     "finals:reapply-ranks": "node scripts/reapply-rank-overrides.js",
     "build:cf": "opennextjs-cloudflare build",
+    "db:migrations:list": "wrangler d1 migrations list DB --remote",
+    "db:migrations:apply": "wrangler d1 migrations apply DB --remote --yes",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "preview:fast": "opennextjs-cloudflare dev",
-    "deploy": "npm run build:cf && wrangler deploy"
+    "deploy:cf": "npm run db:migrations:apply && wrangler deploy",
+    "deploy": "npm run build:cf && npm run deploy:cf"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@fontsource/anton": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
@@ -51,7 +55,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "wrangler": "^4.72.0",
-    "xlsx": "^0.18.5",
     "xss": "^1.0.15",
     "zod": "^4.3.5"
   },
