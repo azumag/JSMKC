@@ -3179,8 +3179,14 @@ async function main() {
         const reenabledAfterError = !(await cdmButton.isDisabled());
         const busyAfterError = await cdmButton.getAttribute('aria-busy') === 'true';
 
+        const retryResponsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return url.pathname === `/api/tournaments/${exportTid}/export` &&
+            url.searchParams.get('format') === 'cdm' &&
+            response.status() === 500;
+        }, { timeout: 10000 });
         await cdmButton.click();
-        await page.waitForTimeout(100);
+        await retryResponsePromise;
 
         log('TC-361',
           firstAlertText.includes('Failed to export tournament') &&
