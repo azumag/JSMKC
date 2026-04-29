@@ -49,6 +49,7 @@ const {
   apiDeleteTournament, apiGetTtEntry, apiSeedTtEntry, apiForceRankOnly, apiSetTaPartner, apiTaParticipantEditTime, loginPlayerBrowser,
   apiFetchTa, apiFetchTaPhase, apiPostTaPhase, apiPromoteTaPhase,
   makeTaTimesForRank,
+  TA_COURSES,
   setupTaQualViaUi,
   escapeRegex,
 } = require('./lib/common');
@@ -130,39 +131,6 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
     seeded.push({ ...entries[i], rank, times, totalMs });
   }
   return seeded;
-}
-
-function e2eTimeToMs(value) {
-  if (!value || typeof value !== 'string') return null;
-  const match = value.match(/^(\d+):([0-5]\d)\.(\d{1,3})$/);
-  if (!match) return null;
-  const minutes = Number(match[1]);
-  const seconds = Number(match[2]);
-  const ms = Number(match[3].padEnd(3, '0').slice(0, 3));
-  return minutes * 60000 + seconds * 1000 + ms;
-}
-
-function calculateE2eFirstPlaceCounts(entries) {
-  const counts = new Map(entries.map((entry) => [entry.id, 0]));
-  const courses = new Set();
-  for (const entry of entries) {
-    for (const course of Object.keys(entry.times || {})) courses.add(course);
-  }
-
-  for (const course of courses) {
-    const valid = entries
-      .map((entry) => ({ entry, timeMs: e2eTimeToMs(entry.times?.[course]) }))
-      .filter((row) => row.timeMs !== null);
-    if (valid.length === 0) continue;
-    const fastest = Math.min(...valid.map((row) => row.timeMs));
-    for (const row of valid) {
-      if (row.timeMs === fastest) {
-        counts.set(row.entry.id, (counts.get(row.entry.id) || 0) + 1);
-      }
-    }
-  }
-
-  return counts;
 }
 
 /* ───────── TC-801: 28-player full qualification ─────────
@@ -350,33 +318,43 @@ async function runTc839(adminPage) {
 
 /* ───────── TC-837: TA standings show Nb #1 count ───────── */
 async function runTc837(adminPage) {
+  let setup = null;
   try {
-    const tournamentId = sharedTaTournamentId;
-    if (!tournamentId) throw new Error('Shared TA tournament not initialized');
+    setup = await createIsolatedTaQualification(adminPage, 'Nb One Count', sharedTaPlayers(2), { seedTimes: false });
+    const { tournamentId, entries } = setup;
+    const [p1, p2] = entries;
+    if (!p1 || !p2) throw new Error('TC-837 requires two TA entries');
 
-    const data = await apiFetchTa(adminPage, tournamentId);
-    const entries = data.b?.data?.entries ?? [];
-    const counts = calculateE2eFirstPlaceCounts(entries);
-    const target = entries
-      .map((entry) => ({ entry, count: counts.get(entry.id) || 0 }))
-      .sort((a, b) => b.count - a.count)[0];
-    if (!target) throw new Error('No TA entries available for Nb #1 check');
+    const p1Times = {};
+    const p2Times = {};
+    for (const [index, course] of TA_COURSES.entries()) {
+      p1Times[course] = index === 0 ? '1:01.00' : '1:00.00';
+      p2Times[course] = index === 0 ? '1:00.00' : '1:01.00';
+    }
+    await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: p1.nickname }, p1Times);
+    await uiSetTaEntryTimes(adminPage, tournamentId, { nickname: p2.nickname }, p2Times);
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     const bodyText = await adminPage.locator('body').innerText();
     const headerVisible = bodyText.includes('Nb #1');
-    const cellText = await adminPage
-      .locator(`[data-testid="ta-first-place-count-${target.entry.id}"]`)
+    const p1CellText = await adminPage
+      .locator(`[data-testid="ta-first-place-count-${p1.entryId}"]`)
       .innerText({ timeout: 15000 })
       .catch(() => '');
-    const valueOk = cellText.trim() === String(target.count);
+    const p2CellText = await adminPage
+      .locator(`[data-testid="ta-first-place-count-${p2.entryId}"]`)
+      .innerText({ timeout: 15000 })
+      .catch(() => '');
+    const valueOk = p1CellText.trim() === '19' && p2CellText.trim() === '1';
 
     log('TC-837', headerVisible && valueOk ? 'PASS' : 'FAIL',
       !headerVisible ? 'Nb #1 header not visible'
-      : !valueOk ? `Nb #1 cell for ${target.entry.player?.nickname} expected=${target.count} actual=${cellText || 'missing'}`
+      : !valueOk ? `Nb #1 cells expected ${p1.nickname}=19 ${p2.nickname}=1 actual=${p1CellText || 'missing'}/${p2CellText || 'missing'}`
       : '');
   } catch (err) {
     log('TC-837', 'FAIL', err instanceof Error ? err.message : 'TA Nb #1 standings failed');
+  } finally {
+    if (setup) await setup.cleanup().catch(() => {});
   }
 }
 
@@ -431,8 +409,8 @@ async function runTc878(adminPage) {
 
     await nav(adminPage, `/tournaments/${tournamentId}/ta`);
     await adminPage.getByRole('tab', { name: /^(Time Entry|Time List|タイム入力|タイム一覧)$/ }).first().click();
-    await adminPage.getByLabel(new RegExp(`^TV# ${escapeRegex(p1.nickname)}$`)).selectOption('1');
-    await adminPage.getByLabel(new RegExp(`^TV# ${escapeRegex(p2.nickname)}$`)).selectOption('2');
+    await adminPage.locator(`[data-testid="ta-tv-select-${p1.id}"]`).selectOption('1');
+    await adminPage.locator(`[data-testid="ta-tv-select-${p2.id}"]`).selectOption('2');
     await adminPage.getByRole('button', { name: /^(Broadcast|配信に反映)$/ }).click();
     await adminPage.waitForTimeout(1000);
 
@@ -510,27 +488,56 @@ async function runTc896(adminPage) {
     const rowCount = await names.count();
     if (rowCount < 2) throw new Error(`expected at least 2 visible player names, got ${rowCount}`);
 
-    const boxes = [];
-    for (let i = 0; i < rowCount; i++) {
-      const box = await names.nth(i).boundingBox();
-      if (!box) throw new Error(`player name ${i + 1} has no bounding box`);
-      boxes.push(box);
-    }
-    const wideEnough = boxes.every((box) => box.width >= 160 && box.height >= 18);
     const rows = adminPage.locator('[data-testid="ta-finals-round-entry-row"]');
-    const firstRow = await rows.first().boundingBox();
-    const firstName = boxes[0];
-    const nameInsideRow = Boolean(
-      firstRow &&
-      firstName.x >= firstRow.x &&
-      firstName.y >= firstRow.y &&
-      firstName.y + firstName.height <= firstRow.y + firstRow.height,
-    );
+    let layoutProblem = '';
+    for (let i = 0; i < rowCount; i++) {
+      const row = rows.nth(i);
+      const name = row.locator('[data-testid="ta-finals-round-player-name"]');
+      const controls = row.locator('[data-testid="ta-finals-round-controls"]');
+      const nameText = (await name.innerText()).trim();
+      const rowClass = await row.getAttribute('class');
+      const nameClass = await name.getAttribute('class');
+      const rowBox = await row.boundingBox();
+      const nameBox = await name.boundingBox();
+      const controlsBox = await controls.boundingBox();
+      if (!nameText) {
+        layoutProblem = `player name ${i + 1} is empty`;
+        break;
+      }
+      if (!rowClass?.includes('space-y-2') || !rowClass.includes('sm:flex')) {
+        layoutProblem = `row ${i + 1} missing mobile stacking classes`;
+        break;
+      }
+      if (!nameClass?.includes('block') || !nameClass.includes('truncate')) {
+        layoutProblem = `player name ${i + 1} missing stable text classes`;
+        break;
+      }
+      if (!rowBox || !nameBox || !controlsBox) {
+        layoutProblem = `row ${i + 1} missing layout box`;
+        break;
+      }
+      const nameInsideRow =
+        nameBox.x >= rowBox.x &&
+        nameBox.y >= rowBox.y &&
+        nameBox.x + nameBox.width <= rowBox.x + rowBox.width &&
+        nameBox.y + nameBox.height <= rowBox.y + rowBox.height;
+      const controlsInsideRow =
+        controlsBox.x >= rowBox.x &&
+        controlsBox.y >= rowBox.y &&
+        controlsBox.x + controlsBox.width <= rowBox.x + rowBox.width &&
+        controlsBox.y + controlsBox.height <= rowBox.y + rowBox.height;
+      const overlapsControls =
+        nameBox.x < controlsBox.x + controlsBox.width &&
+        nameBox.x + nameBox.width > controlsBox.x &&
+        nameBox.y < controlsBox.y + controlsBox.height &&
+        nameBox.y + nameBox.height > controlsBox.y;
+      if (!nameInsideRow || !controlsInsideRow || overlapsControls) {
+        layoutProblem = `row ${i + 1} containedName=${nameInsideRow} containedControls=${controlsInsideRow} overlapsControls=${overlapsControls}`;
+        break;
+      }
+    }
 
-    log('TC-896', wideEnough && nameInsideRow ? 'PASS' : 'FAIL',
-      !wideEnough ? `player name boxes too small: ${boxes.map((b) => `${Math.round(b.width)}x${Math.round(b.height)}`).join(',')}`
-      : !nameInsideRow ? 'player name is not contained in the mobile row'
-      : '');
+    log('TC-896', layoutProblem ? 'FAIL' : 'PASS', layoutProblem);
   } catch (err) {
     log('TC-896', 'FAIL', err instanceof Error ? err.message : 'TA finals mobile visibility failed');
   } finally {
