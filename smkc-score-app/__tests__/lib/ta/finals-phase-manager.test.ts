@@ -14,6 +14,8 @@ import {
   getPhaseStatus,
   undoLastPhaseRound,
   startPhaseRound,
+  submitRoundResults,
+  submitSuddenDeathResults,
   promoteToPhase1,
   promoteToPhase2,
   promoteToPhase3,
@@ -38,6 +40,13 @@ const mockPrismaClient = {
     update: jest.fn(),
     count: jest.fn(),
     delete: jest.fn(),
+  },
+  tTPhaseSuddenDeathRound: {
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
   },
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
@@ -537,6 +546,7 @@ describe("TA Finals Phase Manager", () => {
       // Default: no rounds played yet → all 20 courses available
       mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
       mockPrismaClient.tTPhaseRound.create.mockResolvedValue({});
+      mockPrismaClient.tTPhaseSuddenDeathRound.findFirst.mockResolvedValue(null);
     });
 
     it("uses random course when manualCourse is not provided", async () => {
@@ -623,6 +633,176 @@ describe("TA Finals Phase Manager", () => {
     // which cannot be reliably mocked in Jest without module-level mocking.
     // The retry loop logic (continue on P2002, throw on non-P2002 or
     // exhausted attempts) is verified through code review.
+  });
+
+  describe("submitRoundResults sudden death", () => {
+    const context = {
+      tournamentId: "t1",
+      userId: "admin-1",
+      ipAddress: "127.0.0.1",
+      userAgent: "jest",
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
+        id: "round1",
+        tournamentId: "t1",
+        phase: "phase1",
+        roundNumber: 1,
+        course: "MC1",
+        results: [],
+      });
+      mockPrismaClient.tTPhaseRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue([
+        { playerId: "p1", eliminated: false },
+        { playerId: "p2", eliminated: false },
+        { playerId: "p3", eliminated: false },
+      ]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd1",
+        phaseRoundId: "round1",
+        sequence: 1,
+        course: "DP1",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+      });
+    });
+
+    it("returns a sudden-death request for tied slowest players", async () => {
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase1", 1, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 90000 },
+        { playerId: "p3", timeMs: 90000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(result.suddenDeathRound).toEqual(expect.objectContaining({ id: "sd1" }));
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
+    it("resolves phase1 sudden death by eliminating the slower tied player", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase1",
+        phaseRoundId: "round1",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 90000 },
+            { playerId: "p3", timeMs: 90000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTEntry.update.mockResolvedValue({});
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase1", "sd1", [
+        { playerId: "p2", timeMs: 88000 },
+        { playerId: "p3", timeMs: 89000 },
+      ]);
+
+      expect(result.eliminatedIds).toEqual(["p3"]);
+      expect(mockPrismaClient.tTEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { eliminated: true },
+        })
+      );
+    });
+
+    it("continues phase1 sudden death with only players still tied for slowest", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase1",
+        phaseRoundId: "round1",
+        targetPlayerIds: ["p2", "p3", "p4"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 90000 },
+            { playerId: "p3", timeMs: 90000 },
+            { playerId: "p4", timeMs: 90000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(1);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd2",
+        targetPlayerIds: ["p3", "p4"],
+        resolved: false,
+      });
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase1", "sd1", [
+        { playerId: "p2", timeMs: 85000 },
+        { playerId: "p3", timeMs: 90000 },
+        { playerId: "p4", timeMs: 90000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            targetPlayerIds: ["p3", "p4"],
+          }),
+        })
+      );
+    });
+
+    it("continues phase3 sudden death when the life-loss boundary remains tied", async () => {
+      mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
+        id: "sd1",
+        tournamentId: "t1",
+        phase: "phase3",
+        phaseRoundId: "round1",
+        targetPlayerIds: ["p2", "p3", "p4"],
+        resolved: false,
+        phaseRound: {
+          id: "round1",
+          course: "MC1",
+          results: [
+            { playerId: "p1", timeMs: 80000 },
+            { playerId: "p2", timeMs: 90000 },
+            { playerId: "p3", timeMs: 90000 },
+            { playerId: "p4", timeMs: 90000 },
+          ],
+        },
+      });
+      mockPrismaClient.tTPhaseSuddenDeathRound.update.mockResolvedValue({});
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(1);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd2",
+        targetPlayerIds: ["p2", "p3"],
+        resolved: false,
+      });
+
+      const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd1", [
+        { playerId: "p2", timeMs: 88000 },
+        { playerId: "p3", timeMs: 88000 },
+        { playerId: "p4", timeMs: 91000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            targetPlayerIds: ["p2", "p3"],
+          }),
+        })
+      );
+    });
   });
 
   // === AUDIT LOG .catch() ERROR PATH (#779) ===

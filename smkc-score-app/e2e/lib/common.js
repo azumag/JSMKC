@@ -611,6 +611,18 @@ async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2, 
   { label: `GP finals PUT ${matchId}` });
 }
 
+async function apiSetGpFinalsCupResults(page, tournamentId, matchId, cupResults, extra = {}) {
+  return withRetry(() => page.evaluate(async ([url, reqBody]) => {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [`/api/tournaments/${tournamentId}/gp/finals`, { matchId, cupResults, ...extra }]),
+  { label: `GP finals cupResults PUT ${matchId}` });
+}
+
 async function apiGenerateGpFinals(page, tournamentId, topN = 8) {
   return withRetry(() => page.evaluate(async ([url, body]) => {
     const r = await fetch(url, {
@@ -849,6 +861,17 @@ async function apiFetchTaPhase(page, tournamentId, phase) {
     const r = await fetch(u, { cache: 'no-store' });
     return { s: r.status, b: await r.json().catch(() => ({})) };
   }, [tournamentId, phase]);
+}
+
+async function apiPostTaPhase(page, tournamentId, body) {
+  return page.evaluate(async ([id, d]) => {
+    const r = await fetch(`/api/tournaments/${id}/ta/phases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+    return { s: r.status, b: await r.json().catch(() => ({})) };
+  }, [tournamentId, body]);
 }
 
 /** Format a ms duration as the "M:SS.mm" string the TT API accepts. */
@@ -2403,6 +2426,7 @@ module.exports = {
   apiPutGpQualScore,
   apiPutAllGpQualScores,
   apiSetGpFinalsScore,
+  apiSetGpFinalsCupResults,
   apiGenerateGpFinals,
   apiFetchGpFinalsMatches,
   apiFetchGpFinalsState,
@@ -2422,6 +2446,7 @@ module.exports = {
   apiTaParticipantEditTime,
   apiFetchTa,
   apiFetchTaPhase,
+  apiPostTaPhase,
   formatTtTime,
   makeTaTimesForRank,
   setupTa28PlayerQual,

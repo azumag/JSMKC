@@ -110,6 +110,14 @@ interface PhaseRound {
   eliminatedIds: string[] | null;
   livesReset: boolean;
   manualOverride: boolean;
+  suddenDeathRounds?: Array<{
+    id: string;
+    sequence: number;
+    course: string;
+    targetPlayerIds: string[];
+    results: Array<{ playerId: string; timeMs: number; isRetry: boolean }> | null;
+    resolved: boolean;
+  }>;
   createdAt: string;
 }
 
@@ -176,6 +184,8 @@ export default function TimeAttackFinals({
   } | null>(null);
   const [courseTimes, setCourseTimes] = useState<Record<string, string>>({});
   const [retryFlags, setRetryFlags] = useState<Record<string, boolean>>({});
+  const [suddenDeathTimes, setSuddenDeathTimes] = useState<Record<string, string>>({});
+  const [changingSuddenDeathCourse, setChangingSuddenDeathCourse] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [startingRound, setStartingRound] = useState(false);
@@ -552,6 +562,19 @@ export default function TimeAttackFinals({
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to submit results");
       }
+      const json = await response.json();
+      const data = json.data ?? json;
+      if (data.tieBreakRequired) {
+        setCurrentRound(null);
+        setCourseTimes({});
+        setRetryFlags({});
+        setTvAssignments({});
+        setSuddenDeathTimes({});
+        resetBroadcastStatus();
+        setIsEditing(false);
+        fetchData();
+        return;
+      }
 
       setCurrentRound(null);
       setCourseTimes({});
@@ -564,6 +587,76 @@ export default function TimeAttackFinals({
       const errorMessage =
         err instanceof Error ? err.message : "Failed to submit results";
       setSaveError(errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const pendingSuddenDeath = rounds
+    .flatMap((round) => (round.suddenDeathRounds || []).map((sd) => ({ ...sd, round })))
+    .find((sd) => !sd.resolved);
+
+  const pendingSuddenDeathEntries = pendingSuddenDeath
+    ? entries.filter((entry) => pendingSuddenDeath.targetPlayerIds.includes(entry.playerId))
+    : [];
+
+  const handleSuddenDeathCourseChange = async (course: string) => {
+    if (!pendingSuddenDeath) return;
+    setChangingSuddenDeathCourse(true);
+    setSaveError(null);
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change_sudden_death_course",
+          phase: "phase3",
+          suddenDeathRoundId: pendingSuddenDeath.id,
+          course,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to change sudden-death course");
+      }
+      fetchData();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to change sudden-death course");
+    } finally {
+      setChangingSuddenDeathCourse(false);
+    }
+  };
+
+  const handleSubmitSuddenDeath = async () => {
+    if (!pendingSuddenDeath) return;
+    setSubmitting(true);
+    setSaveError(null);
+    try {
+      const results = pendingSuddenDeathEntries.map((entry) => {
+        const timeMs = timeToMs(suddenDeathTimes[entry.playerId] || "");
+        if (timeMs === null) {
+          throw new Error(tTaFinals('invalidTimeFor', { name: entry.player.nickname }));
+        }
+        return { playerId: entry.playerId, timeMs };
+      });
+      const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "submit_sudden_death",
+          phase: "phase3",
+          suddenDeathRoundId: pendingSuddenDeath.id,
+          results,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to submit sudden-death results");
+      }
+      setSuddenDeathTimes({});
+      fetchData();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to submit sudden-death results");
     } finally {
       setSubmitting(false);
     }
@@ -739,7 +832,62 @@ export default function TimeAttackFinals({
        * - No active round: stats summary + "Start Round" button
        * - Active round: time entry form for the current course
        */}
-      {isAdmin && !isComplete && (
+      {isAdmin && !isComplete && pendingSuddenDeath && (
+        <Card className="border-amber-500">
+          <CardHeader>
+            <CardTitle>Sudden-death tiebreak</CardTitle>
+            <CardDescription>
+              Round {pendingSuddenDeath.round.roundNumber}, tiebreak #{pendingSuddenDeath.sequence}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {saveError && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
+                <p className="text-destructive text-sm">{saveError}</p>
+              </div>
+            )}
+            <div className="mb-4 space-y-1">
+              <Label className="text-sm text-muted-foreground">Sudden-death course</Label>
+              <Select
+                value={pendingSuddenDeath.course}
+                onValueChange={handleSuddenDeathCourseChange}
+                disabled={changingSuddenDeathCourse || submitting}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[...new Set([pendingSuddenDeath.course, ...availableCourses])].map((abbr) => {
+                    const info = COURSE_INFO.find((c) => c.abbr === abbr);
+                    return <SelectItem key={abbr} value={abbr}>{info?.name || abbr}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3">
+              {pendingSuddenDeathEntries.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2">
+                  <Label className="flex-1 truncate">{entry.player.nickname}</Label>
+                  <Input
+                    type="text"
+                    placeholder={tTaFinals('timePlaceholder')}
+                    value={suddenDeathTimes[entry.playerId] || ""}
+                    onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
+                    className="font-mono w-32"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button onClick={handleSubmitSuddenDeath} disabled={submitting}>
+                {submitting ? tCommon('saving') : 'Submit sudden death'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && !isComplete && !pendingSuddenDeath && (
         currentRound ? (
           <Card>
             <CardHeader>
@@ -1195,6 +1343,24 @@ export default function TimeAttackFinals({
                             );
                           })}
                         </div>
+                        {(round.suddenDeathRounds || []).length > 0 && (
+                          <div className="mt-3 border-t pt-2 space-y-2">
+                            {(round.suddenDeathRounds || []).map((sd) => (
+                              <div key={sd.id} className="text-sm">
+                                <div className="flex justify-between">
+                                  <span className="font-medium">Sudden death #{sd.sequence}</span>
+                                  <Badge variant="outline" className="font-mono text-xs">{sd.course}</Badge>
+                                </div>
+                                {(sd.results || []).map((result) => (
+                                  <div key={result.playerId} className="flex justify-between text-muted-foreground">
+                                    <span>{playerNames[result.playerId] || result.playerId}</span>
+                                    <span className="font-mono">{msToDisplayTime(result.timeMs)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
