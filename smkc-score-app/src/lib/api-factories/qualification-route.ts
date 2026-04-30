@@ -34,6 +34,8 @@ import {
 } from '@/lib/round-robin';
 import { COURSES, MAX_TV_NUMBER, TOTAL_MR_RACES } from '@/lib/constants';
 
+const GP_QUALIFICATION_CUP_DECK_REPEATS = 5;
+
 /**
  * Shuffle an array using the Fisher-Yates algorithm.
  * Returns a new array (does not mutate the original).
@@ -53,24 +55,38 @@ function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
 }
 
 /**
- * Generate a shuffled course list for MR match assignment (§10.5).
+ * Generate the qualification course deck for MR match assignment (§10.5).
  *
- * All 20 courses are shuffled once at qualification setup time.
- * If there are more than 5 matches (> 20 courses needed), the list wraps
- * using modulo indexing — the first few courses appear twice, which is
- * unavoidable when there are more matches than distinct courses.
+ * The VSMR qualification rule is: shuffle the full MC1-RR course list four
+ * separate times, concatenate those four orders, then assign matches from the
+ * resulting sequence. Each match consumes 4 consecutive courses.
  *
- * @returns Array of 20 shuffled course abbreviations
+ * @returns Array of 80 course abbreviations (4 shuffled full-course decks)
  */
 function generateShuffledCourseList(): string[] {
-  return fisherYatesShuffle(COURSES);
+  return Array.from({ length: TOTAL_MR_RACES }, () => fisherYatesShuffle(COURSES)).flat();
+}
+
+/**
+ * Generate the qualification cup deck for GP match assignment (§7.4).
+ *
+ * The GP qualification rule is: shuffle the full cup list five separate
+ * times, concatenate those five orders, then assign one cup per match from
+ * the resulting sequence.
+ */
+function generateShuffledCupList(cupList: readonly string[]): string[] {
+  return Array.from(
+    { length: GP_QUALIFICATION_CUP_DECK_REPEATS },
+    () => fisherYatesShuffle(cupList),
+  ).flat();
 }
 
 /**
  * Extract 4 consecutive courses from the shuffled list for a single match.
- * Uses modulo wrapping so the list extends infinitely if match count > 5.
+ * Uses modulo wrapping only after all four shuffled full-course decks are
+ * consumed, so ordinary qualification schedules follow the four-deck rule.
  *
- * @param shuffled - The pre-shuffled course list (20 items)
+ * @param shuffled - The pre-shuffled qualification deck (80 items)
  * @param matchIndex - Zero-based index of the match in the overall sequence
  * @returns Array of TOTAL_MR_RACES (4) course abbreviations
  */
@@ -431,9 +447,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const byeData = getByeMatchData(config.eventTypeCode);
 
       /*
-       * §10.5 course assignment: generate one shuffled course list for the entire
-       * tournament at setup time. Courses are assigned sequentially (4 per match)
-       * so each match has its own pre-determined course card.
+       * §10.5 course assignment: generate the VSMR qualification course deck
+       * at setup time. The deck is four separately shuffled MC1-RR orders,
+       * then courses are assigned sequentially (4 per match) so each match has
+       * its own pre-determined course card.
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
       const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
@@ -445,12 +462,13 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        */
       const fixedCourses = config.fixedCourseList ? [...config.fixedCourseList] : null;
       /*
-       * §7.4 cup assignment: shuffle the cup list once and distribute cyclically.
-       * Each match gets one cup (modulo wrapping when matches > cups).
+       * §7.4 cup assignment: generate the GP qualification cup deck at setup
+       * time. The deck is five separately shuffled cup orders, then each
+       * match gets one cup in sequence.
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups = config.assignCupRandomly && config.cupList
-        ? fisherYatesShuffle(config.cupList)
+        ? generateShuffledCupList(config.cupList)
         : null;
       // matchSequenceIndex tracks the overall match number across all groups
       // for consistent sequential course assignment from the shared list.

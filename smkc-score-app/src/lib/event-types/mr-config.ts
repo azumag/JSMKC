@@ -6,8 +6,8 @@
  * races takes the match. A 2-2 result is recorded as a draw.
  * Standings use round differential (winRounds - lossRounds) as tiebreaker.
  *
- * Courses are randomly shuffled at qualification setup time (assignCoursesRandomly: true)
- * and 4 courses are assigned to each match sequentially from the shuffled list.
+ * At qualification setup, the full MC1-RR course list is shuffled 4 separate
+ * times, concatenated, then assigned 4 courses per match in sequence.
  *
  * Security fix: postRequiresAuth is now true (previously MR POST had no auth check).
  */
@@ -54,7 +54,7 @@ export const mrConfig: EventTypeConfig = {
   auditAction: AUDIT_ACTIONS.CREATE_MR_MATCH,
   setupCompleteMessage: 'Match race setup complete',
   /*
-   * §10.5: Randomly shuffle all 20 courses and assign 4 to each match sequentially.
+   * §10.5: Randomly shuffle all 20 courses four times and assign 4 to each match sequentially.
    * This ensures courses are pre-determined before matches begin, so players use
    * the courses specified on the "match card" rather than freely selecting them.
    */

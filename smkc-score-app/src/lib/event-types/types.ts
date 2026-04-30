@@ -85,7 +85,7 @@ export interface EventTypeConfig {
 
   /**
    * Whether to randomly assign a cup to each match at qualification setup time (§7.4).
-   * When true, the POST handler shuffles cupList and assigns one cup per match (cycling via modulo).
+   * When true, the POST handler builds a shuffled cup deck and assigns one cup per match.
    * GP uses this to pre-assign cups; BM/MR do not.
    */
   assignCupRandomly?: boolean;
