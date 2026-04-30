@@ -197,46 +197,27 @@ export interface AuditLogParams {
  */
 export async function createAuditLog(params: AuditLogParams): Promise<void> {
   try {
-    // Sanitize all string inputs to prevent log injection attacks.
-    // Unlike sanitizeInput (XSS prevention), this targets log injection
-    // which uses newlines, control characters, and ANSI escapes.
-    const sanitizedIpAddress = sanitizeForAuditLog(params.ipAddress);
-    const sanitizedUserAgent = sanitizeForAuditLog(params.userAgent);
-    const sanitizedAction = sanitizeForAuditLog(params.action);
-
-    // Sanitize optional fields only when present
-    const sanitizedTargetId = params.targetId
-      ? sanitizeForAuditLog(params.targetId)
-      : undefined;
-    const sanitizedTargetType = params.targetType
-      ? sanitizeForAuditLog(params.targetType)
-      : undefined;
-
-    // Sanitize the details object if provided.
-    // This recursively sanitizes all string values within the JSON.
-    const sanitizedDetails = params.details
-      ? sanitizeObjectForAuditLog(params.details)
-      : undefined;
+    const sanitized = sanitizeAuditLogParams(params);
 
     // Create the audit log entry in the database.
     // The AuditLog model has indexes on timestamp, userId, action,
     // and (targetType, targetId) for efficient querying.
     await prisma.auditLog.create({
       data: {
-        userId: params.userId || null,
-        ipAddress: sanitizedIpAddress,
-        userAgent: sanitizedUserAgent,
-        action: sanitizedAction,
-        targetId: sanitizedTargetId,
-        targetType: sanitizedTargetType,
-        details: sanitizedDetails ? JSON.parse(JSON.stringify(sanitizedDetails)) : undefined,
+        userId: sanitized.userId,
+        ipAddress: sanitized.ipAddress,
+        userAgent: sanitized.userAgent,
+        action: sanitized.action,
+        targetId: sanitized.targetId,
+        targetType: sanitized.targetType,
+        details: sanitized.details,
       },
     });
 
     logger.debug('Audit log created', {
-      action: sanitizedAction,
-      targetType: sanitizedTargetType,
-      targetId: sanitizedTargetId,
+      action: sanitized.action,
+      targetType: sanitized.targetType,
+      targetId: sanitized.targetId,
     });
   } catch (error) {
     // CRITICAL: Never let audit logging failures bubble up to the caller.
@@ -244,6 +225,39 @@ export async function createAuditLog(params: AuditLogParams): Promise<void> {
     // We log the failure for operations teams to investigate.
     logger.error('Failed to create audit log', {
       action: params.action,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function sanitizeAuditLogParams(params: AuditLogParams) {
+  const sanitizedDetails = params.details
+    ? sanitizeObjectForAuditLog(params.details)
+    : undefined;
+
+  return {
+    userId: params.userId || null,
+    ipAddress: sanitizeForAuditLog(params.ipAddress),
+    userAgent: sanitizeForAuditLog(params.userAgent),
+    action: sanitizeForAuditLog(params.action),
+    targetId: params.targetId ? sanitizeForAuditLog(params.targetId) : undefined,
+    targetType: params.targetType ? sanitizeForAuditLog(params.targetType) : undefined,
+    details: sanitizedDetails ? JSON.parse(JSON.stringify(sanitizedDetails)) : undefined,
+  };
+}
+
+export async function createAuditLogs(paramsList: AuditLogParams[]): Promise<void> {
+  if (paramsList.length === 0) return;
+
+  try {
+    await prisma.auditLog.createMany({
+      data: paramsList.map(sanitizeAuditLogParams),
+    });
+
+    logger.debug('Audit logs created', { count: paramsList.length });
+  } catch (error) {
+    logger.error('Failed to create audit logs', {
+      count: paramsList.length,
       error: error instanceof Error ? error.message : String(error),
     });
   }

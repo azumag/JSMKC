@@ -54,6 +54,7 @@ jest.mock('@/lib/sanitize', () => ({
 // Mock audit-log
 jest.mock('@/lib/audit-log', () => ({
   createAuditLog: jest.fn(() => Promise.resolve()),
+  createAuditLogs: jest.fn(() => Promise.resolve()),
   AUDIT_ACTIONS: {
     CREATE_TA_ENTRY: 'CREATE_TA_ENTRY',
     UPDATE_TA_ENTRY: 'UPDATE_TA_ENTRY',
@@ -145,6 +146,11 @@ const loggerMock = jest.requireMock('@/lib/logger') as {
 const rankCalculationMock = jest.requireMock('@/lib/ta/rank-calculation') as {
   recalculateRanks: jest.Mock;
   rerankStageAfterDelete: jest.Mock;
+};
+
+const auditLogMock = jest.requireMock('@/lib/audit-log') as {
+  createAuditLog: jest.Mock;
+  createAuditLogs: jest.Mock;
 };
 
 // Valid CUIDs for tests — the TA route uses z.string().cuid() for validation
@@ -335,6 +341,13 @@ describe('/api/tournaments/[id]/ta', () => {
         { success: true, data: { entries: [mockEntry] }, message: 'Player(s) added to time attack' },
         { status: 201 }
       );
+      expect(auditLogMock.createAuditLogs).toHaveBeenCalledWith([
+        expect.objectContaining({
+          action: 'CREATE_TA_ENTRY',
+          targetId: VALID_ENTRY_ID,
+          targetType: 'TTEntry',
+        }),
+      ]);
     });
 
     it('should return 409 when knockout has already started', async () => {

@@ -23,7 +23,7 @@ import { COURSES } from "@/lib/constants";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from "@/lib/ta/time-utils";
 import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.
@@ -220,52 +220,50 @@ export async function recalculateRanks(
   // Early return avoids sending an empty WHERE IN () clause to D1.
   if (entriesWithTotal.length === 0) return;
 
-  // D1 enforces a ~100 bound-parameter limit per SQL statement.
-  // Qualification CASE WHEN uses 9 params/entry (4 CASE blocks × 2 + 1 WHERE IN id).
-  // Other stages use 5 params/entry (2 CASE blocks × 2 + 1 WHERE IN id).
-  // Chunk into batches that stay under the limit (#732).
-  const BATCH_SIZE = stage === "qualification" ? 10 : 18;
+  const rankUpdates = entriesWithTotal.map((entry) => ({
+    id: entry.id,
+    totalTime: entry.totalTime,
+    rank: rankMap.get(entry.id) ?? null,
+    courseScores: entry.courseScores,
+    qualificationPoints: entry.qualificationPoints,
+  }));
 
-  for (let offset = 0; offset < entriesWithTotal.length; offset += BATCH_SIZE) {
-    const batch = entriesWithTotal.slice(offset, offset + BATCH_SIZE);
-
-    const totalTimeCases = Prisma.join(
-      batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.totalTime ?? null}`),
-      ' '
-    );
-    const rankCases = Prisma.join(
-      batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${rankMap.get(e.id) ?? null}`),
-      ' '
-    );
-    const ids = Prisma.join(batch.map((e) => Prisma.sql`${e.id}`));
-
-    if (stage === "qualification") {
-      // courseScores is a JSON column stored as text; pass the serialized string directly.
-      const courseScoresCases = Prisma.join(
-        batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${JSON.stringify(e.courseScores)}`),
-        ' '
-      );
-      const qualPointsCases = Prisma.join(
-        batch.map((e) => Prisma.sql`WHEN ${e.id} THEN ${e.qualificationPoints ?? null}`),
-        ' '
-      );
-      await prisma.$executeRaw`
-        UPDATE TTEntry SET
-          totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
-          rank = CASE id ${rankCases} ELSE rank END,
-          courseScores = CASE id ${courseScoresCases} ELSE courseScores END,
-          qualificationPoints = CASE id ${qualPointsCases} ELSE qualificationPoints END
-        WHERE id IN (${ids})
-      `;
-    } else {
-      await prisma.$executeRaw`
-        UPDATE TTEntry SET
-          totalTime = CASE id ${totalTimeCases} ELSE totalTime END,
-          rank = CASE id ${rankCases} ELSE rank END
-        WHERE id IN (${ids})
-      `;
-    }
+  if (stage === "qualification") {
+    await prisma.$executeRaw`
+      WITH updates AS (
+        SELECT
+          json_extract(value, '$.id') AS id,
+          json_extract(value, '$.totalTime') AS totalTime,
+          json_extract(value, '$.rank') AS rank,
+          json_extract(value, '$.courseScores') AS courseScores,
+          json_extract(value, '$.qualificationPoints') AS qualificationPoints
+        FROM json_each(${JSON.stringify(rankUpdates)})
+      )
+      UPDATE TTEntry
+      SET
+        totalTime = (SELECT totalTime FROM updates WHERE updates.id = TTEntry.id),
+        rank = (SELECT rank FROM updates WHERE updates.id = TTEntry.id),
+        courseScores = (SELECT courseScores FROM updates WHERE updates.id = TTEntry.id),
+        qualificationPoints = (SELECT qualificationPoints FROM updates WHERE updates.id = TTEntry.id)
+      WHERE id IN (SELECT id FROM updates)
+    `;
+    return;
   }
+
+  await prisma.$executeRaw`
+    WITH updates AS (
+      SELECT
+        json_extract(value, '$.id') AS id,
+        json_extract(value, '$.totalTime') AS totalTime,
+        json_extract(value, '$.rank') AS rank
+      FROM json_each(${JSON.stringify(rankUpdates)})
+    )
+    UPDATE TTEntry
+    SET
+      totalTime = (SELECT totalTime FROM updates WHERE updates.id = TTEntry.id),
+      rank = (SELECT rank FROM updates WHERE updates.id = TTEntry.id)
+    WHERE id IN (SELECT id FROM updates)
+  `;
 }
 
 /**

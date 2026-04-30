@@ -390,9 +390,7 @@ describe('TA Rank Calculation', () => {
       expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
-    // D1 caps bound parameters at ~100. Qualification uses 9 params/entry,
-    // so batches of 10 keep each statement at 90 params (#732).
-    it('should chunk qualification updates into batches of 10 to stay under D1 param limit', async () => {
+    it('should update large qualification stages with one JSON-backed statement', async () => {
       const makeEntry = (i: number) => ({
         id: `entry-${i}`,
         times: {
@@ -408,15 +406,16 @@ describe('TA Rank Calculation', () => {
         player: { id: `player-${i}` },
       });
 
-      // 25 entries → ceil(25/10) = 3 batches
       mockPrisma.tTEntry.findMany.mockResolvedValue(Array.from({ length: 25 }, (_, i) => makeEntry(i)));
 
       await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
-      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(3);
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      expect(templateStrings.raw.join('')).toContain('json_each');
     });
 
-    it('should chunk non-qualification updates into batches of 18 to stay under D1 param limit', async () => {
+    it('should update large non-qualification stages with one JSON-backed statement', async () => {
       const makeEntry = (i: number) => ({
         id: `entry-${i}`,
         times: {
@@ -432,12 +431,13 @@ describe('TA Rank Calculation', () => {
         player: { id: `player-${i}` },
       });
 
-      // 36 entries → ceil(36/18) = 2 batches
       mockPrisma.tTEntry.findMany.mockResolvedValue(Array.from({ length: 36 }, (_, i) => makeEntry(i)));
 
       await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
 
-      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      expect(templateStrings.raw.join('')).toContain('json_each');
     });
 
     it('should rerank qualification after delete with a single rank-only update', async () => {
