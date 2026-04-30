@@ -16,6 +16,7 @@ import { Flag } from "lucide-react";
 import { COURSE_INFO, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
+import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
 
 /** MR Match extends BaseMatch with MR-specific fields */
 interface MRMatch extends BaseMatch {
@@ -120,7 +121,11 @@ export default function MatchRaceParticipantPage({
 
     if (data) {
       setMatchRounds((prev) => ({ ...prev, [match.id]: buildInitialRounds(match) }));
-      alert(tPart("matchReportedSuccess"));
+      alert(getMatchReportSuccessMessage(data, {
+        matchReportedSuccess: tPart("matchReportedSuccess"),
+        matchConfirmedSuccess: tPart("matchConfirmedSuccess"),
+        matchMismatchSubmitted: tPart("matchMismatchSubmitted"),
+      }));
     }
   };
 

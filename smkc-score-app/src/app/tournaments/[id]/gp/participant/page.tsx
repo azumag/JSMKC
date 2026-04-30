@@ -20,6 +20,7 @@ import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, TOTAL_GP_RACES, ge
 import { formatGpPosition } from "@/lib/gp-utils";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
+import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
 
 /** GP Match extends BaseMatch with GP-specific fields */
 interface GPMatch extends BaseMatch {
@@ -166,7 +167,11 @@ export default function GrandPrixParticipantPage({
 
     if (data) {
       setRaceResults((prev) => ({ ...prev, [match.id]: [] }));
-      alert(tPart("matchReportedSuccess"));
+      alert(getMatchReportSuccessMessage(data, {
+        matchReportedSuccess: tPart("matchReportedSuccess"),
+        matchConfirmedSuccess: tPart("matchConfirmedSuccess"),
+        matchMismatchSubmitted: tPart("matchMismatchSubmitted"),
+      }));
     }
   };
 
