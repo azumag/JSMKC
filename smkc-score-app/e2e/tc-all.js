@@ -453,10 +453,23 @@ async function main() {
       await nav(page, `/tournaments/${tc823TournamentId}/bm`);
       await page.waitForTimeout(3000);
 
+      const waitForTabBadge = async (href, shouldExist) => {
+        await page.waitForFunction(
+          ({ href: tabHref, shouldExist: expected }) => {
+            const tab = document.querySelector(`a[href="${tabHref}"]`);
+            const hasBadge = !!tab?.querySelector('.flag-draft');
+            return expected ? hasBadge : !hasBadge;
+          },
+          { href, shouldExist },
+          { timeout: 10000 },
+        ).catch(() => {});
+      };
+
       // BM tab link has exact href; the hidden badge lives inside it as a flag-draft Badge.
       // (Paddock-editorial redesign in commit 0e73b5c switched the variant from `destructive`
       // to `flag-draft`, so the old `.bg-destructive` selector no longer matches.)
-      const bmTabBadge = page.locator(`a[href="/tournaments/${tc823TournamentId}/bm"] .flag-draft`);
+      const bmTabHref = `/tournaments/${tc823TournamentId}/bm`;
+      const bmTabBadge = page.locator(`a[href="${bmTabHref}"] .flag-draft`);
       const hasBadgeBefore = await bmTabBadge.count() > 0;
 
       // The ModePublishSwitch aria-label is "{mode}: {state}" (e.g. "バトルモード: 未公開").
@@ -471,27 +484,46 @@ async function main() {
       if (switchExists) {
         // Toggle to published
         await publishSwitch.click();
-        await page.waitForTimeout(3000); // Wait for API call + publicModesChanged event + re-fetch
+        await waitForTabBadge(bmTabHref, false);
         hasBadgeAfterPublish = await bmTabBadge.count() > 0;
 
         // Toggle back to unpublished
         await publishSwitch.click();
-        await page.waitForTimeout(3000);
+        await waitForTabBadge(bmTabHref, true);
         hasBadgeAfterUnpublish = await bmTabBadge.count() > 0;
       }
 
       await nav(page, `/tournaments/${tc823TournamentId}/overall-ranking`);
+      const overallTabHref = `/tournaments/${tc823TournamentId}/overall-ranking`;
+      const overallTabBadge = page.locator(`a[href="${overallTabHref}"] .flag-draft`);
+      const hasOverallBadgeBefore = await overallTabBadge.count() > 0;
       const overallSwitch = page.getByRole('switch', { name: /総合|Overall/i }).first();
       await overallSwitch.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
       const overallSwitchExists = await overallSwitch.count() > 0;
 
-      const pass = switchExists && hasBadgeBefore && !hasBadgeAfterPublish && hasBadgeAfterUnpublish && overallSwitchExists;
+      let hasOverallBadgeAfterPublish = true;
+      let hasOverallBadgeAfterUnpublish = false;
+      if (overallSwitchExists) {
+        await overallSwitch.click();
+        await waitForTabBadge(overallTabHref, false);
+        hasOverallBadgeAfterPublish = await overallTabBadge.count() > 0;
+
+        await overallSwitch.click();
+        await waitForTabBadge(overallTabHref, true);
+        hasOverallBadgeAfterUnpublish = await overallTabBadge.count() > 0;
+      }
+
+      const pass = switchExists && hasBadgeBefore && !hasBadgeAfterPublish && hasBadgeAfterUnpublish &&
+        overallSwitchExists && hasOverallBadgeBefore && !hasOverallBadgeAfterPublish && hasOverallBadgeAfterUnpublish;
       log('TC-823', pass ? 'PASS' : 'FAIL',
         !switchExists ? 'Publish switch not found on BM page'
         : !hasBadgeBefore ? 'Hidden badge not shown before toggle'
         : hasBadgeAfterPublish ? 'Hidden badge still shown after toggle to published (event/re-fetch missing)'
         : !hasBadgeAfterUnpublish ? 'Hidden badge did not reappear after re-toggle to unpublished'
         : !overallSwitchExists ? 'Publish switch not found on overall ranking page'
+        : !hasOverallBadgeBefore ? 'Overall hidden badge not shown before toggle'
+        : hasOverallBadgeAfterPublish ? 'Overall hidden badge still shown after toggle to published (event/re-fetch missing)'
+        : !hasOverallBadgeAfterUnpublish ? 'Overall hidden badge did not reappear after re-toggle to unpublished'
         : '');
     } catch (err) {
       log('TC-823', 'FAIL', err instanceof Error ? err.message : 'TC-823 mode tab badge test failed');
