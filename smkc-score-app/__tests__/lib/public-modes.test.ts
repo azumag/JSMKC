@@ -1,8 +1,8 @@
 /**
  * @module __tests__/lib/public-modes.test.ts
  * @description Tests for the independent per-mode publish helpers used to reveal
- * each qualification mode (TA, BM, MR, GP) to non-admin viewers (issue #618).
- * Each mode toggles independently — there is no cascade or ordering constraint.
+ * each tournament section to non-admin viewers. Each section toggles
+ * independently — there is no cascade or ordering constraint.
  */
 import {
   MODE_REVEAL_ORDER,
@@ -13,7 +13,7 @@ import {
 
 describe("MODE_REVEAL_ORDER", () => {
   it("enforces the canonical display order", () => {
-    expect(MODE_REVEAL_ORDER).toEqual(["ta", "bm", "mr", "gp"]);
+    expect(MODE_REVEAL_ORDER).toEqual(["ta", "bm", "mr", "gp", "overall"]);
   });
 });
 
@@ -25,6 +25,7 @@ describe("addPublicMode", () => {
   it("adds a mode without affecting other modes (no cascade)", () => {
     expect(addPublicMode([], "mr")).toEqual(["mr"]);
     expect(addPublicMode(["gp"], "ta")).toEqual(["ta", "gp"]);
+    expect(addPublicMode(["bm"], "overall")).toEqual(["bm", "overall"]);
   });
 
   it("is idempotent — adding the same mode twice does not duplicate", () => {
@@ -32,7 +33,12 @@ describe("addPublicMode", () => {
   });
 
   it("normalizes output to MODE_REVEAL_ORDER for stable storage", () => {
-    expect(addPublicMode(["gp", "bm"], "ta")).toEqual(["ta", "bm", "gp"]);
+    expect(addPublicMode(["overall", "gp", "bm"], "ta")).toEqual([
+      "ta",
+      "bm",
+      "gp",
+      "overall",
+    ]);
   });
 
   it("filters out invalid mode names from existing array", () => {
@@ -42,10 +48,11 @@ describe("addPublicMode", () => {
 
 describe("removePublicMode", () => {
   it("removes only the named mode (no cascade to other modes)", () => {
-    expect(removePublicMode(["ta", "bm", "mr", "gp"], "bm")).toEqual([
+    expect(removePublicMode(["ta", "bm", "mr", "gp", "overall"], "bm")).toEqual([
       "ta",
       "mr",
       "gp",
+      "overall",
     ]);
   });
 
@@ -75,14 +82,16 @@ describe("isValidPublicModes", () => {
     [["bm"]],
     [["mr"]],
     [["gp"]],
+    [["overall"]],
     [["ta", "bm"]],
     // Non-prefix subsets are now valid (independent toggling)
     [["bm", "gp"]],
     [["ta", "mr"]],
     [["mr", "gp"]],
-    [["ta", "bm", "mr", "gp"]],
+    [["gp", "overall"]],
+    [["ta", "bm", "mr", "gp", "overall"]],
     // Order is irrelevant — the API will store as-is
-    [["gp", "ta"]],
+    [["overall", "gp", "ta"]],
   ])("accepts valid subset %p", (modes) => {
     expect(isValidPublicModes(modes)).toBe(true);
   });

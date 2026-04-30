@@ -1,14 +1,14 @@
 /**
- * Independent per-mode publish state for the four qualification modes.
+ * Independent publish state for tournament sections.
  *
  * `publicModes` on the Tournament is an unordered set serialized as a JSON
- * array. Each mode's published state is independent of the others —
- * publishing or unpublishing one mode does not affect any other mode.
+ * array. Each section's published state is independent of the others —
+ * publishing or unpublishing one section does not affect any other section.
  *
  * MODE_REVEAL_ORDER is the canonical mode list and the display order; it is
  * NOT a sequencing constraint on the stored value.
  */
-export const MODE_REVEAL_ORDER = ["ta", "bm", "mr", "gp"] as const;
+export const MODE_REVEAL_ORDER = ["ta", "bm", "mr", "gp", "overall"] as const;
 export type RevealableMode = (typeof MODE_REVEAL_ORDER)[number];
 
 const REVEALABLE_SET: ReadonlySet<string> = new Set(MODE_REVEAL_ORDER);

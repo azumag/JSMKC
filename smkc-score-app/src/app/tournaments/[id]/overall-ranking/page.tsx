@@ -37,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { POLLING_INTERVAL } from "@/lib/constants";
@@ -118,7 +119,6 @@ export default function OverallRankingPage({
    * Avoids redundant local state and provides instant display from cache.
    */
   const rankings: PlayerRanking[] = pollData?.rankings ?? [];
-  const tournamentName: string = pollData?.tournamentName ?? "";
   const lastUpdated: string = pollData?.lastUpdated ?? "";
 
   /* Sync polling errors to local error state for display */
@@ -256,6 +256,13 @@ export default function OverallRankingPage({
             <Button onClick={handleRecalculate} disabled={recalculating}>
               {recalculating ? tOverall('recalculating') : tOverall('recalculate')}
             </Button>
+          )}
+          {isAdmin && (
+            <ModePublishSwitch
+              tournamentId={tournamentId}
+              mode="overall"
+              modeLabelKey="overall"
+            />
           )}
         </div>
       </header>

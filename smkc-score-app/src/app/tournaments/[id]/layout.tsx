@@ -55,7 +55,7 @@ const TABS = [
   { href: "bm", labelKey: "battleMode" },
   { href: "mr", labelKey: "matchRace" },
   { href: "gp", labelKey: "grandPrix" },
-  { href: "overall-ranking", labelKey: "overall" },
+  { href: "overall-ranking", labelKey: "overall", publicMode: "overall" },
 ] as const;
 
 /** Admin-only tabs shown after the main mode tabs */
@@ -345,7 +345,7 @@ export default function TournamentLayout({
         >
           <ul className="flex items-stretch gap-0 min-w-max">
             {TABS.map((tab) => {
-              const modeName = tab.href === "overall-ranking" ? null : tab.href;
+              const modeName = "publicMode" in tab ? tab.publicMode : tab.href;
               const isHidden =
                 modeName &&
                 !isAdmin &&

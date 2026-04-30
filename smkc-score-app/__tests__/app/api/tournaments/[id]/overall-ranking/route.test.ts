@@ -3,7 +3,7 @@
  *
  * Test suite for GET and POST /api/tournaments/[id]/overall-ranking.
  *
- * GET: Public - fetch stored overall rankings
+ * GET: Public only when publicModes includes "overall"
  *   - Returns rankings with tournament name and lastUpdated
  *   - Returns empty array when no rankings calculated yet
  *   - Returns 404 when tournament not found
@@ -64,6 +64,7 @@ describe('Overall Ranking Route', () => {
     id: 'tournament-1',
     name: 'Test Tournament 2026',
     status: 'active',
+    publicModes: ['overall'],
   };
 
   const mockRankings = [
@@ -125,6 +126,43 @@ describe('Overall Ranking Route', () => {
       /* lastUpdated falls back to now() when rankings is empty */
       expect(response.data.data.lastUpdated).toBeDefined();
       expect(() => new Date(response.data.data.lastUpdated)).not.toThrow();
+    });
+
+    it('returns 403 for non-admin users when overall ranking is unpublished', async () => {
+      (auth as jest.Mock).mockResolvedValue(null);
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        ...mockTournament,
+        publicModes: ['ta', 'bm', 'mr', 'gp'],
+      });
+
+      const response = await GET(
+        {} as any,
+        mockParams('tournament-1')
+      );
+
+      expect(response.status).toBe(403);
+      expect(response.data.success).toBe(false);
+      expect(getOverallRankings).not.toHaveBeenCalled();
+    });
+
+    it('allows admins to fetch unpublished overall rankings', async () => {
+      (auth as jest.Mock).mockResolvedValue({
+        user: { id: 'admin-1', role: 'admin' },
+      });
+      (prisma.tournament.findFirst as jest.Mock).mockResolvedValue({
+        ...mockTournament,
+        publicModes: [],
+      });
+      (getOverallRankings as jest.Mock).mockResolvedValue(mockRankings);
+
+      const response = await GET(
+        {} as any,
+        mockParams('tournament-1')
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.data.success).toBe(true);
+      expect(response.data.data.rankings).toEqual(mockRankings);
     });
 
     it('returns a valid lastUpdated timestamp derived from rankings', async () => {
