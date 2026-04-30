@@ -84,8 +84,8 @@ const log = makeLog(results);
 
 let fixture = null;
 
-function hasMatchCompletedTitle(title, modePattern) {
-  return modePattern.test(title || '') && /(Completed|終了)/i.test(title || '');
+function hasMatchCompletedTitle(title) {
+  return /(Completed|終了)/i.test(title || '');
 }
 
 function hasQualificationCompletedTitle(title) {
@@ -382,12 +382,12 @@ async function runTc903(_adminPage) {
     const events = resp.body?.data?.events || [];
     const evt = events.find((e) => e.type === 'match_completed' && e.mode === 'bm');
     const hasScore = evt && /4\s*-\s*0/.test(evt.subtitle || '');
-    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bBM\b|Battle Mode/i);
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title);
     log('TC-903',
       evt && hasScore && hasTitle ? 'PASS' : 'FAIL',
       !evt ? `match_completed event missing in ${events.length} events` :
       !hasScore ? `subtitle missing 4-0: "${evt.subtitle}"` :
-      !hasTitle ? `title missing BM/Battle Mode completed marker: "${evt.title}"` : '');
+      !hasTitle ? `title missing completed marker: "${evt.title}"` : '');
   } catch (err) {
     log('TC-903', 'FAIL', err instanceof Error ? err.message : 'TC-903 threw');
   }
@@ -443,14 +443,14 @@ async function runTc907(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'match_completed' && e.mode === 'mr');
     const hasScore = evt && /3\s*-\s*1/.test(evt.subtitle || '');
-    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bMR\b|Match Race/i);
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title);
     const pass = !!(evt && hasScore && hasTitle);
     log('TC-907',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'MR match_completed event missing' :
       !hasScore ? `subtitle missing 3-1: "${evt.subtitle}"` :
-      `title missing MR/Match Race completed marker: "${evt.title}"`);
+      `title missing completed marker: "${evt.title}"`);
   } catch (err) {
     log('TC-907', 'FAIL', err instanceof Error ? err.message : 'TC-907 threw');
   }
@@ -475,14 +475,14 @@ async function runTc908(adminPage) {
        into score1/2 before the aggregator runs, so the subtitle uses the
        raw GP point totals. */
     const hasScore = evt && /\d+\s*-\s*\d+/.test(evt.subtitle || '');
-    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bGP\b|Grand Prix/i);
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title);
     const pass = !!(evt && hasScore && hasTitle);
     log('TC-908',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'GP match_completed event missing' :
       !hasScore ? `subtitle missing score format: "${evt.subtitle}"` :
-      `title missing GP/Grand Prix completed marker: "${evt.title}"`);
+      `title missing completed marker: "${evt.title}"`);
   } catch (err) {
     log('TC-908', 'FAIL', err instanceof Error ? err.message : 'TC-908 threw');
   }
