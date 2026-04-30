@@ -21,13 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -47,7 +40,13 @@ interface BroadcastState {
   player2Name: string;
   player1NoCamera: boolean;
   player2NoCamera: boolean;
+  matchLabel: string;
+  player1Wins: number | null;
+  player2Wins: number | null;
+  matchFt: number | null;
 }
+
+const nullableNumberInput = (value: string) => value.trim() === "" ? null : Number(value);
 
 export default function BroadcastPage({
   params,
@@ -64,9 +63,17 @@ export default function BroadcastPage({
     player2Name: "",
     player1NoCamera: false,
     player2NoCamera: false,
+    matchLabel: "",
+    player1Wins: null,
+    player2Wins: null,
+    matchFt: null,
   });
   const [player1Input, setPlayer1Input] = useState("");
   const [player2Input, setPlayer2Input] = useState("");
+  const [matchLabelInput, setMatchLabelInput] = useState("");
+  const [player1WinsInput, setPlayer1WinsInput] = useState("");
+  const [player2WinsInput, setPlayer2WinsInput] = useState("");
+  const [matchFtInput, setMatchFtInput] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -82,9 +89,17 @@ export default function BroadcastPage({
           player2Name: data.player2Name ?? "",
           player1NoCamera: data.player1NoCamera === true,
           player2NoCamera: data.player2NoCamera === true,
+          matchLabel: data.matchLabel ?? "",
+          player1Wins: data.player1Wins ?? null,
+          player2Wins: data.player2Wins ?? null,
+          matchFt: data.matchFt ?? null,
         });
         setPlayer1Input(data.player1Name ?? "");
         setPlayer2Input(data.player2Name ?? "");
+        setMatchLabelInput(data.matchLabel ?? "");
+        setPlayer1WinsInput(data.player1Wins === null || data.player1Wins === undefined ? "" : String(data.player1Wins));
+        setPlayer2WinsInput(data.player2Wins === null || data.player2Wins === undefined ? "" : String(data.player2Wins));
+        setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? "" : String(data.matchFt));
       }
     } catch { /* silent */ }
   }, [tournamentId]);
@@ -122,6 +137,10 @@ export default function BroadcastPage({
           player2Name: player2Input.trim(),
           player1NoCamera: player1?.noCamera === true,
           player2NoCamera: player2?.noCamera === true,
+          matchLabel: matchLabelInput.trim(),
+          player1Wins: nullableNumberInput(player1WinsInput),
+          player2Wins: nullableNumberInput(player2WinsInput),
+          matchFt: nullableNumberInput(matchFtInput),
         }),
       });
       if (res.ok) {
@@ -146,10 +165,18 @@ export default function BroadcastPage({
           player2Name: "",
           player1NoCamera: false,
           player2NoCamera: false,
+          matchLabel: null,
+          player1Wins: null,
+          player2Wins: null,
+          matchFt: null,
         }),
       });
       setPlayer1Input("");
       setPlayer2Input("");
+      setMatchLabelInput("");
+      setPlayer1WinsInput("");
+      setPlayer2WinsInput("");
+      setMatchFtInput("");
       await fetchBroadcastState();
     } finally {
       setSaving(false);
@@ -171,7 +198,7 @@ export default function BroadcastPage({
           配信管理
         </h2>
         <p className="text-muted-foreground text-sm mt-2">
-          オーバーレイに表示する1P/2Pの名前を設定します。
+          オーバーレイに表示する1P/2Pの名前と点数欄を設定します。
         </p>
       </header>
 
@@ -179,7 +206,7 @@ export default function BroadcastPage({
       <section className="border border-foreground/15">
         <div className="px-5 pt-4 pb-1">
           <p className="text-sm font-semibold">現在の配信表示</p>
-          <p className="text-xs text-muted-foreground mt-0.5">OBSオーバーレイに現在表示されている名前</p>
+          <p className="text-xs text-muted-foreground mt-0.5">OBSオーバーレイに現在表示されている名前と点数</p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-foreground/10">
           {[
@@ -188,12 +215,14 @@ export default function BroadcastPage({
               coords: "x:80, y:485",
               value: currentState.player1Name,
               noCamera: currentState.player1NoCamera,
+              score: currentState.player1Wins,
             },
             {
               slot: "2P",
               coords: "x:80, y:875",
               value: currentState.player2Name,
               noCamera: currentState.player2NoCamera,
+              score: currentState.player2Wins,
             },
           ].map((p) => (
             <div key={p.slot} className="p-5">
@@ -207,8 +236,20 @@ export default function BroadcastPage({
               {p.noCamera && (
                 <p className="mt-1 text-xs font-semibold text-yellow-600">No camera</p>
               )}
+              <p className="mt-3 text-sm text-muted-foreground">
+                点数:{" "}
+                <span className="font-semibold text-foreground">
+                  {p.score === null ? "未設定" : currentState.matchFt ? `${p.score} / ${currentState.matchFt}` : p.score}
+                </span>
+              </p>
             </div>
           ))}
+        </div>
+        <div className="border-t border-foreground/10 px-5 py-3 text-sm text-muted-foreground">
+          下枠:{" "}
+          <span className="font-semibold text-foreground">
+            {currentState.matchLabel || "未設定"}
+          </span>
         </div>
       </section>
 
@@ -272,6 +313,65 @@ export default function BroadcastPage({
               placeholder="2P の名前を入力..."
               maxLength={50}
             />
+          </div>
+          <div className="border-t border-foreground/10 pt-4 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">点数欄を設定</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                ダッシュボードの 1P/2P 横に出す点数と、下枠ラベルを直接入力します。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-match-label">下枠ラベル</Label>
+              <Input
+                id="broadcast-match-label"
+                value={matchLabelInput}
+                onChange={(e) => setMatchLabelInput(e.target.value)}
+                placeholder="例: Winners Final"
+                maxLength={50}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-player1-wins">1P 点数</Label>
+                <Input
+                  id="broadcast-player1-wins"
+                  value={player1WinsInput}
+                  onChange={(e) => setPlayer1WinsInput(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-player2-wins">2P 点数</Label>
+                <Input
+                  id="broadcast-player2-wins"
+                  value={player2WinsInput}
+                  onChange={(e) => setPlayer2WinsInput(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-match-ft">FT</Label>
+                <Input
+                  id="broadcast-match-ft"
+                  value={matchFtInput}
+                  onChange={(e) => setMatchFtInput(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  placeholder="任意"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
