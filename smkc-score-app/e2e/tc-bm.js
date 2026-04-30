@@ -39,6 +39,7 @@
  */
 const {
   makeResults, makeLog, nav, escapeRegex,
+  matchUpdateUsesLeanPayload,
   apiFetchBm, apiPutBmQualScore,
   apiSetBmFinalsScore, apiGenerateBmFinals, apiFetchBmFinalsMatches, apiFetchBmFinalsState,
   apiUpdateTournament,
@@ -62,11 +63,6 @@ let sharedFixture = null;
 function sharedBmPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared BM fixture is not initialized');
   return sharedFixture.players.slice(0, count);
-}
-
-function matchUpdateUsesLeanPayload(putResult) {
-  const match = putResult?.b?.data?.match || putResult?.b?.match;
-  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
 }
 
 async function loginSharedPlayer(adminPage, player) {

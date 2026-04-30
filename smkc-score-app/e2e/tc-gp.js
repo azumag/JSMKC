@@ -28,6 +28,7 @@
  */
 const {
   makeResults, makeLog, nav,
+  matchUpdateUsesLeanPayload,
   uiCreatePlayer, apiDeletePlayer, apiDeleteTournament, uiCreateTournament,
   apiFetchGp, apiPutGpQualScore,
   apiSetGpFinalsScore, apiSetGpFinalsCupResults, apiGenerateGpFinals, apiFetchGpFinalsMatches, apiFetchGpFinalsState,
@@ -47,11 +48,6 @@ let sharedFixture = null;
 function sharedGpPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared GP fixture is not initialized');
   return sharedFixture.players.slice(0, count);
-}
-
-function matchUpdateUsesLeanPayload(putResult) {
-  const match = putResult?.b?.data?.match || putResult?.b?.match;
-  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
 }
 
 async function loginSharedPlayer(adminPage, player) {

@@ -685,6 +685,11 @@ async function apiPutGpQualScore(page, tournamentId, matchId, cup, races) {
   { label: `GP qual PUT ${matchId}` });
 }
 
+function matchUpdateUsesLeanPayload(putResult) {
+  const match = putResult?.b?.data?.match || putResult?.b?.match;
+  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
+}
+
 async function apiSetGpFinalsScore(page, tournamentId, matchId, score1, score2, suddenDeathWinnerId = null) {
   const body = { matchId, score1, score2 };
   if (suddenDeathWinnerId) {
@@ -2504,6 +2509,7 @@ module.exports = {
   launchPersistentChromiumContext,
   /* retry */
   withRetry,
+  matchUpdateUsesLeanPayload,
   /* BM */
   apiSetupBmGroup,
   apiFetchBm,
