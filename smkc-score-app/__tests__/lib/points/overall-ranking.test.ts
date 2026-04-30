@@ -30,6 +30,7 @@ jest.mock('@/lib/ta/qualification-scoring', () => ({
 
 jest.mock('@/lib/points/qualification-points', () => ({
   calculateQualificationPoints: jest.fn(),
+  calculateQualificationPointsFromMatches: jest.fn(),
 }));
 
 jest.mock('@/lib/points/finals-points', () => ({
@@ -57,8 +58,8 @@ function getMockCalculateAllCourseScores() {
   return jest.requireMock('@/lib/ta/qualification-scoring').calculateAllCourseScores as jest.Mock;
 }
 
-function getMockCalculateQualificationPoints() {
-  return jest.requireMock('@/lib/points/qualification-points').calculateQualificationPoints as jest.Mock;
+function getMockCalculateQualificationPointsFromMatches() {
+  return jest.requireMock('@/lib/points/qualification-points').calculateQualificationPointsFromMatches as jest.Mock;
 }
 
 function getMockGetFinalsPoints() {
@@ -156,7 +157,7 @@ describe('Overall Ranking module', () => {
   describe('calculateBMQualificationPointsFromDB', () => {
     it('returns empty map when no qualifications exist', async () => {
       mockPrisma.bMQualification.findMany.mockResolvedValue([]);
-      getMockCalculateQualificationPoints().mockReturnValue([]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([]);
 
       const result = await calculateBMQualificationPointsFromDB(
         mockPrisma as any,
@@ -168,9 +169,9 @@ describe('Overall Ranking module', () => {
 
     it('maps results by player ID', async () => {
       mockPrisma.bMQualification.findMany.mockResolvedValue([
-        { playerId: 'p1', wins: 5, ties: 1, losses: 2, player: PLAYER_P1 },
+        { playerId: 'p1', wins: 5, ties: 1, losses: 2, mp: 8, player: PLAYER_P1 },
       ]);
-      getMockCalculateQualificationPoints().mockReturnValue([
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
         { playerId: 'p1', normalizedPoints: 700 },
       ]);
 
@@ -181,15 +182,61 @@ describe('Overall Ranking module', () => {
 
       expect(result.get('p1')?.normalizedPoints).toBe(700);
     });
+
+    it('normalizes by each player actual match count instead of total participants', async () => {
+      mockPrisma.bMQualification.findMany.mockResolvedValue([
+        ...Array.from({ length: 12 }, (_, i) => ({
+          playerId: `a${i + 1}`,
+          wins: i === 0 ? 11 : 0,
+          ties: 0,
+          losses: i === 0 ? 0 : 11,
+          mp: 11,
+          group: 'A',
+          player: PLAYER_P1,
+        })),
+        ...Array.from({ length: 12 }, (_, i) => ({
+          playerId: `b${i + 1}`,
+          wins: 0,
+          ties: 0,
+          losses: 11,
+          mp: 11,
+          group: 'B',
+          player: PLAYER_P2,
+        })),
+      ]);
+      getMockCalculateQualificationPointsFromMatches().mockImplementation((records) =>
+        records.map((record: { playerId: string; wins: number; ties: number; matchesPlayed: number }) => ({
+          playerId: record.playerId,
+          matchPoints: record.wins * 2 + record.ties,
+          normalizedPoints: record.matchesPlayed === 0
+            ? 0
+            : Math.round((1000 * (record.wins * 2 + record.ties)) / (2 * record.matchesPlayed)),
+          rank: 1,
+        })),
+      );
+
+      const result = await calculateBMQualificationPointsFromDB(
+        mockPrisma as any,
+        TOURNAMENT_ID
+      );
+
+      expect(result.get('a1')?.normalizedPoints).toBe(1000);
+      expect(getMockCalculateQualificationPointsFromMatches()).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'a1', matchesPlayed: 11 }),
+          expect.objectContaining({ playerId: 'b1', matchesPlayed: 11 }),
+        ]),
+      );
+    });
   });
 
   // =========================================================================
   describe('calculateMRQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with MR data', async () => {
       mockPrisma.mRQualification.findMany.mockResolvedValue([
-        { playerId: 'p2', wins: 3, ties: 0, losses: 4, player: PLAYER_P2 },
+        { playerId: 'p2', wins: 3, ties: 0, losses: 4, mp: 7, player: PLAYER_P2 },
       ]);
-      getMockCalculateQualificationPoints().mockReturnValue([
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
         { playerId: 'p2', normalizedPoints: 400 },
       ]);
 
@@ -209,9 +256,9 @@ describe('Overall Ranking module', () => {
   describe('calculateGPQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with GP data', async () => {
       mockPrisma.gPQualification.findMany.mockResolvedValue([
-        { playerId: 'p1', wins: 8, ties: 0, losses: 0, player: PLAYER_P1 },
+        { playerId: 'p1', wins: 8, ties: 0, losses: 0, mp: 8, player: PLAYER_P1 },
       ]);
-      getMockCalculateQualificationPoints().mockReturnValue([
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
         { playerId: 'p1', normalizedPoints: 1000 },
       ]);
 
@@ -333,6 +380,29 @@ describe('Overall Ranking module', () => {
       expect(positions.find(p => p.playerId === 'p12')?.position).toBe(7);
     });
 
+    it('maps 16-player finals and Top24 playoff losses to standard point bands', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValue([
+        { ...makeMatch(30, 'grand_final', 'p1', 'p2', 5, 3), stage: 'finals' },
+        { ...makeMatch(29, 'losers_final', 'p2', 'p3', 5, 2), stage: 'finals' },
+        { ...makeMatch(28, 'losers_sf', 'p4', 'p5', 5, 1), stage: 'finals' },
+        { ...makeMatch(26, 'losers_r4', 'p6', 'p7', 5, 0), stage: 'finals' },
+        { ...makeMatch(24, 'losers_r3', 'p8', 'p9', 5, 0), stage: 'finals' },
+        { ...makeMatch(20, 'losers_r2', 'p10', 'p11', 5, 2), stage: 'finals' },
+        { ...makeMatch(16, 'losers_r1', 'p12', 'p13', 5, 2), stage: 'finals' },
+        { ...makeMatch(5, 'playoff_r2', 'p14', 'p15', 5, 2), stage: 'playoff' },
+        { ...makeMatch(1, 'playoff_r1', 'p16', 'p17', 5, 2), stage: 'playoff' },
+      ]);
+
+      const positions = await getMatchFinalsPositions(mockPrisma as any, TOURNAMENT_ID, 'BM');
+
+      expect(positions.find(p => p.playerId === 'p7')?.position).toBe(5);
+      expect(positions.find(p => p.playerId === 'p9')?.position).toBe(7);
+      expect(positions.find(p => p.playerId === 'p11')?.position).toBe(9);
+      expect(positions.find(p => p.playerId === 'p13')?.position).toBe(13);
+      expect(positions.find(p => p.playerId === 'p15')?.position).toBe(17);
+      expect(positions.find(p => p.playerId === 'p17')?.position).toBe(21);
+    });
+
     it('uses points1/points2 for GP mode', async () => {
       mockPrisma.gPMatch.findMany.mockResolvedValue([
         { matchNumber: 16, round: 'grand_final', player1Id: 'p1', player2Id: 'p2', points1: 18, points2: 15 },
@@ -376,7 +446,7 @@ describe('Overall Ranking module', () => {
       mockPrisma.bMQualification.findMany.mockResolvedValue([]);
       mockPrisma.mRQualification.findMany.mockResolvedValue([]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([]);
-      getMockCalculateQualificationPoints().mockReturnValue([]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([]);
       // getMatchFinalsPositions now reads match tables; return empty (no finals played)
       mockPrisma.bMMatch.findMany.mockResolvedValue([]);
       mockPrisma.mRMatch.findMany.mockResolvedValue([]);

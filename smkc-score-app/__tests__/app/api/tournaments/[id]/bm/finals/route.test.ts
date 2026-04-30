@@ -283,7 +283,6 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
         where: { tournamentId: 't1' },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }, { winRounds: 'desc' }],
-        take: 8,
       });
       expect(prisma.bMMatch.deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'finals' },
@@ -310,7 +309,8 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
 
       // Source returns 201 for successful resource creation (POST)
       expect(result.status).toBe(201);
-      expect(prisma.bMQualification.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 8 }));
+      expect(prisma.bMQualification.findMany).toHaveBeenCalledWith(expect.not.objectContaining({ take: expect.any(Number) }));
+      expect(result.data.seededPlayers).toHaveLength(8);
     });
 
     // Validation error case - Returns 400 when topN is not 8 or 16

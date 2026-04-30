@@ -31,7 +31,7 @@ import {
   type TAQualificationPointsResult,
 } from "@/lib/ta/qualification-scoring";
 import {
-  calculateQualificationPoints,
+  calculateQualificationPointsFromMatches,
   MatchRecord,
   QualificationPointsResult,
 } from "./qualification-points";
@@ -121,6 +121,7 @@ interface QualificationEntry {
   wins: number;
   ties: number;
   losses: number;
+  mp?: number;
 }
 
 /**
@@ -241,23 +242,7 @@ export async function calculateBMQualificationPointsFromDB(
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
-  // Map database records to the MatchRecord interface expected by the calculator
-  const records: MatchRecord[] = qualifications.map((q: QualificationEntry) => ({
-    playerId: q.playerId,
-    wins: q.wins,
-    ties: q.ties,
-    losses: q.losses,
-  }));
-
-  const results = calculateQualificationPoints(records);
-
-  // Convert to Map for O(1) lookup
-  const resultMap = new Map<string, QualificationPointsResult>();
-  for (const result of results) {
-    resultMap.set(result.playerId, result);
-  }
-
-  return resultMap;
+  return qualificationResultsByPlayer(qualifications);
 }
 
 /**
@@ -278,21 +263,7 @@ export async function calculateMRQualificationPointsFromDB(
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
-  const records: MatchRecord[] = qualifications.map((q: QualificationEntry) => ({
-    playerId: q.playerId,
-    wins: q.wins,
-    ties: q.ties,
-    losses: q.losses,
-  }));
-
-  const results = calculateQualificationPoints(records);
-
-  const resultMap = new Map<string, QualificationPointsResult>();
-  for (const result of results) {
-    resultMap.set(result.playerId, result);
-  }
-
-  return resultMap;
+  return qualificationResultsByPlayer(qualifications);
 }
 
 /**
@@ -313,21 +284,7 @@ export async function calculateGPQualificationPointsFromDB(
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
   });
 
-  const records: MatchRecord[] = qualifications.map((q: QualificationEntry) => ({
-    playerId: q.playerId,
-    wins: q.wins,
-    ties: q.ties,
-    losses: q.losses,
-  }));
-
-  const results = calculateQualificationPoints(records);
-
-  const resultMap = new Map<string, QualificationPointsResult>();
-  for (const result of results) {
-    resultMap.set(result.playerId, result);
-  }
-
-  return resultMap;
+  return qualificationResultsByPlayer(qualifications);
 }
 
 /**
@@ -412,7 +369,45 @@ interface FinalsMatchRecord {
   /** Player 2's score */
   p2Score: number;
   round: string | null;
+  stage?: string | null;
   matchNumber: number;
+}
+
+function isSixteenPlayerOrTop24Bracket(matches: FinalsMatchRecord[]): boolean {
+  return matches.some((m) => {
+    if (m.stage === "playoff" || m.round?.startsWith("playoff_")) return true;
+    if (m.round === "losers_r4") return true;
+    if (m.round === "losers_r1" && m.matchNumber >= 16) return true;
+    if (m.round === "losers_r2" && m.matchNumber >= 20) return true;
+    if (m.round === "losers_r3" && m.matchNumber >= 24) return true;
+    if (m.round === "losers_sf" && m.matchNumber >= 28) return true;
+    if (m.round === "losers_final" && m.matchNumber >= 29) return true;
+    if (m.round === "grand_final" && m.matchNumber >= 30) return true;
+    if (m.round === "grand_final_reset" && m.matchNumber >= 31) return true;
+    return false;
+  });
+}
+
+function toMatchRecord(q: QualificationEntry): MatchRecord & { matchesPlayed: number } {
+  return {
+    playerId: q.playerId,
+    wins: q.wins,
+    ties: q.ties,
+    losses: q.losses,
+    matchesPlayed: q.mp ?? q.wins + q.ties + q.losses,
+  };
+}
+
+function qualificationResultsByPlayer(
+  qualifications: QualificationEntry[],
+): Map<string, QualificationPointsResult> {
+  const records = qualifications.map(toMatchRecord);
+  const results = calculateQualificationPointsFromMatches(records);
+  const resultMap = new Map<string, QualificationPointsResult>();
+  for (const result of results) {
+    resultMap.set(result.playerId, result);
+  }
+  return resultMap;
 }
 
 /**
@@ -467,45 +462,48 @@ export async function getMatchFinalsPositions(
 
   if (mode === "BM") {
     const rows = await prisma.bMMatch.findMany({
-      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
       orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, matchNumber: true },
+      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, stage: true, matchNumber: true },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; matchNumber: number }) => ({
+    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
       player1Id: r.player1Id,
       player2Id: r.player2Id,
       p1Score: r.score1,
       p2Score: r.score2,
       round: r.round,
+      stage: r.stage,
       matchNumber: r.matchNumber,
     }));
   } else if (mode === "MR") {
     const rows = await prisma.mRMatch.findMany({
-      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
       orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, matchNumber: true },
+      select: { player1Id: true, player2Id: true, score1: true, score2: true, round: true, stage: true, matchNumber: true },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; matchNumber: number }) => ({
+    matches = rows.map((r: { player1Id: string; player2Id: string; score1: number; score2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
       player1Id: r.player1Id,
       player2Id: r.player2Id,
       p1Score: r.score1,
       p2Score: r.score2,
       round: r.round,
+      stage: r.stage,
       matchNumber: r.matchNumber,
     }));
   } else {
     // GP uses points1/points2 instead of score1/score2
     const rows = await prisma.gPMatch.findMany({
-      where: { tournamentId, stage: "finals", completed: true, deletedAt: null },
+      where: { tournamentId, stage: { in: ["playoff", "finals"] }, completed: true, deletedAt: null },
       orderBy: { matchNumber: "asc" },
-      select: { player1Id: true, player2Id: true, points1: true, points2: true, round: true, matchNumber: true },
+      select: { player1Id: true, player2Id: true, points1: true, points2: true, round: true, stage: true, matchNumber: true },
     });
-    matches = rows.map((r: { player1Id: string; player2Id: string; points1: number; points2: number; round: string | null; matchNumber: number }) => ({
+    matches = rows.map((r: { player1Id: string; player2Id: string; points1: number; points2: number; round: string | null; stage?: string | null; matchNumber: number }) => ({
       player1Id: r.player1Id,
       player2Id: r.player2Id,
       p1Score: r.points1,
       p2Score: r.points2,
       round: r.round,
+      stage: r.stage,
       matchNumber: r.matchNumber,
     }));
   }
@@ -525,10 +523,18 @@ export async function getMatchFinalsPositions(
    *   grand_final / grand_final_reset → 1st (winner), 2nd (loser)
    *   losers_final                    → 3rd (loser)
    *   losers_sf                       → 4th (loser)
-   *   losers_r3  (2 matches)          → 5th (both losers share 5th–6th)
-   *   losers_r2  (2 matches)          → 7th (both losers share 7th–8th)
-   *   losers_r1  (up to 2 matches)    → 9th (losers share 9th–12th)
+   *   16-player finals:
+   *   losers_r4                       → 5th  (5th–6th)
+   *   losers_r3                       → 7th  (7th–8th)
+   *   losers_r2                       → 9th  (9th–12th)
+   *   losers_r1                       → 13th (13th–16th)
+   *   playoff_r2                      → 17th (17th–20th)
+   *   playoff_r1                      → 21st (21st–24th)
+   *
+   *   Legacy 8-player finals keep their previous mapping:
+   *   losers_r3 → 5th, losers_r2 → 7th, losers_r1 → 9th.
    */
+  const useSixteenPlayerPlacement = isSixteenPlayerOrTop24Bracket(matches);
 
   // Grand Final: use the last completed GF match (GF Reset if it was played)
   const gfMatches = matches
@@ -551,19 +557,31 @@ export async function getMatchFinalsPositions(
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 4 });
   }
 
-  // Losers R3 losers → 5th (both get 5; finals-points table groups 5th–6th equally)
-  for (const m of matches.filter((m) => m.round === "losers_r3")) {
+  for (const m of matches.filter((m) => m.round === "losers_r4")) {
     positions.push({ playerId: resolveWinnerLoser(m).loser, position: 5 });
   }
 
-  // Losers R2 losers → 7th (finals-points table groups 7th–8th equally)
-  for (const m of matches.filter((m) => m.round === "losers_r2")) {
-    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 7 });
+  // Losers R3 losers → 7th in 16-player brackets, 5th in legacy 8-player brackets.
+  for (const m of matches.filter((m) => m.round === "losers_r3")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 7 : 5 });
   }
 
-  // Losers R1 losers → 9th (finals-points table groups 9th–12th equally)
+  // Losers R2 losers → 9th in 16-player brackets, 7th in legacy 8-player brackets.
+  for (const m of matches.filter((m) => m.round === "losers_r2")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 9 : 7 });
+  }
+
+  // Losers R1 losers → 13th in 16-player brackets, 9th in legacy 8-player brackets.
   for (const m of matches.filter((m) => m.round === "losers_r1")) {
-    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 9 });
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: useSixteenPlayerPlacement ? 13 : 9 });
+  }
+
+  for (const m of matches.filter((m) => m.round === "playoff_r2")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 17 });
+  }
+
+  for (const m of matches.filter((m) => m.round === "playoff_r1")) {
+    positions.push({ playerId: resolveWinnerLoser(m).loser, position: 21 });
   }
 
   return positions;
