@@ -464,12 +464,11 @@ async function main() {
             { href, shouldExist },
             { timeout: 10000 },
           );
-          return true;
         } catch (err) {
           const action = shouldExist ? 'appear' : 'disappear';
           const message = err instanceof Error ? err.message : String(err);
           console.warn(`[TC-823] Timed out waiting for ${label} badge to ${action}: ${message}`);
-          return false;
+          throw err;
         }
       };
 
