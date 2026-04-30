@@ -51,17 +51,17 @@ jest.mock('@/lib/rate-limit', () => ({
 jest.mock('@/lib/request-utils', () => ({
   getClientIdentifier: jest.fn().mockReturnValue('127.0.0.1'),
 }));
-/* Mock score-report-helpers: recalcStatsConfig invokes recalculatePlayerStats
+/* Mock score-report-helpers: recalcStatsConfig invokes recalculatePlayersStats
  * after a successful qualification-stage PUT. Tests assert the mock's call
  * history to verify the hook is wired correctly. */
 jest.mock('@/lib/api-factories/score-report-helpers', () => ({
-  recalculatePlayerStats: jest.fn().mockResolvedValue(undefined),
+  recalculatePlayersStats: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { auth } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/sanitize';
 import { resolveTournamentId } from '@/lib/tournament-identifier';
-import { recalculatePlayerStats } from '@/lib/api-factories/score-report-helpers';
+import { recalculatePlayersStats } from '@/lib/api-factories/score-report-helpers';
 import { createSuccessResponse, createErrorResponse, handleValidationError, handleDatabaseError } from '@/lib/error-handling';
 import { createLogger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
@@ -595,7 +595,7 @@ describe('Match Detail Route Factory', () => {
   // recalcStatsConfig Hook Tests (TC-402 regression coverage)
   //
   // Ensures that when a qualification-stage match PUT succeeds and the
-  // route was wired with recalcStatsConfig, recalculatePlayerStats is
+  // route was wired with recalcStatsConfig, recalculatePlayersStats is
   // invoked once per player so the per-mode qualification aggregate
   // stays in sync with match state. Without this hook, GP's manual-
   // total admin score path left gPQualification rows at 0 across the
@@ -627,11 +627,11 @@ describe('Match Detail Route Factory', () => {
       version: 1,
       rounds: [],
     };
-    const mockRecalc = recalculatePlayerStats as jest.MockedFunction<
-      typeof recalculatePlayerStats
+    const mockRecalc = recalculatePlayersStats as jest.MockedFunction<
+      typeof recalculatePlayersStats
     >;
 
-    it('invokes recalculatePlayerStats for both players on qualification-stage PUT', async () => {
+    it('invokes recalculatePlayersStats for both players on qualification-stage PUT', async () => {
       /* Two findUnique calls: (1) stage lookup before updateMatchScore,
        * (2) updated match re-fetch after. Mock both with the same shape. */
       (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
@@ -651,12 +651,15 @@ describe('Match Detail Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-1', matchId: 'match-123' }),
       });
 
-      expect(mockRecalc).toHaveBeenCalledTimes(2);
-      expect(mockRecalc).toHaveBeenNthCalledWith(1, recalcConfig, 'tournament-1', 'player-1');
-      expect(mockRecalc).toHaveBeenNthCalledWith(2, recalcConfig, 'tournament-1', 'player-2');
+      expect(mockRecalc).toHaveBeenCalledTimes(1);
+      expect(mockRecalc).toHaveBeenCalledWith(
+        recalcConfig,
+        'tournament-1',
+        ['player-1', 'player-2'],
+      );
     });
 
-    it('does not invoke recalculatePlayerStats when recalcStatsConfig is omitted', async () => {
+    it('does not invoke recalculatePlayersStats when recalcStatsConfig is omitted', async () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
 
       const config = {
@@ -676,7 +679,7 @@ describe('Match Detail Route Factory', () => {
       expect(mockRecalc).not.toHaveBeenCalled();
     });
 
-    it('does not invoke recalculatePlayerStats for finals-stage matches', async () => {
+    it('does not invoke recalculatePlayersStats for finals-stage matches', async () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(finalsMatch);
 
       const config = {
@@ -697,7 +700,7 @@ describe('Match Detail Route Factory', () => {
       expect(mockRecalc).not.toHaveBeenCalled();
     });
 
-    it('still returns success when recalculatePlayerStats throws (logged, non-fatal)', async () => {
+    it('still returns success when recalculatePlayersStats throws (logged, non-fatal)', async () => {
       (prisma.bMMatch as any).findUnique.mockResolvedValue(qualificationMatch);
       mockRecalc.mockRejectedValueOnce(new Error('recalc failed'));
 

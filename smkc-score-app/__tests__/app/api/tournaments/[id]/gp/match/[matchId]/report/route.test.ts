@@ -126,6 +126,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
     (prisma.gPMatch.update as jest.Mock).mockResolvedValue({});
     (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue({ count: 0 });
     // Reset updateWithRetry mock - it should execute the callback
     (updateWithRetry as jest.Mock).mockImplementation(async (_prisma, callback) => {
       return callback({
@@ -279,7 +280,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         .mockResolvedValueOnce(updatedMatch)  // First call: score report
         .mockResolvedValueOnce(confirmedMatch); // Second call: completion
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 2,
@@ -300,7 +301,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         status: 200
       });
       expect(createSuccessResponse).toHaveBeenCalledWith({ match: confirmedMatch, autoConfirmed: true }, 'Scores confirmed and match completed');
-      expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
 
     // Success case - Reports mismatch detected
@@ -581,7 +582,7 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
         .mockResolvedValueOnce({ version: 1 }); // updateWithRetry callback: version check
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue(correctedMatch);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.gPQualification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (prisma.$executeRawUnsafe as jest.Mock).mockResolvedValue({ count: 1 });
 
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
         reportingPlayer: 1,
@@ -607,9 +608,8 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       );
       expect(handleValidationError).not.toHaveBeenCalled();
       /* Both players' qualification stats must be recalculated after a
-       * correction — the route calls recalculatePlayerStats twice, each
-       * call fires an updateMany under the hood. */
-      expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
+       * correction in one batched raw update. */
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
 
     it('should reject correction races that do not match the assigned cup', async () => {

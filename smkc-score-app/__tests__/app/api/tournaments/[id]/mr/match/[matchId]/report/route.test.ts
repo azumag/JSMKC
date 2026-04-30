@@ -61,7 +61,7 @@ jest.mock('@/lib/api-factories/score-report-helpers', () => ({
   createCharacterUsageLog: jest.fn(),
   isDualReportEnabled: jest.fn(),
   validateCharacter: jest.fn(),
-  recalculatePlayerStats: jest.fn(),
+  recalculatePlayersStats: jest.fn().mockResolvedValue(undefined),
 }));
 /**
  * Mock optimistic-locking: the route uses updateWithRetry for all DB writes.
@@ -127,7 +127,7 @@ describe('MR Score Report API Route - /api/tournaments/[id]/mr/match/[matchId]/r
     (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({});
     (prisma.matchCharacterUsage.create as jest.Mock).mockResolvedValue({});
     (prisma.mRMatch.update as jest.Mock).mockResolvedValue({});
-    /* Mocks for recalculatePlayerStats (called after auto-confirm) */
+    /* Mocks for recalculatePlayersStats (called after auto-confirm) */
     (prisma.mRMatch.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.mRQualification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
   });

@@ -283,6 +283,146 @@ export interface RecalculateStatsConfig {
   useRoundDifferential: boolean;
 }
 
+interface QualificationStatsUpdate {
+  playerId: string;
+  mp?: number;
+  wins?: number;
+  ties?: number;
+  losses?: number;
+  winRounds?: number;
+  lossRounds?: number;
+  points?: number;
+  score?: number;
+}
+
+const QUALIFICATION_STATS_UPDATE_SQL: Record<string, string> = {
+  bMQualification: `
+    WITH stats AS (
+      SELECT
+        json_extract(value, '$.playerId') AS playerId,
+        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
+        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
+        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
+        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
+        CAST(json_extract(value, '$.winRounds') AS INTEGER) AS winRounds,
+        CAST(json_extract(value, '$.lossRounds') AS INTEGER) AS lossRounds,
+        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
+        CAST(json_extract(value, '$.score') AS INTEGER) AS score
+      FROM json_each(?)
+    )
+    UPDATE BMQualification
+    SET
+      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = BMQualification.playerId), mp),
+      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = BMQualification.playerId), wins),
+      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = BMQualification.playerId), ties),
+      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = BMQualification.playerId), losses),
+      winRounds = COALESCE((SELECT winRounds FROM stats WHERE stats.playerId = BMQualification.playerId), winRounds),
+      lossRounds = COALESCE((SELECT lossRounds FROM stats WHERE stats.playerId = BMQualification.playerId), lossRounds),
+      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = BMQualification.playerId), points),
+      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = BMQualification.playerId), score)
+    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
+  `,
+  mRQualification: `
+    WITH stats AS (
+      SELECT
+        json_extract(value, '$.playerId') AS playerId,
+        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
+        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
+        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
+        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
+        CAST(json_extract(value, '$.winRounds') AS INTEGER) AS winRounds,
+        CAST(json_extract(value, '$.lossRounds') AS INTEGER) AS lossRounds,
+        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
+        CAST(json_extract(value, '$.score') AS INTEGER) AS score
+      FROM json_each(?)
+    )
+    UPDATE MRQualification
+    SET
+      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = MRQualification.playerId), mp),
+      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = MRQualification.playerId), wins),
+      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = MRQualification.playerId), ties),
+      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = MRQualification.playerId), losses),
+      winRounds = COALESCE((SELECT winRounds FROM stats WHERE stats.playerId = MRQualification.playerId), winRounds),
+      lossRounds = COALESCE((SELECT lossRounds FROM stats WHERE stats.playerId = MRQualification.playerId), lossRounds),
+      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = MRQualification.playerId), points),
+      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = MRQualification.playerId), score)
+    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
+  `,
+  gPQualification: `
+    WITH stats AS (
+      SELECT
+        json_extract(value, '$.playerId') AS playerId,
+        CAST(json_extract(value, '$.mp') AS INTEGER) AS mp,
+        CAST(json_extract(value, '$.wins') AS INTEGER) AS wins,
+        CAST(json_extract(value, '$.ties') AS INTEGER) AS ties,
+        CAST(json_extract(value, '$.losses') AS INTEGER) AS losses,
+        CAST(json_extract(value, '$.points') AS INTEGER) AS points,
+        CAST(json_extract(value, '$.score') AS INTEGER) AS score
+      FROM json_each(?)
+    )
+    UPDATE GPQualification
+    SET
+      mp = COALESCE((SELECT mp FROM stats WHERE stats.playerId = GPQualification.playerId), mp),
+      wins = COALESCE((SELECT wins FROM stats WHERE stats.playerId = GPQualification.playerId), wins),
+      ties = COALESCE((SELECT ties FROM stats WHERE stats.playerId = GPQualification.playerId), ties),
+      losses = COALESCE((SELECT losses FROM stats WHERE stats.playerId = GPQualification.playerId), losses),
+      points = COALESCE((SELECT points FROM stats WHERE stats.playerId = GPQualification.playerId), points),
+      score = COALESCE((SELECT score FROM stats WHERE stats.playerId = GPQualification.playerId), score)
+    WHERE tournamentId = ? AND playerId IN (SELECT playerId FROM stats)
+  `,
+};
+
+export async function bulkUpdateQualificationStats(
+  qualificationModel: RecalculateStatsConfig['qualificationModel'],
+  tournamentId: string,
+  updates: QualificationStatsUpdate[],
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const sql = QUALIFICATION_STATS_UPDATE_SQL[qualificationModel];
+  if (!sql) {
+    throw new Error(`Unsupported qualification stats bulk update model: ${qualificationModel}`);
+  }
+
+  await prisma.$executeRawUnsafe(sql, JSON.stringify(updates), tournamentId);
+}
+
+function calculateStatsForPlayer(
+  config: RecalculateStatsConfig,
+  matches: Array<Record<string, unknown>>,
+  playerId: string,
+): QualificationStatsUpdate {
+  let mp = 0, wins = 0, ties = 0, losses = 0;
+  let winRounds = 0, lossRounds = 0, totalPoints = 0;
+
+  for (const m of matches) {
+    const isPlayer1 = m.player1Id === playerId;
+    if (!isPlayer1 && m.player2Id !== playerId) continue;
+
+    const myScore = Number(isPlayer1 ? m[config.scoreFields.p1] : m[config.scoreFields.p2]);
+    const oppScore = Number(isPlayer1 ? m[config.scoreFields.p2] : m[config.scoreFields.p1]);
+
+    const result = config.determineResult(myScore, oppScore);
+    if (result === 'no_contest') continue;
+    mp++;
+    if (result === 'win') wins++;
+    else if (result === 'loss') losses++;
+    else ties++;
+
+    if (config.useRoundDifferential) {
+      winRounds += myScore;
+      lossRounds += oppScore;
+    } else {
+      totalPoints += myScore;
+    }
+  }
+
+  const score = wins * 2 + ties;
+  return config.useRoundDifferential
+    ? { playerId, mp, wins, ties, losses, winRounds, lossRounds, points: winRounds - lossRounds, score }
+    : { playerId, mp, wins, ties, losses, points: totalPoints, score };
+}
+
 /**
  * Recalculate qualification stats for a player from all completed matches.
  *
@@ -304,6 +444,21 @@ export async function recalculatePlayerStats(
   tournamentId: string,
   playerId: string,
 ): Promise<void> {
+  await recalculatePlayersStats(config, tournamentId, [playerId]);
+}
+
+/**
+ * Recalculate qualification stats for multiple players using one completed-match
+ * query and one JSON-backed qualification update.
+ */
+export async function recalculatePlayersStats(
+  config: RecalculateStatsConfig,
+  tournamentId: string,
+  playerIds: string[],
+): Promise<void> {
+  const uniquePlayerIds = [...new Set(playerIds.filter(Boolean))];
+  if (uniquePlayerIds.length === 0) return;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matchDelegate = (prisma as any)[config.matchModel];
 
@@ -312,50 +467,13 @@ export async function recalculatePlayerStats(
       tournamentId,
       stage: 'qualification',
       completed: true,
-      OR: [{ player1Id: playerId }, { player2Id: playerId }],
+      OR: [
+        { player1Id: { in: uniquePlayerIds } },
+        { player2Id: { in: uniquePlayerIds } },
+      ],
     },
   });
 
-  let mp = 0, wins = 0, ties = 0, losses = 0;
-  let winRounds = 0, lossRounds = 0, totalPoints = 0;
-
-  for (const m of matches) {
-    const isPlayer1 = m.player1Id === playerId;
-    const myScore: number = isPlayer1
-      ? m[config.scoreFields.p1]
-      : m[config.scoreFields.p2];
-    const oppScore: number = isPlayer1
-      ? m[config.scoreFields.p2]
-      : m[config.scoreFields.p1];
-
-    const result = config.determineResult(myScore, oppScore);
-    // 'no_contest' matches (e.g., 0-0 cleared) should not be counted in stats
-    if (result === 'no_contest') continue;
-    mp++;
-    if (result === 'win') wins++;
-    else if (result === 'loss') losses++;
-    else ties++;
-
-    if (config.useRoundDifferential) {
-      winRounds += myScore;
-      lossRounds += oppScore;
-    } else {
-      totalPoints += myScore;
-    }
-  }
-
-  const score = wins * 2 + ties;
-
-  /* Build update data based on mode configuration */
-  const data = config.useRoundDifferential
-    ? { mp, wins, ties, losses, winRounds, lossRounds, points: winRounds - lossRounds, score }
-    : { mp, wins, ties, losses, points: totalPoints, score };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const qualDelegate = (prisma as any)[config.qualificationModel];
-
-  await qualDelegate.updateMany({
-    where: { tournamentId, playerId },
-    data,
-  });
+  const updates = uniquePlayerIds.map((id) => calculateStatsForPlayer(config, matches, id));
+  await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, updates);
 }

@@ -364,7 +364,7 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
         data: { score1: 3, score2: 1, rounds: null, completed: true },
         select: EXPECTED_MATCH_UPDATE_SELECT,
       });
-      expect(prisma.mRQualification.updateMany).toHaveBeenCalledTimes(2);
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
 
     // Success case - Calculates tie result correctly
@@ -514,16 +514,16 @@ describe('MR API Route - /api/tournaments/[id]/mr', () => {
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.mRQualification.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', playerId: 'p1' },
-        data: expect.objectContaining({
+      expect(JSON.parse((prisma.$executeRawUnsafe as jest.Mock).mock.calls[0][1])).toContainEqual(
+        expect.objectContaining({
+          playerId: 'p1',
           mp: 2,
           wins: 1,
           ties: 1,
           losses: 0,
           score: 3,
         }),
-      });
+      );
     });
   });
 });
