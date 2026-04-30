@@ -279,7 +279,7 @@ describe('Audit Log', () => {
       expect(loggerModuleMock.__auditLogger.debug).toHaveBeenCalledWith('Audit logs created', { count: 2 });
     });
 
-    it('should not throw when bulk audit creation fails', async () => {
+    it('should not throw and should log error metadata when bulk audit creation fails', async () => {
       (prismaMock.auditLog.createMany as any).mockRejectedValue(new Error('Database connection failed'));
 
       const result = await createAuditLogs([
