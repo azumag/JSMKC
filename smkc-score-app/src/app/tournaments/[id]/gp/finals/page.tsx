@@ -21,6 +21,7 @@
 import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
+import { XIcon } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
 import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
+import { isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -912,8 +914,22 @@ export default function GrandPrixFinals({
                         <Badge variant="outline">Cup {cupIndex + 1}</Badge>
                         <Badge>{tGp('cupLabel', { cup: cup.cup })}</Badge>
                       </div>
-                      <div className="text-sm font-medium">
-                        {selectedMatch?.player1.nickname}: {points.points1} pts / {selectedMatch?.player2.nickname}: {points.points2} pts
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium">
+                          {selectedMatch?.player1.nickname}: {points.points1} pts / {selectedMatch?.player2.nickname}: {points.points2} pts
+                        </div>
+                        {isRemovableCupForm(cupIndex) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Remove Cup ${cupIndex + 1}`}
+                            title={`Remove Cup ${cupIndex + 1}`}
+                            onClick={() => setCupForms((current) => removeCupFormAt(current, cupIndex))}
+                          >
+                            <XIcon className="size-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
