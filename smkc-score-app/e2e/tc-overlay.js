@@ -83,6 +83,18 @@ const log = makeLog(results);
 
 let fixture = null;
 
+function hasMatchCompletedTitle(title, modePattern) {
+  return modePattern.test(title || '') && /(Completed|終了)/i.test(title || '');
+}
+
+function hasQualificationCompletedTitle(title) {
+  return /予選を完走/.test(title || '') || /completed\s+Qualification/i.test(title || '');
+}
+
+function hasQualificationLockedTitle(title) {
+  return /予選確定/.test(title || '') || /Qualification\s+Locked/i.test(title || '');
+}
+
 /**
  * Unauthenticated GET against the production overlay endpoint via Node's
  * `https` module. Mirrors the pattern used by the existing TC-328 / TC-329
@@ -369,12 +381,12 @@ async function runTc903(_adminPage) {
     const events = resp.body?.data?.events || [];
     const evt = events.find((e) => e.type === 'match_completed' && e.mode === 'bm');
     const hasScore = evt && /4\s*-\s*0/.test(evt.subtitle || '');
-    const hasTitle = evt && /BM/.test(evt.title || '') && /終了/.test(evt.title || '');
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bBM\b|Battle Mode/i);
     log('TC-903',
       evt && hasScore && hasTitle ? 'PASS' : 'FAIL',
       !evt ? `match_completed event missing in ${events.length} events` :
       !hasScore ? `subtitle missing 4-0: "${evt.subtitle}"` :
-      !hasTitle ? `title missing BM/終了: "${evt.title}"` : '');
+      !hasTitle ? `title missing BM/Battle Mode completed marker: "${evt.title}"` : '');
   } catch (err) {
     log('TC-903', 'FAIL', err instanceof Error ? err.message : 'TC-903 threw');
   }
@@ -430,14 +442,14 @@ async function runTc907(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'match_completed' && e.mode === 'mr');
     const hasScore = evt && /3\s*-\s*1/.test(evt.subtitle || '');
-    const hasTitle = evt && /MR/.test(evt.title || '');
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bMR\b|Match Race/i);
     const pass = !!(evt && hasScore && hasTitle);
     log('TC-907',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'MR match_completed event missing' :
       !hasScore ? `subtitle missing 3-1: "${evt.subtitle}"` :
-      `title missing MR: "${evt.title}"`);
+      `title missing MR/Match Race completed marker: "${evt.title}"`);
   } catch (err) {
     log('TC-907', 'FAIL', err instanceof Error ? err.message : 'TC-907 threw');
   }
@@ -462,14 +474,14 @@ async function runTc908(adminPage) {
        into score1/2 before the aggregator runs, so the subtitle uses the
        raw GP point totals. */
     const hasScore = evt && /\d+\s*-\s*\d+/.test(evt.subtitle || '');
-    const hasTitle = evt && /GP/.test(evt.title || '');
+    const hasTitle = evt && hasMatchCompletedTitle(evt.title, /\bGP\b|Grand Prix/i);
     const pass = !!(evt && hasScore && hasTitle);
     log('TC-908',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'GP match_completed event missing' :
       !hasScore ? `subtitle missing score format: "${evt.subtitle}"` :
-      `title missing GP: "${evt.title}"`);
+      `title missing GP/Grand Prix completed marker: "${evt.title}"`);
   } catch (err) {
     log('TC-908', 'FAIL', err instanceof Error ? err.message : 'TC-908 threw');
   }
@@ -499,8 +511,8 @@ async function runTc910(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'ta_time_recorded');
     const hasMode = evt && evt.mode === 'ta';
-    // Qualification title format: "[予選] playerNick が予選を完走しました（タイム M:SS.cc, 現在 N 位）"
-    const hasTitle = evt && /予選を完走/.test(evt.title || '');
+    // Qualification title format is localized; both variants must describe completion.
+    const hasTitle = evt && hasQualificationCompletedTitle(evt.title);
     // Structured payload carries totals; per-course course/time absent.
     const hasTaPayload = !!(
       evt &&
@@ -517,7 +529,7 @@ async function runTc910(adminPage) {
       pass ? '' :
       !evt ? 'ta_time_recorded event missing' :
       !hasMode ? `wrong mode ${evt.mode}` :
-      !hasTitle ? `title missing 予選を完走: "${evt.title}"` :
+      !hasTitle ? `title missing qualification completion marker: "${evt.title}"` :
       `taTimeRecord payload wrong shape: ${JSON.stringify(evt.taTimeRecord)}`);
   } catch (err) {
     log('TC-910', 'FAIL', err instanceof Error ? err.message : 'TC-910 threw');
@@ -574,7 +586,7 @@ async function runTc913(adminPage) {
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'ta_phase_advanced');
     const hasMode = evt && evt.mode === 'ta';
-    const hasPhase = evt && /phase3/i.test(evt.title || '');
+    const hasPhase = evt && /phase\s*3/i.test(evt.title || '');
     const pass = !!(evt && hasMode && hasPhase);
     log('TC-913',
       pass ? 'PASS' : 'FAIL',
@@ -623,13 +635,13 @@ async function runTc909(adminPage) {
       (e) => e.type === 'qualification_confirmed',
     );
     const evt = (resp.body?.data?.events || []).find((e) => e.type === 'qualification_confirmed');
-    const hasTitle = evt && /予選確定/.test(evt.title || '');
+    const hasTitle = evt && hasQualificationLockedTitle(evt.title);
     const pass = !!(evt && hasTitle);
     log('TC-909',
       pass ? 'PASS' : 'FAIL',
       pass ? '' :
       !evt ? 'qualification_confirmed event missing' :
-      `title missing 予選確定: "${evt.title}"`);
+      `title missing qualification locked marker: "${evt.title}"`);
   } catch (err) {
     log('TC-909', 'FAIL', err instanceof Error ? err.message : 'TC-909 threw');
   }
@@ -653,7 +665,7 @@ async function runTc915(_adminPage) {
     const ok = resp.body?.success === true;
     const data = resp.body?.data;
     const hasEvents = data && Array.isArray(data.events);
-    // currentPhase is a string returned by computeCurrentPhase (e.g. "予選確定" or "予選中")
+    // currentPhase is a localized string returned by computeCurrentPhase.
     const hasCurrentPhase = data && 'currentPhase' in data && typeof data.currentPhase === 'string';
     const hasServerTime = data && typeof data.serverTime === 'string';
     const noStore = (resp.headers['cache-control'] || '').toLowerCase().includes('no-store');
@@ -1021,7 +1033,7 @@ async function runTc906(adminPage) {
 
     const stackText = await adminPage.locator('[data-testid="overlay-toast-stack"]').innerText();
     const hasContent = stackText.trim().length > 0;
-    const hasKnownTitle = /(更新|確定|終了|申告|タイム)/.test(stackText);
+    const hasKnownTitle = /(更新|確定|終了|申告|タイム|Updated|Locked|Completed|Started|Reported|Time|Qualification|Ranking)/i.test(stackText);
     const pass = hasContent && hasKnownTitle;
     log('TC-906',
       pass ? 'PASS' : 'FAIL',
