@@ -84,7 +84,7 @@ export interface OverlayTaTimeRecord {
   totalTimeMs?: number;
   /** Formatted total time ("M:SS.cc") — set only for qualification-completion events. */
   totalTimeFormatted?: string;
-  /** Human label for the TA stage ("予選" / "フェーズ1" etc.). May be
+  /** Human label for the TA stage ("Qualification" / "Phase 1" etc.). May be
       empty when the stage is unknown. */
   phaseLabel?: string;
   /** Current rank in the active stage, when known. */
@@ -255,14 +255,15 @@ export interface OverlayEventsResponse {
    */
   currentPhaseFormat?: string | null;
   /**
-   * Broadcast player names set by the admin via "配信に反映" or 配信管理 page.
+   * Broadcast player names set by the admin via "配信に反映" or broadcast page.
    * Displayed on the OBS overlay canvas at the 1P/2P name positions.
    * Empty string means no name is currently set.
    */
   overlayPlayer1Name?: string;
   overlayPlayer2Name?: string;
   /**
-   * Round label of the match selected by "配信に反映" (e.g. "BM 決勝 QF").
+   * Round label of the match selected by "配信に反映"
+   * (e.g. "Battle Mode Finals Winners Quarter Final").
    * When set, the dashboard footer uses this instead of the auto-computed phase.
    * Null/undefined means fall back to computeCurrentPhase.
    */

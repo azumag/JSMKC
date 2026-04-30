@@ -22,7 +22,7 @@ function matchEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
     type: "match_completed",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "bm",
-    title: "BM 予選 試合 #1 終了",
+    title: "Battle Mode Qualification Match #1 Completed",
     subtitle: "Alice 4-0 Bob",
     matchResult: {
       player1: "Alice",
@@ -40,10 +40,10 @@ function taEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
     type: "ta_time_recorded",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "ta",
-    title: "TA 予選 完走",
+    title: "Time Attack Qualification Complete",
     taTimeRecord: {
       player: "Eve",
-      phaseLabel: "予選",
+      phaseLabel: "Qualification",
       rank: 3,
       totalTimeMs: 90_000,
       totalTimeFormatted: "1:30.00",
@@ -58,11 +58,11 @@ function taPhaseRoundEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent 
     type: "ta_phase_advanced",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "ta",
-    title: "TA フェーズ3 ラウンド3 開始",
-    subtitle: "コース: Koopa Beach 1",
+    title: "Time Attack Phase 3 Round 3 Started",
+    subtitle: "Course: Koopa Beach 1",
     taPhaseRound: {
       phase: "phase3",
-      phaseLabel: "フェーズ3",
+      phaseLabel: "Phase 3",
       roundNumber: 3,
       course: "KB1",
       courseName: "Koopa Beach 1",
@@ -81,11 +81,11 @@ function taPhaseCompletedEvent(overrides: Partial<OverlayEvent> = {}): OverlayEv
     type: "ta_phase_completed",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "ta",
-    title: "TA フェーズ1 ラウンド1 終了",
-    subtitle: "敗退: Bob",
+    title: "Time Attack Phase 1 Round 1 Completed",
+    subtitle: "Eliminated: Bob",
     taPhaseCompleted: {
       phase: "phase1",
-      phaseLabel: "フェーズ1",
+      phaseLabel: "Phase 1",
       roundNumber: 1,
       course: "KB1",
       courseName: "Koopa Beach 1",
@@ -124,7 +124,7 @@ describe("DashboardTimeline match scoreboard card", () => {
     const event = matchEvent({
       id: "match_completed:gp:m1:1",
       mode: "gp",
-      title: "GP 予選 試合 #1 終了",
+      title: "Grand Prix Qualification Match #1 Completed",
       subtitle: "Alice 45-0 Bob",
       matchResult: {
         player1: "Alice",
@@ -157,7 +157,7 @@ describe("DashboardTimeline TA time card", () => {
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("line-clamp-2");
     expect(screen.getByTestId("dashboard-timeline-ta-player")).not.toHaveClass("truncate");
     expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-2xl");
-    expect(screen.queryByText("合計タイム")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Time")).not.toBeInTheDocument();
     expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-3xl");
     expect(screen.getByTestId("dashboard-timeline-ta-rank").parentElement).toBe(
       screen.getByTestId("dashboard-timeline-ta-total").parentElement?.parentElement,
@@ -170,12 +170,12 @@ describe("DashboardTimeline TA time card", () => {
         events={[
           taEvent({
             id: "ta_time_recorded:tt-phase1:1",
-            title: "TA タイム更新",
+            title: "Time Attack Time Updated",
             taTimeRecord: {
               player: "Frank",
               course: "MC1",
               time: "1:23.45",
-              phaseLabel: "フェーズ1",
+              phaseLabel: "Phase 1",
               rank: 2,
             },
           }),
@@ -195,18 +195,18 @@ describe("DashboardTimeline TA phase round card", () => {
     render(<DashboardTimeline events={[taPhaseRoundEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-phase-round")).toHaveTextContent(
-      "TA フェーズ3 ラウンド3 開始",
+      "Time Attack Phase 3 Round 3 Started",
     );
     expect(screen.getByTestId("dashboard-timeline-ta-phase-course")).toHaveTextContent(
       "Koopa Beach 1",
     );
 
     const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
-    expect(participants).toHaveTextContent("ACTIVE");
+    expect(participants).toHaveTextContent("Active");
     expect(participants).toHaveTextContent("Alice");
-    expect(participants).toHaveTextContent("LIFE 3");
+    expect(participants).toHaveTextContent("Life 3");
     expect(participants).toHaveTextContent("Bob");
-    expect(participants).toHaveTextContent("LIFE 1");
+    expect(participants).toHaveTextContent("Life 1");
   });
 
   it("omits lives before phase3", () => {
@@ -214,10 +214,10 @@ describe("DashboardTimeline TA phase round card", () => {
       <DashboardTimeline
         events={[
           taPhaseRoundEvent({
-            title: "TA フェーズ1 ラウンド1 開始",
+            title: "Time Attack Phase 1 Round 1 Started",
             taPhaseRound: {
               phase: "phase1",
-              phaseLabel: "フェーズ1",
+              phaseLabel: "Phase 1",
               roundNumber: 1,
               course: "KB1",
               courseName: "Koopa Beach 1",
@@ -235,7 +235,7 @@ describe("DashboardTimeline TA phase round card", () => {
     const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
     expect(participants).toHaveTextContent("Alice");
     expect(participants).toHaveTextContent("Bob");
-    expect(participants).not.toHaveTextContent("LIFE");
+    expect(participants).not.toHaveTextContent("Life");
   });
 });
 
@@ -244,16 +244,16 @@ describe("DashboardTimeline TA phase completed card", () => {
     render(<DashboardTimeline events={[taPhaseCompletedEvent()]} now={NOW} />);
 
     const card = screen.getByTestId("dashboard-timeline-ta-phase-completed");
-    expect(card).toHaveTextContent("TA フェーズ1 ラウンド1 終了");
+    expect(card).toHaveTextContent("Time Attack Phase 1 Round 1 Completed");
     expect(card).toHaveTextContent("Koopa Beach 1");
     expect(screen.getByTestId("dashboard-timeline-ta-phase-eliminated")).toHaveTextContent(
-      "敗退 Bob",
+      "Eliminated Bob",
     );
 
     const results = screen.getByTestId("dashboard-timeline-ta-phase-results");
     expect(results).toHaveTextContent("Alice");
     expect(results).toHaveTextContent("1:14.56");
-    expect(results).toHaveTextContent("Bob / 敗退");
-    expect(results).toHaveTextContent("1:22.34 RETRY");
+    expect(results).toHaveTextContent("Bob / Eliminated");
+    expect(results).toHaveTextContent("1:22.34 Retry");
   });
 });

@@ -18,17 +18,18 @@
 
 import type { OverlayEvent } from "@/lib/overlay/types";
 
-/** Inline JP relative-time formatter — same pattern as `update-indicator`. */
+/** Inline relative-time formatter — same pattern as `update-indicator`. */
 function formatTimeAgo(now: number, iso: string): string {
   const ms = now - Date.parse(iso);
   if (!Number.isFinite(ms) || ms < 0) return "now";
   const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec}秒前`;
+  if (sec < 5) return "now";
+  if (sec < 60) return `${sec}s ago`;
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}分前`;
+  if (min < 60) return `${min}m ago`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}時間前`;
-  return `${Math.floor(hr / 24)}日前`;
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
 }
 
 /* Card visual treatment: solid border + drop shadow so each card stands
@@ -101,7 +102,7 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
 
         {ordered.length === 0 && (
           <div className="py-6 text-center text-sm text-white/40">
-            イベント待機中…
+            Waiting for events...
           </div>
         )}
       </div>
@@ -141,7 +142,7 @@ function CompactCard({ event, now }: { event: OverlayEvent; now: number }) {
  * Tall card for completed matches: header strip with the mode/round
  * context, then two rows showing player + score. Winning row gets a
  * yellow accent + bullet, losing row dims; ties show neither bullet
- * and add a "引き分け" footnote so the viewer doesn't second-guess.
+ * and add a "Draw" footnote so the viewer doesn't second-guess.
  */
 function MatchScoreboardCard({
   event,
@@ -161,7 +162,7 @@ function MatchScoreboardCard({
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          {event.title.replace(/\s*終了\s*$/, "")}
+          {event.title.replace(/\s*Completed\s*$/, "")}
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -198,7 +199,7 @@ function MatchScoreboardCard({
       )}
 
       {!p1Wins && !p2Wins && (
-        <div className="mt-1 text-center text-xs text-white/50">引き分け</div>
+        <div className="mt-1 text-center text-xs text-white/50">Draw</div>
       )}
     </div>
   );
@@ -208,7 +209,7 @@ function MatchScoreboardCard({
  * Rich card for a TA event. Two flavors:
  *
  *  - Qualification completion (`totalTimeFormatted` set): heading reads
- *    "TA 予選 完走", bottom row shows the total time prominently. No
+ *    "Time Attack Qualification Complete", bottom row shows the total time prominently. No
  *    course chip because qualification is 20 courses' worth of time
  *    aggregated.
  *  - Phase round (per-course `course` + `time`): unchanged — course chip
@@ -233,8 +234,8 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
     typeof t.totalTimeFormatted === "string" &&
     t.totalTimeFormatted.length > 0;
   const heading = isQualificationTotal
-    ? `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA 予選 完走`
-    : `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}TA タイム更新`;
+    ? `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}Time Attack Qualification Complete`
+    : `${t.phaseLabel ? `[${t.phaseLabel}] ` : ""}Time Attack Time Updated`;
 
   return (
     <div
@@ -271,7 +272,7 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
             className="shrink-0 rounded bg-yellow-400/20 px-2 py-0.5 text-sm font-semibold text-yellow-300"
             data-testid="dashboard-timeline-ta-rank"
           >
-            現在 {t.rank} 位
+            Rank #{t.rank}
           </span>
         )}
       </div>
@@ -285,7 +286,7 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
               className="shrink-0 rounded bg-yellow-400/20 px-2.5 py-1 text-2xl font-semibold leading-tight text-yellow-300"
               data-testid="dashboard-timeline-ta-rank"
             >
-              現在 {t.rank} 位
+              Rank #{t.rank}
             </span>
           ) : null}
           <div className="min-w-0 flex items-baseline text-right">
@@ -330,7 +331,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          TA {phaseLabel} ラウンド{r.roundNumber} 開始
+          Time Attack {phaseLabel} Round {r.roundNumber} Started
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -338,7 +339,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
       </div>
 
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium text-white/70">選択コース</span>
+        <span className="text-sm font-medium text-white/70">Selected Course</span>
         <span
           className="min-w-0 flex-1 text-right text-3xl font-bold text-yellow-400"
           data-testid="dashboard-timeline-ta-phase-course"
@@ -359,7 +360,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
             >
               <div className="min-w-0 flex items-center gap-2">
                 <span className="rounded bg-green-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-green-300">
-                  ACTIVE
+                  Active
                 </span>
                 <span className="truncate text-base font-semibold text-white">
                   {participant.player}
@@ -367,7 +368,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
               </div>
               {showLives && (
                 <span className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold tabular-nums text-red-300">
-                  LIFE {participant.lives}
+                  Life {participant.lives}
                 </span>
               )}
             </div>
@@ -391,7 +392,7 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          TA {phaseLabel} ラウンド{r.roundNumber} 終了
+          Time Attack {phaseLabel} Round {r.roundNumber} Completed
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -405,7 +406,7 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
             className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold text-red-300"
             data-testid="dashboard-timeline-ta-phase-eliminated"
           >
-            敗退 {r.eliminatedPlayers.join(", ")}
+            Eliminated {r.eliminatedPlayers.join(", ")}
           </span>
         )}
       </div>
@@ -424,11 +425,11 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
               }`}
             >
               {result.player}
-              {result.eliminated ? " / 敗退" : ""}
+              {result.eliminated ? " / Eliminated" : ""}
             </span>
             <span className="shrink-0 text-xl font-bold tabular-nums text-yellow-400">
               {result.timeFormatted}
-              {result.isRetry ? " RETRY" : ""}
+              {result.isRetry ? " Retry" : ""}
             </span>
           </div>
         ))}
@@ -436,7 +437,7 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
 
       {r.livesReset && (
         <div className="mt-2 text-center text-xs font-semibold text-blue-200">
-          ライフリセット
+          Lives Reset
         </div>
       )}
     </div>

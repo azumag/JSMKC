@@ -225,7 +225,7 @@ describe("buildOverlayEvents", () => {
         bmMatches: [match({ id: "f", stage: "finals", matchNumber: 7 })],
       }),
     );
-    expect(events[0].title).toContain("決勝");
+    expect(events[0].title).toContain("Finals");
     expect(events[0].title).toContain("#7");
   });
 
@@ -299,14 +299,14 @@ describe("buildOverlayEvents", () => {
     // Title now talks about completing qualification with the total time,
     // not the most recent course.
     expect(events[0].title).toContain("Eve");
-    expect(events[0].title).toContain("予選");
-    expect(events[0].title).toContain("完走");
+    expect(events[0].title).toContain("Qualification");
+    expect(events[0].title).toContain("completed");
     expect(events[0].title).toContain("1:30.00");
-    expect(events[0].title).toContain("3 位");
+    expect(events[0].title).toContain("Rank #3");
     // Structured payload carries totals; per-course course/time are absent.
     expect(events[0].taTimeRecord).toEqual({
       player: "Eve",
-      phaseLabel: "予選",
+      phaseLabel: "Qualification",
       rank: 3,
       totalTimeMs: 90_000,
       totalTimeFormatted: "1:30.00",
@@ -427,12 +427,12 @@ describe("buildOverlayEvents", () => {
     expect(events[0].title).toContain("Frank");
     expect(events[0].title).toContain("MC1");
     expect(events[0].title).toContain("1:23.45");
-    expect(events[0].title).toContain("フェーズ1");
+    expect(events[0].title).toContain("Phase 1");
     expect(events[0].taTimeRecord).toEqual({
       player: "Frank",
       course: "MC1",
       time: "1:23.45",
-      phaseLabel: "フェーズ1",
+      phaseLabel: "Phase 1",
       rank: 2,
     });
   });
@@ -475,12 +475,12 @@ describe("buildOverlayEvents", () => {
     );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_phase_advanced");
-    expect(events[0].title).toContain("フェーズ1");
-    expect(events[0].title).toContain("ラウンド2");
+    expect(events[0].title).toContain("Phase 1");
+    expect(events[0].title).toContain("Round 2");
     expect(events[0].subtitle).toContain("Mario Circuit 1");
     expect(events[0].taPhaseRound).toEqual({
       phase: "phase1",
-      phaseLabel: "フェーズ1",
+      phaseLabel: "Phase 1",
       roundNumber: 2,
       course: "MC1",
       courseName: "Mario Circuit 1",
@@ -500,8 +500,8 @@ describe("buildOverlayEvents", () => {
       }),
     );
 
-    expect(events[0].title).toContain("TA フェーズ1 ラウンド1 開始");
-    expect(events[0].subtitle).toBe("コース: Koopa Beach 1");
+    expect(events[0].title).toContain("Time Attack Phase 1 Round 1 Started");
+    expect(events[0].subtitle).toBe("Course: Koopa Beach 1");
     expect(events[0].taPhaseRound?.courseName).toBe("Koopa Beach 1");
   });
 
@@ -534,11 +534,11 @@ describe("buildOverlayEvents", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_phase_completed");
-    expect(events[0].title).toBe("TA フェーズ1 ラウンド1 終了");
-    expect(events[0].subtitle).toBe("敗退: Bob");
+    expect(events[0].title).toBe("Time Attack Phase 1 Round 1 Completed");
+    expect(events[0].subtitle).toBe("Eliminated: Bob");
     expect(events[0].taPhaseCompleted).toEqual({
       phase: "phase1",
-      phaseLabel: "フェーズ1",
+      phaseLabel: "Phase 1",
       roundNumber: 1,
       course: "KB1",
       courseName: "Koopa Beach 1",

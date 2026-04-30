@@ -3,7 +3,7 @@
  * overlay events. Kept DB-free so it can be unit tested without Prisma.
  *
  * The route handler is responsible for all I/O (Prisma queries, time bounds);
- * this module only does the shape transformation and Japanese title rendering.
+ * this module only does the shape transformation and broadcast title rendering.
  */
 
 import { COURSE_INFO } from "@/lib/constants";
@@ -24,22 +24,22 @@ function nick(player: { nickname: string } | null | undefined): string {
 }
 
 const MODE_LABEL: Record<OverlayMode, string> = {
-  ta: "TA",
-  bm: "BM",
-  mr: "MR",
-  gp: "GP",
+  ta: "Time Attack",
+  bm: "Battle Mode",
+  mr: "Match Race",
+  gp: "Grand Prix",
 };
 
 /**
  * Human-readable phase labels for TA. These intentionally do not use the
- * BM/MR-style bracket labels ("敗者復活", "決勝") because TA phases are
+ * Battle Mode / Match Race-style bracket labels because TA phases are
  * sequential survival phases, not a bracket.
  */
 const TA_STAGE_LABEL: Record<string, string> = {
-  qualification: "予選",
-  phase1: "フェーズ1",
-  phase2: "フェーズ2",
-  phase3: "フェーズ3",
+  qualification: "Qualification",
+  phase1: "Phase 1",
+  phase2: "Phase 2",
+  phase3: "Phase 3",
 };
 
 function courseName(abbr: string): string {
@@ -117,7 +117,7 @@ function matchEvents(
   for (const m of matches) {
     if (!m.completed) continue;
     if (m.updatedAt.getTime() <= since.getTime()) continue;
-    const stageLabel = m.stage === "finals" ? "決勝" : "予選";
+    const stageLabel = m.stage === "finals" ? "Finals" : "Qualification";
     const scoreLabel = `${m.score1}-${m.score2}`;
     // BM/MR carry `assignedCourses`; GP carries a single `cup`. Build both
     // the structured payload and the subtitle suffix so the legacy toast
@@ -139,7 +139,7 @@ function matchEvents(
       type: "match_completed",
       timestamp: m.updatedAt.toISOString(),
       mode,
-      title: `${MODE_LABEL[mode]} ${stageLabel} 試合 #${m.matchNumber} 終了`,
+      title: `${MODE_LABEL[mode]} ${stageLabel} Match #${m.matchNumber} Completed`,
       subtitle: `${nick(m.player1)} ${scoreLabel} ${nick(m.player2)}${contextSuffix}`,
       // Structured payload for the dashboard scoreboard renderer. Keeping
       // `subtitle` populated alongside means consumers that don't know
@@ -183,8 +183,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       type: "score_reported",
       timestamp: log.timestamp.toISOString(),
       mode,
-      title: `${mode ? MODE_LABEL[mode] : ""} スコア申告`.trim(),
-      subtitle: `${nick(log.player)} が結果を申告しました`,
+      title: `${mode ? MODE_LABEL[mode] : ""} Score Reported`.trim(),
+      subtitle: `${nick(log.player)} reported a result`,
     });
   }
 
@@ -214,8 +214,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       // even 10ms) produces a fresh id and re-fires intentionally.
       if (e.totalTime == null) continue;
       const totalTimeFormatted = msToDisplayTime(e.totalTime);
-      const rankPart = e.rank ? `, 現在 ${e.rank} 位` : "";
-      title = `${prefix}${playerName} が予選を完走しました（タイム ${totalTimeFormatted}${rankPart}）`;
+      const rankPart = e.rank ? `, Rank #${e.rank}` : "";
+      title = `${prefix}${playerName} completed Qualification (${totalTimeFormatted}${rankPart})`;
       taTimeRecord = {
         player: playerName,
         phaseLabel: stageLabel || undefined,
@@ -228,8 +228,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       // Phase rounds (phase1/2/3) are single-course; per-course notification
       // remains the right granularity. Skip until lastRecorded* is populated.
       if (!e.lastRecordedCourse || !e.lastRecordedTime) continue;
-      const rankSuffix = e.rank ? `（現在 ${e.rank} 位）` : "";
-      title = `${prefix}${playerName} が ${e.lastRecordedCourse} で ${e.lastRecordedTime} を記録しました${rankSuffix}`;
+      const rankSuffix = e.rank ? ` (Rank #${e.rank})` : "";
+      title = `${prefix}${playerName} recorded ${e.lastRecordedTime} on ${e.lastRecordedCourse}${rankSuffix}`;
       taTimeRecord = {
         player: playerName,
         course: e.lastRecordedCourse,
@@ -263,8 +263,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
         type: "ta_phase_advanced",
         timestamp: r.createdAt.toISOString(),
         mode: "ta",
-        title: `TA ${prefix}ラウンド${r.roundNumber} 開始`,
-        subtitle: `コース: ${displayCourse}`,
+        title: `Time Attack ${prefix}Round ${r.roundNumber} Started`,
+        subtitle: `Course: ${displayCourse}`,
         taPhaseRound: {
           phase: r.phase,
           phaseLabel: stageLabel || undefined,
@@ -287,11 +287,11 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
         type: "ta_phase_completed",
         timestamp: r.submittedAt.toISOString(),
         mode: "ta",
-        title: `TA ${prefix}ラウンド${r.roundNumber} 終了`,
+        title: `Time Attack ${prefix}Round ${r.roundNumber} Completed`,
         subtitle:
           eliminatedPlayers.length > 0
-            ? `敗退: ${eliminatedPlayers.join(", ")}`
-            : "敗退者なし",
+            ? `Eliminated: ${eliminatedPlayers.join(", ")}`
+            : "No eliminations",
         taPhaseCompleted: {
           phase: r.phase,
           phaseLabel: stageLabel || undefined,
@@ -314,8 +314,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       id: `qualification_confirmed:${tournament.qualificationConfirmedAt.getTime()}`,
       type: "qualification_confirmed",
       timestamp: tournament.qualificationConfirmedAt.toISOString(),
-      title: "予選確定",
-      subtitle: "決勝トーナメントへ進みます",
+      title: "Qualification Locked",
+      subtitle: "Proceeding to finals",
     });
   }
 
@@ -327,8 +327,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       id: `finals_started:${tournament.earliestFinalsCreatedAt.getTime()}`,
       type: "finals_started",
       timestamp: tournament.earliestFinalsCreatedAt.toISOString(),
-      title: "決勝ブラケット生成",
-      subtitle: "決勝トーナメントが開始しました",
+      title: "Finals Bracket Generated",
+      subtitle: "Finals bracket has started",
     });
   }
 
@@ -340,8 +340,8 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       id: `overall_ranking_updated:${tournament.latestOverallRankingUpdatedAt.getTime()}`,
       type: "overall_ranking_updated",
       timestamp: tournament.latestOverallRankingUpdatedAt.toISOString(),
-      title: "総合ランキング更新",
-      subtitle: "全モードの集計が更新されました",
+      title: "Overall Ranking Updated",
+      subtitle: "All-mode standings have been updated",
     });
   }
 
