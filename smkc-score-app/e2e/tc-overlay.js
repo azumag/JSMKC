@@ -72,6 +72,7 @@ const {
   makeRacesP1Wins,
   makeTaTimesForRank,
 } = require('./lib/common');
+const { hasKnownOverlayToastTitle } = require('./lib/overlay-toast-assertions');
 const { runSuite } = require('./lib/runner');
 
 const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
@@ -1033,7 +1034,7 @@ async function runTc906(adminPage) {
 
     const stackText = await adminPage.locator('[data-testid="overlay-toast-stack"]').innerText();
     const hasContent = stackText.trim().length > 0;
-    const hasKnownTitle = /(更新|確定|終了|申告|タイム|Updated|Locked|Completed|Started|Reported|Time|Qualification|Ranking)/i.test(stackText);
+    const hasKnownTitle = hasKnownOverlayToastTitle(stackText);
     const pass = hasContent && hasKnownTitle;
     log('TC-906',
       pass ? 'PASS' : 'FAIL',
