@@ -20,4 +20,14 @@ describe('TA E2E TypeScript helper runtime require', () => {
     expect(result.status).toBe(0);
     expect(result.stderr).toBe('');
   });
+
+  it('keeps helper resolution covered by Jest instead of the TA E2E suite', async () => {
+    const taSuite = await import('../../e2e/tc-ta.js') as {
+      getSuite: () => { tests: Array<{ name: string }> };
+      runTc926?: unknown;
+    };
+
+    expect(taSuite.getSuite().tests.map((test) => test.name)).not.toContain('TC-926');
+    expect(taSuite.runTc926).toBeUndefined();
+  });
 });
