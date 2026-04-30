@@ -26,6 +26,7 @@ import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check
 import { generateETag, invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks } from '@/lib/server-ranking';
+import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -589,7 +590,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           },
         });
 
-        await Promise.all(byeRecipientList.map(async (playerId) => {
+        const byeUpdates = byeRecipientList.map((playerId) => {
           const playerByeMatches = allByeMatches.filter(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (m: any) => m.player1Id === playerId || m.player2Id === playerId,
@@ -599,11 +600,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             playerId,
             config.calculateMatchResult,
           );
-          await qualModel(prisma).updateMany({
-            where: { tournamentId, playerId },
-            data: stats.qualificationData,
-          });
-        }));
+          return { playerId, ...stats.qualificationData };
+        });
+        await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, byeUpdates);
       }
 
       /* Audit logging if configured.
@@ -732,20 +731,12 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         player2Matches, match.player2Id, config.calculateMatchResult,
       );
 
-      /* Update both players' qualification records in parallel (#707). */
-      const updates = [
-        qualModel(prisma).updateMany({
-          where: { tournamentId, playerId: match.player1Id },
-          data: p1.qualificationData,
-        }),
-      ];
+      /* Update both players' qualification records with one D1 round-trip. */
+      const updates = [{ playerId: match.player1Id, ...p1.qualificationData }];
       if (p2) {
-        updates.push(qualModel(prisma).updateMany({
-          where: { tournamentId, playerId: match.player2Id },
-          data: p2.qualificationData,
-        }));
+        updates.push({ playerId: match.player2Id, ...p2.qualificationData });
       }
-      await Promise.all(updates);
+      await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, updates);
 
       /* Score updates change both per-mode standings and the cross-mode
        * overall ranking. Drop both caches so the next GET reflects the new

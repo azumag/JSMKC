@@ -30,7 +30,7 @@ import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { invalidate as invalidateStandingsCache } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { retryDbRead } from '@/lib/db-read-retry';
-import { recalculatePlayerStats, type RecalculateStatsConfig } from './score-report-helpers';
+import { recalculatePlayersStats, type RecalculateStatsConfig } from './score-report-helpers';
 
 /**
  * Configuration for the match detail route factory.
@@ -281,10 +281,11 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const um = updatedMatch as any;
         try {
-          await recalculatePlayerStats(config.recalcStatsConfig, matchMeta.tournamentId, um.player1Id);
-          if (um.player2Id) {
-            await recalculatePlayerStats(config.recalcStatsConfig, matchMeta.tournamentId, um.player2Id);
-          }
+          await recalculatePlayersStats(
+            config.recalcStatsConfig,
+            matchMeta.tournamentId,
+            [um.player1Id, um.player2Id].filter(Boolean),
+          );
         } catch (recalcErr) {
           logger.error('Failed to recalculate qualification stats after match update', {
             error: recalcErr,

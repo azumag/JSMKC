@@ -25,6 +25,7 @@ import {
   createScoreEntryLog,
   createCharacterUsageLog,
   recalculatePlayerStats,
+  recalculatePlayersStats,
 } from '@/lib/api-factories/score-report-helpers';
 
 import { NextRequest } from 'next/server';
@@ -332,7 +333,7 @@ describe('Score Report Helpers', () => {
     /** Config for round-differential mode (BM/MR pattern) */
     const differentialConfig: RecalculateStatsConfig = {
       matchModel: 'testMatch',
-      qualificationModel: 'testQualification',
+      qualificationModel: 'bMQualification',
       scoreFields: { p1: 'score1', p2: 'score2' },
       determineResult: (my, opp) =>
         my > opp ? 'win' : my < opp ? 'loss' : 'tie',
@@ -342,7 +343,7 @@ describe('Score Report Helpers', () => {
     /** Config for absolute-points mode (GP pattern) */
     const absoluteConfig: RecalculateStatsConfig = {
       matchModel: 'testMatch',
-      qualificationModel: 'testQualification',
+      qualificationModel: 'gPQualification',
       scoreFields: { p1: 'points1', p2: 'points2' },
       determineResult: (my, opp) =>
         my > opp ? 'win' : my < opp ? 'loss' : 'tie',
@@ -350,15 +351,27 @@ describe('Score Report Helpers', () => {
     };
 
     let mockFindMany: jest.Mock;
-    let mockUpdateMany: jest.Mock;
+    let mockExecuteRawUnsafe: jest.Mock;
 
     beforeEach(() => {
       mockFindMany = jest.fn();
-      mockUpdateMany = jest.fn();
+      mockExecuteRawUnsafe = jest.fn();
       /* Dynamic model access: prisma[config.matchModel].findMany */
       (mockPrisma as any).testMatch = { findMany: mockFindMany };
-      (mockPrisma as any).testQualification = { updateMany: mockUpdateMany };
+      (mockPrisma as any).$executeRawUnsafe = mockExecuteRawUnsafe;
     });
+
+    function expectBulkUpdateWith(
+      modelTable: 'BMQualification' | 'GPQualification',
+      expectedUpdates: Array<Record<string, unknown>>,
+    ) {
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledTimes(1);
+      const [sql, payload, tournamentId] = mockExecuteRawUnsafe.mock.calls[0];
+      expect(sql).toContain(`UPDATE ${modelTable}`);
+      expect(sql).toContain('json_each(?)');
+      expect(tournamentId).toBe('tourney-1');
+      expect(JSON.parse(payload)).toEqual(expectedUpdates);
+    }
 
     it('should correctly calculate stats with round differential (BM/MR)', async () => {
       /* Player p1 played 3 matches: 1 win (3-1), 1 loss (1-3), 1 tie (2-2) */
@@ -375,13 +388,16 @@ describe('Score Report Helpers', () => {
           tournamentId: 'tourney-1',
           stage: 'qualification',
           completed: true,
-          OR: [{ player1Id: 'p1' }, { player2Id: 'p1' }],
+          OR: [
+            { player1Id: { in: ['p1'] } },
+            { player2Id: { in: ['p1'] } },
+          ],
         },
       });
 
-      expect(mockUpdateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tourney-1', playerId: 'p1' },
-        data: {
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
           mp: 3,
           wins: 1,
           ties: 1,
@@ -391,7 +407,7 @@ describe('Score Report Helpers', () => {
           points: 0,        // 6 - 6 = 0 differential
           score: 3,         // 1*2 + 1 = 3 match points
         },
-      });
+      ]);
     });
 
     it('should correctly calculate stats with absolute points (GP)', async () => {
@@ -403,9 +419,9 @@ describe('Score Report Helpers', () => {
 
       await recalculatePlayerStats(absoluteConfig, 'tourney-1', 'p1');
 
-      expect(mockUpdateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tourney-1', playerId: 'p1' },
-        data: {
+      expectBulkUpdateWith('GPQualification', [
+        {
+          playerId: 'p1',
           mp: 2,
           wins: 1,
           ties: 0,
@@ -413,7 +429,7 @@ describe('Score Report Helpers', () => {
           points: 24,       // 18 + 6 = total driver points
           score: 2,         // 1*2 + 0 = 2 match points
         },
-      });
+      ]);
     });
 
     it('should handle empty match list (no completed matches)', async () => {
@@ -421,13 +437,13 @@ describe('Score Report Helpers', () => {
 
       await recalculatePlayerStats(differentialConfig, 'tourney-1', 'p1');
 
-      expect(mockUpdateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tourney-1', playerId: 'p1' },
-        data: {
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
           mp: 0, wins: 0, ties: 0, losses: 0,
           winRounds: 0, lossRounds: 0, points: 0, score: 0,
         },
-      });
+      ]);
     });
 
     it('should correctly resolve player side when player is player2', async () => {
@@ -439,9 +455,9 @@ describe('Score Report Helpers', () => {
 
       await recalculatePlayerStats(differentialConfig, 'tourney-1', 'p1');
 
-      expect(mockUpdateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tourney-1', playerId: 'p1' },
-        data: {
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
           mp: 2,
           wins: 1,
           losses: 1,
@@ -451,7 +467,7 @@ describe('Score Report Helpers', () => {
           points: -2,       // 3 - 5 = -2
           score: 2,         // 1*2 + 0
         },
-      });
+      ]);
     });
 
     it('should support custom determineResult function (BM-style)', async () => {
@@ -474,13 +490,58 @@ describe('Score Report Helpers', () => {
 
       await recalculatePlayerStats(bmConfig, 'tourney-1', 'p1');
 
-      expect(mockUpdateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tourney-1', playerId: 'p1' },
-        data: {
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
           mp: 2, wins: 1, ties: 1, losses: 0,
           winRounds: 5, lossRounds: 3, points: 2, score: 3,
         },
+      ]);
+    });
+
+    it('should recalculate multiple players with one match query and one bulk update', async () => {
+      mockFindMany.mockResolvedValue([
+        createMockMatch('p1', 'p2', { score1: 3, score2: 1 }),
+        createMockMatch('p3', 'p2', { score1: 2, score2: 2 }),
+      ]);
+
+      await recalculatePlayersStats(differentialConfig, 'tourney-1', ['p1', 'p2', 'p1']);
+
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: {
+          tournamentId: 'tourney-1',
+          stage: 'qualification',
+          completed: true,
+          OR: [
+            { player1Id: { in: ['p1', 'p2'] } },
+            { player2Id: { in: ['p1', 'p2'] } },
+          ],
+        },
       });
+      expectBulkUpdateWith('BMQualification', [
+        {
+          playerId: 'p1',
+          mp: 1,
+          wins: 1,
+          ties: 0,
+          losses: 0,
+          winRounds: 3,
+          lossRounds: 1,
+          points: 2,
+          score: 2,
+        },
+        {
+          playerId: 'p2',
+          mp: 2,
+          wins: 0,
+          ties: 1,
+          losses: 1,
+          winRounds: 3,
+          lossRounds: 5,
+          points: -2,
+          score: 1,
+        },
+      ]);
     });
   });
 });

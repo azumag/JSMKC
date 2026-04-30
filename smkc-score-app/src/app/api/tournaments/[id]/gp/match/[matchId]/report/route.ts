@@ -28,7 +28,7 @@ import {
   validateCharacter,
   checkScoreReportAuth,
   isDualReportEnabled,
-  recalculatePlayerStats,
+  recalculatePlayersStats,
   type RecalculateStatsConfig,
 } from "@/lib/api-factories/score-report-helpers";
 import { validateGPRacePosition } from "@/lib/score-validation";
@@ -254,8 +254,10 @@ export async function POST(
           });
         });
 
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, correctedMatch.player1Id);
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, correctedMatch.player2Id);
+        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
+          correctedMatch.player1Id,
+          correctedMatch.player2Id,
+        ]);
 
         return createSuccessResponse({
           match: correctedMatch,
@@ -384,8 +386,10 @@ export async function POST(
             include: { player1: { select: PLAYER_AUTH_SELECT }, player2: { select: PLAYER_AUTH_SELECT } },
           })
         );
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player1Id);
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, finalMatch.player2Id);
+        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
+          finalMatch.player1Id,
+          finalMatch.player2Id,
+        ]);
         return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
           "Score confirmed (dual report disabled)");
       } catch (error) {
@@ -462,8 +466,10 @@ export async function POST(
           return finalResult;
         });
 
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, confirmedMatch.player1Id);
-        await recalculatePlayerStats(GP_RECALC_CONFIG, tournamentId, confirmedMatch.player2Id);
+        await recalculatePlayersStats(GP_RECALC_CONFIG, tournamentId, [
+          confirmedMatch.player1Id,
+          confirmedMatch.player2Id,
+        ]);
 
         return createSuccessResponse({
           match: confirmedMatch,

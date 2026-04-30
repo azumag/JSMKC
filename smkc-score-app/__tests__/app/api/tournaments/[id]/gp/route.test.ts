@@ -450,7 +450,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         }),
         select: EXPECTED_MATCH_UPDATE_SELECT,
       });
-      expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
+      expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     });
 
     // Success case - Calculates tie result correctly
@@ -707,16 +707,16 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await PUT(request, { params });
 
       expect(result.status).toBe(200);
-      expect(prisma.gPQualification.updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 't1', playerId: 'p1' },
-        data: expect.objectContaining({
+      expect(JSON.parse((prisma.$executeRawUnsafe as jest.Mock).mock.calls[0][1])).toContainEqual(
+        expect.objectContaining({
+          playerId: 'p1',
           mp: 2,
           wins: 1,
           ties: 0,
           losses: 1,
           score: 2,
         }),
-      });
+      );
     });
   });
 });

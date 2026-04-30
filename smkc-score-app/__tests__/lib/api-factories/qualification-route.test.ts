@@ -710,16 +710,18 @@ describe('Qualification Route Factory', () => {
       /*
        * In a 3-player group (odd), BREAK is added → 4 participants → 3 days × 2 matches.
        * Each player receives exactly 1 BYE match (player-1, player-2, player-3 all get one).
-       * aggregatePlayerStats and updateMany must each be called 3 times (once per BYE recipient).
+       * aggregatePlayerStats must be called once per BYE recipient, and the
+       * qualification rows should be updated in one batched statement.
        */
       expect(config.aggregatePlayerStats).toHaveBeenCalledTimes(3);
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledTimes(3);
-      /* Verify each updateMany call targets the correct player via the where clause */
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ tournamentId: 'tournament-123' }),
-        }),
-      );
+      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
+      const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
+      expect(tournamentId).toBe('tournament-123');
+      expect(JSON.parse(payload).map((update: { playerId: string }) => update.playerId)).toEqual([
+        'player-1',
+        'player-2',
+        'player-3',
+      ]);
     });
 
     it('should sort players by seeding within each group before generating round-robin schedule', async () => {
@@ -1150,15 +1152,13 @@ describe('Qualification Route Factory', () => {
         params: Promise.resolve({ id: 'tournament-123' }),
       });
 
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledTimes(2);
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tournament-123', playerId: 'player-1' },
-        data: { wins: 1, losses: 0, points: 3 },
-      });
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tournament-123', playerId: 'player-2' },
-        data: { wins: 1, losses: 0, points: 3 },
-      });
+      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
+      const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
+      expect(tournamentId).toBe('tournament-123');
+      expect(JSON.parse(payload)).toEqual([
+        expect.objectContaining({ playerId: 'player-1', wins: 1, losses: 0, points: 3 }),
+        expect.objectContaining({ playerId: 'player-2', wins: 1, losses: 0, points: 3 }),
+      ]);
     });
 
     it('should return 400 when parsePutBody returns invalid', async () => {
@@ -1313,11 +1313,12 @@ describe('Qualification Route Factory', () => {
       expect(config.aggregatePlayerStats).toHaveBeenCalledWith(
         expect.anything(), 'player-1', config.calculateMatchResult,
       );
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledTimes(1);
-      expect((prisma.bMQualification as any).updateMany).toHaveBeenCalledWith({
-        where: { tournamentId: 'tournament-123', playerId: 'player-1' },
-        data: expect.any(Object),
-      });
+      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
+      const [, payload, tournamentId] = (prisma as any).$executeRawUnsafe.mock.calls[0];
+      expect(tournamentId).toBe('tournament-123');
+      expect(JSON.parse(payload)).toEqual([
+        expect.objectContaining({ playerId: 'player-1' }),
+      ]);
     });
   });
 
