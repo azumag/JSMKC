@@ -286,12 +286,15 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
           ) : (
             <span className="text-sm font-medium text-white/70">合計タイム</span>
           )}
-          <span
-            className="min-w-0 text-right text-xl font-bold tabular-nums text-yellow-400"
-            data-testid="dashboard-timeline-ta-total"
-          >
-            {t.totalTimeFormatted}
-          </span>
+          <div className="min-w-0 flex items-baseline gap-2 text-right">
+            <span className="text-xs font-medium text-white/60">合計タイム</span>
+            <span
+              className="text-3xl font-bold tabular-nums text-yellow-400"
+              data-testid="dashboard-timeline-ta-total"
+            >
+              {t.totalTimeFormatted}
+            </span>
+          </div>
         </div>
       ) : (
         <div className="mt-2 flex items-baseline justify-between gap-3">
