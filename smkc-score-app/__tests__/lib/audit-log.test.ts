@@ -14,7 +14,7 @@
  * - Graceful error handling (fire-and-forget pattern)
  * - Anonymous user handling when userId is absent
  */
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
+import { createAuditLog, createAuditLogs, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { prisma as prismaMock } from '@/lib/prisma';
 
 describe('Audit Log', () => {
@@ -30,6 +30,7 @@ describe('Audit Log', () => {
       targetType: 'Tournament',
       details: { test: 'data' },
     });
+    (prismaMock.auditLog.createMany as any).mockResolvedValue({ count: 2 });
   });
 
   afterEach(() => {
@@ -208,6 +209,71 @@ describe('Audit Log', () => {
       };
 
       const result = await createAuditLog(params);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('createAuditLogs', () => {
+    it('should return early for an empty list', async () => {
+      const result = await createAuditLogs([]);
+
+      expect(result).toBeUndefined();
+      expect(prismaMock.auditLog.createMany).not.toHaveBeenCalled();
+    });
+
+    it('should create sanitized audit logs in bulk', async () => {
+      await createAuditLogs([
+        {
+          userId: 'user-123',
+          ipAddress: '192.168.1.1\n[FAKE]',
+          userAgent: 'Mozilla/5.0\r\n[INJECTED]',
+          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+          targetId: 'entry-1',
+          targetType: 'TTEntry',
+          details: { playerNickname: 'Player\x1B[31mRed\x1B[0m' },
+        },
+        {
+          ipAddress: '10.0.0.1',
+          userAgent: 'Agent',
+          action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
+        },
+      ]);
+
+      expect(prismaMock.auditLog.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            userId: 'user-123',
+            ipAddress: '192.168.1.1[FAKE]',
+            userAgent: 'Mozilla/5.0[INJECTED]',
+            action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+            targetId: 'entry-1',
+            targetType: 'TTEntry',
+            details: { playerNickname: 'PlayerRed' },
+          },
+          {
+            userId: null,
+            ipAddress: '10.0.0.1',
+            userAgent: 'Agent',
+            action: AUDIT_ACTIONS.DELETE_TA_ENTRY,
+            targetId: undefined,
+            targetType: undefined,
+            details: undefined,
+          },
+        ],
+      });
+    });
+
+    it('should not throw when bulk audit creation fails', async () => {
+      (prismaMock.auditLog.createMany as any).mockRejectedValue(new Error('Database connection failed'));
+
+      const result = await createAuditLogs([
+        {
+          ipAddress: '192.168.1.1',
+          userAgent: 'Mozilla/5.0',
+          action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+        },
+      ]);
+
       expect(result).toBeUndefined();
     });
   });

@@ -2,6 +2,7 @@
 const mockPrisma = {
   auditLog: {
     create: jest.fn(),
+    createMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
