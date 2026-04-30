@@ -111,6 +111,7 @@ describe("buildOverlayEvents", () => {
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("match_completed");
     expect(events[0].mode).toBe("bm");
+    expect(events[0].title).toBe("Qualification Match #1 Completed");
     expect(events[0].subtitle).toContain("4-1");
     expect(events[0].subtitle).toContain("Alice");
     expect(events[0].subtitle).toContain("Bob");
@@ -226,7 +227,7 @@ describe("buildOverlayEvents", () => {
         bmMatches: [match({ id: "f", stage: "finals", matchNumber: 7 })],
       }),
     );
-    expect(events[0].title).toContain("Finals");
+    expect(events[0].title).toBe("Finals Match #7 Completed");
     expect(events[0].title).toContain("#7");
   });
 

@@ -22,7 +22,7 @@ function matchEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
     type: "match_completed",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "bm",
-    title: "Battle Mode Qualification Match #1 Completed",
+    title: "Qualification Match #1 Completed",
     subtitle: "Alice 4-0 Bob",
     matchResult: {
       player1: "Alice",
@@ -168,7 +168,7 @@ describe("DashboardTimeline match scoreboard card", () => {
     const event = matchEvent({
       id: "match_completed:gp:m1:1",
       mode: "gp",
-      title: "Grand Prix Qualification Match #1 Completed",
+      title: "Qualification Match #1 Completed",
       subtitle: "Alice 45-0 Bob",
       matchResult: {
         player1: "Alice",

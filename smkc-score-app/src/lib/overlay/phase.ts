@@ -13,13 +13,6 @@
 
 import type { OverlayMode } from "./types";
 
-const MODE_LABEL: Partial<Record<OverlayMode, string>> = {
-  ta: "Time Attack",
-  bm: "Battle Mode",
-  mr: "Match Race",
-  gp: "Grand Prix",
-};
-
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
 export interface ComputeCurrentPhaseInput {
   /** Whether qualification has been confirmed for the tournament as a whole. */
@@ -79,7 +72,7 @@ function labelFinalsRound(round: string): string {
  * Resolve the current tournament phase string.
  *
  * Branches in priority order — first match wins:
- *  1. Any BM/MR/GP finals match exists       → `<mode> Finals <round>`
+ *  1. Any BM/MR/GP finals match exists       → `Finals <round>`
  *  2. TA has reached phase 3                 → `Time Attack Phase 3 Round <n>`
  *  3. TA is in phase 2                       → `Time Attack Phase 2 Round <n>`
  *  4. TA is in phase 1                       → `Time Attack Phase 1 Round <n>`
@@ -96,8 +89,7 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
   } = input;
 
   if (latestFinalsRound) {
-    const modePrefix = latestFinalsMode ? `${MODE_LABEL[latestFinalsMode] ?? latestFinalsMode} ` : "";
-    return `${modePrefix}Finals ${labelFinalsRound(latestFinalsRound)}`;
+    return `Finals ${labelFinalsRound(latestFinalsRound)}`;
   }
   if (taCurrentPhase === "phase3") {
     return taLatestPhaseRoundNumber
@@ -132,17 +124,18 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
  *
  * @param roundKey   - The raw `round` value from the DB (e.g. "winners_qf")
  * @param roundNames - Locale map from the API (e.g. { winners_qf: "Winners Quarter Final" })
- * @param mode       - Optional mode prefix for footer clarity (BM/MR/GP)
+ * @param mode       - Accepted for backward-compatible call sites; footer labels
+ *                     intentionally omit BM/MR/GP mode names.
  */
 export function buildMatchLabel(
   roundKey: string | null | undefined,
   roundNames: Record<string, string>,
   mode?: OverlayMode,
 ): string {
-  const modePrefix = mode ? `${MODE_LABEL[mode] ?? mode} ` : "";
-  if (!roundKey) return `${modePrefix}Finals`;
+  void mode;
+  if (!roundKey) return "Finals";
   const roundName = FINALS_ROUND_LABEL[roundKey] ?? roundNames[roundKey] ?? roundKey;
-  return roundName ? `${modePrefix}Finals ${roundName}` : `${modePrefix}Finals`;
+  return roundName ? `Finals ${roundName}` : "Finals";
 }
 
 /**

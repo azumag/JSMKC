@@ -30,7 +30,7 @@ describe("DashboardProgressBar", () => {
   });
 
   it("keeps bracket-mode labels and highlights finals", () => {
-    render(<DashboardProgressBar currentPhase="Battle Mode Finals Winners Quarter Final" />);
+    render(<DashboardProgressBar currentPhase="Finals Winners Quarter Final" />);
 
     expect(screen.getByTestId("dashboard-progress-step-barrage")).toHaveTextContent("Barrage");
     expect(screen.getByTestId("dashboard-progress-step-finals")).toHaveTextContent("Finals");

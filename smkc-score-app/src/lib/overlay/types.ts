@@ -258,7 +258,7 @@ export interface OverlayEventsResponse {
   /**
    * Combined tournament-phase label for the OBS dashboard footer (e.g.
    * "Qualification", "Time Attack Phase 1 Round 3",
-   * "Battle Mode Finals Winners Quarter Final"). Always populated; the legacy
+   * "Finals Winners Quarter Final"). Always populated; the legacy
    * toast overlay simply ignores it.
    */
   currentPhase?: string;
@@ -278,7 +278,7 @@ export interface OverlayEventsResponse {
   overlayPlayer2Name?: string;
   /**
    * Round label of the match selected by "配信に反映"
-   * (e.g. "Battle Mode Finals Winners Quarter Final").
+   * (e.g. "Finals Winners Quarter Final").
    * When set, the dashboard footer uses this instead of the auto-computed phase.
    * Null/undefined means fall back to computeCurrentPhase.
    */

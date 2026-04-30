@@ -29,7 +29,11 @@ import { resolveTournament } from "@/lib/tournament-identifier";
 import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling";
 import { buildOverlayEvents } from "@/lib/overlay/events";
 import { withApiTiming } from "@/lib/perf/api-timing";
-import { computeCurrentPhase, computeCurrentPhaseFormat } from "@/lib/overlay/phase";
+import {
+  computeCurrentPhase,
+  computeCurrentPhaseFormat,
+  type ComputeCurrentPhaseInput,
+} from "@/lib/overlay/phase";
 import type {
   OverlayMatchInput,
   OverlayMode,
@@ -126,6 +130,98 @@ function timeMsByPlayer(raw: unknown): Map<string, number> {
   return out;
 }
 
+async function readCurrentPhaseInput(
+  tournamentId: string,
+  qualificationConfirmed: boolean,
+): Promise<ComputeCurrentPhaseInput> {
+  const [
+    bmLatestFinals,
+    mrLatestFinals,
+    gpLatestFinals,
+    taPhase1Entry,
+    taPhase2Entry,
+    taPhase3Entry,
+    taPhase1LatestRound,
+    taPhase2LatestRound,
+    taPhase3LatestRound,
+  ] = await Promise.all([
+    prisma.bMMatch.findFirst({
+      where: { tournamentId, stage: "finals", round: { not: null } },
+      select: { round: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.mRMatch.findFirst({
+      where: { tournamentId, stage: "finals", round: { not: null } },
+      select: { round: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.gPMatch.findFirst({
+      where: { tournamentId, stage: "finals", round: { not: null } },
+      select: { round: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.tTEntry.findFirst({
+      where: { tournamentId, stage: "phase1" },
+      select: { id: true },
+    }),
+    prisma.tTEntry.findFirst({
+      where: { tournamentId, stage: "phase2" },
+      select: { id: true },
+    }),
+    prisma.tTEntry.findFirst({
+      where: { tournamentId, stage: "phase3" },
+      select: { id: true },
+    }),
+    prisma.tTPhaseRound.findFirst({
+      where: { tournamentId, phase: "phase1" },
+      select: { roundNumber: true },
+      orderBy: { roundNumber: "desc" },
+    }),
+    prisma.tTPhaseRound.findFirst({
+      where: { tournamentId, phase: "phase2" },
+      select: { roundNumber: true },
+      orderBy: { roundNumber: "desc" },
+    }),
+    prisma.tTPhaseRound.findFirst({
+      where: { tournamentId, phase: "phase3" },
+      select: { roundNumber: true },
+      orderBy: { roundNumber: "desc" },
+    }),
+  ]);
+
+  const latestFinals = (
+    [
+      bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },
+      mrLatestFinals && { ...mrLatestFinals, mode: "mr" as OverlayMode },
+      gpLatestFinals && { ...gpLatestFinals, mode: "gp" as OverlayMode },
+    ] as Array<{ round: string | null; createdAt: Date; mode: OverlayMode } | null>
+  )
+    .filter((m): m is { round: string | null; createdAt: Date; mode: OverlayMode } => m !== null)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+  let taCurrentPhase: "qualification" | "phase1" | "phase2" | "phase3" =
+    "qualification";
+  let taLatestPhaseRoundNumber: number | null = null;
+  if (taPhase3Entry) {
+    taCurrentPhase = "phase3";
+    taLatestPhaseRoundNumber = taPhase3LatestRound?.roundNumber ?? null;
+  } else if (taPhase2Entry) {
+    taCurrentPhase = "phase2";
+    taLatestPhaseRoundNumber = taPhase2LatestRound?.roundNumber ?? null;
+  } else if (taPhase1Entry) {
+    taCurrentPhase = "phase1";
+    taLatestPhaseRoundNumber = taPhase1LatestRound?.roundNumber ?? null;
+  }
+
+  return {
+    qualificationConfirmed,
+    taCurrentPhase,
+    taLatestPhaseRoundNumber,
+    latestFinalsRound: latestFinals?.round ?? null,
+    latestFinalsMode: latestFinals?.mode ?? null,
+  };
+}
+
 function parseSince(raw: string | null, now: Date, initial: boolean): Date {
   if (initial) return new Date(now.getTime() - INITIAL_BACKFILL_MS);
   if (!raw) return new Date(now.getTime() - INITIAL_WINDOW_MS);
@@ -166,6 +262,10 @@ async function handleGET(
       return createErrorResponse("Tournament not found", 404);
     }
     const tournamentId = tournament.id;
+    const qualificationConfirmed =
+      tournament.bmQualificationConfirmed ||
+      tournament.mrQualificationConfirmed ||
+      tournament.gpQualificationConfirmed;
 
     /*
      * Early-return path.
@@ -218,14 +318,18 @@ async function handleGET(
       }
 
       if (latestChange <= since.getTime()) {
-        // Nothing changed since the caller's last poll. Build a minimal
-        // response with `events: []` so the merge-on-client step is a no-op.
-        // Do not send a placeholder currentPhase/currentPhaseFormat here:
-        // the last full response already carried the accurate footer state,
-        // and a qualification-only approximation would overwrite it.
+        // Nothing changed since the caller's last poll. Build a small
+        // response with `events: []` so the merge-on-client step is a no-op,
+        // but still refresh footer state: "配信に反映" and phase labels are
+        // persistent overlay state, not just event-stream deltas.
+        const phaseInput = await readCurrentPhaseInput(tournamentId, qualificationConfirmed);
+        const currentPhase = computeCurrentPhase(phaseInput);
+        const currentPhaseFormat = computeCurrentPhaseFormat(phaseInput);
         const response = createSuccessResponse({
           serverTime: now.toISOString(),
           events: [],
+          currentPhase,
+          currentPhaseFormat,
           overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
           overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
           overlayMatchLabel: tournament.overlayMatchLabel ?? null,
@@ -578,7 +682,7 @@ async function handleGET(
 
     const phaseInput = {
       // Any mode being confirmed = "qualification confirmed" for overlay phase display (#696)
-      qualificationConfirmed: tournament.bmQualificationConfirmed || tournament.mrQualificationConfirmed || tournament.gpQualificationConfirmed,
+      qualificationConfirmed,
       taCurrentPhase,
       taLatestPhaseRoundNumber,
       latestFinalsRound: latestFinals?.round ?? null,

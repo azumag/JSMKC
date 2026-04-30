@@ -23,13 +23,6 @@ function nick(player: { nickname: string } | null | undefined): string {
   return player?.nickname ?? NICKNAME_PLACEHOLDER;
 }
 
-const MODE_LABEL: Record<OverlayMode, string> = {
-  ta: "Time Attack",
-  bm: "Battle Mode",
-  mr: "Match Race",
-  gp: "Grand Prix",
-};
-
 /**
  * Human-readable phase labels for TA. These intentionally do not use the
  * Battle Mode / Match Race-style bracket labels because TA phases are
@@ -139,7 +132,7 @@ function matchEvents(
       type: "match_completed",
       timestamp: m.updatedAt.toISOString(),
       mode,
-      title: `${MODE_LABEL[mode]} ${stageLabel} Match #${m.matchNumber} Completed`,
+      title: `${stageLabel} Match #${m.matchNumber} Completed`,
       subtitle: `${nick(m.player1)} ${scoreLabel} ${nick(m.player2)}${contextSuffix}`,
       // Structured payload for the dashboard scoreboard renderer. Keeping
       // `subtitle` populated alongside means consumers that don't know
@@ -183,7 +176,7 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
       type: "score_reported",
       timestamp: log.timestamp.toISOString(),
       mode,
-      title: `${mode ? MODE_LABEL[mode] : ""} Score Reported`.trim(),
+      title: "Score Reported",
       subtitle: `${nick(log.player)} reported a result`,
     });
   }

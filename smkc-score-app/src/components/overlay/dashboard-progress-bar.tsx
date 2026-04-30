@@ -4,7 +4,7 @@
  * Renders the tournament's overall progression as a 3-step indicator.
  * TA uses phase labels (Qualification → Phase N → Phase 3), while bracket
  * modes keep the generic labels (Qualification → Barrage → Finals). The
- * phase detail (e.g. "Battle Mode Finals Winners Quarter Final") and format
+ * phase detail (e.g. "Finals Winners Quarter Final") and format
  * chip used to live below
  * the steps but
  * duplicated the bottom-strip footer, so they were removed — the steps

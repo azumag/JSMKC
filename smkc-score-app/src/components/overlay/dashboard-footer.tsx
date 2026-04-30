@@ -22,7 +22,7 @@ interface DashboardFooterProps {
   currentPhaseFormat?: string | null;
   /**
    * Round label set by the last "配信に反映" click
-   * (e.g., "Battle Mode Finals Winners Quarter Final").
+   * (e.g., "Finals Winners Quarter Final").
    * When non-empty, overrides `currentPhase` so the footer shows exactly
    * which match is on-air rather than the auto-computed phase.
    */

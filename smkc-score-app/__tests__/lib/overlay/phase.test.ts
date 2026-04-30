@@ -84,18 +84,18 @@ describe("computeCurrentPhase", () => {
     ).toBe("Time Attack Phase 3 Round 4");
   });
 
-  it("maps known BM/MR/GP finals rounds to mode-prefixed English labels", () => {
+  it("maps known BM/MR/GP finals rounds to mode-free English labels", () => {
     const cases: Array<[string, string]> = [
-      ["winners_qf", "Battle Mode Finals Winners Quarter Final"],
-      ["qf", "Battle Mode Finals Quarter Final"],
-      ["winners_sf", "Battle Mode Finals Winners Semi Final"],
-      ["winners_final", "Battle Mode Finals Winners Final"],
-      ["losers_r1", "Battle Mode Finals Losers Round 1"],
-      ["losers_r4", "Battle Mode Finals Losers Round 4"],
-      ["losers_sf", "Battle Mode Finals Losers Semi Final"],
-      ["losers_final", "Battle Mode Finals Losers Final"],
-      ["grand_final", "Battle Mode Finals Grand Final"],
-      ["grand_final_reset", "Battle Mode Finals Grand Final Reset"],
+      ["winners_qf", "Finals Winners Quarter Final"],
+      ["qf", "Finals Quarter Final"],
+      ["winners_sf", "Finals Winners Semi Final"],
+      ["winners_final", "Finals Winners Final"],
+      ["losers_r1", "Finals Losers Round 1"],
+      ["losers_r4", "Finals Losers Round 4"],
+      ["losers_sf", "Finals Losers Semi Final"],
+      ["losers_final", "Finals Losers Final"],
+      ["grand_final", "Finals Grand Final"],
+      ["grand_final_reset", "Finals Grand Final Reset"],
     ];
     for (const [round, expected] of cases) {
       expect(
@@ -106,17 +106,17 @@ describe("computeCurrentPhase", () => {
     }
   });
 
-  it("uses the active BM/MR/GP mode in finals labels", () => {
+  it("omits the active BM/MR/GP mode in finals labels", () => {
     expect(
       computeCurrentPhase(
         input({ qualificationConfirmed: true, latestFinalsRound: "winners_qf", latestFinalsMode: "mr" }),
       ),
-    ).toBe("Match Race Finals Winners Quarter Final");
+    ).toBe("Finals Winners Quarter Final");
     expect(
       computeCurrentPhase(
         input({ qualificationConfirmed: true, latestFinalsRound: "winners_sf", latestFinalsMode: "gp" }),
       ),
-    ).toBe("Grand Prix Finals Winners Semi Final");
+    ).toBe("Finals Winners Semi Final");
   });
 
   it("falls through unchanged for unknown finals round strings (forward compat)", () => {
@@ -124,7 +124,7 @@ describe("computeCurrentPhase", () => {
       computeCurrentPhase(
         input({ qualificationConfirmed: true, latestFinalsRound: "weird_round_x", latestFinalsMode: "bm" }),
       ),
-    ).toBe("Battle Mode Finals weird_round_x");
+    ).toBe("Finals weird_round_x");
   });
 
   it("prefers a finals round over an in-progress TA phase (highest signal wins)", () => {
@@ -140,7 +140,7 @@ describe("computeCurrentPhase", () => {
           latestFinalsMode: "bm",
         }),
       ),
-    ).toBe("Battle Mode Finals Winners Quarter Final");
+    ).toBe("Finals Winners Quarter Final");
   });
 });
 
@@ -204,15 +204,15 @@ describe("computeCurrentPhaseFormat", () => {
 });
 
 describe("buildMatchLabel", () => {
-  it("prefixes pinned BM/MR/GP footer labels with their mode", () => {
+  it("omits BM/MR/GP mode names from pinned footer labels", () => {
     expect(buildMatchLabel("winners_qf", { winners_qf: "QF" }, "bm")).toBe(
-      "Battle Mode Finals Winners Quarter Final",
+      "Finals Winners Quarter Final",
     );
     expect(buildMatchLabel("winners_sf", { winners_sf: "SF" }, "mr")).toBe(
-      "Match Race Finals Winners Semi Final",
+      "Finals Winners Semi Final",
     );
     expect(buildMatchLabel("grand_final", { grand_final: "Grand Final" }, "gp")).toBe(
-      "Grand Prix Finals Grand Final",
+      "Finals Grand Final",
     );
   });
 
