@@ -677,6 +677,8 @@ describe('Finals Route Factory', () => {
         id: `qual-${i}`,
         playerId: `player-${i}`,
         group: 'A',
+        score: count - i,
+        points: count - i,
         seeding: i + 1,
         player: { id: `player-${i}`, name: `Player ${i + 1}` },
       }));
@@ -753,6 +755,32 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).createMany).toHaveBeenCalledTimes(1);
       const call = (prisma.bMMatch as any).createMany.mock.calls[0][0];
       expect(call.data).toHaveLength(17);
+    });
+
+    it('uses finalized qualification ranks when seeding the bracket', async () => {
+      const qualifications = createMockQualifications(8).map((q, index) => ({
+        ...q,
+        rankOverride: index === 7 ? 1 : index + 2,
+      }));
+      (prisma.bMQualification as any).findMany.mockResolvedValue(qualifications);
+      (prisma.bMMatch as any).deleteMany.mockResolvedValue({ count: 0 });
+      (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 17 });
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig();
+      const { POST } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ topN: 8 }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      const json = await response.json();
+      expect(json.data.seededPlayers[0].playerId).toBe('player-7');
     });
 
     it('should still create bracket after qualification is confirmed', async () => {
@@ -911,11 +939,14 @@ describe('Finals Route Factory', () => {
       const groupLetters = ['A', 'B', 'C', 'D'];
       return Array.from({ length: count }, (_, i) => {
         const groupIdx = Math.floor(i / perGroup);
+        const groupRank = (i % perGroup) + 1;
         return {
           id: `qual-${i}`,
           playerId: `player-${i}`,
           group: groupLetters[Math.min(groupIdx, groupCount - 1)],
-          seeding: (i % perGroup) + 1,
+          score: perGroup - groupRank,
+          points: perGroup - groupRank,
+          seeding: groupRank,
           player: { id: `player-${i}`, name: `Player ${i + 1}` },
         };
       });

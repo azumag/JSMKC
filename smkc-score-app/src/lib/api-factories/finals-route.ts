@@ -30,6 +30,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIdentifier } from '@/lib/request-utils';
 import { resolveTournament, resolveTournamentId } from '@/lib/tournament-identifier';
 import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check';
+import { computeQualificationRanks } from '@/lib/server-ranking';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
 
@@ -520,6 +521,80 @@ export function createFinalsHandlers(config: FinalsConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const qualModel = (p: any) => p[config.qualificationModel];
 
+  function getQualificationMatchScoreFields(): { p1: string; p2: string } {
+    return config.eventTypeCode === 'gp'
+      ? { p1: 'points1', p2: 'points2' }
+      : { p1: 'score1', p2: 'score2' };
+  }
+
+  function hasAutomaticRankTies(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    qualifications: any[],
+    orderBy: Array<Record<string, 'asc' | 'desc'>>,
+  ): boolean {
+    const firstOrderField = Object.keys(orderBy[0] ?? {})[0];
+    const rankingOrder = firstOrderField === 'group' ? orderBy.slice(1) : orderBy;
+    const byPartition = new Map<string, typeof qualifications>();
+
+    for (const q of qualifications) {
+      const partition = firstOrderField === 'group' ? q.group ?? '' : '';
+      const bucket = byPartition.get(partition) ?? [];
+      bucket.push(q);
+      byPartition.set(partition, bucket);
+    }
+
+    for (const bucket of byPartition.values()) {
+      for (let i = 1; i < bucket.length; i++) {
+        const current = bucket[i];
+        const previous = bucket[i - 1];
+        const tied = rankingOrder.every((ob) => {
+          const field = Object.keys(ob)[0];
+          return current[field] === previous[field];
+        });
+        if (tied) return true;
+      }
+    }
+
+    return false;
+  }
+
+  async function applyFinalsQualificationRanks(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    matchModel: (p: any) => any,
+    tournamentId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    qualifications: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any[]> {
+    const scoreFields = getQualificationMatchScoreFields();
+    const needsH2h = hasAutomaticRankTies(qualifications, config.qualificationOrderBy);
+    const matches = needsH2h
+      ? await matchModel(prisma).findMany({
+          where: {
+            tournamentId,
+            stage: 'qualification',
+            completed: true,
+            isBye: false,
+          },
+          select: {
+            player1Id: true,
+            player2Id: true,
+            completed: true,
+            isBye: true,
+            [scoreFields.p1]: true,
+            [scoreFields.p2]: true,
+          },
+        })
+      : [];
+
+    return computeQualificationRanks(
+      qualifications,
+      config.qualificationOrderBy,
+      matches,
+      { matchScoreFields: scoreFields },
+    );
+  }
+
   function getRoundAssignmentData(
     round: string,
     mrAssignments?: Map<string, string[]>,
@@ -926,12 +1001,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: config.qualificationOrderBy,
-        take: topN,
       });
 
-      if (qualifications.length < topN) {
+      const rankedQualifications = await applyFinalsQualificationRanks(
+        model,
+        tournamentId,
+        qualifications,
+      );
+      const selectedQualifications = rankedQualifications.slice(0, topN);
+
+      if (selectedQualifications.length < topN) {
         return handleValidationError(
-          `Not enough players qualified. Need ${topN}, found ${qualifications.length}`,
+          `Not enough players qualified. Need ${topN}, found ${selectedQualifications.length}`,
           'qualifications',
         );
       }
@@ -946,7 +1027,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         where: { tournamentId, stage: 'finals' },
       });
 
-      const seededPlayers = qualifications.map(
+      const seededPlayers = selectedQualifications.map(
         (q: { playerId: string; player: unknown }, index: number) => ({
           seed: index + 1,
           playerId: q.playerId,
@@ -1096,6 +1177,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
       }
 
+      const rankedQualifications = await applyFinalsQualificationRanks(
+        matchModel,
+        tournamentId,
+        qualifications,
+      );
+
       /* Per-group Top-N selection with bracket seed assignment (#454).
        * For 2 groups, finals-group-selection applies the handwritten CDM
        * two-group layout instead of merging A/B into one qualification table.
@@ -1107,7 +1194,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       let selection: ReturnType<typeof selectFinalsEntrantsByGroup>;
       try {
         selection = selectFinalsEntrantsByGroup(
-          qualifications as Array<{ playerId: string; player: unknown; group: string }>,
+          rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
         );
       } catch (err) {
         return handleValidationError(
