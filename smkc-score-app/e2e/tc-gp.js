@@ -49,6 +49,11 @@ function sharedGpPlayers(count = 28) {
   return sharedFixture.players.slice(0, count);
 }
 
+function matchUpdateUsesLeanPayload(putResult) {
+  const match = putResult?.b?.data?.match || putResult?.b?.match;
+  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
+}
+
 async function loginSharedPlayer(adminPage, player) {
   await ensurePlayerPassword(adminPage, player);
   return loginPlayerBrowser(player.nickname, player.password);
@@ -493,12 +498,14 @@ async function runTc708(adminPage) {
     const finalData = await apiFetchGp(adminPage, tournamentId);
     const finalMatch = (finalData.matches || []).find((m) => m.id === match.id);
     const adminConfirmed = adminPut.s === 200 && finalMatch?.completed === true;
+    const leanUpdatePayload = matchUpdateUsesLeanPayload(adminPut);
 
-    const ok = mismatchFlag && stillIncomplete && adminConfirmed;
+    const ok = mismatchFlag && stillIncomplete && adminConfirmed && leanUpdatePayload;
     log('TC-708', ok ? 'PASS' : 'FAIL',
       !mismatchFlag ? `mismatch flag missing (status=${r2.s})`
       : !stillIncomplete ? 'match auto-completed despite mismatch'
       : !adminConfirmed ? `admin PUT failed (${adminPut.s})`
+      : !leanUpdatePayload ? 'admin PUT returned expanded player payload'
       : '');
   } catch (err) {
     log('TC-708', 'FAIL', err instanceof Error ? err.message : 'GP 708 failed');

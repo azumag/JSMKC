@@ -34,6 +34,19 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/gp/route';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
+const EXPECTED_MATCH_UPDATE_SELECT = {
+  id: true,
+  tournamentId: true,
+  player1Id: true,
+  player2Id: true,
+  cup: true,
+  points1: true,
+  points2: true,
+  races: true,
+  completed: true,
+  isBye: true,
+};
+
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
@@ -435,7 +448,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
           races: expect.any(Array),
           completed: true,
         }),
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
       expect(prisma.gPQualification.updateMany).toHaveBeenCalledTimes(2);
     });

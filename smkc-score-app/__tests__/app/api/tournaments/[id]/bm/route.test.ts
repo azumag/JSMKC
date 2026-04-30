@@ -44,6 +44,18 @@ import { createLogger } from '@/lib/logger';
 import { GET, POST, PUT } from '@/app/api/tournaments/[id]/bm/route';
 import { configureNextResponseMock } from '../../../../../helpers/next-response-mock';
 
+const EXPECTED_MATCH_UPDATE_SELECT = {
+  id: true,
+  tournamentId: true,
+  player1Id: true,
+  player2Id: true,
+  score1: true,
+  score2: true,
+  rounds: true,
+  completed: true,
+  isBye: true,
+};
+
 const requestUtilsMock = jest.requireMock('@/lib/request-utils') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
@@ -427,7 +439,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: null, completed: true },
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
       expect(prisma.bMQualification.updateMany).toHaveBeenCalledTimes(2);
     });
@@ -457,7 +469,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 2, score2: 2, rounds: null, completed: true },
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
     });
 
@@ -494,7 +506,7 @@ describe('BM API Route - /api/tournaments/[id]/bm', () => {
       expect(prisma.bMMatch.update).toHaveBeenCalledWith({
         where: { id: 'm1', tournamentId: 't1' },
         data: { score1: 3, score2: 1, rounds: [1, 2, 3, 4], completed: true },
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+        select: EXPECTED_MATCH_UPDATE_SELECT,
       });
     });
 

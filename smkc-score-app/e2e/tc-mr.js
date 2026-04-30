@@ -63,6 +63,11 @@ function sharedMrPlayers(count = 28) {
   return sharedFixture.players.slice(0, count);
 }
 
+function matchUpdateUsesLeanPayload(putResult) {
+  const match = putResult?.b?.data?.match || putResult?.b?.match;
+  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
+}
+
 /* Mirrors src/lib/finals-target-wins.ts:getMrFinalsTargetWins so tests can
  * derive the per-round FT target needed for a valid score PUT (issue #559
  * introduced FT5/FT7/FT9 by round; before that everything was FT3, which is
@@ -299,15 +304,17 @@ async function runTc603(adminPage) {
 
     const drawRes = await apiPutMrQualScore(adminPage, tournamentId, match.id, 2, 2);
     const drawAccepted = drawRes.s === 200;
+    const leanUpdatePayload = matchUpdateUsesLeanPayload(drawRes);
 
     const updated = await apiFetchMr(adminPage, tournamentId);
     const updatedMatch = (updated.matches || []).find((m) => m.id === match.id);
     const drawPersisted = updatedMatch?.completed === true &&
       updatedMatch.score1 === 2 && updatedMatch.score2 === 2;
 
-    log('TC-603', drawAccepted && drawPersisted ? 'PASS' : 'FAIL',
+    log('TC-603', drawAccepted && drawPersisted && leanUpdatePayload ? 'PASS' : 'FAIL',
       !drawAccepted ? `Draw rejected (${drawRes.s})`
       : !drawPersisted ? `Draw not persisted: ${updatedMatch?.score1}-${updatedMatch?.score2}`
+      : !leanUpdatePayload ? 'admin PUT returned expanded player payload'
       : '');
   } catch (err) {
     log('TC-603', 'FAIL', err instanceof Error ? err.message : 'MR draw test failed');
