@@ -322,6 +322,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
   const r = event.taPhaseRound;
   const phaseLabel = r.phaseLabel ?? r.phase;
   const showLives = r.phase === "phase3";
+  const denseParticipants = showLives && r.participants.length > 12;
 
   return (
     <div
@@ -350,24 +351,39 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
 
       {r.participants.length > 0 && (
         <div
-          className="grid grid-cols-1 gap-1.5"
+          className={`grid ${
+            denseParticipants ? "grid-cols-2 gap-1" : "grid-cols-1 gap-1.5"
+          }`}
           data-testid="dashboard-timeline-ta-phase-participants"
         >
           {r.participants.map((participant) => (
             <div
               key={`${participant.player}:${participant.rank ?? "none"}`}
-              className="flex items-center justify-between gap-2 rounded bg-white/10 px-2 py-1"
+              className={`flex items-center justify-between rounded bg-white/10 ${
+                denseParticipants ? "gap-1 px-1.5 py-0.5" : "gap-2 px-2 py-1"
+              }`}
             >
               <div className="min-w-0 flex items-center gap-2">
-                <span className="rounded bg-green-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-green-300">
-                  Active
-                </span>
+                {denseParticipants ? (
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full bg-green-300"
+                    aria-label="Active"
+                  />
+                ) : (
+                  <span className="rounded bg-green-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-green-300">
+                    Active
+                  </span>
+                )}
                 <span className="truncate text-base font-semibold text-white">
                   {participant.player}
                 </span>
               </div>
               {showLives && (
-                <span className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold tabular-nums text-red-300">
+                <span
+                  className={`shrink-0 rounded bg-red-400/15 font-bold tabular-nums text-red-300 ${
+                    denseParticipants ? "px-1.5 py-0.5 text-xs" : "px-2 py-0.5 text-sm"
+                  }`}
+                >
                   Life {participant.lives}
                 </span>
               )}

@@ -237,6 +237,64 @@ describe("DashboardTimeline TA phase round card", () => {
     expect(participants).toHaveTextContent("Bob");
     expect(participants).not.toHaveTextContent("Life");
   });
+
+  it("uses a compact two-column participant list while phase3 has more than 12 active players", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taPhaseRoundEvent({
+            taPhaseRound: {
+              phase: "phase3",
+              phaseLabel: "Phase 3",
+              roundNumber: 1,
+              course: "KB1",
+              courseName: "Koopa Beach 1",
+              participants: Array.from({ length: 13 }, (_, i) => ({
+                player: `Player ${i + 1}`,
+                lives: 3,
+                rank: i + 1,
+              })),
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
+    expect(participants).toHaveClass("grid-cols-2");
+    expect(participants).toHaveTextContent("Player 13");
+    expect(participants).toHaveTextContent("Life 3");
+    expect(participants).not.toHaveTextContent("Active");
+  });
+
+  it("keeps phase3 participant list in one column once 12 or fewer players remain", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taPhaseRoundEvent({
+            taPhaseRound: {
+              phase: "phase3",
+              phaseLabel: "Phase 3",
+              roundNumber: 1,
+              course: "KB1",
+              courseName: "Koopa Beach 1",
+              participants: Array.from({ length: 12 }, (_, i) => ({
+                player: `Player ${i + 1}`,
+                lives: 2,
+                rank: i + 1,
+              })),
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
+    expect(participants).toHaveClass("grid-cols-1");
+    expect(participants).toHaveTextContent("Active");
+  });
 });
 
 describe("DashboardTimeline TA phase completed card", () => {
