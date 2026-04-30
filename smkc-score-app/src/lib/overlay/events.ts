@@ -206,13 +206,22 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
 
   for (const r of ttPhaseRounds) {
     if (r.createdAt.getTime() <= sinceMs) continue;
+    const stageLabel = TA_STAGE_LABEL[r.phase] ?? "";
+    const prefix = stageLabel ? `${stageLabel} ` : `${r.phase} `;
     events.push({
       id: `ta_phase_advanced:${r.id}`,
       type: "ta_phase_advanced",
       timestamp: r.createdAt.toISOString(),
       mode: "ta",
-      title: `TA ${r.phase} R${r.roundNumber} 開始`,
+      title: `TA ${prefix}R${r.roundNumber} 開始`,
       subtitle: `コース: ${r.course}`,
+      taPhaseRound: {
+        phase: r.phase,
+        phaseLabel: stageLabel || undefined,
+        roundNumber: r.roundNumber,
+        course: r.course,
+        participants: r.participants ?? [],
+      },
     });
   }
 

@@ -63,6 +63,7 @@ const ALLOWED_KEYS = new Set([
   "subtitle",
   "matchResult",
   "taTimeRecord",
+  "taPhaseRound",
 ]);
 
 function assertNoPII<T extends object>(obj: T) {
@@ -457,15 +458,35 @@ describe("buildOverlayEvents", () => {
     const events = buildOverlayEvents(
       emptyInput({
         ttPhaseRounds: [
-          { id: "r1", phase: "phase1", roundNumber: 2, course: "MC1", createdAt: AFTER },
+          {
+            id: "r1",
+            phase: "phase1",
+            roundNumber: 2,
+            course: "MC1",
+            createdAt: AFTER,
+            participants: [
+              { player: "Alice", lives: 0, rank: 1 },
+              { player: "Bob", lives: 0, rank: 2 },
+            ],
+          },
         ],
       }),
     );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_phase_advanced");
-    expect(events[0].title).toContain("phase1");
+    expect(events[0].title).toContain("敗者復活1");
     expect(events[0].title).toContain("R2");
     expect(events[0].subtitle).toContain("MC1");
+    expect(events[0].taPhaseRound).toEqual({
+      phase: "phase1",
+      phaseLabel: "敗者復活1",
+      roundNumber: 2,
+      course: "MC1",
+      participants: [
+        { player: "Alice", lives: 0, rank: 1 },
+        { player: "Bob", lives: 0, rank: 2 },
+      ],
+    });
   });
 
   it("returns events sorted ascending by timestamp", () => {

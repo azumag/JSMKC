@@ -90,6 +90,20 @@ export interface OverlayTaTimeRecord {
   rank: number | null;
 }
 
+export interface OverlayTaPhaseParticipant {
+  player: string;
+  lives: number;
+  rank: number | null;
+}
+
+export interface OverlayTaPhaseRound {
+  phase: string;
+  phaseLabel?: string;
+  roundNumber: number;
+  course: string;
+  participants: OverlayTaPhaseParticipant[];
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -102,6 +116,8 @@ export interface OverlayEvent {
   matchResult?: OverlayMatchResult;
   /** Populated only when `type === "ta_time_recorded"`. */
   taTimeRecord?: OverlayTaTimeRecord;
+  /** Populated only when `type === "ta_phase_advanced"`. */
+  taPhaseRound?: OverlayTaPhaseRound;
 }
 
 /**
@@ -164,6 +180,7 @@ export interface OverlayTtPhaseRoundInput {
   roundNumber: number;
   course: string;
   createdAt: Date;
+  participants?: OverlayTaPhaseParticipant[];
 }
 
 export interface OverlayTournamentInput {

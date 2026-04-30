@@ -34,6 +34,46 @@ function matchEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
   };
 }
 
+function taEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
+  return {
+    id: "ta_time_recorded:qualification:tt1:90000",
+    type: "ta_time_recorded",
+    timestamp: "2026-04-25T10:00:00.000Z",
+    mode: "ta",
+    title: "TA 予選 完走",
+    taTimeRecord: {
+      player: "Eve",
+      phaseLabel: "予選",
+      rank: 3,
+      totalTimeMs: 90_000,
+      totalTimeFormatted: "1:30.00",
+    },
+    ...overrides,
+  };
+}
+
+function taPhaseRoundEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
+  return {
+    id: "ta_phase_advanced:r1",
+    type: "ta_phase_advanced",
+    timestamp: "2026-04-25T10:00:00.000Z",
+    mode: "ta",
+    title: "TA 決勝 R3 開始",
+    subtitle: "コース: MC1",
+    taPhaseRound: {
+      phase: "phase3",
+      phaseLabel: "決勝",
+      roundNumber: 3,
+      course: "MC1",
+      participants: [
+        { player: "Alice", lives: 3, rank: 1 },
+        { player: "Bob", lives: 1, rank: 2 },
+      ],
+    },
+    ...overrides,
+  };
+}
+
 const NOW = Date.parse("2026-04-25T10:00:01.000Z");
 
 describe("DashboardTimeline match scoreboard card", () => {
@@ -80,5 +120,57 @@ describe("DashboardTimeline match scoreboard card", () => {
     // No SMK course abbreviations and no cup name should appear in the card.
     expect(card.textContent).not.toMatch(/MC\d|DP\d|GV\d|BC\d|CI\d|KB\d|VL\d|RR\b/);
     expect(card.textContent).not.toMatch(/Mushroom|Flower|Star|Special/);
+  });
+});
+
+describe("DashboardTimeline TA time card", () => {
+  it("renders qualification player name and rank at the same size as the total time", () => {
+    render(<DashboardTimeline events={[taEvent()]} now={NOW} />);
+
+    expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("text-3xl");
+    expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-3xl");
+    expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-3xl");
+  });
+
+  it("keeps phase-round player name and rank compact", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taEvent({
+            id: "ta_time_recorded:tt-phase1:1",
+            title: "TA タイム更新",
+            taTimeRecord: {
+              player: "Frank",
+              course: "MC1",
+              time: "1:23.45",
+              phaseLabel: "敗者復活1",
+              rank: 2,
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("text-base");
+    expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-sm");
+  });
+});
+
+describe("DashboardTimeline TA phase round card", () => {
+  it("renders the selected course and active participants with lives", () => {
+    render(<DashboardTimeline events={[taPhaseRoundEvent()]} now={NOW} />);
+
+    expect(screen.getByTestId("dashboard-timeline-ta-phase-round")).toHaveTextContent(
+      "TA 決勝 R3 開始",
+    );
+    expect(screen.getByTestId("dashboard-timeline-ta-phase-course")).toHaveTextContent("MC1");
+
+    const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
+    expect(participants).toHaveTextContent("ACTIVE");
+    expect(participants).toHaveTextContent("Alice");
+    expect(participants).toHaveTextContent("LIFE 3");
+    expect(participants).toHaveTextContent("Bob");
+    expect(participants).toHaveTextContent("LIFE 1");
   });
 });

@@ -284,6 +284,7 @@ async function handleGET(
       taPhase1LatestRound,
       taPhase2LatestRound,
       taPhase3LatestRound,
+      taActiveEntries,
     ] = await Promise.all([
       prisma.bMMatch.findMany({
         where: { tournamentId, updatedAt: { gt: since } },
@@ -395,7 +396,36 @@ async function handleGET(
         select: { roundNumber: true },
         orderBy: { roundNumber: "desc" },
       }),
+      prisma.tTEntry.findMany({
+        where: {
+          tournamentId,
+          stage: { in: ["phase1", "phase2", "phase3"] },
+          deletedAt: null,
+          eliminated: false,
+        },
+        select: {
+          stage: true,
+          lives: true,
+          rank: true,
+          player: { select: { nickname: true } },
+        },
+        orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
+      }),
     ]);
+
+    const taParticipantsByPhase = new Map<
+      string,
+      Array<{ player: string; lives: number; rank: number | null }>
+    >();
+    for (const entry of taActiveEntries) {
+      const participants = taParticipantsByPhase.get(entry.stage) ?? [];
+      participants.push({
+        player: entry.player.nickname,
+        lives: entry.lives,
+        rank: entry.rank ?? null,
+      });
+      taParticipantsByPhase.set(entry.stage, participants);
+    }
 
     const events = buildOverlayEvents({
       since,
@@ -414,7 +444,10 @@ async function handleGET(
         score2: m.points2,
       })) as unknown as OverlayMatchInput[],
       ttEntries,
-      ttPhaseRounds,
+      ttPhaseRounds: ttPhaseRounds.map((round) => ({
+        ...round,
+        participants: taParticipantsByPhase.get(round.phase) ?? [],
+      })),
       scoreLogs,
     });
 

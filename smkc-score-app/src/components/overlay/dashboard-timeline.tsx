@@ -70,6 +70,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
             event.type === "match_completed" && !!event.matchResult;
           const isTaTime =
             event.type === "ta_time_recorded" && !!event.taTimeRecord;
+          const isTaPhase =
+            event.type === "ta_phase_advanced" && !!event.taPhaseRound;
           /* New entries slide in from the right (#646). The class is removed
              after the animation completes to keep the DOM clean. */
           const isNew = newEventIds?.has(event.id) ?? false;
@@ -84,6 +86,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
                 <MatchScoreboardCard event={event} now={now} />
               ) : isTaTime ? (
                 <TaTimeCard event={event} now={now} />
+              ) : isTaPhase ? (
+                <TaPhaseRoundCard event={event} now={now} />
               ) : (
                 <CompactCard event={event} now={now} />
               )}
@@ -243,12 +247,28 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
         </span>
       </div>
 
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="min-w-0 flex-1 truncate text-base font-medium text-white/90">
+      <div
+        className={`mb-2 flex items-center justify-between ${
+          isQualificationTotal ? "gap-3" : "gap-2"
+        }`}
+      >
+        <span
+          className={`min-w-0 flex-1 truncate font-medium text-white/90 ${
+            isQualificationTotal ? "text-3xl leading-tight" : "text-base"
+          }`}
+          data-testid="dashboard-timeline-ta-player"
+        >
           {t.player}
         </span>
         {t.rank != null && (
-          <span className="shrink-0 rounded bg-yellow-400/20 px-2 py-0.5 text-sm font-semibold text-yellow-300">
+          <span
+            className={`shrink-0 rounded bg-yellow-400/20 font-semibold text-yellow-300 ${
+              isQualificationTotal
+                ? "px-3 py-1 text-3xl leading-tight"
+                : "px-2 py-0.5 text-sm"
+            }`}
+            data-testid="dashboard-timeline-ta-rank"
+          >
             現在 {t.rank} 位
           </span>
         )}
@@ -274,6 +294,70 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
           <span className="text-3xl font-bold tabular-nums text-yellow-400">
             {t.time}
           </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Rich card for a TA phase-round start. Shows the selected course plus the
+ * active entrants at the moment the overlay event was built, including their
+ * current life count for finals visibility.
+ */
+function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) {
+  if (!event.taPhaseRound) return null;
+  const r = event.taPhaseRound;
+  const phaseLabel = r.phaseLabel ?? r.phase;
+
+  return (
+    <div
+      className={`${CARD_BASE} px-4 py-3`}
+      style={{ backgroundColor: CARD_BG }}
+      data-testid="dashboard-timeline-ta-phase-round"
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="truncate text-base font-bold text-white">
+          TA {phaseLabel} R{r.roundNumber} 開始
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
+      </div>
+
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium text-white/70">選択コース</span>
+        <span
+          className="text-3xl font-bold tabular-nums text-yellow-400"
+          data-testid="dashboard-timeline-ta-phase-course"
+        >
+          {r.course}
+        </span>
+      </div>
+
+      {r.participants.length > 0 && (
+        <div
+          className="grid grid-cols-1 gap-1.5"
+          data-testid="dashboard-timeline-ta-phase-participants"
+        >
+          {r.participants.map((participant) => (
+            <div
+              key={`${participant.player}:${participant.rank ?? "none"}`}
+              className="flex items-center justify-between gap-2 rounded bg-white/10 px-2 py-1"
+            >
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="rounded bg-green-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-green-300">
+                  ACTIVE
+                </span>
+                <span className="truncate text-base font-semibold text-white">
+                  {participant.player}
+                </span>
+              </div>
+              <span className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold tabular-nums text-red-300">
+                LIFE {participant.lives}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
