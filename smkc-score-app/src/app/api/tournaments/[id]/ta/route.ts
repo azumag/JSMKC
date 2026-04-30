@@ -23,7 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
+import { createAuditLog, createAuditLogs, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-log";
 import { getClientIdentifier, getUserAgent } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
@@ -326,34 +326,21 @@ export async function POST(
           include: { player: { select: PLAYER_PUBLIC_SELECT } },
         });
 
-        // Audit logs in parallel. createAuditLog never throws (it catches
-        // and logs its own errors internally — see audit-log.ts), so wrap
-        // the whole batch in a defensive try/catch instead of per-promise.
-        try {
-          await Promise.all(
-            createdEntries.map((entry) =>
-              createAuditLog({
-                userId: resolveAuditUserId(authResult.session),
-                ipAddress,
-                userAgent,
-                action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
-                targetId: entry.id,
-                targetType: "TTEntry",
-                details: {
-                  tournamentId,
-                  playerId: entry.playerId,
-                  playerNickname: entry.player.nickname,
-                },
-              }),
-            ),
-          );
-        } catch (logError) {
-          logger.warn("Failed to create audit log", {
-            error: logError,
-            tournamentId,
-            action: "CREATE_TA_ENTRY",
-          });
-        }
+        await createAuditLogs(
+          createdEntries.map((entry) => ({
+            userId: resolveAuditUserId(authResult.session),
+            ipAddress,
+            userAgent,
+            action: AUDIT_ACTIONS.CREATE_TA_ENTRY,
+            targetId: entry.id,
+            targetType: "TTEntry",
+            details: {
+              tournamentId,
+              playerId: entry.playerId,
+              playerNickname: entry.player.nickname,
+            },
+          })),
+        );
       }
     }
 
