@@ -956,7 +956,7 @@ export default function MatchRaceFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "mr");
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },

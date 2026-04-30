@@ -193,27 +193,13 @@ async function handleGET(
 
       if (latestChange <= since.getTime()) {
         // Nothing changed since the caller's last poll. Build a minimal
-        // response that still carries the tournament-state fields the
-        // dashboard footer reads on every tick (currentPhase, broadcast
-        // labels). We keep `events: []` so the merge-on-client step is a
-        // no-op. Skipping the 17 detail queries is the whole point.
-        const minimalPhaseInput = {
-          // Any mode being confirmed = "qualification confirmed" for overlay phase display (#696)
-          qualificationConfirmed: tournament.bmQualificationConfirmed || tournament.mrQualificationConfirmed || tournament.gpQualificationConfirmed,
-          taCurrentPhase: "qualification" as const,
-          taLatestPhaseRoundNumber: null as number | null,
-          latestFinalsRound: null as string | null,
-          latestFinalsMode: null as OverlayMode | null,
-        };
-        // currentPhase/format from the cached state we don't refresh on
-        // an empty-delta tick. Recomputing them would force the existence
-        // checks back in, defeating the early return; the dashboard
-        // tolerates a 1-tick delay on phase transitions.
+        // response with `events: []` so the merge-on-client step is a no-op.
+        // Do not send a placeholder currentPhase/currentPhaseFormat here:
+        // the last full response already carried the accurate footer state,
+        // and a qualification-only approximation would overwrite it.
         const response = createSuccessResponse({
           serverTime: now.toISOString(),
           events: [],
-          currentPhase: computeCurrentPhase(minimalPhaseInput),
-          currentPhaseFormat: computeCurrentPhaseFormat(minimalPhaseInput),
           overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
           overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
           overlayMatchLabel: tournament.overlayMatchLabel ?? null,

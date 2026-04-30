@@ -13,6 +13,13 @@
 
 import type { OverlayMode } from "./types";
 
+const MODE_LABEL: Partial<Record<OverlayMode, string>> = {
+  ta: "TA",
+  bm: "BM",
+  mr: "MR",
+  gp: "GP",
+};
+
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
 export interface ComputeCurrentPhaseInput {
   /** Whether qualification has been confirmed for the tournament as a whole. */
@@ -72,10 +79,10 @@ function labelFinalsRound(round: string): string {
  * Resolve the current tournament phase string.
  *
  * Branches in priority order — first match wins:
- *  1. Any BM/MR/GP finals match exists       → `決勝 <Japanese round>`
- *  2. TA has reached phase 3                 → `決勝 TA-R<n>`
- *  3. TA is in barrage 2 (phase 2)           → `バラッジ2 R<n>`
- *  4. TA is in barrage 1 (phase 1)           → `バラッジ1 R<n>`
+ *  1. Any BM/MR/GP finals match exists       → `<mode> 決勝 <Japanese round>`
+ *  2. TA has reached phase 3                 → `TA フェーズ3 ラウンド<n>`
+ *  3. TA is in phase 2                       → `TA フェーズ2 ラウンド<n>`
+ *  4. TA is in phase 1                       → `TA フェーズ1 ラウンド<n>`
  *  5. Qualification has been confirmed       → `予選確定`
  *  6. Default                                → `予選`
  */
@@ -85,27 +92,27 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
     taCurrentPhase,
     taLatestPhaseRoundNumber,
     latestFinalsRound,
+    latestFinalsMode,
   } = input;
 
   if (latestFinalsRound) {
-    return `決勝 ${labelFinalsRound(latestFinalsRound)}`;
+    const modePrefix = latestFinalsMode ? `${MODE_LABEL[latestFinalsMode] ?? latestFinalsMode} ` : "";
+    return `${modePrefix}決勝 ${labelFinalsRound(latestFinalsRound)}`;
   }
   if (taCurrentPhase === "phase3") {
-    // TA's phase3 is its bracket-equivalent finals stage. Tag with TA so the
-    // viewer can tell it apart from a 2P bracket round.
     return taLatestPhaseRoundNumber
-      ? `決勝 TA-R${taLatestPhaseRoundNumber}`
-      : "決勝 TA";
+      ? `TA フェーズ3 ラウンド${taLatestPhaseRoundNumber}`
+      : "TA フェーズ3";
   }
   if (taCurrentPhase === "phase2") {
     return taLatestPhaseRoundNumber
-      ? `バラッジ2 R${taLatestPhaseRoundNumber}`
-      : "バラッジ2";
+      ? `TA フェーズ2 ラウンド${taLatestPhaseRoundNumber}`
+      : "TA フェーズ2";
   }
   if (taCurrentPhase === "phase1") {
     return taLatestPhaseRoundNumber
-      ? `バラッジ1 R${taLatestPhaseRoundNumber}`
-      : "バラッジ1";
+      ? `TA フェーズ1 ラウンド${taLatestPhaseRoundNumber}`
+      : "TA フェーズ1";
   }
   if (qualificationConfirmed) {
     // Interregnum: qualification locked but barrage/finals haven't started
@@ -125,14 +132,17 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
  *
  * @param roundKey   - The raw `round` value from the DB (e.g. "winners_qf")
  * @param roundNames - Locale map from the API (e.g. { winners_qf: "QF" })
+ * @param mode       - Optional mode prefix for footer clarity (BM/MR/GP)
  */
 export function buildMatchLabel(
   roundKey: string | null | undefined,
   roundNames: Record<string, string>,
+  mode?: OverlayMode,
 ): string {
-  if (!roundKey) return "決勝";
+  const modePrefix = mode ? `${MODE_LABEL[mode] ?? mode} ` : "";
+  if (!roundKey) return `${modePrefix}決勝`;
   const roundName = roundNames[roundKey] ?? roundKey;
-  return roundName ? `決勝 ${roundName}` : "決勝";
+  return roundName ? `${modePrefix}決勝 ${roundName}` : `${modePrefix}決勝`;
 }
 
 /**

@@ -11,6 +11,7 @@
  */
 
 import {
+  buildMatchLabel,
   computeCurrentPhase,
   computeCurrentPhaseFormat,
 } from "@/lib/overlay/phase";
@@ -35,7 +36,7 @@ describe("computeCurrentPhase", () => {
     expect(computeCurrentPhase(input({ qualificationConfirmed: true }))).toBe("予選確定");
   });
 
-  it("returns バラッジ1 R<n> when TA is in phase1 with rounds", () => {
+  it("returns TA フェーズ1 ラウンド<n> when TA is in phase1 with rounds", () => {
     expect(
       computeCurrentPhase(
         input({
@@ -44,10 +45,10 @@ describe("computeCurrentPhase", () => {
           taLatestPhaseRoundNumber: 3,
         }),
       ),
-    ).toBe("バラッジ1 R3");
+    ).toBe("TA フェーズ1 ラウンド3");
   });
 
-  it("returns バラッジ2 R<n> when TA is in phase2 with rounds", () => {
+  it("returns TA フェーズ2 ラウンド<n> when TA is in phase2 with rounds", () => {
     expect(
       computeCurrentPhase(
         input({
@@ -56,7 +57,7 @@ describe("computeCurrentPhase", () => {
           taLatestPhaseRoundNumber: 2,
         }),
       ),
-    ).toBe("バラッジ2 R2");
+    ).toBe("TA フェーズ2 ラウンド2");
   });
 
   it("omits the round suffix when TA phase has entries but no rounds yet", () => {
@@ -68,10 +69,10 @@ describe("computeCurrentPhase", () => {
           taLatestPhaseRoundNumber: null,
         }),
       ),
-    ).toBe("バラッジ1");
+    ).toBe("TA フェーズ1");
   });
 
-  it("returns 決勝 TA-R<n> when TA reaches phase3", () => {
+  it("returns TA フェーズ3 ラウンド<n> when TA reaches phase3", () => {
     expect(
       computeCurrentPhase(
         input({
@@ -80,37 +81,50 @@ describe("computeCurrentPhase", () => {
           taLatestPhaseRoundNumber: 4,
         }),
       ),
-    ).toBe("決勝 TA-R4");
+    ).toBe("TA フェーズ3 ラウンド4");
   });
 
-  it("maps known BM/MR/GP finals rounds to Japanese labels", () => {
+  it("maps known BM/MR/GP finals rounds to mode-prefixed Japanese labels", () => {
     const cases: Array<[string, string]> = [
-      ["winners_qf", "決勝 QF"],
-      ["qf", "決勝 QF"],
-      ["winners_sf", "決勝 SF"],
-      ["winners_final", "決勝 勝者決勝"],
-      ["losers_r1", "決勝 敗者R1"],
-      ["losers_r4", "決勝 敗者R4"],
-      ["losers_sf", "決勝 敗者準決勝"],
-      ["losers_final", "決勝 敗者決勝"],
-      ["grand_final", "決勝 グランドF"],
-      ["grand_final_reset", "決勝 リセット"],
+      ["winners_qf", "BM 決勝 QF"],
+      ["qf", "BM 決勝 QF"],
+      ["winners_sf", "BM 決勝 SF"],
+      ["winners_final", "BM 決勝 勝者決勝"],
+      ["losers_r1", "BM 決勝 敗者R1"],
+      ["losers_r4", "BM 決勝 敗者R4"],
+      ["losers_sf", "BM 決勝 敗者準決勝"],
+      ["losers_final", "BM 決勝 敗者決勝"],
+      ["grand_final", "BM 決勝 グランドF"],
+      ["grand_final_reset", "BM 決勝 リセット"],
     ];
     for (const [round, expected] of cases) {
       expect(
         computeCurrentPhase(
-          input({ qualificationConfirmed: true, latestFinalsRound: round }),
+          input({ qualificationConfirmed: true, latestFinalsRound: round, latestFinalsMode: "bm" }),
         ),
       ).toBe(expected);
     }
   });
 
+  it("uses the active BM/MR/GP mode in finals labels", () => {
+    expect(
+      computeCurrentPhase(
+        input({ qualificationConfirmed: true, latestFinalsRound: "winners_qf", latestFinalsMode: "mr" }),
+      ),
+    ).toBe("MR 決勝 QF");
+    expect(
+      computeCurrentPhase(
+        input({ qualificationConfirmed: true, latestFinalsRound: "winners_sf", latestFinalsMode: "gp" }),
+      ),
+    ).toBe("GP 決勝 SF");
+  });
+
   it("falls through unchanged for unknown finals round strings (forward compat)", () => {
     expect(
       computeCurrentPhase(
-        input({ qualificationConfirmed: true, latestFinalsRound: "weird_round_x" }),
+        input({ qualificationConfirmed: true, latestFinalsRound: "weird_round_x", latestFinalsMode: "bm" }),
       ),
-    ).toBe("決勝 weird_round_x");
+    ).toBe("BM 決勝 weird_round_x");
   });
 
   it("prefers a finals round over an in-progress TA phase (highest signal wins)", () => {
@@ -126,7 +140,7 @@ describe("computeCurrentPhase", () => {
           latestFinalsMode: "bm",
         }),
       ),
-    ).toBe("決勝 QF");
+    ).toBe("BM 決勝 QF");
   });
 });
 
@@ -186,5 +200,17 @@ describe("computeCurrentPhaseFormat", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("buildMatchLabel", () => {
+  it("prefixes pinned BM/MR/GP footer labels with their mode", () => {
+    expect(buildMatchLabel("winners_qf", { winners_qf: "QF" }, "bm")).toBe("BM 決勝 QF");
+    expect(buildMatchLabel("winners_sf", { winners_sf: "SF" }, "mr")).toBe("MR 決勝 SF");
+    expect(buildMatchLabel("grand_final", { grand_final: "グランドF" }, "gp")).toBe("GP 決勝 グランドF");
+  });
+
+  it("keeps the legacy no-mode label when mode is omitted", () => {
+    expect(buildMatchLabel("winners_qf", { winners_qf: "QF" })).toBe("決勝 QF");
   });
 });

@@ -58,13 +58,14 @@ function taPhaseRoundEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent 
     type: "ta_phase_advanced",
     timestamp: "2026-04-25T10:00:00.000Z",
     mode: "ta",
-    title: "TA 決勝 R3 開始",
-    subtitle: "コース: MC1",
+    title: "TA フェーズ3 ラウンド3 開始",
+    subtitle: "コース: Koopa Beach 1",
     taPhaseRound: {
       phase: "phase3",
-      phaseLabel: "決勝",
+      phaseLabel: "フェーズ3",
       roundNumber: 3,
-      course: "MC1",
+      course: "KB1",
+      courseName: "Koopa Beach 1",
       participants: [
         { player: "Alice", lives: 3, rank: 1 },
         { player: "Bob", lives: 1, rank: 2 },
@@ -124,11 +125,13 @@ describe("DashboardTimeline match scoreboard card", () => {
 });
 
 describe("DashboardTimeline TA time card", () => {
-  it("renders qualification player name and rank at the same size as the total time", () => {
+  it("renders qualification player name large and rank slightly smaller than the total time", () => {
     render(<DashboardTimeline events={[taEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("text-3xl");
-    expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-3xl");
+    expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("line-clamp-2");
+    expect(screen.getByTestId("dashboard-timeline-ta-player")).not.toHaveClass("truncate");
+    expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-2xl");
     expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-3xl");
   });
 
@@ -143,7 +146,7 @@ describe("DashboardTimeline TA time card", () => {
               player: "Frank",
               course: "MC1",
               time: "1:23.45",
-              phaseLabel: "敗者復活1",
+              phaseLabel: "フェーズ1",
               rank: 2,
             },
           }),
@@ -153,6 +156,7 @@ describe("DashboardTimeline TA time card", () => {
     );
 
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("text-base");
+    expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("truncate");
     expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-sm");
   });
 });
@@ -162,9 +166,11 @@ describe("DashboardTimeline TA phase round card", () => {
     render(<DashboardTimeline events={[taPhaseRoundEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-phase-round")).toHaveTextContent(
-      "TA 決勝 R3 開始",
+      "TA フェーズ3 ラウンド3 開始",
     );
-    expect(screen.getByTestId("dashboard-timeline-ta-phase-course")).toHaveTextContent("MC1");
+    expect(screen.getByTestId("dashboard-timeline-ta-phase-course")).toHaveTextContent(
+      "Koopa Beach 1",
+    );
 
     const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
     expect(participants).toHaveTextContent("ACTIVE");

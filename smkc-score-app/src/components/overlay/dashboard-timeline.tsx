@@ -253,8 +253,10 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
         }`}
       >
         <span
-          className={`min-w-0 flex-1 truncate font-medium text-white/90 ${
-            isQualificationTotal ? "text-3xl leading-tight" : "text-base"
+          className={`min-w-0 flex-1 font-medium text-white/90 ${
+            isQualificationTotal
+              ? "line-clamp-2 break-words text-3xl leading-tight"
+              : "truncate text-base"
           }`}
           data-testid="dashboard-timeline-ta-player"
         >
@@ -264,7 +266,7 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
           <span
             className={`shrink-0 rounded bg-yellow-400/20 font-semibold text-yellow-300 ${
               isQualificationTotal
-                ? "px-3 py-1 text-3xl leading-tight"
+                ? "px-2.5 py-1 text-2xl leading-tight"
                 : "px-2 py-0.5 text-sm"
             }`}
             data-testid="dashboard-timeline-ta-rank"
@@ -318,7 +320,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          TA {phaseLabel} R{r.roundNumber} 開始
+          TA {phaseLabel} ラウンド{r.roundNumber} 開始
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -328,10 +330,10 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <span className="text-sm font-medium text-white/70">選択コース</span>
         <span
-          className="text-3xl font-bold tabular-nums text-yellow-400"
+          className="min-w-0 flex-1 text-right text-3xl font-bold text-yellow-400"
           data-testid="dashboard-timeline-ta-phase-course"
         >
-          {r.course}
+          {r.courseName}
         </span>
       </div>
 

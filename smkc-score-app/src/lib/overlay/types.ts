@@ -83,7 +83,7 @@ export interface OverlayTaTimeRecord {
   totalTimeMs?: number;
   /** Formatted total time ("M:SS.cc") — set only for qualification-completion events. */
   totalTimeFormatted?: string;
-  /** Human label for the TA stage ("予選" / "敗者復活1" etc.). May be
+  /** Human label for the TA stage ("予選" / "フェーズ1" etc.). May be
       empty when the stage is unknown. */
   phaseLabel?: string;
   /** Current rank in the active stage, when known. */
@@ -101,6 +101,7 @@ export interface OverlayTaPhaseRound {
   phaseLabel?: string;
   roundNumber: number;
   course: string;
+  courseName: string;
   participants: OverlayTaPhaseParticipant[];
 }
 
@@ -215,7 +216,7 @@ export interface OverlayEventsResponse {
   events: OverlayEvent[];
   /**
    * Combined tournament-phase label for the OBS dashboard footer (e.g.
-   * "予選", "バラッジ1 R3", "決勝 QF"). Always populated; the legacy toast
+   * "予選", "TA フェーズ1 ラウンド3", "BM 決勝 QF"). Always populated; the legacy toast
    * overlay simply ignores it.
    */
   currentPhase?: string;
@@ -233,7 +234,7 @@ export interface OverlayEventsResponse {
   overlayPlayer1Name?: string;
   overlayPlayer2Name?: string;
   /**
-   * Round label of the match selected by "配信に反映" (e.g. "決勝 QF").
+   * Round label of the match selected by "配信に反映" (e.g. "BM 決勝 QF").
    * When set, the dashboard footer uses this instead of the auto-computed phase.
    * Null/undefined means fall back to computeCurrentPhase.
    */

@@ -948,7 +948,7 @@ export default function BattleModeFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "bm");
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },

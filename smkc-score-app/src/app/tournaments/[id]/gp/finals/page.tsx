@@ -1107,7 +1107,7 @@ export default function GrandPrixFinals({
                 onClick={async () => {
                   setBroadcasting(true);
                   try {
-                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames);
+                    const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "gp");
                     const targetWins = getTargetWinsForMatch(selectedMatch);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",

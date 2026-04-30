@@ -426,12 +426,12 @@ describe("buildOverlayEvents", () => {
     expect(events[0].title).toContain("Frank");
     expect(events[0].title).toContain("MC1");
     expect(events[0].title).toContain("1:23.45");
-    expect(events[0].title).toContain("敗者復活1");
+    expect(events[0].title).toContain("フェーズ1");
     expect(events[0].taTimeRecord).toEqual({
       player: "Frank",
       course: "MC1",
       time: "1:23.45",
-      phaseLabel: "敗者復活1",
+      phaseLabel: "フェーズ1",
       rank: 2,
     });
   });
@@ -474,19 +474,34 @@ describe("buildOverlayEvents", () => {
     );
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe("ta_phase_advanced");
-    expect(events[0].title).toContain("敗者復活1");
-    expect(events[0].title).toContain("R2");
-    expect(events[0].subtitle).toContain("MC1");
+    expect(events[0].title).toContain("フェーズ1");
+    expect(events[0].title).toContain("ラウンド2");
+    expect(events[0].subtitle).toContain("Mario Circuit 1");
     expect(events[0].taPhaseRound).toEqual({
       phase: "phase1",
-      phaseLabel: "敗者復活1",
+      phaseLabel: "フェーズ1",
       roundNumber: 2,
       course: "MC1",
+      courseName: "Mario Circuit 1",
       participants: [
         { player: "Alice", lives: 0, rank: 1 },
         { player: "Bob", lives: 0, rank: 2 },
       ],
     });
+  });
+
+  it("renders TA phase-round course display with full course names", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttPhaseRounds: [
+          { id: "r-kb1", phase: "phase1", roundNumber: 1, course: "KB1", createdAt: AFTER },
+        ],
+      }),
+    );
+
+    expect(events[0].title).toContain("TA フェーズ1 ラウンド1 開始");
+    expect(events[0].subtitle).toBe("コース: Koopa Beach 1");
+    expect(events[0].taPhaseRound?.courseName).toBe("Koopa Beach 1");
   });
 
   it("returns events sorted ascending by timestamp", () => {

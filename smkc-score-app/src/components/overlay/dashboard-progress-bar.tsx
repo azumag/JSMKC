@@ -1,9 +1,10 @@
 /**
  * Header bar for the OBS dashboard browser source.
  *
- * Renders the tournament's overall progression as a 3-step indicator
- * (予選 → バラッジ → 決勝) with the current step highlighted. The phase
- * detail (e.g. "決勝 QF") and FT chip used to live below the steps but
+ * Renders the tournament's overall progression as a 3-step indicator.
+ * TA uses phase labels (予選 → フェーズN → フェーズ3), while bracket modes
+ * keep the generic labels (予選 → バラッジ → 決勝). The phase detail
+ * (e.g. "BM 決勝 QF") and FT chip used to live below the steps but
  * duplicated the bottom-strip footer, so they were removed — the steps
  * alone are the dashboard-side signal, and the footer carries the round.
  *
@@ -24,14 +25,35 @@ const STEPS = [
 ] as const;
 
 type StepKey = (typeof STEPS)[number]["key"];
+interface ProgressStep {
+  key: StepKey;
+  label: string;
+}
 
 function classifyPhase(phase: string): StepKey {
-  // Both "決勝 QF" (BM/MR/GP bracket) and "決勝 TA-R<n>" (TA phase3) map to
-  // the finals bucket — the round-level distinction lives in the footer.
-  if (phase.startsWith("決勝")) return "finals";
+  // Mode-prefixed finals labels (e.g. "BM 決勝 QF") and TA phase3 both map
+  // to the finals bucket — the round-level distinction lives in the footer.
+  if (phase.includes("決勝") || phase.startsWith("TA フェーズ3")) return "finals";
+  if (phase.startsWith("TA フェーズ1") || phase.startsWith("TA フェーズ2")) {
+    return "barrage";
+  }
   if (phase.startsWith("バラッジ")) return "barrage";
   // "予選", "予選確定", or empty — all collapse to the qualification bucket
   return "qualification";
+}
+
+function progressStepsForPhase(phase: string): readonly ProgressStep[] {
+  if (!phase.startsWith("TA フェーズ")) return STEPS;
+
+  const middleLabel = phase.startsWith("TA フェーズ1")
+    ? "フェーズ1"
+    : "フェーズ2";
+
+  return [
+    { key: "qualification", label: "予選" },
+    { key: "barrage", label: middleLabel },
+    { key: "finals", label: "フェーズ3" },
+  ] as const;
 }
 
 interface DashboardProgressBarProps {
@@ -40,8 +62,9 @@ interface DashboardProgressBarProps {
 }
 
 export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps) {
+  const steps = progressStepsForPhase(currentPhase);
   const active = classifyPhase(currentPhase);
-  const activeIdx = STEPS.findIndex((s) => s.key === active);
+  const activeIdx = steps.findIndex((s) => s.key === active);
 
   return (
     <div
@@ -54,7 +77,7 @@ export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps
           between cells once the prior step is reached. Dot row and label
           row share grid-cols-3 so they line up on the same axis. */}
       <div className="mb-2 grid grid-cols-3 items-center">
-        {STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const reached = i <= activeIdx;
           const isCurrent = i === activeIdx;
           return (
@@ -80,9 +103,10 @@ export function DashboardProgressBar({ currentPhase }: DashboardProgressBarProps
       </div>
 
       <div className="grid grid-cols-3 text-sm">
-        {STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <span
             key={step.key}
+            data-testid={`dashboard-progress-step-${step.key}`}
             className={`text-center ${
               i === activeIdx
                 ? "font-semibold text-yellow-400"

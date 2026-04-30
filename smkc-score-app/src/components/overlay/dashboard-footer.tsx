@@ -21,7 +21,7 @@ interface DashboardFooterProps {
   /** FT format string (e.g., "FT5") — null/undefined when not applicable. */
   currentPhaseFormat?: string | null;
   /**
-   * Round label set by the last "配信に反映" click (e.g., "決勝 QF").
+   * Round label set by the last "配信に反映" click (e.g., "BM 決勝 QF").
    * When non-empty, overrides `currentPhase` so the footer shows exactly
    * which match is on-air rather than the auto-computed phase.
    */

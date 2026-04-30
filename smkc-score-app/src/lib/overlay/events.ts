@@ -6,6 +6,7 @@
  * this module only does the shape transformation and Japanese title rendering.
  */
 
+import { COURSE_INFO } from "@/lib/constants";
 import { msToDisplayTime } from "@/lib/ta/time-utils";
 import type {
   BuildOverlayEventsInput,
@@ -29,16 +30,20 @@ const MODE_LABEL: Record<OverlayMode, string> = {
 };
 
 /**
- * Human-readable phase labels for TA. `qualification` collapses to "予選",
- * the two barrage rounds keep their numbering, and `phase3` is the final.
- * Unknown stages render with an empty prefix so the toast still reads cleanly.
+ * Human-readable phase labels for TA. These intentionally do not use the
+ * BM/MR-style bracket labels ("敗者復活", "決勝") because TA phases are
+ * sequential survival phases, not a bracket.
  */
 const TA_STAGE_LABEL: Record<string, string> = {
   qualification: "予選",
-  phase1: "敗者復活1",
-  phase2: "敗者復活2",
-  phase3: "決勝",
+  phase1: "フェーズ1",
+  phase2: "フェーズ2",
+  phase3: "フェーズ3",
 };
+
+function courseName(abbr: string): string {
+  return COURSE_INFO.find((course) => course.abbr === abbr)?.name ?? abbr;
+}
 
 /**
  * Coerce a raw `assignedCourses` JSON value into a `string[]` of non-empty
@@ -208,18 +213,20 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
     if (r.createdAt.getTime() <= sinceMs) continue;
     const stageLabel = TA_STAGE_LABEL[r.phase] ?? "";
     const prefix = stageLabel ? `${stageLabel} ` : `${r.phase} `;
+    const displayCourse = courseName(r.course);
     events.push({
       id: `ta_phase_advanced:${r.id}`,
       type: "ta_phase_advanced",
       timestamp: r.createdAt.toISOString(),
       mode: "ta",
-      title: `TA ${prefix}R${r.roundNumber} 開始`,
-      subtitle: `コース: ${r.course}`,
+      title: `TA ${prefix}ラウンド${r.roundNumber} 開始`,
+      subtitle: `コース: ${displayCourse}`,
       taPhaseRound: {
         phase: r.phase,
         phaseLabel: stageLabel || undefined,
         roundNumber: r.roundNumber,
         course: r.course,
+        courseName: displayCourse,
         participants: r.participants ?? [],
       },
     });
