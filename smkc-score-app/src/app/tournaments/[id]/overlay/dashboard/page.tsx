@@ -192,7 +192,7 @@ export default function DashboardPage({
       {overlayPlayer1Name && (
         <div
           className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 91, top: 497, width: 230, height: 48, overflow: "hidden" }}
+          style={{ left: 93, top: 497, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
@@ -203,7 +203,7 @@ export default function DashboardPage({
           {overlayPlayer1Wins !== null && (
             <span
               className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", transform: "translateY(2px)" }}
               data-testid="overlay-p1-score"
             >
               {overlayMatchFt !== null
@@ -229,7 +229,7 @@ export default function DashboardPage({
       {overlayPlayer2Name && (
         <div
           className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 91, top: 891, width: 230, height: 48, overflow: "hidden" }}
+          style={{ left: 93, top: 891, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
@@ -240,7 +240,7 @@ export default function DashboardPage({
           {overlayPlayer2Wins !== null && (
             <span
               className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", transform: "translateY(2px)" }}
               data-testid="overlay-p2-score"
             >
               {overlayMatchFt !== null
