@@ -634,6 +634,46 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       });
     });
 
+    it('should reject excessive GP finals cupResults before updating the match', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 1,
+        round: 'winners_qf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        points1: 0,
+        points2: 0,
+        completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+
+      const cupResults = Array.from({ length: 21 }, (_, index) => ({
+        cup: ['Mushroom', 'Flower', 'Star', 'Special'][index % 4],
+        points1: 45,
+        points2: 0,
+      }));
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        { matchId: 'm1', cupResults },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      expect(result.data).toEqual({
+        success: false,
+        error: 'cupResults must not exceed 20 entries',
+        code: 'VALIDATION_ERROR',
+        details: { field: 'cupResults' },
+      });
+      expect(result.status).toBe(400);
+      expect(prisma.gPMatch.update).not.toHaveBeenCalled();
+    });
+
     it('should complete GP finals match once FT2 cup wins are reached', async () => {
       const mockMatch = {
         id: 'm1',

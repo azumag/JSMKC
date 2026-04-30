@@ -1591,6 +1591,31 @@
 - **期待結果**: GP決勝FT2では1カップ勝利で試合が終わらず、2カップ先取で初めて完了する
 - **スクリプト**: tc-gp.js TC-720
 
+## TC-832: GP決勝 — `cupResults` の過大配列を拒否
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GP決勝の `cupResults` は通常FT2/FT3の数カップだけを保持する。過大な配列は不要な処理負荷になるため、APIで上限を持つ。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. M1 に21件の `cupResults` をPUTする
+  3. HTTP 400 と `cupResults must not exceed 20 entries` が返ること
+  4. M1 を再取得し、`points1=0`、`points2=0`、`completed=false` のまま変更されていないこと
+- **期待結果**: GP決勝APIは21件以上の `cupResults` を拒否し、マッチ状態を更新しない
+- **スクリプト**: tc-gp.js TC-832
+
+## TC-831: GP決勝 — 追加したカップフォームを削除できる
+- **URL**: /tournaments/[temp-id]/gp/finals
+- **authRequired**: true (admin)
+- **背景**: GP決勝スコア入力ダイアログでは、誤って `Add Cup` した追加フォームを閉じ直しなしで取り消せる必要がある。ただし最初のカップフォームは必須なので削除不可。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. 管理者として GP決勝ページを開き、M1 のスコア入力ダイアログを開く
+  3. 初期状態で Cup 1 の削除ボタンが表示されないことを確認
+  4. `Add Cup` を押し、Cup 2 と `Remove Cup 2` が表示されることを確認
+  5. `Remove Cup 2` を押し、Cup 2 が消え、Cup 1 は残ることを確認
+- **期待結果**: 追加したカップフォームだけを削除でき、必須の最初のカップフォームは削除できない
+- **スクリプト**: tc-gp.js TC-831
+
 ## TC-721: GP決勝 — 同点カップはサドンデスではなく次カップへ進む
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)

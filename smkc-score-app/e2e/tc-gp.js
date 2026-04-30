@@ -15,6 +15,7 @@
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-719  GP tied cup extends non-grand-final bracket match
+ *   TC-831  GP finals added cup form can be removed
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1176,6 +1177,82 @@ async function runTc720(adminPage) {
   }
 }
 
+/* ───────── TC-832: GP finals rejects excessive cupResults ───────── */
+async function runTc832(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+
+    const cupResults = Array.from({ length: 21 }, (_, index) =>
+      gpCupResult(['Mushroom', 'Flower', 'Star', 'Special'][index % 4], 45, 0));
+    const excessive = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, cupResults);
+    const rejected = excessive.s === 400 &&
+      typeof excessive.b?.error === 'string' &&
+      excessive.b.error.includes('cupResults must not exceed 20 entries');
+
+    const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1After = after.find((m) => m.id === m1.id);
+    const unchanged = m1After?.completed === false &&
+      m1After?.points1 === 0 &&
+      m1After?.points2 === 0 &&
+      (!Array.isArray(m1After?.cupResults) || m1After.cupResults.length === 0);
+
+    log('TC-832', rejected && unchanged ? 'PASS' : 'FAIL',
+      !rejected ? `excessive cupResults accepted/status=${excessive.s} error=${excessive.b?.error ?? ''}`
+      : !unchanged ? `match mutated completed=${m1After?.completed} score=${m1After?.points1}-${m1After?.points2} cups=${m1After?.cupResults?.length ?? 0}`
+      : '');
+  } catch (err) {
+    log('TC-832', 'FAIL', err instanceof Error ? err.message : 'GP 832 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-831: GP finals added cup form can be removed ───────── */
+async function runTc831(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    await nav(adminPage, `/tournaments/${setup.tournamentId}/gp/finals`);
+    const m1Card = adminPage.getByRole('button', { name: /Match 1:/ }).first();
+    await m1Card.waitFor({ state: 'visible', timeout: 10000 });
+    await m1Card.click();
+
+    const dialog = adminPage.getByRole('dialog');
+    await dialog.getByText('Cup 1', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
+    const firstCupRemoveHidden = await dialog.getByRole('button', { name: 'Remove Cup 1' }).count() === 0;
+
+    await dialog.getByRole('button', { name: 'Add Cup' }).click();
+    await dialog.getByText('Cup 2', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
+    const removeCup2 = dialog.getByRole('button', { name: 'Remove Cup 2' });
+    const addedCupRemovable = await removeCup2.count() === 1;
+
+    await removeCup2.click();
+    const secondCupRemoved = await dialog.getByText('Cup 2', { exact: true }).count() === 0;
+    const firstCupStillVisible = await dialog.getByText('Cup 1', { exact: true }).count() === 1;
+
+    log('TC-831', firstCupRemoveHidden && addedCupRemovable && secondCupRemoved && firstCupStillVisible ? 'PASS' : 'FAIL',
+      !firstCupRemoveHidden ? 'Cup 1 remove button is visible'
+      : !addedCupRemovable ? 'Cup 2 remove button missing'
+      : !secondCupRemoved ? 'Cup 2 still visible after removal'
+      : !firstCupStillVisible ? 'Cup 1 missing after removing Cup 2'
+      : '');
+  } catch (err) {
+    log('TC-831', 'FAIL', err instanceof Error ? err.message : 'GP 831 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-721: GP finals tied cups extend to additional cups ───────── */
 async function runTc721(adminPage) {
   let setup = null;
@@ -1318,6 +1395,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-712', fn: runTc712 },
       { name: 'TC-719', fn: runTc719 },
       { name: 'TC-720', fn: runTc720 },
+      { name: 'TC-832', fn: runTc832 },
+      { name: 'TC-831', fn: runTc831 },
       { name: 'TC-721', fn: runTc721 },
       { name: 'TC-722', fn: runTc722 },
       { name: 'TC-713', fn: runTc713 },
@@ -1330,7 +1409,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc719,
-  runTc720, runTc721, runTc722, runTc821,
+  runTc720, runTc721, runTc722, runTc821, runTc831, runTc832,
   getSuite,
   results,
 };
