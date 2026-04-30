@@ -212,6 +212,17 @@ export default function BattleModeFinals({
   const tvAbortRef = useRef<AbortController | null>(null);
   const courseAbortRef = useRef<AbortController | null>(null);
 
+  const currentScoreForm = () => {
+    if (!selectedMatch) return scoreForm;
+    const score1Input = document.getElementById(`score1-${selectedMatch.id}`) as HTMLInputElement | null;
+    const score2Input = document.getElementById(`score2-${selectedMatch.id}`) as HTMLInputElement | null;
+    return {
+      ...scoreForm,
+      score1: score1Input ? (parseManualScore(score1Input.value) ?? 0) : scoreForm.score1,
+      score2: score2Input ? (parseManualScore(score2Input.value) ?? 0) : scoreForm.score2,
+    };
+  };
+
   /**
    * Fetch finals data including matches, bracket structure, and round names.
    * This is the polling function called at the standard interval.
@@ -484,6 +495,7 @@ export default function BattleModeFinals({
    */
   const handleScoreSubmit = async () => {
     if (!selectedMatch) return;
+    const currentScores = currentScoreForm();
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/bm/finals`, {
@@ -491,10 +503,10 @@ export default function BattleModeFinals({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: selectedMatch.id,
-          score1: scoreForm.score1,
-          score2: scoreForm.score2,
-          tvNumber: scoreForm.tvNumber,
-          startingCourseNumber: scoreForm.startingCourseNumber,
+          score1: currentScores.score1,
+          score2: currentScores.score2,
+          tvNumber: currentScores.tvNumber,
+          startingCourseNumber: currentScores.startingCourseNumber,
         }),
       });
 
@@ -838,10 +850,10 @@ export default function BattleModeFinals({
                    onChange={(e) =>
                      /* Strict parse: reject "2.5"/"1e2" that parseInt would
                       * silently coerce into a valid-looking target-wins value. */
-                     setScoreForm({
-                       ...scoreForm,
+                     setScoreForm((current) => ({
+                       ...current,
                        score1: parseManualScore(e.target.value) ?? 0,
-                     })
+                     }))
                    }
                    className="w-20 text-center text-2xl"
                    aria-label={`${selectedMatch?.player1.nickname} score`}
@@ -860,10 +872,10 @@ export default function BattleModeFinals({
                    max={selectedMatchTargetWins}
                    value={scoreForm.score2}
                    onChange={(e) =>
-                     setScoreForm({
-                       ...scoreForm,
+                     setScoreForm((current) => ({
+                       ...current,
                        score2: parseManualScore(e.target.value) ?? 0,
-                     })
+                     }))
                    }
                    className="w-20 text-center text-2xl"
                    aria-label={`${selectedMatch?.player2.nickname} score`}
@@ -949,6 +961,7 @@ export default function BattleModeFinals({
                   setBroadcasting(true);
                   try {
                     const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "bm");
+                    const currentScores = currentScoreForm();
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
@@ -959,8 +972,8 @@ export default function BattleModeFinals({
                         player2NoCamera: selectedMatch.player2.noCamera === true,
                         /* Include score and round info (#645, #649) */
                         matchLabel,
-                        player1Wins: scoreForm.score1,
-                        player2Wins: scoreForm.score2,
+                        player1Wins: currentScores.score1,
+                        player2Wins: currentScores.score2,
                         matchFt: selectedMatchTargetWins,
                       }),
                     });
