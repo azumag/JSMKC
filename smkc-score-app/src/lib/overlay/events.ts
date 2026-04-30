@@ -317,6 +317,22 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
           subtitle: `${prefix}Round ${r.roundNumber}: ${remainingLabel}`,
         });
       }
+
+      if (r.championStandings && r.championStandings.length > 0) {
+        const champion = r.championStandings[0];
+        events.push({
+          id: `ta_champion_decided:${r.id}:${r.submittedAt.getTime()}`,
+          type: "ta_champion_decided",
+          timestamp: new Date(r.submittedAt.getTime() + 2).toISOString(),
+          mode: "ta",
+          title: "Time Attack Champion Decided",
+          subtitle: champion ? `Champion: ${champion.player}` : undefined,
+          taChampion: {
+            roundNumber: r.roundNumber,
+            standings: r.championStandings,
+          },
+        });
+      }
     }
   }
 

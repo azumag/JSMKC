@@ -65,6 +65,7 @@ const ALLOWED_KEYS = new Set([
   "taTimeRecord",
   "taPhaseRound",
   "taPhaseCompleted",
+  "taChampion",
 ]);
 
 function assertNoPII<T extends object>(obj: T) {
@@ -589,6 +590,60 @@ describe("buildOverlayEvents", () => {
       mode: "ta",
     });
     expect(events[1].timestamp).toBe("2026-04-25T10:00:08.001Z");
+  });
+
+  it("emits a large TA champion notification with the top three standings", () => {
+    const submittedAt = new Date("2026-04-25T10:00:08.000Z");
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttPhaseRounds: [
+          {
+            id: "r-final",
+            phase: "phase3",
+            roundNumber: 12,
+            course: "MC1",
+            createdAt: BEFORE,
+            submittedAt,
+            results: [
+              { playerId: "p1", timeMs: 74_560, isRetry: false },
+              { playerId: "p2", timeMs: 82_340, isRetry: false },
+            ],
+            eliminatedIds: ["p2"],
+            livesReset: false,
+            playerNamesById: {
+              p1: "Alice",
+              p2: "Bob",
+              p3: "Carol",
+            },
+            championStandings: [
+              { rank: 1, player: "Alice" },
+              { rank: 2, player: "Bob" },
+              { rank: 3, player: "Carol" },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "ta_phase_completed",
+      "ta_champion_decided",
+    ]);
+    expect(events[1]).toMatchObject({
+      id: `ta_champion_decided:r-final:${submittedAt.getTime()}`,
+      title: "Time Attack Champion Decided",
+      subtitle: "Champion: Alice",
+      mode: "ta",
+      taChampion: {
+        roundNumber: 12,
+        standings: [
+          { rank: 1, player: "Alice" },
+          { rank: 2, player: "Bob" },
+          { rank: 3, player: "Carol" },
+        ],
+      },
+    });
+    expect(events[1].timestamp).toBe("2026-04-25T10:00:08.002Z");
   });
 
   it("returns events sorted ascending by timestamp", () => {

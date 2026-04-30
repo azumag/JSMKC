@@ -112,6 +112,26 @@ function taLivesResetEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent 
   };
 }
 
+function taChampionEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
+  return {
+    id: "ta_champion_decided:r1:1",
+    type: "ta_champion_decided",
+    timestamp: "2026-04-25T10:00:00.002Z",
+    mode: "ta",
+    title: "Time Attack Champion Decided",
+    subtitle: "Champion: Alice",
+    taChampion: {
+      roundNumber: 12,
+      standings: [
+        { rank: 1, player: "Alice" },
+        { rank: 2, player: "Bob" },
+        { rank: 3, player: "Carol" },
+      ],
+    },
+    ...overrides,
+  };
+}
+
 const NOW = Date.parse("2026-04-25T10:00:01.000Z");
 
 describe("DashboardTimeline match scoreboard card", () => {
@@ -399,5 +419,19 @@ describe("DashboardTimeline TA lives reset card", () => {
     expect(card).toHaveTextContent("Time Attack Lives Reset");
     expect(card).toHaveTextContent("Phase 3 Round 7: 8 players remain");
     expect(card).toHaveTextContent("All remaining players return to Life 3");
+  });
+});
+
+describe("DashboardTimeline TA champion card", () => {
+  it("renders a prominent top-three podium", () => {
+    render(<DashboardTimeline events={[taChampionEvent()]} now={NOW} />);
+
+    const card = screen.getByTestId("dashboard-timeline-ta-champion");
+    expect(card).toHaveTextContent("Time Attack Champion");
+    expect(card).toHaveTextContent("Alice");
+    expect(card).toHaveTextContent("2nd");
+    expect(card).toHaveTextContent("Bob");
+    expect(card).toHaveTextContent("3rd");
+    expect(card).toHaveTextContent("Carol");
   });
 });

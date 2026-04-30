@@ -30,7 +30,11 @@ import { createSuccessResponse, createErrorResponse } from "@/lib/error-handling
 import { buildOverlayEvents } from "@/lib/overlay/events";
 import { withApiTiming } from "@/lib/perf/api-timing";
 import { computeCurrentPhase, computeCurrentPhaseFormat } from "@/lib/overlay/phase";
-import type { OverlayMatchInput, OverlayMode } from "@/lib/overlay/types";
+import type {
+  OverlayMatchInput,
+  OverlayMode,
+  OverlayTaChampionStanding,
+} from "@/lib/overlay/types";
 
 /** Initial-poll window when no `since` is supplied. */
 const INITIAL_WINDOW_MS = 30_000;
@@ -100,6 +104,26 @@ function writeProbe(tournamentId: string, latest: number): void {
 /** Internal: invalidate when a write path knows the cache will become stale. */
 export function invalidateOverlayProbe(tournamentId: string): void {
   latestProbeCache.delete(tournamentId);
+}
+
+function jsonStringArray(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((value): value is string => typeof value === "string")
+    : [];
+}
+
+function timeMsByPlayer(raw: unknown): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!Array.isArray(raw)) return out;
+  for (const result of raw) {
+    if (typeof result !== "object" || result === null) continue;
+    const playerId = (result as { playerId?: unknown }).playerId;
+    const timeMs = (result as { timeMs?: unknown }).timeMs;
+    if (typeof playerId === "string" && typeof timeMs === "number") {
+      out.set(playerId, timeMs);
+    }
+  }
+  return out;
 }
 
 function parseSince(raw: string | null, now: Date, initial: boolean): Date {
@@ -273,6 +297,7 @@ async function handleGET(
       taPhase2LatestRound,
       taPhase3LatestRound,
       taActiveEntries,
+      taPhase3SubmittedRounds,
     ] = await Promise.all([
       prisma.bMMatch.findMany({
         where: { tournamentId, updatedAt: { gt: since } },
@@ -410,6 +435,21 @@ async function handleGET(
         },
         orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
       }),
+      prisma.tTPhaseRound.findMany({
+        where: {
+          tournamentId,
+          phase: "phase3",
+          submittedAt: { not: null },
+        },
+        select: {
+          id: true,
+          roundNumber: true,
+          submittedAt: true,
+          results: true,
+          eliminatedIds: true,
+        },
+        orderBy: [{ submittedAt: "desc" }, { roundNumber: "desc" }],
+      }),
     ]);
 
     const taParticipantsByPhase = new Map<
@@ -429,6 +469,45 @@ async function handleGET(
         rank: entry.rank ?? null,
       });
       taParticipantsByPhase.set(entry.stage, participants);
+    }
+
+    const phase3Entries = taActiveEntries.filter((entry) => entry.stage === "phase3");
+    const phase3ActiveEntries = phase3Entries.filter((entry) => !entry.eliminated);
+    const phase3FinalRound = taPhase3SubmittedRounds[0] ?? null;
+    let championRoundId: string | null = null;
+    let taChampionStandings: OverlayTaChampionStanding[] | undefined;
+    if (phase3ActiveEntries.length === 1 && phase3FinalRound) {
+      championRoundId = phase3FinalRound.id;
+      const namesById = taPlayerNamesByPhase.get("phase3") ?? {};
+      const seen = new Set<string>();
+      const champion = phase3ActiveEntries[0];
+      seen.add(champion.playerId);
+      taChampionStandings = [
+        { rank: 1, player: champion.player.nickname },
+      ];
+
+      for (const round of taPhase3SubmittedRounds) {
+        const eliminatedIds = jsonStringArray(round.eliminatedIds);
+        if (eliminatedIds.length === 0) continue;
+        const times = timeMsByPlayer(round.results);
+        const orderedEliminated = eliminatedIds
+          .filter((playerId) => !seen.has(playerId))
+          .sort(
+            (a, b) =>
+              (times.get(a) ?? Number.POSITIVE_INFINITY) -
+              (times.get(b) ?? Number.POSITIVE_INFINITY),
+          );
+        for (const playerId of orderedEliminated) {
+          const nextRank = taChampionStandings.length + 1;
+          if (nextRank > 3) break;
+          seen.add(playerId);
+          taChampionStandings.push({
+            rank: nextRank as 2 | 3,
+            player: namesById[playerId] ?? playerId,
+          });
+        }
+        if (taChampionStandings.length >= 3) break;
+      }
     }
 
     const events = buildOverlayEvents({
@@ -452,6 +531,8 @@ async function handleGET(
         ...round,
         participants: taParticipantsByPhase.get(round.phase) ?? [],
         playerNamesById: taPlayerNamesByPhase.get(round.phase) ?? {},
+        championStandings:
+          round.id === championRoundId ? taChampionStandings : undefined,
       })),
       scoreLogs,
     });

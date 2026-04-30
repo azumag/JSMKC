@@ -76,6 +76,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
           const isTaPhaseCompleted =
             event.type === "ta_phase_completed" && !!event.taPhaseCompleted;
           const isTaLivesReset = event.type === "ta_lives_reset";
+          const isTaChampion =
+            event.type === "ta_champion_decided" && !!event.taChampion;
           /* New entries slide in from the right (#646). The class is removed
              after the animation completes to keep the DOM clean. */
           const isNew = newEventIds?.has(event.id) ?? false;
@@ -96,6 +98,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
                 <TaPhaseCompletedCard event={event} now={now} />
               ) : isTaLivesReset ? (
                 <TaLivesResetCard event={event} now={now} />
+              ) : isTaChampion ? (
+                <TaChampionCard event={event} now={now} />
               ) : (
                 <CompactCard event={event} now={now} />
               )}
@@ -394,6 +398,54 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function TaChampionCard({ event, now }: { event: OverlayEvent; now: number }) {
+  if (!event.taChampion) return null;
+  const [champion, second, third] = event.taChampion.standings;
+
+  return (
+    <div
+      className={`${CARD_BASE} border-yellow-300/70 px-5 py-4`}
+      style={{ backgroundColor: "rgba(24, 18, 5, 0.9)" }}
+      data-testid="dashboard-timeline-ta-champion"
+    >
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <span className="truncate text-xl font-bold text-yellow-200">
+          Time Attack Champion
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
+      </div>
+
+      {champion && (
+        <div className="rounded border border-yellow-300/50 bg-yellow-400/15 px-3 py-3 text-center">
+          <div className="text-xs font-bold uppercase tracking-wide text-yellow-100/80">
+            Champion
+          </div>
+          <div className="line-clamp-2 break-words text-4xl font-black leading-tight text-yellow-300">
+            {champion.player}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {second && (
+          <div className="rounded bg-white/10 px-3 py-2 text-center">
+            <div className="text-xs font-bold text-white/60">2nd</div>
+            <div className="truncate text-lg font-bold text-white">{second.player}</div>
+          </div>
+        )}
+        {third && (
+          <div className="rounded bg-white/10 px-3 py-2 text-center">
+            <div className="text-xs font-bold text-white/60">3rd</div>
+            <div className="truncate text-lg font-bold text-white">{third.player}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

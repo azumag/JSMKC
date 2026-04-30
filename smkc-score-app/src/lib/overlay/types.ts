@@ -19,6 +19,7 @@ export type OverlayEventType =
   | "ta_phase_advanced"
   | "ta_phase_completed"
   | "ta_lives_reset"
+  | "ta_champion_decided"
   | "overall_ranking_updated";
 
 /**
@@ -125,6 +126,16 @@ export interface OverlayTaPhaseCompleted {
   livesReset: boolean;
 }
 
+export interface OverlayTaChampionStanding {
+  rank: 1 | 2 | 3;
+  player: string;
+}
+
+export interface OverlayTaChampion {
+  roundNumber: number;
+  standings: OverlayTaChampionStanding[];
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -141,6 +152,8 @@ export interface OverlayEvent {
   taPhaseRound?: OverlayTaPhaseRound;
   /** Populated only when `type === "ta_phase_completed"`. */
   taPhaseCompleted?: OverlayTaPhaseCompleted;
+  /** Populated only when `type === "ta_champion_decided"`. */
+  taChampion?: OverlayTaChampion;
 }
 
 /**
@@ -209,6 +222,7 @@ export interface OverlayTtPhaseRoundInput {
   livesReset?: boolean;
   participants?: OverlayTaPhaseParticipant[];
   playerNamesById?: Record<string, string>;
+  championStandings?: OverlayTaChampionStanding[];
 }
 
 export interface OverlayTournamentInput {
