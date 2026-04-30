@@ -46,6 +46,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
+import { reflectQualificationMatchBroadcast } from "@/lib/overlay/broadcast-state";
 
 /**
  * GP-specific stats recalculation config.
@@ -258,6 +259,16 @@ export async function POST(
           correctedMatch.player1Id,
           correctedMatch.player2Id,
         ]);
+        await reflectQualificationMatchBroadcast(logger, {
+          tournamentId,
+          matchId: correctedMatch.id,
+          matchNumber: correctedMatch.matchNumber,
+          stage: correctedMatch.stage,
+          player1Name: correctedMatch.player1.nickname,
+          player2Name: correctedMatch.player2.nickname,
+          score1: correctedMatch.points1,
+          score2: correctedMatch.points2,
+        });
 
         return createSuccessResponse({
           match: correctedMatch,
@@ -390,6 +401,16 @@ export async function POST(
           finalMatch.player1Id,
           finalMatch.player2Id,
         ]);
+        await reflectQualificationMatchBroadcast(logger, {
+          tournamentId,
+          matchId: finalMatch.id,
+          matchNumber: finalMatch.matchNumber,
+          stage: finalMatch.stage,
+          player1Name: finalMatch.player1.nickname,
+          player2Name: finalMatch.player2.nickname,
+          score1: finalMatch.points1,
+          score2: finalMatch.points2,
+        });
         return createSuccessResponse({ match: finalMatch, autoConfirmed: true },
           "Score confirmed (dual report disabled)");
       } catch (error) {
@@ -470,6 +491,16 @@ export async function POST(
           confirmedMatch.player1Id,
           confirmedMatch.player2Id,
         ]);
+        await reflectQualificationMatchBroadcast(logger, {
+          tournamentId,
+          matchId: confirmedMatch.id,
+          matchNumber: confirmedMatch.matchNumber,
+          stage: confirmedMatch.stage,
+          player1Name: confirmedMatch.player1.nickname,
+          player2Name: confirmedMatch.player2.nickname,
+          score1: confirmedMatch.points1,
+          score2: confirmedMatch.points2,
+        });
 
         return createSuccessResponse({
           match: confirmedMatch,
