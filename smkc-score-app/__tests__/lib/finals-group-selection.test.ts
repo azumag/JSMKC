@@ -1,13 +1,13 @@
 /**
- * Tests for finals-group-selection: per-group Top-N selection with interleaved seeding
+ * Tests for finals-group-selection: per-group Top-N selection with bracket seeding
  *
  * Spec (Issue #454):
  *   2 groups: each group Top1-6 direct, Top7-12 barrage
  *   3 groups: each group Top1-4 direct, Top5-8 barrage
  *   4 groups: each group Top1-3 direct, Top4-6 barrage
  *
- * Interleave pattern for seeds (direct seeds 1-12, playoff seeds 1-12):
- *   2 groups: A1, B1, A2, B2, A3, B3, A4, B4, A5, B5, A6, B6
+ * Seed pattern for seeds (direct seeds 1-12, playoff seeds 1-12):
+ *   2 groups: fixed CDM two-group Top-24 layout
  *   3 groups: A1, B1, C1, A2, B2, C2, A3, B3, C3, A4, B4, C4
  *   4 groups: A1, B1, C1, D1, A2, B2, C2, D2, A3, B3, C3, D3
  */
@@ -32,6 +32,8 @@ function buildQuals(groupSizes: Record<string, number>): TestQual[] {
 }
 
 describe('selectFinalsEntrantsByGroup', () => {
+  const directSeedsTopToBottom = [1, 8, 9, 5, 12, 4, 3, 6, 11, 7, 10, 2];
+
   describe('2-group case (A=14, B=13)', () => {
     const quals = buildQuals({ A: 14, B: 13 });
     const result = selectFinalsEntrantsByGroup(quals);
@@ -40,17 +42,42 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(2);
     });
 
-    it('direct[] is A1,B1,A2,B2,...,A6,B6 (12 players, interleaved)', () => {
+    it('direct[] is ordered by Upper Bracket seeds 1-12 for the handwritten layout', () => {
       expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'B1', 'A2', 'B2', 'A3', 'B3',
-        'A4', 'B4', 'A5', 'B5', 'A6', 'B6',
+        'A1', 'A6', 'B1', 'B6',
+        'B2', 'A4', 'A2', 'B4',
+        'A5', 'B3', 'B5', 'A3',
       ]);
     });
 
-    it('barrage[] is A7,B7,A8,B8,...,A12,B12 (12 players, interleaved)', () => {
+    it('direct[] renders top-to-bottom as the handwritten 2-group bracket', () => {
+      const directBySeed = new Map(result.direct.map((q, index) => [index + 1, q.playerId]));
+      expect(directSeedsTopToBottom.map(seed => directBySeed.get(seed))).toEqual([
+        'A1', 'B4', 'A5', 'B2', 'A3', 'B6',
+        'B1', 'A4', 'B5', 'A2', 'B3', 'A6',
+      ]);
+    });
+
+    it('barrage[] is ordered by playoff seeds 1-12 for the handwritten layout', () => {
       expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A7', 'B7', 'A8', 'B8', 'A9', 'B9',
-        'A10', 'B10', 'A11', 'B11', 'A12', 'B12',
+        'B8', 'B7', 'A8', 'A7',
+        'B9', 'A11', 'B10', 'A12',
+        'A10', 'B12', 'A9', 'B11',
+      ]);
+    });
+
+    it('barrage[] creates the handwritten R1-to-bye blocks with the existing playoff structure', () => {
+      const barrageBySeed = new Map(result.barrage.map((q, index) => [index + 1, q.playerId]));
+      expect([
+        [barrageBySeed.get(11), barrageBySeed.get(10), barrageBySeed.get(1)],
+        [barrageBySeed.get(7), barrageBySeed.get(6), barrageBySeed.get(4)],
+        [barrageBySeed.get(5), barrageBySeed.get(8), barrageBySeed.get(3)],
+        [barrageBySeed.get(9), barrageBySeed.get(12), barrageBySeed.get(2)],
+      ]).toEqual([
+        ['A9', 'B12', 'B8'],
+        ['B10', 'A11', 'A7'],
+        ['B9', 'A12', 'A8'],
+        ['A10', 'B11', 'B7'],
       ]);
     });
   });
@@ -112,12 +139,14 @@ describe('selectFinalsEntrantsByGroup', () => {
       const quals = buildQuals({ A: 20, B: 12 });
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'B1', 'A2', 'B2', 'A3', 'B3',
-        'A4', 'B4', 'A5', 'B5', 'A6', 'B6',
+        'A1', 'A6', 'B1', 'B6',
+        'B2', 'A4', 'A2', 'B4',
+        'A5', 'B3', 'B5', 'A3',
       ]);
       expect(result.barrage.map(q => q.playerId)).toEqual([
-        'A7', 'B7', 'A8', 'B8', 'A9', 'B9',
-        'A10', 'B10', 'A11', 'B11', 'A12', 'B12',
+        'B8', 'B7', 'A8', 'A7',
+        'B9', 'A11', 'B10', 'A12',
+        'A10', 'B12', 'A9', 'B11',
       ]);
     });
   });
@@ -163,8 +192,9 @@ describe('selectFinalsEntrantsByGroup', () => {
       }
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'B1', 'A2', 'B2', 'A3', 'B3',
-        'A4', 'B4', 'A5', 'B5', 'A6', 'B6',
+        'A1', 'A6', 'B1', 'B6',
+        'B2', 'A4', 'A2', 'B4',
+        'A5', 'B3', 'B5', 'A3',
       ]);
     });
   });

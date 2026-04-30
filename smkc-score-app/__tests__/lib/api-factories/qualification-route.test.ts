@@ -610,6 +610,30 @@ describe('Qualification Route Factory', () => {
       expect(json.error).toBe('Players array is required');
     });
 
+    it('should return 400 when a player is assigned outside groups A/B', async () => {
+      const config = createMockConfig();
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({
+          players: [
+            { playerId: 'player-1', group: 'A' },
+            { playerId: 'player-2', group: 'C' },
+          ],
+        }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Only groups A and B are currently supported');
+      expect((prisma.bMQualification as any).deleteMany).not.toHaveBeenCalled();
+      expect((prisma.bMMatch as any).deleteMany).not.toHaveBeenCalled();
+    });
+
     it('should log warning when audit log creation fails (non-critical)', async () => {
       const players = createMockPlayers();
 

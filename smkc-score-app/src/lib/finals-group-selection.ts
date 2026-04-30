@@ -1,5 +1,5 @@
 /**
- * Finals entrant selection with per-group Top-N + interleaved seeding.
+ * Finals entrant selection with per-group Top-N + bracket seeding.
  *
  * Spec (Issue #454, Top-24 → Top-16 flow):
  *   - 12 direct advancers fill Upper Bracket seeds 1-12.
@@ -9,14 +9,18 @@
  *   perGroup = 12 / G (2→6, 3→4, 4→3)
  *   Each group contributes: Top 1..perGroup direct, Top (perGroup+1)..(2*perGroup) barrage.
  *
- * Seeds are assigned by **interleaving groups round-robin**, so that strong players
- * from different groups are spread across the bracket rather than clustered. This
- * keeps group-rank-1 players (A1, B1, C1, D1) at the top of the direct bracket and
- * prevents two group-1 players from meeting in the first round.
+ * For 2 groups, placement is fixed by group-internal rank and the CDM two-group
+ * Top-24 layout. A/B are not merged into a global ranking.
+ *
+ * 3+ group ordering intentionally keeps the existing round-robin group interleave;
+ * combined-ranking rules for 3+ groups are a separate follow-up.
  *
  * Example (2 groups, A=14, B=13):
- *   direct:  A1, B1, A2, B2, A3, B3, A4, B4, A5, B5, A6, B6
- *   barrage: A7, B7, A8, B8, A9, B9, A10, B10, A11, B11, A12, B12
+ *   direct seeds 1-12:  A1, A6, B1, B6, B2, A4, A2, B4, A5, B3, B5, A3
+ *   barrage seeds 1-12: B8, B7, A8, A7, B9, A11, B10, A12, A10, B12, A9, B11
+ *
+ * In the 16-player bracket, the direct seed order above renders top-to-bottom as:
+ *   A1, B4, A5, B2, A3, B6, B1, A4, B5, A2, B3, A6
  *
  * Caller contract: `allQualifications` must already be ordered per-group by final
  * ranking (score, tiebreakers, H2H). Group bucketing preserves caller-provided order.
@@ -32,15 +36,27 @@ export interface FinalsQualInput {
 }
 
 interface FinalsGroupSelection {
-  /** 12 direct advancers, ordered for Upper Bracket seeds 1-12 (interleaved). */
+  /** 12 direct advancers, ordered for Upper Bracket seeds 1-12. */
   direct: FinalsQualInput[];
-  /** 12 barrage entrants, ordered for Playoff seeds 1-12 (interleaved). */
+  /** 12 barrage entrants, ordered for Playoff seeds 1-12. */
   barrage: FinalsQualInput[];
   /** Detected group count (2, 3, or 4). */
   groupCount: 2 | 3 | 4;
 }
 
 const TOTAL_FINALS_SLOTS = 12;
+
+const TWO_GROUP_DIRECT_SEED_TOKENS = [
+  'A1', 'A6', 'B1', 'B6',
+  'B2', 'A4', 'A2', 'B4',
+  'A5', 'B3', 'B5', 'A3',
+] as const;
+
+const TWO_GROUP_BARRAGE_SEED_TOKENS = [
+  'B8', 'B7', 'A8', 'A7',
+  'B9', 'A11', 'B10', 'A12',
+  'A10', 'B12', 'A9', 'B11',
+] as const;
 
 /**
  * Select finals direct-advancers and barrage entrants from group-based qualifications.
@@ -94,8 +110,31 @@ export function selectFinalsEntrantsByGroup(
     }
   }
 
-  /* Interleave round-robin: for slot k in [0, perGroup), take each group's k-th player.
-   *   2 groups: [A0,B0,A1,B1,...] → A1,B1,A2,B2,... (1-indexed in spec)
+  if (groupCount === 2) {
+    const bucketByPaperGroup = new Map([
+      ['A', buckets[0]],
+      ['B', buckets[1]],
+    ]);
+    const playerForToken = (token: string): FinalsQualInput => {
+      const paperGroup = token[0];
+      const rank = Number(token.slice(1));
+      const bucket = bucketByPaperGroup.get(paperGroup);
+      const player = bucket?.[rank - 1];
+      if (!player) {
+        throw new Error(`selectFinalsEntrantsByGroup: Missing player for ${token}`);
+      }
+      return player;
+    };
+
+    return {
+      direct: TWO_GROUP_DIRECT_SEED_TOKENS.map(playerForToken),
+      barrage: TWO_GROUP_BARRAGE_SEED_TOKENS.map(playerForToken),
+      groupCount: 2,
+    };
+  }
+
+  /* Interleave round-robin for 3+ groups until the combined-ranking rule lands:
+   * for slot k in [0, perGroup), take each group's k-th player.
    *   3 groups: [A0,B0,C0,A1,B1,C1,...] */
   const direct: FinalsQualInput[] = [];
   const barrage: FinalsQualInput[] = [];

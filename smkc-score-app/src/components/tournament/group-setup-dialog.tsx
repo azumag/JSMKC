@@ -13,7 +13,7 @@
  * - Player search filtering by name/nickname
  * - Select All / deselect for filtered results
  * - Seeding number input per player (for §10 qualification flow)
- * - Configurable group count (2/3/4) per §10.2
+ * - Qualification group count is temporarily locked to 2
  * - Group A-D assignment per player
  * - Auto-distribute by seeding (snake pattern per §10.2)
  * - Random group assignment button (development mode only)
@@ -46,12 +46,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   GROUPS,
-  MIN_PLAYERS_FOR_RECOMMENDATION,
   assignGroupsBySeeding,
   randomlyAssignGroups,
-  recommendGroupCount,
   type SetupPlayer,
 } from "@/lib/group-utils";
+
+const LOCKED_GROUP_COUNT = 2;
 
 /** Player data structure matching the API response */
 export interface Player {
@@ -102,7 +102,6 @@ export function GroupSetupDialog({
   onSave,
   saving = false,
   existingAssignments,
-  groupCount,
   setGroupCount,
 }: GroupSetupDialogProps) {
   /* Resolve translations internally using mode prop - avoids props drilling */
@@ -113,11 +112,10 @@ export function GroupSetupDialog({
 
   const hasExistingQualifications = existingAssignments.length > 0;
 
-  /* Available groups based on current group count selection */
-  const availableGroups = GROUPS.slice(0, groupCount);
+  /* Group count is temporarily locked to 2 while 3+ group rules are clarified. */
+  const availableGroups = GROUPS.slice(0, LOCKED_GROUP_COUNT);
 
-  /* All 2P modes (BM/MR/GP) allow 1 group; TA doesn't use this dialog */
-  const minGroups = 1;
+  const minGroups = LOCKED_GROUP_COUNT;
 
   /**
    * Handle dialog open/close with automatic state management.
@@ -127,15 +125,12 @@ export function GroupSetupDialog({
   const handleOpenChange = (open: boolean) => {
     if (open && hasExistingQualifications) {
       /* Edit mode: load existing player-group assignments into the form */
-      setSetupPlayers([...existingAssignments]);
-      /*
-       * Infer group count from existing data by finding the highest group letter.
-       * Uses GROUPS.indexOf to handle non-contiguous assignments (e.g., A,C without B).
-       */
-      const maxIdx = Math.max(
-        ...existingAssignments.map((a) => (GROUPS as readonly string[]).indexOf(a.group)),
-      );
-      setGroupCount(Math.max(maxIdx + 1, minGroups));
+      setSetupPlayers(existingAssignments.map((assignment) =>
+        (availableGroups as readonly string[]).includes(assignment.group)
+          ? assignment
+          : { ...assignment, group: availableGroups[availableGroups.length - 1] },
+      ));
+      setGroupCount(LOCKED_GROUP_COUNT);
     } else if (!open) {
       /* Close: reset all form state */
       setSetupPlayers([]);
@@ -159,7 +154,7 @@ export function GroupSetupDialog({
   /** Handle random group assignment for all selected players */
   const handleRandomAssign = () => {
     if (setupPlayers.length === 0) return;
-    setSetupPlayers(randomlyAssignGroups(setupPlayers, groupCount, minGroups));
+    setSetupPlayers(randomlyAssignGroups(setupPlayers, LOCKED_GROUP_COUNT, minGroups));
   };
 
   /**
@@ -168,24 +163,12 @@ export function GroupSetupDialog({
    */
   const handleAutoDistribute = () => {
     if (setupPlayers.length === 0 || !allHaveSeeding) return;
-    setSetupPlayers(assignGroupsBySeeding(setupPlayers, groupCount, minGroups));
+    setSetupPlayers(assignGroupsBySeeding(setupPlayers, LOCKED_GROUP_COUNT, minGroups));
   };
 
-  /**
-   * When group count decreases, remap players whose group
-   * is no longer available to the last available group.
-   */
-  const handleGroupCountChange = (newCount: number) => {
-    setGroupCount(newCount);
-    const newGroups = GROUPS.slice(0, newCount);
-    const lastGroup = newGroups[newGroups.length - 1];
-    setSetupPlayers(
-      setupPlayers.map((p) =>
-        (newGroups as readonly string[]).includes(p.group)
-          ? p
-          : { ...p, group: lastGroup },
-      ),
-    );
+  /** Keep the parent state pinned to the temporary two-group-only mode. */
+  const handleGroupCountChange = () => {
+    setGroupCount(LOCKED_GROUP_COUNT);
   };
 
   /* Filter players by search query (name or nickname) */
@@ -330,26 +313,20 @@ export function GroupSetupDialog({
                   {tc("selectedPlayers", { count: setupPlayers.length })}
                 </h4>
                 <div className="flex-1" />
-                {/* Group count selector with auto-recommendation per §4.1 */}
+                {/* Group count is temporarily fixed to 2 while 3+ group rules are deferred. */}
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">{tc("groupCount")}:</span>
-                  {[...new Set([minGroups, 2, 3, 4])].map((n) => (
+                  {[LOCKED_GROUP_COUNT].map((n) => (
                     <Button
                       key={n}
-                      variant={groupCount === n ? "default" : "outline"}
+                      variant="default"
                       size="sm"
                       className="h-7 w-7 p-0 text-xs"
-                      onClick={() => handleGroupCountChange(n)}
+                      onClick={handleGroupCountChange}
                     >
                       {n}
                     </Button>
                   ))}
-                  {/* Show recommendation when enough players are selected */}
-                  {setupPlayers.length >= MIN_PLAYERS_FOR_RECOMMENDATION && (
-                    <span className="text-xs text-muted-foreground ml-1">
-                      ({tc("recommendedGroups", { count: recommendGroupCount(setupPlayers.length) })})
-                    </span>
-                  )}
                 </div>
               </div>
               {/* Action buttons row */}

@@ -1096,7 +1096,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
       }
 
-      /* Per-group Top-N selection with interleaved seed assignment (#454).
+      /* Per-group Top-N selection with bracket seed assignment (#454).
+       * For 2 groups, finals-group-selection applies the handwritten CDM
+       * two-group layout instead of merging A/B into one qualification table.
        * Phase 1 and Phase 2 both re-derive the split; this relies on qualifications
        * being frozen between the two calls. If scores are edited after Phase 1
        * creates playoff rows, the Phase-2 direct/barrage computation can diverge
@@ -1146,7 +1148,8 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createBmRoundStartingCourses(playoffStructure)
           : undefined;
 
-        /* Playoff-local seeds 1-12 are the barrage entrants, interleaved by group. */
+        /* Playoff-local seeds 1-12 are the barrage entrants. For 2 groups,
+         * their seed order creates the handwritten A/B barrage blocks. */
         const playoffSeededPlayers = selection.barrage.map((q, index) => ({
           seed: index + 1,
           playerId: q.playerId,
@@ -1253,7 +1256,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
       }
 
       /* Build the 16 seeded players: 1-12 from per-group direct advancers
-       * (interleaved by group rank, #454), 13-16 from playoff winners. */
+       * (2 groups: fixed CDM paper layout), 13-16 from playoff winners. */
       const directPlayers = selection.direct.map((q, index) => ({
         seed: index + 1,
         playerId: q.playerId,
