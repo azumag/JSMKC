@@ -15,7 +15,7 @@
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-719  GP tied cup extends non-grand-final bracket match
- *   TC-831  GP finals added cup form can be removed
+ *   TC-831  GP finals added cup form can be removed without stale scores
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -1217,13 +1217,16 @@ async function runTc832(adminPage) {
   }
 }
 
-/* ───────── TC-831: GP finals added cup form can be removed ───────── */
+/* ───────── TC-831: GP finals added cup form can be removed without stale scores ───────── */
 async function runTc831(adminPage) {
   let setup = null;
   try {
     setup = await prepareSharedGpFinalsSetup(adminPage);
     const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+    const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
 
     await nav(adminPage, `/tournaments/${setup.tournamentId}/gp/finals`);
     const m1Card = adminPage.getByRole('button', { name: /Match 1:/ }).first();
@@ -1233,21 +1236,58 @@ async function runTc831(adminPage) {
     const dialog = adminPage.getByRole('dialog');
     await dialog.getByText('Cup 1', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
     const firstCupRemoveHidden = await dialog.getByRole('button', { name: 'Remove Cup 1' }).count() === 0;
+    const cup1 = dialog.getByTestId('gp-finals-cup-form-0');
+    await cup1.getByRole('checkbox').check();
+    await cup1.getByTestId('gp-finals-cup-0-manual-p1').fill('45');
+    await cup1.getByTestId('gp-finals-cup-0-manual-p2').fill('0');
 
     await dialog.getByRole('button', { name: 'Add Cup' }).click();
     await dialog.getByText('Cup 2', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
     const removeCup2 = dialog.getByRole('button', { name: 'Remove Cup 2' });
     const addedCupRemovable = await removeCup2.count() === 1;
+    const staleCup2 = dialog.getByTestId('gp-finals-cup-form-1');
+    await staleCup2.getByRole('checkbox').check();
+    await staleCup2.getByTestId('gp-finals-cup-1-manual-p1').fill('45');
+    await staleCup2.getByTestId('gp-finals-cup-1-manual-p2').fill('0');
 
     await removeCup2.click();
     const secondCupRemoved = await dialog.getByText('Cup 2', { exact: true }).count() === 0;
     const firstCupStillVisible = await dialog.getByText('Cup 1', { exact: true }).count() === 1;
 
-    log('TC-831', firstCupRemoveHidden && addedCupRemovable && secondCupRemoved && firstCupStillVisible ? 'PASS' : 'FAIL',
+    await dialog.getByRole('button', { name: 'Add Cup' }).click();
+    const freshCup2 = dialog.getByTestId('gp-finals-cup-form-1');
+    await freshCup2.waitFor({ state: 'visible', timeout: 5000 });
+    await freshCup2.getByRole('checkbox').check();
+    await freshCup2.getByTestId('gp-finals-cup-1-manual-p1').fill('0');
+    await freshCup2.getByTestId('gp-finals-cup-1-manual-p2').fill('45');
+
+    const saveScore = dialog.getByRole('button', { name: /^(Save Score|スコア保存)$/ });
+    const [saveResponse] = await Promise.all([
+      adminPage.waitForResponse((response) =>
+        response.url().includes(`/api/tournaments/${setup.tournamentId}/gp/finals`) &&
+        response.request().method() === 'PUT'),
+      saveScore.click(),
+    ]);
+    const saved = saveResponse.ok();
+
+    const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1After = after.find((m) => m.id === m1.id);
+    const cupResultsSynced = Array.isArray(m1After?.cupResults) &&
+      m1After.cupResults.length === 2 &&
+      m1After.cupResults[0].points1 === 45 &&
+      m1After.cupResults[0].points2 === 0 &&
+      m1After.cupResults[1].points1 === 0 &&
+      m1After.cupResults[1].points2 === 45 &&
+      m1After.points1 === 1 &&
+      m1After.points2 === 1;
+
+    log('TC-831', firstCupRemoveHidden && addedCupRemovable && secondCupRemoved && firstCupStillVisible && saved && cupResultsSynced ? 'PASS' : 'FAIL',
       !firstCupRemoveHidden ? 'Cup 1 remove button is visible'
       : !addedCupRemovable ? 'Cup 2 remove button missing'
       : !secondCupRemoved ? 'Cup 2 still visible after removal'
       : !firstCupStillVisible ? 'Cup 1 missing after removing Cup 2'
+      : !saved ? `save failed status=${saveResponse.status()}`
+      : !cupResultsSynced ? `stale cup scores persisted score=${m1After?.points1}-${m1After?.points2} cups=${JSON.stringify(m1After?.cupResults ?? null)}`
       : '');
   } catch (err) {
     log('TC-831', 'FAIL', err instanceof Error ? err.message : 'GP 831 failed');
