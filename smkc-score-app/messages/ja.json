@@ -28,6 +28,7 @@
     "group": "グループ",
     "score": "スコア",
     "points": "ポイント",
+    "qualificationPointsShort": "予選点",
     "selectPlayer": "プレイヤー選択",
     "choosePlayer": "プレイヤーを選択...",
     "noPlayersSelected": "プレイヤーが選択されていません",

@@ -28,6 +28,7 @@
     "group": "Group",
     "score": "Score",
     "points": "Points",
+    "qualificationPointsShort": "Qual Pts",
     "selectPlayer": "Select Player",
     "choosePlayer": "Choose player...",
     "noPlayersSelected": "No players selected yet",

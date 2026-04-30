@@ -16,6 +16,7 @@
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
+ *   TC-723  GP qualification standings show 0-1000 qualification points
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -37,6 +38,7 @@ const {
   loginPlayerBrowser,
   setupGpQualViaUi,
   resolveAllTies,
+  assertQualificationPointsColumn,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -136,13 +138,16 @@ async function runTc701(adminPage) {
     const matchesOk = matches.length === 182;
     const allCompleted = matches.every((m) => m.completed);
     const standingsOk = (data.qualifications || []).length >= 28;
+    const qualificationPoints = await assertQualificationPointsColumn(adminPage, 'gp', setup.tournamentId);
+    const qualificationPointsOk = qualificationPoints.length >= 28;
 
-    const ok = groupedOk && matchesOk && allCompleted && standingsOk;
+    const ok = groupedOk && matchesOk && allCompleted && standingsOk && qualificationPointsOk;
     log('TC-701', ok ? 'PASS' : 'FAIL',
       !groupedOk ? `groups: A=${groupCounts.A} B=${groupCounts.B}`
       : !matchesOk ? `matches=${matches.length} expected=182`
       : !allCompleted ? `not all completed`
       : !standingsOk ? `standings count=${(data.qualifications || []).length}`
+      : !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
       : '');
   } catch (err) {
     log('TC-701', 'FAIL', err instanceof Error ? err.message : 'GP 701 failed');

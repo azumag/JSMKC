@@ -2154,6 +2154,60 @@ async function apiPutAllGpQualScores(page, tournamentId, opts = {}) {
   }
 }
 
+async function assertQualificationPointsColumn(page, mode, tournamentId) {
+  await nav(page, `/tournaments/${tournamentId}/${mode}`);
+  await page.locator('main').waitFor({ timeout: 15000 });
+
+  const column = await page.locator('table').evaluateAll((tables) => {
+    const headerMatches = (text) => text === '予選点' || text === 'Qual Pts';
+    const values = [];
+    let matchedHeaders = null;
+
+    for (const table of tables) {
+      const style = window.getComputedStyle(table);
+      const isVisible = table.offsetParent !== null &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden';
+      if (!isVisible) continue;
+
+      const headers = Array.from(table.querySelectorAll('thead th'))
+        .map((th) => (th.textContent || '').trim());
+      const columnIndex = headers.findIndex(headerMatches);
+      if (columnIndex === -1) continue;
+      matchedHeaders = headers;
+
+      values.push(...Array.from(table.querySelectorAll('tbody tr'))
+        .map((row) => {
+          const cell = row.querySelectorAll('td')[columnIndex];
+          return (cell?.textContent || '').trim();
+        })
+        .filter(Boolean)
+        .map((value) => Number(value)));
+    }
+
+    return matchedHeaders ? { headers: matchedHeaders, values } : null;
+  });
+
+  if (!column) {
+    throw new Error(`${mode.toUpperCase()} qualification points column not found`);
+  }
+  if (column.values.length === 0) {
+    throw new Error(`${mode.toUpperCase()} qualification points column has no row values`);
+  }
+
+  const invalid = column.values.filter((value) =>
+    !Number.isInteger(value) || value < 0 || value > 1000
+  );
+  if (invalid.length > 0) {
+    throw new Error(`${mode.toUpperCase()} qualification points out of range: ${invalid.join(', ')}`);
+  }
+  if (!column.values.some((value) => value > 0)) {
+    throw new Error(`${mode.toUpperCase()} qualification points are all zero after score entry`);
+  }
+
+  return column.values;
+}
+
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
@@ -2510,6 +2564,7 @@ module.exports = {
   /* retry */
   withRetry,
   matchUpdateUsesLeanPayload,
+  assertQualificationPointsColumn,
   /* BM */
   apiSetupBmGroup,
   apiFetchBm,

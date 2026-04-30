@@ -78,10 +78,15 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
+import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
 import type { Player } from "@/lib/types";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-bm' });
+
+function getQualificationPoints(q: Pick<BMQualification, "mp" | "score">): number {
+  return normalizePoints(q.score, calculateMaxMatchPoints(q.mp));
+}
 
 /** BM Qualification record with player stats and group assignment */
 interface BMQualification {
@@ -663,6 +668,7 @@ export default function BattleModePageClient({
                                 <TableHead className="text-center">{t('l')}</TableHead>
                                 <TableHead className="text-center">{t('plusMinus')}</TableHead>
                                 <TableHead className="text-center">{t('pts')}</TableHead>
+                                <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -693,6 +699,9 @@ export default function BattleModePageClient({
                                   </TableCell>
                                   <TableCell className="text-center font-bold">
                                     {q.score}
+                                  </TableCell>
+                                  <TableCell className="text-center font-bold">
+                                    {getQualificationPoints(q)}
                                   </TableCell>
                                 </TableRow>
                               ))}
