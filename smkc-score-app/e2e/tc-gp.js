@@ -1177,6 +1177,43 @@ async function runTc720(adminPage) {
   }
 }
 
+/* ───────── TC-832: GP finals rejects excessive cupResults ───────── */
+async function runTc832(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = matches.find((m) => m.matchNumber === 1);
+    if (!m1) throw new Error('Match 1 missing');
+
+    const cupResults = Array.from({ length: 21 }, (_, index) =>
+      gpCupResult(['Mushroom', 'Flower', 'Star', 'Special'][index % 4], 45, 0));
+    const excessive = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, cupResults);
+    const rejected = excessive.s === 400 &&
+      typeof excessive.b?.error === 'string' &&
+      excessive.b.error.includes('cupResults must not exceed 20 entries');
+
+    const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1After = after.find((m) => m.id === m1.id);
+    const unchanged = m1After?.completed === false &&
+      m1After?.points1 === 0 &&
+      m1After?.points2 === 0 &&
+      (!Array.isArray(m1After?.cupResults) || m1After.cupResults.length === 0);
+
+    log('TC-832', rejected && unchanged ? 'PASS' : 'FAIL',
+      !rejected ? `excessive cupResults accepted/status=${excessive.s} error=${excessive.b?.error ?? ''}`
+      : !unchanged ? `match mutated completed=${m1After?.completed} score=${m1After?.points1}-${m1After?.points2} cups=${m1After?.cupResults?.length ?? 0}`
+      : '');
+  } catch (err) {
+    log('TC-832', 'FAIL', err instanceof Error ? err.message : 'GP 832 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
 /* ───────── TC-721: GP finals tied cups extend to additional cups ───────── */
 async function runTc721(adminPage) {
   let setup = null;
@@ -1319,6 +1356,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-712', fn: runTc712 },
       { name: 'TC-719', fn: runTc719 },
       { name: 'TC-720', fn: runTc720 },
+      { name: 'TC-832', fn: runTc832 },
       { name: 'TC-721', fn: runTc721 },
       { name: 'TC-722', fn: runTc722 },
       { name: 'TC-713', fn: runTc713 },
@@ -1331,7 +1369,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc719,
-  runTc720, runTc721, runTc722, runTc821,
+  runTc720, runTc721, runTc722, runTc821, runTc832,
   getSuite,
   results,
 };
