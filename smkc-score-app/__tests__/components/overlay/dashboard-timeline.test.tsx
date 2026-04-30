@@ -314,4 +314,67 @@ describe("DashboardTimeline TA phase completed card", () => {
     expect(results).toHaveTextContent("Bob / Eliminated");
     expect(results).toHaveTextContent("1:22.34 Retry");
   });
+
+  it("uses a compact two-column result list while phase3 has more than 12 players", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taPhaseCompletedEvent({
+            taPhaseCompleted: {
+              phase: "phase3",
+              phaseLabel: "Phase 3",
+              roundNumber: 4,
+              course: "KB1",
+              courseName: "Koopa Beach 1",
+              results: Array.from({ length: 13 }, (_, i) => ({
+                player: `Player ${i + 1}`,
+                timeFormatted: `1:${String(10 + i).padStart(2, "0")}.00`,
+                isRetry: false,
+                eliminated: i === 12,
+              })),
+              eliminatedPlayers: ["Player 13"],
+              livesReset: false,
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    const results = screen.getByTestId("dashboard-timeline-ta-phase-results");
+    expect(results).toHaveClass("grid-cols-2");
+    expect(results).toHaveTextContent("Player 13 / Eliminated");
+    expect(results).toHaveTextContent("1:22.00");
+  });
+
+  it("keeps phase3 result list in one column once 12 or fewer players remain", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taPhaseCompletedEvent({
+            taPhaseCompleted: {
+              phase: "phase3",
+              phaseLabel: "Phase 3",
+              roundNumber: 5,
+              course: "KB1",
+              courseName: "Koopa Beach 1",
+              results: Array.from({ length: 12 }, (_, i) => ({
+                player: `Player ${i + 1}`,
+                timeFormatted: `1:${String(10 + i).padStart(2, "0")}.00`,
+                isRetry: false,
+                eliminated: false,
+              })),
+              eliminatedPlayers: [],
+              livesReset: false,
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    expect(screen.getByTestId("dashboard-timeline-ta-phase-results")).toHaveClass(
+      "grid-cols-1",
+    );
+  });
 });

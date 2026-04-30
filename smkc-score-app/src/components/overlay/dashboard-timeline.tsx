@@ -399,6 +399,7 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
   if (!event.taPhaseCompleted) return null;
   const r = event.taPhaseCompleted;
   const phaseLabel = r.phaseLabel ?? r.phase;
+  const denseResults = r.phase === "phase3" && r.results.length > 12;
 
   return (
     <div
@@ -427,23 +428,34 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-1.5" data-testid="dashboard-timeline-ta-phase-results">
+      <div
+        className={`grid ${denseResults ? "grid-cols-2 gap-1" : "grid-cols-1 gap-1.5"}`}
+        data-testid="dashboard-timeline-ta-phase-results"
+      >
         {r.results.map((result, index) => (
           <div
             key={`${result.player}:${result.timeFormatted}:${index}`}
-            className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
+            className={`flex items-center justify-between rounded ${
+              denseResults ? "gap-1 px-1.5 py-0.5" : "gap-2 px-2 py-1"
+            } ${
               result.eliminated ? "bg-red-400/10" : "bg-white/10"
             }`}
           >
             <span
-              className={`line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold leading-tight ${
+              className={`line-clamp-2 min-w-0 flex-1 break-words font-semibold leading-tight ${
+                denseResults ? "text-sm" : "text-base"
+              } ${
                 result.eliminated ? "text-red-200" : "text-white"
               }`}
             >
               {result.player}
               {result.eliminated ? " / Eliminated" : ""}
             </span>
-            <span className="shrink-0 text-xl font-bold tabular-nums text-yellow-400">
+            <span
+              className={`shrink-0 font-bold tabular-nums text-yellow-400 ${
+                denseResults ? "text-base" : "text-xl"
+              }`}
+            >
               {result.timeFormatted}
               {result.isRetry ? " Retry" : ""}
             </span>
