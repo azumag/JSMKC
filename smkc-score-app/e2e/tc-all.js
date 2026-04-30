@@ -453,16 +453,24 @@ async function main() {
       await nav(page, `/tournaments/${tc823TournamentId}/bm`);
       await page.waitForTimeout(3000);
 
-      const waitForTabBadge = async (href, shouldExist) => {
-        await page.waitForFunction(
-          ({ href: tabHref, shouldExist: expected }) => {
-            const tab = document.querySelector(`a[href="${tabHref}"]`);
-            const hasBadge = !!tab?.querySelector('.flag-draft');
-            return expected ? hasBadge : !hasBadge;
-          },
-          { href, shouldExist },
-          { timeout: 10000 },
-        ).catch(() => {});
+      const waitForTabBadge = async (href, shouldExist, label) => {
+        try {
+          await page.waitForFunction(
+            ({ href: tabHref, shouldExist: expected }) => {
+              const tab = document.querySelector(`a[href="${tabHref}"]`);
+              const hasBadge = !!tab?.querySelector('.flag-draft');
+              return expected ? hasBadge : !hasBadge;
+            },
+            { href, shouldExist },
+            { timeout: 10000 },
+          );
+          return true;
+        } catch (err) {
+          const action = shouldExist ? 'appear' : 'disappear';
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[TC-823] Timed out waiting for ${label} badge to ${action}: ${message}`);
+          return false;
+        }
       };
 
       // BM tab link has exact href; the hidden badge lives inside it as a flag-draft Badge.
@@ -484,32 +492,33 @@ async function main() {
       if (switchExists) {
         // Toggle to published
         await publishSwitch.click();
-        await waitForTabBadge(bmTabHref, false);
+        await waitForTabBadge(bmTabHref, false, 'BM tab');
         hasBadgeAfterPublish = await bmTabBadge.count() > 0;
 
         // Toggle back to unpublished
         await publishSwitch.click();
-        await waitForTabBadge(bmTabHref, true);
+        await waitForTabBadge(bmTabHref, true, 'BM tab');
         hasBadgeAfterUnpublish = await bmTabBadge.count() > 0;
       }
 
       await nav(page, `/tournaments/${tc823TournamentId}/overall-ranking`);
       const overallTabHref = `/tournaments/${tc823TournamentId}/overall-ranking`;
       const overallTabBadge = page.locator(`a[href="${overallTabHref}"] .flag-draft`);
-      const hasOverallBadgeBefore = await overallTabBadge.count() > 0;
       const overallSwitch = page.getByRole('switch', { name: /総合|Overall/i }).first();
       await overallSwitch.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
       const overallSwitchExists = await overallSwitch.count() > 0;
+      await waitForTabBadge(overallTabHref, true, 'overall tab initial');
+      const hasOverallBadgeBefore = await overallTabBadge.count() > 0;
 
       let hasOverallBadgeAfterPublish = true;
       let hasOverallBadgeAfterUnpublish = false;
       if (overallSwitchExists) {
         await overallSwitch.click();
-        await waitForTabBadge(overallTabHref, false);
+        await waitForTabBadge(overallTabHref, false, 'overall tab');
         hasOverallBadgeAfterPublish = await overallTabBadge.count() > 0;
 
         await overallSwitch.click();
-        await waitForTabBadge(overallTabHref, true);
+        await waitForTabBadge(overallTabHref, true, 'overall tab');
         hasOverallBadgeAfterUnpublish = await overallTabBadge.count() > 0;
       }
 
