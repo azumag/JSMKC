@@ -267,3 +267,61 @@ export async function recalculateRanks(
     }
   }
 }
+
+/**
+ * Re-rank an existing stage after deleting an entry.
+ *
+ * Deletion does not change any remaining player's times or qualification
+ * course scores, so the full recalculateRanks pipeline is unnecessary. This
+ * keeps the delete path to a single D1 statement instead of repeatedly
+ * rewriting every calculated field in small parameter-limited batches.
+ */
+export async function rerankStageAfterDelete(
+  tournamentId: string,
+  stage: string = "qualification",
+  prisma: PrismaClient
+): Promise<void> {
+  if (stage === "revival_1" || stage === "revival_2") {
+    await prisma.$executeRaw`
+      WITH ranked AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (ORDER BY totalTime ASC, id ASC) AS newRank
+        FROM TTEntry
+        WHERE tournamentId = ${tournamentId}
+          AND stage = ${stage}
+          AND totalTime IS NOT NULL
+      )
+      UPDATE TTEntry
+      SET rank = (
+        SELECT newRank FROM ranked WHERE ranked.id = TTEntry.id
+      )
+      WHERE tournamentId = ${tournamentId}
+        AND stage = ${stage}
+    `;
+    return;
+  }
+
+  await prisma.$executeRaw`
+    WITH ranked AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          ORDER BY
+            COALESCE(qualificationPoints, 0) DESC,
+            totalTime IS NULL ASC,
+            totalTime ASC,
+            id ASC
+        ) AS newRank
+      FROM TTEntry
+      WHERE tournamentId = ${tournamentId}
+        AND stage = ${stage}
+    )
+    UPDATE TTEntry
+    SET rank = (
+      SELECT newRank FROM ranked WHERE ranked.id = TTEntry.id
+    )
+    WHERE tournamentId = ${tournamentId}
+      AND stage = ${stage}
+  `;
+}

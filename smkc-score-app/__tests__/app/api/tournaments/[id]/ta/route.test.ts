@@ -65,6 +65,7 @@ jest.mock('@/lib/audit-log', () => ({
 // Mock rank-calculation
 jest.mock('@/lib/ta/rank-calculation', () => ({
   recalculateRanks: jest.fn(() => Promise.resolve()),
+  rerankStageAfterDelete: jest.fn(() => Promise.resolve()),
 }));
 
 // Mock time-utils: preserve real Zod schemas (TimeStringSchema, TimesObjectSchema)
@@ -139,6 +140,11 @@ const rateLimitMock = jest.requireMock('@/lib/rate-limit') as {
 
 const loggerMock = jest.requireMock('@/lib/logger') as {
   createLogger: jest.Mock;
+};
+
+const rankCalculationMock = jest.requireMock('@/lib/ta/rank-calculation') as {
+  recalculateRanks: jest.Mock;
+  rerankStageAfterDelete: jest.Mock;
 };
 
 // Valid CUIDs for tests — the TA route uses z.string().cuid() for validation
@@ -916,6 +922,12 @@ describe('/api/tournaments/[id]/ta', () => {
           message: 'Entry deleted successfully',
         },
       });
+      expect(rankCalculationMock.rerankStageAfterDelete).toHaveBeenCalledWith(
+        VALID_UUID,
+        'qualification',
+        prisma,
+      );
+      expect(rankCalculationMock.recalculateRanks).not.toHaveBeenCalled();
     });
 
     it('should return 403 without admin auth (null session)', async () => {
