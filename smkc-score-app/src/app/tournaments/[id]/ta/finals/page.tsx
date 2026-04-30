@@ -85,6 +85,7 @@ import {
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
 } from "@/lib/ta/time-entry-layout";
+import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import { createLogger } from "@/lib/client-logger";
@@ -178,6 +179,7 @@ export default function TimeAttackFinals({
   // Available courses for the next round (received from GET response).
   // Used to populate the manual course selector dropdown.
   const [availableCourses, setAvailableCourses] = useState<string[]>([]);
+  const [playedCourses, setPlayedCourses] = useState<string[]>([]);
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
   const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
@@ -250,6 +252,7 @@ export default function TimeAttackFinals({
       setEntries(fetchedEntries);
       setRounds(fetchedRounds);
       setAvailableCourses(data.availableCourses || []);
+      setPlayedCourses(data.playedCourses || []);
 
       // Build player name map from entries
       const nameMap: Record<string, string> = {};
@@ -732,6 +735,7 @@ export default function TimeAttackFinals({
   const completedRoundsCount = rounds.filter(
     (r) => (r.results as unknown[]).length > 0
   ).length;
+  const courseCycleStatus = getCourseCycleStatus(playedCourses);
 
   // Life reset notification: show when lives were just reset
   const lastCompletedRound = [...rounds]
@@ -1133,6 +1137,30 @@ export default function TimeAttackFinals({
                       {completedRoundsCount}
                     </span>
                   </div>
+                </div>
+                <div className="border border-foreground/15 bg-muted/30 p-3 text-sm space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">{tTaFinals('courseCycleLabel')}</span>
+                    <span className="font-mono tabular-nums text-right">
+                      {tTaFinals('courseCycleValue', {
+                        cycle: courseCycleStatus.cycleNumber,
+                        played: courseCycleStatus.playedInCycle,
+                        total: courseCycleStatus.totalCourses,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">{tTaFinals('availableCoursesLabel')}</span>
+                    <span className="font-mono tabular-nums text-right">
+                      {tTaFinals('availableCoursesValue', {
+                        count: availableCourses.length,
+                        total: courseCycleStatus.totalCourses,
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tTaFinals('courseCycleHint', { totalPlayed: courseCycleStatus.totalPlayed })}
+                  </p>
                 </div>
                 {/* Admin manual course override: selects a specific course instead of random.
                     Available courses come from the server-calculated 20-course cycle pool.

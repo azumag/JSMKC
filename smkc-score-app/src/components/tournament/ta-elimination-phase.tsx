@@ -68,6 +68,7 @@ import {
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
 } from "@/lib/ta/time-entry-layout";
+import { getCourseCycleStatus } from "@/lib/ta/course-cycle-status";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { Dice5 } from "lucide-react";
 import type { Player } from "@/lib/types";
@@ -148,6 +149,7 @@ export default function TAEliminationPhase({
   // Available courses for the next round (received from GET response).
   // Used to populate the manual course selector dropdown.
   const [availableCourses, setAvailableCourses] = useState<string[]>([]);
+  const [playedCourses, setPlayedCourses] = useState<string[]>([]);
   // Admin-selected course override. "__random__" = use random selection (default).
   // Cannot use "" because Radix UI Select reserves empty string for "no selection" (placeholder).
   const [selectedCourse, setSelectedCourse] = useState<string>("__random__");
@@ -223,6 +225,7 @@ export default function TAEliminationPhase({
       setEntries(fetchedEntries);
       setRounds(fetchedRounds);
       setAvailableCourses(data.availableCourses || []);
+      setPlayedCourses(data.playedCourses || []);
 
       // Build player name map from entries for round history display
       const nameMap: Record<string, string> = {};
@@ -682,6 +685,7 @@ export default function TAEliminationPhase({
   const completedRoundsCount = rounds.filter(
     (r) => (r.results).length > 0
   ).length;
+  const courseCycleStatus = getCourseCycleStatus(playedCourses);
 
   // === Loading State ===
   if (loading) {
@@ -1057,6 +1061,30 @@ export default function TAEliminationPhase({
                     <span>{tElim('roundsCompletedLabel')}</span>
                     <span className="font-bold">{completedRoundsCount}</span>
                   </div>
+                </div>
+                <div className="border border-foreground/15 bg-muted/30 p-3 text-sm space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">{tElim('courseCycleLabel')}</span>
+                    <span className="font-mono tabular-nums text-right">
+                      {tElim('courseCycleValue', {
+                        cycle: courseCycleStatus.cycleNumber,
+                        played: courseCycleStatus.playedInCycle,
+                        total: courseCycleStatus.totalCourses,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">{tElim('availableCoursesLabel')}</span>
+                    <span className="font-mono tabular-nums text-right">
+                      {tElim('availableCoursesValue', {
+                        count: availableCourses.length,
+                        total: courseCycleStatus.totalCourses,
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tElim('courseCycleHint', { totalPlayed: courseCycleStatus.totalPlayed })}
+                  </p>
                 </div>
                 {/* Admin manual course override: selects a specific course instead of random.
                     Available courses come from the server-calculated 20-course cycle pool.
