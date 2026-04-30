@@ -276,7 +276,7 @@ export async function recalculateRanks(
  */
 export async function rerankStageAfterDelete(
   tournamentId: string,
-  stage: string = "qualification",
+  stage: string,
   prisma: PrismaClient
 ): Promise<void> {
   if (stage === "revival_1" || stage === "revival_2") {
