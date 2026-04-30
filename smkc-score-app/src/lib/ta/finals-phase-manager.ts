@@ -802,6 +802,14 @@ type PhaseCountRow = {
   eliminated: boolean;
   _count: { _all: number };
 };
+type PhaseGroupBy = (args: {
+  by: ["stage", "eliminated"];
+  where: {
+    tournamentId: string;
+    stage: { in: PhaseStage[] };
+  };
+  _count: { _all: true };
+}) => Promise<PhaseCountRow[]>;
 
 /**
  * Get the current phase status for a tournament.
@@ -831,7 +839,7 @@ export async function getPhaseStatus(
    */
   const phaseStages: PhaseStage[] = ["phase1", "phase2", "phase3"];
   const ttEntry = prisma.tTEntry as typeof prisma.tTEntry & {
-    groupBy?: typeof prisma.tTEntry.groupBy;
+    groupBy?: PhaseGroupBy;
     findFirst?: typeof prisma.tTEntry.findFirst;
   };
   let fallbackPhase3Winner: string | null = null;
