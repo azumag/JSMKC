@@ -26,6 +26,7 @@
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
  *   TC-913  TA time input title/placeholder are localized.
+ *   TC-926  TA TypeScript E2E helpers resolve from CommonJS at runtime.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -1504,6 +1505,25 @@ async function runTc816(adminPage) {
   }
 }
 
+async function runTc926() {
+  try {
+    const layoutHelperPath = require.resolve('./lib/layout-assertions');
+    const phaseHelperPath = require.resolve('./lib/ta-phase-assertions');
+    const layoutHelpers = require('./lib/layout-assertions');
+    const phaseHelpers = require('./lib/ta-phase-assertions');
+
+    const ok = layoutHelperPath.endsWith('layout-assertions.ts') &&
+      phaseHelperPath.endsWith('ta-phase-assertions.ts') &&
+      typeof layoutHelpers.assertStackedCardBoxes === 'function' &&
+      typeof phaseHelpers.assertTaPhaseSubmitAccepted === 'function';
+
+    log('TC-926', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `layout=${layoutHelperPath} phase=${phaseHelperPath}`);
+  } catch (err) {
+    log('TC-926', 'FAIL', err instanceof Error ? err.message : 'TA TypeScript helper runtime require failed');
+  }
+}
+
 /* See tc-bm.js::getSuite for the shared-fixture composition contract. TA has
  * an additional qualification seed step that must run inside beforeAll
  * regardless of whether the fixture is external, since TC-801 reads the
@@ -1571,6 +1591,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-814', fn: runTc814 },
       { name: 'TC-815', fn: runTc815 },
       { name: 'TC-816', fn: runTc816 },
+      { name: 'TC-926', fn: runTc926 },
     ],
   };
 }
@@ -1578,7 +1599,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc815, runTc816,
+  runTc812, runTc813, runTc814, runTc815, runTc816, runTc926,
   getSuite,
   results,
 };
