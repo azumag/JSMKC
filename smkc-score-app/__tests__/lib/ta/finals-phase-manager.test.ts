@@ -27,7 +27,9 @@ import { createLogger } from "@/lib/logger";
 const mockPrismaClient = {
   tTEntry: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
+    groupBy: jest.fn(),
     create: jest.fn(),
     createMany: jest.fn(),
     update: jest.fn(),
@@ -297,18 +299,21 @@ describe("TA Finals Phase Manager", () => {
 
   describe("getPhaseStatus", () => {
     it("should return current phase status", async () => {
-      mockPrismaClient.tTEntry.findMany.mockImplementation(({ where }) => {
-        if (where.stage === "phase1") {
-          return Promise.resolve([
-            { playerId: "p1", eliminated: false, player: { nickname: "Player1" } },
-            { playerId: "p2", eliminated: true, player: { nickname: "Player2" } },
-          ]);
-        }
-        return Promise.resolve([]);
-      });
+      mockPrismaClient.tTEntry.groupBy.mockResolvedValue([
+        { stage: "phase1", eliminated: false, _count: { _all: 1 } },
+        { stage: "phase1", eliminated: true, _count: { _all: 1 } },
+      ]);
 
       const status = await getPhaseStatus(mockPrismaClient as any, "t1");
 
+      expect(mockPrismaClient.tTEntry.groupBy).toHaveBeenCalledWith({
+        by: ["stage", "eliminated"],
+        where: {
+          tournamentId: "t1",
+          stage: { in: ["phase1", "phase2", "phase3"] },
+        },
+        _count: { _all: true },
+      });
       expect(status.phase1).toEqual({
         total: 2,
         active: 1,
@@ -318,18 +323,20 @@ describe("TA Finals Phase Manager", () => {
     });
 
     it("should identify winner in phase3", async () => {
-      mockPrismaClient.tTEntry.findMany.mockImplementation(({ where }) => {
-        if (where.stage === "phase3") {
-          return Promise.resolve([
-            { playerId: "p1", eliminated: false, player: { nickname: "Winner" } },
-            { playerId: "p2", eliminated: true, player: { nickname: "Loser" } },
-          ]);
-        }
-        return Promise.resolve([]);
+      mockPrismaClient.tTEntry.groupBy.mockResolvedValue([
+        { stage: "phase3", eliminated: false, _count: { _all: 1 } },
+        { stage: "phase3", eliminated: true, _count: { _all: 1 } },
+      ]);
+      mockPrismaClient.tTEntry.findFirst.mockResolvedValue({
+        player: { nickname: "Winner" },
       });
 
       const status = await getPhaseStatus(mockPrismaClient as any, "t1");
 
+      expect(mockPrismaClient.tTEntry.findFirst).toHaveBeenCalledWith({
+        where: { tournamentId: "t1", stage: "phase3", eliminated: false },
+        select: { player: { select: { nickname: true } } },
+      });
       expect(status.phase3).toEqual({
         total: 2,
         active: 1,
