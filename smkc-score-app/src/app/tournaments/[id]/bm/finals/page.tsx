@@ -959,8 +959,8 @@ export default function BattleModeFinals({
                         player2NoCamera: selectedMatch.player2.noCamera === true,
                         /* Include score and round info (#645, #649) */
                         matchLabel,
-                        player1Wins: selectedMatch.score1,
-                        player2Wins: selectedMatch.score2,
+                        player1Wins: scoreForm.score1,
+                        player2Wins: scoreForm.score2,
                         matchFt: selectedMatchTargetWins,
                       }),
                     });

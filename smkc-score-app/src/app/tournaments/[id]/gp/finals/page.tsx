@@ -1115,6 +1115,7 @@ export default function GrandPrixFinals({
                   try {
                     const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "gp");
                     const targetWins = getTargetWinsForMatch(selectedMatch);
+                    const currentWins = calculateCupWins(cupForms);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
@@ -1124,8 +1125,8 @@ export default function GrandPrixFinals({
                         player1NoCamera: selectedMatch.player1.noCamera === true,
                         player2NoCamera: selectedMatch.player2.noCamera === true,
                         matchLabel,
-                        player1Wins: selectedMatch.score1,
-                        player2Wins: selectedMatch.score2,
+                        player1Wins: currentWins.p1,
+                        player2Wins: currentWins.p2,
                         matchFt: targetWins,
                       }),
                     });

@@ -231,6 +231,15 @@ describe("buildOverlayEvents", () => {
     expect(events[0].title).toContain("#7");
   });
 
+  it("labels playoff stage separately from qualification stage", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [match({ id: "p", stage: "playoff", matchNumber: 3 })],
+      }),
+    );
+    expect(events[0].title).toBe("Playoff Match #3 Completed");
+  });
+
   it("emits score_reported for each ScoreEntryLog row", () => {
     const events = buildOverlayEvents(
       emptyInput({

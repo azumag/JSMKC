@@ -101,6 +101,12 @@ function normalizeCourses(raw: unknown): string[] | undefined {
   return courses.length > 0 ? courses : undefined;
 }
 
+function matchStageLabel(stage: string): string {
+  if (stage === "finals") return "Finals";
+  if (stage === "playoff") return "Playoff";
+  return "Qualification";
+}
+
 function matchEvents(
   matches: OverlayMatchInput[],
   mode: OverlayMode,
@@ -110,7 +116,7 @@ function matchEvents(
   for (const m of matches) {
     if (!m.completed) continue;
     if (m.updatedAt.getTime() <= since.getTime()) continue;
-    const stageLabel = m.stage === "finals" ? "Finals" : "Qualification";
+    const stageLabel = matchStageLabel(m.stage);
     const scoreLabel = `${m.score1}-${m.score2}`;
     // BM/MR carry `assignedCourses`; GP carries a single `cup`. Build both
     // the structured payload and the subtitle suffix so the legacy toast

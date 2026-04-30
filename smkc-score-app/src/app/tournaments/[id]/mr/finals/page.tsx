@@ -958,6 +958,16 @@ export default function MatchRaceFinals({
                   setBroadcasting(true);
                   try {
                     const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "mr");
+                    const currentScore1 = manualScoreEnabled
+                      ? parseManualScore(manualScore1)
+                      : rounds.filter((round) => round.winner === 1).length;
+                    const currentScore2 = manualScoreEnabled
+                      ? parseManualScore(manualScore2)
+                      : rounds.filter((round) => round.winner === 2).length;
+                    if (currentScore1 === null || currentScore2 === null) {
+                      toast.error(tCommon("broadcastError"));
+                      return;
+                    }
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
@@ -967,8 +977,8 @@ export default function MatchRaceFinals({
                         player1NoCamera: selectedMatch.player1.noCamera === true,
                         player2NoCamera: selectedMatch.player2.noCamera === true,
                         matchLabel,
-                        player1Wins: selectedMatch.score1,
-                        player2Wins: selectedMatch.score2,
+                        player1Wins: currentScore1,
+                        player2Wins: currentScore2,
                         matchFt: selectedMatchTargetWins,
                       }),
                     });
