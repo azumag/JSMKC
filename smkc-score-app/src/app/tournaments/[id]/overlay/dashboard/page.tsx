@@ -220,7 +220,7 @@ export default function DashboardPage({
           alt=""
           aria-hidden="true"
           className="pointer-events-none fixed"
-          style={{ left: 24, top: 152, width: 324, height: 324 }}
+          style={{ left: 24, top: 152, width: 356, height: 328 }}
         />
       )}
 
@@ -229,7 +229,7 @@ export default function DashboardPage({
       {overlayPlayer2Name && (
         <div
           className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 80, top: 875, width: 230, height: 48, overflow: "hidden" }}
+          style={{ left: 80, top: 879, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
@@ -257,7 +257,7 @@ export default function DashboardPage({
           alt=""
           aria-hidden="true"
           className="pointer-events-none fixed"
-          style={{ left: 24, top: 543, width: 324, height: 324 }}
+          style={{ left: 24, top: 547, width: 356, height: 328 }}
         />
       )}
     </div>
