@@ -310,9 +310,9 @@ describe('Qualification Route Factory', () => {
       expect(matchCall.data).toHaveLength(7);
     });
 
-    it('should chunk createMany into batches of 8 for matches when row count exceeds chunk size (#736)', async () => {
+    it('should use one JSON-backed raw insert when match row count exceeds the D1 createMany chunk size', async () => {
       // 8 players in a single group → 8×7/2 = 28 matches (exceeds MATCH_CHUNK=8)
-      // Expected: ceil(28/8) = 4 createMany calls with slices [0-8, 8-16, 16-24, 24-28]
+      // Expected: one JSON-backed raw insert instead of 4 sequential createMany chunks.
       const players = [
         { playerId: 'player-1', group: 'A', seeding: 1 },
         { playerId: 'player-2', group: 'A', seeding: 2 },
@@ -328,6 +328,7 @@ describe('Qualification Route Factory', () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue([]);
       (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRaw.mockResolvedValue(28);
 
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
@@ -345,16 +346,13 @@ describe('Qualification Route Factory', () => {
       // 8 qual records fit in 1 QUAL_CHUNK=24 → 1 call
       expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(1);
 
-      // 28 matches split into 4 chunks of [8, 8, 8, 4]
-      const matchCalls = (prisma.bMMatch as any).createMany.mock.calls;
-      expect(matchCalls).toHaveLength(4);
-      expect(matchCalls[0][0].data).toHaveLength(8);
-      expect(matchCalls[1][0].data).toHaveLength(8);
-      expect(matchCalls[2][0].data).toHaveLength(8);
-      expect(matchCalls[3][0].data).toHaveLength(4);
-      // Total matches across all chunks = 28
-      const totalMatches = matchCalls.reduce((sum: number, call: any[]) => sum + call[0].data.length, 0);
-      expect(totalMatches).toBe(28);
+      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+      expect((prisma as any).$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = (prisma as any).$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      expect(templateStrings.raw.join('')).toContain('json_each');
+      expect(templateStrings.raw.join('')).toContain('INSERT INTO BMMatch');
+      const payload = JSON.parse((prisma as any).$executeRaw.mock.calls[0][1]);
+      expect(payload).toHaveLength(28);
     });
 
     it('should chunk qual createMany when record count exceeds QUAL_CHUNK=24 (#769)', async () => {
