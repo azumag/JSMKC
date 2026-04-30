@@ -14,8 +14,23 @@
  * - Graceful error handling (fire-and-forget pattern)
  * - Anonymous user handling when userId is absent
  */
+jest.mock('@/lib/logger', () => {
+  const auditLogger = {
+    debug: jest.fn(),
+    error: jest.fn(),
+  };
+  return {
+    createLogger: jest.fn(() => auditLogger),
+    __auditLogger: auditLogger,
+  };
+});
+
 import { createAuditLog, createAuditLogs, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { prisma as prismaMock } from '@/lib/prisma';
+
+const loggerModuleMock = jest.requireMock('@/lib/logger') as {
+  __auditLogger: { debug: jest.Mock; error: jest.Mock };
+};
 
 describe('Audit Log', () => {
   beforeEach(() => {
@@ -261,6 +276,7 @@ describe('Audit Log', () => {
           },
         ],
       });
+      expect(loggerModuleMock.__auditLogger.debug).toHaveBeenCalledWith('Audit logs created', { count: 2 });
     });
 
     it('should not throw when bulk audit creation fails', async () => {
