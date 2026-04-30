@@ -408,17 +408,35 @@ async function handleGET(
       taPhase3SubmittedRounds,
     ] = await Promise.all([
       prisma.bMMatch.findMany({
-        where: { tournamentId, updatedAt: { gt: since } },
+        where: {
+          tournamentId,
+          OR: [
+            { updatedAt: { gt: since } },
+            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+          ],
+        },
         select: matchSelect,
         orderBy: { updatedAt: "asc" },
       }),
       prisma.mRMatch.findMany({
-        where: { tournamentId, updatedAt: { gt: since } },
+        where: {
+          tournamentId,
+          OR: [
+            { updatedAt: { gt: since } },
+            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+          ],
+        },
         select: matchSelect,
         orderBy: { updatedAt: "asc" },
       }),
       prisma.gPMatch.findMany({
-        where: { tournamentId, updatedAt: { gt: since } },
+        where: {
+          tournamentId,
+          OR: [
+            { updatedAt: { gt: since } },
+            { round: { in: ["losers_final", "grand_final", "grand_final_reset"] } },
+          ],
+        },
         select: gpMatchSelect,
         orderBy: { updatedAt: "asc" },
       }),

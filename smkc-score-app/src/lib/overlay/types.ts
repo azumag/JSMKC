@@ -13,6 +13,7 @@ export type OverlayMode = "ta" | "bm" | "mr" | "gp";
 export type OverlayEventType =
   | "score_reported"
   | "match_completed"
+  | "mode_champion_decided"
   | "ta_time_recorded"
   | "qualification_confirmed"
   | "finals_started"
@@ -136,6 +137,10 @@ export interface OverlayTaChampion {
   standings: OverlayTaChampionStanding[];
 }
 
+export interface OverlayModeChampion {
+  standings: OverlayTaChampionStanding[];
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -154,6 +159,8 @@ export interface OverlayEvent {
   taPhaseCompleted?: OverlayTaPhaseCompleted;
   /** Populated only when `type === "ta_champion_decided"`. */
   taChampion?: OverlayTaChampion;
+  /** Populated only when `type === "mode_champion_decided"`. */
+  modeChampion?: OverlayModeChampion;
 }
 
 /**

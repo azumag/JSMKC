@@ -77,7 +77,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
             event.type === "ta_phase_completed" && !!event.taPhaseCompleted;
           const isTaLivesReset = event.type === "ta_lives_reset";
           const isTaChampion =
-            event.type === "ta_champion_decided" && !!event.taChampion;
+            (event.type === "ta_champion_decided" || event.type === "mode_champion_decided") &&
+            !!(event.taChampion ?? event.modeChampion);
           /* New entries slide in from the right (#646). The class is removed
              after the animation completes to keep the DOM clean. */
           const isNew = newEventIds?.has(event.id) ?? false;
@@ -403,8 +404,9 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
 }
 
 function TaChampionCard({ event, now }: { event: OverlayEvent; now: number }) {
-  if (!event.taChampion) return null;
-  const [champion, second, third] = event.taChampion.standings;
+  const championPayload = event.taChampion ?? event.modeChampion;
+  if (!championPayload) return null;
+  const [champion, second, third] = championPayload.standings;
 
   return (
     <div
@@ -414,7 +416,7 @@ function TaChampionCard({ event, now }: { event: OverlayEvent; now: number }) {
     >
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <span className="truncate text-xl font-bold text-yellow-200">
-          Time Attack Champion
+          {event.type === "ta_champion_decided" ? "Time Attack Champion" : event.title.replace(/\s*Decided\s*$/, "")}
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}

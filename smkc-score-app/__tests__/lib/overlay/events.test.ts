@@ -66,6 +66,7 @@ const ALLOWED_KEYS = new Set([
   "taPhaseRound",
   "taPhaseCompleted",
   "taChampion",
+  "modeChampion",
 ]);
 
 function assertNoPII<T extends object>(obj: T) {
@@ -238,6 +239,61 @@ describe("buildOverlayEvents", () => {
       }),
     );
     expect(events[0].title).toBe("Playoff Match #3 Completed");
+  });
+
+  it("emits a mode champion event with top three standings when grand final completes", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [
+          match({
+            id: "lf",
+            round: "losers_final",
+            matchNumber: 15,
+            player1: { nickname: "Second" },
+            player2: { nickname: "Third" },
+            score1: 5,
+            score2: 3,
+            updatedAt: BEFORE,
+          }),
+          match({
+            id: "gf",
+            stage: "finals",
+            round: "grand_final",
+            matchNumber: 16,
+            player1: { nickname: "Champion" },
+            player2: { nickname: "Second" },
+            score1: 5,
+            score2: 2,
+          }),
+        ],
+      }),
+    );
+    const championEvent = events.find((event) => event.type === "mode_champion_decided");
+    expect(championEvent?.title).toBe("Battle Mode Champion Decided");
+    expect(championEvent?.modeChampion?.standings).toEqual([
+      { rank: 1, player: "Champion" },
+      { rank: 2, player: "Second" },
+      { rank: 3, player: "Third" },
+    ]);
+  });
+
+  it("does not emit a mode champion event when losers side wins the first grand final", () => {
+    const events = buildOverlayEvents(
+      emptyInput({
+        bmMatches: [
+          match({
+            id: "gf",
+            stage: "finals",
+            round: "grand_final",
+            player1: { nickname: "Winners" },
+            player2: { nickname: "Losers" },
+            score1: 2,
+            score2: 5,
+          }),
+        ],
+      }),
+    );
+    expect(events.some((event) => event.type === "mode_champion_decided")).toBe(false);
   });
 
   it("emits score_reported for each ScoreEntryLog row", () => {

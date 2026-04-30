@@ -13,6 +13,7 @@ import type {
   OverlayEvent,
   OverlayMatchInput,
   OverlayMode,
+  OverlayTaChampionStanding,
   OverlayTaPhaseResult,
   OverlayTaTimeRecord,
 } from "./types";
@@ -107,6 +108,51 @@ function matchStageLabel(stage: string): string {
   return "Qualification";
 }
 
+function modeName(mode: OverlayMode): string {
+  if (mode === "bm") return "Battle Mode";
+  if (mode === "mr") return "Match Race";
+  if (mode === "gp") return "Grand Prix";
+  return "Time Attack";
+}
+
+function winnerLoser(match: OverlayMatchInput): {
+  winner: { nickname: string } | null;
+  loser: { nickname: string } | null;
+} {
+  if (match.score1 === match.score2) return { winner: null, loser: null };
+  return match.score1 > match.score2
+    ? { winner: match.player1, loser: match.player2 }
+    : { winner: match.player2, loser: match.player1 };
+}
+
+function modeChampionStandings(
+  matches: OverlayMatchInput[],
+  decidingMatch: OverlayMatchInput,
+): OverlayTaChampionStanding[] | null {
+  const isGrandFinal = decidingMatch.round === "grand_final";
+  const isReset = decidingMatch.round === "grand_final_reset";
+  if (!isGrandFinal && !isReset) return null;
+  if (isGrandFinal && decidingMatch.score1 <= decidingMatch.score2) return null;
+
+  const { winner, loser } = winnerLoser(decidingMatch);
+  if (!winner || !loser) return null;
+
+  const standings: OverlayTaChampionStanding[] = [
+    { rank: 1, player: nick(winner) },
+    { rank: 2, player: nick(loser) },
+  ];
+
+  const losersFinal = matches.find(
+    (match) => match.round === "losers_final" && match.completed,
+  );
+  if (losersFinal) {
+    const third = winnerLoser(losersFinal).loser;
+    if (third) standings.push({ rank: 3, player: nick(third) });
+  }
+
+  return standings;
+}
+
 function matchEvents(
   matches: OverlayMatchInput[],
   mode: OverlayMode,
@@ -131,7 +177,7 @@ function matchEvents(
       : courses
         ? ` [${courses.join(", ")}]`
         : "";
-    out.push({
+    const matchEvent: OverlayEvent = {
       // Deterministic id ties the event to the underlying row so repeated
       // polls (or `since` overlap) collapse to the same event.
       id: `match_completed:${mode}:${m.id}:${m.updatedAt.getTime()}`,
@@ -151,7 +197,21 @@ function matchEvents(
         ...(courses ? { courses } : {}),
         ...(cup ? { cup } : {}),
       },
-    });
+    };
+    out.push(matchEvent);
+
+    const championStandings = modeChampionStandings(matches, m);
+    if (championStandings) {
+      out.push({
+        id: `mode_champion_decided:${mode}:${m.id}:${m.updatedAt.getTime()}`,
+        type: "mode_champion_decided",
+        timestamp: new Date(m.updatedAt.getTime() + 2).toISOString(),
+        mode,
+        title: `${modeName(mode)} Champion Decided`,
+        subtitle: `Champion: ${championStandings[0].player}`,
+        modeChampion: { standings: championStandings },
+      });
+    }
   }
   return out;
 }

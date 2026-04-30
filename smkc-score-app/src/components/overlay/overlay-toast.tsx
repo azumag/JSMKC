@@ -20,9 +20,20 @@ const MODE_COLOR: Record<OverlayMode, string> = {
 
 const NEUTRAL_ACCENT = "bg-white";
 
+function championTitle(event: OverlayEvent): string {
+  if (event.type === "ta_champion_decided") return "Time Attack Champion";
+  if (event.mode === "bm") return "Battle Mode Champion";
+  if (event.mode === "mr") return "Match Race Champion";
+  if (event.mode === "gp") return "Grand Prix Champion";
+  return "Champion";
+}
+
 export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving: boolean }) {
   const accent = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_ACCENT;
-  const isChampion = event.type === "ta_champion_decided" && !!event.taChampion;
+  const champion = event.taChampion ?? event.modeChampion;
+  const isChampion =
+    (event.type === "ta_champion_decided" || event.type === "mode_champion_decided") &&
+    !!champion;
   const isMatch = event.type === "match_completed" && !!event.matchResult;
 
   return (
@@ -44,13 +55,13 @@ export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving:
         {isChampion ? (
           <div data-testid="overlay-toast-ta-champion">
             <div className="text-2xl font-bold leading-tight text-yellow-100">
-              Time Attack Champion
+              {championTitle(event)}
             </div>
             <div className="mt-1 line-clamp-2 break-words text-5xl font-black leading-none text-yellow-300">
-              {event.taChampion?.standings[0]?.player}
+              {champion?.standings[0]?.player}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              {event.taChampion?.standings.slice(1, 3).map((standing) => (
+              {champion?.standings.slice(1, 3).map((standing) => (
                 <div key={standing.rank} className="rounded bg-white/10 px-3 py-2">
                   <div className="text-xs font-bold text-white/60">
                     {standing.rank === 2 ? "2nd" : "3rd"}
