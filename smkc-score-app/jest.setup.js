@@ -156,6 +156,7 @@ jest.mock('@/lib/prisma', () => {
       deleteMany: jest.fn(),
     },
     $executeRaw: jest.fn(),
+    $executeRawUnsafe: jest.fn(),
   }
 
   return {

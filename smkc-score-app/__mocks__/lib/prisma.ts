@@ -77,6 +77,7 @@ const mockPrisma = {
   },
   $transaction: jest.fn(),
   $executeRaw: jest.fn(),
+  $executeRawUnsafe: jest.fn(),
 };
 
 export const prisma = mockPrisma;
