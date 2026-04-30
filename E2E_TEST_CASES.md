@@ -1595,6 +1595,18 @@
 - **期待結果**: GP決勝FT2では1カップ勝利で試合が終わらず、2カップ先取で初めて完了する
 - **スクリプト**: tc-gp.js TC-720
 
+## TC-832: GP決勝 — `cupResults` の過大配列を拒否
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GP決勝の `cupResults` は通常FT2/FT3の数カップだけを保持する。過大な配列は不要な処理負荷になるため、APIで上限を持つ。
+- **手順**:
+  1. 28名予選 + Top-8 GP決勝ブラケット生成
+  2. M1 に21件の `cupResults` をPUTする
+  3. HTTP 400 と `cupResults must not exceed 20 entries` が返ること
+  4. M1 を再取得し、`points1=0`、`points2=0`、`completed=false` のまま変更されていないこと
+- **期待結果**: GP決勝APIは21件以上の `cupResults` を拒否し、マッチ状態を更新しない
+- **スクリプト**: tc-gp.js TC-832
+
 ## TC-721: GP決勝 — 同点カップはサドンデスではなく次カップへ進む
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)

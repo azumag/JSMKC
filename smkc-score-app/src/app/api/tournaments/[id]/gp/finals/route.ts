@@ -17,6 +17,8 @@ type GpCupResultInput = {
   races?: unknown;
 };
 
+const MAX_GP_CUP_RESULTS = 20;
+
 function sumRacePoints(races: unknown, side: 1 | 2): number | null {
   if (!Array.isArray(races)) return null;
   let total = 0;
@@ -38,6 +40,9 @@ function sumRacePoints(races: unknown, side: 1 | 2): number | null {
 function normalizeCupResults(input: unknown): { results?: Array<Record<string, unknown>>; error?: string } {
   if (!Array.isArray(input) || input.length === 0) {
     return { error: 'cupResults must be a non-empty array' };
+  }
+  if (input.length > MAX_GP_CUP_RESULTS) {
+    return { error: `cupResults must not exceed ${MAX_GP_CUP_RESULTS} entries` };
   }
 
   const results: Array<Record<string, unknown>> = [];
