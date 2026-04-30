@@ -58,6 +58,7 @@ const {
 } = require('./lib/common');
 const { createSharedE2eFixture, setupTaEntriesFromShared, ensurePlayerPassword } = require('./lib/fixtures');
 const { assertStackedCardBoxes } = require('./lib/layout-assertions');
+const { assertTaPhaseSubmitAccepted } = require('./lib/ta-phase-assertions');
 const { runSuite } = require('./lib/runner');
 
 const results = makeResults();
@@ -1476,9 +1477,10 @@ async function runTc816(adminPage) {
           timeMs: 80000 + index * 1000,
         })),
       });
-      if (submit.s !== 200 || submit.b?.data?.tieBreakRequired) {
-        throw new Error(`phase1 submit ${course} failed (${submit.s}): ${JSON.stringify(submit.b).slice(0, 220)}`);
-      }
+      assertTaPhaseSubmitAccepted(
+        { status: submit.s, body: submit.b },
+        `phase1 submit ${course}`,
+      );
     }
 
     const phase1Done = await apiFetchTaPhase(adminPage, tournamentId, phase1);
