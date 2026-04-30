@@ -10,7 +10,8 @@
  * - Real-time polling for live tournament updates
  * - Bracket reset with confirmation dialog
  *
- * MR finals use best-of-5 races with course selection.
+ * MR finals use a pre-shuffled MC1-RR course order, with the required race
+ * count determined by each match's FT setting.
  * The bracket follows standard double elimination with
  * winners bracket, losers bracket, grand final, and reset.
  *

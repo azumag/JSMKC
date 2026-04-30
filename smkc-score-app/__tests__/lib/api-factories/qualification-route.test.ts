@@ -36,6 +36,7 @@ import { createQualificationHandlers } from '@/lib/api-factories/qualification-r
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { NextRequest } from 'next/server';
 import { EventTypeConfig } from '@/lib/event-types/types';
+import { COURSES, CUPS } from '@/lib/constants';
 
 // Mock dependencies
 jest.mock('@/lib/prisma');
@@ -829,6 +830,62 @@ describe('Qualification Route Factory', () => {
       expect(createCall[0].data[0].assignedCourses).toHaveLength(4);
     });
 
+    it('should build MR qualification courses from 4 shuffled full-course decks', async () => {
+      const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
+      try {
+        /*
+         * Force the first two Fisher-Yates runs to produce different decks so
+         * the test proves that the second 20-course block is a fresh shuffle,
+         * not modulo wraparound of the first deck.
+         */
+        const randomValues = [
+          ...Array(19).fill(0),
+          ...Array(19).fill(0.999999),
+          ...Array(19).fill(0.25),
+          ...Array(19).fill(0.75),
+        ];
+        randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
+
+        const players = Array.from({ length: 8 }, (_, i) => ({
+          playerId: `player-${i + 1}`,
+          group: 'A',
+          seeding: i + 1,
+        }));
+
+        (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 8 });
+        (prisma.mRQualification as any).findMany.mockResolvedValue([]);
+        (prisma.mRMatch as any).findMany.mockResolvedValue([]);
+        (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+
+        const config = createMockConfig({
+          eventTypeCode: 'mr',
+          matchModel: 'mRMatch',
+          qualificationModel: 'mRQualification',
+          assignCoursesRandomly: true,
+        });
+        const { POST } = createQualificationHandlers(config);
+
+        const request = new NextRequest('http://localhost:3000', {
+          method: 'POST',
+          body: JSON.stringify({ players }),
+        });
+        await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+        const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+        const assignedSequence = payload.flatMap((row: any) => row.assignedCourses ?? []);
+        const firstDeck = assignedSequence.slice(0, COURSES.length);
+        const secondDeck = assignedSequence.slice(COURSES.length, COURSES.length * 2);
+
+        expect(firstDeck).toHaveLength(COURSES.length);
+        expect(secondDeck).toHaveLength(COURSES.length);
+        expect([...firstDeck].sort()).toEqual([...COURSES].sort());
+        expect([...secondDeck].sort()).toEqual([...COURSES].sort());
+        expect(secondDeck).not.toEqual(firstDeck);
+      } finally {
+        randomSpy.mockRestore();
+      }
+    });
+
     // Cup assignment tests (§7.4)
     it('should assign a cup to each match when assignCupRandomly is true (GP)', async () => {
       /*
@@ -877,10 +934,11 @@ describe('Qualification Route Factory', () => {
       expect(cupList).toContain(createCall[0].data[0].cup);
     });
 
-    it('should cycle cups via modulo when there are more matches than cups', async () => {
+    it('should assign unique cups while consuming the first GP qualification deck', async () => {
       /*
        * With 3 players in one group (odd → BREAK added → 4 participants → 6 matches),
-       * 4 cups must cycle: match0→cup[0], match1→cup[1], ..., match4→cup[0] (wraps).
+       * there are 3 real matches. They should consume the first shuffled cup
+       * deck without repeating before all 4 cups are used.
        */
       const players = [
         { playerId: 'player-1', group: 'A', seeding: 1 },
@@ -934,6 +992,62 @@ describe('Qualification Route Factory', () => {
       // With 3 real matches drawn from 4 shuffled cups, all should be unique.
       const uniqueCups = new Set(realMatchCups);
       expect(uniqueCups.size).toBe(realMatchCups.length);
+    });
+
+    it('should build GP qualification cups from 5 shuffled full-cup decks', async () => {
+      const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
+      try {
+        const randomValues = [
+          ...Array(3).fill(0),
+          ...Array(3).fill(0.999999),
+          ...Array(3).fill(0.25),
+          ...Array(3).fill(0.75),
+          ...Array(3).fill(0.5),
+        ];
+        randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
+
+        const players = Array.from({ length: 8 }, (_, i) => ({
+          playerId: `player-${i + 1}`,
+          group: 'A',
+          seeding: i + 1,
+        }));
+
+        (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 8 });
+        (prisma.gPQualification as any).findMany.mockResolvedValue([]);
+        (prisma.gPMatch as any).findMany.mockResolvedValue([]);
+        (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+
+        const config = createMockConfig({
+          eventTypeCode: 'gp',
+          matchModel: 'gPMatch',
+          qualificationModel: 'gPQualification',
+          assignCupRandomly: true,
+          cupList: CUPS,
+        });
+        const { POST } = createQualificationHandlers(config);
+
+        const request = new NextRequest('http://localhost:3000', {
+          method: 'POST',
+          body: JSON.stringify({ players }),
+        });
+        await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+        const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+        const assignedCups = payload.map((row: any) => row.cup).filter(Boolean);
+        const firstDeck = assignedCups.slice(0, CUPS.length);
+        const secondDeck = assignedCups.slice(CUPS.length, CUPS.length * 2);
+        const fifthDeck = assignedCups.slice(CUPS.length * 4, CUPS.length * 5);
+
+        expect(firstDeck).toHaveLength(CUPS.length);
+        expect(secondDeck).toHaveLength(CUPS.length);
+        expect(fifthDeck).toHaveLength(CUPS.length);
+        expect([...firstDeck].sort()).toEqual([...CUPS].sort());
+        expect([...secondDeck].sort()).toEqual([...CUPS].sort());
+        expect([...fifthDeck].sort()).toEqual([...CUPS].sort());
+        expect(secondDeck).not.toEqual(firstDeck);
+      } finally {
+        randomSpy.mockRestore();
+      }
     });
 
     it('should NOT assign cup when assignCupRandomly is not set (BM/MR)', async () => {

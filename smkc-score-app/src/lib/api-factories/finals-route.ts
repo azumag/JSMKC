@@ -40,6 +40,7 @@ import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
  * Threshold of 20 distinguishes between the two (>20 means 16-player).
  */
 const BRACKET_SIZE_THRESHOLD = 20;
+const GP_FINALS_CUP_DECK_REPEATS = 2;
 
 /**
  * Pre-Bracket Playoff ("barrage") entrant count. Supports issue #454:
@@ -98,7 +99,10 @@ function createMrRoundAssignments(
 function createGpRoundAssignments(
   bracketStructure: Array<{ round: string }>,
 ): Map<string, string> {
-  const shuffledCups = fisherYatesShuffle(CUPS);
+  const shuffledCups = Array.from(
+    { length: GP_FINALS_CUP_DECK_REPEATS },
+    () => fisherYatesShuffle(CUPS),
+  ).flat();
   return new Map(
     getOrderedRounds(bracketStructure).map((round, index) => [
       round,
@@ -134,8 +138,8 @@ function createBmRoundStartingCourses(
  *      the backfill landed.
  *
  * For each round we pick ONE canonical cup (the most common non-null cup
- * among that round's matches, with a freshly shuffled CUP as fallback when
- * no match has a cup yet) and force every match in that round to it via
+ * among that round's matches, with a freshly shuffled two-deck cup sequence
+ * as fallback when no match has a cup yet) and force every match in that round to it via
  * updateMany. This is idempotent — repeated GETs after the first repair
  * are no-ops.
  *
@@ -188,7 +192,10 @@ async function normalizeRoundCupsToSingleCup(
     return { repaired: false, canonicalByRound: new Map() };
   }
 
-  const shuffledCups = fisherYatesShuffle(CUPS);
+  const shuffledCups = Array.from(
+    { length: GP_FINALS_CUP_DECK_REPEATS },
+    () => fisherYatesShuffle(CUPS),
+  ).flat();
   let cursor = 0;
   const canonicalCupByRound = new Map<string, string>();
   for (const round of roundsNeedingRepair) {

@@ -414,6 +414,64 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(mockBracket.length);
     });
 
+    it('should build GP finals cups from 2 shuffled full-cup decks', async () => {
+      const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
+      try {
+        const randomValues = [
+          ...Array(3).fill(0),
+          ...Array(3).fill(0.999999),
+        ];
+        randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
+
+        const mockQualifications = Array.from({ length: 8 }, (_, index) => ({
+          id: `q${index + 1}`,
+          playerId: `p${index + 1}`,
+          score: 8 - index,
+          points: (8 - index) * 5,
+          player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+        }));
+        const mockBracket = [
+          'winners_r1',
+          'winners_qf',
+          'winners_sf',
+          'winners_final',
+          'losers_r1',
+          'losers_r2',
+          'losers_r3',
+          'grand_final',
+        ].map((round, index) => ({
+          matchNumber: index + 1,
+          round,
+          player1Seed: 1,
+          player2Seed: 2,
+        }));
+
+        (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+        (prisma.gPMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
+        (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
+        (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: mockBracket.length });
+        (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+
+        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
+        const params = Promise.resolve({ id: 't1' });
+        const result = await POST(request, { params });
+
+        expect(result.status).toBe(201);
+        const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
+        const assignedCups = createManyData.map((match) => match.cup);
+        const firstDeck = assignedCups.slice(0, 4);
+        const secondDeck = assignedCups.slice(4, 8);
+
+        expect(firstDeck).toHaveLength(4);
+        expect(secondDeck).toHaveLength(4);
+        expect([...firstDeck].sort()).toEqual(['Flower', 'Mushroom', 'Special', 'Star']);
+        expect([...secondDeck].sort()).toEqual(['Flower', 'Mushroom', 'Special', 'Star']);
+        expect(secondDeck).not.toEqual(firstDeck);
+      } finally {
+        randomSpy.mockRestore();
+      }
+    });
+
     // Validation error case - Returns 400 when topN is not 8
     it('should return 400 when topN is not 8', async () => {
       const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 4 });
