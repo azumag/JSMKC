@@ -56,12 +56,16 @@ jest.mock('@/lib/standings-cache', () => ({
   invalidate: jest.fn().mockResolvedValue(undefined),
   generateETag: jest.fn().mockReturnValue('mock-etag'),
 }));
+jest.mock('@/lib/overlay/broadcast-state', () => ({
+  reflectQualificationMatchBroadcast: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { auth } from '@/lib/auth';
 import { createAuditLog, resolveAuditUserId } from '@/lib/audit-log';
 import { getServerSideIdentifier } from '@/lib/request-utils';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
+import { reflectQualificationMatchBroadcast } from '@/lib/overlay/broadcast-state';
 import prisma from '@/lib/prisma';
 
 describe('Qualification Route Factory', () => {
@@ -1096,6 +1100,49 @@ describe('Qualification Route Factory', () => {
       );
       expect(config.calculateMatchResult).toHaveBeenCalledWith(3, 1);
       expect(response.status).toBe(200);
+    });
+
+    it('should reflect admin-entered qualification scores to the overlay footer', async () => {
+      const requestBody = createMockRequestBody();
+      const mockMatch = { id: 'match-1', player1Id: 'player-1', player2Id: 'player-2' };
+
+      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce({
+        id: 'match-1',
+        matchNumber: 4,
+        stage: 'qualification',
+        player1: { nickname: 'Alice' },
+        player2: { nickname: 'Bob' },
+      });
+      (prisma.bMMatch as any).findMany
+        .mockResolvedValueOnce([mockMatch])
+        .mockResolvedValueOnce([mockMatch]);
+      (prisma.bMQualification as any).updateMany.mockResolvedValue({ count: 1 });
+
+      const config = createMockConfig();
+      const { PUT } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'PUT',
+        body: JSON.stringify(requestBody),
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(reflectQualificationMatchBroadcast).toHaveBeenCalledWith(
+        mockLogger,
+        {
+          tournamentId: 'tournament-123',
+          matchId: 'match-1',
+          matchNumber: 4,
+          stage: 'qualification',
+          player1Name: 'Alice',
+          player2Name: 'Bob',
+          score1: 3,
+          score2: 1,
+        },
+      );
     });
 
     it('should calculate match result via config.calculateMatchResult', async () => {
