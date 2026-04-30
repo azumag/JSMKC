@@ -36,6 +36,7 @@
  */
 const {
   makeResults, makeLog, nav,
+  matchUpdateUsesLeanPayload,
   uiCreatePlayer: createPlayer,
   uiCreateTournament: createTournament,
   apiDeletePlayer: deletePlayer,
@@ -61,11 +62,6 @@ let sharedFixture = null;
 function sharedMrPlayers(count = 28) {
   if (!sharedFixture) throw new Error('Shared MR fixture is not initialized');
   return sharedFixture.players.slice(0, count);
-}
-
-function matchUpdateUsesLeanPayload(putResult) {
-  const match = putResult?.b?.data?.match || putResult?.b?.match;
-  return Boolean(match?.id && match.player1Id && match.player2Id && !match.player1 && !match.player2);
 }
 
 /* Mirrors src/lib/finals-target-wins.ts:getMrFinalsTargetWins so tests can
