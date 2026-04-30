@@ -283,11 +283,8 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
             >
               現在 {t.rank} 位
             </span>
-          ) : (
-            <span className="text-sm font-medium text-white/70">合計タイム</span>
-          )}
-          <div className="min-w-0 flex items-baseline gap-2 text-right">
-            <span className="text-xs font-medium text-white/60">合計タイム</span>
+          ) : null}
+          <div className="min-w-0 flex items-baseline text-right">
             <span
               className="text-3xl font-bold tabular-nums text-yellow-400"
               data-testid="dashboard-timeline-ta-total"

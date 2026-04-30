@@ -132,7 +132,7 @@ describe("DashboardTimeline TA time card", () => {
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("line-clamp-2");
     expect(screen.getByTestId("dashboard-timeline-ta-player")).not.toHaveClass("truncate");
     expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-2xl");
-    expect(screen.getByText("合計タイム")).toHaveClass("text-xs");
+    expect(screen.queryByText("合計タイム")).not.toBeInTheDocument();
     expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-3xl");
     expect(screen.getByTestId("dashboard-timeline-ta-rank").parentElement).toBe(
       screen.getByTestId("dashboard-timeline-ta-total").parentElement?.parentElement,
