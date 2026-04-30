@@ -367,6 +367,7 @@
     "timeListDesc": "View times for each player",
     "courseScore": "Score",
     "timeInputTitle": "Example: 123.45 or 1:23.45",
+    "timeInputHelp": "Digits are auto-formatted. Example: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "time": "Time",
     "freezeQualification": "End Group Stage (Confirm Times)",
@@ -763,6 +764,7 @@
     "invalidTimeFor": "Invalid time for {name}. Enter M:SS.mm format.",
     "needAtLeast2Players": "Need at least 2 players to submit results",
     "timeInputTitle": "Example: 123.45 or 1:23.45",
+    "timeInputHelp": "Digits are auto-formatted. Example: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "retryPenalty": "Mark as retry (penalty: 9:59.990)"
   },
@@ -852,6 +854,7 @@
     "invalidTimeFor": "Invalid time for {player}. Enter M:SS.mm format.",
     "needAtLeast2Players": "Need at least 2 players to submit results",
     "timeInputTitle": "Example: 123.45 or 1:23.45",
+    "timeInputHelp": "Digits are auto-formatted. Example: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "undoLastRound": "Undo Last Round",
     "undoRoundTitle": "Undo Last Round?",

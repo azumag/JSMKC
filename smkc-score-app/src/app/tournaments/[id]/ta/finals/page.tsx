@@ -82,6 +82,7 @@ import {
   TA_FINALS_ROUND_PLAYER_LABEL_CLASS,
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_FINALS_TIME_INPUT_CLASS,
+  TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
 } from "@/lib/ta/time-entry-layout";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
@@ -873,6 +874,9 @@ export default function TimeAttackFinals({
               </Select>
             </div>
             <div className="space-y-3">
+              <p className={TA_TIME_INPUT_HELP_CLASS}>
+                {tTaFinals('timeInputHelp')}
+              </p>
               {pendingSuddenDeathEntries.map((entry) => (
                 <div key={entry.id} className="flex items-center gap-2">
                   <Label className="flex-1 truncate">{entry.player.nickname}</Label>
@@ -918,6 +922,9 @@ export default function TimeAttackFinals({
                 </div>
               )}
               <div className="space-y-3">
+                <p className={TA_TIME_INPUT_HELP_CLASS}>
+                  {tTaFinals('timeInputHelp')}
+                </p>
                 {activeEntries.map((entry) => (
                   <div
                     key={entry.id}

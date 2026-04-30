@@ -66,7 +66,7 @@ import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES, TV_NUMBER_OPTIONS } from 
 import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
 import { canEditTaEntry } from "@/lib/ta/entry-access";
 import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, getTaTimeInputProps } from "@/lib/ta/time-entry-layout";
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from "@/lib/ta/time-entry-layout";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -1486,6 +1486,9 @@ export default function TimeAttackPageClient({
                 <p className="text-destructive text-sm">{saveError}</p>
               </div>
             )}
+            <p className={`${TA_TIME_INPUT_HELP_CLASS} mb-3`}>
+              {t('timeInputHelp')}
+            </p>
             {/* Course time inputs organized by cup (Mushroom, Flower, Star, Special) */}
             <div className={TA_TIME_ENTRY_CUP_GRID_CLASS} data-testid="ta-time-entry-cup-grid">
               {CUP_NAMES.map((cup) => (

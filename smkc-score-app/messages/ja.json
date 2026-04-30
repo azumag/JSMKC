@@ -366,6 +366,7 @@
     "timeListDesc": "各プレイヤーのタイムを閲覧",
     "courseScore": "スコア",
     "timeInputTitle": "例: 123.45 または 1:23.45",
+    "timeInputHelp": "数字だけで入力すると自動整形されます。例: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "time": "タイム",
     "freezeQualification": "予選を終了（タイム確定）",
@@ -763,6 +764,7 @@
     "invalidTimeFor": "{name}のタイムが無効です。M:SS.mm形式で入力してください。",
     "needAtLeast2Players": "結果を提出するには少なくとも2名必要です",
     "timeInputTitle": "例: 123.45 または 1:23.45",
+    "timeInputHelp": "数字だけで入力すると自動整形されます。例: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "retryPenalty": "リトライとしてマーク（ペナルティ: 9:59.990）"
   },
@@ -852,6 +854,7 @@
     "invalidTimeFor": "{player}のタイムが無効です。M:SS.mm形式で入力してください。",
     "needAtLeast2Players": "結果を送信するには最低2名のプレイヤーが必要です",
     "timeInputTitle": "例: 123.45 または 1:23.45",
+    "timeInputHelp": "数字だけで入力すると自動整形されます。例: 12345 → 1:23.45",
     "timePlaceholder": "M:SS.mm",
     "undoLastRound": "直前ラウンドを取り消す",
     "undoRoundTitle": "直前ラウンドを取り消しますか？",

@@ -24,7 +24,7 @@
  *   TC-878  TA qualification TV assignment reflects TV1/TV2 to broadcast.
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
- *   TC-913  TA time input title/placeholder are localized.
+ *   TC-913  TA time input hint/title/placeholder are localized.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
@@ -560,7 +560,7 @@ async function runTc897(adminPage) {
   }
 }
 
-/* ───────── TC-913: TA time input title/placeholder are localized ───────── */
+/* ───────── TC-913: TA time input hint/title/placeholder are localized ───────── */
 async function runTc913(adminPage) {
   let playerBrowser = null;
   try {
@@ -580,13 +580,17 @@ async function runTc913(adminPage) {
     const title = await input.getAttribute('title');
     const placeholder = await input.getAttribute('placeholder');
     const titleLocalized = /^(例: 123\.45 または 1:23\.45|Example: 123\.45 or 1:23\.45)$/.test(title || '');
+    const helpVisible = await ctx.page.getByText(
+      /^(数字だけで入力すると自動整形されます。例: 12345 → 1:23\.45|Digits are auto-formatted\. Example: 12345 → 1:23\.45)$/,
+    ).first().isVisible().catch(() => false);
 
-    log('TC-913', titleLocalized && placeholder === 'M:SS.mm' ? 'PASS' : 'FAIL',
+    log('TC-913', titleLocalized && placeholder === 'M:SS.mm' && helpVisible ? 'PASS' : 'FAIL',
       !titleLocalized ? `title=${title || 'missing'}`
       : placeholder !== 'M:SS.mm' ? `placeholder=${placeholder || 'missing'}`
+      : !helpVisible ? 'visible help missing'
       : '');
   } catch (err) {
-    log('TC-913', 'FAIL', err instanceof Error ? err.message : 'TA time input i18n attrs failed');
+    log('TC-913', 'FAIL', err instanceof Error ? err.message : 'TA time input i18n hint failed');
   } finally {
     if (playerBrowser) await playerBrowser.close().catch(() => {});
   }

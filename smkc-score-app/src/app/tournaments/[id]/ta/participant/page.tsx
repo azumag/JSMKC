@@ -38,7 +38,7 @@ import { AlertTriangle, Trophy, Users, Timer, LogIn, Dice5, Lock } from 'lucide-
 import Link from 'next/link';
 import { COURSE_INFO, POLLING_INTERVAL, TOTAL_COURSES } from '@/lib/constants';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime } from '@/lib/ta/time-utils';
-import { TA_TIME_ENTRY_CUP_GRID_CLASS, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
+import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from '@/lib/ta/time-entry-layout';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
@@ -567,6 +567,9 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Partner Time Input Grid */}
+                      <p className={TA_TIME_INPUT_HELP_CLASS}>
+                        {tTa('timeInputHelp')}
+                      </p>
                       <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
                         {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                           <Card key={cup}>
@@ -661,6 +664,9 @@ export default function TimeAttackParticipantPage({
                       </div>
 
                       {/* Time Input Grid */}
+                      <p className={TA_TIME_INPUT_HELP_CLASS}>
+                        {tTa('timeInputHelp')}
+                      </p>
                       <div className={TA_TIME_ENTRY_CUP_GRID_CLASS}>
                         {["Mushroom", "Flower", "Star", "Special"].map((cup) => (
                           <Card key={cup}>

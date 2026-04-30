@@ -3,6 +3,7 @@ import {
   TA_FINALS_ROUND_PLAYER_NAME_CLASS,
   TA_TIME_ENTRY_CUP_GRID_CLASS,
   TA_TIME_INPUT_BASE_PROPS,
+  TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
 } from "@/lib/ta/time-entry-layout";
 
@@ -24,6 +25,9 @@ describe("TA time entry layout", () => {
       ...TA_TIME_INPUT_BASE_PROPS,
       title: "例: 123.45 または 1:23.45",
     });
+    expect(TA_TIME_INPUT_HELP_CLASS.split(" ")).toEqual(
+      expect.arrayContaining(["text-xs", "leading-relaxed", "text-muted-foreground"]),
+    );
   });
 
   it("keeps TA finals player names on their own mobile row before sm layout", () => {
