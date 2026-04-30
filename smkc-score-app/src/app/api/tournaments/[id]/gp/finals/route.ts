@@ -17,6 +17,8 @@ type GpCupResultInput = {
   races?: unknown;
 };
 
+// GP finals normally resolves within a few FT2/FT3 cups; 20 leaves generous
+// headroom for tied cups while rejecting malformed oversized payloads early.
 const MAX_GP_CUP_RESULTS = 20;
 
 function sumRacePoints(races: unknown, side: 1 | 2): number | null {
