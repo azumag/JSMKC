@@ -276,6 +276,8 @@ export interface OverlayEventsResponse {
    */
   overlayPlayer1Name?: string;
   overlayPlayer2Name?: string;
+  overlayPlayer1NoCamera?: boolean;
+  overlayPlayer2NoCamera?: boolean;
   /**
    * Round label of the match selected by "配信に反映"
    * (e.g. "Finals Winners Quarter Final").

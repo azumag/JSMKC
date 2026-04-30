@@ -56,6 +56,8 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
     mockResolveTournament.mockResolvedValue({
       overlayPlayer1Name: null,
       overlayPlayer2Name: null,
+      overlayPlayer1NoCamera: false,
+      overlayPlayer2NoCamera: false,
       overlayMatchLabel: null,
       overlayPlayer1Wins: null,
       overlayPlayer2Wins: null,
@@ -69,6 +71,8 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       data: {
         player1Name: '',
         player2Name: '',
+        player1NoCamera: false,
+        player2NoCamera: false,
         matchLabel: null,
         player1Wins: null,
         player2Wins: null,
@@ -81,6 +85,8 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
     mockResolveTournament.mockResolvedValue({
       overlayPlayer1Name: 'Alice',
       overlayPlayer2Name: 'Bob',
+      overlayPlayer1NoCamera: true,
+      overlayPlayer2NoCamera: false,
       overlayMatchLabel: 'QF1',
       overlayPlayer1Wins: 2,
       overlayPlayer2Wins: 1,
@@ -94,6 +100,8 @@ describe('GET /api/tournaments/[id]/broadcast', () => {
       data: {
         player1Name: 'Alice',
         player2Name: 'Bob',
+        player1NoCamera: true,
+        player2NoCamera: false,
         matchLabel: 'QF1',
         player1Wins: 2,
         player2Wins: 1,
@@ -121,7 +129,16 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
 
   it('updates player names and match info for admin', async () => {
     await PUT(
-      mockReq({ player1Name: 'Alice', player2Name: 'Bob', matchLabel: 'QF1', player1Wins: 2, player2Wins: 1, matchFt: 5 }),
+      mockReq({
+        player1Name: 'Alice',
+        player2Name: 'Bob',
+        player1NoCamera: true,
+        player2NoCamera: false,
+        matchLabel: 'QF1',
+        player1Wins: 2,
+        player2Wins: 1,
+        matchFt: 5,
+      }),
       mockParams('t1'),
     );
 
@@ -130,6 +147,8 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
         data: expect.objectContaining({
           overlayPlayer1Name: 'Alice',
           overlayPlayer2Name: 'Bob',
+          overlayPlayer1NoCamera: true,
+          overlayPlayer2NoCamera: false,
           overlayMatchLabel: 'QF1',
           overlayPlayer1Wins: 2,
           overlayPlayer2Wins: 1,
@@ -161,9 +180,18 @@ describe('PUT /api/tournaments/[id]/broadcast', () => {
 
     expect(prisma.tournament.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ overlayPlayer1Name: 'Alice' }),
+        data: expect.objectContaining({
+          overlayPlayer1Name: 'Alice',
+          overlayPlayer1NoCamera: false,
+        }),
       }),
     );
+  });
+
+  it('returns 400 when player1NoCamera is not a boolean', async () => {
+    await PUT(mockReq({ player1NoCamera: 'yes' }), mockParams('t1'));
+
+    expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status).toBe(400);
   });
 
   it('returns 403 for unauthenticated request', async () => {

@@ -113,10 +113,12 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
     player1Name: string,
     player2Name: string,
     matchInfo?: {
+      player1NoCamera?: boolean;
+      player2NoCamera?: boolean;
       matchLabel?: string;
       player1Wins?: number;
       player2Wins?: number;
-      matchFt?: number;
+      matchFt?: number | null;
     },
   ): Promise<boolean> => {
     try {

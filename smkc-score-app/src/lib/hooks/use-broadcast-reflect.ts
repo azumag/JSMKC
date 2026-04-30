@@ -20,7 +20,7 @@ import { useState } from "react";
 interface BroadcastEntry {
   playerId: string;
   eliminated: boolean;
-  player: { nickname: string };
+  player: { nickname: string; noCamera?: boolean };
 }
 
 type BroadcastStatus = "idle" | "success" | "error";
@@ -45,6 +45,8 @@ export function useBroadcastReflect(
         body: JSON.stringify({
           player1Name: tv1Player?.player.nickname ?? "",
           player2Name: tv2Player?.player.nickname ?? "",
+          player1NoCamera: tv1Player?.player.noCamera === true,
+          player2NoCamera: tv2Player?.player.noCamera === true,
         }),
       });
       setBroadcastStatus(res.ok ? "success" : "error");

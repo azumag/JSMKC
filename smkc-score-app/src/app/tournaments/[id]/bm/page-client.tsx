@@ -377,6 +377,27 @@ export default function BattleModePageClient({
     }
   };
 
+  const handleBroadcastMatch = async (
+    match: BMMatch,
+    score1: number,
+    score2: number,
+  ) =>
+    handleBroadcastReflect(match.player1.nickname, match.player2.nickname, {
+      player1NoCamera: match.player1.noCamera === true,
+      player2NoCamera: match.player2.noCamera === true,
+      matchLabel: match.roundNumber
+        ? `Qualification Round ${match.roundNumber}`
+        : "Qualification Round",
+      player1Wins: score1,
+      player2Wins: score2,
+      matchFt: null,
+    });
+
+  const handleBroadcastScoreForm = async () => {
+    if (!selectedMatch) return;
+    await handleBroadcastMatch(selectedMatch, scoreForm.score1, scoreForm.score2);
+  };
+
   /** Open the score entry dialog pre-populated with existing scores */
   const openScoreDialog = (match: BMMatch) => {
     setSelectedMatch(match);
@@ -907,8 +928,11 @@ export default function BattleModePageClient({
                                         disabled={broadcastingMatchId === match.id}
                                         onClick={async () => {
                                           setBroadcastingMatchId(match.id);
-                                          await handleBroadcastReflect(match.player1.nickname, match.player2.nickname);
-                                          setBroadcastingMatchId(null);
+                                          try {
+                                            await handleBroadcastMatch(match, match.score1, match.score2);
+                                          } finally {
+                                            setBroadcastingMatchId(null);
+                                          }
                                         }}
                                       >
                                         {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
@@ -1034,7 +1058,12 @@ export default function BattleModePageClient({
               >
                 {tc('clearScores')}
               </Button>
-              <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleBroadcastScoreForm}>
+                  {tc('broadcastReflect')}
+                </Button>
+                <Button onClick={handleScoreSubmit}>{tc('saveScore')}</Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>

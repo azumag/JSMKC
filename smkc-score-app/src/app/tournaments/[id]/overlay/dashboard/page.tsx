@@ -51,6 +51,8 @@ export default function DashboardPage({
   /* Broadcast player names from "配信に反映" / 配信管理 page */
   const [overlayPlayer1Name, setOverlayPlayer1Name] = useState<string>("");
   const [overlayPlayer2Name, setOverlayPlayer2Name] = useState<string>("");
+  const [overlayPlayer1NoCamera, setOverlayPlayer1NoCamera] = useState(false);
+  const [overlayPlayer2NoCamera, setOverlayPlayer2NoCamera] = useState(false);
   /* Match info set by "配信に反映" for footer label and score display (#644/#645/#649) */
   const [overlayMatchLabel, setOverlayMatchLabel] = useState<string | null>(null);
   const [overlayPlayer1Wins, setOverlayPlayer1Wins] = useState<number | null>(null);
@@ -101,6 +103,8 @@ export default function DashboardPage({
       /* Broadcast names and match info — always update (may change between polls) */
       if (payload.overlayPlayer1Name !== undefined) setOverlayPlayer1Name(payload.overlayPlayer1Name);
       if (payload.overlayPlayer2Name !== undefined) setOverlayPlayer2Name(payload.overlayPlayer2Name);
+      if ("overlayPlayer1NoCamera" in payload) setOverlayPlayer1NoCamera(payload.overlayPlayer1NoCamera === true);
+      if ("overlayPlayer2NoCamera" in payload) setOverlayPlayer2NoCamera(payload.overlayPlayer2NoCamera === true);
       if ("overlayMatchLabel" in payload) setOverlayMatchLabel(payload.overlayMatchLabel ?? null);
       if ("overlayPlayer1Wins" in payload) setOverlayPlayer1Wins(payload.overlayPlayer1Wins ?? null);
       if ("overlayPlayer2Wins" in payload) setOverlayPlayer2Wins(payload.overlayPlayer2Wins ?? null);
@@ -188,17 +192,17 @@ export default function DashboardPage({
       {overlayPlayer1Name && (
         <div
           className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 80, top: 480, width: 230, height: 48, overflow: "hidden" }}
+          style={{ left: 80, top: 485, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
-            className="text-white font-bold text-2xl leading-none truncate w-full text-center"
+            className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
             style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
           >
             {overlayPlayer1Name}
           </span>
           {overlayPlayer1Wins !== null && (
             <span
-              className="text-yellow-300 font-bold text-lg leading-none tabular-nums"
+              className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
               style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
               data-testid="overlay-p1-score"
             >
@@ -210,22 +214,32 @@ export default function DashboardPage({
         </div>
       )}
 
+      {overlayPlayer1NoCamera && (
+        <img
+          src="/overlay/no-camera.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none fixed"
+          style={{ left: 24, top: 152, width: 324, height: 324 }}
+        />
+      )}
+
       {/* 2P name display: x:80, y:870, w:230px, h:48px (「配信に反映」設定値)
           Shows player name + current wins when match score is available (#645) */}
       {overlayPlayer2Name && (
         <div
           className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 80, top: 870, width: 230, height: 48, overflow: "hidden" }}
+          style={{ left: 80, top: 875, width: 230, height: 48, overflow: "hidden" }}
         >
           <span
-            className="text-white font-bold text-2xl leading-none truncate w-full text-center"
+            className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
             style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)" }}
           >
             {overlayPlayer2Name}
           </span>
           {overlayPlayer2Wins !== null && (
             <span
-              className="text-yellow-300 font-bold text-lg leading-none tabular-nums"
+              className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
               style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
               data-testid="overlay-p2-score"
             >
@@ -235,6 +249,16 @@ export default function DashboardPage({
             </span>
           )}
         </div>
+      )}
+
+      {overlayPlayer2NoCamera && (
+        <img
+          src="/overlay/no-camera.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none fixed"
+          style={{ left: 24, top: 543, width: 324, height: 324 }}
+        />
       )}
     </div>
   );

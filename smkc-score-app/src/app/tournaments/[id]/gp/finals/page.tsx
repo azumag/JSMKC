@@ -1121,6 +1121,8 @@ export default function GrandPrixFinals({
                       body: JSON.stringify({
                         player1Name: selectedMatch.player1.nickname,
                         player2Name: selectedMatch.player2.nickname,
+                        player1NoCamera: selectedMatch.player1.noCamera === true,
+                        player2NoCamera: selectedMatch.player2.noCamera === true,
                         matchLabel,
                         player1Wins: selectedMatch.score1,
                         player2Wins: selectedMatch.score2,

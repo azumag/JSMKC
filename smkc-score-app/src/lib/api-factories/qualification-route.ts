@@ -27,7 +27,6 @@ import { generateETag, invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
-import { reflectQualificationMatchBroadcast } from '@/lib/overlay/broadcast-state';
 import {
   generateRoundRobinSchedule,
   getByeMatchData,
@@ -711,10 +710,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const putData = { ...parseResult.data!, tournamentId };
       const { match, score1OrPoints1, score2OrPoints2 } = await config.updateMatch(prisma, putData);
       const { result1, result2 } = config.calculateMatchResult(score1OrPoints1, score2OrPoints2);
-      const broadcastMatch = await matchModel(prisma).findFirst({
-        where: { id: match.id, tournamentId },
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
-      });
 
       /* Fetch all completed matches for both players in one parallel round-trip.
        * For BYE matches player2 has no qualification record, so skip its fetch. */
@@ -750,28 +745,6 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         updates.push({ playerId: match.player2Id, ...p2.qualificationData });
       }
       await bulkUpdateQualificationStats(config.qualificationModel, tournamentId, updates);
-      if (
-        broadcastMatch?.id &&
-        broadcastMatch.matchNumber &&
-        broadcastMatch.stage &&
-        broadcastMatch.player1 &&
-        broadcastMatch.player2
-      ) {
-        const player1Name = (broadcastMatch.player1 as { nickname?: unknown }).nickname;
-        const player2Name = (broadcastMatch.player2 as { nickname?: unknown }).nickname;
-        if (typeof player1Name === 'string' && typeof player2Name === 'string') {
-          await reflectQualificationMatchBroadcast(logger, {
-            tournamentId,
-            matchId: String(broadcastMatch.id),
-            matchNumber: Number(broadcastMatch.matchNumber),
-            stage: String(broadcastMatch.stage),
-            player1Name,
-            player2Name,
-            score1: score1OrPoints1,
-            score2: score2OrPoints2,
-          });
-        }
-      }
 
       /* Score updates change both per-mode standings and the cross-mode
        * overall ranking. Drop both caches so the next GET reflects the new

@@ -429,6 +429,31 @@ export default function MatchRacePageClient({
     }
   };
 
+  const handleBroadcastMatch = async (
+    match: MRMatch,
+    score1: number,
+    score2: number,
+  ) =>
+    handleBroadcastReflect(match.player1.nickname, match.player2.nickname, {
+      player1NoCamera: match.player1.noCamera === true,
+      player2NoCamera: match.player2.noCamera === true,
+      matchLabel: match.roundNumber
+        ? `Qualification Round ${match.roundNumber}`
+        : "Qualification Round",
+      player1Wins: score1,
+      player2Wins: score2,
+      matchFt: null,
+    });
+
+  const handleBroadcastCurrentRounds = async () => {
+    if (!selectedMatch) return;
+    await handleBroadcastMatch(
+      selectedMatch,
+      rounds.filter((round) => round.winner === 1).length,
+      rounds.filter((round) => round.winner === 2).length,
+    );
+  };
+
   /* Extract unique groups for tab display */
   const groups = [...new Set(qualifications.map((q) => q.group))].sort();
 
@@ -914,8 +939,11 @@ export default function MatchRacePageClient({
                                         disabled={broadcastingMatchId === match.id}
                                         onClick={async () => {
                                           setBroadcastingMatchId(match.id);
-                                          await handleBroadcastReflect(match.player1.nickname, match.player2.nickname);
-                                          setBroadcastingMatchId(null);
+                                          try {
+                                            await handleBroadcastMatch(match, match.score1, match.score2);
+                                          } finally {
+                                            setBroadcastingMatchId(null);
+                                          }
                                         }}
                                       >
                                         {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
@@ -1071,7 +1099,12 @@ export default function MatchRacePageClient({
             </Table>
           </div>
           <DialogFooter>
-            <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={handleBroadcastCurrentRounds}>
+                {tc('broadcastReflect')}
+              </Button>
+              <Button onClick={handleMatchSubmit}>{tc('saveResult')}</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

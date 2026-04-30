@@ -15,15 +15,15 @@ import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
 
 const TOURNAMENT_ID = 'tid-test';
 
-const makeEntry = (playerId: string, nickname: string, eliminated = false) => ({
+const makeEntry = (playerId: string, nickname: string, eliminated = false, noCamera = false) => ({
   playerId,
   eliminated,
-  player: { nickname },
+  player: { nickname, noCamera },
 });
 
 const entries = [
   makeEntry('p1', 'Alice'),
-  makeEntry('p2', 'Bob'),
+  makeEntry('p2', 'Bob', false, true),
   makeEntry('p3', 'Carol'),
   makeEntry('p4', 'Dave'),
   makeEntry('p5', 'Eve', true), // eliminated
@@ -132,7 +132,12 @@ describe('useBroadcastReflect', () => {
         `/api/tournaments/${TOURNAMENT_ID}/broadcast`,
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ player1Name: 'Alice', player2Name: 'Bob' }),
+          body: JSON.stringify({
+            player1Name: 'Alice',
+            player2Name: 'Bob',
+            player1NoCamera: false,
+            player2NoCamera: true,
+          }),
         })
       );
     });
@@ -150,7 +155,12 @@ describe('useBroadcastReflect', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         `/api/tournaments/${TOURNAMENT_ID}/broadcast`,
         expect.objectContaining({
-          body: JSON.stringify({ player1Name: '', player2Name: '' }),
+          body: JSON.stringify({
+            player1Name: '',
+            player2Name: '',
+            player1NoCamera: false,
+            player2NoCamera: false,
+          }),
         })
       );
     });

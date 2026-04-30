@@ -44,6 +44,8 @@ export async function GET(
     const tournament = await resolveTournament(id, {
       overlayPlayer1Name: true,
       overlayPlayer2Name: true,
+      overlayPlayer1NoCamera: true,
+      overlayPlayer2NoCamera: true,
       overlayMatchLabel: true,
       overlayPlayer1Wins: true,
       overlayPlayer2Wins: true,
@@ -57,6 +59,8 @@ export async function GET(
     return createSuccessResponse({
       player1Name: tournament.overlayPlayer1Name ?? "",
       player2Name: tournament.overlayPlayer2Name ?? "",
+      player1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
+      player2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
       matchLabel: tournament.overlayMatchLabel ?? null,
       player1Wins: tournament.overlayPlayer1Wins ?? null,
       player2Wins: tournament.overlayPlayer2Wins ?? null,
@@ -94,7 +98,16 @@ export async function PUT(
 
   try {
     const body = sanitizeInput(await request.json()) as Record<string, unknown>;
-    const { player1Name, player2Name, matchLabel, player1Wins, player2Wins, matchFt } = body;
+    const {
+      player1Name,
+      player2Name,
+      player1NoCamera,
+      player2NoCamera,
+      matchLabel,
+      player1Wins,
+      player2Wins,
+      matchFt,
+    } = body;
 
     /* Allow null/empty string to clear the field; reject only invalid types. */
     if (player1Name !== undefined && player1Name !== null && typeof player1Name !== "string") {
@@ -108,6 +121,12 @@ export async function PUT(
     }
     if (typeof player2Name === "string" && player2Name.length > MAX_NAME_LENGTH) {
       return handleValidationError(`player2Name must be at most ${MAX_NAME_LENGTH} characters`, "player2Name");
+    }
+    if (player1NoCamera !== undefined && typeof player1NoCamera !== "boolean") {
+      return handleValidationError("player1NoCamera must be a boolean", "player1NoCamera");
+    }
+    if (player2NoCamera !== undefined && typeof player2NoCamera !== "boolean") {
+      return handleValidationError("player2NoCamera must be a boolean", "player2NoCamera");
     }
     if (matchLabel !== undefined && matchLabel !== null && typeof matchLabel !== "string") {
       return handleValidationError("matchLabel must be a string", "matchLabel");
@@ -132,12 +151,20 @@ export async function PUT(
     }
     const tournamentId = tournament.id;
 
-    const updateData: Record<string, string | number | null> = {};
+    const updateData: Record<string, string | number | boolean | null> = {};
     if (player1Name !== undefined) {
       updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
+      if (player1NoCamera === undefined) updateData.overlayPlayer1NoCamera = false;
     }
     if (player2Name !== undefined) {
       updateData.overlayPlayer2Name = player2Name === null ? null : (player2Name as string).trim() || null;
+      if (player2NoCamera === undefined) updateData.overlayPlayer2NoCamera = false;
+    }
+    if (player1NoCamera !== undefined) {
+      updateData.overlayPlayer1NoCamera = player1NoCamera as boolean;
+    }
+    if (player2NoCamera !== undefined) {
+      updateData.overlayPlayer2NoCamera = player2NoCamera as boolean;
     }
     if (matchLabel !== undefined) {
       updateData.overlayMatchLabel = matchLabel === null ? null : (matchLabel as string).trim() || null;
@@ -167,6 +194,12 @@ export async function PUT(
         : undefined,
       player2Name: updateData.overlayPlayer2Name !== undefined
         ? (updateData.overlayPlayer2Name ?? "")
+        : undefined,
+      player1NoCamera: updateData.overlayPlayer1NoCamera !== undefined
+        ? Boolean(updateData.overlayPlayer1NoCamera)
+        : undefined,
+      player2NoCamera: updateData.overlayPlayer2NoCamera !== undefined
+        ? Boolean(updateData.overlayPlayer2NoCamera)
         : undefined,
       matchLabel: updateData.overlayMatchLabel !== undefined
         ? (updateData.overlayMatchLabel ?? null)

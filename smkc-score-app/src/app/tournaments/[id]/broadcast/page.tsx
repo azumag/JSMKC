@@ -39,11 +39,14 @@ interface Player {
   id: string;
   name: string;
   nickname: string;
+  noCamera?: boolean;
 }
 
 interface BroadcastState {
   player1Name: string;
   player2Name: string;
+  player1NoCamera: boolean;
+  player2NoCamera: boolean;
 }
 
 export default function BroadcastPage({
@@ -56,7 +59,12 @@ export default function BroadcastPage({
   const isAdmin = session?.user && session.user.role === "admin";
   const t = useTranslations("common");
 
-  const [currentState, setCurrentState] = useState<BroadcastState>({ player1Name: "", player2Name: "" });
+  const [currentState, setCurrentState] = useState<BroadcastState>({
+    player1Name: "",
+    player2Name: "",
+    player1NoCamera: false,
+    player2NoCamera: false,
+  });
   const [player1Input, setPlayer1Input] = useState("");
   const [player2Input, setPlayer2Input] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -69,7 +77,12 @@ export default function BroadcastPage({
       if (res.ok) {
         const json = await res.json();
         const data = json.data ?? json;
-        setCurrentState({ player1Name: data.player1Name ?? "", player2Name: data.player2Name ?? "" });
+        setCurrentState({
+          player1Name: data.player1Name ?? "",
+          player2Name: data.player2Name ?? "",
+          player1NoCamera: data.player1NoCamera === true,
+          player2NoCamera: data.player2NoCamera === true,
+        });
         setPlayer1Input(data.player1Name ?? "");
         setPlayer2Input(data.player2Name ?? "");
       }
@@ -88,6 +101,7 @@ export default function BroadcastPage({
             id: p.id,
             name: p.name,
             nickname: p.nickname,
+            noCamera: p.noCamera === true,
           })));
         }
       })
@@ -97,11 +111,18 @@ export default function BroadcastPage({
   const handleSave = async () => {
     if (!isAdmin) return;
     setSaving(true);
+    const player1 = players.find((p) => p.nickname === player1Input.trim());
+    const player2 = players.find((p) => p.nickname === player2Input.trim());
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player1Name: player1Input.trim(), player2Name: player2Input.trim() }),
+        body: JSON.stringify({
+          player1Name: player1Input.trim(),
+          player2Name: player2Input.trim(),
+          player1NoCamera: player1?.noCamera === true,
+          player2NoCamera: player2?.noCamera === true,
+        }),
       });
       if (res.ok) {
         await fetchBroadcastState();
@@ -120,7 +141,12 @@ export default function BroadcastPage({
       await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player1Name: "", player2Name: "" }),
+        body: JSON.stringify({
+          player1Name: "",
+          player2Name: "",
+          player1NoCamera: false,
+          player2NoCamera: false,
+        }),
       });
       setPlayer1Input("");
       setPlayer2Input("");
@@ -157,8 +183,18 @@ export default function BroadcastPage({
         </div>
         <div className="grid grid-cols-2 divide-x divide-foreground/10">
           {[
-            { slot: "1P", coords: "x:80, y:480", value: currentState.player1Name },
-            { slot: "2P", coords: "x:80, y:870", value: currentState.player2Name },
+            {
+              slot: "1P",
+              coords: "x:80, y:485",
+              value: currentState.player1Name,
+              noCamera: currentState.player1NoCamera,
+            },
+            {
+              slot: "2P",
+              coords: "x:80, y:875",
+              value: currentState.player2Name,
+              noCamera: currentState.player2NoCamera,
+            },
           ].map((p) => (
             <div key={p.slot} className="p-5">
               <div className="flex items-center justify-between text-xs text-muted-foreground font-mono mb-2">
@@ -168,6 +204,9 @@ export default function BroadcastPage({
               <p className={`text-2xl font-semibold ${p.value ? "" : "text-muted-foreground"}`}>
                 {p.value || "未設定"}
               </p>
+              {p.noCamera && (
+                <p className="mt-1 text-xs font-semibold text-yellow-600">No camera</p>
+              )}
             </div>
           ))}
         </div>

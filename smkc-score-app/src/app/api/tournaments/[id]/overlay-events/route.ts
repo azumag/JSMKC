@@ -252,6 +252,8 @@ async function handleGET(
       qualificationConfirmedAt: true,
       overlayPlayer1Name: true,
       overlayPlayer2Name: true,
+      overlayPlayer1NoCamera: true,
+      overlayPlayer2NoCamera: true,
       overlayMatchLabel: true,
       overlayPlayer1Wins: true,
       overlayPlayer2Wins: true,
@@ -332,6 +334,8 @@ async function handleGET(
           currentPhaseFormat,
           overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
           overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+          overlayPlayer1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
+          overlayPlayer2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
           overlayMatchLabel: tournament.overlayMatchLabel ?? null,
           overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,
           overlayPlayer2Wins: tournament.overlayPlayer2Wins ?? null,
@@ -699,6 +703,8 @@ async function handleGET(
       /* Broadcast player names for the overlay name display (配信に反映) */
       overlayPlayer1Name: tournament.overlayPlayer1Name ?? "",
       overlayPlayer2Name: tournament.overlayPlayer2Name ?? "",
+      overlayPlayer1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
+      overlayPlayer2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
       /* Match info set by "配信に反映" for footer label and score display */
       overlayMatchLabel: tournament.overlayMatchLabel ?? null,
       overlayPlayer1Wins: tournament.overlayPlayer1Wins ?? null,

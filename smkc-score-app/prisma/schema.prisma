@@ -130,6 +130,8 @@ model Tournament {
   frozenStages  Json     @default("[]") // 凍結されたTAステージ名の配列 (例: ["qualification", "phase1"])
   overlayPlayer1Name  String? // 「配信に反映」で設定される1Pのオーバーレイ表示名
   overlayPlayer2Name  String? // 「配信に反映」で設定される2Pのオーバーレイ表示名
+  overlayPlayer1NoCamera Boolean @default(false) // 配信中1Pがカメラなしの場合、代替画像を表示
+  overlayPlayer2NoCamera Boolean @default(false) // 配信中2Pがカメラなしの場合、代替画像を表示
   overlayMatchLabel   String? // 「配信に反映」時に設定される試合ラウンド表示名 (例: "決勝 QF")
   overlayPlayer1Wins  Int?    // 配信中試合の1P勝利数
   overlayPlayer2Wins  Int?    // 配信中試合の2P勝利数

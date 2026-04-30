@@ -955,6 +955,8 @@ export default function BattleModeFinals({
                       body: JSON.stringify({
                         player1Name: selectedMatch.player1.nickname,
                         player2Name: selectedMatch.player2.nickname,
+                        player1NoCamera: selectedMatch.player1.noCamera === true,
+                        player2NoCamera: selectedMatch.player2.noCamera === true,
                         /* Include score and round info (#645, #649) */
                         matchLabel,
                         player1Wins: selectedMatch.score1,

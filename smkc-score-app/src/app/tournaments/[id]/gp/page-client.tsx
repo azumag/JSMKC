@@ -414,6 +414,52 @@ export default function GrandPrixPageClient({
     setIsMatchDialogOpen(true);
   };
 
+  const getCurrentBroadcastPoints = () => {
+    if (manualScoreEnabled) {
+      const points1 = parseManualScore(manualPoints1);
+      const points2 = parseManualScore(manualPoints2);
+      if (points1 === null || points2 === null) return null;
+      return { points1, points2 };
+    }
+
+    return {
+      points1: races.reduce(
+        (acc, race) => acc + (race.position1 ? getDriverPoints(race.position1) : 0),
+        0,
+      ),
+      points2: races.reduce(
+        (acc, race) => acc + (race.position2 ? getDriverPoints(race.position2) : 0),
+        0,
+      ),
+    };
+  };
+
+  const handleBroadcastMatch = async (
+    match: GPMatch,
+    points1: number,
+    points2: number,
+  ) =>
+    handleBroadcastReflect(match.player1.nickname, match.player2.nickname, {
+      player1NoCamera: match.player1.noCamera === true,
+      player2NoCamera: match.player2.noCamera === true,
+      matchLabel: match.roundNumber
+        ? `Qualification Round ${match.roundNumber}`
+        : "Qualification Round",
+      player1Wins: points1,
+      player2Wins: points2,
+      matchFt: null,
+    });
+
+  const handleBroadcastCurrentScore = async () => {
+    if (!selectedMatch) return;
+    const points = getCurrentBroadcastPoints();
+    if (!points) {
+      alert(t('manualScoreValidation'));
+      return;
+    }
+    await handleBroadcastMatch(selectedMatch, points.points1, points.points2);
+  };
+
   /**
    * Submit match result with cup and race positions.
    * Validates all 5 races (1 cup) are complete before submission.
@@ -1007,8 +1053,11 @@ export default function GrandPrixPageClient({
                                         disabled={broadcastingMatchId === match.id}
                                         onClick={async () => {
                                           setBroadcastingMatchId(match.id);
-                                          await handleBroadcastReflect(match.player1.nickname, match.player2.nickname);
-                                          setBroadcastingMatchId(null);
+                                          try {
+                                            await handleBroadcastMatch(match, match.points1, match.points2);
+                                          } finally {
+                                            setBroadcastingMatchId(null);
+                                          }
                                         }}
                                       >
                                         {broadcastingMatchId === match.id ? tc('saving') : tc('broadcastReflect')}
@@ -1242,9 +1291,14 @@ export default function GrandPrixPageClient({
             )}
           </div>
           <DialogFooter>
-            <Button onClick={handleMatchSubmit}>
-              {manualScoreEnabled ? tc('saveScore') : tc('saveResult')}
-            </Button>
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={handleBroadcastCurrentScore}>
+                {tc('broadcastReflect')}
+              </Button>
+              <Button onClick={handleMatchSubmit}>
+                {manualScoreEnabled ? tc('saveScore') : tc('saveResult')}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
