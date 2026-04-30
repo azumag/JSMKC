@@ -17,7 +17,13 @@
  *   query parameters, $transaction usage, and handling of incomplete times
  */
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
-import { calculateEntryTotal, sortByStage, assignRanks, recalculateRanks } from '@/lib/ta/rank-calculation';
+import {
+  calculateEntryTotal,
+  sortByStage,
+  assignRanks,
+  recalculateRanks,
+  rerankStageAfterDelete,
+} from '@/lib/ta/rank-calculation';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { PrismaClient } from '@prisma/client';
 
@@ -432,6 +438,29 @@ describe('TA Rank Calculation', () => {
       await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('should rerank qualification after delete with a single rank-only update', async () => {
+      await rerankStageAfterDelete('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
+
+      expect(mockPrisma.tTEntry.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      const sqlText = templateStrings.raw.join('');
+      expect(sqlText).toContain('ROW_NUMBER() OVER');
+      expect(sqlText).toContain('qualificationPoints');
+      expect(sqlText).not.toContain('courseScores');
+    });
+
+    it('should rerank revival after delete and clear ranks for entries without totalTime', async () => {
+      await rerankStageAfterDelete('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
+
+      expect(mockPrisma.tTEntry.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
+      const sqlText = templateStrings.raw.join('');
+      expect(sqlText).toContain('totalTime IS NOT NULL');
+      expect(sqlText).not.toContain('qualificationPoints');
     });
   });
 });

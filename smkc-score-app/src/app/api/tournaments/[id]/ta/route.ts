@@ -30,7 +30,7 @@ import { auth } from "@/lib/auth";
 import type { Session } from "next-auth";
 import { z } from "zod";
 import { COURSES, type CourseAbbr } from "@/lib/constants";
-import { recalculateRanks } from "@/lib/ta/rank-calculation";
+import { recalculateRanks, rerankStageAfterDelete } from "@/lib/ta/rank-calculation";
 import { timeToMs, TimesObjectSchema } from "@/lib/ta/time-utils";
 // Promotion functions moved to /api/tournaments/[id]/ta/phases endpoint
 import { createLogger } from "@/lib/logger";
@@ -756,8 +756,8 @@ export async function DELETE(
       where: { id: entryId }
     });
 
-    // Recalculate ranks for the affected stage after deletion
-    await recalculateRanks(tournamentId, entryToDelete.stage, prisma);
+    // Deletion only shifts ranks; remaining times and course scores are unchanged.
+    await rerankStageAfterDelete(tournamentId, entryToDelete.stage, prisma);
 
     // Audit log for deletion accountability
     const ipAddress = getClientIdentifier(request);

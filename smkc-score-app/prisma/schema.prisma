@@ -533,6 +533,8 @@ model TTEntry {
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, playerId, stage])
+  @@index([tournamentId, stage])
+  @@index([tournamentId, stage, qualificationPoints, totalTime])
 }
 
 // ==========================================
