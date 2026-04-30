@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
+import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
 
 /** BM Match extends BaseMatch with BM-specific score/report fields */
 interface BMMatch extends BaseMatch {
@@ -105,7 +106,12 @@ export default function BattleModeParticipantPage({
         return next;
       });
       setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
-      alert(data.corrected ? tPart("correctionSubmittedSuccess") : tPart("scoresReportedSuccess"));
+      alert(getScoreReportSuccessMessage(data, {
+        correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
+        scoresReportedSuccess: tPart("scoresReportedSuccess"),
+        scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
+        scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
+      }));
     }
   };
 
