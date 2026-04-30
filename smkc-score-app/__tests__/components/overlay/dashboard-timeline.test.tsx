@@ -195,7 +195,7 @@ describe("DashboardTimeline TA phase round card", () => {
     render(<DashboardTimeline events={[taPhaseRoundEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-phase-round")).toHaveTextContent(
-      "Time Attack Phase 3 Round 3 Started",
+      "Phase 3 Round 3",
     );
     expect(screen.getByTestId("dashboard-timeline-ta-phase-course")).toHaveTextContent(
       "Koopa Beach 1",
@@ -244,7 +244,7 @@ describe("DashboardTimeline TA phase completed card", () => {
     render(<DashboardTimeline events={[taPhaseCompletedEvent()]} now={NOW} />);
 
     const card = screen.getByTestId("dashboard-timeline-ta-phase-completed");
-    expect(card).toHaveTextContent("Time Attack Phase 1 Round 1 Completed");
+    expect(card).toHaveTextContent("Phase 1 Round 1");
     expect(card).toHaveTextContent("Koopa Beach 1");
     expect(screen.getByTestId("dashboard-timeline-ta-phase-eliminated")).toHaveTextContent(
       "Eliminated Bob",

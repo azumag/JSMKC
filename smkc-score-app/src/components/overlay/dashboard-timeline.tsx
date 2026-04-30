@@ -331,7 +331,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          Time Attack {phaseLabel} Round {r.roundNumber} Started
+          {phaseLabel} Round {r.roundNumber}
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
@@ -339,7 +339,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
       </div>
 
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium text-white/70">Selected Course</span>
+        <span className="text-sm font-medium text-white/70">Course</span>
         <span
           className="min-w-0 flex-1 text-right text-3xl font-bold text-yellow-400"
           data-testid="dashboard-timeline-ta-phase-course"
@@ -392,7 +392,7 @@ function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="truncate text-base font-bold text-white">
-          Time Attack {phaseLabel} Round {r.roundNumber} Completed
+          {phaseLabel} Round {r.roundNumber}
         </span>
         <span className="shrink-0 text-xs text-white/55 tabular-nums">
           {formatTimeAgo(now, event.timestamp)}
