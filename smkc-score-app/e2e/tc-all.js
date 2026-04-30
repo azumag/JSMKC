@@ -480,12 +480,18 @@ async function main() {
         hasBadgeAfterUnpublish = await bmTabBadge.count() > 0;
       }
 
-      const pass = switchExists && hasBadgeBefore && !hasBadgeAfterPublish && hasBadgeAfterUnpublish;
+      await nav(page, `/tournaments/${tc823TournamentId}/overall-ranking`);
+      const overallSwitch = page.getByRole('switch', { name: /総合|Overall/i }).first();
+      await overallSwitch.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+      const overallSwitchExists = await overallSwitch.count() > 0;
+
+      const pass = switchExists && hasBadgeBefore && !hasBadgeAfterPublish && hasBadgeAfterUnpublish && overallSwitchExists;
       log('TC-823', pass ? 'PASS' : 'FAIL',
         !switchExists ? 'Publish switch not found on BM page'
         : !hasBadgeBefore ? 'Hidden badge not shown before toggle'
         : hasBadgeAfterPublish ? 'Hidden badge still shown after toggle to published (event/re-fetch missing)'
         : !hasBadgeAfterUnpublish ? 'Hidden badge did not reappear after re-toggle to unpublished'
+        : !overallSwitchExists ? 'Publish switch not found on overall ranking page'
         : '');
     } catch (err) {
       log('TC-823', 'FAIL', err instanceof Error ? err.message : 'TC-823 mode tab badge test failed');
@@ -2493,6 +2499,20 @@ async function main() {
       bmOffResp.body.data.publicModes.length === 1 &&
       bmOffResp.body.data.publicModes.includes('ta');
 
+    // Overall ranking is also independently publishable.
+    const overallOnlyResp = await page.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicModes: ['overall'] }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, tc339TournamentId);
+    const overallOnlyAccepted = overallOnlyResp.status === 200 &&
+      Array.isArray(overallOnlyResp.body?.data?.publicModes) &&
+      overallOnlyResp.body.data.publicModes.length === 1 &&
+      overallOnlyResp.body.data.publicModes.includes('overall');
+
     // Invalid mode names and duplicates must still be rejected
     const invalidPut = await page.evaluate(async (tid) => {
       const r = await fetch(`/api/tournaments/${tid}`, {
@@ -2529,10 +2549,11 @@ async function main() {
     });
 
     log('TC-339',
-      bmOnlyAccepted && taAdded && bmOffNoCascade && invalidRejected && appearsInList ? 'PASS' : 'FAIL',
+      bmOnlyAccepted && taAdded && bmOffNoCascade && overallOnlyAccepted && invalidRejected && appearsInList ? 'PASS' : 'FAIL',
       !bmOnlyAccepted ? `Independent BM publish failed (status=${bmOnlyResp.status}, modes=${JSON.stringify(bmOnlyResp.body?.data?.publicModes)})` :
       !taAdded ? `TA add did not preserve BM (modes=${JSON.stringify(taAddResp.body?.data?.publicModes)})` :
       !bmOffNoCascade ? `BM off cascaded into TA (modes=${JSON.stringify(bmOffResp.body?.data?.publicModes)})` :
+      !overallOnlyAccepted ? `Overall publish failed (status=${overallOnlyResp.status}, modes=${JSON.stringify(overallOnlyResp.body?.data?.publicModes)})` :
       !invalidRejected ? `Invalid modes accepted (foo=${invalidPut.status}, dupe=${dupePut.status}, expected 400)` :
       !appearsInList ? 'Published tournament not visible in non-admin list' : '');
   } catch (err) {

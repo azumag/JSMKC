@@ -1775,18 +1775,19 @@
   5. クリーンアップ
 - **期待結果**: scoresConfirmed後のスコア報告は400で拒否される
 
-## TC-823: モード公開トグル — レイアウトタブの「未公開」バッジがリアルタイム更新される (issue #621)
-- **URL**: /tournaments/[id]/bm
+## TC-823: セクション公開トグル — レイアウトタブの「未公開」バッジがリアルタイム更新される (issue #621)
+- **URL**: /tournaments/[id]/bm, /tournaments/[id]/overall-ranking
 - **authRequired**: true (admin)
 - **背景**: 管理者がモード公開スイッチをクリックすると、`publicModesChanged` カスタムイベント経由でレイアウトがトーナメントデータを再 fetch し、タブの「未公開」バッジがページリロードなしに更新される
 - **手順**:
   1. 新規トーナメントを作成する（publicModes=[]）
-  2. `/bm` ページを開き、BM タブに `bg-destructive` バッジ（未公開マーカー）が表示されることを確認する
+  2. `/bm` ページを開き、BM タブに `flag-draft` バッジ（未公開マーカー）が表示されることを確認する
   3. 「バトルモード: 未公開」スイッチをクリックして公開に切り替える（3秒待機）
   4. タブバッジが消えていることを確認する
   5. 再度スイッチをクリックして未公開に戻す（3秒待機）
   6. タブバッジが再表示されることを確認する
-  7. クリーンアップ
+  7. `/overall-ranking` ページでも「総合: 未公開」スイッチが表示されることを確認する
+  8. クリーンアップ
 - **期待結果**: 公開トグル後、タブバッジがページリロードなしに追従する
 - **スクリプト**: tc-all.js TC-823
 
@@ -2036,20 +2037,19 @@
 
 ---
 
-## TC-339: モード公開カスケード — `publicModes` 順次プレフィックス制約の検証
+## TC-339: セクション公開トグル — `publicModes` 独立公開制約の検証
 - **URL**: PUT /api/tournaments/:id
 - **authRequired**: true (admin)
-- **背景**: `publicModes` は `[ta, bm, mr, gp]` の先頭からの連続したプレフィックス
-  でなければならない。公開ボタンはレイアウト（layout.tsx）の共通エリアに統一移動済み。
-  `publishMode(bm)` は `["ta", "bm"]` を返し、`unpublishMode(ta)` は `[]` を返す。
-  非プレフィックスの `["bm"]` などは API が 400 で拒否する。
+- **背景**: `publicModes` は `ta/bm/mr/gp/overall` の重複なし配列で、各セクションは独立して公開・非公開にできる。
 - **手順**:
   1. トーナメント作成 → `PUT publicModes: ["ta", "bm"]` → 200 で `["ta", "bm"]` が返る
-  2. `PUT publicModes: ["bm"]`（TA なしのギャップ）→ 400 VALIDATION_ERROR
-  3. `GET /api/tournaments` を非認証で → 公開後のトーナメントが一覧に現れる
+  2. `PUT publicModes: ["bm"]` → 200 で BM だけ公開される
+  3. `PUT publicModes: ["overall"]` → 200 で総合ランキングだけ公開される
+  4. `PUT publicModes: ["foo"]` / `["ta", "ta"]` → 400 VALIDATION_ERROR
+  5. `GET /api/tournaments` を非認証で → 公開後のトーナメントが一覧に現れる
 - **期待結果**:
-  - `["ta", "bm"]` は受理され、`publicModes` に反映される
-  - `["bm"]` は 400 で拒否される
+  - `ta/bm/mr/gp/overall` の任意の重複なしサブセットは受理される
+  - 不明な値と重複は 400 で拒否される
   - 公開後はトーナメントが非 admin の一覧に現れる
 - **スクリプト**: tc-all.js TC-339
 

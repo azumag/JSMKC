@@ -235,11 +235,11 @@ export async function PUT(
 
     // Validate publicModes: each entry must be a valid mode name, with no
     // duplicates. Modes are independently publishable (issue #618), so any
-    // subset of [ta, bm, mr, gp] in any order is accepted.
+    // subset of [ta, bm, mr, gp, overall] in any order is accepted.
     if (publicModes !== undefined) {
       if (!Array.isArray(publicModes) || !isValidPublicModes(publicModes)) {
         return handleValidationError(
-          "publicModes must be an array of valid modes (ta, bm, mr, gp) with no duplicates",
+          "publicModes must be an array of valid modes (ta, bm, mr, gp, overall) with no duplicates",
           "publicModes"
         );
       }

@@ -488,12 +488,14 @@ describe('PUT /api/tournaments/[id]', () => {
       [['bm']],
       [['mr']],
       [['gp']],
+      [['overall']],
       [['ta', 'bm']],
       [['bm', 'gp']],
       [['ta', 'mr']],
-      [['ta', 'bm', 'mr', 'gp']],
+      [['gp', 'overall']],
+      [['ta', 'bm', 'mr', 'gp', 'overall']],
       // Order is irrelevant
-      [['gp', 'ta']],
+      [['overall', 'gp', 'ta']],
     ])('should accept any valid publicModes subset %p', async (publicModes) => {
       (auth as jest.Mock).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },

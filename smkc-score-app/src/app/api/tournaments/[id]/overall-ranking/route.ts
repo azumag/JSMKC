@@ -13,7 +13,8 @@
  * - GET: Fetch current stored overall rankings
  * - POST: Recalculate rankings from current tournament data and save
  *
- * Authentication: GET is public (anyone can view); POST requires admin role
+ * Authentication: GET requires the overall section to be public unless the
+ * caller is admin; POST requires admin role.
  */
 
 import { NextRequest } from "next/server";
@@ -41,7 +42,7 @@ import { withApiTiming } from "@/lib/perf/api-timing";
  * Returns empty array if rankings haven't been calculated yet
  * (use POST to trigger calculation).
  *
- * Public endpoint: no authentication required.
+ * Public endpoint when `overall` is included in publicModes.
  */
 async function handleGET(
   request: NextRequest,
@@ -53,10 +54,20 @@ async function handleGET(
 
   try {
     /* Single query: fold slug/id resolution + field fetch (#692) */
-    const tournament = await resolveTournament(id, { id: true, name: true });
+    const tournament = await resolveTournament(id, {
+      id: true,
+      name: true,
+      publicModes: true,
+    });
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
+    }
+    const session = await auth();
+    const isAdmin = session?.user?.role === "admin";
+    const publicModes = tournament.publicModes as string[] || [];
+    if (!isAdmin && !publicModes.includes("overall")) {
+      return handleAuthzError("Overall ranking is not public");
     }
     const tournamentId = tournament.id;
 
