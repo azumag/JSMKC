@@ -17,6 +17,7 @@ export type OverlayEventType =
   | "qualification_confirmed"
   | "finals_started"
   | "ta_phase_advanced"
+  | "ta_phase_completed"
   | "overall_ranking_updated";
 
 /**
@@ -105,6 +106,24 @@ export interface OverlayTaPhaseRound {
   participants: OverlayTaPhaseParticipant[];
 }
 
+export interface OverlayTaPhaseResult {
+  player: string;
+  timeFormatted: string;
+  isRetry: boolean;
+  eliminated: boolean;
+}
+
+export interface OverlayTaPhaseCompleted {
+  phase: string;
+  phaseLabel?: string;
+  roundNumber: number;
+  course: string;
+  courseName: string;
+  results: OverlayTaPhaseResult[];
+  eliminatedPlayers: string[];
+  livesReset: boolean;
+}
+
 export interface OverlayEvent {
   id: string;
   type: OverlayEventType;
@@ -119,6 +138,8 @@ export interface OverlayEvent {
   taTimeRecord?: OverlayTaTimeRecord;
   /** Populated only when `type === "ta_phase_advanced"`. */
   taPhaseRound?: OverlayTaPhaseRound;
+  /** Populated only when `type === "ta_phase_completed"`. */
+  taPhaseCompleted?: OverlayTaPhaseCompleted;
 }
 
 /**
@@ -181,7 +202,12 @@ export interface OverlayTtPhaseRoundInput {
   roundNumber: number;
   course: string;
   createdAt: Date;
+  submittedAt?: Date | null;
+  results?: unknown;
+  eliminatedIds?: unknown;
+  livesReset?: boolean;
   participants?: OverlayTaPhaseParticipant[];
+  playerNamesById?: Record<string, string>;
 }
 
 export interface OverlayTournamentInput {

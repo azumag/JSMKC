@@ -64,6 +64,7 @@ const ALLOWED_KEYS = new Set([
   "matchResult",
   "taTimeRecord",
   "taPhaseRound",
+  "taPhaseCompleted",
 ]);
 
 function assertNoPII<T extends object>(obj: T) {
@@ -502,6 +503,52 @@ describe("buildOverlayEvents", () => {
     expect(events[0].title).toContain("TA フェーズ1 ラウンド1 開始");
     expect(events[0].subtitle).toBe("コース: Koopa Beach 1");
     expect(events[0].taPhaseRound?.courseName).toBe("Koopa Beach 1");
+  });
+
+  it("emits ta_phase_completed with player times and eliminated players", () => {
+    const submittedAt = new Date("2026-04-25T10:00:08.000Z");
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttPhaseRounds: [
+          {
+            id: "r-complete",
+            phase: "phase1",
+            roundNumber: 1,
+            course: "KB1",
+            createdAt: BEFORE,
+            submittedAt,
+            results: [
+              { playerId: "p1", timeMs: 74_560, isRetry: false },
+              { playerId: "p2", timeMs: 82_340, isRetry: true },
+            ],
+            eliminatedIds: ["p2"],
+            livesReset: false,
+            playerNamesById: {
+              p1: "Alice",
+              p2: "Bob",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("ta_phase_completed");
+    expect(events[0].title).toBe("TA フェーズ1 ラウンド1 終了");
+    expect(events[0].subtitle).toBe("敗退: Bob");
+    expect(events[0].taPhaseCompleted).toEqual({
+      phase: "phase1",
+      phaseLabel: "フェーズ1",
+      roundNumber: 1,
+      course: "KB1",
+      courseName: "Koopa Beach 1",
+      results: [
+        { player: "Alice", timeFormatted: "1:14.56", isRetry: false, eliminated: false },
+        { player: "Bob", timeFormatted: "1:22.34", isRetry: true, eliminated: true },
+      ],
+      eliminatedPlayers: ["Bob"],
+      livesReset: false,
+    });
   });
 
   it("returns events sorted ascending by timestamp", () => {

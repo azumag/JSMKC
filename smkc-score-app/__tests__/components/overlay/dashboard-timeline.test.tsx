@@ -75,6 +75,31 @@ function taPhaseRoundEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent 
   };
 }
 
+function taPhaseCompletedEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
+  return {
+    id: "ta_phase_completed:r1:1",
+    type: "ta_phase_completed",
+    timestamp: "2026-04-25T10:00:00.000Z",
+    mode: "ta",
+    title: "TA フェーズ1 ラウンド1 終了",
+    subtitle: "敗退: Bob",
+    taPhaseCompleted: {
+      phase: "phase1",
+      phaseLabel: "フェーズ1",
+      roundNumber: 1,
+      course: "KB1",
+      courseName: "Koopa Beach 1",
+      results: [
+        { player: "Alice", timeFormatted: "1:14.56", isRetry: false, eliminated: false },
+        { player: "Bob", timeFormatted: "1:22.34", isRetry: true, eliminated: true },
+      ],
+      eliminatedPlayers: ["Bob"],
+      livesReset: false,
+    },
+    ...overrides,
+  };
+}
+
 const NOW = Date.parse("2026-04-25T10:00:01.000Z");
 
 describe("DashboardTimeline match scoreboard card", () => {
@@ -211,5 +236,24 @@ describe("DashboardTimeline TA phase round card", () => {
     expect(participants).toHaveTextContent("Alice");
     expect(participants).toHaveTextContent("Bob");
     expect(participants).not.toHaveTextContent("LIFE");
+  });
+});
+
+describe("DashboardTimeline TA phase completed card", () => {
+  it("renders player times and eliminated players", () => {
+    render(<DashboardTimeline events={[taPhaseCompletedEvent()]} now={NOW} />);
+
+    const card = screen.getByTestId("dashboard-timeline-ta-phase-completed");
+    expect(card).toHaveTextContent("TA フェーズ1 ラウンド1 終了");
+    expect(card).toHaveTextContent("Koopa Beach 1");
+    expect(screen.getByTestId("dashboard-timeline-ta-phase-eliminated")).toHaveTextContent(
+      "敗退 Bob",
+    );
+
+    const results = screen.getByTestId("dashboard-timeline-ta-phase-results");
+    expect(results).toHaveTextContent("Alice");
+    expect(results).toHaveTextContent("1:14.56");
+    expect(results).toHaveTextContent("Bob / 敗退");
+    expect(results).toHaveTextContent("1:22.34 RETRY");
   });
 });

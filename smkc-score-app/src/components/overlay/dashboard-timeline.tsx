@@ -72,6 +72,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
             event.type === "ta_time_recorded" && !!event.taTimeRecord;
           const isTaPhase =
             event.type === "ta_phase_advanced" && !!event.taPhaseRound;
+          const isTaPhaseCompleted =
+            event.type === "ta_phase_completed" && !!event.taPhaseCompleted;
           /* New entries slide in from the right (#646). The class is removed
              after the animation completes to keep the DOM clean. */
           const isNew = newEventIds?.has(event.id) ?? false;
@@ -88,6 +90,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
                 <TaTimeCard event={event} now={now} />
               ) : isTaPhase ? (
                 <TaPhaseRoundCard event={event} now={now} />
+              ) : isTaPhaseCompleted ? (
+                <TaPhaseCompletedCard event={event} now={now} />
               ) : (
                 <CompactCard event={event} now={now} />
               )}
@@ -368,6 +372,71 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
               )}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaPhaseCompletedCard({ event, now }: { event: OverlayEvent; now: number }) {
+  if (!event.taPhaseCompleted) return null;
+  const r = event.taPhaseCompleted;
+  const phaseLabel = r.phaseLabel ?? r.phase;
+
+  return (
+    <div
+      className={`${CARD_BASE} px-4 py-3`}
+      style={{ backgroundColor: CARD_BG }}
+      data-testid="dashboard-timeline-ta-phase-completed"
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="truncate text-base font-bold text-white">
+          TA {phaseLabel} ラウンド{r.roundNumber} 終了
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
+      </div>
+
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium text-white/70">{r.courseName}</span>
+        {r.eliminatedPlayers.length > 0 && (
+          <span
+            className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold text-red-300"
+            data-testid="dashboard-timeline-ta-phase-eliminated"
+          >
+            敗退 {r.eliminatedPlayers.join(", ")}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-1.5" data-testid="dashboard-timeline-ta-phase-results">
+        {r.results.map((result, index) => (
+          <div
+            key={`${result.player}:${result.timeFormatted}:${index}`}
+            className={`flex items-center justify-between gap-2 rounded px-2 py-1 ${
+              result.eliminated ? "bg-red-400/10" : "bg-white/10"
+            }`}
+          >
+            <span
+              className={`line-clamp-2 min-w-0 flex-1 break-words text-base font-semibold leading-tight ${
+                result.eliminated ? "text-red-200" : "text-white"
+              }`}
+            >
+              {result.player}
+              {result.eliminated ? " / 敗退" : ""}
+            </span>
+            <span className="shrink-0 text-xl font-bold tabular-nums text-yellow-400">
+              {result.timeFormatted}
+              {result.isRetry ? " RETRY" : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {r.livesReset && (
+        <div className="mt-2 text-center text-xs font-semibold text-blue-200">
+          ライフリセット
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@ import type {
   OverlayEvent,
   OverlayMatchInput,
   OverlayMode,
+  OverlayTaPhaseResult,
   OverlayTaTimeRecord,
 } from "./types";
 
@@ -43,6 +44,49 @@ const TA_STAGE_LABEL: Record<string, string> = {
 
 function courseName(abbr: string): string {
   return COURSE_INFO.find((course) => course.abbr === abbr)?.name ?? abbr;
+}
+
+function taPhaseResults(
+  raw: unknown,
+  eliminatedIds: Set<string>,
+  playerNamesById: Record<string, string> | undefined,
+): OverlayTaPhaseResult[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .flatMap((result): Array<OverlayTaPhaseResult & { timeMs: number }> => {
+      if (
+        typeof result !== "object" ||
+        result === null ||
+        !("playerId" in result) ||
+        !("timeMs" in result)
+      ) {
+        return [];
+      }
+      const playerId = (result as { playerId?: unknown }).playerId;
+      const timeMs = (result as { timeMs?: unknown }).timeMs;
+      if (typeof playerId !== "string" || typeof timeMs !== "number") return [];
+      const isRetry = (result as { isRetry?: unknown }).isRetry === true;
+      return [
+        {
+          player: playerNamesById?.[playerId] ?? playerId,
+          timeFormatted: msToDisplayTime(timeMs),
+          isRetry,
+          eliminated: eliminatedIds.has(playerId),
+          timeMs,
+        },
+      ];
+    })
+    .sort((a, b) => {
+      if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+      return a.timeMs - b.timeMs;
+    })
+    .map(({ timeMs: _timeMs, ...result }) => result);
+}
+
+function jsonStringArray(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((value): value is string => typeof value === "string")
+    : [];
 }
 
 /**
@@ -210,26 +254,56 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
   }
 
   for (const r of ttPhaseRounds) {
-    if (r.createdAt.getTime() <= sinceMs) continue;
     const stageLabel = TA_STAGE_LABEL[r.phase] ?? "";
     const prefix = stageLabel ? `${stageLabel} ` : `${r.phase} `;
     const displayCourse = courseName(r.course);
-    events.push({
-      id: `ta_phase_advanced:${r.id}`,
-      type: "ta_phase_advanced",
-      timestamp: r.createdAt.toISOString(),
-      mode: "ta",
-      title: `TA ${prefix}ラウンド${r.roundNumber} 開始`,
-      subtitle: `コース: ${displayCourse}`,
-      taPhaseRound: {
-        phase: r.phase,
-        phaseLabel: stageLabel || undefined,
-        roundNumber: r.roundNumber,
-        course: r.course,
-        courseName: displayCourse,
-        participants: r.participants ?? [],
-      },
-    });
+    if (r.createdAt.getTime() > sinceMs) {
+      events.push({
+        id: `ta_phase_advanced:${r.id}`,
+        type: "ta_phase_advanced",
+        timestamp: r.createdAt.toISOString(),
+        mode: "ta",
+        title: `TA ${prefix}ラウンド${r.roundNumber} 開始`,
+        subtitle: `コース: ${displayCourse}`,
+        taPhaseRound: {
+          phase: r.phase,
+          phaseLabel: stageLabel || undefined,
+          roundNumber: r.roundNumber,
+          course: r.course,
+          courseName: displayCourse,
+          participants: r.participants ?? [],
+        },
+      });
+    }
+
+    if (r.submittedAt && r.submittedAt.getTime() > sinceMs) {
+      const eliminatedIds = new Set(jsonStringArray(r.eliminatedIds));
+      const results = taPhaseResults(r.results, eliminatedIds, r.playerNamesById);
+      const eliminatedPlayers = jsonStringArray(r.eliminatedIds).map(
+        (playerId) => r.playerNamesById?.[playerId] ?? playerId,
+      );
+      events.push({
+        id: `ta_phase_completed:${r.id}:${r.submittedAt.getTime()}`,
+        type: "ta_phase_completed",
+        timestamp: r.submittedAt.toISOString(),
+        mode: "ta",
+        title: `TA ${prefix}ラウンド${r.roundNumber} 終了`,
+        subtitle:
+          eliminatedPlayers.length > 0
+            ? `敗退: ${eliminatedPlayers.join(", ")}`
+            : "敗退者なし",
+        taPhaseCompleted: {
+          phase: r.phase,
+          phaseLabel: stageLabel || undefined,
+          roundNumber: r.roundNumber,
+          course: r.course,
+          courseName: displayCourse,
+          results,
+          eliminatedPlayers,
+          livesReset: r.livesReset ?? false,
+        },
+      });
+    }
   }
 
   if (

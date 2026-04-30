@@ -166,12 +166,13 @@ async function handleGET(
       if (cached) {
         latestChange = cached.latest;
       } else {
-        const [bmMax, mrMax, gpMax, ttMax, ttPhaseMax, scoreMax, tpsMax] = await Promise.all([
+        const [bmMax, mrMax, gpMax, ttMax, ttPhaseMax, ttPhaseSubmittedMax, scoreMax, tpsMax] = await Promise.all([
           prisma.bMMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
           prisma.mRMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
           prisma.gPMatch.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
           prisma.tTEntry.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
           prisma.tTPhaseRound.aggregate({ where: { tournamentId }, _max: { createdAt: true } }),
+          prisma.tTPhaseRound.aggregate({ where: { tournamentId }, _max: { submittedAt: true } }),
           prisma.scoreEntryLog.aggregate({ where: { tournamentId }, _max: { timestamp: true } }),
           prisma.tournamentPlayerScore.aggregate({ where: { tournamentId }, _max: { updatedAt: true } }),
         ]);
@@ -181,6 +182,7 @@ async function handleGET(
           gpMax._max.updatedAt,
           ttMax._max.updatedAt,
           ttPhaseMax._max.createdAt,
+          ttPhaseSubmittedMax._max.submittedAt,
           scoreMax._max.timestamp,
           tpsMax._max.updatedAt,
         ];
@@ -302,15 +304,25 @@ async function handleGET(
         orderBy: { updatedAt: "asc" },
       }),
       prisma.tTPhaseRound.findMany({
-        where: { tournamentId, createdAt: { gt: since } },
+        where: {
+          tournamentId,
+          OR: [
+            { createdAt: { gt: since } },
+            { submittedAt: { gt: since } },
+          ],
+        },
         select: {
           id: true,
           phase: true,
           roundNumber: true,
           course: true,
           createdAt: true,
+          submittedAt: true,
+          results: true,
+          eliminatedIds: true,
+          livesReset: true,
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { roundNumber: "asc" }],
       }),
       /* IMPORTANT: only the columns needed for the overlay title — we never
          select ipAddress / userAgent. */
@@ -387,12 +399,13 @@ async function handleGET(
           tournamentId,
           stage: { in: ["phase1", "phase2", "phase3"] },
           deletedAt: null,
-          eliminated: false,
         },
         select: {
+          playerId: true,
           stage: true,
           lives: true,
           rank: true,
+          eliminated: true,
           player: { select: { nickname: true } },
         },
         orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
@@ -403,7 +416,12 @@ async function handleGET(
       string,
       Array<{ player: string; lives: number; rank: number | null }>
     >();
+    const taPlayerNamesByPhase = new Map<string, Record<string, string>>();
     for (const entry of taActiveEntries) {
+      const playerNames = taPlayerNamesByPhase.get(entry.stage) ?? {};
+      playerNames[entry.playerId] = entry.player.nickname;
+      taPlayerNamesByPhase.set(entry.stage, playerNames);
+      if (entry.eliminated) continue;
       const participants = taParticipantsByPhase.get(entry.stage) ?? [];
       participants.push({
         player: entry.player.nickname,
@@ -433,6 +451,7 @@ async function handleGET(
       ttPhaseRounds: ttPhaseRounds.map((round) => ({
         ...round,
         participants: taParticipantsByPhase.get(round.phase) ?? [],
+        playerNamesById: taPlayerNamesByPhase.get(round.phase) ?? {},
       })),
       scoreLogs,
     });

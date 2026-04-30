@@ -1344,6 +1344,7 @@ export async function submitRoundResults(
         results: storedResults,
         eliminatedIds: Prisma.JsonNull,
         livesReset: false,
+        submittedAt: null,
       },
     });
     const suddenDeathRound = await createSuddenDeathRound(
@@ -1390,6 +1391,7 @@ export async function submitRoundResults(
       results: storedResults,
       eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
       livesReset,
+      submittedAt: new Date(),
     },
   });
 
@@ -1569,6 +1571,7 @@ export async function submitSuddenDeathResults(
     data: {
       eliminatedIds: eliminatedIds.length > 0 ? eliminatedIds : Prisma.JsonNull,
       livesReset,
+      submittedAt: new Date(),
     },
   });
   return { eliminatedIds, livesReset, course: suddenDeathRound.phaseRound.course };
@@ -1722,6 +1725,7 @@ export async function undoLastPhaseRound(
       results: [],
       eliminatedIds: Prisma.JsonNull,
       livesReset: false,
+      submittedAt: null,
     },
   });
 
