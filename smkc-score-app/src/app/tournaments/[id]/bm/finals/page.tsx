@@ -29,7 +29,6 @@ import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -649,9 +648,9 @@ export default function BattleModeFinals({
           ))}
           {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/bm`}>
+            <a href={`/tournaments/${tournamentId}/bm`}>
               {tFinals('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
       </div>

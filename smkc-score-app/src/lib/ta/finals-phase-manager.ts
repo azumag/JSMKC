@@ -816,55 +816,65 @@ export async function getPhaseStatus(
   phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
   currentPhase: string;
 }> {
-  /* Previously this ran 3 sequential findMany with full player includes.
-   * Each D1 round-trip is ~150–250 ms; 3 sequential = 450–750 ms, pushing the
-   * GET handler past the Workers wall-time budget (#733).
-   *
-   * Fix: run all three queries in parallel and use minimal selects.
-   * Phases 1 & 2 only need `eliminated` (no player join).
-   * Phase 3 additionally needs the winner's nickname when exactly 1 player is active.
+  /*
+   * Use one aggregate read for all phase counts. Earlier versions performed
+   * separate reads per phase; under production E2E load those extra D1 reads
+   * occasionally caused Workers request-hung cancellations on the no-filter
+   * `/ta/phases` endpoint.
    */
-  const [phase1Entries, phase2Entries, phase3Entries] = await Promise.all([
-    prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "phase1" },
-      select: { eliminated: true },
-    }),
-    prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "phase2" },
-      select: { eliminated: true },
-    }),
-    prisma.tTEntry.findMany({
-      where: { tournamentId, stage: "phase3" },
-      select: { eliminated: true, player: { select: { nickname: true } } },
-    }),
-  ]);
+  const grouped = await prisma.tTEntry.groupBy({
+    by: ["stage", "eliminated"],
+    where: {
+      tournamentId,
+      stage: { in: ["phase1", "phase2", "phase3"] },
+    },
+    _count: { _all: true },
+  });
 
-  const buildBase = (entries: { eliminated: boolean }[]) => {
-    if (entries.length === 0) return null;
-    const active = entries.filter((e) => !e.eliminated).length;
-    return { total: entries.length, active, eliminated: entries.length - active };
+  const counts = {
+    phase1: { total: 0, active: 0, eliminated: 0 },
+    phase2: { total: 0, active: 0, eliminated: 0 },
+    phase3: { total: 0, active: 0, eliminated: 0 },
   };
 
-  const phase3Base = buildBase(phase3Entries);
-  type Phase3Entry = { eliminated: boolean; player: { nickname: string } };
+  for (const row of grouped) {
+    const stage = row.stage as "phase1" | "phase2" | "phase3";
+    const count = row._count._all;
+    counts[stage].total += count;
+    if (row.eliminated) {
+      counts[stage].eliminated += count;
+    } else {
+      counts[stage].active += count;
+    }
+  }
+
+  const buildBase = (stage: "phase1" | "phase2" | "phase3") => {
+    const value = counts[stage];
+    return value.total === 0 ? null : value;
+  };
+
+  const phase3Base = buildBase("phase3");
   const phase3Winner =
     phase3Base?.active === 1
-      ? (phase3Entries.find((e) => !e.eliminated) as Phase3Entry | undefined)?.player.nickname ?? null
+      ? (await prisma.tTEntry.findFirst({
+          where: { tournamentId, stage: "phase3", eliminated: false },
+          select: { player: { select: { nickname: true } } },
+        }))?.player.nickname ?? null
       : null;
   const phase3Status = phase3Base ? { ...phase3Base, winner: phase3Winner } : null;
 
   const currentPhase =
-    phase3Entries.length > 0
+    counts.phase3.total > 0
       ? "phase3"
-      : phase2Entries.length > 0
+      : counts.phase2.total > 0
         ? "phase2"
-        : phase1Entries.length > 0
+        : counts.phase1.total > 0
           ? "phase1"
           : "qualification";
 
   return {
-    phase1: buildBase(phase1Entries),
-    phase2: buildBase(phase2Entries),
+    phase1: buildBase("phase1"),
+    phase2: buildBase("phase2"),
     phase3: phase3Status,
     currentPhase,
   };

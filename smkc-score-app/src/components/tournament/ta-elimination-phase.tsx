@@ -23,7 +23,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -687,9 +686,9 @@ export default function TAEliminationPhase({
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">{title}</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>
+            <a href={`/tournaments/${tournamentId}/ta`}>
               {tElim('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
         <Card>
@@ -712,9 +711,9 @@ export default function TAEliminationPhase({
             <p className="text-muted-foreground">{description}</p>
           </div>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>
+            <a href={`/tournaments/${tournamentId}/ta`}>
               {tElim('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
         <Card>
@@ -743,9 +742,9 @@ export default function TAEliminationPhase({
           </p>
         </div>
         <Button variant="outline" asChild>
-          <Link href={`/tournaments/${tournamentId}/ta`}>
+          <a href={`/tournaments/${tournamentId}/ta`}>
             {tElim('backToQualification')}
-          </Link>
+          </a>
         </Button>
       </div>
 

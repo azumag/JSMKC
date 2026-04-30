@@ -27,7 +27,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -439,9 +438,9 @@ export default function BattleModePageClient({
         <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/bm/participant`}>
+            <a href={`/tournaments/${tournamentId}/bm/participant`}>
               {tc('enterScore')}
-            </Link>
+            </a>
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}
@@ -495,9 +494,9 @@ export default function BattleModePageClient({
           }
           {finalsExists === true ? (
             <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/bm/finals`}>
+              <a href={`/tournaments/${tournamentId}/bm/finals`}>
                 {tc('viewTournament')}
-              </Link>
+              </a>
             </Button>
           ) : canCreateFinals ? (
             <Button
@@ -895,9 +894,9 @@ export default function BattleModePageClient({
                                         size="sm"
                                         asChild
                                       >
-                                        <Link href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
+                                        <a href={`/tournaments/${tournamentId}/bm/match/${match.id}`}>
                                           {tc('matchDetails')}
-                                        </Link>
+                                        </a>
                                       </Button>
                                     )}
                                     {/* 配信に反映: admin pushes this match's players to the overlay */}

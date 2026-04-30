@@ -1270,8 +1270,20 @@ async function uiPhaseStartRound(page, tournamentId, phase) {
     await roundControlTab.first().click().catch(() => {});
     await page.waitForTimeout(300);
   }
-  const startBtn = page.getByRole('button', { name: /^(Start Round \d+|ラウンド\s*\d+\s*開始)$/ }).first();
-  await startBtn.waitFor({ state: 'visible', timeout: D1_COLD_START_TIMEOUT_MS });
+  const startBtn = page.getByRole('button', { name: /Start Round \d+|ラウンド\s*\d+\s*開始/ }).first();
+  const startBtnVisible = await startBtn.isVisible({ timeout: D1_COLD_START_TIMEOUT_MS }).catch(() => false);
+
+  if (!startBtnVisible) {
+    const phaseData = await apiFetchTaPhase(page, tournamentId, phase);
+    const activeRound = (phaseData.b?.data?.rounds ?? []).find((round) =>
+      Array.isArray(round.results) && round.results.length === 0);
+    if (activeRound?.roundNumber) {
+      return activeRound.roundNumber;
+    }
+
+    const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+    throw new Error(`Start Round button not visible for ${phase}; entries=${phaseData.b?.data?.entries?.length ?? 0}; body=${bodyText.slice(0, 240)}`);
+  }
 
   const responsePromise = page.waitForResponse((res) =>
     res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
@@ -1330,7 +1342,8 @@ async function uiPhaseSubmitResults(page, tournamentId, phase, results) {
   await page.getByRole('button', { name: submitPattern }).first().click();
   const response = await responsePromise;
   if (response.status() !== 200) {
-    throw new Error(`UI submit_results ${phase} failed (${response.status()})`);
+    const body = await response.text().catch(() => '');
+    throw new Error(`UI submit_results ${phase} failed (${response.status()}): ${body.slice(0, 500)}`);
   }
   await page.waitForTimeout(1500);
 }
@@ -2032,45 +2045,41 @@ async function apiPutAllBmQualScores(page, tournamentId, opts = {}) {
   const { score1: fixedS1, score2: fixedS2, randomize = true } = opts;
   const data = await apiFetchBm(page, tournamentId);
   const matches = (data.matches || []).filter((m) => !m.isBye && !m.completed);
-  const CONCURRENCY = 1;
 
-  for (let i = 0; i < matches.length; i += CONCURRENCY) {
-    const batch = matches.slice(i, i + CONCURRENCY);
-    const results = await page.evaluate(async ([url, batchMatches, randomize, fixedS1, fixedS2]) => {
+  for (const match of matches) {
+    const result = await withRetry(() => page.evaluate(async ([url, match, randomize, fixedS1, fixedS2]) => {
       const scores = randomize
         ? null
         : { score1: fixedS1 ?? 3, score2: fixedS2 ?? 1 };
 
-      return Promise.all(batchMatches.map(async (match) => {
-        let score1;
-        let score2;
-        if (randomize) {
-          const picks = [
-            { score1: 3, score2: 1 },
-            { score1: 2, score2: 2 },
-            { score1: 1, score2: 3 },
-          ];
-          const pick = picks[Math.floor(Math.random() * picks.length)];
-          score1 = pick.score1;
-          score2 = pick.score2;
-        } else {
-          score1 = scores.score1;
-          score2 = scores.score2;
-        }
-
-        const r = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matchId: match.id, score1, score2 }),
-        });
-        return { s: r.status, id: match.id };
-      }));
-    }, [`/api/tournaments/${tournamentId}/bm`, batch, randomize, fixedS1, fixedS2]);
-
-    for (const res of results) {
-      if (res.s !== 200) {
-        throw new Error(`apiPutAllBmQualScores failed for match ${res.id} (${res.s})`);
+      let score1;
+      let score2;
+      if (randomize) {
+        const picks = [
+          { score1: 3, score2: 1 },
+          { score1: 2, score2: 2 },
+          { score1: 1, score2: 3 },
+        ];
+        const pick = picks[Math.floor(Math.random() * picks.length)];
+        score1 = pick.score1;
+        score2 = pick.score2;
+      } else {
+        score1 = scores.score1;
+        score2 = scores.score2;
       }
+
+      const r = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.id, score1, score2 }),
+      });
+      return { s: r.status, id: match.id };
+    }, [`/api/tournaments/${tournamentId}/bm`, match, randomize, fixedS1, fixedS2]), {
+      label: `BM qual API PUT ${match.id}`,
+    });
+
+    if (result.s !== 200) {
+      throw new Error(`apiPutAllBmQualScores failed for match ${match.id} (${result.s})`);
     }
   }
 }

@@ -22,7 +22,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -656,12 +655,12 @@ export default function GPMatchPage({
 
         {/* Back navigation */}
         <div className="text-center">
-          <Link
+          <a
             href={`/tournaments/${tournamentId}/gp`}
             className="text-sm text-muted-foreground hover:underline"
           >
             {tMatch('backToGP')}
-          </Link>
+          </a>
         </div>
       </div>
     </div>

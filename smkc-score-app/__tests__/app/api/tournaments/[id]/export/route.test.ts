@@ -257,7 +257,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(prisma.tournament.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should return 500 when the CDM template self-fetch fails', async () => {
+    it('should return 503 when the CDM template self-fetch fails', async () => {
       const mockTournament = {
         id: 't1',
         name: 'CDM Tournament',
@@ -287,8 +287,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.data).toEqual(expect.objectContaining({
         success: false,
         error: 'Failed to load CDM export template',
+        code: 'SERVICE_UNAVAILABLE',
       }));
-      expect(result.status).toBe(500);
+      expect(result.status).toBe(503);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
         source: 'fetch',
         status: 404,
@@ -297,7 +298,7 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(XLSX.read).not.toHaveBeenCalled();
     });
 
-    it('should return 500 when ASSETS.fetch throws during CDM template loading', async () => {
+    it('should return 503 when ASSETS.fetch throws during CDM template loading', async () => {
       const mockTournament = {
         id: 't1',
         name: 'CDM Tournament',
@@ -331,8 +332,9 @@ describe('Export API Route - /api/tournaments/[id]/export', () => {
       expect(result.data).toEqual(expect.objectContaining({
         success: false,
         error: 'Failed to load CDM export template',
+        code: 'SERVICE_UNAVAILABLE',
       }));
-      expect(result.status).toBe(500);
+      expect(result.status).toBe(503);
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to load CDM export template', {
         source: 'ASSETS',
         status: 500,

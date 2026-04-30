@@ -195,6 +195,38 @@ describe('GET /api/tournaments/[id]', () => {
       expect(callArgs.select).toHaveProperty('status', true);
     });
 
+    it('should retry transient summary read failures', async () => {
+      const mockSummary = {
+        id: 't1',
+        name: 'Test Tournament',
+        date: new Date('2024-01-01'),
+        status: 'active',
+        publicModes: ['ta'],
+        frozenStages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (prisma.tournament.findUnique as jest.Mock)
+        .mockRejectedValueOnce(new Error('D1 transient read failure'))
+        .mockResolvedValueOnce(mockSummary);
+
+      await tournamentRoute.GET(
+        new NextRequest('http://localhost:3000/api/tournaments/t1?fields=summary'),
+        { params: Promise.resolve({ id: 't1' }) }
+      );
+
+      expect(prisma.tournament.findUnique).toHaveBeenCalledTimes(2);
+      expect(loggerInstance.warn).toHaveBeenCalledWith(
+        'Retrying tournament read',
+        expect.objectContaining({ attempt: 1, id: 't1' })
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockSummary,
+      });
+    });
+
     it('should include BM relations when ?fields is not summary', async () => {
       const mockTournament = {
         id: 't1',

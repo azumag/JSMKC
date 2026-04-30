@@ -20,7 +20,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useCallback, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GroupSetupDialog } from "@/components/tournament/group-setup-dialog";
 import { ModePublishSwitch } from "@/components/tournament/mode-publish-switch";
@@ -483,9 +482,9 @@ export default function MatchRacePageClient({
         <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/mr/participant`}>
+            <a href={`/tournaments/${tournamentId}/mr/participant`}>
               {tc('enterScore')}
-            </Link>
+            </a>
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}
@@ -539,9 +538,9 @@ export default function MatchRacePageClient({
           }
           {finalsExists === true ? (
             <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/mr/finals`}>
+              <a href={`/tournaments/${tournamentId}/mr/finals`}>
                 {tc('viewTournament')}
-              </Link>
+              </a>
             </Button>
           ) : canCreateFinals ? (
             <Button

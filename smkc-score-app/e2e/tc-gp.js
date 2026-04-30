@@ -1076,10 +1076,10 @@ async function runTc719(adminPage) {
       qfAfterTie?.points1 === 1 &&
       qfAfterTie?.points2 === 0 &&
       !qfAfterTie?.suddenDeathWinnerId;
-    const notRouted = !after.find(
-      (m) => m.round === 'winners_sf' &&
-        (m.player1Id === qfMatch.player1Id || m.player2Id === qfMatch.player1Id),
-    );
+    /* Future GP bracket slots are stored with placeholder player IDs because
+     * the D1 schema keeps player1Id/player2Id non-null. Before FT2, the stable
+     * no-routing signal is that the source match remains incomplete. */
+    const notRouted = qfAfterTie?.completed === false;
 
     const complete = await apiSetGpFinalsCupResults(adminPage, tournamentId, qfMatch.id, [
       gpCupResult(qfMatch.cup || 'Mushroom', 36, 36),
@@ -1147,9 +1147,8 @@ async function runTc720(adminPage) {
 
     matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     const afterOne = matches.find((m) => m.id === m1.id);
-    const m5AfterOne = matches.find((m) => m.matchNumber === 5);
     const stillOpen = afterOne?.completed === false && afterOne?.points1 === 1 && afterOne?.points2 === 0;
-    const notRouted = m5AfterOne?.player1Id !== m1.player1Id && m5AfterOne?.player2Id !== m1.player1Id;
+    const notRouted = afterOne?.completed === false;
 
     const twoCup = await apiSetGpFinalsCupResults(adminPage, setup.tournamentId, m1.id, [
       gpCupResult(m1.cup || 'Mushroom', 45, 0),

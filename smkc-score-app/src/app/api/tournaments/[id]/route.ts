@@ -20,6 +20,7 @@ import { createAuditLog, AUDIT_ACTIONS, resolveAuditUserId } from "@/lib/audit-l
 import { getServerSideIdentifier } from "@/lib/rate-limit";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import { retryDbRead } from "@/lib/db-read-retry";
 import { isValidTournamentSlug, normalizeTournamentSlug, resolveTournamentId } from "@/lib/tournament-identifier";
 import {
   createSuccessResponse,
@@ -55,9 +56,20 @@ export async function GET(
   // Logger created inside function for proper test mocking support
   const logger = createLogger('tournament-api');
   const { id: identifier } = await params;
-  const resolvedId = await resolveTournamentId(identifier);
+  let resolvedId = identifier;
 
   try {
+    resolvedId = await retryDbRead(
+      () => resolveTournamentId(identifier),
+      {
+        onRetry: ({ attempt, error }) => logger.warn("Retrying tournament id resolve", {
+          attempt,
+          id: identifier,
+          error: error instanceof Error ? error.message : error,
+        }),
+      },
+    );
+
     const { searchParams } = new URL(request.url);
 
     /*
@@ -68,47 +80,56 @@ export async function GET(
      */
     const isSummary = searchParams.get('fields') === 'summary';
 
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: resolvedId },
-      select: isSummary
-        ? {
-            id: true,
-            slug: true,
-            name: true,
-            date: true,
-            status: true,
-            publicModes: true,
-            frozenStages: true,
-            qualificationConfirmed: true,
-            debugMode: true,
-            createdAt: true,
-            updatedAt: true,
-          }
-        : {
-            id: true,
-            slug: true,
-            name: true,
-            date: true,
-            status: true,
-            publicModes: true,
-            frozenStages: true,
-            qualificationConfirmed: true,
-            debugMode: true,
-            createdAt: true,
-            updatedAt: true,
-            bmQualifications: {
-              include: { player: { select: PLAYER_PUBLIC_SELECT } },
-              orderBy: [{ group: "asc" }, { score: "desc" }],
-            },
-            bmMatches: {
-              include: {
-                player1: { select: PLAYER_PUBLIC_SELECT },
-                player2: { select: PLAYER_PUBLIC_SELECT },
+    const tournament = await retryDbRead(
+      () => prisma.tournament.findUnique({
+        where: { id: resolvedId },
+        select: isSummary
+          ? {
+              id: true,
+              slug: true,
+              name: true,
+              date: true,
+              status: true,
+              publicModes: true,
+              frozenStages: true,
+              qualificationConfirmed: true,
+              debugMode: true,
+              createdAt: true,
+              updatedAt: true,
+            }
+          : {
+              id: true,
+              slug: true,
+              name: true,
+              date: true,
+              status: true,
+              publicModes: true,
+              frozenStages: true,
+              qualificationConfirmed: true,
+              debugMode: true,
+              createdAt: true,
+              updatedAt: true,
+              bmQualifications: {
+                include: { player: { select: PLAYER_PUBLIC_SELECT } },
+                orderBy: [{ group: "asc" }, { score: "desc" }],
               },
-              orderBy: { matchNumber: "asc" },
+              bmMatches: {
+                include: {
+                  player1: { select: PLAYER_PUBLIC_SELECT },
+                  player2: { select: PLAYER_PUBLIC_SELECT },
+                },
+                orderBy: { matchNumber: "asc" },
+              },
             },
-          },
-    });
+      }),
+      {
+        onRetry: ({ attempt, error }) => logger.warn("Retrying tournament read", {
+          attempt,
+          id: resolvedId,
+          error: error instanceof Error ? error.message : error,
+        }),
+      },
+    );
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);

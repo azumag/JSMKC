@@ -17,7 +17,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -224,9 +223,9 @@ export default function MatchDetailPage({
                        {tMatch('scoreEntryGuidance')}
                      </p>
                      <Button asChild>
-                       <Link href={`/tournaments/${tournamentId}/bm/participant`}>
+                       <a href={`/tournaments/${tournamentId}/bm/participant`}>
                          {tMatch('goToScoreEntry')}
-                       </Link>
+                       </a>
                      </Button>
                    </div>
                  ) : session.user?.role === 'admin' ? (
@@ -235,9 +234,9 @@ export default function MatchDetailPage({
                        {tMatch('adminSharedPageGuidance')}
                      </p>
                      <Button asChild>
-                       <Link href={`/tournaments/${tournamentId}/bm`}>
+                       <a href={`/tournaments/${tournamentId}/bm`}>
                          {tMatch('openParticipantScoreEntry')}
-                       </Link>
+                       </a>
                      </Button>
                    </div>
                  ) : null
@@ -248,12 +247,12 @@ export default function MatchDetailPage({
 
         {/* Back navigation link */}
         <div className="text-center">
-          <Link
+          <a
             href={`/tournaments/${tournamentId}/bm`}
             className="text-sm text-muted-foreground hover:underline"
           >
             {tMatch('backToBM')}
-          </Link>
+          </a>
         </div>
       </div>
     </div>

@@ -24,6 +24,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createLogger } from "@/lib/logger";
+import { retryDbRead } from "@/lib/db-read-retry";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -169,9 +170,20 @@ export async function GET(
 ) {
   const logger = createLogger("ta-phases-api");
   const { id } = await params;
-  const tournamentId = await resolveTournamentId(id);
+  let tournamentId = id;
 
   try {
+    tournamentId = await retryDbRead(
+      () => resolveTournamentId(id),
+      {
+        onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase tournament resolve", {
+          attempt,
+          id,
+          error: error instanceof Error ? error.message : error,
+        }),
+      },
+    );
+
     // Parse optional phase filter from query params early (no async needed)
     const { searchParams } = new URL(request.url);
     const phaseParam = searchParams.get("phase");
@@ -181,28 +193,39 @@ export async function GET(
       return handleValidationError("Invalid phase parameter. Must be one of: phase1, phase2, phase3");
     }
 
-    /* Run tournament existence check and phase-status summary in parallel.
-     * Previously sequential: tournament.findUnique then getPhaseStatus (3 queries).
-     * Now: both start simultaneously, reducing the critical path by ~200–400 ms (#733). */
-    const [tournament, phaseStatus] = await Promise.all([
-      prisma.tournament.findUnique({ where: { id: tournamentId } }),
-      getPhaseStatus(prisma, tournamentId),
-    ]);
+    const tournament = await retryDbRead(
+      () => prisma.tournament.findUnique({ where: { id: tournamentId } }),
+      {
+        onRetry: ({ attempt, error }) => logger.warn("Retrying TA tournament read", {
+          attempt,
+          tournamentId,
+          error: error instanceof Error ? error.message : error,
+        }),
+      },
+    );
 
     if (!tournament) {
       return createErrorResponse("Tournament not found", 404);
     }
+
+    const phaseStatus = await retryDbRead(
+      () => getPhaseStatus(prisma, tournamentId),
+      {
+        onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase status read", {
+          attempt,
+          tournamentId,
+          error: error instanceof Error ? error.message : error,
+        }),
+      },
+    );
 
     const response: Record<string, unknown> = { phaseStatus };
 
     if (phase?.success) {
       const phaseValue = phase.data;
 
-      /* Run all three phase-specific queries in parallel.
-       * Previously sequential (entries → rounds → playedCourses), adding ~450 ms.
-       * Now one parallel batch: entries + rounds + playedCourses simultaneously. */
-      const [entries, rounds, playedCourses] = await Promise.all([
-        prisma.tTEntry.findMany({
+      const entries = await retryDbRead(
+        () => prisma.tTEntry.findMany({
           where: { tournamentId, stage: phaseValue },
           include: { player: { select: PLAYER_PUBLIC_SELECT } },
           orderBy: [
@@ -211,7 +234,17 @@ export async function GET(
             { totalTime: "asc" },
           ],
         }),
-        prisma.tTPhaseRound.findMany({
+        {
+          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase entry read", {
+            attempt,
+            tournamentId,
+            phase: phaseValue,
+            error: error instanceof Error ? error.message : error,
+          }),
+        },
+      );
+      const rounds = await retryDbRead(
+        () => prisma.tTPhaseRound.findMany({
           where: { tournamentId, phase: phaseValue },
           include: {
             suddenDeathRounds: {
@@ -220,8 +253,26 @@ export async function GET(
           },
           orderBy: { roundNumber: "asc" },
         }),
-        getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue),
-      ]);
+        {
+          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase round read", {
+            attempt,
+            tournamentId,
+            phase: phaseValue,
+            error: error instanceof Error ? error.message : error,
+          }),
+        },
+      );
+      const playedCourses = await retryDbRead(
+        () => getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phaseValue),
+        {
+          onRetry: ({ attempt, error }) => logger.warn("Retrying TA phase course read", {
+            attempt,
+            tournamentId,
+            phase: phaseValue,
+            error: error instanceof Error ? error.message : error,
+          }),
+        },
+      );
 
       response.entries = entries;
       response.rounds = rounds.map(normalizePhaseRound);

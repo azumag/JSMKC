@@ -220,6 +220,65 @@ describe('GET /api/players', () => {
       );
     });
 
+    it('should skip tournament-data annotation unless requested', async () => {
+      const mockPlayers = [{ id: 'p1', name: 'Player 1', nickname: 'player1' }];
+
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      prisma.player.findMany.mockResolvedValue(mockPlayers);
+      prisma.player.count.mockResolvedValue(1);
+
+      await playerRoute.GET(
+        new NextRequest('http://localhost:3000/api/players?limit=100')
+      );
+
+      expect(auth).not.toHaveBeenCalled();
+      expect(prisma.bMQualification.findMany).not.toHaveBeenCalled();
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: mockPlayers,
+        })
+      );
+    });
+
+    it('should annotate tournament data when admin explicitly requests it', async () => {
+      const mockPlayers = [
+        { id: 'p1', name: 'Player 1', nickname: 'player1' },
+        { id: 'p2', name: 'Player 2', nickname: 'player2' },
+      ];
+
+      auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+      prisma.player.findMany.mockResolvedValue(mockPlayers);
+      prisma.player.count.mockResolvedValue(2);
+      prisma.bMQualification.findMany.mockResolvedValue([{ playerId: 'p1' }]);
+      prisma.bMMatch.findMany.mockResolvedValue([]);
+      prisma.mRQualification.findMany.mockResolvedValue([]);
+      prisma.mRMatch.findMany.mockResolvedValue([]);
+      prisma.gPQualification.findMany.mockResolvedValue([]);
+      prisma.gPMatch.findMany.mockResolvedValue([]);
+      prisma.tTEntry.findMany.mockResolvedValue([]);
+      prisma.tournamentPlayerScore.findMany.mockResolvedValue([]);
+
+      await playerRoute.GET(
+        new NextRequest('http://localhost:3000/api/players?limit=100&includeTournamentData=1')
+      );
+
+      expect(auth).toHaveBeenCalled();
+      expect(prisma.bMQualification.findMany).toHaveBeenCalledWith({
+        where: { playerId: { in: ['p1', 'p2'] } },
+        select: { playerId: true },
+      });
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: [
+            expect.objectContaining({ id: 'p1', hasTournamentData: true }),
+            expect.objectContaining({ id: 'p2', hasTournamentData: false }),
+          ],
+        })
+      );
+    });
+
     it('should return all players without filtering', async () => {
       const mockPlayers = [{ id: 'p1', name: 'Active Player', nickname: 'active' }];
 

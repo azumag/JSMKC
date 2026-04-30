@@ -18,7 +18,6 @@
  */
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import Link from "next/link";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -111,13 +110,13 @@ export default async function RootLayout({
                   <header className="border-b border-foreground/15 bg-background">
                     <div className="container mx-auto px-5 sm:px-6">
                       <nav className="flex items-center justify-between gap-4 py-3 sm:py-4">
-                        <Link
+                        <a
                           href="/"
                           className="font-display text-xl sm:text-2xl tracking-[0.18em] text-foreground whitespace-nowrap"
                           aria-label="SMKC home"
                         >
                           SMKC
-                        </Link>
+                        </a>
                         <div className="flex items-center gap-1 sm:gap-2">
                           <NavLink href="/players" messageKey="players" />
                           <NavLink href="/tournaments" messageKey="tournaments" />
@@ -158,11 +157,11 @@ function NavLink({
   messageKey: string;
 }) {
   return (
-    <Link
+    <a
       href={href}
       className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
     >
       <NavLabelClient messageKey={messageKey} />
-    </Link>
+    </a>
   );
 }
