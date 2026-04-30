@@ -3339,7 +3339,14 @@ async function main() {
         await page.setViewportSize({ width: 375, height: 812 });
         const jsErrors = [];
         const onErr = (e) => jsErrors.push(e.message);
+        const serverErrors = [];
+        const onResponse = (response) => {
+          if (response.status() >= 500) {
+            serverErrors.push(`${response.status()} ${response.url()}`);
+          }
+        };
         page.on('pageerror', onErr);
+        page.on('response', onResponse);
 
         const modePages = [
           `/tournaments/${respTid}/bm`,
@@ -3349,16 +3356,17 @@ async function main() {
         let allOk = true;
         for (const path of modePages) {
           await nav(page, path);
-          if (jsErrors.length > 0) { allOk = false; break; }
+          if (jsErrors.length > 0 || serverErrors.length > 0) { allOk = false; break; }
           const body = await page.locator('body').innerText();
-          if (body.includes('Failed to fetch') || body.includes('500')) { allOk = false; break; }
+          if (body.includes('Failed to fetch')) { allOk = false; break; }
         }
         page.off('pageerror', onErr);
+        page.off('response', onResponse);
         // Restore default viewport
         await page.setViewportSize({ width: 1280, height: 720 });
 
         log('TC-349', allOk ? 'PASS' : 'FAIL',
-          !allOk ? `mobile viewport errors: ${jsErrors.join('; ')}` : '');
+          !allOk ? `mobile viewport errors: ${[...jsErrors, ...serverErrors].join('; ')}` : '');
       } catch (err) {
         log('TC-349', 'FAIL', err instanceof Error ? err.message : 'Responsive test failed');
         await page.setViewportSize({ width: 1280, height: 720 });
