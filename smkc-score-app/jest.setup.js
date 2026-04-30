@@ -122,6 +122,7 @@ jest.mock('@/lib/prisma', () => {
     tournament: createMockModelWithMethods(),
     auditLog: {
       create: jest.fn(),
+      createMany: jest.fn(),
       findMany: jest.fn(),
     },
     player: createMockModelWithMethods(),

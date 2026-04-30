@@ -256,6 +256,8 @@ export async function createAuditLogs(paramsList: AuditLogParams[]): Promise<voi
 
     logger.debug('Audit logs created', { count: paramsList.length });
   } catch (error) {
+    // Keep the same error-level signal as createAuditLog: audit writes are
+    // fail-silent for callers, but still important enough for operations.
     logger.error('Failed to create audit logs', {
       count: paramsList.length,
       error: error instanceof Error ? error.message : String(error),
