@@ -262,13 +262,9 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
         >
           {t.player}
         </span>
-        {t.rank != null && (
+        {t.rank != null && !isQualificationTotal && (
           <span
-            className={`shrink-0 rounded bg-yellow-400/20 font-semibold text-yellow-300 ${
-              isQualificationTotal
-                ? "px-2.5 py-1 text-2xl leading-tight"
-                : "px-2 py-0.5 text-sm"
-            }`}
+            className="shrink-0 rounded bg-yellow-400/20 px-2 py-0.5 text-sm font-semibold text-yellow-300"
             data-testid="dashboard-timeline-ta-rank"
           >
             現在 {t.rank} 位
@@ -280,9 +276,18 @@ function TaTimeCard({ event, now }: { event: OverlayEvent; now: number }) {
 
       {isQualificationTotal ? (
         <div className="mt-2 flex items-baseline justify-between gap-3">
-          <span className="text-sm font-medium text-white/70">合計タイム</span>
+          {t.rank != null ? (
+            <span
+              className="shrink-0 rounded bg-yellow-400/20 px-2.5 py-1 text-2xl font-semibold leading-tight text-yellow-300"
+              data-testid="dashboard-timeline-ta-rank"
+            >
+              現在 {t.rank} 位
+            </span>
+          ) : (
+            <span className="text-sm font-medium text-white/70">合計タイム</span>
+          )}
           <span
-            className="text-3xl font-bold tabular-nums text-yellow-400"
+            className="min-w-0 text-right text-xl font-bold tabular-nums text-yellow-400"
             data-testid="dashboard-timeline-ta-total"
           >
             {t.totalTimeFormatted}

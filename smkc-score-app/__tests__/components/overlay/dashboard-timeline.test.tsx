@@ -125,14 +125,17 @@ describe("DashboardTimeline match scoreboard card", () => {
 });
 
 describe("DashboardTimeline TA time card", () => {
-  it("renders qualification player name large and rank slightly smaller than the total time", () => {
+  it("renders qualification player name wide and moves rank beside a smaller total time", () => {
     render(<DashboardTimeline events={[taEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("text-3xl");
     expect(screen.getByTestId("dashboard-timeline-ta-player")).toHaveClass("line-clamp-2");
     expect(screen.getByTestId("dashboard-timeline-ta-player")).not.toHaveClass("truncate");
     expect(screen.getByTestId("dashboard-timeline-ta-rank")).toHaveClass("text-2xl");
-    expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-3xl");
+    expect(screen.getByTestId("dashboard-timeline-ta-total")).toHaveClass("text-xl");
+    expect(screen.getByTestId("dashboard-timeline-ta-rank").parentElement).toBe(
+      screen.getByTestId("dashboard-timeline-ta-total").parentElement,
+    );
   });
 
   it("keeps phase-round player name and rank compact", () => {
