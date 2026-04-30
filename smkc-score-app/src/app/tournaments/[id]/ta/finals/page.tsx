@@ -75,7 +75,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { COURSE_INFO, RETRY_PENALTY_DISPLAY, RETRY_PENALTY_MS, TV_NUMBER_OPTIONS } from "@/lib/constants";
-import { generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
+import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import {
   TA_FINALS_ROUND_CONTROLS_CLASS,
   TA_FINALS_ROUND_ENTRY_ROW_CLASS,
@@ -484,6 +484,24 @@ export default function TimeAttackFinals({
     }
   };
 
+  const handleTimeBlur = (playerId: string) => {
+    const raw = courseTimes[playerId];
+    if (!raw || raw.trim() === "") return;
+    const formatted = autoFormatTime(raw);
+    if (formatted !== null && formatted !== raw) {
+      setCourseTimes((prev) => ({ ...prev, [playerId]: formatted }));
+    }
+  };
+
+  const handleSuddenDeathTimeBlur = (playerId: string) => {
+    const raw = suddenDeathTimes[playerId];
+    if (!raw || raw.trim() === "") return;
+    const formatted = autoFormatTime(raw);
+    if (formatted !== null && formatted !== raw) {
+      setSuddenDeathTimes((prev) => ({ ...prev, [playerId]: formatted }));
+    }
+  };
+
   /** Toggle retry penalty: sets time to 9:59.990 and marks isRetry flag */
   const handleRetryToggle = (playerId: string) => {
     const isCurrentlyRetry = retryFlags[playerId];
@@ -886,6 +904,7 @@ export default function TimeAttackFinals({
                     placeholder={tTaFinals('timePlaceholder')}
                     value={suddenDeathTimes[entry.playerId] || ""}
                     onChange={(e) => setSuddenDeathTimes((prev) => ({ ...prev, [entry.playerId]: e.target.value }))}
+                    onBlur={() => handleSuddenDeathTimeBlur(entry.playerId)}
                     className={TA_FINALS_TIME_INPUT_CLASS}
                   />
                 </div>
@@ -970,6 +989,7 @@ export default function TimeAttackFinals({
                       onChange={(e) =>
                         handleTimeChange(entry.playerId, e.target.value)
                       }
+                      onBlur={() => handleTimeBlur(entry.playerId)}
                       disabled={retryFlags[entry.playerId]}
                       className={TA_FINALS_TIME_INPUT_CLASS}
                     />

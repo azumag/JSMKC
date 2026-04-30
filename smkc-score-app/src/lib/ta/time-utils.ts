@@ -101,8 +101,8 @@ export function msToDisplayTime(ms: number | null): string {
  *
  * Handles various user input patterns:
  * - Already formatted ("1:23.45" / legacy "1:23.456") → normalized to display format
- * - Digits only ("12345") → interpreted positionally then normalized
- * - Partial digits ("58490") → normalized to "0:58.49"
+ * - Digits only ("12345") → interpreted as M:SS.cc then normalized
+ * - Partial digits ("5849") → normalized to "0:58.49"
  * - With colon but no dot ("1:23") → "1:23.00"
  * - With dot but no colon ("123.456") → parsed then normalized
  *
@@ -125,22 +125,21 @@ export function autoFormatTime(input: string): string | null {
   const colonNoDot = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
   if (colonNoDot) return `${colonNoDot[1]}:${colonNoDot[2]}.00`;
 
-  /* Digits only — interpret positionally as MSSMMM (right-aligned milliseconds).
-   * Pad to 6 digits minimum: e.g., "1122" → "001122" → 0:11.22
-   * "58490" → "058490" → 0:58.49, "123456" → 1:23.46 */
+  /* Digits only — interpret positionally as MSScc (right-aligned centiseconds).
+   * Pad to 5 digits minimum: "12345" → 1:23.45, "5849" → 0:58.49 */
   const digitsOnly = /^\d+$/.exec(trimmed);
   if (digitsOnly) {
-    const padded = trimmed.padStart(6, "0");
-    /* Split: first N-5 chars = minutes, next 2 = seconds, last 3 = ms */
-    const msStr = padded.slice(-3);
-    const ssStr = padded.slice(-5, -3);
-    const mmStr = padded.slice(0, -5) || "0";
+    const padded = trimmed.padStart(5, "0");
+    /* Split: first N-4 chars = minutes, next 2 = seconds, last 2 = centiseconds */
+    const centisecondsStr = padded.slice(-2);
+    const ssStr = padded.slice(-4, -2);
+    const mmStr = padded.slice(0, -4) || "0";
 
     const minutes = parseInt(mmStr, 10);
     const seconds = parseInt(ssStr, 10);
     if (seconds >= 60) return null; /* Invalid seconds */
 
-    return normalizeFormattedTime(`${minutes}:${seconds.toString().padStart(2, "0")}.${msStr}`);
+    return normalizeFormattedTime(`${minutes}:${seconds.toString().padStart(2, "0")}.${centisecondsStr}`);
   }
 
   /* Has dot but no colon (e.g., "123.456") — try to split at dot */

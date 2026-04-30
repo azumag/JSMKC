@@ -13,7 +13,8 @@ export function getTaTimeInputProps(title: string) {
   } as const;
 }
 
-export const TA_TIME_INPUT_HELP_CLASS = "text-xs leading-relaxed text-muted-foreground";
+export const TA_TIME_INPUT_HELP_CLASS =
+  "rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium leading-relaxed text-foreground";
 
 export const TA_FINALS_ROUND_ENTRY_ROW_CLASS =
   "rounded-md border bg-background/60 p-3 space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0 sm:border-0 sm:bg-transparent sm:p-0";

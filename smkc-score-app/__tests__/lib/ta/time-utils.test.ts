@@ -182,14 +182,14 @@ describe('TA Time Utils', () => {
       expect(autoFormatTime('0:58')).toBe('0:58.00');
     });
 
-    it('should format digits-only input as MSSMMM', () => {
-      /* Digits-only input is still interpreted positionally, then normalized */
-      expect(autoFormatTime('01122')).toBe('0:01.12');
-      expect(autoFormatTime('058490')).toBe('0:58.49');
-      expect(autoFormatTime('123456')).toBe('1:23.46');
-      expect(autoFormatTime('001122')).toBe('0:01.12');
+    it('should format digits-only input as MSScc', () => {
+      expect(autoFormatTime('12345')).toBe('1:23.45');
+      expect(autoFormatTime('05849')).toBe('0:58.49');
+      expect(autoFormatTime('123456')).toBe('12:34.56');
+      expect(autoFormatTime('00112')).toBe('0:01.12');
       /* Short input — padded left */
-      expect(autoFormatTime('1122')).toBe('0:01.12');
+      expect(autoFormatTime('5849')).toBe('0:58.49');
+      expect(autoFormatTime('112')).toBe('0:01.12');
     });
 
     it('should handle dot-only input and normalize to centiseconds', () => {
@@ -204,8 +204,8 @@ describe('TA Time Utils', () => {
     });
 
     it('should return null for invalid seconds (>=60)', () => {
-      /* "065000" → 0:65.000 — invalid seconds */
-      expect(autoFormatTime('065000')).toBeNull();
+      /* "06500" → 0:65.00 — invalid seconds */
+      expect(autoFormatTime('06500')).toBeNull();
     });
 
     it('should handle extreme short inputs (0, 00, 000)', () => {
@@ -214,9 +214,8 @@ describe('TA Time Utils', () => {
       expect(autoFormatTime('000000')).toBe('0:00.00');
     });
 
-    it('should handle 7+ digit inputs', () => {
-      /* "1234567" → 12 minutes, 34 seconds, 567ms */
-      expect(autoFormatTime('1234567')).toBe('12:34.57');
+    it('should reject digits-only input that would require 3+ minute digits', () => {
+      expect(autoFormatTime('1234567')).toBeNull();
     });
 
     it('should preserve 2-digit centiseconds in valid format', () => {
@@ -225,9 +224,9 @@ describe('TA Time Utils', () => {
     });
 
     it('should round-trip with timeToMs for valid outputs', () => {
-      const formatted = autoFormatTime('123456');
-      expect(formatted).toBe('1:23.46');
-      expect(timeToMs(formatted!)).toBe(83460);
+      const formatted = autoFormatTime('12345');
+      expect(formatted).toBe('1:23.45');
+      expect(timeToMs(formatted!)).toBe(83450);
     });
   });
 });

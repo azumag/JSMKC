@@ -26,7 +26,15 @@ describe("TA time entry layout", () => {
       title: "例: 123.45 または 1:23.45",
     });
     expect(TA_TIME_INPUT_HELP_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["text-xs", "leading-relaxed", "text-muted-foreground"]),
+      expect.arrayContaining([
+        "rounded-md",
+        "border",
+        "bg-primary/5",
+        "px-3",
+        "py-2",
+        "text-sm",
+        "font-medium",
+      ]),
     );
   });
 
