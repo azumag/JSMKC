@@ -440,6 +440,10 @@ describe('TA Rank Calculation', () => {
       expect(templateStrings.raw.join('')).toContain('json_each');
     });
 
+    it('requires callers to pass the stage explicitly', () => {
+      expect(rerankStageAfterDelete).toHaveLength(3);
+    });
+
     it('should rerank qualification after delete with a single rank-only update', async () => {
       await rerankStageAfterDelete('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
