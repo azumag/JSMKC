@@ -20,6 +20,7 @@
 
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useEffect, useCallback, use } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -325,7 +326,9 @@ export default function TournamentLayout({
                 </ExportButton>
               )}
               <Button variant="outline" asChild>
-                <a href="/tournaments">← {t("backToList")}</a>
+                <Link href="/tournaments" prefetch={false}>
+                  ← {t("backToList")}
+                </Link>
               </Button>
             </div>
           </div>

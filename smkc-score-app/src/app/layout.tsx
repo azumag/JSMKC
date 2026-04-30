@@ -18,6 +18,7 @@
  */
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Link from "next/link";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -110,13 +111,14 @@ export default async function RootLayout({
                   <header className="border-b border-foreground/15 bg-background">
                     <div className="container mx-auto px-5 sm:px-6">
                       <nav className="flex items-center justify-between gap-4 py-3 sm:py-4">
-                        <a
+                        <Link
                           href="/"
+                          prefetch={false}
                           className="font-display text-xl sm:text-2xl tracking-[0.18em] text-foreground whitespace-nowrap"
                           aria-label="SMKC home"
                         >
                           SMKC
-                        </a>
+                        </Link>
                         <div className="flex items-center gap-1 sm:gap-2">
                           <NavLink href="/players" messageKey="players" />
                           <NavLink href="/tournaments" messageKey="tournaments" />
