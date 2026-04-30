@@ -291,6 +291,13 @@ describe('Audit Log', () => {
       ]);
 
       expect(result).toBeUndefined();
+      expect(loggerModuleMock.__auditLogger.error).toHaveBeenCalledWith(
+        'Failed to create audit logs',
+        {
+          count: 1,
+          error: 'Database connection failed',
+        }
+      );
     });
   });
 });
