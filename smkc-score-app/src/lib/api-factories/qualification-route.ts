@@ -79,6 +79,130 @@ function getAssignedCourses(shuffled: string[], matchIndex: number): string[] {
   );
 }
 
+function createCuidLikeId(): string {
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(12)))
+    .map((byte) => byte.toString(36).padStart(2, '0'))
+    .join('');
+  return `c${Date.now().toString(36)}${random}`.slice(0, 25);
+}
+
+async function insertQualificationMatches(
+  eventTypeCode: EventTypeConfig['eventTypeCode'],
+  matchData: Array<Record<string, unknown>>,
+): Promise<boolean> {
+  if (matchData.length === 0) return true;
+
+  const rows = matchData.map((match) => ({
+    id: createCuidLikeId(),
+    tournamentId: match.tournamentId,
+    matchNumber: match.matchNumber,
+    stage: match.stage,
+    player1Id: match.player1Id,
+    player2Id: match.player2Id,
+    player1Side: match.player1Side,
+    player2Side: match.player2Side,
+    roundNumber: match.roundNumber ?? null,
+    isBye: match.isBye ? 1 : 0,
+    completed: match.completed ? 1 : 0,
+    score1: match.score1 ?? 0,
+    score2: match.score2 ?? 0,
+    points1: match.points1 ?? 0,
+    points2: match.points2 ?? 0,
+    assignedCourses: match.assignedCourses ?? null,
+    cup: match.cup ?? null,
+  }));
+  const payload = JSON.stringify(rows);
+
+  if (eventTypeCode === 'bm') {
+    await prisma.$executeRaw`
+      INSERT INTO BMMatch (
+        id, tournamentId, matchNumber, stage, player1Id, player2Id,
+        player1Side, player2Side, roundNumber, isBye, completed,
+        score1, score2, assignedCourses, createdAt, updatedAt
+      )
+      SELECT
+        json_extract(value, '$.id'),
+        json_extract(value, '$.tournamentId'),
+        json_extract(value, '$.matchNumber'),
+        json_extract(value, '$.stage'),
+        json_extract(value, '$.player1Id'),
+        json_extract(value, '$.player2Id'),
+        json_extract(value, '$.player1Side'),
+        json_extract(value, '$.player2Side'),
+        json_extract(value, '$.roundNumber'),
+        json_extract(value, '$.isBye'),
+        json_extract(value, '$.completed'),
+        json_extract(value, '$.score1'),
+        json_extract(value, '$.score2'),
+        json_extract(value, '$.assignedCourses'),
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM json_each(${payload})
+    `;
+    return true;
+  }
+
+  if (eventTypeCode === 'mr') {
+    await prisma.$executeRaw`
+      INSERT INTO MRMatch (
+        id, tournamentId, matchNumber, stage, player1Id, player2Id,
+        player1Side, player2Side, roundNumber, isBye, completed,
+        score1, score2, assignedCourses, createdAt, updatedAt
+      )
+      SELECT
+        json_extract(value, '$.id'),
+        json_extract(value, '$.tournamentId'),
+        json_extract(value, '$.matchNumber'),
+        json_extract(value, '$.stage'),
+        json_extract(value, '$.player1Id'),
+        json_extract(value, '$.player2Id'),
+        json_extract(value, '$.player1Side'),
+        json_extract(value, '$.player2Side'),
+        json_extract(value, '$.roundNumber'),
+        json_extract(value, '$.isBye'),
+        json_extract(value, '$.completed'),
+        json_extract(value, '$.score1'),
+        json_extract(value, '$.score2'),
+        json_extract(value, '$.assignedCourses'),
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM json_each(${payload})
+    `;
+    return true;
+  }
+
+  if (eventTypeCode === 'gp') {
+    await prisma.$executeRaw`
+      INSERT INTO GPMatch (
+        id, tournamentId, matchNumber, stage, player1Id, player2Id,
+        player1Side, player2Side, roundNumber, isBye, completed,
+        points1, points2, cup, createdAt, updatedAt
+      )
+      SELECT
+        json_extract(value, '$.id'),
+        json_extract(value, '$.tournamentId'),
+        json_extract(value, '$.matchNumber'),
+        json_extract(value, '$.stage'),
+        json_extract(value, '$.player1Id'),
+        json_extract(value, '$.player2Id'),
+        json_extract(value, '$.player1Side'),
+        json_extract(value, '$.player2Side'),
+        json_extract(value, '$.roundNumber'),
+        json_extract(value, '$.isBye'),
+        json_extract(value, '$.completed'),
+        json_extract(value, '$.points1'),
+        json_extract(value, '$.points2'),
+        json_extract(value, '$.cup'),
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM json_each(${payload})
+    `;
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Create qualification route handlers from an event type configuration.
  *
@@ -424,14 +548,22 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         }
       }
 
-      // D1 bound-parameter limit is ~100 per SQL statement (#736).
-      // Match rows have up to 12 columns (9 base + isBye BYE fields: completed/score1/score2,
-      // and optional MR/GP fields: assignedCourses/cup) → chunk at 8 rows (96 params worst-case)
-      // to stay safely under the limit regardless of which optional fields are present.
       if (matchData.length > 0) {
-        const MATCH_CHUNK = 8;
-        for (let i = 0; i < matchData.length; i += MATCH_CHUNK) {
-          await matchModel(prisma).createMany({ data: matchData.slice(i, i + MATCH_CHUNK) });
+        /*
+         * D1's bound-parameter limit previously forced createMany into 8-row
+         * chunks. A 28-player E2E seed then spent dozens of sequential
+         * round-trips creating matches and could trip production request
+         * limits. For large inserts, pass one JSON payload to SQLite's JSON1
+         * table function and insert every qualification match in one query.
+         * Small inserts stay on Prisma createMany so unit tests and ordinary
+         * admin edits keep their narrower, familiar path.
+         */
+        const RAW_INSERT_THRESHOLD = 8;
+        const insertedWithRaw = matchData.length > RAW_INSERT_THRESHOLD
+          ? await insertQualificationMatches(config.eventTypeCode, matchData)
+          : false;
+        if (!insertedWithRaw) {
+          await matchModel(prisma).createMany({ data: matchData });
         }
       }
 

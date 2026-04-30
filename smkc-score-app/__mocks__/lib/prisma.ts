@@ -76,6 +76,7 @@ const mockPrisma = {
     deleteMany: jest.fn(),
   },
   $transaction: jest.fn(),
+  $executeRaw: jest.fn(),
 };
 
 export const prisma = mockPrisma;
