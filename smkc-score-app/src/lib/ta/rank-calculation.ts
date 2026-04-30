@@ -23,7 +23,7 @@ import { COURSES } from "@/lib/constants";
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from "@/lib/ta/time-utils";
 import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.
@@ -44,6 +44,26 @@ export interface EntryWithTotal {
   courseScores: Record<string, number>;
   /** Total qualification points: floor(sum of courseScores) */
   qualificationPoints: number;
+}
+
+export const QUALIFICATION_RANK_ORDER_SQL = Prisma.sql`
+  ORDER BY
+    COALESCE(qualificationPoints, 0) DESC,
+    totalTime IS NULL ASC,
+    totalTime ASC,
+    id ASC
+`;
+
+export function compareQualificationRankOrder(a: EntryWithTotal, b: EntryWithTotal): number {
+  if (a.qualificationPoints !== b.qualificationPoints) {
+    return b.qualificationPoints - a.qualificationPoints;
+  }
+  if (a.totalTime === null && b.totalTime !== null) return 1;
+  if (a.totalTime !== null && b.totalTime === null) return -1;
+  if (a.totalTime !== null && b.totalTime !== null && a.totalTime !== b.totalTime) {
+    return a.totalTime - b.totalTime;
+  }
+  return a.id.localeCompare(b.id);
 }
 
 /**
@@ -123,17 +143,7 @@ export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWith
   } else {
     // Qualification: sort by qualification points descending, then total time ascending
     // All entries are included (even those with 0 points) so they appear in standings
-    return [...entries].sort((a, b) => {
-      // Higher points = better rank
-      if (a.qualificationPoints !== b.qualificationPoints) {
-        return b.qualificationPoints - a.qualificationPoints;
-      }
-      // Tiebreaker: faster total time wins; null times sort to the end
-      if (a.totalTime === null && b.totalTime === null) return 0;
-      if (a.totalTime === null) return 1;
-      if (b.totalTime === null) return -1;
-      return a.totalTime - b.totalTime;
-    });
+    return [...entries].sort(compareQualificationRankOrder);
   }
 }
 
@@ -305,11 +315,7 @@ export async function rerankStageAfterDelete(
       SELECT
         id,
         ROW_NUMBER() OVER (
-          ORDER BY
-            COALESCE(qualificationPoints, 0) DESC,
-            totalTime IS NULL ASC,
-            totalTime ASC,
-            id ASC
+          ${QUALIFICATION_RANK_ORDER_SQL}
         ) AS newRank
       FROM TTEntry
       WHERE tournamentId = ${tournamentId}

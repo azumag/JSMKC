@@ -1398,19 +1398,19 @@
   6. クリーンアップ
 - **期待結果**: TA は手動操作なしで同着が平均ポイントで解決され、TC-324/TC-620/TC-713 と同じ同着回帰カバレッジを持つ
 
-## TC-813: TA 予選エントリー削除後のランク再計算 (issue #710)
+## TC-813: TA 予選エントリー削除後のランク再計算 (issue #710/#959)
 - **URL**: /api/tournaments/[temp-id]/ta (DELETE), /api/tournaments/[temp-id]/ta (GET)
 - **authRequired**: true (admin)
-- **背景** (issue #710): `recalculateRanks` は以前 N 件の `TTEntry.update` を直列実行していたため、27エントリー時に ~5s のレスポンス遅延が発生していた。修正により単一の `UPDATE ... CASE WHEN` 文に集約し、同じ処理を ~200ms で完了できるようになった。本 TC はその機能的正確性を確認する回帰テストである。
+- **背景** (issue #710/#959): `recalculateRanks` は以前 N 件の `TTEntry.update` を直列実行していたため、27エントリー時に ~5s のレスポンス遅延が発生していた。さらに DELETE 後の `rerankStageAfterDelete` が `recalculateRanks` と同じ TA 予選順序（`qualificationPoints DESC`, `totalTime ASC`, `id ASC`）を使わないと、削除後だけ順位がズレる。本 TC はその機能的正確性を確認する回帰テストである。
 - **手順**:
   1. テスト用プレイヤー4名 + トーナメントを作成
   2. `setupTaQualViaUi(…, { seedTimes: false })` で TA エントリーを作成
-  3. P1–P4 に `makeTaTimesForRank(1)` – `makeTaTimesForRank(4)` でそれぞれ異なるタイムを PUT
-  4. `/api/tournaments/[id]/ta` で初期ランクが P1=1, P2=2, P3=3, P4=4 であることを確認
-  5. `DELETE /api/tournaments/[id]/ta?entryId={p2EntryId}` で P2 を削除
-  6. 再度 GET し、残存エントリーのランクが P1=1, P3=2, P4=3 に再コンパクション済みであることを確認（ギャップなし）
+  3. P1 は 19 コースで最速だが 1 コースだけ大きく遅い、P2 は全体 totalTime だけなら P1 より速い、P3/P4 はそれより低いスコアになるタイムを PUT
+  4. `/api/tournaments/[id]/ta` で初期ランクが P1=1, P2=2, P3=3, P4=4 であり、P1 は P2 より totalTime が遅いが `qualificationPoints` が高いことを確認
+  5. `DELETE /api/tournaments/[id]/ta?entryId={p3EntryId}` で P3 を削除
+  6. 再度 GET し、残存エントリーのランクが P1=1, P2=2, P4=3 に再コンパクション済みであることを確認（ギャップなし、かつ totalTime-first にドリフトしていない）
   7. クリーンアップ
-- **期待結果**: エントリー削除後に `recalculateRanks` が正しく動作し、連続したランクが割り当てられる
+- **期待結果**: エントリー削除後に DELETE 専用の再ランク処理が `recalculateRanks` と同じ TA 予選順序で動作し、連続したランクが割り当てられる
 - **スクリプト**: tc-ta.js TC-813
 
 ## TC-621: MR ラウンド別 targetWins API バリデーション (issue #528)
