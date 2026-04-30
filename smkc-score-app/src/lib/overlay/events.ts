@@ -303,6 +303,20 @@ export function buildOverlayEvents(input: BuildOverlayEventsInput): OverlayEvent
           livesReset: r.livesReset ?? false,
         },
       });
+
+      if (r.livesReset) {
+        const remainingCount = Math.max(0, results.length - eliminatedPlayers.length);
+        const remainingLabel =
+          remainingCount === 1 ? "1 player remains" : `${remainingCount} players remain`;
+        events.push({
+          id: `ta_lives_reset:${r.id}:${r.submittedAt.getTime()}`,
+          type: "ta_lives_reset",
+          timestamp: new Date(r.submittedAt.getTime() + 1).toISOString(),
+          mode: "ta",
+          title: "Time Attack Lives Reset",
+          subtitle: `${prefix}Round ${r.roundNumber}: ${remainingLabel}`,
+        });
+      }
     }
   }
 

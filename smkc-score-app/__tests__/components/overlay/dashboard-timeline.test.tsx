@@ -100,6 +100,18 @@ function taPhaseCompletedEvent(overrides: Partial<OverlayEvent> = {}): OverlayEv
   };
 }
 
+function taLivesResetEvent(overrides: Partial<OverlayEvent> = {}): OverlayEvent {
+  return {
+    id: "ta_lives_reset:r1:1",
+    type: "ta_lives_reset",
+    timestamp: "2026-04-25T10:00:00.001Z",
+    mode: "ta",
+    title: "Time Attack Lives Reset",
+    subtitle: "Phase 3 Round 7: 8 players remain",
+    ...overrides,
+  };
+}
+
 const NOW = Date.parse("2026-04-25T10:00:01.000Z");
 
 describe("DashboardTimeline match scoreboard card", () => {
@@ -376,5 +388,16 @@ describe("DashboardTimeline TA phase completed card", () => {
     expect(screen.getByTestId("dashboard-timeline-ta-phase-results")).toHaveClass(
       "grid-cols-1",
     );
+  });
+});
+
+describe("DashboardTimeline TA lives reset card", () => {
+  it("renders a prominent lives reset notification", () => {
+    render(<DashboardTimeline events={[taLivesResetEvent()]} now={NOW} />);
+
+    const card = screen.getByTestId("dashboard-timeline-ta-lives-reset");
+    expect(card).toHaveTextContent("Time Attack Lives Reset");
+    expect(card).toHaveTextContent("Phase 3 Round 7: 8 players remain");
+    expect(card).toHaveTextContent("All remaining players return to Life 3");
   });
 });

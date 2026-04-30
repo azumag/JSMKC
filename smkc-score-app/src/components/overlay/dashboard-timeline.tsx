@@ -75,6 +75,7 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
             event.type === "ta_phase_advanced" && !!event.taPhaseRound;
           const isTaPhaseCompleted =
             event.type === "ta_phase_completed" && !!event.taPhaseCompleted;
+          const isTaLivesReset = event.type === "ta_lives_reset";
           /* New entries slide in from the right (#646). The class is removed
              after the animation completes to keep the DOM clean. */
           const isNew = newEventIds?.has(event.id) ?? false;
@@ -93,6 +94,8 @@ export function DashboardTimeline({ events, now, newEventIds }: DashboardTimelin
                 <TaPhaseRoundCard event={event} now={now} />
               ) : isTaPhaseCompleted ? (
                 <TaPhaseCompletedCard event={event} now={now} />
+              ) : isTaLivesReset ? (
+                <TaLivesResetCard event={event} now={now} />
               ) : (
                 <CompactCard event={event} now={now} />
               )}
@@ -391,6 +394,33 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function TaLivesResetCard({ event, now }: { event: OverlayEvent; now: number }) {
+  return (
+    <div
+      className={`${CARD_BASE} border-blue-300/60 px-4 py-3`}
+      style={{ backgroundColor: "rgba(15, 23, 42, 0.88)" }}
+      data-testid="dashboard-timeline-ta-lives-reset"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-lg font-bold text-blue-200">
+          {event.title}
+        </span>
+        <span className="shrink-0 text-xs text-white/55 tabular-nums">
+          {formatTimeAgo(now, event.timestamp)}
+        </span>
+      </div>
+      {event.subtitle && (
+        <div className="mt-1 text-base font-semibold leading-snug text-white">
+          {event.subtitle}
+        </div>
+      )}
+      <div className="mt-2 rounded bg-blue-400/15 px-2 py-1 text-center text-sm font-bold text-blue-100">
+        All remaining players return to Life 3
+      </div>
     </div>
   );
 }

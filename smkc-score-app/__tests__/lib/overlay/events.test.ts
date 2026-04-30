@@ -551,6 +551,46 @@ describe("buildOverlayEvents", () => {
     });
   });
 
+  it("emits a separate TA lives reset notification when a phase round resets lives", () => {
+    const submittedAt = new Date("2026-04-25T10:00:08.000Z");
+    const events = buildOverlayEvents(
+      emptyInput({
+        ttPhaseRounds: [
+          {
+            id: "r-reset",
+            phase: "phase3",
+            roundNumber: 7,
+            course: "KB1",
+            createdAt: BEFORE,
+            submittedAt,
+            results: [
+              { playerId: "p1", timeMs: 74_560, isRetry: false },
+              { playerId: "p2", timeMs: 82_340, isRetry: false },
+            ],
+            eliminatedIds: ["p2"],
+            livesReset: true,
+            playerNamesById: {
+              p1: "Alice",
+              p2: "Bob",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "ta_phase_completed",
+      "ta_lives_reset",
+    ]);
+    expect(events[1]).toMatchObject({
+      id: `ta_lives_reset:r-reset:${submittedAt.getTime()}`,
+      title: "Time Attack Lives Reset",
+      subtitle: "Phase 3 Round 7: 1 player remains",
+      mode: "ta",
+    });
+    expect(events[1].timestamp).toBe("2026-04-25T10:00:08.001Z");
+  });
+
   it("returns events sorted ascending by timestamp", () => {
     const events = buildOverlayEvents(
       emptyInput({

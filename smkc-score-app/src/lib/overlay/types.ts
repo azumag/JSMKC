@@ -18,6 +18,7 @@ export type OverlayEventType =
   | "finals_started"
   | "ta_phase_advanced"
   | "ta_phase_completed"
+  | "ta_lives_reset"
   | "overall_ranking_updated";
 
 /**
