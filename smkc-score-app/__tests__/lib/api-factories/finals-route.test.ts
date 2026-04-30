@@ -419,17 +419,18 @@ describe('Finals Route Factory', () => {
       const response = await GET(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
       expect(response.status).toBe(200);
-      /* Dominant value (3) must win. The bug (#741) was that WHERE NOT (col=?)
-       * evaluates to NULL (not TRUE) when col IS NULL, silently skipping null
-       * rows. The fix removes NOT so all rows in the round are updated. */
+      /* Dominant value (3) must win. The repair WHERE must explicitly include
+       * null rows because NOT(col=?) alone silently skips them in SQL. */
       const updateCall = (prisma.bMMatch as any).updateMany.mock.calls.find(
         (c: any[]) => c[0]?.where?.stage === 'playoff' && c[0]?.where?.round === 'playoff_r1',
       );
       expect(updateCall).toBeDefined();
       expect(updateCall[0].where).toMatchObject({ tournamentId: 'tournament-123', stage: 'playoff', round: 'playoff_r1' });
       expect(updateCall[0].data).toEqual({ startingCourseNumber: 3 });
-      // Critical: NOT must be absent — its presence would silently skip NULL rows in SQL
-      expect(updateCall[0].where).not.toHaveProperty('NOT');
+      expect(updateCall[0].where.OR).toEqual([
+        { startingCourseNumber: null },
+        { NOT: { startingCourseNumber: 3 } },
+      ]);
     });
 
     /* Issue #771: all-null rounds must NOT be re-filled by normalization.

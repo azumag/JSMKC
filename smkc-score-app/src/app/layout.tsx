@@ -113,6 +113,7 @@ export default async function RootLayout({
                       <nav className="flex items-center justify-between gap-4 py-3 sm:py-4">
                         <Link
                           href="/"
+                          prefetch={false}
                           className="font-display text-xl sm:text-2xl tracking-[0.18em] text-foreground whitespace-nowrap"
                           aria-label="SMKC home"
                         >
@@ -158,11 +159,11 @@ function NavLink({
   messageKey: string;
 }) {
   return (
-    <Link
+    <a
       href={href}
       className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
     >
       <NavLabelClient messageKey={messageKey} />
-    </Link>
+    </a>
   );
 }

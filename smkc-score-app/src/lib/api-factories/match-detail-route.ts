@@ -29,6 +29,7 @@ import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check
 import { resolveTournamentId } from '@/lib/tournament-identifier';
 import { invalidate as invalidateStandingsCache } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
+import { retryDbRead } from '@/lib/db-read-retry';
 import { recalculatePlayerStats, type RecalculateStatsConfig } from './score-report-helpers';
 
 /**
@@ -137,11 +138,15 @@ export function createMatchDetailHandlers(config: MatchDetailConfig) {
     }
 
     try {
-      const tournamentId = await resolveTournamentId(identifier);
-      const match = await model(prisma).findUnique({
-        where: { id: matchId },
-        include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
-      });
+      const [tournamentId, match] = await retryDbRead(
+        () => Promise.all([
+          resolveTournamentId(identifier),
+          model(prisma).findUnique({
+            where: { id: matchId },
+            include: { player1: { select: PLAYER_PUBLIC_SELECT }, player2: { select: PLAYER_PUBLIC_SELECT } },
+          }),
+        ]),
+      );
 
       if (!match || ('tournamentId' in match && match.tournamentId && match.tournamentId !== tournamentId)) {
         return createErrorResponse('Match not found', 404, 'NOT_FOUND');

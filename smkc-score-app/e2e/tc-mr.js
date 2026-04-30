@@ -318,9 +318,9 @@ async function runTc603(adminPage) {
  * TC-604: MR 28-player finals + race-format UI score entry
  *
  * Completes 84 qualification matches (shared fixture), generates the finals
- * bracket via the UI (top 8), uses the race entry dialog to score M1
- * (first-to-3), validates that first-to-N with both players winning 3 is
- * rejected, and that winner/loser are routed into M5 and M8.
+ * bracket via the UI (top 8), uses the race entry dialog to score M1 with
+ * its per-round target wins, validates that both players reaching target wins
+ * is rejected, and that winner/loser are routed into M5 and M8.
  */
 async function runTc604(adminPage) {
   let setup = null;
@@ -331,10 +331,13 @@ async function runTc604(adminPage) {
     // Navigate to finals page and generate bracket via UI
     await nav(adminPage, `/tournaments/${tournamentId}/mr/finals`);
     /* 40s to absorb D1 cold-start + admin role determination delays (issue #701) */
-    await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i })
-      .waitFor({ state: 'visible', timeout: 40000 });
-    await adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i }).click();
-    await adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ }).click();
+    const generateButton = adminPage.getByRole('button', { name: /Generate finals bracket|Generate Bracket|ブラケット生成/i });
+    await generateButton.waitFor({ state: 'visible', timeout: 40000 });
+    await generateButton.scrollIntoViewIfNeeded();
+    await generateButton.click({ timeout: 40000 });
+    const confirmButton = adminPage.getByRole('button', { name: /生成 \(8 players\)|Generate \(8 players\)/ });
+    await confirmButton.waitFor({ state: 'visible', timeout: 40000 });
+    await confirmButton.click({ timeout: 40000 });
     /* Wait for the bracket to render. The MR finals page only displays an
      * "X / Y matches" counter for the playoff stage (line 683 in
      * mr/finals/page.tsx); the regular winners/losers bracket has no such
@@ -351,20 +354,24 @@ async function runTc604(adminPage) {
     const match1 = matches.find((m) => m.matchNumber === 1);
     if (!match1) throw new Error('Generated bracket missing match 1');
 
-    // MR finals validation: first-to-3 race wins (targetWins defaults to 3).
-    // Both players reaching targetWins (3-3) is invalid: only one winner allowed.
-    const invalidBothWin = await setMrFinalsScore(adminPage, tournamentId, match1.id, 3, 3);
+    const targetWins = mrFinalsTargetWinsForMatch(match1);
+
+    // Both players reaching targetWins is invalid: only one winner allowed.
+    const invalidBothWin = await setMrFinalsScore(adminPage, tournamentId, match1.id, targetWins, targetWins);
 
     // Valid MR finals: first-to-3 via UI dialog (tests race entry workflow)
-    await adminPage.locator(`[aria-label^="Match 1:"]`).first().click();
+    const matchOneCard = adminPage.locator(`[aria-label^="Match 1:"]`).first();
+    await matchOneCard.scrollIntoViewIfNeeded();
+    await matchOneCard.click({ timeout: 40000 });
     await adminPage.waitForTimeout(500);
 
-    // MR finals dialog: 5 race rows pre-rendered with course select + P1/P2 winner buttons.
-    // P1 wins 3 out of 4 races (first-to-3): P1 wins races 1,2,4; P2 wins race 3 → 3-1
-    const raceRows = adminPage.locator('table tbody tr');
+    // MR finals dialog: max race rows are pre-rendered with course select + P1/P2 winner buttons.
+    // Fill all course rows so submission validation passes, then give P1 exactly targetWins wins.
+    const dialog = adminPage.getByRole('dialog');
+    const raceRows = dialog.locator('table tbody tr');
     const rowCount = await raceRows.count();
 
-    for (let i = 0; i < Math.min(rowCount, 5); i++) {
+    for (let i = 0; i < rowCount; i++) {
       const row = raceRows.nth(i);
       // Select course if combobox present
       const combobox = row.locator('button[role="combobox"]');
@@ -378,19 +385,20 @@ async function runTc604(adminPage) {
         }
       }
 
-      if (i >= 4) continue;
+      if (i >= targetWins) continue;
 
-      // P2 wins race 3 (index 2), P1 wins all others
-      const winnerIdx = (i === 2) ? 1 : 0;
-      const winnerBtns = row.locator('.flex.items-center.gap-2 button');
+      const winnerBtns = row.locator('button.w-10');
       if (await winnerBtns.count() >= 2) {
-        await winnerBtns.nth(winnerIdx).click();
+        await winnerBtns.first().click();
         await adminPage.waitForTimeout(200);
       }
     }
 
     /* Use anchored pattern to avoid matching the "TV# 保存" button added in #671 */
-    await adminPage.getByRole('button', { name: /^(Save|結果保存)$/ }).click();
+    const saveButton = adminPage.getByRole('button', { name: /^(Save|結果保存)$/ });
+    await saveButton.waitFor({ state: 'visible', timeout: 40000 });
+    await saveButton.scrollIntoViewIfNeeded();
+    await saveButton.click({ timeout: 40000 });
     await adminPage.waitForTimeout(3000);
 
     // Poll for bracket update
@@ -1497,17 +1505,34 @@ async function runTc858(adminPage) {
     setup = await prepareSharedMrFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
+    const resetRes = await adminPage.evaluate(async (tid) => {
+      const r = await fetch(`/api/tournaments/${tid}/mr/finals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset: true }),
+      });
+      return { s: r.status, b: await r.json().catch(() => ({})) };
+    }, tournamentId);
+    if (resetRes.s !== 200 && resetRes.s !== 201) {
+      throw new Error(`MR finals reset failed before TC-858 (${resetRes.s})`);
+    }
+
     const genPlayoff = await generateMrFinalsBracket(adminPage, tournamentId, 24);
     if (genPlayoff.s !== 201 && genPlayoff.s !== 200) {
       throw new Error(`24-player MR playoff gen failed (${genPlayoff.s})`);
     }
 
-    for (let guard = 0; guard < 8; guard++) {
+    for (let guard = 0; guard < 12; guard++) {
       const state = await apiFetchMrFinalsState(adminPage, tournamentId);
       if (state.playoffComplete) break;
-      const ready = (state.playoffMatches || []).find((m) =>
-        !m.completed && m.player1Id && m.player2Id
+      const playoffMatches = state.playoffMatches || [];
+      const incompleteR1 = playoffMatches.find((m) =>
+        m.round === 'playoff_r1' && !m.completed && m.player1Id && m.player2Id
       );
+      const incompleteR2 = playoffMatches.find((m) =>
+        m.round === 'playoff_r2' && !m.completed && m.player1Id && m.player2Id
+      );
+      const ready = incompleteR1 || incompleteR2;
       if (!ready) throw new Error('No ready playoff match found while building Top-16 finals');
       const target = mrFinalsTargetWinsForMatch(ready);
       const put = await setMrFinalsScore(adminPage, tournamentId, ready.id, target, Math.max(0, target - 2));

@@ -156,7 +156,7 @@ export default function PlayersPage() {
     try {
       setFetchError(false);
       const response = await fetchWithRetry(
-        `/api/players?page=${currentPage}&limit=${PLAYERS_PAGE_SIZE}`
+        `/api/players?page=${currentPage}&limit=${PLAYERS_PAGE_SIZE}&includeTournamentData=1`
       );
       if (response.ok) {
         const result = await response.json();

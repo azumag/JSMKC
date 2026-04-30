@@ -299,6 +299,28 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(prisma.tTEntry.findMany).not.toHaveBeenCalled();
       expect(prisma.tTPhaseRound.findMany).not.toHaveBeenCalled();
     });
+
+    it('should retry transient tournament read failures', async () => {
+      (prisma.tournament.findUnique as jest.Mock)
+        .mockRejectedValueOnce(new Error('D1 transient read failure'))
+        .mockResolvedValueOnce({ id: 'tournament-1' });
+      (getPhaseStatus as jest.Mock).mockResolvedValue(defaultPhaseStatus);
+
+      await phasesRoute.GET(createRequest(), { params: mockParams });
+
+      expect(prisma.tournament.findUnique).toHaveBeenCalledTimes(2);
+      expect(getPhaseStatus).toHaveBeenCalledTimes(1);
+      expect(loggerInstance.warn).toHaveBeenCalledWith(
+        'Retrying TA tournament read',
+        expect.objectContaining({ attempt: 1, tournamentId: 'tournament-1' })
+      );
+      expect(NextResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          phaseStatus: defaultPhaseStatus,
+        },
+      });
+    });
   });
 
   describe('Valid phase parameter (phase3)', () => {

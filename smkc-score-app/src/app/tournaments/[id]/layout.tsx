@@ -5,12 +5,11 @@
  * Provides:
  * 1. Tournament header: name, status badge, date
  * 2. Admin controls: Start/Complete Tournament, Export
- * 3. Link-based tab navigation for game modes (TA, BM, MR, GP, Overall)
+ * 3. Anchor-based tab navigation for game modes (TA, BM, MR, GP, Overall)
  * 4. "Back to List" navigation
  *
- * The tab navigation uses Next.js <Link> components instead of JS-only tabs,
- * enabling direct URL access to each mode's content without an extra click.
- * The layout is preserved across tab switches, so the header doesn't re-render.
+ * The tab navigation uses plain anchors instead of JS-only tabs or Next Link
+ * prefetching, enabling direct URL access without speculative production reads.
  *
  * For participant pages (URLs containing "/participant") and match pages,
  * the layout skips the header/tabs and renders only {children}, because
@@ -21,10 +20,10 @@
 
 import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useEffect, useCallback, use } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/tournament/export-button";
@@ -327,14 +326,17 @@ export default function TournamentLayout({
                 </ExportButton>
               )}
               <Button variant="outline" asChild>
-                <Link href="/tournaments">← {t("backToList")}</Link>
+                <Link href="/tournaments" prefetch={false}>
+                  ← {t("backToList")}
+                </Link>
               </Button>
             </div>
           </div>
         </header>
 
         {/*
-         * Tab navigation. Each tab is a Link so URLs are bookmarkable.
+         * Tab navigation. Plain anchors avoid speculative prefetch storms
+         * against production Workers/D1 during large tournament operations.
          * The active tab draws a 3px Racing Red bar via `pit-active`.
          */}
         <nav
@@ -355,7 +357,7 @@ export default function TournamentLayout({
 
               return (
                 <li key={tab.href}>
-                  <Link
+                  <a
                     href={`/tournaments/${id}/${tab.href}`}
                     aria-current={isActive ? "page" : undefined}
                     className={`inline-flex items-center gap-2 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
@@ -370,7 +372,7 @@ export default function TournamentLayout({
                         {t("hidden")}
                       </Badge>
                     )}
-                  </Link>
+                  </a>
                 </li>
               );
             })}
@@ -379,7 +381,7 @@ export default function TournamentLayout({
                 const isActive = activeTab === tab.href;
                 return (
                   <li key={tab.href}>
-                    <Link
+                    <a
                       href={`/tournaments/${id}/${tab.href}`}
                       aria-current={isActive ? "page" : undefined}
                       className={`inline-flex items-center px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
@@ -389,7 +391,7 @@ export default function TournamentLayout({
                       }`}
                     >
                       {tab.label}
-                    </Link>
+                    </a>
                   </li>
                 );
               })}

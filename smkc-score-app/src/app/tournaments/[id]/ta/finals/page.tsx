@@ -30,7 +30,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -743,9 +742,9 @@ export default function TimeAttackFinals({
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold">{tTaFinals('phase3Title')}</h1>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>
+            <a href={`/tournaments/${tournamentId}/ta`}>
               {tFinals('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
         <Card>
@@ -770,9 +769,9 @@ export default function TimeAttackFinals({
             </p>
           </div>
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/ta`}>
+            <a href={`/tournaments/${tournamentId}/ta`}>
               {tFinals('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
         <Card>
@@ -803,9 +802,9 @@ export default function TimeAttackFinals({
           </p>
         </div>
         <Button variant="outline" asChild>
-          <Link href={`/tournaments/${tournamentId}/ta`}>
+          <a href={`/tournaments/${tournamentId}/ta`}>
             {tFinals('backToQualification')}
-          </Link>
+          </a>
         </Button>
       </div>
 

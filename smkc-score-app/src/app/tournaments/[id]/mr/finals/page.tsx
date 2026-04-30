@@ -22,7 +22,6 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -657,10 +656,10 @@ export default function MatchRaceFinals({
             </AlertDialog>
           ))}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/mr`}>
+            <a href={`/tournaments/${tournamentId}/mr`}>
               {/* i18n: Back navigation to qualification page */}
               {tFinals('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
       </div>

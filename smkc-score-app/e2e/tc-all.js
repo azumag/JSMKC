@@ -33,6 +33,8 @@ const {
   uiSetTaEntryTimes,
   setupModePlayersViaUi,
   makeTaTimesForRank,
+  apiPutAllGpQualScores,
+  apiGenerateGpFinals,
   resolveAllTies,
   launchChromium,
   launchPersistentChromiumContext,
@@ -1256,6 +1258,10 @@ async function main() {
       if (bmSetup518.s !== 201) throw new Error(`BM setup failed (${bmSetup518.s})`);
 
       await nav(page, `/tournaments/${tc518TournamentId}/bm`);
+      const matchesTab518 = page.getByRole('tab', { name: /^(Matches|試合一覧)$/ });
+      if (await matchesTab518.count() > 0) {
+        await matchesTab518.first().click();
+      }
       /* Match list renders client-side after the BM data fetch resolves and
        * the session-driven `isAdmin` flag flips true. Wait until the table
        * row + admin TV select are mounted (15 s for D1 cold start), then
@@ -3019,7 +3025,7 @@ async function main() {
         const disposition = headers['content-disposition'] || '';
         const filename = download.suggestedFilename();
 
-        const isXlsm = contentType.includes('application/vnd.ms-excel.sheet.macroenabled.12');
+        const isXlsm = contentType.toLowerCase().includes('application/vnd.ms-excel.sheet.macroenabled.12');
         const hasXlsmAttachment = disposition.includes('attachment') && /\.xlsm(?:[";]|$)/i.test(disposition);
         const hasDownloadedXlsmName = /\.xlsm$/i.test(filename);
         const hasDownloadPath = Boolean(downloadPath);
@@ -3059,8 +3065,10 @@ async function main() {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
       let cdmExportHandler = null;
+      let cdmExportPattern = null;
       try {
         await nav(page, `/tournaments/${exportTid}`);
+        cdmExportPattern = new RegExp(`/api/tournaments/${exportTid}/export\\?format=cdm$`);
         cdmExportHandler = async (route) => {
           await route.fulfill({
             status: 403,
@@ -3068,22 +3076,31 @@ async function main() {
             body: 'Forbidden',
           });
         };
-        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+        await page.route(cdmExportPattern, cdmExportHandler);
 
         await page.getByRole('button', { name: /CDM Export/i }).click();
-        const alert = page.getByRole('alert');
+        const alert = page.locator('p[role="alert"]', {
+          hasText: /Failed to export tournament|トーナメントのエクスポートに失敗しました/,
+        }).first();
         await alert.waitFor({ state: 'visible', timeout: 10000 });
+        await page.waitForFunction(() => {
+          const alerts = Array.from(document.querySelectorAll('p[role="alert"]'));
+          return alerts.some((alert) => Boolean((alert.textContent || '').trim()));
+        }, null, { timeout: 10000 });
         const alertText = await alert.innerText();
+        const hasExportFailure =
+          alertText.includes('Failed to export tournament') ||
+          alertText.includes('トーナメントのエクスポートに失敗しました');
 
         log('TC-359',
-          alertText.includes('Failed to export tournament') &&
+          hasExportFailure &&
             (alertText.includes('Forbidden') || alertText.includes('session expired') || alertText.includes('権限')) ? 'PASS' : 'FAIL',
           alertText);
       } catch (err) {
         log('TC-359', 'FAIL', err instanceof Error ? err.message : 'CDM export error hint test failed');
       } finally {
-        if (cdmExportHandler) {
-          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        if (cdmExportHandler && cdmExportPattern) {
+          await page.unroute(cdmExportPattern, cdmExportHandler).catch(() => {});
         }
       }
     } else {
@@ -3096,10 +3113,12 @@ async function main() {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
       let cdmExportHandler = null;
+      let cdmExportPattern = null;
       let releaseExport = null;
       let requestCount = 0;
       try {
         await nav(page, `/tournaments/${exportTid}`);
+        cdmExportPattern = new RegExp(`/api/tournaments/${exportTid}/export\\?format=cdm$`);
         const releasePromise = new Promise((resolve) => {
           releaseExport = resolve;
         });
@@ -3115,7 +3134,7 @@ async function main() {
             body: 'PK\u0003\u0004 workbook',
           });
         };
-        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+        await page.route(cdmExportPattern, cdmExportHandler);
 
         const cdmButton = page.getByTestId('export-button-cdm');
         await cdmButton.click();
@@ -3144,8 +3163,8 @@ async function main() {
       } catch (err) {
         log('TC-360', 'FAIL', err instanceof Error ? err.message : 'CDM export progress test failed');
       } finally {
-        if (cdmExportHandler) {
-          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        if (cdmExportHandler && cdmExportPattern) {
+          await page.unroute(cdmExportPattern, cdmExportHandler).catch(() => {});
         }
       }
     } else {
@@ -3158,23 +3177,31 @@ async function main() {
     const exportTid = sharedFixture?.tournamentId ?? TID;
     if (exportTid) {
       let cdmExportHandler = null;
+      let cdmExportPattern = null;
       let requestCount = 0;
       try {
         await nav(page, `/tournaments/${exportTid}`);
+        cdmExportPattern = new RegExp(`/api/tournaments/${exportTid}/export\\?format=cdm$`);
         cdmExportHandler = async (route) => {
           requestCount += 1;
           await route.fulfill({
-            status: 500,
+            status: 429,
             contentType: 'text/plain',
-            body: 'template missing',
+            body: 'retry later',
           });
         };
-        await page.route(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler);
+        await page.route(cdmExportPattern, cdmExportHandler);
 
         const cdmButton = page.getByTestId('export-button-cdm');
         await cdmButton.click();
-        const alert = page.getByRole('alert');
+        const alert = page.locator('p[role="alert"]', {
+          hasText: /Failed to export tournament|トーナメントのエクスポートに失敗しました/,
+        }).first();
         await alert.waitFor({ state: 'visible', timeout: 10000 });
+        await page.waitForFunction(() => {
+          const alerts = Array.from(document.querySelectorAll('p[role="alert"]'));
+          return alerts.some((alert) => Boolean((alert.textContent || '').trim()));
+        }, null, { timeout: 10000 });
         const firstAlertText = await alert.innerText();
         const reenabledAfterError = !(await cdmButton.isDisabled());
         const busyAfterError = await cdmButton.getAttribute('aria-busy') === 'true';
@@ -3187,13 +3214,16 @@ async function main() {
         }, { timeout: 10000 });
         await cdmButton.click();
         await retryResponsePromise;
+        const hasExportFailure =
+          firstAlertText.includes('Failed to export tournament') ||
+          firstAlertText.includes('トーナメントのエクスポートに失敗しました');
 
         log('TC-361',
-          firstAlertText.includes('Failed to export tournament') &&
+          hasExportFailure &&
             reenabledAfterError &&
             !busyAfterError &&
             requestCount === 2 ? 'PASS' : 'FAIL',
-          !firstAlertText.includes('Failed to export tournament') ? firstAlertText
+          !hasExportFailure ? firstAlertText
           : !reenabledAfterError ? 'button stayed disabled after export error'
           : busyAfterError ? 'aria-busy stayed true after export error'
           : requestCount !== 2 ? `expected retry request count 2, got ${requestCount}`
@@ -3201,8 +3231,8 @@ async function main() {
       } catch (err) {
         log('TC-361', 'FAIL', err instanceof Error ? err.message : 'CDM export retry-after-error test failed');
       } finally {
-        if (cdmExportHandler) {
-          await page.unroute(`**/api/tournaments/${exportTid}/export?format=cdm`, cdmExportHandler).catch(() => {});
+        if (cdmExportHandler && cdmExportPattern) {
+          await page.unroute(cdmExportPattern, cdmExportHandler).catch(() => {});
         }
       }
     } else {
@@ -3687,14 +3717,15 @@ async function main() {
   // Verifies that BM/MR/GP/TA qualification pages still work correctly after
   // enabling experimental_ppr = true (issue #694). Checks HTTP 200 and that
   // content (table or heading text) is visible after allowing time for streaming.
-  if (TID) {
+  const tc355TournamentId = sharedFixture?.tournamentId ?? TID;
+  if (tc355TournamentId) {
     const modes = ['bm', 'mr', 'gp', 'ta'];
     const pprResults = [];
     for (const mode of modes) {
       try {
         // HTTP-level check: page returns 200 without browser session
         const httpStatus = await new Promise((resolve) => {
-          const url = new URL(`${BASE}/tournaments/${TID}/${mode}`);
+          const url = new URL(`${BASE}/tournaments/${tc355TournamentId}/${mode}`);
           const req = https.request(
             { hostname: url.hostname, path: url.pathname, method: 'GET' },
             (res) => { res.resume(); resolve(res.statusCode); }
@@ -3704,25 +3735,46 @@ async function main() {
           req.end();
         });
 
-        // Browser check: page shows content (not just skeleton) within 8s
-        await nav(page, `/tournaments/${TID}/${mode}`);
-        await page.waitForTimeout(8000);
-        const hasContent = await page.evaluate(() => {
+        // Browser check: page shows streamed page content within 15s.
+        await nav(page, `/tournaments/${tc355TournamentId}/${mode}`);
+        const expectedTitles = {
+          bm: ['バトルモード', 'Battle Mode'],
+          mr: ['マッチレース', 'Match Race'],
+          gp: ['グランプリ', 'Grand Prix'],
+          ta: ['タイムアタック', 'Time Attack'],
+        };
+        await page.waitForFunction((titles) => {
           const body = document.body.textContent || '';
-          const hasError = body.includes('Failed to fetch') || body.includes('500');
-          // Page should have rendered a table row or a heading beyond the skeleton
-          const hasTable = document.querySelector('table, [role="table"]') !== null;
-          const hasHeading = document.querySelector('h1, h2, h3') !== null;
-          return !hasError && (hasTable || hasHeading);
-        });
+          const hasError = body.includes('Failed to fetch') || body.includes('Application error') || body.includes('Internal Server Error');
+          const hasExpectedTitle = titles.some((title) => body.includes(title));
+          const hasModeContent = /(Qualification|Qualifying|予選|Entries|Players|参加者|Matches|試合|Ranking|順位)/.test(body);
+          const main = document.querySelector('main');
+          const hasStructuredContent = main?.querySelector('table, [role="table"], button, a, input, select') !== null;
+          return !hasError && Boolean(main) && body.trim().length > 20 && (hasExpectedTitle || hasModeContent || hasStructuredContent);
+        }, expectedTitles[mode], { timeout: 15000 }).catch(() => {});
+        const rendered = await page.evaluate((titles) => {
+          const body = document.body.textContent || '';
+          const hasError = body.includes('Failed to fetch') || body.includes('Application error') || body.includes('Internal Server Error');
+          const hasExpectedTitle = titles.some((title) => body.includes(title));
+          const hasModeContent = /(Qualification|Qualifying|予選|Entries|Players|参加者|Matches|試合|Ranking|順位)/.test(body);
+          const main = document.querySelector('main');
+          const hasStructuredContent = main?.querySelector('table, [role="table"], button, a, input, select') !== null;
+          return {
+            hasContent: !hasError && Boolean(main) && body.trim().length > 20 && (hasExpectedTitle || hasModeContent || hasStructuredContent),
+            len: body.trim().length,
+            sample: body.trim().replace(/\s+/g, ' ').slice(0, 80),
+          };
+        }, expectedTitles[mode]);
 
-        pprResults.push({ mode, httpStatus, hasContent });
+        pprResults.push({ mode, httpStatus, ...rendered });
       } catch (e) {
         pprResults.push({ mode, httpStatus: 0, hasContent: false, err: e.message });
       }
     }
     const allOk = pprResults.every(r => r.httpStatus === 200 && r.hasContent);
-    const detail = pprResults.map(r => `${r.mode}:http=${r.httpStatus},content=${r.hasContent}`).join(' ');
+    const detail = pprResults.map(r =>
+      `${r.mode}:http=${r.httpStatus},content=${r.hasContent},len=${r.len ?? 0}${r.err ? `,err=${r.err}` : ''}`
+    ).join(' ');
     log('TC-355', allOk ? 'PASS' : 'FAIL', detail);
   } else {
     log('TC-355', 'SKIP', 'TID not available');
@@ -3731,22 +3783,43 @@ async function main() {
   // TC-356: GP finals score dialog table is horizontally scrollable on mobile
   // Verifies that the race-entry table inside the score dialog has an
   // overflow-x-auto wrapper so the P2 position column is reachable on narrow
-  // viewports (issue #810). Checks the DOM structure — no match-click needed.
-  if (TID) {
+  // viewports (issue #810).
+  {
+    let tc356TournamentId = null;
+    const tc356PlayerIds = [];
     try {
-      await nav(page, `/tournaments/${TID}/gp/finals`);
-      await page.waitForTimeout(3000);
-      // Look for an overflow-x-auto wrapper that directly contains a table
+      const ts356 = Date.now();
+      const players356 = [];
+      for (let i = 1; i <= 8; i++) {
+        const player = await uiCreatePlayer(page, `E2E GP356 P${i}`, `e2e_gp356_${ts356}_${i}`);
+        tc356PlayerIds.push(player.id);
+        players356.push({ id: player.id, name: `E2E GP356 P${i}`, nickname: player.nickname });
+      }
+      tc356TournamentId = await uiCreateTournament(page, `E2E TC-356 GP Finals ${ts356}`);
+      await uiActivateTournament(page, tc356TournamentId);
+      await setupModePlayersViaUi(page, 'gp', tc356TournamentId, players356);
+      await apiPutAllGpQualScores(page, tc356TournamentId, { randomize: true });
+      await resolveAllTies(page, tc356TournamentId, 'gp');
+      const gen356 = await apiGenerateGpFinals(page, tc356TournamentId, 8);
+      if (gen356.s !== 200 && gen356.s !== 201) throw new Error(`GP finals gen failed (${gen356.s})`);
+
+      await nav(page, `/tournaments/${tc356TournamentId}/gp/finals`);
+      const firstMatch = page.locator('[data-testid="bracket-match-card"], [aria-label^="Match 1:"]').first();
+      await firstMatch.waitFor({ state: 'visible', timeout: 40000 });
+      await firstMatch.click({ timeout: 40000 });
+      await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 40000 });
       const hasScrollWrapper = await page.evaluate(() => {
-        const scrollDivs = document.querySelectorAll('div.overflow-x-auto');
-        return scrollDivs.length > 0;
+        const dialog = document.querySelector('[role="dialog"]');
+        const scrollDivs = dialog ? dialog.querySelectorAll('div.overflow-x-auto') : [];
+        return Array.from(scrollDivs).some((div) => div.querySelector('table, [role="table"]'));
       });
-      log('TC-356', hasScrollWrapper ? 'PASS' : 'SKIP', 'overflow-x-auto wrapper on GP finals page');
+      log('TC-356', hasScrollWrapper ? 'PASS' : 'FAIL', 'overflow-x-auto wrapper containing a table in GP finals score dialog');
     } catch (e) {
       log('TC-356', 'FAIL', e instanceof Error ? e.message : String(e));
+    } finally {
+      if (tc356TournamentId) await deleteTournament(page, tc356TournamentId);
+      for (const playerId of tc356PlayerIds) await deletePlayer(page, playerId);
     }
-  } else {
-    log('TC-356', 'SKIP', 'TID not available');
   }
 
   // TC-357: PPR mode page fallback renders a heading immediately (before streaming)
@@ -3761,10 +3834,19 @@ async function main() {
         // Navigate with a very short timeout to catch the skeleton phase
         await nav(page, `/tournaments/${TID}/${mode}`);
         // Check immediately — the h1 should be in the static shell
-        const hasH1 = await page.evaluate(() =>
-          document.querySelector('h1, h2, h3') !== null
-        );
-        results357.push({ mode, hasH1 });
+        const expectedTitles = {
+          bm: ['バトルモード', 'Battle Mode'],
+          mr: ['マッチレース', 'Match Race'],
+          gp: ['グランプリ', 'Grand Prix'],
+          ta: ['タイムアタック', 'Time Attack'],
+        };
+        const hasExpectedTitle = await page.evaluate((titles) => {
+          const headings = Array.from(document.querySelectorAll('h1, h2, h3'));
+          return headings.some((heading) =>
+            titles.some((title) => (heading.textContent || '').includes(title))
+          );
+        }, expectedTitles[mode]);
+        results357.push({ mode, hasH1: hasExpectedTitle });
       } catch (e) {
         results357.push({ mode, hasH1: false });
       }

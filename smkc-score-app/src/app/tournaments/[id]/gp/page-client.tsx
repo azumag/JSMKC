@@ -22,7 +22,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useCallback, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -570,9 +569,9 @@ export default function GrandPrixPageClient({
         <div className="flex flex-wrap gap-2">
           {/* Player score entry link — visible to all users */}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/gp/participant`}>
+            <a href={`/tournaments/${tournamentId}/gp/participant`}>
               {tc('enterScore')}
-            </Link>
+            </a>
           </Button>
 
           {/* Admin-only qualification confirmation toggle */}
@@ -626,9 +625,9 @@ export default function GrandPrixPageClient({
           }
           {finalsExists === true ? (
             <Button variant="outline" asChild>
-              <Link href={`/tournaments/${tournamentId}/gp/finals`}>
+              <a href={`/tournaments/${tournamentId}/gp/finals`}>
                 {tc('viewTournament')}
-              </Link>
+              </a>
             </Button>
           ) : canCreateFinals ? (
             <Button

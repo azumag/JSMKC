@@ -47,6 +47,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = Number(searchParams.get('page')) || 1;
     const limit = Number(searchParams.get('limit')) || 50;
+    const includeTournamentData =
+      searchParams.get('includeTournamentData') === 'true' ||
+      searchParams.get('includeTournamentData') === '1';
 
     // Use the paginate utility to handle offset calculation and total count.
     // Sort: alphabetical by nickname for consistent ordering.
@@ -73,8 +76,8 @@ export async function GET(request: NextRequest) {
      * tournament table, then build a Set for O(1) lookup per player.
      * This avoids N+1 queries while keeping the data fresh on every page load.
      */
-    const session = await auth();
-    if (session?.user?.role === 'admin') {
+    const session = includeTournamentData ? await auth() : null;
+    if (includeTournamentData && session?.user?.role === 'admin') {
       // Scope all queries to just the player IDs on the current page to avoid full-table scans.
       // result.data is untyped (paginate returns unknown[]); cast to the minimal shape we need.
       const players = result.data as Array<{ id: string }>;

@@ -23,7 +23,6 @@ import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { XIcon } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -731,10 +730,10 @@ export default function GrandPrixFinals({
             </AlertDialog>
           ))}
           <Button variant="outline" asChild>
-            <Link href={`/tournaments/${tournamentId}/gp`}>
+            <a href={`/tournaments/${tournamentId}/gp`}>
               {/* i18n: Back navigation to qualification page */}
               {tFinals('backToQualification')}
-            </Link>
+            </a>
           </Button>
         </div>
       </div>

@@ -21,7 +21,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -524,13 +523,13 @@ export default function MatchDetailPage({
 
         {/* Navigation link back to MR main page */}
         <div className="text-center">
-          <Link
+          <a
             href={`/tournaments/${tournamentId}/mr`}
             className="text-sm text-muted-foreground hover:underline"
           >
             {/* i18n: Back navigation to MR main page */}
             &larr; {tMatch('backToMR')}
-          </Link>
+          </a>
         </div>
       </div>
     </div>

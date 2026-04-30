@@ -622,7 +622,7 @@ export async function GET(
           ...(template.error !== undefined && { error: template.error }),
           tournamentId,
         });
-        return createErrorResponse("Failed to load CDM export template", 500);
+        return createErrorResponse("Failed to load CDM export template", 503, "SERVICE_UNAVAILABLE");
       }
 
       const workbookBuffer = createCDMWorkbook(template.buffer, tournament);

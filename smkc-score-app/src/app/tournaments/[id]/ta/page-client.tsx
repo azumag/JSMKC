@@ -30,7 +30,6 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -463,7 +462,7 @@ export default function TimeAttackPageClient({
 
   /**
    * Fetch phase status from the phases API.
-   * Called on mount and after promotion actions.
+   * Called shortly after mount and after promotion actions.
    */
   const fetchPhaseStatus = useCallback(async () => {
     try {
@@ -480,7 +479,11 @@ export default function TimeAttackPageClient({
   }, [tournamentId]);
 
   useEffect(() => {
-    fetchPhaseStatus();
+    // Phase status is non-critical; delay it until the initial page/API fan-out settles.
+    const timer = window.setTimeout(() => {
+      void fetchPhaseStatus();
+    }, 1200);
+    return () => window.clearTimeout(timer);
   }, [fetchPhaseStatus]);
 
   /**
@@ -1067,7 +1070,7 @@ export default function TimeAttackPageClient({
                   )}
                   {phaseStatus?.phase1 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</Link>
+                      <a href={`/tournaments/${tournamentId}/ta/phase1`}>{t('goToPhase1')}</a>
                     </Button>
                   )}
                 </div>
@@ -1104,7 +1107,7 @@ export default function TimeAttackPageClient({
                   )}
                   {phaseStatus?.phase2 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</Link>
+                      <a href={`/tournaments/${tournamentId}/ta/phase2`}>{t('goToPhase2')}</a>
                     </Button>
                   )}
                 </div>
@@ -1144,7 +1147,7 @@ export default function TimeAttackPageClient({
                   )}
                   {phaseStatus?.phase3 && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</Link>
+                      <a href={`/tournaments/${tournamentId}/ta/finals`}>{tc('goToFinals')}</a>
                     </Button>
                   )}
                 </div>
