@@ -796,6 +796,13 @@ export async function processPhase3Result(
   return { eliminated: eliminatedPlayers, livesReset };
 }
 
+type PhaseStage = "phase1" | "phase2" | "phase3";
+type PhaseCountRow = {
+  stage: PhaseStage;
+  eliminated: boolean;
+  _count: { _all: number };
+};
+
 /**
  * Get the current phase status for a tournament.
  *
@@ -822,14 +829,50 @@ export async function getPhaseStatus(
    * occasionally caused Workers request-hung cancellations on the no-filter
    * `/ta/phases` endpoint.
    */
-  const grouped = await prisma.tTEntry.groupBy({
-    by: ["stage", "eliminated"],
-    where: {
-      tournamentId,
-      stage: { in: ["phase1", "phase2", "phase3"] },
-    },
-    _count: { _all: true },
-  });
+  const phaseStages: PhaseStage[] = ["phase1", "phase2", "phase3"];
+  const ttEntry = prisma.tTEntry as typeof prisma.tTEntry & {
+    groupBy?: typeof prisma.tTEntry.groupBy;
+    findFirst?: typeof prisma.tTEntry.findFirst;
+  };
+  let fallbackPhase3Winner: string | null = null;
+  let phaseCountRows: PhaseCountRow[];
+  if (typeof ttEntry.groupBy === "function") {
+    phaseCountRows = (await ttEntry.groupBy({
+      by: ["stage", "eliminated"],
+      where: {
+        tournamentId,
+        stage: { in: phaseStages },
+      },
+      _count: { _all: true },
+    })) as PhaseCountRow[];
+  } else {
+    const fallbackEntries = (
+      await Promise.all(
+        phaseStages.map(async (stage) => {
+          const entries = await prisma.tTEntry.findMany({
+            where: {
+              tournamentId,
+              stage,
+            },
+            select: {
+              stage: true,
+              eliminated: true,
+              player: { select: { nickname: true } },
+            },
+          });
+          return entries.map((entry) => ({
+            ...entry,
+            stage: entry.stage ?? stage,
+          }));
+        })
+      )
+    ).flat();
+    phaseCountRows = buildPhaseCountsFromEntries(fallbackEntries);
+    const activePhase3Entries = fallbackEntries
+      .filter((entry) => entry.stage === "phase3" && !entry.eliminated);
+    fallbackPhase3Winner =
+      activePhase3Entries.length === 1 ? activePhase3Entries[0].player?.nickname ?? null : null;
+  }
 
   const counts = {
     phase1: { total: 0, active: 0, eliminated: 0 },
@@ -837,7 +880,7 @@ export async function getPhaseStatus(
     phase3: { total: 0, active: 0, eliminated: 0 },
   };
 
-  for (const row of grouped) {
+  for (const row of phaseCountRows) {
     const stage = row.stage as "phase1" | "phase2" | "phase3";
     const count = row._count._all;
     counts[stage].total += count;
@@ -856,10 +899,12 @@ export async function getPhaseStatus(
   const phase3Base = buildBase("phase3");
   const phase3Winner =
     phase3Base?.active === 1
-      ? (await prisma.tTEntry.findFirst({
-          where: { tournamentId, stage: "phase3", eliminated: false },
-          select: { player: { select: { nickname: true } } },
-        }))?.player.nickname ?? null
+      ? typeof ttEntry.findFirst === "function"
+        ? (await ttEntry.findFirst({
+            where: { tournamentId, stage: "phase3", eliminated: false },
+            select: { player: { select: { nickname: true } } },
+          }))?.player.nickname ?? null
+        : fallbackPhase3Winner
       : null;
   const phase3Status = phase3Base ? { ...phase3Base, winner: phase3Winner } : null;
 
@@ -878,6 +923,29 @@ export async function getPhaseStatus(
     phase3: phase3Status,
     currentPhase,
   };
+}
+
+function buildPhaseCountsFromEntries(
+  entries: Array<{ stage: string; eliminated: boolean }>
+) {
+  const counts = new Map<string, PhaseCountRow>();
+  for (const entry of entries) {
+    if (entry.stage !== "phase1" && entry.stage !== "phase2" && entry.stage !== "phase3") {
+      continue;
+    }
+    const key = `${entry.stage}:${entry.eliminated ? "1" : "0"}`;
+    const existing = counts.get(key);
+    if (existing) {
+      existing._count._all += 1;
+    } else {
+      counts.set(key, {
+        stage: entry.stage,
+        eliminated: entry.eliminated,
+        _count: { _all: 1 },
+      });
+    }
+  }
+  return Array.from(counts.values());
 }
 
 /**
