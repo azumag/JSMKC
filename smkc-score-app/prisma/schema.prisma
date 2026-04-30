@@ -244,6 +244,8 @@ model BMMatch {
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
+  @@index([tournamentId, stage, player1Id])
+  @@index([tournamentId, stage, player2Id])
 }
 
 // ==========================================
@@ -317,6 +319,8 @@ model MRMatch {
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
+  @@index([tournamentId, stage, player1Id])
+  @@index([tournamentId, stage, player2Id])
 }
 
 // ==========================================
@@ -384,6 +388,8 @@ model GPMatch {
   updatedAt    DateTime   @updatedAt
 
   @@unique([tournamentId, matchNumber, stage])
+  @@index([tournamentId, stage, player1Id])
+  @@index([tournamentId, stage, player2Id])
 }
 
 // ==========================================

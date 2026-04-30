@@ -1000,7 +1000,8 @@
   5. レスポンスに `mismatch: true` が含まれることを確認
   6. 管理者APIでマッチが completed=false のままであることを確認
   7. 管理者がPUTでスコアを確定し、completed=true になることを確認
-  8. クリーンアップ
+  8. 管理者PUTレスポンスの `match` は `player1Id/player2Id` を含み、不要な `player1/player2` 展開を含まないことを確認する
+  9. クリーンアップ
 - **期待結果**: 不一致時はマッチが未完了のままで管理者レビュー待ちになる
 
 ## TC-509: BM二重報告 — previousReports表示確認
@@ -1218,8 +1219,9 @@
   2. MRグループ設定を行い、pendingマッチを生成する
   3. 管理者APIでscore1=2, score2=2（引き分け）をPUTで送信する
   4. HTTP 200で受理されることを確認する
-  5. マッチがcompletedかつscore1=2, score2=2で保存されていることを確認する
-  6. 一時トーナメントと一時プレイヤーを削除する
+  5. PUTレスポンスの `match` は `player1Id/player2Id` を含み、不要な `player1/player2` 展開を含まないことを確認する
+  6. マッチがcompletedかつscore1=2, score2=2で保存されていることを確認する
+  7. 一時トーナメントと一時プレイヤーを削除する
 - **期待結果**: 2-2の引き分けスコアがバリデーションを通過し正常に保存される
 
 ## TC-604: MR予選28名フル + 決勝ブラケット生成 + race-format UI スコア入力
@@ -1564,7 +1566,8 @@
   3. P1 が race position 1-vs-5 で送信、P2 が race position 5-vs-1 で送信（不一致）
   4. レスポンスに `mismatch: true` が含まれ、マッチは completed=false のまま
   5. 管理者 PUT (`{ matchId, cup, races }`) で確定 → completed=true
-  6. クリーンアップ
+  6. 管理者PUTレスポンスの `match` は `player1Id/player2Id` を含み、不要な `player1/player2` 展開を含まないことを確認する
+  7. クリーンアップ
 - **期待結果**: 不一致時はマッチが未完了のまま管理者レビュー待ちになる
 
 ## TC-709: GP決勝 — 非管理者のスコア入力拒否
