@@ -907,7 +907,11 @@ export default function GrandPrixFinals({
               {cupForms.map((cup, cupIndex) => {
                 const points = calculateCupPoints(cup);
                 return (
-                  <div key={`cup-${cupIndex}`} className="space-y-3 rounded-lg border p-4">
+                  <div
+                    key={`cup-${cupIndex}`}
+                    className="space-y-3 rounded-lg border p-4"
+                    data-testid={`gp-finals-cup-form-${cupIndex}`}
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">Cup {cupIndex + 1}</Badge>
@@ -950,6 +954,7 @@ export default function GrandPrixFinals({
                         <div className="space-y-2">
                           <Label>{selectedMatch.player1.nickname}</Label>
                           <Input
+                            data-testid={`gp-finals-cup-${cupIndex}-manual-p1`}
                             type="number"
                             min="0"
                             step="1"
@@ -965,6 +970,7 @@ export default function GrandPrixFinals({
                         <div className="space-y-2">
                           <Label>{selectedMatch.player2.nickname}</Label>
                           <Input
+                            data-testid={`gp-finals-cup-${cupIndex}-manual-p2`}
                             type="number"
                             min="0"
                             step="1"
