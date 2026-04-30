@@ -14,10 +14,10 @@
 import type { OverlayMode } from "./types";
 
 const MODE_LABEL: Partial<Record<OverlayMode, string>> = {
-  ta: "TA",
-  bm: "BM",
-  mr: "MR",
-  gp: "GP",
+  ta: "Time Attack",
+  bm: "Battle Mode",
+  mr: "Match Race",
+  gp: "Grand Prix",
 };
 
 /** Decision-tree input. All fields come from a handful of cheap DB lookups. */
@@ -43,32 +43,32 @@ export interface ComputeCurrentPhaseInput {
   latestFinalsRound: string | null;
   /**
    * Which 2P mode (BM/MR/GP) the `latestFinalsRound` belongs to. Used to look
-   * up the matching format ("FT5" etc.) in `computeCurrentPhaseFormat`. Null
-   * when there is no finals match yet, or when the latest match has no mode.
+   * up the matching format ("First to 5" etc.) in `computeCurrentPhaseFormat`.
+   * Null when there is no finals match yet, or when the latest match has no mode.
    */
   latestFinalsMode?: OverlayMode | null;
 }
 
 /**
  * Map a raw `round` column value (as written by the bracket generator in
- * `src/lib/double-elimination.ts`) to a Japanese label suitable for the
+ * `src/lib/double-elimination.ts`) to an English label suitable for the
  * footer. Unknown strings fall through unchanged so a future bracket variant
  * doesn't silently disappear from the broadcast.
  */
 const FINALS_ROUND_LABEL: Record<string, string> = {
-  qf: "QF",
-  winners_qf: "QF",
-  sf: "SF",
-  winners_sf: "SF",
-  winners_final: "勝者決勝",
-  losers_r1: "敗者R1",
-  losers_r2: "敗者R2",
-  losers_r3: "敗者R3",
-  losers_r4: "敗者R4",
-  losers_sf: "敗者準決勝",
-  losers_final: "敗者決勝",
-  grand_final: "グランドF",
-  grand_final_reset: "リセット",
+  qf: "Quarter Final",
+  winners_qf: "Winners Quarter Final",
+  sf: "Semi Final",
+  winners_sf: "Winners Semi Final",
+  winners_final: "Winners Final",
+  losers_r1: "Losers Round 1",
+  losers_r2: "Losers Round 2",
+  losers_r3: "Losers Round 3",
+  losers_r4: "Losers Round 4",
+  losers_sf: "Losers Semi Final",
+  losers_final: "Losers Final",
+  grand_final: "Grand Final",
+  grand_final_reset: "Grand Final Reset",
 };
 
 function labelFinalsRound(round: string): string {
@@ -79,12 +79,12 @@ function labelFinalsRound(round: string): string {
  * Resolve the current tournament phase string.
  *
  * Branches in priority order — first match wins:
- *  1. Any BM/MR/GP finals match exists       → `<mode> 決勝 <Japanese round>`
- *  2. TA has reached phase 3                 → `TA フェーズ3 ラウンド<n>`
- *  3. TA is in phase 2                       → `TA フェーズ2 ラウンド<n>`
- *  4. TA is in phase 1                       → `TA フェーズ1 ラウンド<n>`
- *  5. Qualification has been confirmed       → `予選確定`
- *  6. Default                                → `予選`
+ *  1. Any BM/MR/GP finals match exists       → `<mode> Finals <round>`
+ *  2. TA has reached phase 3                 → `Time Attack Phase 3 Round <n>`
+ *  3. TA is in phase 2                       → `Time Attack Phase 2 Round <n>`
+ *  4. TA is in phase 1                       → `Time Attack Phase 1 Round <n>`
+ *  5. Qualification has been confirmed       → `Qualification Locked`
+ *  6. Default                                → `Qualification`
  */
 export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
   const {
@@ -97,29 +97,29 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
 
   if (latestFinalsRound) {
     const modePrefix = latestFinalsMode ? `${MODE_LABEL[latestFinalsMode] ?? latestFinalsMode} ` : "";
-    return `${modePrefix}決勝 ${labelFinalsRound(latestFinalsRound)}`;
+    return `${modePrefix}Finals ${labelFinalsRound(latestFinalsRound)}`;
   }
   if (taCurrentPhase === "phase3") {
     return taLatestPhaseRoundNumber
-      ? `TA フェーズ3 ラウンド${taLatestPhaseRoundNumber}`
-      : "TA フェーズ3";
+      ? `Time Attack Phase 3 Round ${taLatestPhaseRoundNumber}`
+      : "Time Attack Phase 3";
   }
   if (taCurrentPhase === "phase2") {
     return taLatestPhaseRoundNumber
-      ? `TA フェーズ2 ラウンド${taLatestPhaseRoundNumber}`
-      : "TA フェーズ2";
+      ? `Time Attack Phase 2 Round ${taLatestPhaseRoundNumber}`
+      : "Time Attack Phase 2";
   }
   if (taCurrentPhase === "phase1") {
     return taLatestPhaseRoundNumber
-      ? `TA フェーズ1 ラウンド${taLatestPhaseRoundNumber}`
-      : "TA フェーズ1";
+      ? `Time Attack Phase 1 Round ${taLatestPhaseRoundNumber}`
+      : "Time Attack Phase 1";
   }
   if (qualificationConfirmed) {
     // Interregnum: qualification locked but barrage/finals haven't started
-    // anywhere yet. Visually distinct from the live "予選" state.
-    return "予選確定";
+    // anywhere yet. Visually distinct from the live qualification state.
+    return "Qualification Locked";
   }
-  return "予選";
+  return "Qualification";
 }
 
 /**
@@ -131,7 +131,7 @@ export function computeCurrentPhase(input: ComputeCurrentPhaseInput): string {
  * whether it shows the auto-computed phase or an admin-pinned one.
  *
  * @param roundKey   - The raw `round` value from the DB (e.g. "winners_qf")
- * @param roundNames - Locale map from the API (e.g. { winners_qf: "QF" })
+ * @param roundNames - Locale map from the API (e.g. { winners_qf: "Winners Quarter Final" })
  * @param mode       - Optional mode prefix for footer clarity (BM/MR/GP)
  */
 export function buildMatchLabel(
@@ -140,14 +140,14 @@ export function buildMatchLabel(
   mode?: OverlayMode,
 ): string {
   const modePrefix = mode ? `${MODE_LABEL[mode] ?? mode} ` : "";
-  if (!roundKey) return `${modePrefix}決勝`;
-  const roundName = roundNames[roundKey] ?? roundKey;
-  return roundName ? `${modePrefix}決勝 ${roundName}` : `${modePrefix}決勝`;
+  if (!roundKey) return `${modePrefix}Finals`;
+  const roundName = FINALS_ROUND_LABEL[roundKey] ?? roundNames[roundKey] ?? roundKey;
+  return roundName ? `${modePrefix}Finals ${roundName}` : `${modePrefix}Finals`;
 }
 
 /**
  * Format ("First To" / equivalent) string shown next to the phase label —
- * for example, BM bracket finals are best-of-9 / FT5. Returns `null` when
+ * for example, BM bracket finals are best-of-9 / First to 5. Returns `null` when
  * the active phase has no meaningful FT value (e.g. TA tournaments are
  * scored by accumulated time, GP runs are scored by points across races).
  *
@@ -160,10 +160,10 @@ export function computeCurrentPhaseFormat(
 ): string | null {
   const { latestFinalsRound, latestFinalsMode } = input;
 
-  // BM / MR finals are double-elimination best-of-9 (FT5) per §4. GP finals
-  // are point-totals over races and have no "first to N" notion.
+  // BM / MR finals are double-elimination best-of-9 (first to 5) per §4. GP
+  // finals are point-totals over races and have no "first to N" notion.
   if (latestFinalsRound && latestFinalsMode) {
-    if (latestFinalsMode === "bm" || latestFinalsMode === "mr") return "FT5";
+    if (latestFinalsMode === "bm" || latestFinalsMode === "mr") return "First to 5";
     return null;
   }
 

@@ -2,9 +2,11 @@
  * Header bar for the OBS dashboard browser source.
  *
  * Renders the tournament's overall progression as a 3-step indicator.
- * TA uses phase labels (予選 → フェーズN → フェーズ3), while bracket modes
- * keep the generic labels (予選 → バラッジ → 決勝). The phase detail
- * (e.g. "BM 決勝 QF") and FT chip used to live below the steps but
+ * TA uses phase labels (Qualification → Phase N → Phase 3), while bracket
+ * modes keep the generic labels (Qualification → Barrage → Finals). The
+ * phase detail (e.g. "Battle Mode Finals Winners Quarter Final") and format
+ * chip used to live below
+ * the steps but
  * duplicated the bottom-strip footer, so they were removed — the steps
  * alone are the dashboard-side signal, and the footer carries the round.
  *
@@ -19,9 +21,9 @@
 "use client";
 
 const STEPS = [
-  { key: "qualification", label: "予選" },
-  { key: "barrage", label: "バラッジ" },
-  { key: "finals", label: "決勝" },
+  { key: "qualification", label: "Qualification" },
+  { key: "barrage", label: "Barrage" },
+  { key: "finals", label: "Finals" },
 ] as const;
 
 type StepKey = (typeof STEPS)[number]["key"];
@@ -31,33 +33,35 @@ interface ProgressStep {
 }
 
 function classifyPhase(phase: string): StepKey {
-  // Mode-prefixed finals labels (e.g. "BM 決勝 QF") and TA phase3 both map
-  // to the finals bucket — the round-level distinction lives in the footer.
-  if (phase.includes("決勝") || phase.startsWith("TA フェーズ3")) return "finals";
-  if (phase.startsWith("TA フェーズ1") || phase.startsWith("TA フェーズ2")) {
+  // Mode-prefixed finals labels and Time Attack phase3 both map to the finals
+  // bucket — the round-level distinction lives in the footer.
+  if (phase.includes("Finals") || phase.startsWith("Time Attack Phase 3")) {
+    return "finals";
+  }
+  if (phase.startsWith("Time Attack Phase 1") || phase.startsWith("Time Attack Phase 2")) {
     return "barrage";
   }
-  if (phase.startsWith("バラッジ")) return "barrage";
-  // "予選", "予選確定", or empty — all collapse to the qualification bucket
+  if (phase.startsWith("Barrage")) return "barrage";
+  // Qualification, Qualification Locked, or empty all collapse here.
   return "qualification";
 }
 
 function progressStepsForPhase(phase: string): readonly ProgressStep[] {
-  if (!phase.startsWith("TA フェーズ")) return STEPS;
+  if (!phase.startsWith("Time Attack Phase")) return STEPS;
 
-  const middleLabel = phase.startsWith("TA フェーズ1")
-    ? "フェーズ1"
-    : "フェーズ2";
+  const middleLabel = phase.startsWith("Time Attack Phase 1")
+    ? "Phase 1"
+    : "Phase 2";
 
   return [
-    { key: "qualification", label: "予選" },
+    { key: "qualification", label: "Qualification" },
     { key: "barrage", label: middleLabel },
-    { key: "finals", label: "フェーズ3" },
+    { key: "finals", label: "Phase 3" },
   ] as const;
 }
 
 interface DashboardProgressBarProps {
-  /** Pre-computed Japanese phase label from `/overlay-events`. */
+  /** Pre-computed phase label from `/overlay-events`. */
   currentPhase: string;
 }
 

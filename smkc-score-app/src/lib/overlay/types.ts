@@ -242,14 +242,16 @@ export interface OverlayEventsResponse {
   events: OverlayEvent[];
   /**
    * Combined tournament-phase label for the OBS dashboard footer (e.g.
-   * "予選", "TA フェーズ1 ラウンド3", "BM 決勝 QF"). Always populated; the legacy toast
-   * overlay simply ignores it.
+   * "Qualification", "Time Attack Phase 1 Round 3",
+   * "Battle Mode Finals Winners Quarter Final"). Always populated; the legacy
+   * toast overlay simply ignores it.
    */
   currentPhase?: string;
   /**
-   * Format string ("First To" / equivalent) shown next to `currentPhase` —
-   * for example, "FT5" for BM/MR bracket finals. Null/undefined when the
-   * active phase has no meaningful FT value (TA, GP, qualification, barrage).
+   * Format string shown next to `currentPhase` — for example, "First to 5"
+   * for Battle Mode / Match Race bracket finals. Null/undefined when the
+   * active phase has no meaningful value (Time Attack, Grand Prix,
+   * qualification, barrage).
    */
   currentPhaseFormat?: string | null;
   /**

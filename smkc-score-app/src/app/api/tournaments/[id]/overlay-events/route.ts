@@ -466,8 +466,8 @@ async function handleGET(
 
     /* Pick the latest finals round across the three 2P modes by createdAt;
        if no mode has a finals match yet, this is null. The mode tag rides
-       along so the format resolver can map the round to its FT value
-       (BM/MR → FT5; GP → null). */
+       along so the format resolver can map the round to its match-format
+       value (Battle Mode / Match Race → First to 5; Grand Prix → null). */
     const latestFinals = (
       [
         bmLatestFinals && { ...bmLatestFinals, mode: "bm" as OverlayMode },

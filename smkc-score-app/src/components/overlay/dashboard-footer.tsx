@@ -1,11 +1,11 @@
 /**
  * Bottom-strip phase footer for the OBS dashboard browser source.
  *
- * Shows the current tournament phase label and, when available, the FT format
- * badge (e.g., "FT5"). When an admin has pressed "配信に反映" for a specific
+ * Shows the current tournament phase label and, when available, the match format
+ * badge (e.g., "First to 5"). When an admin has pressed "配信に反映" for a specific
  * match, `overlayMatchLabel` overrides the auto-computed `currentPhase` so the
  * footer reflects exactly what's on-air (issue #649). FT format is always shown
- * for BM/MR bracket finals (issue #644).
+ * for Battle Mode / Match Race bracket finals (issue #644).
  *
  * Slot dimensions and screen position are owned by the parent page — this
  * component only paints text into the rectangle it's given. The right side
@@ -16,12 +16,13 @@
 "use client";
 
 interface DashboardFooterProps {
-  /** Pre-computed Japanese phase label from the overlay-events API. */
+  /** Pre-computed phase label from the overlay-events API. */
   currentPhase: string;
-  /** FT format string (e.g., "FT5") — null/undefined when not applicable. */
+  /** Match format string (e.g., "First to 5") — null/undefined when not applicable. */
   currentPhaseFormat?: string | null;
   /**
-   * Round label set by the last "配信に反映" click (e.g., "BM 決勝 QF").
+   * Round label set by the last "配信に反映" click
+   * (e.g., "Battle Mode Finals Winners Quarter Final").
    * When non-empty, overrides `currentPhase` so the footer shows exactly
    * which match is on-air rather than the auto-computed phase.
    */
@@ -47,7 +48,7 @@ export function DashboardFooter({
         {label}
       </span>
       {currentPhaseFormat && (
-        /* FT badge — same vertical offset as the phase label so they
+        /* Match-format badge — same vertical offset as the phase label so they
            form a single visual unit on the broadcast canvas. */
         <span
           className="-translate-y-[30px] rounded-md bg-blue-900 px-3 py-1 text-2xl font-bold tracking-tight text-white"
