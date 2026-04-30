@@ -26,8 +26,8 @@ AUTH_URL = "https://smkc.bluemoon.works"
 #                            posting LCP/INP/TTFB beacons.
 # Both are baked into the Worker bundle at deploy time; flip them off and
 # redeploy when measurement is no longer needed.
-PERF_LOG = "1"
-NEXT_PUBLIC_PERF_LOG = "1"
+PERF_LOG = "0"
+NEXT_PUBLIC_PERF_LOG = "0"
 
 [assets]
 directory = ".open-next/assets"
