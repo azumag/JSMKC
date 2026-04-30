@@ -135,6 +135,69 @@ async function prepareSharedBmFinalsSetup(adminPage) {
   };
 }
 
+function expectedTwoGroupPaperSeedIds(qualifications) {
+  const withIndex = (qualifications || []).map((q, index) => ({ ...q, __index: index }));
+  const byGroup = new Map();
+  for (const q of withIndex) {
+    if (!q.group || !q.playerId) continue;
+    if (!byGroup.has(q.group)) byGroup.set(q.group, []);
+    byGroup.get(q.group).push(q);
+  }
+
+  const groups = ['A', 'B'].filter((group) => byGroup.has(group));
+  if (groups.length !== 2) {
+    throw new Error(`TC-510 expected 2 qualification groups, found ${[...byGroup.keys()].join(',')}`);
+  }
+
+  const rankOf = (q) => typeof q._rank === 'number'
+    ? q._rank
+    : (typeof q.rankOverride === 'number' ? q.rankOverride : Number.POSITIVE_INFINITY);
+
+  const buckets = groups.map((group) => ({
+    group,
+    entries: [...byGroup.get(group)].sort((a, b) =>
+      rankOf(a) - rankOf(b) ||
+      b.score - a.score ||
+      b.points - a.points ||
+      a.__index - b.__index,
+    ),
+  }));
+
+  for (const bucket of buckets) {
+    if (bucket.entries.length < 12) {
+      throw new Error(`TC-510 expected at least 12 qualifiers in group ${bucket.group}, found ${bucket.entries.length}`);
+    }
+  }
+
+  const playerIdForToken = (token) => {
+    const groupIndex = token[0] === 'A' ? 0 : 1;
+    const rank = Number(token.slice(1));
+    return buckets[groupIndex].entries[rank - 1]?.playerId;
+  };
+
+  const directTokensBySeed = [
+    'A1', 'A6', 'B1', 'B6',
+    'B2', 'A4', 'A2', 'B4',
+    'A5', 'B3', 'B5', 'A3',
+  ];
+  const barrageTokensBySeed = [
+    'B8', 'B7', 'A8', 'A7',
+    'B9', 'A11', 'B10', 'A12',
+    'A10', 'B12', 'A9', 'B11',
+  ];
+
+  return {
+    direct: directTokensBySeed.map(playerIdForToken),
+    barrage: barrageTokensBySeed.map(playerIdForToken),
+    barrageBlocks: [
+      ['A9', 'B12', 'B8'],
+      ['B10', 'A11', 'A7'],
+      ['B9', 'A12', 'A8'],
+      ['A10', 'B11', 'B7'],
+    ].map((block) => block.map(playerIdForToken)),
+  };
+}
+
 /* ───────── TC-501: BM participant single-match submission (UI) ───────── */
 async function runTc501(adminPage) {
   let playerBrowser = null;
@@ -760,6 +823,10 @@ async function runTc510(adminPage) {
     if (phase1.s !== 201 || phase1Data.phase !== 'playoff') {
       throw new Error(`Playoff phase creation failed (${phase1.s})`);
     }
+    const bmQualificationData = await apiFetchBm(adminPage, tournamentId);
+    const expectedSeedIds = expectedTwoGroupPaperSeedIds(bmQualificationData.qualifications || []);
+    const playoffSeedIds = (phase1Data.playoffSeededPlayers || []).map((p) => p.playerId);
+    const playoffSeedOrderOk = playoffSeedIds.join(',') === expectedSeedIds.barrage.join(',');
 
     let state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const r1 = state.playoffMatches.filter((m) => m.round === 'playoff_r1');
@@ -776,6 +843,13 @@ async function runTc510(adminPage) {
       state.playoffMatches.length === 8 &&
       r1.length === 4 &&
       r2.length === 4;
+    const playoffBlocksOk = expectedSeedIds.barrageBlocks.every((block, index) => {
+      const r1Match = state.playoffMatches.find((m) => m.matchNumber === index + 1);
+      const r2Match = state.playoffMatches.find((m) => m.matchNumber === index + 5);
+      return r1Match?.player1Id === block[0] &&
+        r1Match?.player2Id === block[1] &&
+        r2Match?.player1Id === block[2];
+    });
 
     const blocked = await apiGenerateBmFinals(adminPage, tournamentId, 24);
     const phase2Blocked = blocked.s === 409 && blocked.b?.code === 'PLAYOFF_INCOMPLETE';
@@ -815,6 +889,10 @@ async function runTc510(adminPage) {
     const phase2Data = phase2.b?.data || {};
     state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const seededPlayers = phase2Data.seededPlayers || [];
+    const directSeedOrderOk = expectedSeedIds.direct.every((playerId, index) => {
+      const seeded = seededPlayers.find((p) => p.seed === index + 1);
+      return seeded?.playerId === playerId;
+    });
     const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
@@ -824,15 +902,18 @@ async function runTc510(adminPage) {
       phase2Data.phase === 'finals' &&
       state.matches.length === 31 &&
       state.bracketSize === 16 &&
+      directSeedOrderOk &&
       playoffWinnersSeeded;
 
-    const ok = playoffCreated && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
+    const ok = playoffCreated && playoffSeedOrderOk && playoffBlocksOk && phase2Blocked && r1Routed && playoffCompleteSignal && finalsCreated;
     log('TC-510', ok ? 'PASS' : 'FAIL',
       !playoffCreated ? `playoff=${state.playoffMatches.length} finals=${state.matches.length} r1=${r1.length} r2=${r2.length}`
+      : !playoffSeedOrderOk ? `playoff seed order mismatch expected=${expectedSeedIds.barrage.join(',')} actual=${playoffSeedIds.join(',')}`
+      : !playoffBlocksOk ? `playoff blocks mismatch expected=${JSON.stringify(expectedSeedIds.barrageBlocks)}`
       : !phase2Blocked ? `Phase 2 was not blocked before completion (${blocked.s}, ${blocked.b?.code || blocked.b?.error})`
       : !r1Routed ? 'R1 winner did not route into R2 player2'
       : !playoffCompleteSignal ? 'Last R2 PUT did not signal playoffComplete=true'
-      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} winnersSeeded=${playoffWinnersSeeded}`
+      : !finalsCreated ? `finals=${state.matches.length} bracketSize=${state.bracketSize} directSeedOrder=${directSeedOrderOk} winnersSeeded=${playoffWinnersSeeded}`
       : '');
   } catch (err) {
     log('TC-510', 'FAIL', err instanceof Error ? err.message : 'BM 510 failed');

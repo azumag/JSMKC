@@ -410,11 +410,11 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
   const matches: BracketMatch[] = [];
 
   /* --- PLAYOFF ROUND 1 (Matches 1-4): 8 lower seeds pair up ---
-   * Cross-group pairing for 2-group qualification (A7-12, B7-12):
-   *   M1: A12(seed11) vs B11(seed10) → winner faces A7(seed1) in R2
-   *   M2: A10(seed7)  vs B9(seed6)   → winner faces B8(seed4) in R2
-   *   M3: A9(seed5)   vs B10(seed8)  → winner faces A8(seed3) in R2
-   *   M4: A11(seed9)  vs B12(seed12) → winner faces B7(seed2) in R2
+   * With the CDM two-group seed list produced by finals-group-selection, this is:
+   *   M1: A9(seed11)  vs B12(seed10) → winner faces B8(seed1) in R2
+   *   M2: B10(seed7) vs A11(seed6)  → winner faces A7(seed4) in R2
+   *   M3: B9(seed5)  vs A12(seed8)  → winner faces A8(seed3) in R2
+   *   M4: A10(seed9) vs B11(seed12) → winner faces B7(seed2) in R2
    *
    *   seed 1   2   3   4   5   6    7    8    9   10   11   12
    */

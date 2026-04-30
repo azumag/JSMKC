@@ -1475,7 +1475,7 @@ async function selectGroupPlayer(dialog, player) {
  *  - Clears any existing selection (so re-running on an already-configured
  *    tournament is idempotent)
  *  - Selects each provided player by nickname+name label
- *  - Sets group count = 4, fills seeding 1..N, clicks Distribute by Seed
+ *  - Sets group count = 2, fills seeding 1..N, clicks Distribute by Seed
  *  - Saves and waits for the POST response to return 201 */
 async function setupModePlayersViaUi(page, mode, tournamentId, players) {
   await nav(page, `/tournaments/${tournamentId}/${mode}`);

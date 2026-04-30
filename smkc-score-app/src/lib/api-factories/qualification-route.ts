@@ -368,6 +368,16 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         return handleValidationError('Players array is required', 'players');
       }
 
+      const invalidGroup = players.find(
+        (p: { group?: string }) => p.group !== 'A' && p.group !== 'B',
+      );
+      if (invalidGroup) {
+        return handleValidationError(
+          'Only groups A and B are currently supported',
+          'players',
+        );
+      }
+
       /*
        * Delete existing qualification records and matches first to avoid
        * unique-constraint violations on re-setup (e.g. グループ編集). Without
