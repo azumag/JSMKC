@@ -316,6 +316,7 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
   if (!event.taPhaseRound) return null;
   const r = event.taPhaseRound;
   const phaseLabel = r.phaseLabel ?? r.phase;
+  const showLives = r.phase === "phase3";
 
   return (
     <div
@@ -360,9 +361,11 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
                   {participant.player}
                 </span>
               </div>
-              <span className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold tabular-nums text-red-300">
-                LIFE {participant.lives}
-              </span>
+              {showLives && (
+                <span className="shrink-0 rounded bg-red-400/15 px-2 py-0.5 text-sm font-bold tabular-nums text-red-300">
+                  LIFE {participant.lives}
+                </span>
+              )}
             </div>
           ))}
         </div>

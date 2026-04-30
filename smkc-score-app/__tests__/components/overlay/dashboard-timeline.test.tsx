@@ -166,7 +166,7 @@ describe("DashboardTimeline TA time card", () => {
 });
 
 describe("DashboardTimeline TA phase round card", () => {
-  it("renders the selected course and active participants with lives", () => {
+  it("renders the selected course and phase3 active participants with lives", () => {
     render(<DashboardTimeline events={[taPhaseRoundEvent()]} now={NOW} />);
 
     expect(screen.getByTestId("dashboard-timeline-ta-phase-round")).toHaveTextContent(
@@ -182,5 +182,34 @@ describe("DashboardTimeline TA phase round card", () => {
     expect(participants).toHaveTextContent("LIFE 3");
     expect(participants).toHaveTextContent("Bob");
     expect(participants).toHaveTextContent("LIFE 1");
+  });
+
+  it("omits lives before phase3", () => {
+    render(
+      <DashboardTimeline
+        events={[
+          taPhaseRoundEvent({
+            title: "TA フェーズ1 ラウンド1 開始",
+            taPhaseRound: {
+              phase: "phase1",
+              phaseLabel: "フェーズ1",
+              roundNumber: 1,
+              course: "KB1",
+              courseName: "Koopa Beach 1",
+              participants: [
+                { player: "Alice", lives: 3, rank: 1 },
+                { player: "Bob", lives: 3, rank: 2 },
+              ],
+            },
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+
+    const participants = screen.getByTestId("dashboard-timeline-ta-phase-participants");
+    expect(participants).toHaveTextContent("Alice");
+    expect(participants).toHaveTextContent("Bob");
+    expect(participants).not.toHaveTextContent("LIFE");
   });
 });
