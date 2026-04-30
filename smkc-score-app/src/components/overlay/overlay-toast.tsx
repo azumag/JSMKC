@@ -23,12 +23,13 @@ const NEUTRAL_ACCENT = "bg-white";
 export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving: boolean }) {
   const accent = event.mode ? MODE_COLOR[event.mode] : NEUTRAL_ACCENT;
   const isChampion = event.type === "ta_champion_decided" && !!event.taChampion;
+  const isMatch = event.type === "match_completed" && !!event.matchResult;
 
   return (
     <div
       className={[
         "flex max-w-[90vw] overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 backdrop-blur-md",
-        isChampion ? "w-[40rem]" : "w-[28rem]",
+        isChampion || isMatch ? "w-[40rem]" : "w-[28rem]",
         "transition-all duration-300 ease-out will-change-transform",
         leaving ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
       ].join(" ")}
@@ -60,6 +61,53 @@ export function OverlayToast({ event, leaving }: { event: OverlayEvent; leaving:
                 </div>
               ))}
             </div>
+          </div>
+        ) : isMatch ? (
+          <div data-testid="overlay-toast-match-completed">
+            <div className="text-lg font-bold leading-tight text-white/80">
+              {event.title.replace(/\s*Completed\s*$/, "")}
+            </div>
+            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div
+                className={`line-clamp-2 break-words text-4xl font-black leading-none ${
+                  event.matchResult!.score1 > event.matchResult!.score2
+                    ? "text-yellow-300"
+                    : "text-white"
+                }`}
+              >
+                {event.matchResult!.player1}
+              </div>
+              <div className="text-3xl font-black tabular-nums text-white">
+                {event.matchResult!.score1}-{event.matchResult!.score2}
+              </div>
+              <div
+                className={`line-clamp-2 break-words text-right text-4xl font-black leading-none ${
+                  event.matchResult!.score2 > event.matchResult!.score1
+                    ? "text-yellow-300"
+                    : "text-white"
+                }`}
+              >
+                {event.matchResult!.player2}
+              </div>
+            </div>
+            {((event.matchResult!.courses && event.matchResult!.courses.length > 0) ||
+              event.matchResult!.cup) && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {event.matchResult!.cup && (
+                  <span className="rounded bg-white/10 px-2 py-0.5 text-sm font-semibold text-white/85">
+                    {event.matchResult!.cup}
+                  </span>
+                )}
+                {event.matchResult!.courses?.map((course) => (
+                  <span
+                    key={course}
+                    className="rounded bg-white/10 px-2 py-0.5 text-sm font-semibold text-white/85"
+                  >
+                    {course}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <>

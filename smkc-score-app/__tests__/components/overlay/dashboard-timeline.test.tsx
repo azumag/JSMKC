@@ -152,6 +152,18 @@ describe("DashboardTimeline match scoreboard card", () => {
     }
   });
 
+  it("renders BM/MR/GP qualification player names larger in the scoreboard", () => {
+    render(<DashboardTimeline events={[matchEvent()]} now={NOW} />);
+
+    const players = screen.getAllByTestId("dashboard-timeline-scoreboard-player");
+    expect(players).toHaveLength(2);
+    for (const player of players) {
+      expect(player).toHaveClass("text-2xl");
+      expect(player).toHaveClass("line-clamp-2");
+      expect(player).not.toHaveClass("truncate");
+    }
+  });
+
   it("renders GP cup label when matchResult.cup is set", () => {
     const event = matchEvent({
       id: "match_completed:gp:m1:1",

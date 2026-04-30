@@ -570,7 +570,8 @@ function PlayerScoreRow({
       }`}
     >
       <span
-        className={`min-w-0 flex-1 truncate text-base ${
+        data-testid="dashboard-timeline-scoreboard-player"
+        className={`line-clamp-2 min-w-0 flex-1 break-words text-2xl leading-tight ${
           winner ? "font-bold text-yellow-400" : "font-medium text-white/85"
         }`}
       >
