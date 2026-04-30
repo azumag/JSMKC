@@ -328,7 +328,7 @@ describe('Qualification Route Factory', () => {
       (prisma.bMQualification as any).findMany.mockResolvedValue([]);
       (prisma.bMMatch as any).createMany.mockResolvedValue({ count: 8 });
       (prisma.bMMatch as any).findMany.mockResolvedValue([]);
-      (prisma as any).$executeRaw.mockResolvedValue(28);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
 
       const config = createMockConfig();
       const { POST } = createQualificationHandlers(config);
@@ -347,12 +347,133 @@ describe('Qualification Route Factory', () => {
       expect((prisma.bMQualification as any).createMany).toHaveBeenCalledTimes(1);
 
       expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
-      expect((prisma as any).$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = (prisma as any).$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      expect(templateStrings.raw.join('')).toContain('json_each');
-      expect(templateStrings.raw.join('')).toContain('INSERT INTO BMMatch');
-      const payload = JSON.parse((prisma as any).$executeRaw.mock.calls[0][1]);
+      expect((prisma as any).$executeRawUnsafe).toHaveBeenCalledTimes(1);
+      const sql = (prisma as any).$executeRawUnsafe.mock.calls[0][0] as string;
+      expect(sql).toContain('json_each');
+      expect(sql).toContain('INSERT INTO BMMatch');
+      const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
       expect(payload).toHaveLength(28);
+    });
+
+    it('should use the MR raw insert mapping for large qualification setup', async () => {
+      const players = Array.from({ length: 8 }, (_, i) => ({
+        playerId: `player-${i + 1}`,
+        group: 'A',
+        seeding: i + 1,
+      }));
+
+      (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.mRQualification as any).findMany.mockResolvedValue([]);
+      (prisma.mRMatch as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+
+      const config = createMockConfig({
+        eventTypeCode: 'mr',
+        matchModel: 'mRMatch',
+        qualificationModel: 'mRQualification',
+        assignCoursesRandomly: true,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect((prisma.mRMatch as any).createMany).not.toHaveBeenCalled();
+      const sql = (prisma as any).$executeRawUnsafe.mock.calls[0][0] as string;
+      expect(sql).toContain('INSERT INTO MRMatch');
+      expect(sql).toContain('assignedCourses');
+      const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+      expect(payload).toHaveLength(28);
+      expect(payload.find((row: any) => row.assignedCourses)).toEqual(
+        expect.objectContaining({ assignedCourses: expect.any(Array) }),
+      );
+    });
+
+    it('should use the GP raw insert mapping for large qualification setup', async () => {
+      const players = Array.from({ length: 8 }, (_, i) => ({
+        playerId: `player-${i + 1}`,
+        group: 'A',
+        seeding: i + 1,
+      }));
+
+      (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.gPQualification as any).findMany.mockResolvedValue([]);
+      (prisma.gPMatch as any).findMany.mockResolvedValue([]);
+      (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+
+      const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
+      const config = createMockConfig({
+        eventTypeCode: 'gp',
+        matchModel: 'gPMatch',
+        qualificationModel: 'gPQualification',
+        assignCupRandomly: true,
+        cupList,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect((prisma.gPMatch as any).createMany).not.toHaveBeenCalled();
+      const sql = (prisma as any).$executeRawUnsafe.mock.calls[0][0] as string;
+      expect(sql).toContain('INSERT INTO GPMatch');
+      expect(sql).toContain('points1, points2, cup');
+      const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
+      expect(payload).toHaveLength(28);
+      expect(payload.find((row: any) => row.cup)).toEqual(
+        expect.objectContaining({ cup: expect.stringMatching(/Mushroom|Flower|Star|Special/) }),
+      );
+    });
+
+    it('should fail explicitly instead of falling back to createMany for unsupported large raw insert modes', async () => {
+      const players = Array.from({ length: 8 }, (_, i) => ({
+        playerId: `player-${i + 1}`,
+        group: 'A',
+        seeding: i + 1,
+      }));
+
+      (prisma.bMQualification as any).createMany.mockResolvedValue({ count: 8 });
+      (prisma.bMQualification as any).findMany.mockResolvedValue([]);
+      (prisma.bMMatch as any).findMany.mockResolvedValue([]);
+
+      const config = createMockConfig({
+        eventTypeCode: 'xx',
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+      const result = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(result).toEqual({ success: false, error: 'Failed to setup Battle Mode', code: 'INTERNAL_ERROR' });
+      expect((prisma.bMMatch as any).createMany).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to setup Battle Mode',
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: 'Unsupported qualification match bulk insert mode: xx',
+          }),
+          tournamentId: 'tournament-123',
+        }),
+      );
     });
 
     it('should chunk qual createMany when record count exceeds QUAL_CHUNK=24 (#769)', async () => {
