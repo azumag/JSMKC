@@ -7,6 +7,7 @@
 - [BM 操作マニュアル](./operation-bm.md)
 - [MR 操作マニュアル](./operation-mr.md)
 - [GP 操作マニュアル](./operation-gp.md)
+- [配信管理者マニュアル](./broadcast-admin-manual.md)
 - [TA 管理者マニュアル](./ta-admin-manual.md)
 - [TA 参加者マニュアル](./ta-user-manual.md)
 
