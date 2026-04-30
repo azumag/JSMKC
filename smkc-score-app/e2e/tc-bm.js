@@ -23,6 +23,7 @@
  *   TC-528  BM qualification startingCourseNumber must always be null (#728 revert)
  *   TC-529  BM Top-24 playoff stage startingCourseNumber per-round (#728)
  *   TC-530  BM finals/playoff legacy null repair on GET (#728)
+ *   TC-532  BM qualification standings show 0-1000 qualification points
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -52,6 +53,7 @@ const {
   uiCreateTournament,
   launchChromium,
   launchPersistentChromiumContext,
+  assertQualificationPointsColumn,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -571,6 +573,7 @@ async function runTc503(adminPage) {
   let setup = null;
   try {
     setup = await prepareSharedBmFinalsSetup(adminPage);
+    const qualificationPoints = await assertQualificationPointsColumn(adminPage, 'bm', setup.tournamentId);
 
     const gen = await apiGenerateBmFinals(adminPage, setup.tournamentId, 8);
     if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
@@ -596,9 +599,11 @@ async function runTc503(adminPage) {
     const winnerRouted = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id);
     const loserRouted = [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
 
-    const ok = bracketCount && firstToFiveRejected && scoreSaved && winnerRouted && loserRouted;
+    const qualificationPointsOk = qualificationPoints.length >= 28;
+    const ok = qualificationPointsOk && bracketCount && firstToFiveRejected && scoreSaved && winnerRouted && loserRouted;
     log('TC-503', ok ? 'PASS' : 'FAIL',
-      !bracketCount ? `bracket size=${after.length} (expected 17)`
+      !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
+      : !bracketCount ? `bracket size=${after.length} (expected 17)`
       : !firstToFiveRejected ? `3-0 not rejected (status=${reject.s})`
       : !scoreSaved ? `score not saved: ${updated?.score1}-${updated?.score2} completed=${updated?.completed}`
       : !winnerRouted || !loserRouted ? `routing mismatch w=${winnerRouted} l=${loserRouted}`

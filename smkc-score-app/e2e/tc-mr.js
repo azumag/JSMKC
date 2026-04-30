@@ -28,6 +28,7 @@
  *  TC-620  MR qualification tie resolution (tie warning → resolveAllTies)
  *  TC-621  MR per-round target-wins API validation (issue #528: FT3/FT4/FT5)
  *  TC-858  MR Top-24 finals Winners R1 loser populates Losers R1 player2
+ *  TC-622  MR qualification standings show 0-1000 qualification points
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -51,6 +52,7 @@ const {
   loginPlayerBrowser,
   setupMrQualViaUi,
   resolveAllTies,
+  assertQualificationPointsColumn,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -196,6 +198,8 @@ async function runTc601(adminPage) {
     const hasStandings = pageText.length > 50 &&
       !pageText.includes('Failed to fetch') &&
       !pageText.includes('エラーが発生しました');
+    const qualificationPoints = await assertQualificationPointsColumn(adminPage, 'mr', tournamentId);
+    const qualificationPointsOk = qualificationPoints.length >= 28;
 
     // Step 3: Verify standings via API — sorted by score desc, points desc per group
     const standings = await adminPage.evaluate(async (url) => {
@@ -226,12 +230,13 @@ async function runTc601(adminPage) {
     const postScoreMatches = postScoreData.matches || [];
     const hasCourses = postScoreMatches.some((m) => m.rounds && m.rounds.length > 0);
 
-    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && standingsSorted;
+    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && qualificationPointsOk && standingsSorted;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
       !allPassed
         ? (!hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
            : !allScoresOk ? 'Some qualification matches are still incomplete'
            : !hasStandings ? 'Standings page did not render properly'
+           : !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
            : !standingsSorted ? 'Standings not sorted correctly'
            : '')
         : '');
