@@ -19,15 +19,29 @@
 // @ts-nocheck - This test file uses complex mock types that are difficult to type correctly
 import {
   calculateEntryTotal,
+  compareQualificationRankOrder,
   sortByStage,
   assignRanks,
   recalculateRanks,
   rerankStageAfterDelete,
+  QUALIFICATION_RANK_ORDER_SQL,
 } from '@/lib/ta/rank-calculation';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { PrismaClient } from '@prisma/client';
 
 jest.mock('@/lib/prisma');
+
+function sqlFromExecuteRawCall(call: unknown[]): string {
+  const templateStrings = call[0] as TemplateStringsArray;
+  const values = call.slice(1);
+  return templateStrings.raw.reduce((sql, chunk, index) => {
+    const value = values[index];
+    if (value && typeof value === 'object' && 'strings' in value && Array.isArray(value.strings)) {
+      return `${sql}${chunk}${value.strings.join('')}`;
+    }
+    return `${sql}${chunk}`;
+  }, '');
+}
 
 describe('TA Rank Calculation', () => {
   describe('calculateEntryTotal', () => {
@@ -222,6 +236,43 @@ describe('TA Rank Calculation', () => {
       expect(sorted[0].id).toBe('2');
       expect(sorted[1].id).toBe('1');
     });
+
+    it('should use id as the final deterministic qualification tiebreaker', () => {
+      const entries = [
+        {
+          id: 'b',
+          totalTime: 300000,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 50,
+        },
+        {
+          id: 'a',
+          totalTime: 300000,
+          lives: 3,
+          eliminated: false,
+          stage: 'qualification',
+          courseScores: {},
+          qualificationPoints: 50,
+        },
+      ];
+
+      const sorted = sortByStage(entries, 'qualification');
+
+      expect(sorted.map((entry) => entry.id)).toEqual(['a', 'b']);
+      expect(compareQualificationRankOrder(entries[1], entries[0])).toBeLessThan(0);
+    });
+
+    it('keeps the delete-rerank SQL order aligned with the qualification comparator', () => {
+      expect(QUALIFICATION_RANK_ORDER_SQL.strings.join('')).toContain(
+        'COALESCE(qualificationPoints, 0) DESC'
+      );
+      expect(QUALIFICATION_RANK_ORDER_SQL.strings.join('')).toContain('totalTime IS NULL ASC');
+      expect(QUALIFICATION_RANK_ORDER_SQL.strings.join('')).toContain('totalTime ASC');
+      expect(QUALIFICATION_RANK_ORDER_SQL.strings.join('')).toContain('id ASC');
+    });
   });
 
   /* sortByStage finals tests removed: the "finals" sorting branch was deleted
@@ -337,8 +388,7 @@ describe('TA Rank Calculation', () => {
 
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
       // $executeRaw is called as a tagged template literal: first arg is TemplateStringsArray
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      const sqlText = templateStrings.raw.join('');
+      const sqlText = sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(sqlText).toContain('courseScores');
       expect(sqlText).toContain('qualificationPoints');
     });
@@ -376,8 +426,7 @@ describe('TA Rank Calculation', () => {
       await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      const sqlText = templateStrings.raw.join('');
+      const sqlText = sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(sqlText).not.toContain('courseScores');
       expect(sqlText).not.toContain('qualificationPoints');
     });
@@ -411,8 +460,7 @@ describe('TA Rank Calculation', () => {
       await recalculateRanks('tournament-1', 'qualification', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      expect(templateStrings.raw.join('')).toContain('json_each');
+      expect(sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0])).toContain('json_each');
     });
 
     it('should update large non-qualification stages with one JSON-backed statement', async () => {
@@ -436,8 +484,7 @@ describe('TA Rank Calculation', () => {
       await recalculateRanks('tournament-1', 'revival_1', mockPrisma as unknown as PrismaClient);
 
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      expect(templateStrings.raw.join('')).toContain('json_each');
+      expect(sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0])).toContain('json_each');
     });
 
     it('requires callers to pass the stage explicitly', () => {
@@ -449,8 +496,7 @@ describe('TA Rank Calculation', () => {
 
       expect(mockPrisma.tTEntry.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      const sqlText = templateStrings.raw.join('');
+      const sqlText = sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(sqlText).toContain('ROW_NUMBER() OVER');
       expect(sqlText).toContain('qualificationPoints');
       expect(sqlText).not.toContain('courseScores');
@@ -461,8 +507,7 @@ describe('TA Rank Calculation', () => {
 
       expect(mockPrisma.tTEntry.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
-      const templateStrings = mockPrisma.$executeRaw.mock.calls[0][0] as TemplateStringsArray;
-      const sqlText = templateStrings.raw.join('');
+      const sqlText = sqlFromExecuteRawCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(sqlText).toContain('totalTime IS NOT NULL');
       expect(sqlText).not.toContain('qualificationPoints');
     });

@@ -16,7 +16,8 @@
  *   TC-812  TA qualification tie resolution — identical times yield averaged
  *           course points and ordered ranks without manual override.
  *   TC-813  TA qualification rank recalculation after entry deletion — ranks
- *           are re-compacted (no gaps) after removing one entrant (#710).
+ *           are re-compacted using qualificationPoints order after removing
+ *           one entrant (#710/#959).
  *   TC-837  TA qualification standings show per-course No.1 count (Nb #1).
  *   TC-839  TA qualification time-entry dialog stacks cup cards on mobile.
  *   TC-840  TA partner can edit the paired player's times from the TA list UI.
@@ -132,6 +133,33 @@ async function seedTaQualificationRanks(adminPage, tournamentId, entries, startR
     seeded.push({ ...entries[i], rank, times, totalMs });
   }
   return seeded;
+}
+
+function formatTc813Time(ms) {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const hundredths = Math.floor((ms % 1000) / 10);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+}
+
+function makeTc813QualificationTimes(pattern) {
+  const times = {};
+  let totalMs = 0;
+  for (const [index, course] of TA_COURSES.entries()) {
+    let courseMs;
+    if (pattern === 'points-first-total-second') {
+      courseMs = index === TA_COURSES.length - 1 ? 400000 : 60000;
+    } else if (pattern === 'total-first-points-second') {
+      courseMs = 70000;
+    } else if (pattern === 'third') {
+      courseMs = 80000;
+    } else {
+      courseMs = 90000;
+    }
+    times[course] = formatTc813Time(courseMs);
+    totalMs += courseMs;
+  }
+  return { times, totalMs };
 }
 
 async function submitTaPhaseRoundByApi(adminPage, tournamentId, phase, activeEntries) {
@@ -1209,10 +1237,13 @@ async function runTc812(adminPage) {
  * Issue #710: recalculateRanks previously issued N sequential TTEntry.update calls
  * (~185ms each on D1), causing ~5s response times for 27-entry stages. The fix
  * collapses N round-trips into a single bulk UPDATE CASE WHEN statement.
+ * Issue #959: recalculateRanks and the delete-only rerank path must share the
+ * same qualification ordering: qualificationPoints desc, totalTime asc, id asc.
  *
  * This test verifies the functional correctness of rank recalculation after an
  * entry is deleted: the surviving entries must receive consecutive ranks with no
- * gaps, reflecting the removed player's absence.
+ * gaps, reflecting the removed player's absence, while still prioritizing
+ * qualificationPoints over raw totalTime.
  *
  * Uses an isolated tournament so it does not disturb the shared phase chain. */
 async function runTc813(adminPage) {
@@ -1227,44 +1258,61 @@ async function runTc813(adminPage) {
     }
     tournamentId = await uiCreateTournament(adminPage, `E2E TA Rank Del ${stamp}`, { dualReportEnabled: false });
 
-    /* Register all 4 with unique deterministic times (rank 1=fastest, 4=slowest). */
+    /* Register all 4 with a deliberate points-vs-totalTime split. P1 wins 19
+     * courses but is very slow on RR, so totalTime alone would rank P2 first.
+     * The correct TA qualification order is still P1 before P2 because
+     * qualificationPoints is the primary key. */
     const { entries } = await setupTaQualViaUi(adminPage, tournamentId, createdPlayers, { seedTimes: false });
-    for (let i = 0; i < 4; i++) {
-      const { times, totalMs } = makeTaTimesForRank(i + 1);
-      await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, times, totalMs, null);
+    const seededTimes = [
+      makeTc813QualificationTimes('points-first-total-second'),
+      makeTc813QualificationTimes('total-first-points-second'),
+      makeTc813QualificationTimes('third'),
+      makeTc813QualificationTimes('fourth'),
+    ];
+    for (let i = 0; i < entries.length; i++) {
+      await apiSeedTtEntry(adminPage, tournamentId, entries[i].entryId, seededTimes[i].times, seededTimes[i].totalMs, null);
     }
 
     /* Assert initial rank assignment. */
     const beforeRows = (await apiFetchTa(adminPage, tournamentId)).b?.data?.entries ?? [];
     const beforeMap = new Map(beforeRows.map((e) => [e.playerId, e]));
     const [b1, b2, b3, b4] = createdPlayers.map((p) => beforeMap.get(p.id));
-    if (b1?.rank !== 1 || b2?.rank !== 2 || b3?.rank !== 3 || b4?.rank !== 4) {
-      log('TC-813', 'FAIL', `Initial ranks wrong: P1=${b1?.rank} P2=${b2?.rank} P3=${b3?.rank} P4=${b4?.rank}`);
+    const p1SlowerButHigherPoints =
+      typeof b1?.totalTime === 'number' &&
+      typeof b2?.totalTime === 'number' &&
+      typeof b1?.qualificationPoints === 'number' &&
+      typeof b2?.qualificationPoints === 'number' &&
+      b1.totalTime > b2.totalTime &&
+      b1.qualificationPoints > b2.qualificationPoints;
+    if (b1?.rank !== 1 || b2?.rank !== 2 || b3?.rank !== 3 || b4?.rank !== 4 || !p1SlowerButHigherPoints) {
+      log('TC-813', 'FAIL', `Initial ranks/order wrong: P1 rank=${b1?.rank} points=${b1?.qualificationPoints} total=${b1?.totalTime}; P2 rank=${b2?.rank} points=${b2?.qualificationPoints} total=${b2?.totalTime}; P3=${b3?.rank} P4=${b4?.rank}`);
       return;
     }
 
-    /* Delete P2's entry — triggers recalculateRanks on the server. */
+    /* Delete P3's entry — triggers rerankStageAfterDelete on the server. */
     const del = await adminPage.evaluate(async (u) => {
       const r = await fetch(u, { method: 'DELETE' });
       return { s: r.status, ok: r.ok };
-    }, `/api/tournaments/${tournamentId}/ta?entryId=${entries[1].entryId}`);
+    }, `/api/tournaments/${tournamentId}/ta?entryId=${entries[2].entryId}`);
     if (!del.ok) {
       log('TC-813', 'FAIL', `DELETE entry failed (${del.s})`);
       return;
     }
 
-    /* After deletion the server must re-compact ranks: P1=1, P3=2, P4=3. */
+    /* After deletion the server must use the same qualification ordering and
+     * re-compact ranks: P1=1, P2=2, P4=3. If the delete-only SQL drifted to
+     * totalTime-first ordering, P2 would incorrectly become rank 1. */
     const afterRows = (await apiFetchTa(adminPage, tournamentId)).b?.data?.entries ?? [];
     const afterMap = new Map(afterRows.map((e) => [e.playerId, e]));
-    const p2Gone = !afterMap.has(createdPlayers[1].id);
+    const p3Gone = !afterMap.has(createdPlayers[2].id);
     const a1 = afterMap.get(createdPlayers[0].id);
-    const a3 = afterMap.get(createdPlayers[2].id);
+    const a2 = afterMap.get(createdPlayers[1].id);
     const a4 = afterMap.get(createdPlayers[3].id);
-    const ranksCompacted = a1?.rank === 1 && a3?.rank === 2 && a4?.rank === 3;
+    const ranksCompacted = a1?.rank === 1 && a2?.rank === 2 && a4?.rank === 3;
 
-    log('TC-813', p2Gone && ranksCompacted ? 'PASS' : 'FAIL',
-      !p2Gone ? 'P2 entry still present after DELETE'
-      : !ranksCompacted ? `ranks not re-compacted after deletion: P1=${a1?.rank} P3=${a3?.rank} P4=${a4?.rank}`
+    log('TC-813', p3Gone && ranksCompacted ? 'PASS' : 'FAIL',
+      !p3Gone ? 'P3 entry still present after DELETE'
+      : !ranksCompacted ? `ranks not re-compacted after deletion: P1=${a1?.rank} P2=${a2?.rank} P4=${a4?.rank}`
       : '');
   } catch (err) {
     log('TC-813', 'FAIL', err instanceof Error ? err.message : 'TA rank recalc after delete failed');
