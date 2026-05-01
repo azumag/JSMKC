@@ -1046,9 +1046,7 @@ async function createSuddenDeathRound(
   const count = await prisma.tTPhaseSuddenDeathRound.count({
     where: { phaseRoundId },
   });
-  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
-    includeSuddenDeath: true,
-  });
+  const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase);
   const course = selectRandomAvailableCourse(playedCourses, playedCourses[playedCourses.length - 1]);
   return prisma.tTPhaseSuddenDeathRound.create({
     data: {
@@ -1441,7 +1439,6 @@ export async function changeSuddenDeathCourse(
   }
   const playedCourses = await getPlayedCoursesWithSuddenDeath(prisma, tournamentId, phase, {
     excludeSuddenDeathRoundId: suddenDeathRoundId,
-    includeSuddenDeath: true,
   });
   const available = getAvailableCourses(playedCourses);
   if (!available.includes(course as CourseAbbr)) {

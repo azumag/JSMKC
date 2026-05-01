@@ -74,18 +74,6 @@ describe("getAvailableCourses", () => {
     expect(available).toContain("DP2");
   });
 
-  it("does not reset before all 20 main rounds are played when sudden-death courses exist separately", () => {
-    const mainRoundsBeforeRepeat = [
-      "CI2", "CI1", "BC2", "MC3",
-      "GV2", "GV1", "VL1", "MC2",
-      "VL2", "GV3", "DP3", "KB2", "DP2",
-      "KB1", "DP1", "MC1", "RR",
-    ];
-    const available = getAvailableCourses(mainRoundsBeforeRepeat);
-
-    expect(available).toEqual(["BC1", "BC3", "MC4"]);
-  });
-
   it("handles duplicate courses in played list within a cycle", () => {
     // If the same course appears twice in a cycle (shouldn't happen in normal operation
     // but the Set-based deduplication handles it gracefully).
@@ -157,7 +145,7 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
     expect(getAvailableCourses(played)).not.toContain("KB1");
   });
 
-  it("does not count sudden-death courses as consumed for the main course cycle by default", async () => {
+  it("counts sudden-death courses from earlier phases as consumed", async () => {
     const prisma = {
       tTPhaseRound: {
         findMany: jest.fn().mockResolvedValue([
@@ -183,38 +171,6 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
 
     const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase2");
 
-    expect(played).toEqual(["MC1", "DP1"]);
-    expect(getAvailableCourses(played)).toContain("KB1");
-  });
-
-  it("can include sudden-death courses when selecting another sudden-death course", async () => {
-    const prisma = {
-      tTPhaseRound: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            id: "p1-r1",
-            phase: "phase1",
-            roundNumber: 1,
-            course: "MC1",
-            suddenDeathRounds: [
-              { id: "sd1", course: "KB1" },
-            ],
-          },
-          {
-            id: "p2-r1",
-            phase: "phase2",
-            roundNumber: 1,
-            course: "DP1",
-            suddenDeathRounds: [],
-          },
-        ]),
-      },
-    };
-
-    const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase2", {
-      includeSuddenDeath: true,
-    });
-
     expect(played).toEqual(["MC1", "KB1", "DP1"]);
     expect(getAvailableCourses(played)).not.toContain("KB1");
   });
@@ -239,7 +195,6 @@ describe("getPlayedCoursesWithSuddenDeath", () => {
 
     const played = await getPlayedCoursesWithSuddenDeath(prisma as any, "t1", "phase1", {
       excludeSuddenDeathRoundId: "sd-current",
-      includeSuddenDeath: true,
     });
 
     expect(played).toEqual(["MC1", "KB1"]);
