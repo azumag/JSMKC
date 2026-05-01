@@ -55,22 +55,22 @@ export async function getPlayedCourses(
 }
 
 /**
- * Fetch played courses including adopted sudden-death courses.
+ * Fetch played courses for TA finals course selection.
  *
  * Course history is shared across TA finals phases. Asking for phase2 includes
  * phase1 and phase2 courses; asking for phase3 includes all finals phases up
  * through phase3. This prevents repeats such as KB1 appearing in both phase1
  * and phase2 before the 20-course cycle is exhausted.
  *
- * A sudden-death course is "adopted" as soon as its row exists; if an admin
- * changes an unresolved sudden-death course, the row is updated, so only the
- * final selected course remains in this history.
+ * By default, sudden-death courses are not counted against the main 20-course
+ * cycle. Pass includeSuddenDeath when selecting or changing another sudden-death
+ * course so those tie-break courses do not duplicate each other.
  */
 export async function getPlayedCoursesWithSuddenDeath(
   prisma: DbClient,
   tournamentId: string,
   phase: string,
-  options: { excludeSuddenDeathRoundId?: string } = {}
+  options: { excludeSuddenDeathRoundId?: string; includeSuddenDeath?: boolean } = {}
 ): Promise<string[]> {
   const phases = getCourseHistoryPhases(phase);
   const rounds = await prisma.tTPhaseRound.findMany({
@@ -95,6 +95,7 @@ export async function getPlayedCoursesWithSuddenDeath(
   });
   for (const round of orderedRounds) {
     courses.push(round.course);
+    if (!options.includeSuddenDeath) continue;
     for (const suddenDeathRound of round.suddenDeathRounds ?? []) {
       if (suddenDeathRound.id !== options.excludeSuddenDeathRoundId) {
         courses.push(suddenDeathRound.course);
