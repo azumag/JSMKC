@@ -932,7 +932,7 @@ describe("TA Finals Phase Manager", () => {
       );
     });
 
-    it("requires phase3 sudden death when tied eliminations would skip the 8-player life reset", async () => {
+    it("requires a phase3 revival race when simultaneous eliminations would leave fewer than 8 players", async () => {
       mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
         id: "round1",
         tournamentId: "t1",
@@ -952,7 +952,7 @@ describe("TA Finals Phase Manager", () => {
       mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
       mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
         id: "sd1",
-        targetPlayerIds: ["p8", "p9"],
+        targetPlayerIds: ["p6", "p7", "p8", "p9"],
         resolved: false,
       });
 
@@ -973,19 +973,68 @@ describe("TA Finals Phase Manager", () => {
       expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            targetPlayerIds: ["p8", "p9"],
+            targetPlayerIds: expect.arrayContaining(["p6", "p7", "p8", "p9"]),
           }),
         })
       );
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data.targetPlayerIds).toHaveLength(4);
     });
 
-    it("resolves phase3 sudden death by eliminating only enough players to hit 8 and reset lives", async () => {
+    it("sends all three 1-life players to revival when they lose life together at the top-8 boundary", async () => {
+      mockPrismaClient.tTPhaseRound.findUnique.mockResolvedValue({
+        id: "round1",
+        tournamentId: "t1",
+        phase: "phase3",
+        roundNumber: 1,
+        course: "MC1",
+        results: [],
+      });
+      mockPrismaClient.tTEntry.findMany.mockResolvedValue(
+        Array.from({ length: 9 }, (_, index) => ({
+          playerId: `p${index + 1}`,
+          eliminated: false,
+          lives: index >= 6 ? 1 : index >= 3 ? 2 : 3,
+        }))
+      );
+      mockPrismaClient.tTPhaseRound.findMany.mockResolvedValue([]);
+      mockPrismaClient.tTPhaseSuddenDeathRound.count.mockResolvedValue(0);
+      mockPrismaClient.tTPhaseSuddenDeathRound.create.mockResolvedValue({
+        id: "sd1",
+        targetPlayerIds: ["p7", "p8", "p9"],
+        resolved: false,
+      });
+
+      const result = await submitRoundResults(mockPrismaClient as any, context, "phase3", 1, [
+        { playerId: "p1", timeMs: 80000 },
+        { playerId: "p2", timeMs: 81000 },
+        { playerId: "p3", timeMs: 82000 },
+        { playerId: "p4", timeMs: 83000 },
+        { playerId: "p5", timeMs: 84000 },
+        { playerId: "p6", timeMs: 85000 },
+        { playerId: "p7", timeMs: 86000 },
+        { playerId: "p8", timeMs: 87000 },
+        { playerId: "p9", timeMs: 88000 },
+      ]);
+
+      expect(result.tieBreakRequired).toBe(true);
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            targetPlayerIds: expect.arrayContaining(["p7", "p8", "p9"]),
+          }),
+        })
+      );
+      expect(mockPrismaClient.tTPhaseSuddenDeathRound.create.mock.calls[0][0].data.targetPlayerIds).toHaveLength(3);
+      expect(mockPrismaClient.tTEntry.update).not.toHaveBeenCalled();
+    });
+
+    it("resolves a phase3 revival race by eliminating only enough players to hit 8 and reset lives", async () => {
       mockPrismaClient.tTPhaseSuddenDeathRound.findUnique.mockResolvedValue({
         id: "sd1",
         tournamentId: "t1",
         phase: "phase3",
         phaseRoundId: "round1",
-        targetPlayerIds: ["p8", "p9"],
+        targetPlayerIds: ["p6", "p7", "p8", "p9"],
         resolved: false,
         phaseRound: {
           id: "round1",
@@ -1035,6 +1084,8 @@ describe("TA Finals Phase Manager", () => {
       mockPrismaClient.tTEntry.updateMany.mockResolvedValue({ count: 8 });
 
       const result = await submitSuddenDeathResults(mockPrismaClient as any, context, "phase3", "sd1", [
+        { playerId: "p6", timeMs: 85000 },
+        { playerId: "p7", timeMs: 86000 },
         { playerId: "p8", timeMs: 88000 },
         { playerId: "p9", timeMs: 89000 },
       ]);

@@ -919,7 +919,7 @@ export interface SuddenDeathResultInput {
 
 interface TieBreakDecision {
   targetPlayerIds: string[];
-  reason: "slowest_tie" | "phase3_boundary_tie" | "phase3_reset_elimination_tie";
+  reason: "slowest_tie" | "phase3_boundary_tie" | "phase3_revival_race";
 }
 
 function detectTieBreakRequired(
@@ -953,17 +953,10 @@ function detectTieBreakRequired(
       .filter((result) => (currentLivesByPlayer.get(result.playerId) ?? PHASE_CONFIG.phase3.initialLives) - 1 <= 0)
       .sort((a, b) => b.timeMs - a.timeMs);
     if (eliminationCandidates.length > eliminationLimit) {
-      const lastEliminated = eliminationCandidates[eliminationLimit - 1];
-      const firstSaved = eliminationCandidates[eliminationLimit];
-      if (lastEliminated?.timeMs === firstSaved?.timeMs) {
-        const boundaryTime = lastEliminated.timeMs;
-        return {
-          targetPlayerIds: eliminationCandidates
-            .filter((result) => result.timeMs === boundaryTime)
-            .map((result) => result.playerId),
-          reason: "phase3_reset_elimination_tie",
-        };
-      }
+      return {
+        targetPlayerIds: eliminationCandidates.map((result) => result.playerId),
+        reason: "phase3_revival_race",
+      };
     }
   }
 
