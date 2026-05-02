@@ -8,6 +8,7 @@ export interface TaEntryAccessContext {
   isAdmin?: boolean | null;
   currentPlayerId?: string | null;
   frozenStages?: readonly string[];
+  taPlayerSelfEdit?: boolean | null;
 }
 
 export function canEditTaEntry(
@@ -20,5 +21,7 @@ export function canEditTaEntry(
   const currentPlayerId = context.currentPlayerId;
   if (!currentPlayerId) return false;
 
-  return entry.playerId === currentPlayerId || entry.partnerId === currentPlayerId;
+  if (entry.partnerId === currentPlayerId) return true;
+
+  return entry.playerId === currentPlayerId && context.taPlayerSelfEdit !== false;
 }

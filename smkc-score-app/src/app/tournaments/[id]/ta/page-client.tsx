@@ -137,19 +137,6 @@ export default function TimeAttackPageClient({
    */
   const currentPlayerId = session?.user?.playerId;
 
-  /**
-   * Whether the current user can edit a specific entry's times.
-   * Returns false if the entry's stage is frozen (applies to both admins and players).
-   * Otherwise: admins can edit any entry; players can only edit their own.
-   */
-  const canEditEntry = (entry: TTEntry): boolean => {
-    return canEditTaEntry(entry, {
-      isAdmin,
-      currentPlayerId,
-      frozenStages,
-    });
-  };
-
   /** Whether the current user can edit any entries (admin or player with own entry).
    *  Controls whether editable time entry features are shown. */
   const canEditAnyEntry = isAdmin || !!currentPlayerId;
@@ -250,6 +237,7 @@ export default function TimeAttackPageClient({
       allPlayers: extractArrayData<Player>(playersJson),
       qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
       frozenStages: taData.frozenStages || [],
+      taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
     };
   }, [tournamentId]);
 
@@ -279,6 +267,21 @@ export default function TimeAttackPageClient({
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
+  const taPlayerSelfEdit: boolean = pollData?.taPlayerSelfEdit ?? true;
+  /**
+   * Whether the current user can edit a specific entry's times.
+   * Returns false if the entry's stage is frozen (applies to both admins and players).
+   * Otherwise: admins can edit any entry; players can edit partner entries,
+   * and can edit their own entry only when tournament self-edit is enabled.
+   */
+  const canEditEntry = (entry: TTEntry): boolean => {
+    return canEditTaEntry(entry, {
+      isAdmin,
+      currentPlayerId,
+      frozenStages,
+      taPlayerSelfEdit,
+    });
+  };
   const firstPlaceCounts = useMemo(
     () => calculateCourseFirstPlaceCounts(entries),
     [entries],
@@ -1284,11 +1287,11 @@ export default function TimeAttackPageClient({
                   {/* Quick-access button: lets logged-in players open their own
                    *  time entry dialog directly without scrolling the table.
                    *  Only shown when the player has an entry in this tournament. */}
-                    {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId) && (
+                    {currentPlayerId && entries.find((e) => e.playerId === currentPlayerId && canEditEntry(e)) && (
                       <Button
                         size="sm"
                         onClick={() => {
-                          const myEntry = entries.find((e) => e.playerId === currentPlayerId);
+                          const myEntry = entries.find((e) => e.playerId === currentPlayerId && canEditEntry(e));
                           if (myEntry) openTimeEntryDialog(myEntry);
                         }}
                       >

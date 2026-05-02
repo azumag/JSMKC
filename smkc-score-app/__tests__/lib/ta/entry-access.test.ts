@@ -15,6 +15,20 @@ describe("TA entry access helper", () => {
     expect(canEditTaEntry(entry, { currentPlayerId: "player-1" })).toBe(true);
   });
 
+  it("rejects the owner when self-edit is disabled", () => {
+    expect(canEditTaEntry(entry, {
+      currentPlayerId: "player-1",
+      taPlayerSelfEdit: false,
+    })).toBe(false);
+  });
+
+  it("allows the assigned partner when self-edit is disabled", () => {
+    expect(canEditTaEntry(entry, {
+      currentPlayerId: "player-2",
+      taPlayerSelfEdit: false,
+    })).toBe(true);
+  });
+
   it("allows the assigned partner to edit the paired entry", () => {
     expect(canEditTaEntry(entry, { currentPlayerId: "player-2" })).toBe(true);
   });

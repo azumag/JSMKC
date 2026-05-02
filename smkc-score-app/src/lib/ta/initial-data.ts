@@ -32,6 +32,7 @@ export interface TaInitialData {
   allPlayers: TaPlayer[];
   qualificationRegistrationLocked: boolean;
   frozenStages: string[];
+  taPlayerSelfEdit: boolean;
 }
 
 const KNOCKOUT_STAGES = ['phase1', 'phase2', 'phase3'] as const;
@@ -58,7 +59,7 @@ async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
  */
 export async function fetchTaInitialData(id: string): Promise<TaInitialData | null> {
   try {
-    const tournament = await resolveTournament(id, { id: true, frozenStages: true });
+    const tournament = await resolveTournament(id, { id: true, frozenStages: true, taPlayerSelfEdit: true });
     // Return null so the client falls back to its own first poll, same as qual-initial-data.ts.
     if (!tournament) return null;
     const tournamentId = tournament.id;
@@ -83,6 +84,7 @@ export async function fetchTaInitialData(id: string): Promise<TaInitialData | nu
       allPlayers,
       qualificationRegistrationLocked: knockoutStarted,
       frozenStages: (tournament.frozenStages as string[]) ?? [],
+      taPlayerSelfEdit: tournament.taPlayerSelfEdit ?? true,
     };
   } catch {
     // Intentionally swallowed: the client component handles data === null
