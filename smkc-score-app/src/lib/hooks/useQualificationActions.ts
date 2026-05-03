@@ -116,8 +116,8 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
       player1NoCamera?: boolean;
       player2NoCamera?: boolean;
       matchLabel?: string;
-      player1Wins?: number;
-      player2Wins?: number;
+      player1Wins?: number | null;
+      player2Wins?: number | null;
       matchFt?: number | null;
     },
   ): Promise<boolean> => {
