@@ -365,6 +365,89 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       );
     });
 
+    it('should order phase standings by current finals placement instead of stored qualification time', async () => {
+      (prisma.tTEntry.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-early',
+          playerId: 'player-eliminated-early',
+          lives: 0,
+          eliminated: true,
+          totalTime: 50000,
+          rank: 1,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-early', nickname: 'early-out' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-eliminated-late',
+          playerId: 'player-eliminated-late',
+          lives: 0,
+          eliminated: true,
+          totalTime: 90000,
+          rank: 4,
+          player: { ...mockEntries[0].player, id: 'player-eliminated-late', nickname: 'late-out' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-active-low-rank',
+          playerId: 'player-active-low-rank',
+          lives: 2,
+          eliminated: false,
+          totalTime: 80000,
+          rank: 3,
+          player: { ...mockEntries[0].player, id: 'player-active-low-rank', nickname: 'active-3' },
+        },
+        {
+          ...mockEntries[0],
+          id: 'entry-active-high-rank',
+          playerId: 'player-active-high-rank',
+          lives: 2,
+          eliminated: false,
+          totalTime: 100000,
+          rank: 2,
+          player: { ...mockEntries[0].player, id: 'player-active-high-rank', nickname: 'active-2' },
+        },
+      ]);
+      (prisma.tTPhaseRound.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'round-1',
+          phase: 'phase3',
+          roundNumber: 1,
+          course: 'MC1',
+          results: [
+            { playerId: 'player-eliminated-early', timeMs: 95000, isRetry: false },
+            { playerId: 'player-eliminated-late', timeMs: 85000, isRetry: false },
+          ],
+          eliminatedIds: ['player-eliminated-early'],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'round-2',
+          phase: 'phase3',
+          roundNumber: 2,
+          course: 'DP1',
+          results: [
+            { playerId: 'player-eliminated-early', timeMs: 75000, isRetry: false },
+            { playerId: 'player-eliminated-late', timeMs: 96000, isRetry: false },
+          ],
+          eliminatedIds: ['player-eliminated-late'],
+          livesReset: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ]);
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call.data.entries.map((entry: { playerId: string }) => entry.playerId)).toEqual([
+        'player-active-high-rank',
+        'player-active-low-rank',
+        'player-eliminated-late',
+        'player-eliminated-early',
+      ]);
+    });
+
     it('should query rounds with correct phase filter', async () => {
       await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
 
