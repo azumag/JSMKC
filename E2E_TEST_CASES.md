@@ -2005,6 +2005,18 @@
   4. クリーンアップ
 - **期待結果**: チャンピオン決定時に Champion バナー/テキストがページに表示される
 
+## TC-TA-FLOW-24-RANK: TA Finals 総合ランキングが脱落順序で決定される
+- **URL**: /api/tournaments/[temp-id]/overall-ranking
+- **authRequired**: true (admin)
+- **背景**: TA Finals は life-based elimination で、最後まで生存したプレイヤーが優勝。総合ランキングの順位は脱落した順（最後に脱落した人ほど高順位）で決まらなければならない。過去のバグでは `totalTime` 累積で順位を判定していたため、早期脱落でも各コースで速かったプレイヤーが、後期脱落で遅かったプレイヤーより上に出る現象が発生していた（JSMKC 2026 で観測）
+- **手順**:
+  1. 24名の TA Phase 3 を実行し、ランク順 (`60_000 + rank*200ms`) で全ラウンドを進行（rank=1 が常勝、rank=24 が最初に脱落）
+  2. `/api/tournaments/[temp-id]/ta/phases?phase=phase3` でラウンド一覧を取得し、`eliminatedIds` を時系列で連結して脱落順序を抽出
+  3. POST `/api/tournaments/[temp-id]/overall-ranking` でランキングを再計算
+  4. champion (rank=1) の `taFinalsPoints` が 2000 (1位の点数) であることを確認
+  5. 最後に脱落したプレイヤーの `taFinalsPoints` が、最初に脱落したプレイヤーの `taFinalsPoints` より大きいことを確認
+- **期待結果**: 総合ランキングの TA Finals 配点が「最後まで生き残った順」を反映する。早期脱落者が後期脱落者を上回ることはない
+
 ## TC-809: TA Phase 1 で未提出ラウンドをキャンセルできる
 - **URL**: /tournaments/[temp-id]/ta/phase1
 - **authRequired**: true (admin)
