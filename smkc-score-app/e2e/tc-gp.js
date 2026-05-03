@@ -17,6 +17,7 @@
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
+ *   TC-724  GP combined standings tab shows rows with ascending ranks
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -39,6 +40,7 @@ const {
   setupGpQualViaUi,
   resolveAllTies,
   assertQualificationPointsColumn,
+  assertCombinedStandingsTab,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -151,6 +153,22 @@ async function runTc701(adminPage) {
       : '');
   } catch (err) {
     log('TC-701', 'FAIL', err instanceof Error ? err.message : 'GP 701 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-724: GP combined standings tab ───────── */
+async function runTc724(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const ranks = await assertCombinedStandingsTab(adminPage, 'gp', setup.tournamentId);
+    const ok = ranks.length >= 28;
+    log('TC-724', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
+  } catch (err) {
+    log('TC-724', 'FAIL', err instanceof Error ? err.message : 'GP 724 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -1430,6 +1448,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-707', fn: runTc707 },
       { name: 'TC-708', fn: runTc708 },
       { name: 'TC-701', fn: runTc701 },
+      { name: 'TC-724', fn: runTc724 },
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
       { name: 'TC-705', fn: runTc705 },
@@ -1457,7 +1476,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc719,
-  runTc720, runTc721, runTc722, runTc821, runTc831, runTc832,
+  runTc720, runTc721, runTc722, runTc724, runTc821, runTc831, runTc832,
   getSuite,
   results,
 };

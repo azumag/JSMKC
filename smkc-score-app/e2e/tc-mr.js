@@ -29,6 +29,7 @@
  *  TC-621  MR per-round target-wins API validation (issue #528: FT3/FT4/FT5)
  *  TC-858  MR Top-24 finals Winners R1 loser populates Losers R1 player2
  *  TC-622  MR qualification standings show 0-1000 qualification points
+ *  TC-623  MR combined standings tab shows rows with ascending ranks
  *
  * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
  * Admin session must already exist in the profile (Discord OAuth).
@@ -53,6 +54,7 @@ const {
   setupMrQualViaUi,
   resolveAllTies,
   assertQualificationPointsColumn,
+  assertCombinedStandingsTab,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -242,6 +244,22 @@ async function runTc601(adminPage) {
         : '');
   } catch (err) {
     log('TC-601', 'FAIL', err instanceof Error ? err.message : 'MR full flow failed');
+  }
+}
+
+/* ───────── TC-623: MR combined standings tab ───────── */
+async function runTc623(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedMrFinalsSetup(adminPage);
+    const ranks = await assertCombinedStandingsTab(adminPage, 'mr', setup.tournamentId);
+    const ok = ranks.length >= 28;
+    log('TC-623', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
+  } catch (err) {
+    log('TC-623', 'FAIL', err instanceof Error ? err.message : 'MR 623 failed');
+  } finally {
+    if (setup) await setup.cleanup();
   }
 }
 
@@ -1596,6 +1614,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-609', fn: runTc609 },
       { name: 'TC-820', fn: runTc820 },
       { name: 'TC-601', fn: runTc601 },
+      { name: 'TC-623', fn: runTc623 },
       { name: 'TC-604', fn: runTc604 },
       { name: 'TC-605', fn: runTc605 },
       { name: 'TC-606', fn: runTc606 },
@@ -1618,7 +1637,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc601, runTc602, runTc603, runTc604, runTc605, runTc606, runTc607,
   runTc608, runTc609, runTc610, runTc611, runTc612, runTc620, runTc820, runTc822,
-  runTc615, runTc616, runTc617, runTc618, runTc621, runTc858,
+  runTc615, runTc616, runTc617, runTc618, runTc621, runTc623, runTc858,
   getSuite,
   results,
 };

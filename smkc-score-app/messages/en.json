@@ -45,6 +45,7 @@
     "editGroups": "Edit Groups",
     "updateGroups": "Update Groups",
     "standings": "Standings",
+    "combinedStandings": "Combined",
     "matches": "Matches",
     "matchList": "Match List",
     "completedOf": "{completed} / {total} completed",
