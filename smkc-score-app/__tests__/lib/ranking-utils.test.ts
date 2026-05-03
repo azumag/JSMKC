@@ -11,6 +11,7 @@
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
   findUnresolvedTies,
@@ -129,6 +130,45 @@ describe("computeTieAwareRanks", () => {
     ];
     const result = computeTieAwareRanks(entries, bmCompareFn);
     expect(result.map((e) => e._autoRank)).toEqual([1, 1, 3]);
+  });
+});
+
+// ── computeCombinedRanks ─────────────────────────────────────────────────────
+
+describe("computeCombinedRanks", () => {
+  it("assigns 1224 ranks across all entries using only the comparator", () => {
+    const entries: Entry[] = [
+      { id: "a", score: 10, points: 2, rankOverride: null },
+      { id: "b", score: 10, points: 2, rankOverride: null },
+      { id: "c", score: 8, points: 1, rankOverride: null },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    expect(result.map((e) => [e.id, e._autoRank])).toEqual([
+      ["a", 1],
+      ["b", 1],
+      ["c", 3],
+    ]);
+  });
+
+  it("ignores group-scoped rankOverride and server _rank in combined display", () => {
+    const entries: Entry[] = [
+      { id: "a", score: 10, points: 2, rankOverride: null, _rank: 3 },
+      { id: "b", score: 8, points: 1, rankOverride: 1, _rank: 1 },
+    ];
+    const result = computeCombinedRanks(entries, bmCompareFn);
+    expect(result.map((e) => [e.id, e._autoRank])).toEqual([
+      ["a", 1],
+      ["b", 2],
+    ]);
+  });
+
+  it("uses the GP comparator for combined GP standings", () => {
+    const entries: Entry[] = [
+      { id: "a", score: 10, points: 6, rankOverride: null },
+      { id: "b", score: 8, points: 9, rankOverride: null },
+    ];
+    const result = computeCombinedRanks(entries, gpCompareFn);
+    expect(result[0].id).toBe("b");
   });
 });
 

@@ -90,6 +90,34 @@ export function computeTieAwareRanks<T extends RankableEntry>(
 }
 
 /**
+ * Assign display-only 1224 competition ranks across a combined standings pool.
+ *
+ * Unlike computeTieAwareRanks, this intentionally ignores server-provided
+ * `_rank` and `rankOverride` because those values are scoped to each group.
+ * The combined 2P view is a cross-group reference table, not the source of
+ * finals seeding or playoff resolution.
+ */
+export function computeCombinedRanks<T extends RankableEntry>(
+  entries: T[],
+  compareFn: (a: T, b: T) => number
+): EntryWithAutoRank<T>[] {
+  if (entries.length === 0) return [];
+
+  const sorted = [...entries].sort(compareFn);
+  const withAutoRank: EntryWithAutoRank<T>[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const autoRank =
+      i > 0 && compareFn(sorted[i - 1], sorted[i]) === 0
+        ? withAutoRank[i - 1]._autoRank
+        : i + 1;
+    withAutoRank.push({ ...sorted[i], _autoRank: autoRank });
+  }
+
+  return withAutoRank;
+}
+
+/**
  * Find the set of entry IDs involved in unresolved ties.
  *
  * A tie is defined as two or more entries sharing the same **effective rank**

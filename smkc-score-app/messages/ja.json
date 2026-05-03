@@ -45,6 +45,7 @@
     "editGroups": "グループ編集",
     "updateGroups": "グループ更新",
     "standings": "順位表",
+    "combinedStandings": "合算順位",
     "matches": "試合一覧",
     "matchList": "試合リスト",
     "completedOf": "{completed} / {total} 完了",

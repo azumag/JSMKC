@@ -66,6 +66,7 @@ import { useTournamentDebugMode } from "@/lib/hooks/use-tournament-debug-mode";
 import {
   buildPlayoffRankAssignments,
   collectPlayoffGroups,
+  computeCombinedRanks,
   computeTieAwareRanks,
   filterActiveTiedIds,
   findUnresolvedTies,
@@ -753,6 +754,7 @@ export default function GrandPrixPageClient({
         <Tabs defaultValue="standings" className="space-y-4">
           <TabsList>
             <TabsTrigger value="standings">{tc('standings')}</TabsTrigger>
+            <TabsTrigger value="combined">{tc('combinedStandings')}</TabsTrigger>
             <TabsTrigger value="matches">{tc('matches')}</TabsTrigger>
           </TabsList>
 
@@ -862,6 +864,60 @@ export default function GrandPrixPageClient({
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Combined standings tab - display-only ranking across all groups */}
+          <TabsContent value="combined">
+            <Card>
+              <CardHeader>
+                <CardTitle>{tc('combinedStandings')}</CardTitle>
+                <CardDescription>
+                  {tc('playersCount', { count: qualifications.length })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const combinedRankings = computeCombinedRanks(
+                    qualifications,
+                    (a, b) => b.points - a.points || b.score - a.score
+                  );
+                  return (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">#</TableHead>
+                          <TableHead>{tc('group')}</TableHead>
+                          <TableHead>{tc('player')}</TableHead>
+                          <TableHead className="text-center">{t('mp')}</TableHead>
+                          <TableHead className="text-center">{t('w')}</TableHead>
+                          <TableHead className="text-center">{t('t')}</TableHead>
+                          <TableHead className="text-center">{t('l')}</TableHead>
+                          <TableHead className="text-center">{t('pts')}</TableHead>
+                          <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {combinedRankings.map((q) => (
+                          <TableRow key={q.id}>
+                            <TableCell className="font-semibold">{q._autoRank}</TableCell>
+                            <TableCell>{tc('groupLabel', { group: q.group })}</TableCell>
+                            <TableCell className="font-medium">{q.player.nickname}</TableCell>
+                            <TableCell className="text-center">{q.mp}</TableCell>
+                            <TableCell className="text-center">{q.wins}</TableCell>
+                            <TableCell className="text-center">{q.ties}</TableCell>
+                            <TableCell className="text-center">{q.losses}</TableCell>
+                            <TableCell className="text-center font-bold">{q.points}</TableCell>
+                            <TableCell className="text-center font-bold">
+                              {getQualificationPoints(q)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Matches Tab - Group-filtered, round-grouped match list */}
