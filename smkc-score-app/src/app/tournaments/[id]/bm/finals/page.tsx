@@ -735,7 +735,7 @@ export default function BattleModeFinals({
             </ul>
           </CardContent>
         </Card>
-      ) : playoffMatches.length > 0 && matches.length > 0 ? (
+      ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
         /* Both playoff and finals exist — show tabs so the admin can review
          * the playoff (barrage) results after the Upper Bracket is created. */
         <Tabs defaultValue="finals" className="space-y-4">
@@ -764,6 +764,18 @@ export default function BattleModeFinals({
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               getTargetWins={(match, bracketMatch) => getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })}
             />
+            {matches.length === 0 && playoffComplete && isAdmin && (
+              <Card className="mt-4 border-green-500/50 bg-green-500/10">
+                <CardContent className="py-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {tFinals('allPlayoffMatchesComplete')}
+                  </p>
+                  <Button onClick={handleCreateUpperBracket}>
+                    {tFinals('createUpperBracket')}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       ) : playoffMatches.length > 0 ? (
