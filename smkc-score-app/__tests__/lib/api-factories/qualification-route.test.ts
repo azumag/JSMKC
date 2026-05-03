@@ -394,6 +394,22 @@ describe('Qualification Route Factory', () => {
       expect(payload.find((row: any) => row.assignedCourses)).toEqual(
         expect.objectContaining({ assignedCourses: expect.any(Array) }),
       );
+
+      const realMatchesByRound = payload.reduce((acc: Record<number, any[]>, row: any) => {
+        if (row.isBye) return acc;
+        acc[row.roundNumber] = acc[row.roundNumber] ?? [];
+        acc[row.roundNumber].push(row);
+        return acc;
+      }, {});
+      Object.values(realMatchesByRound).forEach((roundMatches: any[]) => {
+        expect(roundMatches).toHaveLength(4);
+        const expectedCourses = roundMatches[0].assignedCourses;
+        expect(expectedCourses).toHaveLength(4);
+        expectedCourses.forEach((course: string) => expect(COURSES).toContain(course));
+        roundMatches.forEach((row) => {
+          expect(row.assignedCourses).toEqual(expectedCourses);
+        });
+      });
     });
 
     it('should use the GP raw insert mapping for large qualification setup', async () => {
@@ -830,7 +846,7 @@ describe('Qualification Route Factory', () => {
       expect(createCall[0].data[0].assignedCourses).toHaveLength(4);
     });
 
-    it('should build MR qualification courses from 4 shuffled full-course decks', async () => {
+    it('should build MR qualification round courses from 4 shuffled full-course decks', async () => {
       const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
       try {
         /*
@@ -846,13 +862,13 @@ describe('Qualification Route Factory', () => {
         ];
         randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
 
-        const players = Array.from({ length: 8 }, (_, i) => ({
+        const players = Array.from({ length: 12 }, (_, i) => ({
           playerId: `player-${i + 1}`,
           group: 'A',
           seeding: i + 1,
         }));
 
-        (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 8 });
+        (prisma.mRQualification as any).createMany.mockResolvedValue({ count: 12 });
         (prisma.mRQualification as any).findMany.mockResolvedValue([]);
         (prisma.mRMatch as any).findMany.mockResolvedValue([]);
         (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
@@ -872,7 +888,13 @@ describe('Qualification Route Factory', () => {
         await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
         const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
-        const assignedSequence = payload.flatMap((row: any) => row.assignedCourses ?? []);
+        const firstMatchByRound = [...payload]
+          .filter((row: any) => !row.isBye)
+          .sort((a: any, b: any) => a.roundNumber - b.roundNumber || a.matchNumber - b.matchNumber)
+          .filter((row: any, index: number, rows: any[]) => (
+            index === 0 || row.roundNumber !== rows[index - 1].roundNumber
+          ));
+        const assignedSequence = firstMatchByRound.flatMap((row: any) => row.assignedCourses ?? []);
         const firstDeck = assignedSequence.slice(0, COURSES.length);
         const secondDeck = assignedSequence.slice(COURSES.length, COURSES.length * 2);
 

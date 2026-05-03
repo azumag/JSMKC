@@ -176,7 +176,7 @@ async function prepareSharedMrFinalsSetup(adminPage) {
  * - 28 players distributed across 2 groups via the shared UI setup (snake-draft)
  * - All 182 non-BYE matches (14-player RR = 91 × 2 groups) completed
  * - Standings sorted by score desc → points desc per group
- * - Course assignment exists in match data (assignCoursesRandomly)
+ * - Course assignment exists and is shared by every match in the same round
  * - Qualification tie resolution runs through the shared helper path
  */
 async function runTc601(adminPage) {
@@ -227,12 +227,25 @@ async function runTc601(adminPage) {
       }
     }
 
-    // Step 4: Verify courses are assigned (MR-specific: assignCoursesRandomly)
+    // Step 4: Verify courses are assigned per round (MR-specific: assignCoursesRandomly)
     const postScoreData = await apiFetchMr(adminPage, tournamentId);
     const postScoreMatches = postScoreData.matches || [];
-    const hasCourses = postScoreMatches.some((m) => m.rounds && m.rounds.length > 0);
+    const realMatches = postScoreMatches.filter((m) => !m.isBye);
+    const roundCourseVariants = new Map();
+    for (const match of realMatches) {
+      const roundNumber = match.roundNumber;
+      const courses = Array.isArray(match.assignedCourses) ? match.assignedCourses : [];
+      const key = JSON.stringify(courses);
+      if (!roundCourseVariants.has(roundNumber)) roundCourseVariants.set(roundNumber, new Set());
+      roundCourseVariants.get(roundNumber).add(key);
+    }
+    const coursesSharedByRound = [...roundCourseVariants.values()].every((variants) => {
+      const [onlyVariant] = [...variants];
+      const courses = JSON.parse(onlyVariant || '[]');
+      return variants.size === 1 && Array.isArray(courses) && courses.length === 4;
+    });
 
-    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && qualificationPointsOk && standingsSorted;
+    const allPassed = hasExpectedMatches && allScoresOk && hasStandings && qualificationPointsOk && standingsSorted && coursesSharedByRound;
     log('TC-601', allPassed ? 'PASS' : 'FAIL',
       !allPassed
         ? (!hasExpectedMatches ? `Expected 182 non-bye matches, got ${nonByeMatches.length}`
@@ -240,6 +253,7 @@ async function runTc601(adminPage) {
            : !hasStandings ? 'Standings page did not render properly'
            : !qualificationPointsOk ? `qualification points rows=${qualificationPoints.length} expected>=28`
            : !standingsSorted ? 'Standings not sorted correctly'
+           : !coursesSharedByRound ? 'MR assignedCourses are not shared by round'
            : '')
         : '');
   } catch (err) {
