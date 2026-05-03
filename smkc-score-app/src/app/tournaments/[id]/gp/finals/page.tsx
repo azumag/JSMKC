@@ -78,6 +78,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
@@ -631,6 +632,12 @@ export default function GrandPrixFinals({
   };
 
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
+  const bracketExists = matches.length > 0 || phase === 'playoff' || playoffMatches.length > 0;
+  const canGenerateBracket = isAdmin && qualificationConfirmed && !bracketExists;
+  const canResetBracket = isAdmin && canResetFinalsFromQualification({
+    qualificationConfirmed,
+    finalsExists: bracketExists,
+  });
   const cupWins = calculateCupWins(cupForms);
   const scoreInputsReady = cupForms.length > 0 && cupForms.every((cup) => calculateCupPoints(cup).valid);
 
@@ -677,7 +684,7 @@ export default function GrandPrixFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {canGenerateBracket && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating}>
@@ -704,7 +711,8 @@ export default function GrandPrixFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : (
+          )}
+          {canResetBracket && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" disabled={creating}>
@@ -728,7 +736,7 @@ export default function GrandPrixFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ))}
+          )}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/gp`}>
               {/* i18n: Back navigation to qualification page */}

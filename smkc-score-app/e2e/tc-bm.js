@@ -786,16 +786,15 @@ async function runTc515(adminPage) {
   }
 }
 
-/* ───────── TC-516: BM qualification page finals-exists state + reset ───────── */
+/* ───────── TC-516: BM qualification page finals-exists state + reset ─────────
+ * Reset is hidden while qualification is locked and appears only after unlock. */
 async function runTc516(adminPage) {
   let setup = null;
   try {
     setup = await prepareSharedBmFinalsSetup(adminPage);
     const { tournamentId } = setup;
 
-    /* Confirm qualification so the bracket action button is visible.
-     * Without this, canCreateFinalsFromQualification returns false and
-     * the button is hidden both before and after reset. */
+    /* Confirm qualification to model the normal bracket-generation flow. */
     const confirmRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: true });
     if (confirmRes.s !== 200) throw new Error(`Failed to confirm qualification (${confirmRes.s})`);
 
@@ -813,11 +812,22 @@ async function runTc516(adminPage) {
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
-    const hasResetBracket = qualText.includes('Reset Bracket') || qualText.includes('ブラケットリセット');
 
     const resetBtn = adminPage.getByRole('button', {
       name: /Reset Bracket|ブラケットリセット/,
     });
+    const resetHiddenWhileLocked = (await resetBtn.count()) === 0;
+
+    const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { bmQualificationConfirmed: false });
+    if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification (${unlockRes.s})`);
+    await nav(adminPage, `/tournaments/${tournamentId}/bm`);
+    await adminPage.getByText(/View Tournament|トーナメントを見る/).first()
+      .waitFor({ state: 'visible', timeout: 25000 });
+
+    const unlockedText = await adminPage.locator('body').innerText();
+    const hasViewTournamentUnlocked = unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
+    const hasResetBracketUnlocked = unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
+
     const resetVisible = await resetBtn.count() > 0;
     if (resetVisible) {
       adminPage.once('dialog', async (dialog) => {
@@ -828,16 +838,18 @@ async function runTc516(adminPage) {
     }
 
     const postResetText = await adminPage.locator('body').innerText();
-    /* With 28 players (>16), after reset the button shows "Start Playoff"
-     * rather than "Generate Finals Bracket" because qualifications.length > 16. */
-    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket') || postResetText.includes('Start Playoff') || postResetText.includes('バラッジ開始');
+    const resetHiddenAfterReset = !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
+    const generateHiddenWhileUnlocked = !postResetText.includes('Generate Finals Bracket') && !postResetText.includes('Generate Bracket') && !postResetText.includes('ブラケット生成') && !postResetText.includes('generateFinalsBracket') && !postResetText.includes('Start Playoff') && !postResetText.includes('バラッジ開始');
 
-    const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
+    const ok = hasViewTournament && resetHiddenWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
     log('TC-516', ok ? 'PASS' : 'FAIL',
       !hasViewTournament ? 'View Tournament button missing after bracket creation'
-      : !hasResetBracket ? 'Reset Bracket button missing'
+      : !resetHiddenWhileLocked ? 'Reset Bracket visible while qualification is locked'
+      : !hasViewTournamentUnlocked ? 'View Tournament button missing after unlocking qualification'
+      : !hasResetBracketUnlocked ? 'Reset Bracket button missing after qualification unlock'
       : !resetVisible ? 'Reset Bracket not found as button element'
-      : !hasGenerateButton ? 'Generate/Start Playoff button not restored after reset'
+      : !resetHiddenAfterReset ? 'Reset Bracket still visible after bracket reset'
+      : !generateHiddenWhileUnlocked ? 'Generate/Start Playoff visible while qualification remains unlocked'
       : '');
   } catch (err) {
     log('TC-516', 'FAIL', err instanceof Error ? err.message : 'BM 516 failed');

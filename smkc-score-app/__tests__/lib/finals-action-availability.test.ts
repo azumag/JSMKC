@@ -1,4 +1,7 @@
-import { canCreateFinalsFromQualification } from '@/lib/finals-action-availability';
+import {
+  canCreateFinalsFromQualification,
+  canResetFinalsFromQualification,
+} from '@/lib/finals-action-availability';
 
 describe('canCreateFinalsFromQualification', () => {
   it('returns true only after qualification is confirmed and matches are complete', () => {
@@ -32,6 +35,34 @@ describe('canCreateFinalsFromQualification', () => {
       qualificationCount: 8,
       matchCount: 12,
       allMatchesCompleted: false,
+    })).toBe(false);
+  });
+});
+
+describe('canResetFinalsFromQualification', () => {
+  it('returns true only when a bracket exists and qualification is unlocked', () => {
+    expect(canResetFinalsFromQualification({
+      qualificationConfirmed: false,
+      finalsExists: true,
+    })).toBe(true);
+  });
+
+  it('returns false while qualification is locked', () => {
+    expect(canResetFinalsFromQualification({
+      qualificationConfirmed: true,
+      finalsExists: true,
+    })).toBe(false);
+  });
+
+  it('returns false before bracket existence is known or when no bracket exists', () => {
+    expect(canResetFinalsFromQualification({
+      qualificationConfirmed: false,
+      finalsExists: undefined,
+    })).toBe(false);
+
+    expect(canResetFinalsFromQualification({
+      qualificationConfirmed: false,
+      finalsExists: false,
     })).toBe(false);
   });
 });

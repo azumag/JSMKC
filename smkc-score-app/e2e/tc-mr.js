@@ -1299,9 +1299,9 @@ async function runTc615(adminPage) {
 }
 
 /* ───────── TC-616: MR qualification page finals-exists state + reset ─────────
- * After a finals bracket is created, returning to the qualification page
- * should show "View Tournament" instead of "Generate Bracket", and an admin
- * "Reset Bracket" button. Resetting restores the "Generate Finals Bracket" state. */
+ * After a finals bracket is created, returning to the qualification page should
+ * show "View Tournament". The admin reset button is hidden while qualification
+ * is locked and appears only after qualification is unlocked. */
 async function runTc616(adminPage) {
   let setup = null;
   try {
@@ -1328,12 +1328,24 @@ async function runTc616(adminPage) {
 
     const qualText = await adminPage.locator('body').innerText();
     const hasViewTournament = qualText.includes('View Tournament') || qualText.includes('トーナメントを見る');
-    const hasResetBracket = qualText.includes('Reset Bracket') || qualText.includes('ブラケットリセット');
 
-    // Click Reset Bracket
     const resetBtn = adminPage.getByRole('button', {
       name: /Reset Bracket|ブラケットリセット/,
     });
+    const resetHiddenWhileLocked = (await resetBtn.count()) === 0;
+
+    const unlockRes = await apiUpdateTournament(adminPage, tournamentId, { mrQualificationConfirmed: false });
+    if (unlockRes.s !== 200) throw new Error(`Failed to unlock qualification (${unlockRes.s})`);
+    await nav(adminPage, `/tournaments/${tournamentId}/mr`);
+    await adminPage.waitForFunction(() => {
+      const text = document.body.innerText;
+      return text.includes('View Tournament') || text.includes('トーナメントを見る');
+    }, null, { timeout: 25000 });
+
+    const unlockedText = await adminPage.locator('body').innerText();
+    const hasViewTournamentUnlocked = unlockedText.includes('View Tournament') || unlockedText.includes('トーナメントを見る');
+    const hasResetBracketUnlocked = unlockedText.includes('Reset Bracket') || unlockedText.includes('ブラケットリセット');
+
     const resetVisible = await resetBtn.count() > 0;
     if (resetVisible) {
       adminPage.once('dialog', async (dialog) => {
@@ -1343,17 +1355,19 @@ async function runTc616(adminPage) {
       await adminPage.waitForTimeout(3000);
     }
 
-    /* After reset, with 28 players (>16), the button shows "Start Playoff"
-     * rather than "Generate Finals Bracket". */
     const postResetText = await adminPage.locator('body').innerText();
-    const hasGenerateButton = postResetText.includes('Generate Finals Bracket') || postResetText.includes('Generate Bracket') || postResetText.includes('ブラケット生成') || postResetText.includes('generateFinalsBracket') || postResetText.includes('Start Playoff') || postResetText.includes('バラッジ開始');
+    const resetHiddenAfterReset = !postResetText.includes('Reset Bracket') && !postResetText.includes('ブラケットリセット');
+    const generateHiddenWhileUnlocked = !postResetText.includes('Generate Finals Bracket') && !postResetText.includes('Generate Bracket') && !postResetText.includes('ブラケット生成') && !postResetText.includes('generateFinalsBracket') && !postResetText.includes('Start Playoff') && !postResetText.includes('バラッジ開始');
 
-    const ok = hasViewTournament && hasResetBracket && resetVisible && hasGenerateButton;
+    const ok = hasViewTournament && resetHiddenWhileLocked && hasViewTournamentUnlocked && hasResetBracketUnlocked && resetVisible && resetHiddenAfterReset && generateHiddenWhileUnlocked;
     log('TC-616', ok ? 'PASS' : 'FAIL',
       !hasViewTournament ? 'View Tournament button missing after bracket creation'
-      : !hasResetBracket ? 'Reset Bracket button missing'
+      : !resetHiddenWhileLocked ? 'Reset Bracket visible while qualification is locked'
+      : !hasViewTournamentUnlocked ? 'View Tournament button missing after unlocking qualification'
+      : !hasResetBracketUnlocked ? 'Reset Bracket button missing after qualification unlock'
       : !resetVisible ? 'Reset Bracket not found as button element'
-      : !hasGenerateButton ? 'Generate/Start Playoff button not restored after reset'
+      : !resetHiddenAfterReset ? 'Reset Bracket still visible after bracket reset'
+      : !generateHiddenWhileUnlocked ? 'Generate/Start Playoff visible while qualification remains unlocked'
       : '');
   } catch (err) {
     log('TC-616', 'FAIL', err instanceof Error ? err.message : 'MR 616 failed');
