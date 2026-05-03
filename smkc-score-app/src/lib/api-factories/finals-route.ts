@@ -61,6 +61,12 @@ interface FinalsMatchResultError {
   field?: string;
 }
 
+interface SeededFinalsPlayer {
+  seed: number;
+  playerId: string;
+  player: unknown;
+}
+
 function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
@@ -615,6 +621,71 @@ export function createFinalsHandlers(config: FinalsConfig) {
     };
   }
 
+  async function buildTop24FinalsPreview(
+    tournamentId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    playoffMatches: any[],
+  ): Promise<{
+    bracketStructure: ReturnType<typeof generateBracketStructure>;
+    seededPlayers: SeededFinalsPlayer[];
+  } | null> {
+    if (playoffMatches.length === 0) return null;
+
+    try {
+      const qualifications = await qualModel(prisma).findMany({
+        where: { tournamentId },
+        include: { player: { select: PLAYER_PUBLIC_SELECT } },
+        orderBy: config.qualificationOrderBy,
+      });
+
+      if (qualifications.length < 24) return null;
+
+      const rankedQualifications = await applyFinalsQualificationRanks(
+        model,
+        tournamentId,
+        qualifications,
+      );
+
+      const selection = selectFinalsEntrantsByGroup(
+        rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
+      );
+
+      const seededPlayers: SeededFinalsPlayer[] = selection.direct.map((q, index) => ({
+        seed: index + 1,
+        playerId: q.playerId,
+        player: q.player,
+      }));
+
+      const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
+      const r2Matches = playoffMatches.filter(
+        (m: { round?: string | null }) => m.round === 'playoff_r2',
+      );
+
+      for (const r2BracketMatch of playoffStructure.filter((m) => m.round === 'playoff_r2')) {
+        if (!r2BracketMatch.advancesToUpperSeed) continue;
+        const dbMatch = r2Matches.find(
+          (m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber,
+        );
+        if (!dbMatch?.completed) continue;
+
+        const winnerId = dbMatch.score1 >= dbMatch.score2 ? dbMatch.player1Id : dbMatch.player2Id;
+        const winnerPlayer = dbMatch.player1Id === winnerId ? dbMatch.player1 : dbMatch.player2;
+        seededPlayers.push({
+          seed: r2BracketMatch.advancesToUpperSeed,
+          playerId: winnerId,
+          player: winnerPlayer,
+        });
+      }
+
+      return {
+        bracketStructure: generateBracketStructure(16),
+        seededPlayers,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * GET handler: Fetch finals bracket data for a tournament.
    * Response shape depends on config.getStyle.
@@ -788,6 +859,9 @@ export function createFinalsHandlers(config: FinalsConfig) {
       const phase = hasFinals > 0 ? 'finals' as const
         : playoffMatches.length > 0 ? 'playoff' as const
         : 'finals' as const;
+      const top24FinalsPreview = hasFinals === 0
+        ? await buildTop24FinalsPreview(tournamentId, playoffMatches)
+        : null;
 
       /* Normalize cups-per-round for legacy finals rows before paginating or
        * simple/grouped fetches, so every branch sees the repaired state.
@@ -860,11 +934,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
          * 8-player bracket = 17 matches, 16-player bracket = 31 matches.
          * Use count > 20 as threshold to distinguish.
          * Use result.meta.total from paginate() to avoid an extra count query. */
-        const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD ? 16 : 8;
+        const bracketSize = (result.meta.total ?? 0) > BRACKET_SIZE_THRESHOLD
+          ? 16
+          : top24FinalsPreview
+            ? 16
+            : 8;
 
         const bracketStructure = result.data.length > 0
           ? generateBracketStructure(bracketSize)
-          : [];
+          : top24FinalsPreview?.bracketStructure ?? [];
 
         return createSuccessResponse({
           ...result,
@@ -877,6 +955,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playoffStructure,
           playoffSeededPlayers,
           playoffComplete,
+          ...(top24FinalsPreview ? { seededPlayers: top24FinalsPreview.seededPlayers } : {}),
         });
       }
 
@@ -887,11 +966,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD ? 16 : 8;
+      const bracketSize = matches.length > BRACKET_SIZE_THRESHOLD
+        ? 16
+        : top24FinalsPreview
+          ? 16
+          : 8;
 
       const bracketStructure = matches.length > 0
         ? generateBracketStructure(bracketSize)
-        : [];
+        : top24FinalsPreview?.bracketStructure ?? [];
+      const seededPlayers = top24FinalsPreview?.seededPlayers ?? [];
 
       if (config.getStyle === 'grouped') {
         const winnersMatches = matches.filter(
@@ -918,6 +1002,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           playoffSeededPlayers,
           playoffComplete,
           phase,
+          ...(top24FinalsPreview ? { seededPlayers } : {}),
         });
       }
 
@@ -933,6 +1018,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         playoffStructure,
         playoffSeededPlayers,
         playoffComplete,
+        ...(top24FinalsPreview ? { seededPlayers } : {}),
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });

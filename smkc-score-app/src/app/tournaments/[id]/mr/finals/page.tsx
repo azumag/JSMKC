@@ -711,7 +711,7 @@ export default function MatchRaceFinals({
             </ul>
           </CardContent>
         </Card>
-      ) : playoffMatches.length > 0 && matches.length > 0 ? (
+      ) : playoffMatches.length > 0 && bracketStructure.length > 0 ? (
         <Tabs defaultValue="finals" className="space-y-4">
           <TabsList>
             <TabsTrigger value="finals">{tFinals('upperBracket')}</TabsTrigger>
@@ -736,6 +736,14 @@ export default function MatchRaceFinals({
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
             />
+            {matches.length === 0 && playoffComplete && isAdmin && (
+              <Card className="mt-4 border-green-500/50 bg-green-500/10">
+                <CardContent className="py-4 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">{tFinals('allPlayoffMatchesComplete')}</p>
+                  <Button onClick={handleCreateUpperBracket}>{tFinals('createUpperBracket')}</Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       ) : playoffMatches.length > 0 ? (

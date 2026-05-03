@@ -17,6 +17,7 @@
 
 import { render } from "@testing-library/react";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
+import { generateBracketStructure } from "@/lib/double-elimination";
 
 /**
  * Build a minimal 8-player double-elimination bracket structure.
@@ -167,6 +168,44 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersQF1).toBeDefined();
     expect(winnersQF1!.textContent).toContain(seed1.nickname);
     expect(winnersQF1!.textContent).toContain(seed8.nickname);
+  });
+
+  it("renders unresolved Top-24 barrage seats as TBD in a previewed 16-player bracket", () => {
+    const bracketStructure = generateBracketStructure(16);
+    const seededPreview = [
+      ...seededPlayers,
+      { seed: 9, playerId: "p9", player: { id: "p9", name: "Ivy I", nickname: "Ivy" } },
+      { seed: 10, playerId: "p10", player: { id: "p10", name: "Jules J", nickname: "Jules" } },
+      { seed: 11, playerId: "p11", player: { id: "p11", name: "Kai K", nickname: "Kai" } },
+      { seed: 12, playerId: "p12", player: { id: "p12", name: "Lee L", nickname: "Lee" } },
+      { seed: 16, playerId: "p16", player: { id: "p16", name: "Mika M", nickname: "Mika" } },
+    ];
+
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={[]}
+        bracketStructure={bracketStructure}
+        roundNames={{}}
+        seededPlayers={seededPreview}
+      />,
+    );
+
+    const winnersR1Cards = Array.from(
+      container.querySelectorAll<HTMLElement>("[role='button']"),
+    ).filter((el) => {
+      const label = el.querySelector("div.text-xs");
+      return label && ["M1", "M4", "M5", "M8"].includes(label.textContent || "");
+    });
+
+    expect(winnersR1Cards).toHaveLength(4);
+    expect(winnersR1Cards[0].textContent).toContain(seed1.nickname);
+    expect(winnersR1Cards[0].textContent).toContain("Mika");
+    expect(winnersR1Cards[1].textContent).toContain(seed4.nickname);
+    expect(winnersR1Cards[1].textContent).toContain("TBD");
+    expect(winnersR1Cards[2].textContent).toContain(seed3.nickname);
+    expect(winnersR1Cards[2].textContent).toContain("TBD");
+    expect(winnersR1Cards[3].textContent).toContain(seed2.nickname);
+    expect(winnersR1Cards[3].textContent).toContain("TBD");
   });
 });
 

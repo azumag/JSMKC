@@ -223,6 +223,66 @@ describe('BM Finals API Route - /api/tournaments/[id]/bm/finals', () => {
       // All-null rounds must not be touched — no repair updateMany should fire
       expect(repairCall).toBeUndefined();
     });
+
+    it('should preview the Top-24 finals bracket with unresolved barrage seats as TBD', async () => {
+      const playoffMatches = [
+        { id: 'p1', matchNumber: 1, stage: 'playoff', round: 'playoff_r1', completed: false, score1: 0, score2: 0, player1Id: 'a8', player2Id: 'a7', player1: { id: 'a8' }, player2: { id: 'a7' }, startingCourseNumber: 1 },
+        { id: 'p2', matchNumber: 2, stage: 'playoff', round: 'playoff_r1', completed: false, score1: 0, score2: 0, player1Id: 'b8', player2Id: 'b7', player1: { id: 'b8' }, player2: { id: 'b7' }, startingCourseNumber: 1 },
+        { id: 'p3', matchNumber: 3, stage: 'playoff', round: 'playoff_r1', completed: false, score1: 0, score2: 0, player1Id: 'a9', player2Id: 'b9', player1: { id: 'a9' }, player2: { id: 'b9' }, startingCourseNumber: 1 },
+        { id: 'p4', matchNumber: 4, stage: 'playoff', round: 'playoff_r1', completed: false, score1: 0, score2: 0, player1Id: 'a10', player2Id: 'b10', player1: { id: 'a10' }, player2: { id: 'b10' }, startingCourseNumber: 1 },
+        { id: 'p5', matchNumber: 5, stage: 'playoff', round: 'playoff_r2', completed: true, score1: 3, score2: 1, player1Id: 'b8', player2Id: 'a8', player1: { id: 'b8', nickname: 'B8' }, player2: { id: 'a8', nickname: 'A8' }, startingCourseNumber: 2 },
+        { id: 'p6', matchNumber: 6, stage: 'playoff', round: 'playoff_r2', completed: false, score1: 0, score2: 0, player1Id: 'a11', player2Id: 'b11', player1: { id: 'a11' }, player2: { id: 'b11' }, startingCourseNumber: 2 },
+        { id: 'p7', matchNumber: 7, stage: 'playoff', round: 'playoff_r2', completed: false, score1: 0, score2: 0, player1Id: 'a12', player2Id: 'b12', player1: { id: 'a12' }, player2: { id: 'b12' }, startingCourseNumber: 2 },
+        { id: 'p8', matchNumber: 8, stage: 'playoff', round: 'playoff_r2', completed: false, score1: 0, score2: 0, player1Id: 'a10', player2Id: 'b10', player1: { id: 'a10' }, player2: { id: 'b10' }, startingCourseNumber: 2 },
+      ];
+      const qualifications = ['A', 'B'].flatMap((group) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const rank = index + 1;
+          const id = `${group.toLowerCase()}${rank}`;
+          return {
+            id: `q-${id}`,
+            tournamentId: 't1',
+            playerId: id,
+            group,
+            score: 100 - rank,
+            points: 100 - rank,
+            winRounds: 12 - rank,
+            player: { id, nickname: `${group}${rank}` },
+          };
+        }),
+      );
+
+      (prisma.bMMatch.count as jest.Mock).mockResolvedValue(0);
+      (prisma.bMMatch.findMany as jest.Mock)
+        .mockResolvedValueOnce(playoffMatches)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      (prisma.bMQualification.findMany as jest.Mock).mockResolvedValue(qualifications);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/bm/finals');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.phase).toBe('playoff');
+      expect(result.data.matches).toEqual([]);
+      expect(result.data.bracketSize).toBe(16);
+      expect(result.data.bracketStructure).toHaveLength(31);
+      expect(result.data.seededPlayers).toHaveLength(13);
+      expect(result.data.seededPlayers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ seed: 1, playerId: 'a1' }),
+          expect.objectContaining({ seed: 16, playerId: 'b8' }),
+        ]),
+      );
+      expect(result.data.seededPlayers).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ seed: 13 }),
+          expect.objectContaining({ seed: 14 }),
+          expect.objectContaining({ seed: 15 }),
+        ]),
+      );
+    });
   });
 
   describe('POST - Create finals tournament from qualification results', () => {
