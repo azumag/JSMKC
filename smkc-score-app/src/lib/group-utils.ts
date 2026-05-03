@@ -53,10 +53,10 @@ export function recommendGroupCount(playerCount: number): number {
 }
 
 /**
- * Distributes players across groups by seeding using cyclic distribution.
+ * Distributes players across groups by seeding using a serpentine pattern.
  *
  * Per requirements.md §10.2:
- * - seed1→A, seed2→B, seed3→C, seed4→D, seed5→A, seed6→B...
+ * - seed1→A, seed2→B, seed3→C, seed4→D, seed5→D, seed6→C...
  * - Players without seeding are placed at the end.
  *
  * @param players - Array of player-group assignments to redistribute
@@ -76,7 +76,11 @@ export function assignGroupsBySeeding(
   );
   return sorted.map((p, idx) => ({
     ...p,
-    group: groups[idx % safeCount],
+    group: groups[
+      Math.floor(idx / safeCount) % 2 === 0
+        ? idx % safeCount
+        : safeCount - 1 - (idx % safeCount)
+    ],
   }));
 }
 
