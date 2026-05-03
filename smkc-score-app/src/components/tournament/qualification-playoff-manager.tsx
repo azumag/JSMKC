@@ -31,7 +31,16 @@ interface QualificationPlayoffManagerProps {
   isAdmin: boolean;
   onSave: (entries: PlayoffEntry[]) => Promise<boolean>;
   /** Broadcast first two players in the group to the overlay. */
-  onBroadcast?: (player1Name: string, player2Name: string) => Promise<boolean>;
+  onBroadcast?: (
+    player1Name: string,
+    player2Name: string,
+    matchInfo?: {
+      matchLabel?: string;
+      player1Wins?: number | null;
+      player2Wins?: number | null;
+      matchFt?: number | null;
+    },
+  ) => Promise<boolean>;
 }
 
 function moveEntry<T>(entries: T[], from: number, to: number): T[] {
@@ -100,7 +109,12 @@ export function QualificationPlayoffManager({
                     disabled={broadcastingGroupId === group.id}
                     onClick={async () => {
                       setBroadcastingGroupId(group.id);
-                      await onBroadcast(group.players[0].nickname, group.players[1].nickname);
+                      await onBroadcast(group.players[0].nickname, group.players[1].nickname, {
+                        matchLabel: `Qualification Playoff Rank ${group.rank}`,
+                        player1Wins: null,
+                        player2Wins: null,
+                        matchFt: null,
+                      });
                       setBroadcastingGroupId(null);
                     }}
                   >
