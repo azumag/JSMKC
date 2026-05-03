@@ -133,6 +133,14 @@ interface TTEntryRecord {
   eliminated: boolean;
   lives: number;
   totalTime: number | null;
+  stage?: string;
+}
+
+interface TTPhaseRoundRecord {
+  phase: string;
+  roundNumber: number;
+  results: unknown;
+  eliminatedIds: unknown;
 }
 
 /**
@@ -344,87 +352,140 @@ export async function getTAFinalsPositions(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<FinalsPosition[]> {
-  let finalsEntries = await prisma.tTEntry.findMany({
-    where: { tournamentId, stage: "phase3" },
+  let phaseEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: { in: ["phase1", "phase2", "phase3"] } },
+    orderBy: [
+      { stage: "asc" },
+      { eliminated: "asc" },
+      { lives: "desc" },
+      { totalTime: "asc" },
+    ],
   });
-  let phaseStage: "phase3" | "finals" = "phase3";
+  let phaseFilter: "finals" | { in: string[] } = { in: ["phase1", "phase2", "phase3"] };
 
-  if (finalsEntries.length === 0) {
-    finalsEntries = await prisma.tTEntry.findMany({
+  if (phaseEntries.length === 0) {
+    phaseEntries = await prisma.tTEntry.findMany({
       where: { tournamentId, stage: "finals" },
+      orderBy: [
+        { eliminated: "asc" },
+        { lives: "desc" },
+        { totalTime: "asc" },
+      ],
     });
-    phaseStage = "finals";
+    phaseFilter = "finals";
   }
 
-  if (finalsEntries.length === 0) return [];
+  if (phaseEntries.length === 0) return [];
 
-  // Walk all phase rounds chronologically and record the round in which
-  // each eliminated player went out, plus their time in that round (used
-  // to break ties when several players are eliminated in the same round).
-  // If a player somehow appears in multiple rounds' eliminatedIds (legacy
-  // data, manual override re-runs), the LATEST entry wins because it
-  // reflects the final on-record elimination.
+  // Walk all submitted phase rounds chronologically and record the round in
+  // which each eliminated player went out, plus their time in that round.
   const phaseRounds = await prisma.tTPhaseRound.findMany({
-    where: { tournamentId, phase: phaseStage },
-    orderBy: { roundNumber: "asc" },
-    select: { roundNumber: true, eliminatedIds: true, results: true },
+    where: { tournamentId, phase: phaseFilter },
+    orderBy: [
+      { phase: "asc" },
+      { roundNumber: "asc" },
+    ],
+    select: { phase: true, roundNumber: true, eliminatedIds: true, results: true },
   });
 
-  const eliminationByPlayer = new Map<
+  const eliminationByPhase = new Map<
     string,
-    { round: number; timeMs: number }
+    Map<string, { round: number; timeMs: number }>
   >();
-  for (const round of phaseRounds) {
-    // results & eliminatedIds are Prisma JsonValue. Narrow defensively —
-    // schema-shape changes upstream should not silently corrupt rankings.
+  const getPhaseEliminations = (phase: string) => {
+    const existing = eliminationByPhase.get(phase);
+    if (existing) return existing;
+    const created = new Map<string, { round: number; timeMs: number }>();
+    eliminationByPhase.set(phase, created);
+    return created;
+  };
+
+  for (const round of phaseRounds as TTPhaseRoundRecord[]) {
     const eliminatedIds = Array.isArray(round.eliminatedIds)
-      ? (round.eliminatedIds as string[])
+      ? round.eliminatedIds.filter((id): id is string => typeof id === "string")
       : [];
     if (eliminatedIds.length === 0) continue;
+
     const results: PhaseRoundResultRecord[] = Array.isArray(round.results)
       ? (round.results as unknown as PhaseRoundResultRecord[])
       : [];
-    const timeByPlayer = new Map(results.map((r) => [r.playerId, r.timeMs]));
+    const timeByPlayer = new Map(results.map((result) => [result.playerId, result.timeMs]));
+    const phaseEliminations = getPhaseEliminations(round.phase);
+
     for (const playerId of eliminatedIds) {
-      eliminationByPlayer.set(playerId, {
+      phaseEliminations.set(playerId, {
         round: round.roundNumber,
-        // Missing round time (e.g. manual elimination) treated as worst time
-        // so manually-removed runners don't accidentally outrank players who
-        // actually skated the round.
+        // Missing round time (e.g. manual elimination) is treated as the
+        // worst time so it does not outrank submitted results accidentally.
         timeMs: timeByPlayer.get(playerId) ?? Number.POSITIVE_INFINITY,
       });
     }
   }
 
-  const sorted = [...finalsEntries].sort((a: TTEntryRecord, b: TTEntryRecord) => {
-    // Alive players always rank above eliminated ones.
-    if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+  const positions: FinalsPosition[] = [];
+  const assignedPlayerIds = new Set<string>();
+  const currentPhaseEntries = phaseEntries as TTEntryRecord[];
 
-    if (!a.eliminated) {
-      // Both still alive — more lives wins; faster totalTime breaks ties.
-      if (a.lives !== b.lives) return b.lives - a.lives;
-      const at = a.totalTime ?? Number.POSITIVE_INFINITY;
-      const bt = b.totalTime ?? Number.POSITIVE_INFINITY;
-      if (at !== bt) return at - bt;
+  const sortPhase3Entries = (entries: TTEntryRecord[]) => {
+    const phase3Eliminations = getPhaseEliminations(phaseFilter === "finals" ? "finals" : "phase3");
+    return [...entries].sort((a, b) => {
+      if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+
+      if (!a.eliminated) {
+        if (a.lives !== b.lives) return b.lives - a.lives;
+        const at = a.totalTime ?? Number.POSITIVE_INFINITY;
+        const bt = b.totalTime ?? Number.POSITIVE_INFINITY;
+        if (at !== bt) return at - bt;
+        return a.playerId.localeCompare(b.playerId);
+      }
+
+      const aData = phase3Eliminations.get(a.playerId);
+      const bData = phase3Eliminations.get(b.playerId);
+      if (!aData && !bData) return a.playerId.localeCompare(b.playerId);
+      if (!aData) return 1;
+      if (!bData) return -1;
+
+      if (aData.round !== bData.round) return bData.round - aData.round;
+      if (aData.timeMs !== bData.timeMs) return aData.timeMs - bData.timeMs;
       return a.playerId.localeCompare(b.playerId);
+    });
+  };
+
+  const assignPhaseEliminations = (phase: string, startingPosition: number) => {
+    let position = startingPosition;
+    const eliminations = [...getPhaseEliminations(phase).entries()].sort(([, a], [, b]) => {
+      if (a.round !== b.round) return a.round - b.round;
+      if (a.timeMs !== b.timeMs) return b.timeMs - a.timeMs;
+      return 0;
+    });
+
+    for (const [playerId] of eliminations) {
+      if (assignedPlayerIds.has(playerId)) continue;
+      positions.push({ playerId, position });
+      assignedPlayerIds.add(playerId);
+      position -= 1;
     }
+  };
 
-    // Both eliminated — order by reverse elimination order.
-    const aData = eliminationByPlayer.get(a.playerId);
-    const bData = eliminationByPlayer.get(b.playerId);
-    if (!aData && !bData) return a.playerId.localeCompare(b.playerId);
-    if (!aData) return 1;
-    if (!bData) return -1;
+  if (phaseFilter === "finals") {
+    return sortPhase3Entries(currentPhaseEntries).map((entry, index) => ({
+      playerId: entry.playerId,
+      position: index + 1,
+    }));
+  }
 
-    if (aData.round !== bData.round) return bData.round - aData.round;
-    if (aData.timeMs !== bData.timeMs) return aData.timeMs - bData.timeMs;
-    return a.playerId.localeCompare(b.playerId);
+  const phase3Entries = currentPhaseEntries.filter((entry) => entry.stage === "phase3");
+  sortPhase3Entries(phase3Entries).forEach((entry, index) => {
+    positions.push({ playerId: entry.playerId, position: index + 1 });
+    assignedPlayerIds.add(entry.playerId);
   });
 
-  return sorted.map((entry: TTEntryRecord, index: number) => ({
-    playerId: entry.playerId,
-    position: index + 1,
-  }));
+  // TA finals are staged from the bottom up: Phase 1 eliminations decide
+  // 24th through 21st, and Phase 2 eliminations decide 20th through 17th.
+  assignPhaseEliminations("phase2", 20);
+  assignPhaseEliminations("phase1", 24);
+
+  return positions.sort((a, b) => a.position - b.position || a.playerId.localeCompare(b.playerId));
 }
 
 /**

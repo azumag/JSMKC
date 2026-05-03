@@ -80,6 +80,7 @@ const mockPrisma = {
   bMMatch: { findMany: jest.fn() },
   mRMatch: { findMany: jest.fn() },
   gPMatch: { findMany: jest.fn() },
+  tTPhaseRound: { findMany: jest.fn() },
   player: { findMany: jest.fn() },
   tournamentPlayerScore: {
     findMany: jest.fn(),
@@ -276,11 +277,12 @@ describe('Overall Ranking module', () => {
   describe('getTAFinalsPositions', () => {
     it('returns positions from phase3 entries (single survivor)', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
-        { playerId: 'p1', eliminated: false, lives: 2, totalTime: 90000 },
-        { playerId: 'p2', eliminated: true, lives: 0, totalTime: 95000 },
+        { playerId: 'p1', stage: 'phase3', eliminated: false, lives: 2, totalTime: 90000 },
+        { playerId: 'p2', stage: 'phase3', eliminated: true, lives: 0, totalTime: 95000 },
       ]);
       mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
         {
+          phase: 'phase3',
           roundNumber: 1,
           eliminatedIds: ['p2'],
           results: [
@@ -300,7 +302,7 @@ describe('Overall Ranking module', () => {
 
     it('falls back to legacy "finals" stage when phase3 is empty', async () => {
       mockPrisma.tTEntry.findMany
-        .mockResolvedValueOnce([]) // phase3 returns nothing
+        .mockResolvedValueOnce([]) // phase stages return nothing
         .mockResolvedValueOnce([
           { playerId: 'p1', eliminated: false, lives: 1, totalTime: 80000 },
         ]);
@@ -321,70 +323,39 @@ describe('Overall Ranking module', () => {
       expect(positions).toEqual([]);
     });
 
-    /**
-     * Regression test for the production bug observed in JSMKC 2026 TA finals.
-     *
-     * In life-based elimination, ranking is determined by the order of
-     * elimination — the LAST player eliminated takes 2nd, the second-to-last
-     * takes 3rd, etc.  The previous implementation sorted eliminated players
-     * by `totalTime ASC` (sum of best times across courses played), which is
-     * unrelated to elimination order.  A player who recorded fast times
-     * before being eliminated early would incorrectly outrank a player who
-     * survived more rounds with slower times.
-     *
-     * Scenario: champion p1 (alive); p2 was the very last to be eliminated
-     * (round 5) and should take 2nd; p3 was eliminated in round 1 — earliest
-     * — but happens to have the lowest accumulated totalTime; under the old
-     * logic p3 would be incorrectly assigned 2nd place.
-     */
-    it('ranks eliminated players by elimination round (latest eliminated takes best position)', async () => {
-      // Mock order mirrors the legacy `eliminated ASC, lives DESC, totalTime ASC`
-      // ordering so this fails under the old logic.  Under the old sort, p3
-      // (lowest totalTime) would incorrectly land in 2nd place even though it
-      // was eliminated first.
+    it('ranks phase3 eliminated players by elimination round (latest eliminated takes best position)', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
-        { playerId: 'p1', eliminated: false, lives: 1, totalTime: 500000 },
-        { playerId: 'p3', eliminated: true, lives: 0, totalTime: 100000 },
-        { playerId: 'p4', eliminated: true, lives: 0, totalTime: 200000 },
-        { playerId: 'p2', eliminated: true, lives: 0, totalTime: 480000 },
+        { playerId: 'p1', stage: 'phase3', eliminated: false, lives: 1, totalTime: 500000 },
+        { playerId: 'p3', stage: 'phase3', eliminated: true, lives: 0, totalTime: 100000 },
+        { playerId: 'p4', stage: 'phase3', eliminated: true, lives: 0, totalTime: 200000 },
+        { playerId: 'p2', stage: 'phase3', eliminated: true, lives: 0, totalTime: 480000 },
       ]);
       mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
-        { roundNumber: 1, eliminatedIds: ['p3'], results: [{ playerId: 'p3', timeMs: 60000 }] },
-        { roundNumber: 3, eliminatedIds: ['p4'], results: [{ playerId: 'p4', timeMs: 70000 }] },
-        { roundNumber: 5, eliminatedIds: ['p2'], results: [{ playerId: 'p2', timeMs: 80000 }] },
+        { phase: 'phase3', roundNumber: 1, eliminatedIds: ['p3'], results: [{ playerId: 'p3', timeMs: 60000 }] },
+        { phase: 'phase3', roundNumber: 3, eliminatedIds: ['p4'], results: [{ playerId: 'p4', timeMs: 70000 }] },
+        { phase: 'phase3', roundNumber: 5, eliminatedIds: ['p2'], results: [{ playerId: 'p2', timeMs: 80000 }] },
       ]);
 
       const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
 
       expect(positions).toEqual([
-        { playerId: 'p1', position: 1 }, // last alive — champion
-        { playerId: 'p2', position: 2 }, // eliminated last (round 5)
-        { playerId: 'p4', position: 3 }, // eliminated in round 3
-        { playerId: 'p3', position: 4 }, // eliminated first (round 1)
+        { playerId: 'p1', position: 1 },
+        { playerId: 'p2', position: 2 },
+        { playerId: 'p4', position: 3 },
+        { playerId: 'p3', position: 4 },
       ]);
     });
 
-    /**
-     * When several players are eliminated in the same round (e.g., the bottom
-     * half are all knocked out at once after a lives reset), they are ordered
-     * by their time in that eliminating round — the faster runner gets the
-     * better position.  This preserves a strict ordering required by TA
-     * finals' per-position points table without giving identical points to
-     * runners with clearly different performance.
-     */
-    it('breaks same-round elimination ties by round time (faster = higher position)', async () => {
-      // Mock returns entries in the legacy `eliminated ASC, lives DESC, totalTime ASC`
-      // order so the test fails under the old logic (which would otherwise just map
-      // input array order to positions).  d would incorrectly take the best
-      // eliminated slot under the old logic because its totalTime is lowest.
+    it('breaks same-round phase3 eliminations by round time (faster = higher position)', async () => {
       mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
-        { playerId: 'a', eliminated: false, lives: 1, totalTime: 600000 },
-        { playerId: 'd', eliminated: true, lives: 0, totalTime: 580000 },
-        { playerId: 'b', eliminated: true, lives: 0, totalTime: 590000 },
-        { playerId: 'c', eliminated: true, lives: 0, totalTime: 595000 },
+        { playerId: 'a', stage: 'phase3', eliminated: false, lives: 1, totalTime: 600000 },
+        { playerId: 'd', stage: 'phase3', eliminated: true, lives: 0, totalTime: 580000 },
+        { playerId: 'b', stage: 'phase3', eliminated: true, lives: 0, totalTime: 590000 },
+        { playerId: 'c', stage: 'phase3', eliminated: true, lives: 0, totalTime: 595000 },
       ]);
       mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
         {
+          phase: 'phase3',
           roundNumber: 4,
           eliminatedIds: ['b', 'c', 'd'],
           results: [
@@ -400,10 +371,55 @@ describe('Overall Ranking module', () => {
 
       expect(positions).toEqual([
         { playerId: 'a', position: 1 },
-        { playerId: 'b', position: 2 }, // fastest of the three eliminated
+        { playerId: 'b', position: 2 },
         { playerId: 'c', position: 3 },
-        { playerId: 'd', position: 4 }, // slowest — worst position
+        { playerId: 'd', position: 4 },
       ]);
+    });
+
+    it('assigns TA finals bonus positions through 24th from phase eliminations', async () => {
+      mockPrisma.tTEntry.findMany.mockResolvedValueOnce([
+        { playerId: 'p1', stage: 'phase3', eliminated: false, lives: 1, totalTime: 90000 },
+        { playerId: 'p2', stage: 'phase3', eliminated: true, lives: 0, totalTime: 92000 },
+        ...Array.from({ length: 4 }, (_, i) => ({
+          playerId: `p${17 + i}`,
+          stage: 'phase2',
+          eliminated: true,
+          lives: 0,
+          totalTime: 100000 + i,
+        })),
+        ...Array.from({ length: 4 }, (_, i) => ({
+          playerId: `p${21 + i}`,
+          stage: 'phase1',
+          eliminated: true,
+          lives: 0,
+          totalTime: 110000 + i,
+        })),
+      ]);
+      mockPrisma.tTPhaseRound.findMany.mockResolvedValueOnce([
+        { phase: 'phase1', roundNumber: 1, results: [{ playerId: 'p24', timeMs: 120000 }], eliminatedIds: ['p24'] },
+        { phase: 'phase1', roundNumber: 2, results: [{ playerId: 'p23', timeMs: 119000 }], eliminatedIds: ['p23'] },
+        { phase: 'phase1', roundNumber: 3, results: [{ playerId: 'p22', timeMs: 118000 }], eliminatedIds: ['p22'] },
+        { phase: 'phase1', roundNumber: 4, results: [{ playerId: 'p21', timeMs: 117000 }], eliminatedIds: ['p21'] },
+        { phase: 'phase2', roundNumber: 1, results: [{ playerId: 'p20', timeMs: 116000 }], eliminatedIds: ['p20'] },
+        { phase: 'phase2', roundNumber: 2, results: [{ playerId: 'p19', timeMs: 115000 }], eliminatedIds: ['p19'] },
+        { phase: 'phase2', roundNumber: 3, results: [{ playerId: 'p18', timeMs: 114000 }], eliminatedIds: ['p18'] },
+        { phase: 'phase2', roundNumber: 4, results: [{ playerId: 'p17', timeMs: 113000 }], eliminatedIds: ['p17'] },
+        { phase: 'phase3', roundNumber: 1, results: [{ playerId: 'p2', timeMs: 112000 }], eliminatedIds: ['p2'] },
+      ]);
+
+      const positions = await getTAFinalsPositions(mockPrisma as any, TOURNAMENT_ID);
+
+      expect(positions).toEqual(
+        expect.arrayContaining([
+          { playerId: 'p1', position: 1 },
+          { playerId: 'p2', position: 2 },
+          { playerId: 'p17', position: 17 },
+          { playerId: 'p20', position: 20 },
+          { playerId: 'p21', position: 21 },
+          { playerId: 'p24', position: 24 },
+        ])
+      );
     });
   });
 
@@ -551,6 +567,7 @@ describe('Overall Ranking module', () => {
       mockPrisma.bMMatch.findMany.mockResolvedValue([]);
       mockPrisma.mRMatch.findMany.mockResolvedValue([]);
       mockPrisma.gPMatch.findMany.mockResolvedValue([]);
+      mockPrisma.tTPhaseRound.findMany.mockResolvedValue([]);
       mockPrisma.player.findMany.mockResolvedValue([PLAYER_P1, PLAYER_P2]);
       getMockGetFinalsPoints().mockReturnValue(0);
     }
