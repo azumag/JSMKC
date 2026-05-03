@@ -6,7 +6,7 @@
  *   3 groups: each group Top1-4 direct, Top5-8 barrage
  *   4 groups: each group Top1-3 direct, Top4-6 barrage
  *
- * Seed pattern for seeds (direct seeds 1-12, playoff seeds 1-12):
+ * Seed pattern:
  *   2 groups: fixed CDM two-group Top-24 layout
  *   3 groups: A1, B1, C1, A2, B2, C2, A3, B3, C3, A4, B4, C4
  *   4 groups: A1, B1, C1, D1, A2, B2, C2, D2, A3, B3, C3, D3
@@ -32,7 +32,10 @@ function buildQuals(groupSizes: Record<string, number>): TestQual[] {
 }
 
 describe('selectFinalsEntrantsByGroup', () => {
-  const directSeedsTopToBottom = [1, 8, 9, 5, 12, 4, 3, 6, 11, 7, 10, 2];
+  const upperR1SeedPairs = [
+    [1, 16], [8, 9], [5, 12], [4, 13],
+    [3, 14], [6, 11], [7, 10], [2, 15],
+  ];
 
   describe('2-group case (A=14, B=13)', () => {
     const quals = buildQuals({ A: 14, B: 13 });
@@ -42,19 +45,43 @@ describe('selectFinalsEntrantsByGroup', () => {
       expect(result.groupCount).toBe(2);
     });
 
-    it('direct[] is ordered by Upper Bracket seeds 1-12 for the handwritten layout', () => {
-      expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'A6', 'B1', 'B6',
-        'B2', 'A4', 'A2', 'B4',
-        'A5', 'B3', 'B5', 'A3',
+    it('directSeeds[] maps direct players to the handwritten Upper Bracket seeds', () => {
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'A1'],
+        [2, 'B3'],
+        [3, 'B1'],
+        [4, 'A3'],
+        [5, 'B2'],
+        [6, 'A4'],
+        [7, 'A2'],
+        [8, 'B4'],
+        [9, 'A5'],
+        [11, 'B5'],
+        [13, 'B6'],
+        [15, 'A6'],
       ]);
     });
 
-    it('direct[] renders top-to-bottom as the handwritten 2-group bracket', () => {
-      const directBySeed = new Map(result.direct.map((q, index) => [index + 1, q.playerId]));
-      expect(directSeedsTopToBottom.map(seed => directBySeed.get(seed))).toEqual([
-        'A1', 'B4', 'A5', 'B2', 'A3', 'B6',
-        'B1', 'A4', 'B5', 'A2', 'B3', 'A6',
+    it('direct[] follows the same deterministic order as directSeeds[]', () => {
+      expect(result.direct.map(q => q.playerId)).toEqual([
+        'A1', 'B3', 'B1', 'A3',
+        'B2', 'A4', 'A2', 'B4',
+        'A5', 'B5', 'B6', 'A6',
+      ]);
+    });
+
+    it('directSeeds[] renders top-to-bottom as the handwritten 2-group Upper R1 bracket', () => {
+      const directBySeed = new Map(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId]));
+      const labelForSeed = (seed: number) => directBySeed.get(seed) ?? 'barrage';
+      expect(upperR1SeedPairs.map(([p1, p2]) => [labelForSeed(p1), labelForSeed(p2)])).toEqual([
+        ['A1', 'barrage'],
+        ['B4', 'A5'],
+        ['B2', 'barrage'],
+        ['A3', 'B6'],
+        ['B1', 'barrage'],
+        ['A4', 'B5'],
+        ['A2', 'barrage'],
+        ['B3', 'A6'],
       ]);
     });
 
@@ -138,10 +165,19 @@ describe('selectFinalsEntrantsByGroup', () => {
     it('2 groups A=20, B=12: each contributes Top1-6 direct, Top7-12 barrage', () => {
       const quals = buildQuals({ A: 20, B: 12 });
       const result = selectFinalsEntrantsByGroup(quals);
-      expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'A6', 'B1', 'B6',
-        'B2', 'A4', 'A2', 'B4',
-        'A5', 'B3', 'B5', 'A3',
+      expect(result.directSeeds.map(({ seed, qualification }) => [seed, qualification.playerId])).toEqual([
+        [1, 'A1'],
+        [2, 'B3'],
+        [3, 'B1'],
+        [4, 'A3'],
+        [5, 'B2'],
+        [6, 'A4'],
+        [7, 'A2'],
+        [8, 'B4'],
+        [9, 'A5'],
+        [11, 'B5'],
+        [13, 'B6'],
+        [15, 'A6'],
       ]);
       expect(result.barrage.map(q => q.playerId)).toEqual([
         'B8', 'B7', 'A8', 'A7',
@@ -192,9 +228,9 @@ describe('selectFinalsEntrantsByGroup', () => {
       }
       const result = selectFinalsEntrantsByGroup(quals);
       expect(result.direct.map(q => q.playerId)).toEqual([
-        'A1', 'A6', 'B1', 'B6',
+        'A1', 'B3', 'B1', 'A3',
         'B2', 'A4', 'A2', 'B4',
-        'A5', 'B3', 'B5', 'A3',
+        'A5', 'B5', 'B6', 'A6',
       ]);
     });
   });

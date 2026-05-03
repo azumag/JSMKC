@@ -548,7 +548,7 @@
     "grandFinalMatch": "グランドファイナル",
     "resetMatchLabel": "リセットマッチ（必要時）",
     "playoffTitle": "プレーオフ（バラッジ）",
-    "playoffAdvanceDesc": "{round} 勝者はアッパーブラケット（シード13-16）へ進出",
+    "playoffAdvanceDesc": "{round} 勝者はアッパーブラケットのバラッジ枠へ進出",
     "upperSeedLabel": "→ アッパーシード {seed}",
     "cupLabel": "{name} カップ"
   },

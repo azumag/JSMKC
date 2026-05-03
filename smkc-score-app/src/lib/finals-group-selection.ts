@@ -2,8 +2,8 @@
  * Finals entrant selection with per-group Top-N + bracket seeding.
  *
  * Spec (Issue #454, Top-24 → Top-16 flow):
- *   - 12 direct advancers fill Upper Bracket seeds 1-12.
- *   - 12 barrage entrants fill Playoff seeds 1-12 (single-elim R1+R2 → 4 winners → Upper 13-16).
+ *   - 12 direct advancers fill Upper Bracket non-barrage seeds.
+ *   - 12 barrage entrants fill Playoff seeds 1-12 (single-elim R1+R2 → 4 winners → Upper barrage slots).
  *
  * Per-group split (based on group count G):
  *   perGroup = 12 / G (2→6, 3→4, 4→3)
@@ -16,11 +16,13 @@
  * combined-ranking rules for 3+ groups are a separate follow-up.
  *
  * Example (2 groups, A=14, B=13):
- *   direct seeds 1-12:  A1, A6, B1, B6, B2, A4, A2, B4, A5, B3, B5, A3
+ *   direct seeds: 1:A1, 2:B3, 3:B1, 4:A3, 5:B2, 6:A4,
+ *                 7:A2, 8:B4, 9:A5, 11:B5, 13:B6, 15:A6
  *   barrage seeds 1-12: B8, B7, A8, A7, B9, A11, B10, A12, A10, B12, A9, B11
  *
- * In the 16-player bracket, the direct seed order above renders top-to-bottom as:
- *   A1, B4, A5, B2, A3, B6, B1, A4, B5, A2, B3, A6
+ * In the 16-player bracket, the Upper R1 matches render top-to-bottom as:
+ *   A1 vs barrage, B4 vs A5, B2 vs barrage, A3 vs B6,
+ *   B1 vs barrage, A4 vs B5, A2 vs barrage, B3 vs A6
  *
  * Caller contract: `allQualifications` must already be ordered per-group by final
  * ranking (score, tiebreakers, H2H). Group bucketing preserves caller-provided order.
@@ -36,8 +38,10 @@ export interface FinalsQualInput {
 }
 
 interface FinalsGroupSelection {
-  /** 12 direct advancers, ordered for Upper Bracket seeds 1-12. */
+  /** 12 direct advancers, in deterministic display/spec order. */
   direct: FinalsQualInput[];
+  /** Direct advancers with their actual Upper Bracket seed numbers. */
+  directSeeds: Array<{ seed: number; qualification: FinalsQualInput }>;
   /** 12 barrage entrants, ordered for Playoff seeds 1-12. */
   barrage: FinalsQualInput[];
   /** Detected group count (2, 3, or 4). */
@@ -46,10 +50,19 @@ interface FinalsGroupSelection {
 
 const TOTAL_FINALS_SLOTS = 12;
 
-const TWO_GROUP_DIRECT_SEED_TOKENS = [
-  'A1', 'A6', 'B1', 'B6',
-  'B2', 'A4', 'A2', 'B4',
-  'A5', 'B3', 'B5', 'A3',
+const TWO_GROUP_DIRECT_UPPER_SEEDS = [
+  { seed: 1, token: 'A1' },
+  { seed: 2, token: 'B3' },
+  { seed: 3, token: 'B1' },
+  { seed: 4, token: 'A3' },
+  { seed: 5, token: 'B2' },
+  { seed: 6, token: 'A4' },
+  { seed: 7, token: 'A2' },
+  { seed: 8, token: 'B4' },
+  { seed: 9, token: 'A5' },
+  { seed: 11, token: 'B5' },
+  { seed: 13, token: 'B6' },
+  { seed: 15, token: 'A6' },
 ] as const;
 
 const TWO_GROUP_BARRAGE_SEED_TOKENS = [
@@ -125,9 +138,14 @@ export function selectFinalsEntrantsByGroup(
       }
       return player;
     };
+    const directSeeds = TWO_GROUP_DIRECT_UPPER_SEEDS.map(({ seed, token }) => ({
+      seed,
+      qualification: playerForToken(token),
+    }));
 
     return {
-      direct: TWO_GROUP_DIRECT_SEED_TOKENS.map(playerForToken),
+      direct: directSeeds.map(({ qualification }) => qualification),
+      directSeeds,
       barrage: TWO_GROUP_BARRAGE_SEED_TOKENS.map(playerForToken),
       groupCount: 2,
     };
@@ -147,6 +165,10 @@ export function selectFinalsEntrantsByGroup(
 
   return {
     direct,
+    directSeeds: direct.map((qualification, index) => ({
+      seed: index + 1,
+      qualification,
+    })),
     barrage,
     groupCount: groupCount as 2 | 3 | 4,
   };

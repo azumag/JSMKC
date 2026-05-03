@@ -3,7 +3,7 @@
  *
  * Renders the pre-bracket playoff ("barrage") for Top 24 → Top 16 qualification.
  * The playoff is a single-elimination tournament for 12 players (barrage entrants)
- * who compete for 4 spots in the Upper Bracket (seeds 13-16).
+ * who compete for 4 spots in the Upper Bracket barrage slots.
  *
  * Structure:
  * - Playoff Round 1: 4 matches (seeds 8v9, 5v12, 6v11, 7v10) — losers eliminated
@@ -11,9 +11,9 @@
  *
  * After each playoff_r2 match completes, the winner fills a specific Upper Bracket seed:
  * - M5 (BYE seed 1) winner → Upper seed 16
- * - M6 (BYE seed 4) winner → Upper seed 13
+ * - M6 (BYE seed 4) winner → Upper seed 12
  * - M7 (BYE seed 3) winner → Upper seed 14
- * - M8 (BYE seed 2) winner → Upper seed 15
+ * - M8 (BYE seed 2) winner → Upper seed 10
  */
 
 "use client";
@@ -51,7 +51,7 @@ interface BracketMatch {
   bracket: "winners" | "losers" | "grand_final";
   player1Seed?: number;
   player2Seed?: number;
-  /** For playoff_r2 matches: which Upper Bracket seed the winner claims (13-16) */
+  /** For playoff_r2 matches: which Upper Bracket seed the winner claims */
   advancesToUpperSeed?: number;
 }
 

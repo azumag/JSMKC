@@ -381,7 +381,7 @@ describe('Double Elimination Bracket Structure', () => {
    *
    * Resolves issue #454. 12 entrants from qualification positions 13-24
    * compete in a single-elimination tournament whose 4 winners fill
-   * Upper-Bracket seeds 13-16. Top 4 playoff seeds receive a Round 1 BYE.
+   * Upper-Bracket barrage slots. Top 4 playoff seeds receive a Round 1 BYE.
    */
   describe('generatePlayoffStructure', () => {
     it('should generate 8 matches for 12 entrants (4 R1 + 4 R2, top 4 BYE)', () => {
@@ -452,24 +452,16 @@ describe('Double Elimination Bracket Structure', () => {
       r1.forEach(m => expect(m.loserGoesTo).toBeUndefined());
     });
 
-    it('should assign Upper-Bracket seeds 13-16 to R2 winners symmetrically', () => {
-      /* Each playoff-R2 winner fills a specific Upper-Bracket seed so the
-       * strongest playoff survivor (facing the lowest BYE seed) enters
-       * opposite #1 in the Upper Bracket — mirroring standard bracket balance.
-       *
-       * Upper R1 pairings are [1,16], [8,9], [5,12], [4,13], [3,14], [6,11], [7,10], [2,15].
-       * We assign upper seeds 13-16 to playoff R2 match winners so that:
-       *   - Playoff R2 M5 (featuring playoff seed 1) winner → Upper seed 16 (plays Upper #1)
-       *   - Playoff R2 M6 (featuring playoff seed 4) winner → Upper seed 13 (plays Upper #4)
-       *   - Playoff R2 M7 (featuring playoff seed 3) winner → Upper seed 14 (plays Upper #3)
-       *   - Playoff R2 M8 (featuring playoff seed 2) winner → Upper seed 15 (plays Upper #2)
-       */
+    it('should assign the Upper-Bracket barrage slots to R2 winners', () => {
+      /* Upper R1 pairings are [1,16], [8,9], [5,12], [4,13],
+       * [3,14], [6,11], [7,10], [2,15]. The paper layout places barrage
+       * winners in seeds 16, 12, 14, and 10. */
       const matches = generatePlayoffStructure(12);
       const r2 = matches.filter(m => m.round === 'playoff_r2');
       expect(r2[0].advancesToUpperSeed).toBe(16);
-      expect(r2[1].advancesToUpperSeed).toBe(13);
+      expect(r2[1].advancesToUpperSeed).toBe(12);
       expect(r2[2].advancesToUpperSeed).toBe(14);
-      expect(r2[3].advancesToUpperSeed).toBe(15);
+      expect(r2[3].advancesToUpperSeed).toBe(10);
     });
 
     it('should not route R2 winners via winnerGoesTo (handled at upper-bracket level)', () => {
