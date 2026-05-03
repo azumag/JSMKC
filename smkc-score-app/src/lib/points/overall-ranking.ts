@@ -297,15 +297,44 @@ export interface FinalsPosition {
 }
 
 /**
+ * A round result entry from TTPhaseRound.results JSON.
+ * Used to break ties when multiple players are eliminated in the same round.
+ */
+interface PhaseRoundResultRecord {
+  playerId: string;
+  timeMs: number;
+}
+
+/**
  * Determine TA finals positions from the phase3 (finals) stage data.
  *
- * TA finals use a life-based elimination system. Players are ordered by:
- * 1. Elimination status (non-eliminated players rank higher)
- * 2. Remaining lives (more lives = better)
- * 3. Total time (faster = better, as tiebreaker)
+ * TA finals use a life-based elimination system: every round, the bottom
+ * half lose a life, and players reaching 0 lives are eliminated. The last
+ * player standing is the champion.
+ *
+ * Ranking is therefore driven by elimination *order*, not accumulated time.
+ * The historical implementation sorted eliminated players by `totalTime ASC`
+ * (sum of best times across courses played), which is unrelated to when a
+ * player went out: a runner with very fast times in the few rounds they
+ * played would outrank a runner who survived more rounds with slower times.
+ * This produced visibly wrong results in JSMKC 2026 (e.g. a player
+ * eliminated in round 14 ended up with the runner-up points instead of the
+ * actual finalist eliminated in round 19).
+ *
+ * The corrected algorithm walks TTPhaseRound in chronological order to map
+ * each eliminated player to the round in which they went out, then sorts:
+ *   1. Non-eliminated players first  (still alive — best positions)
+ *      Tied alive players: more remaining lives wins; faster totalTime breaks
+ *      further ties.
+ *   2. Eliminated players in REVERSE elimination order  (latest out = best
+ *      remaining position). When several players were eliminated in the same
+ *      round (typical after a lives-reset cull), the faster time in that
+ *      round wins — this preserves a strict ordering required by TA's
+ *      per-position points table.
+ *   3. Stable tiebreaker: playerId ascending.
  *
  * Falls back to the legacy "finals" stage name for backwards compatibility
- * with older tournament data that used "finals" instead of "phase3".
+ * with older tournament data that predates the phase1/2/3 naming.
  *
  * @param prisma       - Prisma client instance
  * @param tournamentId - Tournament to look up
@@ -315,43 +344,84 @@ export async function getTAFinalsPositions(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<FinalsPosition[]> {
-  // Query phase3 (current naming convention for TA finals stage)
-  // Ordering: non-eliminated first, then by lives descending, then by time ascending
-  const finalsEntries = await prisma.tTEntry.findMany({
-    where: {
-      tournamentId,
-      stage: "phase3",
-    },
-    orderBy: [
-      { eliminated: "asc" },   // Non-eliminated (false) sorts before eliminated (true)
-      { lives: "desc" },        // More remaining lives = better performance
-      { totalTime: "asc" },     // Faster total time breaks ties
-    ],
+  let finalsEntries = await prisma.tTEntry.findMany({
+    where: { tournamentId, stage: "phase3" },
   });
+  let phaseStage: "phase3" | "finals" = "phase3";
 
-  // Fallback: check for legacy "finals" stage name used in older tournaments
   if (finalsEntries.length === 0) {
-    const legacyFinalsEntries = await prisma.tTEntry.findMany({
-      where: {
-        tournamentId,
-        stage: "finals",
-      },
-      orderBy: [
-        { eliminated: "asc" },
-        { lives: "desc" },
-        { totalTime: "asc" },
-      ],
+    finalsEntries = await prisma.tTEntry.findMany({
+      where: { tournamentId, stage: "finals" },
     });
-
-    // Convert sorted array position to 1-based placement
-    return legacyFinalsEntries.map((entry: TTEntryRecord, index: number) => ({
-      playerId: entry.playerId,
-      position: index + 1,
-    }));
+    phaseStage = "finals";
   }
 
-  // Convert sorted array position to 1-based placement
-  return finalsEntries.map((entry: TTEntryRecord, index: number) => ({
+  if (finalsEntries.length === 0) return [];
+
+  // Walk all phase rounds chronologically and record the round in which
+  // each eliminated player went out, plus their time in that round (used
+  // to break ties when several players are eliminated in the same round).
+  // If a player somehow appears in multiple rounds' eliminatedIds (legacy
+  // data, manual override re-runs), the LATEST entry wins because it
+  // reflects the final on-record elimination.
+  const phaseRounds = await prisma.tTPhaseRound.findMany({
+    where: { tournamentId, phase: phaseStage },
+    orderBy: { roundNumber: "asc" },
+    select: { roundNumber: true, eliminatedIds: true, results: true },
+  });
+
+  const eliminationByPlayer = new Map<
+    string,
+    { round: number; timeMs: number }
+  >();
+  for (const round of phaseRounds) {
+    // results & eliminatedIds are Prisma JsonValue. Narrow defensively —
+    // schema-shape changes upstream should not silently corrupt rankings.
+    const eliminatedIds = Array.isArray(round.eliminatedIds)
+      ? (round.eliminatedIds as string[])
+      : [];
+    if (eliminatedIds.length === 0) continue;
+    const results: PhaseRoundResultRecord[] = Array.isArray(round.results)
+      ? (round.results as unknown as PhaseRoundResultRecord[])
+      : [];
+    const timeByPlayer = new Map(results.map((r) => [r.playerId, r.timeMs]));
+    for (const playerId of eliminatedIds) {
+      eliminationByPlayer.set(playerId, {
+        round: round.roundNumber,
+        // Missing round time (e.g. manual elimination) treated as worst time
+        // so manually-removed runners don't accidentally outrank players who
+        // actually skated the round.
+        timeMs: timeByPlayer.get(playerId) ?? Number.POSITIVE_INFINITY,
+      });
+    }
+  }
+
+  const sorted = [...finalsEntries].sort((a: TTEntryRecord, b: TTEntryRecord) => {
+    // Alive players always rank above eliminated ones.
+    if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+
+    if (!a.eliminated) {
+      // Both still alive — more lives wins; faster totalTime breaks ties.
+      if (a.lives !== b.lives) return b.lives - a.lives;
+      const at = a.totalTime ?? Number.POSITIVE_INFINITY;
+      const bt = b.totalTime ?? Number.POSITIVE_INFINITY;
+      if (at !== bt) return at - bt;
+      return a.playerId.localeCompare(b.playerId);
+    }
+
+    // Both eliminated — order by reverse elimination order.
+    const aData = eliminationByPlayer.get(a.playerId);
+    const bData = eliminationByPlayer.get(b.playerId);
+    if (!aData && !bData) return a.playerId.localeCompare(b.playerId);
+    if (!aData) return 1;
+    if (!bData) return -1;
+
+    if (aData.round !== bData.round) return bData.round - aData.round;
+    if (aData.timeMs !== bData.timeMs) return aData.timeMs - bData.timeMs;
+    return a.playerId.localeCompare(b.playerId);
+  });
+
+  return sorted.map((entry: TTEntryRecord, index: number) => ({
     playerId: entry.playerId,
     position: index + 1,
   }));
