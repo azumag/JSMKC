@@ -2,7 +2,7 @@
  * Tests for group-utils: seeding-based group distribution
  *
  * Based on requirements.md §10.2 シード順によるグループ分け:
- * - Snake/zigzag pattern: seed1→A, seed2→B, seed3→C, seed4→D, seed5→A...
+ * - Serpentine pattern: seed1→A, seed2→B, seed3→C, seed4→D, seed5→D...
  * - Supports 2, 3, or 4 groups
  */
 
@@ -25,12 +25,12 @@ describe('GROUPS constant', () => {
 describe('assignGroupsBySeeding', () => {
   /**
    * §10.2 Example: 19 players distributed to 4 groups
-   * A: 1, 5, 9, 13, 17
-   * B: 2, 6, 10, 14, 18
-   * C: 3, 7, 11, 15, 19
-   * D: 4, 8, 12, 16
+   * A: 1, 8, 9, 16, 17
+   * B: 2, 7, 10, 15, 18
+   * C: 3, 6, 11, 14, 19
+   * D: 4, 5, 12, 13
    */
-  it('should distribute 19 players to 4 groups per §10.2 snake pattern', () => {
+  it('should distribute 19 players to 4 groups per §10.2 serpentine pattern', () => {
     const players: SetupPlayer[] = Array.from({ length: 19 }, (_, i) => ({
       playerId: `p${i + 1}`,
       group: 'A',
@@ -39,13 +39,13 @@ describe('assignGroupsBySeeding', () => {
 
     const result = assignGroupsBySeeding(players, 4);
 
-    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 5, 9, 13, 17]);
-    expect(result.filter(p => p.group === 'B').map(p => p.seeding)).toEqual([2, 6, 10, 14, 18]);
-    expect(result.filter(p => p.group === 'C').map(p => p.seeding)).toEqual([3, 7, 11, 15, 19]);
-    expect(result.filter(p => p.group === 'D').map(p => p.seeding)).toEqual([4, 8, 12, 16]);
+    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 8, 9, 16, 17]);
+    expect(result.filter(p => p.group === 'B').map(p => p.seeding)).toEqual([2, 7, 10, 15, 18]);
+    expect(result.filter(p => p.group === 'C').map(p => p.seeding)).toEqual([3, 6, 11, 14, 19]);
+    expect(result.filter(p => p.group === 'D').map(p => p.seeding)).toEqual([4, 5, 12, 13]);
   });
 
-  it('should distribute players to 2 groups', () => {
+  it('should distribute players to 2 groups using serpentine balance', () => {
     const players: SetupPlayer[] = Array.from({ length: 6 }, (_, i) => ({
       playerId: `p${i + 1}`,
       group: 'A',
@@ -54,8 +54,8 @@ describe('assignGroupsBySeeding', () => {
 
     const result = assignGroupsBySeeding(players, 2);
 
-    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 3, 5]);
-    expect(result.filter(p => p.group === 'B').map(p => p.seeding)).toEqual([2, 4, 6]);
+    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 4, 5]);
+    expect(result.filter(p => p.group === 'B').map(p => p.seeding)).toEqual([2, 3, 6]);
   });
 
   it('should distribute players to 3 groups', () => {
@@ -67,9 +67,9 @@ describe('assignGroupsBySeeding', () => {
 
     const result = assignGroupsBySeeding(players, 3);
 
-    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 4, 7]);
+    expect(result.filter(p => p.group === 'A').map(p => p.seeding)).toEqual([1, 6, 7]);
     expect(result.filter(p => p.group === 'B').map(p => p.seeding)).toEqual([2, 5, 8]);
-    expect(result.filter(p => p.group === 'C').map(p => p.seeding)).toEqual([3, 6, 9]);
+    expect(result.filter(p => p.group === 'C').map(p => p.seeding)).toEqual([3, 4, 9]);
   });
 
   it('should sort players by seeding before distribution (handles unsorted input)', () => {
@@ -84,8 +84,8 @@ describe('assignGroupsBySeeding', () => {
 
     expect(result.find(p => p.playerId === 'p1')!.group).toBe('A');
     expect(result.find(p => p.playerId === 'p2')!.group).toBe('B');
-    expect(result.find(p => p.playerId === 'p3')!.group).toBe('A');
-    expect(result.find(p => p.playerId === 'p4')!.group).toBe('B');
+    expect(result.find(p => p.playerId === 'p3')!.group).toBe('B');
+    expect(result.find(p => p.playerId === 'p4')!.group).toBe('A');
   });
 
   it('should not mutate the original array', () => {
@@ -111,7 +111,7 @@ describe('assignGroupsBySeeding', () => {
 
     expect(result.find(p => p.playerId === 'p1')!.group).toBe('A');
     expect(result.find(p => p.playerId === 'p2')!.group).toBe('B');
-    expect(result.find(p => p.playerId === 'pNoSeed')!.group).toBe('A');
+    expect(result.find(p => p.playerId === 'pNoSeed')!.group).toBe('B');
   });
 
   it('should preserve player IDs and seeding values', () => {
@@ -173,10 +173,10 @@ describe('assignGroupsBySeeding', () => {
 
     const result = assignGroupsBySeeding(players, 5);
 
-    /* Should use max 4 groups: A,B,C,D,A */
+    /* Should use max 4 groups: A,B,C,D,D */
     expect(result[0].group).toBe('A');
     expect(result[3].group).toBe('D');
-    expect(result[4].group).toBe('A');
+    expect(result[4].group).toBe('D');
   });
 
   it('should handle duplicate seeding numbers deterministically', () => {
@@ -205,7 +205,7 @@ describe('assignGroupsBySeeding', () => {
 
     expect(result[0].group).toBe('A');
     expect(result[1].group).toBe('B');
-    expect(result[2].group).toBe('A');
+    expect(result[2].group).toBe('B');
   });
 });
 
