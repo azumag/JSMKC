@@ -255,8 +255,10 @@ function generate16PlayerBracket(): BracketMatch[] {
       round: "winners_qf",
       bracket: "winners",
       winnerGoesTo: 13 + Math.floor(i / 2),
-      /* QF losers → Losers R2 (20-23) */
-      loserGoesTo: 20 + i,
+      /* QF losers → Losers R2 in reverse visual order.
+       * With the two-group paper layout this pairs LR1 winners top-to-bottom
+       * against B3, A4, A3, B4 instead of B4, A3, A4, B3. */
+      loserGoesTo: 23 - i,
       position: ((i % 2) + 1) as 1 | 2,
     });
     mn++;
@@ -503,7 +505,7 @@ export function getNextMatchInfo(
       };
     } else if (match.round === "winners_qf") {
       /* QF losers enter Losers R2 as position 2 (L_R1 winners enter as position 1).
-       * In 16-player bracket, QF is matches 9-12 → each goes to L_R2 match 20-23.
+       * In 16-player bracket, QF matches 9-12 route to L_R2 matches 23-20.
        * In 8-player bracket, QF is matches 1-4 → position based on parity. */
       const is16Player = matches.length > 17;
       return {

@@ -519,6 +519,51 @@ describe('Double Elimination Bracket Structure', () => {
         });
       });
     });
+
+    it('should route Winners QF losers into reversed Losers R2 slots', () => {
+      const matches16 = generateBracketStructure(16);
+
+      [
+        [9, 23],
+        [10, 22],
+        [11, 21],
+        [12, 20],
+      ].forEach(([matchNumber, nextMatchNumber]) => {
+        expect(getNextMatchInfo(matches16, matchNumber, false)).toEqual({
+          nextMatchNumber,
+          position: 2,
+        });
+      });
+    });
+
+    it('should pair two-group LR2 matches in the requested top-to-bottom order', () => {
+      const matches16 = generateBracketStructure(16);
+      const qfLoserLabelsByMatch = new Map([
+        [9, 'B4'],
+        [10, 'A3'],
+        [11, 'A4'],
+        [12, 'B3'],
+      ]);
+
+      const lr2PairLabels = matches16
+        .filter((m) => m.round === 'losers_r2')
+        .map((lr2Match) => {
+          const lr1Source = matches16.find(
+            (m) => m.round === 'losers_r1' && m.winnerGoesTo === lr2Match.matchNumber,
+          );
+          const qfSource = matches16.find(
+            (m) => m.round === 'winners_qf' && m.loserGoesTo === lr2Match.matchNumber,
+          );
+          return [`W${lr1Source?.matchNumber}`, qfLoserLabelsByMatch.get(qfSource?.matchNumber ?? 0)];
+        });
+
+      expect(lr2PairLabels).toEqual([
+        ['W16', 'B3'],
+        ['W17', 'A4'],
+        ['W18', 'A3'],
+        ['W19', 'B4'],
+      ]);
+    });
   });
 
   describe('roundNames', () => {

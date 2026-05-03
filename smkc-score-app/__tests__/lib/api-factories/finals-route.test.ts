@@ -188,10 +188,10 @@ describe('Finals Route Factory', () => {
       { matchNumber: 6, round: 'winners_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 11, loserGoesTo: 18 },
       { matchNumber: 7, round: 'winners_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 12, loserGoesTo: 19 },
       { matchNumber: 8, round: 'winners_r1', bracket: 'winners', player1Seed: 2, player2Seed: 15, winnerGoesTo: 12, loserGoesTo: 19 },
-      { matchNumber: 9, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 20 },
-      { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 21 },
-      { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 22 },
-      { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 23 },
+      { matchNumber: 9, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 23 },
+      { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 22 },
+      { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 21 },
+      { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 20 },
       ...Array.from({ length: 19 }, (_, i) => ({
         matchNumber: i + 13,
         round: i < 2 ? 'winners_sf' : i === 2 ? 'winners_final' : 'losers_r1',
@@ -1438,20 +1438,24 @@ describe('Finals Route Factory', () => {
       expect(mockGenerateBracketStructure).toHaveBeenCalledWith(16);
     });
 
-    it('should route 16-player QF loser to player2Id (loserPosition=2)', async () => {
-      // In 16-player bracket, QF losers enter L_R2 at position 2
+    it('should route 16-player QF loser to reversed L_R2 slot and player2Id', async () => {
+      // In 16-player bracket, QF losers enter L_R2 at position 2.
+      // M9 routes to M23 so the two-group LR2 order is B3/A4/A3/B4.
       const requestBody = createMockRequestBody();
       const mockMatch = createMockMatch({
         matchNumber: 9, // winners_qf in 16-player bracket
         player1Id: 'player-1',
         player2Id: 'player-2',
       });
-      const nextLoserMatch = createMockMatch({ matchNumber: 20 }); // L_R2 in 16-player
+      const nextLoserMatch = createMockMatch({ matchNumber: 23 }); // L_R2 in 16-player
 
       (prisma.bMMatch as any).count.mockResolvedValue(31); // 16-player bracket
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);
       (prisma.bMMatch as any).update.mockResolvedValue(createMockMatch({ completed: true }));
-      (prisma.bMMatch as any).findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(nextLoserMatch);
+      (prisma.bMMatch as any).findFirst.mockImplementation((args: any) => {
+        if (args?.where?.matchNumber === 23) return Promise.resolve(nextLoserMatch);
+        return Promise.resolve(null);
+      });
 
       const config = createMockConfig();
       const { PUT } = createFinalsHandlers(config);
