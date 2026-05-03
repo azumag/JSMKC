@@ -78,7 +78,10 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
 import { parseManualScore } from "@/lib/parse-manual-score";
-import { canCreateFinalsFromQualification } from "@/lib/finals-action-availability";
+import {
+  canCreateFinalsFromQualification,
+  canResetFinalsFromQualification,
+} from "@/lib/finals-action-availability";
 import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
 import type { Player } from "@/lib/types";
 
@@ -231,6 +234,10 @@ export default function BattleModePageClient({
     qualificationCount: qualifications.length,
     matchCount: matches.length,
     allMatchesCompleted: matches.every((m) => m.completed),
+  });
+  const canResetFinals = canResetFinalsFromQualification({
+    qualificationConfirmed,
+    finalsExists,
   });
 
   /**
@@ -485,8 +492,8 @@ export default function BattleModePageClient({
             <DebugFillButton tournamentId={tournamentId} mode="bm" onFilled={refetch} />
           )}
 
-          {/* Admin-only bracket reset — visible only when a bracket exists */}
-          {isAdmin && finalsExists === true && (
+          {/* Admin-only bracket reset — visible only after qualification is unlocked. */}
+          {isAdmin && canResetFinals && (
             <Button
               variant="destructive"
               disabled={resettingBracket}

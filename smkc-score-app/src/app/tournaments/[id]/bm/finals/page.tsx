@@ -69,6 +69,7 @@ import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
 import { parseManualScore } from "@/lib/parse-manual-score";
 
 /**
@@ -554,6 +555,12 @@ export default function BattleModeFinals({
   const completedMatches = matches.filter((m) => m.completed).length;
   const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
+  const bracketExists = matches.length > 0 || phase === 'playoff' || playoffMatches.length > 0;
+  const canGenerateBracket = isAdmin && qualificationConfirmed && !bracketExists;
+  const canResetBracket = isAdmin && canResetFinalsFromQualification({
+    qualificationConfirmed,
+    finalsExists: bracketExists,
+  });
 
   /* Loading skeleton for initial page load */
   if (loading) {
@@ -589,10 +596,10 @@ export default function BattleModeFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket buttons: admin-only */}
-          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {canGenerateBracket && (
             <AlertDialog>
-               <AlertDialogTrigger asChild>
-                 <Button disabled={creating} aria-label="Generate finals bracket">
+              <AlertDialogTrigger asChild>
+                <Button disabled={creating} aria-label="Generate finals bracket">
                    {creating ? tFinals('creating') : tFinals('generateBracket')}
                  </Button>
                </AlertDialogTrigger>
@@ -635,7 +642,8 @@ export default function BattleModeFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : (
+          )}
+          {canResetBracket && (
             <AlertDialog>
                <AlertDialogTrigger asChild>
                  <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
@@ -657,7 +665,7 @@ export default function BattleModeFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ))}
+          )}
           {/* Back navigation to qualification page */}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/bm`}>

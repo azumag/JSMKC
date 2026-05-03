@@ -78,6 +78,7 @@ import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { createLogger } from "@/lib/client-logger";
+import { canResetFinalsFromQualification } from "@/lib/finals-action-availability";
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
@@ -567,10 +568,13 @@ export default function MatchRaceFinals({
     }
   };
 
-  /* Track tournament progress */
-  const completedMatches = matches.filter((m) => m.completed).length;
-  const totalMatches = matches.length;
   const qualificationConfirmed = pollData?.qualificationConfirmed ?? false;
+  const bracketExists = matches.length > 0 || phase === 'playoff' || playoffMatches.length > 0;
+  const canGenerateBracket = isAdmin && qualificationConfirmed && !bracketExists;
+  const canResetBracket = isAdmin && canResetFinalsFromQualification({
+    qualificationConfirmed,
+    finalsExists: bracketExists,
+  });
 
   /* Loading skeleton */
   if (loading) {
@@ -604,7 +608,7 @@ export default function MatchRaceFinals({
         </div>
         <div className="flex gap-2">
           {/* Generate or Reset bracket: admin-only */}
-          {isAdmin && qualificationConfirmed && (matches.length === 0 && phase !== 'playoff' && playoffMatches.length === 0 ? (
+          {canGenerateBracket && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={creating} aria-label="Generate finals bracket">
@@ -631,7 +635,8 @@ export default function MatchRaceFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ) : (
+          )}
+          {canResetBracket && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" disabled={creating}>
@@ -655,7 +660,7 @@ export default function MatchRaceFinals({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          ))}
+          )}
           <Button variant="outline" asChild>
             <a href={`/tournaments/${tournamentId}/mr`}>
               {/* i18n: Back navigation to qualification page */}
