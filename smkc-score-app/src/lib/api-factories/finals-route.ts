@@ -45,7 +45,7 @@ const GP_FINALS_CUP_DECK_REPEATS = 2;
 /**
  * Pre-Bracket Playoff ("barrage") entrant count. Supports issue #454:
  * Top 24 qualifiers → Top 16 Upper Bracket, with 12 entrants from qualification
- * positions 13-24 competing for the 4 Upper-Bracket seats 13-16.
+ * positions 13-24 competing for the 4 Upper-Bracket barrage seats.
  */
 const PLAYOFF_ENTRANT_COUNT = 12;
 
@@ -650,10 +650,10 @@ export function createFinalsHandlers(config: FinalsConfig) {
         rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
       );
 
-      const seededPlayers: SeededFinalsPlayer[] = selection.direct.map((q, index) => ({
-        seed: index + 1,
-        playerId: q.playerId,
-        player: q.player,
+      const seededPlayers: SeededFinalsPlayer[] = selection.directSeeds.map(({ seed, qualification }) => ({
+        seed,
+        playerId: qualification.playerId,
+        player: qualification.player,
       }));
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
@@ -1078,7 +1078,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
        *  24  → 16-player Upper Bracket + 12-player Pre-Bracket Playoff (§4.2, issue #454).
        *        Two-phase: first POST call creates the playoff stage; a second
        *        call (once all playoff_r2 matches are complete) builds the
-       *        Upper Bracket with the 4 playoff winners filling seeds 13-16. */
+       *        Upper Bracket with the 4 playoff winners filling barrage slots. */
       if (topN !== 8 && topN !== 16 && topN !== 24) {
         return handleValidationError(
           'Only 8-player, 16-player, or 24-player (Top-16 + playoff) brackets are supported',
@@ -1232,7 +1232,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
    *   Phase 1: No playoff matches exist → create 8 playoff matches (stage='playoff')
    *            from qualification positions 13-24. Return playoff structure.
    *   Phase 2: All 4 playoff_r2 matches complete → build 16-player Upper Bracket
-   *            (stage='finals') using qual top 12 + 4 playoff winners for seeds 13-16.
+   *            (stage='finals') using qual top 12 + 4 playoff winners in barrage slots.
    *
    * Intermediate state: Phase 2 call before playoff completes → 409 Conflict with
    * a remaining-matches hint so the caller knows why the transition is blocked.
@@ -1435,14 +1435,18 @@ export function createFinalsHandlers(config: FinalsConfig) {
         });
       }
 
-      /* Build the 16 seeded players: 1-12 from per-group direct advancers
-       * (2 groups: fixed CDM paper layout), 13-16 from playoff winners. */
-      const directPlayers = selection.direct.map((q, index) => ({
-        seed: index + 1,
-        playerId: q.playerId,
-        player: q.player,
+      /* Build the 16 seeded players: direct advancers use their actual Upper
+       * Bracket seed numbers (2 groups: fixed CDM paper layout), and playoff
+       * winners fill the barrage slots declared by generatePlayoffStructure. */
+      const directPlayers = selection.directSeeds.map(({ seed, qualification }) => ({
+        seed,
+        playerId: qualification.playerId,
+        player: qualification.player,
       }));
-      const playoffWinnerSeeds = [13, 14, 15, 16].map((upperSeed) => {
+      const playoffUpperSeeds = playoffStructure
+        .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
+        .map((m) => m.advancesToUpperSeed as number);
+      const playoffWinnerSeeds = playoffUpperSeeds.map((upperSeed) => {
         const winner = upperSeedToPlayer.get(upperSeed);
         if (!winner) {
           throw new Error(`Playoff winner for Upper seed ${upperSeed} not resolved`);

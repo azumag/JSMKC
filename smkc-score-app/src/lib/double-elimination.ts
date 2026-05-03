@@ -377,7 +377,7 @@ function generate16PlayerBracket(): BracketMatch[] {
  * Generate the Pre-Bracket Playoff ("barrage") structure for 12 entrants.
  *
  * Resolves issue #454: Top 24 → Top 16. Qualification positions 13-24 enter
- * a single-elimination playoff whose 4 winners fill Upper-Bracket seeds 13-16.
+ * a single-elimination playoff whose 4 winners fill the Upper-Bracket barrage slots.
  * Top 4 playoff seeds (qualification 13-16) receive a Round 1 BYE.
  *
  * Structure (8 matches total):
@@ -385,14 +385,11 @@ function generate16PlayerBracket(): BracketMatch[] {
  *                               for the non-BYE seeds, maximally separating stronger seeds.
  *   R2 (playoff_r2, 4 matches): BYE seeds 1-4 each face one R1 winner. Winners advance.
  *
- * Upper-Bracket seed assignment mirrors 16-player bracket balance so the
- * strongest playoff survivor (faced the lowest BYE seed in R2) enters the
- * Upper Bracket opposite Upper-seed 1 — the toughest path — preserving the
- * competitive advantage of direct-advance qualifiers:
+ * Upper-Bracket seed assignment fills the paper-layout barrage slots:
  *   R2 match 5 (playoff seed 1) winner → Upper seed 16
- *   R2 match 6 (playoff seed 4) winner → Upper seed 13
+ *   R2 match 6 (playoff seed 4) winner → Upper seed 12
  *   R2 match 7 (playoff seed 3) winner → Upper seed 14
- *   R2 match 8 (playoff seed 2) winner → Upper seed 15
+ *   R2 match 8 (playoff seed 2) winner → Upper seed 10
  *
  * Cross-stage advancement (playoff_r2 winner → Upper Bracket slot) is handled
  * by the finals-route PUT handler, not by the generic getNextMatchInfo mechanism,
@@ -440,15 +437,12 @@ export function generatePlayoffStructure(entrantCount: number): BracketMatch[] {
 
   /* --- PLAYOFF ROUND 2 (Matches 5-8): BYE seeds meet R1 winners ---
    * Each R2 match is a "decider": winner advances to the Upper Bracket.
-   * advancesToUpperSeed specifies which of seeds 13-16 the winner claims.
-   *
-   * The assignment inverts the playoff seed → upper seed relationship so the
-   * strongest playoff survivor faces Upper #1: see function-level comment. */
+   * advancesToUpperSeed specifies which Upper-Bracket barrage slot the winner claims. */
   const byeSeedToUpperSeed: Array<{ byeSeed: number; upperSeed: number }> = [
     { byeSeed: 1, upperSeed: 16 },
-    { byeSeed: 4, upperSeed: 13 },
+    { byeSeed: 4, upperSeed: 12 },
     { byeSeed: 3, upperSeed: 14 },
-    { byeSeed: 2, upperSeed: 15 },
+    { byeSeed: 2, upperSeed: 10 },
   ];
   for (let i = 0; i < 4; i++) {
     matches.push({

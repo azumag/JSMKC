@@ -179,8 +179,30 @@ describe('Finals Route Factory', () => {
       ];
     };
 
-    // Default bracket structure with 17 matches
-    mockGenerateBracketStructure.mockReturnValue(createFullBracketStructure());
+    const create16PlayerBracketStructure = () => [
+      { matchNumber: 1, round: 'winners_r1', bracket: 'winners', player1Seed: 1, player2Seed: 16, winnerGoesTo: 9, loserGoesTo: 16 },
+      { matchNumber: 2, round: 'winners_r1', bracket: 'winners', player1Seed: 8, player2Seed: 9, winnerGoesTo: 9, loserGoesTo: 16 },
+      { matchNumber: 3, round: 'winners_r1', bracket: 'winners', player1Seed: 5, player2Seed: 12, winnerGoesTo: 10, loserGoesTo: 17 },
+      { matchNumber: 4, round: 'winners_r1', bracket: 'winners', player1Seed: 4, player2Seed: 13, winnerGoesTo: 10, loserGoesTo: 17 },
+      { matchNumber: 5, round: 'winners_r1', bracket: 'winners', player1Seed: 3, player2Seed: 14, winnerGoesTo: 11, loserGoesTo: 18 },
+      { matchNumber: 6, round: 'winners_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 11, loserGoesTo: 18 },
+      { matchNumber: 7, round: 'winners_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 12, loserGoesTo: 19 },
+      { matchNumber: 8, round: 'winners_r1', bracket: 'winners', player1Seed: 2, player2Seed: 15, winnerGoesTo: 12, loserGoesTo: 19 },
+      { matchNumber: 9, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 20 },
+      { matchNumber: 10, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 13, loserGoesTo: 21 },
+      { matchNumber: 11, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 22 },
+      { matchNumber: 12, round: 'winners_qf', bracket: 'winners', winnerGoesTo: 14, loserGoesTo: 23 },
+      ...Array.from({ length: 19 }, (_, i) => ({
+        matchNumber: i + 13,
+        round: i < 2 ? 'winners_sf' : i === 2 ? 'winners_final' : 'losers_r1',
+        bracket: i < 3 ? 'winners' : 'losers',
+      })),
+    ];
+
+    // Default bracket structure with 17 or 31 matches based on requested size.
+    mockGenerateBracketStructure.mockImplementation((count: number) =>
+      count === 16 ? create16PlayerBracketStructure() : createFullBracketStructure()
+    );
 
     // Default playoff structure (issue #454) — 8 matches, 4 R1 + 4 R2.
     // Mirrors real generatePlayoffStructure(12) so handleTop24Post tests
@@ -191,9 +213,9 @@ describe('Finals Route Factory', () => {
       { matchNumber: 3, round: 'playoff_r1', bracket: 'winners', player1Seed: 6, player2Seed: 11, winnerGoesTo: 7, position: 2 },
       { matchNumber: 4, round: 'playoff_r1', bracket: 'winners', player1Seed: 7, player2Seed: 10, winnerGoesTo: 8, position: 2 },
       { matchNumber: 5, round: 'playoff_r2', bracket: 'winners', player1Seed: 1, advancesToUpperSeed: 16 },
-      { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 4, advancesToUpperSeed: 13 },
+      { matchNumber: 6, round: 'playoff_r2', bracket: 'winners', player1Seed: 4, advancesToUpperSeed: 12 },
       { matchNumber: 7, round: 'playoff_r2', bracket: 'winners', player1Seed: 3, advancesToUpperSeed: 14 },
-      { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 2, advancesToUpperSeed: 15 },
+      { matchNumber: 8, round: 'playoff_r2', bracket: 'winners', player1Seed: 2, advancesToUpperSeed: 10 },
     ]);
 
     // Default paginated result
@@ -592,6 +614,72 @@ describe('Finals Route Factory', () => {
       expect(json.data.playoffSeededPlayers.length).toBeGreaterThan(0);
       expect(json.data.phase).toBe('playoff');
       expect(json.data.playoffComplete).toBe(true);
+    });
+
+    it('should preview Top-24 Upper Bracket using paper-layout barrage slots after reset', async () => {
+      const mockQualifications = ['A', 'B'].flatMap((group) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const rank = index + 1;
+          const playerId = `${group}${rank}`;
+          return {
+            id: `qual-${playerId}`,
+            playerId,
+            group,
+            score: 100 - rank,
+            points: 100 - rank,
+            player: { id: playerId, name: playerId },
+          };
+        })
+      );
+      (prisma.bMQualification as any).findMany.mockResolvedValue(mockQualifications);
+
+      const mockPlayoffMatches = [
+        ...Array.from({ length: 4 }, (_, i) => createMockMatch({
+          matchNumber: i + 1,
+          round: 'playoff_r1',
+          stage: 'playoff',
+          completed: true,
+        })),
+        createMockMatch({ matchNumber: 5, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'W16', player2Id: 'x', player1: { id: 'W16', name: 'W16' }, player2: { id: 'x' } }),
+        createMockMatch({ matchNumber: 6, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'W12', player2Id: 'x', player1: { id: 'W12', name: 'W12' }, player2: { id: 'x' } }),
+        createMockMatch({ matchNumber: 7, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'W14', player2Id: 'x', player1: { id: 'W14', name: 'W14' }, player2: { id: 'x' } }),
+        createMockMatch({ matchNumber: 8, round: 'playoff_r2', stage: 'playoff', completed: true, score1: 5, score2: 0, player1Id: 'W10', player2Id: 'x', player1: { id: 'W10', name: 'W10' }, player2: { id: 'x' } }),
+      ];
+
+      (prisma.bMMatch as any).findMany.mockImplementation((args: any) => {
+        if (args?.where?.stage === 'playoff') return Promise.resolve(mockPlayoffMatches);
+        return Promise.resolve([]);
+      });
+      (prisma.bMMatch as any).count.mockResolvedValue(0);
+
+      const config = createMockConfig({ getStyle: 'grouped' });
+      const { GET } = createFinalsHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000');
+      const response = await GET(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      const seedMap = new Map(
+        json.data.seededPlayers.map((p: { seed: number; playerId: string }) => [p.seed, p.playerId])
+      );
+      const winnersR1 = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
+      const pairLabels = winnersR1.map((m: { player1Seed: number; player2Seed: number }) => [
+        seedMap.get(m.player1Seed),
+        seedMap.get(m.player2Seed),
+      ]);
+      expect(pairLabels).toEqual([
+        ['A1', 'W16'],
+        ['B4', 'A5'],
+        ['B2', 'W12'],
+        ['A3', 'B6'],
+        ['B1', 'W14'],
+        ['A4', 'B5'],
+        ['A2', 'W10'],
+        ['B3', 'A6'],
+      ]);
     });
 
     it('should include playoff data in paginated GET response when playoff matches exist', async () => {
@@ -1091,9 +1179,9 @@ describe('Finals Route Factory', () => {
       /* All 4 playoff_r2 matches completed with player1 winning each time.
        * Expected Upper-seed mapping (R2 match → Upper seed):
        *   match 5 → Upper seed 16 (winner = B8/player-19)
-       *   match 6 → Upper seed 13 (winner = A7/player-6)
+       *   match 6 → Upper seed 12 (winner = A7/player-6)
        *   match 7 → Upper seed 14 (winner = A8/player-7)
-       *   match 8 → Upper seed 15 (winner = B7/player-18). */
+       *   match 8 → Upper seed 10 (winner = B7/player-18). */
       (prisma.bMQualification as any).findMany.mockResolvedValue(createMockQualifications(24));
       const playoffRows = [
         /* R1 rows — completed but irrelevant to seat assignment (R2 winners
@@ -1146,19 +1234,36 @@ describe('Finals Route Factory', () => {
       expect((prisma.bMMatch as any).deleteMany).toHaveBeenCalledWith({
         where: { tournamentId: 'tournament-123', stage: 'finals' },
       });
-      /* Verify seed 13-16 mapping: playoff R2 match → Upper-bracket seed. */
+      /* Verify barrage-slot mapping: playoff R2 match → Upper-bracket seed. */
       const seededPlayers: Array<{ seed: number; playerId: string }> = json.data.seededPlayers;
       const seedMap = new Map(seededPlayers.map(p => [p.seed, p.playerId]));
       expect(seedMap.get(16)).toBe('player-19'); /* From playoff R2 match 5 */
-      expect(seedMap.get(13)).toBe('player-6');  /* From playoff R2 match 6 */
+      expect(seedMap.get(12)).toBe('player-6');  /* From playoff R2 match 6 */
       expect(seedMap.get(14)).toBe('player-7');  /* From playoff R2 match 7 */
-      expect(seedMap.get(15)).toBe('player-18'); /* From playoff R2 match 8 */
-      /* Direct-advance qualifiers occupy seeds 1-12 using the fixed
+      expect(seedMap.get(10)).toBe('player-18'); /* From playoff R2 match 8 */
+      /* Direct-advance qualifiers occupy non-barrage seeds using the fixed
        * two-group paper layout. */
       expect(seedMap.get(1)).toBe('player-0');
-      expect(seedMap.get(2)).toBe('player-5');   /* A-rank-6 */
+      expect(seedMap.get(2)).toBe('player-14');  /* B-rank-3 */
       expect(seedMap.get(11)).toBe('player-16'); /* B-rank-5 */
-      expect(seedMap.get(12)).toBe('player-2');  /* A-rank-3 */
+      expect(seedMap.get(13)).toBe('player-17'); /* B-rank-6 */
+      expect(seedMap.get(15)).toBe('player-5');  /* A-rank-6 */
+
+      const structure = json.data.bracketStructure.filter((m: { round: string }) => m.round === 'winners_r1');
+      const pairLabels = structure.map((m: { player1Seed: number; player2Seed: number }) => [
+        seedMap.get(m.player1Seed),
+        seedMap.get(m.player2Seed),
+      ]);
+      expect(pairLabels).toEqual([
+        ['player-0', 'player-19'],  /* A1 vs barrage */
+        ['player-15', 'player-4'],  /* B4 vs A5 */
+        ['player-13', 'player-6'],  /* B2 vs barrage */
+        ['player-2', 'player-17'],  /* A3 vs B6 */
+        ['player-12', 'player-7'],  /* B1 vs barrage */
+        ['player-3', 'player-16'],  /* A4 vs B5 */
+        ['player-1', 'player-18'],  /* A2 vs barrage */
+        ['player-14', 'player-5'],  /* B3 vs A6 */
+      ]);
     });
   });
 
@@ -1337,11 +1442,11 @@ describe('Finals Route Factory', () => {
       // In 16-player bracket, QF losers enter L_R2 at position 2
       const requestBody = createMockRequestBody();
       const mockMatch = createMockMatch({
-        matchNumber: 1, // winners_qf in 16-player bracket
+        matchNumber: 9, // winners_qf in 16-player bracket
         player1Id: 'player-1',
         player2Id: 'player-2',
       });
-      const nextLoserMatch = createMockMatch({ matchNumber: 10 }); // L_R2 in 16-player
+      const nextLoserMatch = createMockMatch({ matchNumber: 20 }); // L_R2 in 16-player
 
       (prisma.bMMatch as any).count.mockResolvedValue(31); // 16-player bracket
       (prisma.bMMatch as any).findUnique.mockResolvedValue(mockMatch);

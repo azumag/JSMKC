@@ -177,10 +177,19 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
     return buckets[groupIndex].entries[rank - 1]?.playerId;
   };
 
-  const directTokensBySeed = [
-    'A1', 'A6', 'B1', 'B6',
-    'B2', 'A4', 'A2', 'B4',
-    'A5', 'B3', 'B5', 'A3',
+  const directTokensByUpperSeed = [
+    [1, 'A1'],
+    [2, 'B3'],
+    [3, 'B1'],
+    [4, 'A3'],
+    [5, 'B2'],
+    [6, 'A4'],
+    [7, 'A2'],
+    [8, 'B4'],
+    [9, 'A5'],
+    [11, 'B5'],
+    [13, 'B6'],
+    [15, 'A6'],
   ];
   const barrageTokensBySeed = [
     'B8', 'B7', 'A8', 'A7',
@@ -189,7 +198,11 @@ function expectedTwoGroupPaperSeedIds(qualifications) {
   ];
 
   return {
-    direct: directTokensBySeed.map(playerIdForToken),
+    direct: directTokensByUpperSeed.map(([, token]) => playerIdForToken(token)),
+    directSeeds: directTokensByUpperSeed.map(([seed, token]) => ({
+      seed,
+      playerId: playerIdForToken(token),
+    })),
     barrage: barrageTokensBySeed.map(playerIdForToken),
     barrageBlocks: [
       ['A9', 'B12', 'B8'],
@@ -875,9 +888,9 @@ async function runTc510(adminPage) {
     const r2WinnersByUpperSeed = new Map();
     const upperSeedByR2Match = new Map([
       [5, 16],
-      [6, 13],
+      [6, 12],
       [7, 14],
-      [8, 15],
+      [8, 10],
     ]);
     let playoffCompleteSignal = false;
     for (let mn = 5; mn <= 8; mn++) {
@@ -894,11 +907,11 @@ async function runTc510(adminPage) {
     const phase2Data = phase2.b?.data || {};
     state = await apiFetchBmFinalsState(adminPage, tournamentId);
     const seededPlayers = phase2Data.seededPlayers || [];
-    const directSeedOrderOk = expectedSeedIds.direct.every((playerId, index) => {
-      const seeded = seededPlayers.find((p) => p.seed === index + 1);
+    const directSeedOrderOk = expectedSeedIds.directSeeds.every(({ seed, playerId }) => {
+      const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === playerId;
     });
-    const playoffWinnersSeeded = [13, 14, 15, 16].every((seed) => {
+    const playoffWinnersSeeded = [10, 12, 14, 16].every((seed) => {
       const seeded = seededPlayers.find((p) => p.seed === seed);
       return seeded?.playerId === r2WinnersByUpperSeed.get(seed);
     });

@@ -548,7 +548,7 @@
     "grandFinalMatch": "Grand Final",
     "resetMatchLabel": "Reset (if needed)",
     "playoffTitle": "Playoff (Barrage)",
-    "playoffAdvanceDesc": "{round} winners advance to Upper Bracket seeds 13-16",
+    "playoffAdvanceDesc": "{round} winners advance to the Upper Bracket barrage slots",
     "upperSeedLabel": "→ Upper Seed {seed}",
     "cupLabel": "{name} Cup"
   },
