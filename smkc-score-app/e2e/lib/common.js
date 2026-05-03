@@ -2208,6 +2208,51 @@ async function assertQualificationPointsColumn(page, mode, tournamentId) {
   return column.values;
 }
 
+async function assertCombinedStandingsTab(page, mode, tournamentId) {
+  await nav(page, `/tournaments/${tournamentId}/${mode}`);
+  await page.locator('main').waitFor({ timeout: 15000 });
+
+  const tab = page.getByRole('tab', { name: /^(合算順位|Combined)$/ });
+  await tab.waitFor({ state: 'visible', timeout: 15000 });
+  await tab.click();
+
+  const content = page.locator('[role="tabpanel"][data-state="active"]').filter({
+    hasText: /合算順位|Combined/,
+  }).first();
+  await content.waitFor({ state: 'visible', timeout: 15000 });
+
+  const text = await content.innerText().catch(() => '');
+  if (!text || text.includes('Failed to fetch') || text.includes('エラーが発生しました')) {
+    throw new Error(`${mode.toUpperCase()} combined standings content failed to render`);
+  }
+
+  const table = content.locator('table').first();
+  await table.waitFor({ state: 'visible', timeout: 15000 });
+  const rows = table.locator('tbody tr');
+  const rowCount = await rows.count();
+  if (rowCount === 0) {
+    throw new Error(`${mode.toUpperCase()} combined standings table has no rows`);
+  }
+
+  const ranks = [];
+  for (let i = 0; i < rowCount; i++) {
+    const rankText = (await rows.nth(i).locator('td').first().innerText()).trim();
+    const rank = Number(rankText);
+    if (!Number.isInteger(rank) || rank < 1) {
+      throw new Error(`${mode.toUpperCase()} combined standings invalid rank "${rankText}" at row ${i + 1}`);
+    }
+    ranks.push(rank);
+  }
+
+  for (let i = 1; i < ranks.length; i++) {
+    if (ranks[i] < ranks[i - 1]) {
+      throw new Error(`${mode.toUpperCase()} combined standings ranks are not ascending: ${ranks.join(',')}`);
+    }
+  }
+
+  return ranks;
+}
+
 /** UI-driven BM qualification: group assignment + all match scores.
  *  `players` must be `{ id, name, nickname }[]`. Idempotent — safe to re-run
  *  because setupModePlayersViaUi clears selected players before re-adding. */
@@ -2565,6 +2610,7 @@ module.exports = {
   withRetry,
   matchUpdateUsesLeanPayload,
   assertQualificationPointsColumn,
+  assertCombinedStandingsTab,
   /* BM */
   apiSetupBmGroup,
   apiFetchBm,

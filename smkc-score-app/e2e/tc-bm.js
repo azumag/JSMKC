@@ -24,6 +24,7 @@
  *   TC-529  BM Top-24 playoff stage startingCourseNumber per-round (#728)
  *   TC-530  BM finals/playoff legacy null repair on GET (#728)
  *   TC-532  BM qualification standings show 0-1000 qualification points
+ *   TC-533  BM combined standings tab shows rows with ascending ranks
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
@@ -54,6 +55,7 @@ const {
   launchChromium,
   launchPersistentChromiumContext,
   assertQualificationPointsColumn,
+  assertCombinedStandingsTab,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -610,6 +612,24 @@ async function runTc503(adminPage) {
       : '');
   } catch (err) {
     log('TC-503', 'FAIL', err instanceof Error ? err.message : 'BM 503 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-533: BM combined standings tab ─────────
+ * Verifies the display-only cross-group ranking tab renders rows and keeps
+ * the rank column sorted ascending. */
+async function runTc533(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedBmFinalsSetup(adminPage);
+    const ranks = await assertCombinedStandingsTab(adminPage, 'bm', setup.tournamentId);
+    const ok = ranks.length >= 28;
+    log('TC-533', ok ? 'PASS' : 'FAIL',
+      ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
+  } catch (err) {
+    log('TC-533', 'FAIL', err instanceof Error ? err.message : 'BM 533 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -2113,6 +2133,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-512', fn: runTc512 },
       { name: 'TC-513', fn: runTc513 },
       { name: 'TC-503', fn: runTc503 },
+      { name: 'TC-533', fn: runTc533 },
       { name: 'TC-504', fn: runTc504 },
       { name: 'TC-510', fn: runTc510 },
       { name: 'TC-515', fn: runTc515 },
@@ -2138,7 +2159,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 
 module.exports = {
   runTc501, runTc502, runTc322, runTc503, runTc504, runTc505, runTc506, runTc511, runTc512, runTc513,
-  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531,
+  runTc507, runTc508, runTc509, runTc515, runTc516, runTc517, runTc519, runTc520, runTc521, runTc522, runTc523, runTc524, runTc525, runTc526, runTc528, runTc529, runTc530, runTc531, runTc533,
   getSuite,
   results,
   setSharedBmFinalsReady: (v) => { sharedBmFinalsReady = v; },
