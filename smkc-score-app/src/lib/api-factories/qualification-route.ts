@@ -55,11 +55,12 @@ function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
 }
 
 /**
- * Generate the qualification course deck for MR match assignment (§10.5).
+ * Generate the qualification course deck for MR round assignment (§10.5).
  *
  * The VSMR qualification rule is: shuffle the full MC1-RR course list four
- * separate times, concatenate those four orders, then assign matches from the
- * resulting sequence. Each match consumes 4 consecutive courses.
+ * separate times, concatenate those four orders, then assign each round from
+ * the resulting sequence. Every match in the same round consumes the same 4
+ * consecutive courses in the same order.
  *
  * @returns Array of 80 course abbreviations (4 shuffled full-course decks)
  */
@@ -82,17 +83,18 @@ function generateShuffledCupList(cupList: readonly string[]): string[] {
 }
 
 /**
- * Extract 4 consecutive courses from the shuffled list for a single match.
+ * Extract 4 consecutive courses from the shuffled list for a qualification round.
  * Uses modulo wrapping only after all four shuffled full-course decks are
  * consumed, so ordinary qualification schedules follow the four-deck rule.
  *
  * @param shuffled - The pre-shuffled qualification deck (80 items)
- * @param matchIndex - Zero-based index of the match in the overall sequence
+ * @param roundNumber - One-based round/day number in the round-robin schedule
  * @returns Array of TOTAL_MR_RACES (4) course abbreviations
  */
-function getAssignedCourses(shuffled: string[], matchIndex: number): string[] {
+function getAssignedCoursesForRound(shuffled: string[], roundNumber: number): string[] {
+  const roundIndex = Math.max(0, roundNumber - 1);
   return Array.from({ length: TOTAL_MR_RACES }, (_, i) =>
-    shuffled[(matchIndex * TOTAL_MR_RACES + i) % shuffled.length]
+    shuffled[(roundIndex * TOTAL_MR_RACES + i) % shuffled.length]
   );
 }
 
@@ -457,8 +459,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       /*
        * §10.5 course assignment: generate the VSMR qualification course deck
        * at setup time. The deck is four separately shuffled MC1-RR orders,
-       * then courses are assigned sequentially (4 per match) so each match has
-       * its own pre-determined course card.
+       * then courses are assigned sequentially by round (4 per round). Every
+       * real match in the same round shares the same pre-determined course card.
        * Only applies when config.assignCoursesRandomly is true (MR only).
        */
       const shuffledCourses = config.assignCoursesRandomly ? generateShuffledCourseList() : null;
@@ -478,8 +480,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       const shuffledCups = config.assignCupRandomly && config.cupList
         ? generateShuffledCupList(config.cupList)
         : null;
-      // matchSequenceIndex tracks the overall match number across all groups
-      // for consistent sequential course assignment from the shared list.
+      // matchSequenceIndex tracks the overall real-match number across all groups
+      // for consistent GP cup assignment from the shared list.
       let matchSequenceIndex = 0;
       /*
        * Track players who receive BYE matches so their qualification stats
@@ -525,15 +527,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
           const p2Id = m.isBye ? BREAK_PLAYER_ID : m.player2Id;
 
           /*
-           * §10.5: Assign 4 pre-determined courses to this match from the shuffled list.
+           * §10.5: Assign 4 pre-determined courses to this round from the shuffled list.
            * BYE matches are auto-completed immediately (§10.2) and don't actually play
            * the courses, so skip assignment for BYE matches.
            */
           const isRealMatch = !m.isBye;
-          // MR: random per-match course draw from the shuffled list
+          // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
           const assignedCourses = shuffledCourses && isRealMatch
-            ? getAssignedCourses(shuffledCourses, matchSequenceIndex)
+            ? getAssignedCoursesForRound(shuffledCourses, m.day)
             : fixedCourses && isRealMatch
               ? fixedCourses
               : undefined;
