@@ -60,6 +60,71 @@ function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unkno
   };
 }
 
+type PhaseEntryForDisplay = {
+  playerId: string;
+  eliminated: boolean;
+  lives: number;
+  rank: number | null;
+  totalTime: number | null;
+};
+
+type PhaseRoundForDisplay = {
+  roundNumber: number;
+  results: Array<{ playerId: string; timeMs: number }>;
+  eliminatedIds: string[];
+};
+
+function compareNullableNumber(a: number | null, b: number | null) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
+}
+
+function sortPhaseEntriesForDisplay<T extends PhaseEntryForDisplay>(
+  entries: T[],
+  rounds: PhaseRoundForDisplay[]
+): T[] {
+  const eliminationMeta = new Map<string, { roundNumber: number; timeMs: number; index: number }>();
+
+  for (const round of rounds) {
+    const timeByPlayer = new Map(round.results.map((result) => [result.playerId, result.timeMs]));
+    round.eliminatedIds.forEach((playerId, index) => {
+      eliminationMeta.set(playerId, {
+        roundNumber: round.roundNumber,
+        timeMs: timeByPlayer.get(playerId) ?? Number.POSITIVE_INFINITY,
+        index,
+      });
+    });
+  }
+
+  return [...entries].sort((a, b) => {
+    if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+
+    if (!a.eliminated && !b.eliminated) {
+      if (a.lives !== b.lives) return b.lives - a.lives;
+      const rankCompare = compareNullableNumber(a.rank, b.rank);
+      if (rankCompare !== 0) return rankCompare;
+      return compareNullableNumber(a.totalTime, b.totalTime);
+    }
+
+    const aMeta = eliminationMeta.get(a.playerId);
+    const bMeta = eliminationMeta.get(b.playerId);
+    const aRound = aMeta?.roundNumber ?? -1;
+    const bRound = bMeta?.roundNumber ?? -1;
+    if (aRound !== bRound) return bRound - aRound;
+    if ((aMeta?.timeMs ?? Number.POSITIVE_INFINITY) !== (bMeta?.timeMs ?? Number.POSITIVE_INFINITY)) {
+      return (aMeta?.timeMs ?? Number.POSITIVE_INFINITY) - (bMeta?.timeMs ?? Number.POSITIVE_INFINITY);
+    }
+    if ((aMeta?.index ?? Number.POSITIVE_INFINITY) !== (bMeta?.index ?? Number.POSITIVE_INFINITY)) {
+      return (aMeta?.index ?? Number.POSITIVE_INFINITY) - (bMeta?.index ?? Number.POSITIVE_INFINITY);
+    }
+    const rankCompare = compareNullableNumber(a.rank, b.rank);
+    if (rankCompare !== 0) return rankCompare;
+    return compareNullableNumber(a.totalTime, b.totalTime);
+  });
+}
+
 /**
  * Admin authentication helper that returns the session.
  * Returns { error } if user is not authenticated or not admin.
@@ -274,8 +339,10 @@ export async function GET(
         },
       );
 
-      response.entries = entries;
-      response.rounds = rounds.map(normalizePhaseRound);
+      const normalizedRounds = rounds.map(normalizePhaseRound);
+
+      response.entries = sortPhaseEntriesForDisplay(entries, normalizedRounds);
+      response.rounds = normalizedRounds;
       response.availableCourses = getAvailableCourses(playedCourses);
       response.playedCourses = playedCourses;
     }
