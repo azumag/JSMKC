@@ -27,6 +27,10 @@ describe('finals-target-wins', () => {
   it('returns GP target wins for playoff and finals rounds', () => {
     expect(getGpFinalsTargetWins({ stage: 'playoff', round: 'playoff_r1' })).toBe(1);
     expect(getGpFinalsTargetWins({ round: 'winners_r1' })).toBe(2);
+    expect(getGpFinalsTargetWins({ round: 'winners_qf' })).toBe(2);
+    expect(getGpFinalsTargetWins({ round: 'losers_r3' })).toBe(2);
+    expect(getGpFinalsTargetWins({ round: 'winners_sf' })).toBe(3);
+    expect(getGpFinalsTargetWins({ round: 'losers_sf' })).toBe(3);
     expect(getGpFinalsTargetWins({ round: 'grand_final' })).toBe(3);
   });
 

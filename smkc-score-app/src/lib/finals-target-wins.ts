@@ -23,6 +23,10 @@ function isFinalRound(round?: string | null): boolean {
     || round === 'grand_final_reset';
 }
 
+function isGpTopFourRound(round?: string | null): boolean {
+  return round === 'winners_sf' || isFinalRound(round);
+}
+
 export function getBmFinalsTargetWins(context?: FinalsTargetContext): number {
   if (context?.stage === 'playoff') {
     return context.round === 'playoff_r2' ? 4 : 3;
@@ -56,7 +60,7 @@ export function getGpFinalsTargetWins(context?: FinalsTargetContext): number {
   if (context?.stage === 'playoff') {
     return 1;
   }
-  if (isFinalRound(context?.round)) {
+  if (isGpTopFourRound(context?.round)) {
     return 3;
   }
   return 2;
