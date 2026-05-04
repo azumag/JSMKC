@@ -216,30 +216,18 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-    /**
-     * Cup-per-round normalizer: when legacy playoff rows have divergent cups
-     * within a single round (e.g. M1=Flower, M2=Star, M3/M4=null — possible
-     * from PR #583's old client-side random fallback), GET must converge
-     * them to one canonical cup per round via updateMany. Regression guard
-     * for PR #585: make sure every match in the same round shares one cup.
-     */
-    it('should force every playoff match in a round to the same cup', async () => {
+    it('should backfill per-match assigned cup sequences for legacy playoff rows', async () => {
       const mixedRoundMatches = [
         { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
         { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star',   player1: {}, player2: {} },
         { id: 'pm3', matchNumber: 3, round: 'playoff_r1', cup: null,     player1: {}, player2: {} },
         { id: 'pm4', matchNumber: 4, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
       ];
-      /* 1st findMany: playoff fetch (returns mixed state). The route now
-       * patches `playoffMatches` in memory using the canonical map returned
-       * by `normalizeRoundCupsToSingleCup`, so there is no second findMany
-       * for the same playoff rows.
-       * 2nd findMany: finals legacy-detection scan (empty — no finals rows). */
       (prisma.gPMatch.findMany as jest.Mock)
         .mockResolvedValueOnce(mixedRoundMatches)
         .mockResolvedValueOnce([]);
 
-      (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 3 });
+      (prisma.gPMatch as any).update = jest.fn().mockResolvedValue({});
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -252,28 +240,18 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await GET(request, { params });
 
       expect(result.status).toBe(200);
-      /* updateMany called once per round that needed repair. 'Flower' is the
-       * dominant cup (2 occurrences) so it wins over Star (1) and null. The
-       * NOT filter avoids touching rows that already match. */
-
-      const updateManyMock = (prisma.gPMatch as any).updateMany as jest.Mock;
-      expect(updateManyMock).toHaveBeenCalledWith({
-        where: {
-          tournamentId: 't1',
-          stage: 'playoff',
-          round: 'playoff_r1',
-          NOT: { cup: 'Flower' },
-        },
-        data: { cup: 'Flower' },
+      const updateMock = (prisma.gPMatch as any).update as jest.Mock;
+      expect(updateMock).toHaveBeenCalledTimes(4);
+      expect(updateMock).toHaveBeenCalledWith({
+        where: { id: 'pm1' },
+        data: { cup: 'Flower', assignedCups: ['Flower'] },
       });
+      expect(updateMock.mock.calls.map(([call]) => call.data.assignedCups)).toEqual(
+        expect.arrayContaining([['Flower'], ['Star']]),
+      );
     });
 
-    /**
-     * When a round has every match at cup=null, the normalizer still picks
-     * one cup for the whole round (from the shuffled CUPS list) and applies
-     * it to all four matches — guaranteeing M1=M2=M3=M4.
-     */
-    it('should assign one cup to an entirely null-cup round', async () => {
+    it('should assign one planned cup to each entirely null-cup playoff match', async () => {
       const nullRoundMatches = [1, 2, 3, 4].map((n) => ({
         id: `pm${n}`,
         matchNumber: n,
@@ -288,7 +266,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         .mockResolvedValueOnce(nullRoundMatches)
         .mockResolvedValueOnce([]);
 
-      (prisma.gPMatch as any).updateMany = jest.fn().mockResolvedValue({ count: 4 });
+      (prisma.gPMatch as any).update = jest.fn().mockResolvedValue({});
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -302,32 +280,29 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.status).toBe(200);
 
-      const updateManyMock = (prisma.gPMatch as any).updateMany as jest.Mock;
-      expect(updateManyMock).toHaveBeenCalledTimes(1);
-      const call = updateManyMock.mock.calls[0][0];
-      expect(call.where).toMatchObject({
-        tournamentId: 't1',
-        stage: 'playoff',
-        round: 'playoff_r1',
-      });
-      expect(call.where.NOT.cup).toEqual(call.data.cup);
-      expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(call.data.cup);
+      const updateMock = (prisma.gPMatch as any).update as jest.Mock;
+      expect(updateMock).toHaveBeenCalledTimes(4);
+      for (const [call] of updateMock.mock.calls) {
+        expect(call.data.assignedCups).toHaveLength(1);
+        expect(call.data.cup).toBe(call.data.assignedCups[0]);
+        expect(['Mushroom', 'Flower', 'Star', 'Special']).toContain(call.data.cup);
+      }
     });
 
     /**
      * Already-normalized tournaments must not trigger any writes. Prevents
      * polling from churning the DB on every GET.
      */
-    it('should not write when every round already has one cup', async () => {
+    it('should not write when every playoff match already has a valid assigned cup sequence', async () => {
       const normalized = [
-        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
-        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Flower', player1: {}, player2: {} },
+        { id: 'pm1', matchNumber: 1, round: 'playoff_r1', cup: 'Flower', assignedCups: ['Flower'], player1: {}, player2: {} },
+        { id: 'pm2', matchNumber: 2, round: 'playoff_r1', cup: 'Star', assignedCups: ['Star'], player1: {}, player2: {} },
       ];
       (prisma.gPMatch.findMany as jest.Mock)
         .mockResolvedValueOnce(normalized)
         .mockResolvedValueOnce([]);
 
-      (prisma.gPMatch as any).updateMany = jest.fn();
+      (prisma.gPMatch as any).update = jest.fn();
 
       (paginate as jest.Mock).mockResolvedValue({
         data: [],
@@ -340,7 +315,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       await GET(request, { params });
 
 
-      expect((prisma.gPMatch as any).updateMany).not.toHaveBeenCalled();
+      expect((prisma.gPMatch as any).update).not.toHaveBeenCalled();
     });
   });
 
@@ -414,62 +389,51 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect((prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data).toHaveLength(mockBracket.length);
     });
 
-    it('should build GP finals cups from 2 shuffled full-cup decks', async () => {
-      const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
-      try {
-        const randomValues = [
-          ...Array(3).fill(0),
-          ...Array(3).fill(0.999999),
-        ];
-        randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
+    it('should build GP finals assigned cup sequences without repeats before FT3 cup 5', async () => {
+      const mockQualifications = Array.from({ length: 8 }, (_, index) => ({
+        id: `q${index + 1}`,
+        playerId: `p${index + 1}`,
+        score: 8 - index,
+        points: (8 - index) * 5,
+        player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
+      }));
+      const mockBracket = [
+        'winners_r1',
+        'winners_qf',
+        'winners_sf',
+        'winners_final',
+        'losers_r1',
+        'losers_r2',
+        'losers_r3',
+        'grand_final',
+      ].map((round, index) => ({
+        matchNumber: index + 1,
+        round,
+        player1Seed: 1,
+        player2Seed: 2,
+      }));
 
-        const mockQualifications = Array.from({ length: 8 }, (_, index) => ({
-          id: `q${index + 1}`,
-          playerId: `p${index + 1}`,
-          score: 8 - index,
-          points: (8 - index) * 5,
-          player: { id: `p${index + 1}`, name: `Player ${index + 1}` },
-        }));
-        const mockBracket = [
-          'winners_r1',
-          'winners_qf',
-          'winners_sf',
-          'winners_final',
-          'losers_r1',
-          'losers_r2',
-          'losers_r3',
-          'grand_final',
-        ].map((round, index) => ({
-          matchNumber: index + 1,
-          round,
-          player1Seed: 1,
-          player2Seed: 2,
-        }));
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.gPMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
+      (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
+      (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: mockBracket.length });
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
 
-        (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
-        (prisma.gPMatch.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
-        (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
-        (prisma.gPMatch.createMany as jest.Mock).mockResolvedValue({ count: mockBracket.length });
-        (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
+      const params = Promise.resolve({ id: 't1' });
+      const result = await POST(request, { params });
 
-        const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { topN: 8 });
-        const params = Promise.resolve({ id: 't1' });
-        const result = await POST(request, { params });
+      expect(result.status).toBe(201);
+      const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
+      const ft2Match = createManyData.find((match) => match.round === 'winners_r1')!;
+      const ft3Match = createManyData.find((match) => match.round === 'grand_final')!;
 
-        expect(result.status).toBe(201);
-        const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
-        const assignedCups = createManyData.map((match) => match.cup);
-        const firstDeck = assignedCups.slice(0, 4);
-        const secondDeck = assignedCups.slice(4, 8);
-
-        expect(firstDeck).toHaveLength(4);
-        expect(secondDeck).toHaveLength(4);
-        expect([...firstDeck].sort()).toEqual(['Flower', 'Mushroom', 'Special', 'Star']);
-        expect([...secondDeck].sort()).toEqual(['Flower', 'Mushroom', 'Special', 'Star']);
-        expect(secondDeck).not.toEqual(firstDeck);
-      } finally {
-        randomSpy.mockRestore();
-      }
+      expect(ft2Match.assignedCups).toHaveLength(3);
+      expect(new Set(ft2Match.assignedCups as string[]).size).toBe(3);
+      expect(ft2Match.cup).toBe((ft2Match.assignedCups as string[])[0]);
+      expect(ft3Match.assignedCups).toHaveLength(5);
+      expect(new Set((ft3Match.assignedCups as string[]).slice(0, 4)).size).toBe(4);
+      expect(ft3Match.cup).toBe((ft3Match.assignedCups as string[])[0]);
     });
 
     // Validation error case - Returns 400 when topN is not 8
@@ -538,7 +502,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.status).toBe(201);
     });
 
-    it('should assign the same cup to every playoff match in a round', async () => {
+    it('should assign a one-cup sequence to every playoff match', async () => {
       const mockQualifications = Array.from({ length: 24 }, (_, index) => ({
         id: `q${index + 1}`,
         playerId: `p${index + 1}`,
@@ -570,8 +534,11 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
 
       expect(result.status).toBe(201);
       const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
-      expect(createManyData[0].cup).toBe(createManyData[1].cup);
-      expect(createManyData[0].cup).not.toBe(createManyData[2].cup);
+      expect(createManyData).toHaveLength(3);
+      for (const match of createManyData) {
+        expect(match.assignedCups).toHaveLength(1);
+        expect(match.cup).toBe((match.assignedCups as string[])[0]);
+      }
     });
   });
 

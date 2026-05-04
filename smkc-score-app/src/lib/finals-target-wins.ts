@@ -62,6 +62,10 @@ export function getGpFinalsTargetWins(context?: FinalsTargetContext): number {
   return 2;
 }
 
+export function getGpFinalsMaxCups(context?: FinalsTargetContext): number {
+  return getGpFinalsTargetWins(context) * 2 - 1;
+}
+
 export function getMrFinalsMaxRounds(context?: FinalsTargetContext): number {
   return getMrFinalsTargetWins(context) * 2 - 1;
 }

@@ -1,4 +1,4 @@
-import { isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
+import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 
 describe("GP finals score form helpers", () => {
   it("keeps the first cup form non-removable", () => {
@@ -29,5 +29,19 @@ describe("GP finals score form helpers", () => {
 
   it("ignores out-of-range indexes", () => {
     expect(removeCupFormAt(["Mushroom"], 2)).toEqual(["Mushroom"]);
+  });
+
+  it("uses the assigned GP finals cup sequence before falling back", () => {
+    const fallbackCups = ["Mushroom", "Flower", "Star", "Special"];
+
+    expect(getCupForFormIndex(0, ["Flower", "Special", "Mushroom"], fallbackCups, "Flower")).toBe("Flower");
+    expect(getCupForFormIndex(1, ["Flower", "Special", "Mushroom"], fallbackCups, "Flower")).toBe("Special");
+    expect(getCupForFormIndex(2, ["Flower", "Special", "Mushroom"], fallbackCups, "Flower")).toBe("Mushroom");
+  });
+
+  it("avoids repeating assigned cups when it has to fall back", () => {
+    const fallbackCups = ["Mushroom", "Flower", "Star", "Special"];
+
+    expect(getCupForFormIndex(1, ["Flower"], fallbackCups, "Flower")).toBe("Mushroom");
   });
 });
