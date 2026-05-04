@@ -6,7 +6,8 @@
  * Match outcome is determined by total driver points across 5 races (1 cup = 5 courses).
  * Standings use accumulated total driver points as tiebreaker (not differential).
  * At qualification setup, the full cup list is shuffled 5 separate times,
- * concatenated, then assigned 1 cup per round in sequence.
+ * concatenated, then assigned 1 cup per round in sequence. Deck boundaries
+ * are adjusted so the same cup is not selected in consecutive rounds.
  * Unlike BM/MR, GP has no group-based ordering in qualifications.
  */
 
@@ -70,7 +71,7 @@ export const gpConfig: EventTypeConfig = {
   // Per requirements.md §4.1: GP uses driver points as primary ranking criterion
   qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
   // §7.4: Pre-assign a cup to each qualification round at setup time.
-  // Cups are shuffled 5 times and assigned sequentially (1 cup per round).
+  // Cups are shuffled 5 times and assigned sequentially without adjacent repeats.
   assignCupRandomly: true,
   cupList: CUPS,
   postRequiresAuth: true,

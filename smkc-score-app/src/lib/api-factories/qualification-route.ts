@@ -73,13 +73,29 @@ function generateShuffledCourseList(): string[] {
  *
  * The GP qualification rule is: shuffle the full cup list five separate
  * times, concatenate those five orders, then assign one cup per round from
- * the resulting sequence.
+ * the resulting sequence. If a deck boundary would repeat the previous
+ * round's cup, rotate the next shuffled deck so rounds never use the same
+ * cup consecutively.
  */
 function generateShuffledCupList(cupList: readonly string[]): string[] {
-  return Array.from(
-    { length: GP_QUALIFICATION_CUP_DECK_REPEATS },
-    () => fisherYatesShuffle(cupList),
-  ).flat();
+  const shuffled: string[] = [];
+
+  for (let i = 0; i < GP_QUALIFICATION_CUP_DECK_REPEATS; i++) {
+    let deck = fisherYatesShuffle(cupList);
+    const previousCup = shuffled[shuffled.length - 1];
+    if (previousCup && deck[0] === previousCup) {
+      const firstNonRepeatingIndex = deck.findIndex((cup) => cup !== previousCup);
+      if (firstNonRepeatingIndex > 0) {
+        deck = [
+          ...deck.slice(firstNonRepeatingIndex),
+          ...deck.slice(0, firstNonRepeatingIndex),
+        ];
+      }
+    }
+    shuffled.push(...deck);
+  }
+
+  return shuffled;
 }
 
 /**
@@ -486,7 +502,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * §7.4 cup assignment: generate the GP qualification cup deck at setup
        * time. The deck is five separately shuffled cup orders, then each
        * round gets one cup in sequence. Every real match with the same
-       * roundNumber shares that selected cup.
+       * roundNumber shares that selected cup, and adjacent rounds do not
+       * repeat the same cup.
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups = config.assignCupRandomly && config.cupList
