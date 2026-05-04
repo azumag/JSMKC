@@ -138,7 +138,7 @@ VSMR 決勝では、MC1 から RR までの 20 コースをランダムな順番
 | バラッジ | 先に 3 勝、後半は先に 4 勝 |
 | 決勝序盤 | 先に 5 勝 |
 | 中盤 | 先に 7 勝 |
-| Winners Final / Losers Final / Grand Final | 先に 9 勝 |
+| Losers Semi Final / Winners Final / Losers Final / Grand Final | 先に 9 勝 |
 
 画面上の入力欄に従って、必要な勝利数に達した結果を保存してください。
 
