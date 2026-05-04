@@ -105,6 +105,9 @@ describe('Overall Ranking module', () => {
     // The Phase-2 in-memory cache for calculateOverallRankings persists across
     // tests via module scope, so clear it here to keep each test independent.
     clearOverallRankingsCache();
+    mockPrisma.bMMatch.findMany.mockResolvedValue([]);
+    mockPrisma.mRMatch.findMany.mockResolvedValue([]);
+    mockPrisma.gPMatch.findMany.mockResolvedValue([]);
   });
 
   // =========================================================================
@@ -170,6 +173,9 @@ describe('Overall Ranking module', () => {
     });
 
     it('maps results by player ID', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([
+        { id: 'bm-real-1' },
+      ]);
       mockPrisma.bMQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 5, ties: 1, losses: 2, mp: 8, player: PLAYER_P1 },
       ]);
@@ -186,6 +192,9 @@ describe('Overall Ranking module', () => {
     });
 
     it('normalizes by each player actual match count instead of total participants', async () => {
+      mockPrisma.bMMatch.findMany.mockResolvedValueOnce([
+        { id: 'bm-real-1' },
+      ]);
       mockPrisma.bMQualification.findMany.mockResolvedValue([
         ...Array.from({ length: 12 }, (_, i) => ({
           playerId: `a${i + 1}`,
@@ -235,6 +244,9 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('calculateMRQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with MR data', async () => {
+      mockPrisma.mRMatch.findMany.mockResolvedValueOnce([
+        { id: 'mr-real-1' },
+      ]);
       mockPrisma.mRQualification.findMany.mockResolvedValue([
         { playerId: 'p2', wins: 3, ties: 0, losses: 4, mp: 7, player: PLAYER_P2 },
       ]);
@@ -257,6 +269,9 @@ describe('Overall Ranking module', () => {
   // =========================================================================
   describe('calculateGPQualificationPointsFromDB', () => {
     it('delegates to calculateQualificationPoints with GP data', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([
+        { id: 'gp-real-1' },
+      ]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 8, ties: 0, losses: 0, mp: 8, player: PLAYER_P1 },
       ]);
@@ -270,6 +285,30 @@ describe('Overall Ranking module', () => {
       );
 
       expect(result.get('p1')?.normalizedPoints).toBe(1000);
+    });
+
+    it('does not award GP qualification points when only BREAK matches are completed', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([]);
+      mockPrisma.gPQualification.findMany.mockResolvedValue([
+        { playerId: 'p1', wins: 1, ties: 0, losses: 0, mp: 1, points: 45, player: PLAYER_P1 },
+      ]);
+
+      const result = await calculateGPQualificationPointsFromDB(
+        mockPrisma as any,
+        TOURNAMENT_ID
+      );
+
+      expect(result.size).toBe(0);
+      expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          tournamentId: TOURNAMENT_ID,
+          stage: 'qualification',
+          completed: true,
+          isBye: false,
+        }),
+      }));
+      expect(mockPrisma.gPQualification.findMany).not.toHaveBeenCalled();
+      expect(getMockCalculateQualificationPointsFromMatches()).not.toHaveBeenCalled();
     });
   });
 
