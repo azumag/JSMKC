@@ -19,6 +19,7 @@ describe('finals-target-wins', () => {
     expect(getMrFinalsTargetWins({ stage: 'playoff', round: 'playoff_r2' })).toBe(4);
     expect(getMrFinalsTargetWins({ round: 'winners_r1' })).toBe(5);
     expect(getMrFinalsTargetWins({ round: 'winners_sf' })).toBe(7);
+    expect(getMrFinalsTargetWins({ round: 'losers_sf' })).toBe(9);
     expect(getMrFinalsTargetWins({ round: 'grand_final' })).toBe(9);
     expect(getMrFinalsTargetWins({ round: 'grand_final_reset' })).toBe(9);
   });
@@ -33,6 +34,7 @@ describe('finals-target-wins', () => {
     expect(getMrFinalsMaxRounds({ stage: 'playoff', round: 'playoff_r1' })).toBe(5);
     expect(getMrFinalsMaxRounds({ stage: 'playoff', round: 'playoff_r2' })).toBe(7);
     expect(getMrFinalsMaxRounds({ round: 'winners_sf' })).toBe(13);
+    expect(getMrFinalsMaxRounds({ round: 'losers_sf' })).toBe(17);
     expect(getMrFinalsMaxRounds({ round: 'grand_final' })).toBe(17);
   });
 });

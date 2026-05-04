@@ -12,11 +12,12 @@ function isEarlyLowerRound(round?: string | null): boolean {
 }
 
 function isMidLowerRound(round?: string | null): boolean {
-  return round === 'losers_r3' || round === 'losers_r4' || round === 'losers_sf';
+  return round === 'losers_r3' || round === 'losers_r4';
 }
 
 function isFinalRound(round?: string | null): boolean {
   return round === 'winners_final'
+    || round === 'losers_sf'
     || round === 'losers_final'
     || round === 'grand_final'
     || round === 'grand_final_reset';
