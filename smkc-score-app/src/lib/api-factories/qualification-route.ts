@@ -72,7 +72,7 @@ function generateShuffledCourseList(): string[] {
  * Generate the qualification cup deck for GP match assignment (§7.4).
  *
  * The GP qualification rule is: shuffle the full cup list five separate
- * times, concatenate those five orders, then assign one cup per match from
+ * times, concatenate those five orders, then assign one cup per round from
  * the resulting sequence.
  */
 function generateShuffledCupList(cupList: readonly string[]): string[] {
@@ -96,6 +96,17 @@ function getAssignedCoursesForRound(shuffled: string[], roundNumber: number): st
   return Array.from({ length: TOTAL_MR_RACES }, (_, i) =>
     shuffled[(roundIndex * TOTAL_MR_RACES + i) % shuffled.length]
   );
+}
+
+/**
+ * Select the pre-assigned GP qualification cup for a round.
+ *
+ * `roundNumber` starts at 1 in the round-robin generator, so round 1 consumes
+ * deck item 0. All groups and matches with the same round number therefore
+ * share the same selected cup.
+ */
+function getAssignedCupForRound(shuffled: string[], roundNumber: number): string {
+  return shuffled[(roundNumber - 1) % shuffled.length];
 }
 
 function createCuidLikeId(): string {
@@ -474,7 +485,8 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       /*
        * §7.4 cup assignment: generate the GP qualification cup deck at setup
        * time. The deck is five separately shuffled cup orders, then each
-       * match gets one cup in sequence.
+       * round gets one cup in sequence. Every real match with the same
+       * roundNumber shares that selected cup.
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups = config.assignCupRandomly && config.cupList
@@ -540,9 +552,9 @@ export function createQualificationHandlers(config: EventTypeConfig) {
               ? fixedCourses
               : undefined;
 
-          /* §7.4: Pick a cup from the shuffled list for this match (GP only) */
+          /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
           const assignedCup = shuffledCups && isRealMatch
-            ? shuffledCups[matchSequenceIndex % shuffledCups.length]
+            ? getAssignedCupForRound(shuffledCups, m.day)
             : undefined;
 
           matchData.push({

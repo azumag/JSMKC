@@ -956,10 +956,63 @@ describe('Qualification Route Factory', () => {
       expect(cupList).toContain(createCall[0].data[0].cup);
     });
 
-    it('should assign unique cups while consuming the first GP qualification deck', async () => {
+    it('should assign the same GP cup to all real matches in the same round', async () => {
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+        { playerId: 'player-3', group: 'A', seeding: 3 },
+        { playerId: 'player-4', group: 'A', seeding: 4 },
+      ];
+
+      const cupList = ['Mushroom', 'Flower', 'Star', 'Special'] as const;
+
+      (prisma.gPQualification as any) = {
+        createMany: jest.fn().mockResolvedValue({ count: 4 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (prisma.gPMatch as any) = {
+        createMany: jest.fn().mockResolvedValue({ count: 6 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const config = createMockConfig({
+        eventTypeCode: 'gp',
+        matchModel: 'gPMatch',
+        qualificationModel: 'gPQualification',
+        assignCupRandomly: true,
+        cupList,
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
+
+      const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
+      const matchesByRound = new Map<number, string[]>();
+      for (const match of createCall[0].data.filter((m: any) => !m.isBye)) {
+        const cups = matchesByRound.get(match.roundNumber) ?? [];
+        cups.push(match.cup);
+        matchesByRound.set(match.roundNumber, cups);
+      }
+
+      expect(matchesByRound.size).toBe(3);
+      for (const cups of matchesByRound.values()) {
+        expect(cups).toHaveLength(2);
+        expect(new Set(cups).size).toBe(1);
+        expect(cupList).toContain(cups[0]);
+      }
+    });
+
+    it('should assign unique cups while consuming the first GP qualification round deck', async () => {
       /*
        * With 3 players in one group (odd → BREAK added → 4 participants → 6 matches),
-       * there are 3 real matches. They should consume the first shuffled cup
+       * there are 3 real rounds. They should consume the first shuffled cup
        * deck without repeating before all 4 cups are used.
        */
       const players = [
@@ -1011,12 +1064,12 @@ describe('Qualification Route Factory', () => {
       realMatchCups.forEach((cup: string) => {
         expect(cupList).toContain(cup);
       });
-      // With 3 real matches drawn from 4 shuffled cups, all should be unique.
+      // With 3 real rounds drawn from 4 shuffled cups, all should be unique.
       const uniqueCups = new Set(realMatchCups);
       expect(uniqueCups.size).toBe(realMatchCups.length);
     });
 
-    it('should build GP qualification cups from 5 shuffled full-cup decks', async () => {
+    it('should build GP qualification round cups from 5 shuffled full-cup decks', async () => {
       const randomSpy = jest.spyOn(Math, 'random').mockImplementation(() => 0.5);
       try {
         const randomValues = [
@@ -1028,16 +1081,16 @@ describe('Qualification Route Factory', () => {
         ];
         randomSpy.mockImplementation(() => randomValues.shift() ?? 0.5);
 
-        const players = Array.from({ length: 8 }, (_, i) => ({
+        const players = Array.from({ length: 42 }, (_, i) => ({
           playerId: `player-${i + 1}`,
           group: 'A',
           seeding: i + 1,
         }));
 
-        (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 8 });
+        (prisma.gPQualification as any).createMany.mockResolvedValue({ count: 42 });
         (prisma.gPQualification as any).findMany.mockResolvedValue([]);
         (prisma.gPMatch as any).findMany.mockResolvedValue([]);
-        (prisma as any).$executeRawUnsafe.mockResolvedValue(28);
+        (prisma as any).$executeRawUnsafe.mockResolvedValue(861);
 
         const config = createMockConfig({
           eventTypeCode: 'gp',
@@ -1055,10 +1108,22 @@ describe('Qualification Route Factory', () => {
         await POST(request, { params: Promise.resolve({ id: 'tournament-123' }) });
 
         const payload = JSON.parse((prisma as any).$executeRawUnsafe.mock.calls[0][1]);
-        const assignedCups = payload.map((row: any) => row.cup).filter(Boolean);
-        const firstDeck = assignedCups.slice(0, CUPS.length);
-        const secondDeck = assignedCups.slice(CUPS.length, CUPS.length * 2);
-        const fifthDeck = assignedCups.slice(CUPS.length * 4, CUPS.length * 5);
+        const roundCupMap = new Map<number, string>();
+        for (const row of payload.filter((r: any) => !r.isBye && r.cup)) {
+          const existing = roundCupMap.get(row.roundNumber);
+          if (existing) {
+            expect(row.cup).toBe(existing);
+          } else {
+            roundCupMap.set(row.roundNumber, row.cup);
+          }
+        }
+
+        const assignedRoundCups = Array.from(roundCupMap.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([, cup]) => cup);
+        const firstDeck = assignedRoundCups.slice(0, CUPS.length);
+        const secondDeck = assignedRoundCups.slice(CUPS.length, CUPS.length * 2);
+        const fifthDeck = assignedRoundCups.slice(CUPS.length * 4, CUPS.length * 5);
 
         expect(firstDeck).toHaveLength(CUPS.length);
         expect(secondDeck).toHaveLength(CUPS.length);
