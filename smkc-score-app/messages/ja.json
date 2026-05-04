@@ -448,6 +448,8 @@
     "p1Position": "P1 順位",
     "p2Position": "P2 順位",
     "driverPoints": "ドライバーズポイント: 1位 = 9pts, 2位 = 6pts, 3位 = 3pts, 4位 = 1pt, 5位〜8位 = 0pt",
+    "driverPointsEntry": "ドライバーズポイント入力",
+    "driverPointsValidation": "ドライバーズポイントは 0〜45 の整数で入力してください。",
     "enterMatchResult": "試合結果入力",
     "manualTotalScore": "合計ポイントを手動修正",
     "manualTotalScoreDesc": "カップ終了後に合計点だけを修正したい場合はこちらを使用します。",

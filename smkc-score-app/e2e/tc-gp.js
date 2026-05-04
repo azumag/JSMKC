@@ -3,7 +3,7 @@
  *
  * Coverage:
  *   TC-701  28-player full qualification (shared fixture, verify standings/matches)
- *   TC-702  GP player login + participant 5-race submission (2 players)
+ *   TC-702  GP player login + participant driver-points submission (2 players)
  *   TC-703  28-player full + finals bracket gen + first race score (routing)
  *   TC-704  GP finals bracket reset
  *   TC-705  GP Grand Final → champion
@@ -182,7 +182,7 @@ async function runTc702(adminPage) {
 
     const ctx = await loginSharedPlayer(adminPage, p1);
     playerBrowser = ctx.browser;
-    /* Submit 5 race positions via API from the player browser session. */
+    /* Submit driver-point totals via API from the player browser session. */
     const reportRes = await ctx.page.evaluate(async ([u, body]) => {
       const r = await fetch(u, {
         method: 'POST',
@@ -192,7 +192,7 @@ async function runTc702(adminPage) {
       return { s: r.status, b: await r.json().catch(() => ({})) };
     }, [
       `/api/tournaments/${tournamentId}/gp/match/${match.id}/report`,
-      { reportingPlayer: 1, races: makeRacesP1Wins(match.cup) },
+      { reportingPlayer: 1, points1: 45, points2: 0 },
     ]);
 
     /* dualReportEnabled=false → autoConfirmed on first report. */
@@ -201,7 +201,7 @@ async function runTc702(adminPage) {
 
     const after = await apiFetchGp(adminPage, tournamentId);
     const updated = (after.matches || []).find((m) => m.id === match.id);
-    /* P1 wins all 5 races at 1st = 45 points, P2 at 5th = 0 points. */
+    /* P1/P2 driver-point totals are persisted directly. */
     const persisted = updated?.completed === true && updated.points1 === 45 && updated.points2 === 0;
 
     log('TC-702', confirmed && persisted ? 'PASS' : 'FAIL',

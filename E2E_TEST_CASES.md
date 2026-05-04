@@ -336,11 +336,11 @@
   1. 管理者セッションで一時トーナメントと対戦用プレイヤーを作成する
   2. 一時トーナメントで GP 予選をセットアップし、対象プレイヤーに pending match を作る
   3. 別の一時ブラウザコンテキストで対象プレイヤーとしてログインする
-  4. `/gp/participant` を開き、カップ割当済みの5コースが自動表示されていることを確認する
-  5. 各レースの順位を入力して送信する（コース選択は不要 — 自動入力済み）
+  4. `/gp/participant` を開き、ドライバーズポイントの合計入力欄が表示されていることを確認する
+  5. 両プレイヤーのドライバーズポイント合計を入力して送信する
   6. participant ページで pending match が消えることと、管理者 API 側で match が `completed` になり合計点が保存されていることを確認する
   7. 一時トーナメントと一時プレイヤーを削除する
-- **期待結果**: GP の participant 入力フォームでコースが自動入力され、順位のみ入力でスコア送信・永続化される
+- **期待結果**: GP の participant 入力フォームでコースごとのリザルトなしにドライバーズポイント合計を送信・永続化できる
 
 ## TC-312: TA ノックアウト開始後はプレイヤーが予選タイムを編集できない
 - **URL**: /auth/signin -> /tournaments/[temp-id]/ta/participant
@@ -1543,18 +1543,18 @@
   6. クリーンアップ
 - **期待結果**: 28名4グループのGP予選がシード・自動振り分け・driver points換算で正しく集計される
 
-## TC-702: GPプレイヤーログインから 5-race 送信
+## TC-702: GPプレイヤーログインからドライバーズポイント合計送信
 - **URL**: /auth/signin -> /tournaments/[temp-id]/gp/participant
 - **authRequired**: true (player)
 - **手順**:
   1. 管理者セッションで一時トーナメントとプレイヤー2名を作成（`dualReportEnabled=false`）
   2. GP予選グループ設定で2名のpendingマッチを生成（カップ自動割当付き）
   3. 別の一時ブラウザでP1としてログインし `/api/.../gp/match/:id/report` に
-     `{ reportingPlayer: 1, races: [...5 entries with position1=1, position2=5...] }` を POST
+     `{ reportingPlayer: 1, points1: 45, points2: 0 }` を POST
   4. レスポンスに `autoConfirmed: true` が含まれること（`dualReportEnabled=false` のため即時確定）
   5. 管理者APIでマッチが completed、`points1=45, points2=0` で保存されていること
   6. クリーンアップ
-- **期待結果**: GP participant 入力で5レース順位送信→driver points換算→永続化が動作
+- **期待結果**: GP participant 入力でdriver points合計送信→永続化が動作
 
 ## TC-703: GP予選28名フル + 決勝ブラケット生成・1試合スコア入力
 - **URL**: /tournaments/[temp-id]/gp/finals
