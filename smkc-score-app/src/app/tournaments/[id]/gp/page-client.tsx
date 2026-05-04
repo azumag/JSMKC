@@ -87,6 +87,7 @@ import {
   canResetFinalsFromQualification,
 } from "@/lib/finals-action-availability";
 import { calculateMaxMatchPoints, normalizePoints } from "@/lib/points/qualification-points";
+import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
 import type { Player } from "@/lib/types";
 
@@ -1230,10 +1231,7 @@ export default function GrandPrixPageClient({
                     <Label htmlFor="manual-points1">{selectedMatch.player1.nickname}</Label>
                     <Input
                       id="manual-points1"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
+                      {...GP_DRIVER_POINTS_INPUT_PROPS}
                       value={manualPoints1}
                       onChange={(e) => setManualPoints1(e.target.value)}
                     />
@@ -1242,10 +1240,7 @@ export default function GrandPrixPageClient({
                     <Label htmlFor="manual-points2">{selectedMatch.player2.nickname}</Label>
                     <Input
                       id="manual-points2"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
+                      {...GP_DRIVER_POINTS_INPUT_PROPS}
                       value={manualPoints2}
                       onChange={(e) => setManualPoints2(e.target.value)}
                     />

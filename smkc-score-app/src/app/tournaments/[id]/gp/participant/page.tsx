@@ -14,6 +14,7 @@ import { Star } from "lucide-react";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
 import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
+import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
 /** GP Match extends BaseMatch with GP-specific fields */
 interface GPMatch extends BaseMatch {
@@ -133,9 +134,7 @@ export default function GrandPrixParticipantPage({
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{match.player1.nickname}</p>
                 <Input
-                  inputMode="numeric"
-                  min={0}
-                  max={MAX_GP_DRIVER_POINTS}
+                  {...GP_DRIVER_POINTS_INPUT_PROPS}
                   value={points.points1}
                   onChange={(event) => updatePointsInput(match.id, "points1", event.target.value)}
                   placeholder="0"
@@ -144,9 +143,7 @@ export default function GrandPrixParticipantPage({
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">{match.player2.nickname}</p>
                 <Input
-                  inputMode="numeric"
-                  min={0}
-                  max={MAX_GP_DRIVER_POINTS}
+                  {...GP_DRIVER_POINTS_INPUT_PROPS}
                   value={points.points2}
                   onChange={(event) => updatePointsInput(match.id, "points2", event.target.value)}
                   placeholder="0"

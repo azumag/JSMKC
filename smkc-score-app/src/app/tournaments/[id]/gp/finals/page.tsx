@@ -84,6 +84,7 @@ import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
 import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
+import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -970,10 +971,7 @@ export default function GrandPrixFinals({
                           <Label>{selectedMatch.player1.nickname}</Label>
                           <Input
                             data-testid={`gp-finals-cup-${cupIndex}-manual-p1`}
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
+                            {...GP_DRIVER_POINTS_INPUT_PROPS}
                             value={cup.manualPoints1}
                             onChange={(e) => {
                               const next = [...cupForms];
@@ -986,10 +984,7 @@ export default function GrandPrixFinals({
                           <Label>{selectedMatch.player2.nickname}</Label>
                           <Input
                             data-testid={`gp-finals-cup-${cupIndex}-manual-p2`}
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
+                            {...GP_DRIVER_POINTS_INPUT_PROPS}
                             value={cup.manualPoints2}
                             onChange={(e) => {
                               const next = [...cupForms];
