@@ -124,6 +124,8 @@ interface QualificationEntry {
   mp?: number;
 }
 
+type MatchQualificationModel = "bMMatch" | "mRMatch" | "gPMatch";
+
 /**
  * Shape of a TTEntry record from the database, used for determining
  * TA finals positions based on elimination status and lives remaining.
@@ -245,6 +247,10 @@ export async function calculateBMQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<Map<string, QualificationPointsResult>> {
+  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "bMMatch")) {
+    return new Map();
+  }
+
   const qualifications = await prisma.bMQualification.findMany({
     where: { tournamentId },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -266,6 +272,10 @@ export async function calculateMRQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<Map<string, QualificationPointsResult>> {
+  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "mRMatch")) {
+    return new Map();
+  }
+
   const qualifications = await prisma.mRQualification.findMany({
     where: { tournamentId },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -287,6 +297,10 @@ export async function calculateGPQualificationPointsFromDB(
   prisma: ExtendedPrismaClient,
   tournamentId: string
 ): Promise<Map<string, QualificationPointsResult>> {
+  if (!await hasCompletedRealQualificationMatch(prisma, tournamentId, "gPMatch")) {
+    return new Map();
+  }
+
   const qualifications = await prisma.gPQualification.findMany({
     where: { tournamentId },
     include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -527,6 +541,30 @@ function toMatchRecord(q: QualificationEntry): MatchRecord & { matchesPlayed: nu
     losses: q.losses,
     matchesPlayed: q.mp ?? q.wins + q.ties + q.losses,
   };
+}
+
+async function hasCompletedRealQualificationMatch(
+  prisma: ExtendedPrismaClient,
+  tournamentId: string,
+  matchModel: MatchQualificationModel,
+): Promise<boolean> {
+  const where = {
+    tournamentId,
+    stage: "qualification",
+    completed: true,
+    isBye: false,
+    deletedAt: null,
+  };
+  const select = { id: true };
+  const take = 1;
+
+  const matches = matchModel === "bMMatch"
+    ? await prisma.bMMatch.findMany({ where, select, take })
+    : matchModel === "mRMatch"
+      ? await prisma.mRMatch.findMany({ where, select, take })
+      : await prisma.gPMatch.findMany({ where, select, take });
+
+  return matches.length > 0;
 }
 
 function qualificationResultsByPlayer(
