@@ -186,6 +186,65 @@ describe('GP Score Report API Route - /api/tournaments/[id]/gp/match/[matchId]/r
       expect(createSuccessResponse).toHaveBeenCalledWith({ match: updatedMatch, waitingFor: 'player2' }, 'Score reported successfully');
     });
 
+    it('should accept direct driver-point totals from participant score entry', async () => {
+      const mockMatch = {
+        id: 'm1',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        player1: { userId: null },
+        player2: { userId: null },
+        completed: false,
+        player1ReportedPoints1: null,
+        player1ReportedPoints2: null,
+        player2ReportedPoints1: null,
+        player2ReportedPoints2: null,
+      };
+
+      const updatedMatch = {
+        ...mockMatch,
+        player1ReportedPoints1: 37,
+        player1ReportedPoints2: 24,
+        player1ReportedRaces: null,
+        version: 1,
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockMatch)
+        .mockResolvedValueOnce({ version: 0 });
+      (prisma.scoreEntryLog.create as jest.Mock).mockResolvedValue({ id: 'log1' });
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue(updatedMatch);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/match/m1/report', {
+        reportingPlayer: 1,
+        points1: 37,
+        points2: 24,
+      });
+      const params = Promise.resolve({ id: 't1', matchId: 'm1' });
+      const result = await POST(request, { params });
+
+      expect(result).toEqual({
+        data: { match: updatedMatch, waitingFor: 'player2' },
+        message: 'Score reported successfully',
+        status: 200
+      });
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          player1ReportedPoints1: 37,
+          player1ReportedPoints2: 24,
+          player1ReportedRaces: expect.any(Object),
+        }),
+      }));
+      expect(prisma.scoreEntryLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          reportedData: expect.objectContaining({
+            totalPoints1: 37,
+            totalPoints2: 24,
+            races: [],
+          }),
+        }),
+      }));
+    });
+
     // Success case - Reports score from player 2
     it('should report score from player 2 and wait for player 1', async () => {
       const mockMatch = {

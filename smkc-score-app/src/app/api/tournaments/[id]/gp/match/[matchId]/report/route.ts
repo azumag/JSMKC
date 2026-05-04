@@ -6,8 +6,8 @@
  * When both reports match, the match is auto-confirmed.
  * If reports differ, the match is flagged for admin review.
  *
- * GP-specific: Reports include race-by-race positions and driver points
- * (9 for 1st, 6 for 2nd, 3 for 3rd, 1 for 4th, 0 for 5th-8th).
+ * GP-specific: Participant reports may include driver-point totals directly.
+ * Legacy race-by-race reports are still accepted and converted to driver points.
  *
  * Features:
  * - Score entry logging for audit trail
@@ -17,7 +17,8 @@
  */
 
 import { NextRequest } from "next/server";
-import { PLAYER_PUBLIC_SELECT, PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
+import { Prisma } from "@prisma/client";
+import { PLAYER_AUTH_SELECT } from '@/lib/prisma-selects';
 import prisma from "@/lib/prisma";
 import { getUserAgent, getClientIdentifier } from "@/lib/request-utils";
 import { sanitizeInput } from "@/lib/sanitize";
@@ -46,6 +47,20 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { updateWithRetry, OptimisticLockError } from "@/lib/optimistic-locking";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { checkQualificationConfirmed } from "@/lib/qualification-confirmed-check";
+
+const MAX_GP_DRIVER_POINTS = 45;
+
+type ProcessedRace = {
+  course: string;
+  position1: number;
+  position2: number;
+  points1: number;
+  points2: number;
+};
+
+type ProcessedReport =
+  | { ok: true; totalPoints1: number; totalPoints2: number; processedRaces: ProcessedRace[] | null }
+  | { ok: false; message: string; field: string };
 
 /**
  * GP-specific stats recalculation config.
@@ -103,6 +118,102 @@ function validateSubmittedCup(
   return !!submittedCup && isValidCupChoice(assignedCup, submittedCup);
 }
 
+function validateDirectDriverPoints(points1: unknown, points2: unknown): ProcessedReport {
+  const p1 = Number(points1);
+  const p2 = Number(points2);
+  if (
+    !Number.isInteger(p1) ||
+    !Number.isInteger(p2) ||
+    p1 < 0 ||
+    p2 < 0 ||
+    p1 > MAX_GP_DRIVER_POINTS ||
+    p2 > MAX_GP_DRIVER_POINTS
+  ) {
+    return {
+      ok: false,
+      message: `points1 and points2 must be integers between 0 and ${MAX_GP_DRIVER_POINTS}`,
+      field: "points",
+    };
+  }
+
+  return {
+    ok: true,
+    totalPoints1: p1,
+    totalPoints2: p2,
+    processedRaces: null,
+  };
+}
+
+function toReportedRacesJson(races: ProcessedRace[] | null): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+  return races ?? Prisma.JsonNull;
+}
+
+function processRaceReport(assignedCup: string | null | undefined, races: unknown): ProcessedReport {
+  if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
+    return {
+      ok: false,
+      message: `races must be an array of ${TOTAL_GP_RACES} entries`,
+      field: "races",
+    };
+  }
+
+  if (!validateSubmittedCup(assignedCup, races)) {
+    return {
+      ok: false,
+      message: "Submitted races do not match the assigned cup for this match",
+      field: "races",
+    };
+  }
+
+  let totalPoints1 = 0;
+  let totalPoints2 = 0;
+
+  const processedRaces: ProcessedRace[] = [];
+  for (let i = 0; i < races.length; i++) {
+    const race = races[i] as { position1: number; position2: number; course: string };
+    const pos1Result = validateGPRacePosition(race.position1);
+    if (!pos1Result.isValid) {
+      return { ok: false, message: pos1Result.error!, field: "position1" };
+    }
+    const pos2Result = validateGPRacePosition(race.position2);
+    if (!pos2Result.isValid) {
+      return { ok: false, message: pos2Result.error!, field: "position2" };
+    }
+    if (race.position1 === race.position2 && race.position1 !== 0) {
+      return {
+        ok: false,
+        message: `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
+        field: "position",
+      };
+    }
+
+    const points1 = getDriverPoints(race.position1);
+    const points2 = getDriverPoints(race.position2);
+    totalPoints1 += points1;
+    totalPoints2 += points2;
+    processedRaces.push({
+      course: race.course,
+      position1: race.position1,
+      position2: race.position2,
+      points1,
+      points2,
+    });
+  }
+
+  return { ok: true, totalPoints1, totalPoints2, processedRaces };
+}
+
+function processGpParticipantReport(
+  assignedCup: string | null | undefined,
+  body: { points1?: unknown; points2?: unknown; races?: unknown },
+): ProcessedReport {
+  if (body.points1 !== undefined || body.points2 !== undefined) {
+    return validateDirectDriverPoints(body.points1, body.points2);
+  }
+
+  return processRaceReport(assignedCup, body.races);
+}
+
 
 /**
  * POST /api/tournaments/[id]/gp/match/[matchId]/report
@@ -136,7 +247,7 @@ export async function POST(
     const userAgent = getUserAgent(request);
 
     const body = sanitizeInput(await request.json());
-    const { reportingPlayer, races, character } = body;
+    const { reportingPlayer, character } = body;
 
     /* Fetch match with player userId for auth check */
     const match = await prisma.gPMatch.findUnique({
@@ -173,12 +284,13 @@ export async function POST(
       return handleValidationError("Invalid character", "character");
     }
 
-    if (!Array.isArray(races) || races.length !== TOTAL_GP_RACES) {
-      return handleValidationError(`races must be an array of ${TOTAL_GP_RACES} entries`, "races");
+    const processedReport = processGpParticipantReport(match.cup, body);
+    if (!processedReport.ok) {
+      return handleValidationError(processedReport.message, processedReport.field);
     }
-    if (!validateSubmittedCup(match.cup, races)) {
-      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
-    }
+
+    const { totalPoints1, totalPoints2, processedRaces } = processedReport;
+    const reportedRacesJson = toReportedRacesJson(processedRaces);
 
     /*
      * Correction path: let a participant fix a GP score after the match has
@@ -186,45 +298,6 @@ export async function POST(
      * and the reporting player's stored report, then recalculate standings.
      */
     if (match.completed) {
-      /* Validate GP race positions are in legal range (0-8) before processing */
-      for (let i = 0; i < races.length; i++) {
-        const race = races[i] as { position1: number; position2: number; course: string };
-        const pos1Result = validateGPRacePosition(race.position1);
-        if (!pos1Result.isValid) return handleValidationError(pos1Result.error!, "position1");
-        const pos2Result = validateGPRacePosition(race.position2);
-        if (!pos2Result.isValid) return handleValidationError(pos2Result.error!, "position2");
-        /* Two players cannot finish in the same position (except both game-over at 0 per §7.2) */
-        if (race.position1 === race.position2 && race.position1 !== 0) {
-          return handleValidationError(
-            `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
-            "position",
-          );
-        }
-      }
-
-      const submittedCup = getSubmittedCup(races);
-      if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
-        return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
-      }
-
-      /* Process races: convert finishing positions to driver points (same as normal flow) */
-      let totalPoints1 = 0;
-      let totalPoints2 = 0;
-
-      const processedRaces = races.map((race: { position1: number; position2: number; course: string }) => {
-        const pts1 = getDriverPoints(race.position1);
-        const pts2 = getDriverPoints(race.position2);
-        totalPoints1 += pts1;
-        totalPoints2 += pts2;
-        return {
-          course: race.course,
-          position1: race.position1,
-          position2: race.position2,
-          points1: pts1,
-          points2: pts2,
-        };
-      });
-
       try {
         const correctedMatch = await updateWithRetry(prisma, async (tx) => {
           const currentMatch = await tx.gPMatch.findUnique({
@@ -238,8 +311,8 @@ export async function POST(
 
           const reportData =
             reportingPlayer === 1
-              ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: processedRaces }
-              : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: processedRaces };
+              ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: reportedRacesJson }
+              : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: reportedRacesJson };
 
           return tx.gPMatch.update({
             where: { id: matchId, version: currentMatch.version },
@@ -276,49 +349,10 @@ export async function POST(
 
     const reportingPlayerId = reportingPlayer === 1 ? match.player1Id : match.player2Id;
 
-    /* Validate GP race positions are in legal range (0-8) before processing */
-    for (let i = 0; i < races.length; i++) {
-      const race = races[i] as { position1: number; position2: number; course: string };
-      const pos1Result = validateGPRacePosition(race.position1);
-      if (!pos1Result.isValid) return handleValidationError(pos1Result.error!, "position1");
-      const pos2Result = validateGPRacePosition(race.position2);
-      if (!pos2Result.isValid) return handleValidationError(pos2Result.error!, "position2");
-      /* Two players cannot finish in the same position (except both game-over at 0 per §7.2) */
-      if (race.position1 === race.position2 && race.position1 !== 0) {
-        return handleValidationError(
-          `Race ${i + 1}: both players cannot finish in the same position (${race.position1})`,
-          "position",
-        );
-      }
-    }
-
-    const submittedCup = getSubmittedCup(races);
-    if (!submittedCup || !isValidCupChoice(match.cup, submittedCup)) {
-      return handleValidationError("Submitted races do not match the assigned cup for this match", "races");
-    }
-
-    /* Process races: convert finishing positions to driver points */
-    let totalPoints1 = 0;
-    let totalPoints2 = 0;
-
-    const processedRaces = races.map((race: { position1: number; position2: number; course: string }) => {
-      const points1 = getDriverPoints(race.position1);
-      const points2 = getDriverPoints(race.position2);
-      totalPoints1 += points1;
-      totalPoints2 += points2;
-      return {
-        course: race.course,
-        position1: race.position1,
-        position2: race.position2,
-        points1,
-        points2,
-      };
-    });
-
     /* Audit logging via shared helpers */
     await createScoreEntryLog(logger, {
       tournamentId, matchId, matchType: 'GP', playerId: reportingPlayerId,
-      reportedData: { reportingPlayer, races: processedRaces, totalPoints1, totalPoints2 },
+      reportedData: { reportingPlayer, races: processedRaces || [], totalPoints1, totalPoints2 },
       clientIp, userAgent,
     });
 
@@ -346,8 +380,8 @@ export async function POST(
 
         const updateData =
           reportingPlayer === 1
-            ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: processedRaces, version: { increment: 1 } }
-            : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: processedRaces, version: { increment: 1 } };
+            ? { player1ReportedPoints1: totalPoints1, player1ReportedPoints2: totalPoints2, player1ReportedRaces: reportedRacesJson, version: { increment: 1 } }
+            : { player2ReportedPoints1: totalPoints1, player2ReportedPoints2: totalPoints2, player2ReportedRaces: reportedRacesJson, version: { increment: 1 } };
 
         const updateResult = await tx.gPMatch.update({
           where: { id: matchId, version: currentMatch.version },

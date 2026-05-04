@@ -448,6 +448,8 @@
     "p1Position": "P1 Position",
     "p2Position": "P2 Position",
     "driverPoints": "Driver's Points: 1st = 9pts, 2nd = 6pts, 3rd = 3pts, 4th = 1pt, 5th-8th = 0pts",
+    "driverPointsEntry": "Driver's Points Entry",
+    "driverPointsValidation": "Driver's points must be integers from 0 to 45.",
     "enterMatchResult": "Enter Match Result",
     "manualTotalScore": "Manual Total Score",
     "manualTotalScoreDesc": "Use this when you only need to correct the cup total after play ends.",
