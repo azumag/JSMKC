@@ -1726,16 +1726,18 @@
 - **期待結果**: GP の合算順位タブが全グループの参加者を表示し、順位列が昇順で描画される
 - **スクリプト**: tc-gp.js TC-724
 
-## TC-717: GP決勝 — 同じラウンドの全試合で同一カップ (PR #585 正規化)
+## TC-717: GP決勝 — 対戦ごとのカップ組み合わせがFT3の5カップ目以外で重複しない
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
-- **背景**: Playoff / Finals ブラケットでは「同じラウンドの試合はすべて同じカップ」(M1がFlowerならM2・M3・M4もFlower)。#583 の client-side random fallback が残した divergent state (M1=Flower, M2=Star, M3=null) は、GET 時に `normalizeRoundCupsToSingleCup` が同一カップへ収束させる。
+- **背景**: GP Knockout / Finals では、各対戦に使用するカップの組み合わせをランダムに決める。FT1 は 1 カップ、FT2 は最大 3 カップ、FT3 は最大 5 カップ。キノコ、フラワー、スター、スペシャルの4カップ内では重複しないため、同じ対戦でカップが重複し得るのは FT3 の 5 カップ目だけ。
 - **手順**:
   1. 28名予選 + 決勝ブラケット生成（17試合）
   2. `GET /api/.../gp/finals` で全マッチ取得
-  3. `round` で bucket し、各 round 内の `cup` 値が全て同じ・かつ非 null であることを確認
-  4. クリーンアップ
-- **期待結果**: winners_qf / winners_sf / winners_final / losers_r1..r3 / losers_sf / losers_final / grand_final / grand_final_reset の各ラウンドで、すべてのマッチが同一カップを保持
+  3. 各マッチの `assignedCups` が非空で、`cup` が `assignedCups[0]` と一致することを確認
+  4. FT2 相当のマッチでは `assignedCups` が3件以下かつ重複なしであることを確認
+  5. FT3 相当のマッチでは `assignedCups` が5件で、先頭4件が重複なしであることを確認
+  6. クリーンアップ
+- **期待結果**: ラウンドをまたいだ同カップは許可されるが、同じ対戦のカップ組み合わせは FT3 の5件目を除いて重複しない
 
 ## TC-718: GP決勝 — 管理者の手動合計スコア入力 (PR #585 マニュアルフォーム)
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)

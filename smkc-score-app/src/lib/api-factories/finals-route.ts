@@ -21,7 +21,7 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
-import { getMrFinalsMaxRounds, getMrFinalsTargetWins } from '@/lib/finals-target-wins';
+import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -40,7 +40,6 @@ import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
  * Threshold of 20 distinguishes between the two (>20 means 16-player).
  */
 const BRACKET_SIZE_THRESHOLD = 20;
-const GP_FINALS_CUP_DECK_REPEATS = 2;
 
 /**
  * Pre-Bracket Playoff ("barrage") entrant count. Supports issue #454:
@@ -102,19 +101,38 @@ function createMrRoundAssignments(
   return assignments;
 }
 
-function createGpRoundAssignments(
-  bracketStructure: Array<{ round: string }>,
-): Map<string, string> {
-  const shuffledCups = Array.from(
-    { length: GP_FINALS_CUP_DECK_REPEATS },
-    () => fisherYatesShuffle(CUPS),
-  ).flat();
-  return new Map(
-    getOrderedRounds(bracketStructure).map((round, index) => [
-      round,
-      shuffledCups[index % shuffledCups.length],
-    ]),
-  );
+function createGpCupSequence(
+  maxCups: number,
+  preferredFirstCup?: string | null,
+): string[] {
+  if (maxCups <= 0) return [];
+  const first = preferredFirstCup && CUPS.includes(preferredFirstCup as (typeof CUPS)[number])
+    ? preferredFirstCup
+    : undefined;
+  const sequence = first ? [first] : [];
+
+  while (sequence.length < Math.min(maxCups, CUPS.length)) {
+    const candidates = CUPS.filter((cup) => !sequence.includes(cup));
+    sequence.push(...fisherYatesShuffle(candidates).slice(0, Math.min(candidates.length, maxCups - sequence.length)));
+  }
+
+  while (sequence.length < maxCups) {
+    sequence.push(fisherYatesShuffle(CUPS)[0]);
+  }
+
+  return sequence;
+}
+
+function createGpMatchCupAssignments(
+  bracketStructure: Array<{ matchNumber: number; round: string }>,
+  stage: 'playoff' | 'finals',
+): Map<string, string[]> {
+  const assignments = new Map<string, string[]>();
+  for (const bracketMatch of bracketStructure) {
+    const maxCups = getGpFinalsMaxCups({ round: bracketMatch.round, stage });
+    assignments.set(String(bracketMatch.matchNumber), createGpCupSequence(maxCups));
+  }
+  return assignments;
 }
 
 /**
@@ -133,103 +151,59 @@ function createBmRoundStartingCourses(
 }
 
 /**
- * Normalize per-round GP cup assignments so every match in the same round
- * shares one cup (Playoff and Finals rule: M1=M2=M3=M4 for a round).
- *
- * Two legacy states need repair:
- *   1. All matches in a round have cup=null (pre-#565 creations).
- *   2. Mixed state within a round: some matches have cups, others are null,
- *      or worse, different cups were picked per match by the old
- *      client-side random fallback (#583) when admins saved scores before
- *      the backfill landed.
- *
- * For each round we pick ONE canonical cup (the most common non-null cup
- * among that round's matches, with a freshly shuffled two-deck cup sequence
- * as fallback when no match has a cup yet) and force every match in that round to it via
- * updateMany. This is idempotent — repeated GETs after the first repair
- * are no-ops.
- *
- * Returns the per-round canonical cup map alongside the `repaired` flag so
- * callers can patch their in-memory `matches` array (m.cup = canonical[m.round])
- * without firing a second findMany to pick up the writes. The flag is true
- * when any row was updated.
+ * Normalize GP cup assignments for legacy finals/playoff rows. New rows store
+ * a per-match cup sequence in `assignedCups`: FT1 => 1 cup, FT2 => 3 cups,
+ * FT3 => 5 cups. The first four entries are unique; only the fifth FT3 cup
+ * may repeat. Old rows that only have `cup` are backfilled from that first cup.
  */
 interface CupNormalizationResult {
   repaired: boolean;
-  canonicalByRound: Map<string, string>;
+  canonicalById: Map<string, { cup: string; assignedCups: string[] }>;
 }
 
-async function normalizeRoundCupsToSingleCup(
+function normalizeAssignedCupArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((cup): cup is string => typeof cup === 'string' && CUPS.includes(cup as (typeof CUPS)[number]));
+}
+
+function isValidGpCupSequence(sequence: string[], maxCups: number): boolean {
+  if (sequence.length !== maxCups) return false;
+  const uniqueWindow = sequence.slice(0, Math.min(maxCups, CUPS.length));
+  return new Set(uniqueWindow).size === uniqueWindow.length;
+}
+
+async function normalizeGpMatchCupAssignments(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
-  tournamentId: string,
   stage: 'finals' | 'playoff',
-  matches: Array<{ cup?: string | null; round?: string | null }>,
+  matches: Array<{ id: string; cup?: string | null; assignedCups?: unknown; round?: string | null }>,
 ): Promise<CupNormalizationResult> {
-  /* Tally cup occurrences per round to detect mixed-cup rounds and pick a
-   * canonical cup without relying on iteration order. */
-  const cupCountsByRound = new Map<string, Map<string, number>>();
-  const roundsNeedingRepair = new Set<string>();
+  const canonicalById = new Map<string, { cup: string; assignedCups: string[] }>();
 
   for (const match of matches) {
     if (!match.round) continue;
-    let counts = cupCountsByRound.get(match.round);
-    if (!counts) {
-      counts = new Map();
-      cupCountsByRound.set(match.round, counts);
-    }
-    if (match.cup) {
-      counts.set(match.cup, (counts.get(match.cup) ?? 0) + 1);
-    }
-  }
-
-  for (const [round, counts] of cupCountsByRound) {
-    const distinctCups = counts.size;
-    const totalMatchesWithCup = Array.from(counts.values()).reduce((a, b) => a + b, 0);
-    const roundMatchCount = matches.filter((m) => m.round === round).length;
-    /* Round needs repair when: no cup yet, cups differ within the round,
-     * or some matches still have null cup while others don't. */
-    if (distinctCups !== 1 || totalMatchesWithCup !== roundMatchCount) {
-      roundsNeedingRepair.add(round);
+    const maxCups = getGpFinalsMaxCups({ round: match.round, stage });
+    const existing = normalizeAssignedCupArray(match.assignedCups);
+    const assignedCups = isValidGpCupSequence(existing, maxCups)
+      ? existing
+      : createGpCupSequence(maxCups, existing[0] ?? match.cup);
+    const cup = assignedCups[0];
+    const alreadyNormalized = existing.length === maxCups
+      && existing.every((value, index) => value === assignedCups[index])
+      && match.cup === cup;
+    if (!alreadyNormalized) {
+      canonicalById.set(match.id, { cup, assignedCups });
     }
   }
 
-  if (roundsNeedingRepair.size === 0) {
-    return { repaired: false, canonicalByRound: new Map() };
-  }
-
-  const shuffledCups = Array.from(
-    { length: GP_FINALS_CUP_DECK_REPEATS },
-    () => fisherYatesShuffle(CUPS),
-  ).flat();
-  let cursor = 0;
-  const canonicalCupByRound = new Map<string, string>();
-  for (const round of roundsNeedingRepair) {
-    const counts = cupCountsByRound.get(round) ?? new Map<string, number>();
-    /* Pick the most common existing cup, falling back to a fresh shuffle
-     * slot when the round is entirely null. Ties resolve by first-seen
-     * order, which is fine since we just need one canonical value. */
-    let dominant: string | undefined;
-    let dominantCount = 0;
-    for (const [cup, count] of counts) {
-      if (count > dominantCount) {
-        dominant = cup;
-        dominantCount = count;
-      }
-    }
-    canonicalCupByRound.set(round, dominant ?? shuffledCups[cursor++ % shuffledCups.length]);
-  }
-
-  for (const [round, cup] of canonicalCupByRound) {
-    /* Unconditional update so rounds with divergent cups converge. Skip the
-     * write when the stored value already matches to avoid churning rows. */
-    await modelInstance.updateMany({
-      where: { tournamentId, stage, round, NOT: { cup } },
-      data: { cup },
+  for (const [id, data] of canonicalById) {
+    await modelInstance.update({
+      where: { id },
+      data,
     });
   }
 
-  return { repaired: true, canonicalByRound: canonicalCupByRound };
+  return { repaired: canonicalById.size > 0, canonicalById };
 }
 
 /**
@@ -610,13 +584,15 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
   function getRoundAssignmentData(
     round: string,
+    matchAssignmentKey: string,
     mrAssignments?: Map<string, string[]>,
-    gpAssignments?: Map<string, string>,
+    gpAssignments?: Map<string, string[]>,
     bmStartingCourses?: Map<string, number>,
   ): Record<string, unknown> {
+    const assignedCups = gpAssignments?.get(matchAssignmentKey) ?? [];
     return {
       ...(config.assignMrCoursesByRound ? { assignedCourses: mrAssignments?.get(round) ?? [] } : {}),
-      ...(config.assignGpCupByRound ? { cup: gpAssignments?.get(round) ?? null } : {}),
+      ...(config.assignGpCupByRound ? { cup: assignedCups[0] ?? null, assignedCups } : {}),
       ...(config.assignBmStartingCourseByRound ? { startingCourseNumber: bmStartingCourses?.get(round) ?? null } : {}),
     };
   }
@@ -729,28 +705,23 @@ export function createFinalsHandlers(config: FinalsConfig) {
         orderBy: { matchNumber: 'asc' },
       });
 
-      /* Normalize cups-per-round for legacy playoff rows. Fixes both the
-       * pre-#565 null-cup state and the divergent-cup state that PR #583's
-       * client-side random fallback could produce when admins saved scores
-       * (so M1=Flower and M2=Star on the same round would be converged).
-       *
-       * After repair, we patch the in-memory `playoffMatches` array using the
-       * canonical map returned by the normalizer, instead of refetching the
-       * whole row set. The DB writes have already happened — refetching only
-       * served to read back our own writes. */
+      /* Normalize GP cup sequences for legacy playoff rows. New rows store a
+       * per-match assignedCups array; old rows only had the first cup. Patch
+       * in-memory from the canonical map so the current response sees the
+       * repaired sequence without a second findMany. */
       if (config.assignGpCupByRound && playoffMatches.length > 0) {
-        const cupResult = await normalizeRoundCupsToSingleCup(
+        const cupResult = await normalizeGpMatchCupAssignments(
           model(prisma),
-          tournamentId,
           'playoff',
           playoffMatches,
         );
         if (cupResult.repaired) {
           for (const m of playoffMatches) {
-            const round = (m as { round?: string | null }).round;
-            if (!round) continue;
-            const canonical = cupResult.canonicalByRound.get(round);
-            if (canonical) (m as { cup?: string | null }).cup = canonical;
+            const canonical = cupResult.canonicalById.get((m as { id: string }).id);
+            if (canonical) {
+              (m as { cup?: string | null; assignedCups?: unknown }).cup = canonical.cup;
+              (m as { cup?: string | null; assignedCups?: unknown }).assignedCups = canonical.assignedCups;
+            }
           }
         }
       }
@@ -863,18 +834,16 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ? await buildTop24FinalsPreview(tournamentId, playoffMatches)
         : null;
 
-      /* Normalize cups-per-round for legacy finals rows before paginating or
-       * simple/grouped fetches, so every branch sees the repaired state.
-       * See playoff branch above for the why. */
+      /* Normalize GP cup sequences for legacy finals rows before paginating or
+       * simple/grouped fetches, so every branch sees the repaired state. */
       if (config.assignGpCupByRound) {
         const legacyFinals = await model(prisma).findMany({
           where: { tournamentId, stage: 'finals' },
-          select: { id: true, round: true, cup: true },
+          select: { id: true, round: true, cup: true, assignedCups: true },
         });
         if (legacyFinals.length > 0) {
-          await normalizeRoundCupsToSingleCup(
+          await normalizeGpMatchCupAssignments(
             model(prisma),
-            tournamentId,
             'finals',
             legacyFinals,
           );
@@ -1140,7 +1109,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ? createMrRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const gpAssignments = config.assignGpCupByRound
-        ? createGpRoundAssignments(bracketStructure)
+        ? createGpMatchCupAssignments(bracketStructure, 'finals')
         : undefined;
       const bmStartingCourses = config.assignBmStartingCourseByRound
         ? createBmRoundStartingCourses(bracketStructure)
@@ -1165,7 +1134,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments, bmStartingCourses),
+            ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), mrAssignments, gpAssignments, bmStartingCourses),
           },
         };
       });
@@ -1322,7 +1291,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createMrRoundAssignments(playoffStructure, 'playoff')
           : undefined;
         const playoffGpAssignments = config.assignGpCupByRound
-          ? createGpRoundAssignments(playoffStructure)
+          ? createGpMatchCupAssignments(playoffStructure, 'playoff')
           : undefined;
         const playoffBmStartingCourses = config.assignBmStartingCourseByRound
           ? createBmRoundStartingCourses(playoffStructure)
@@ -1363,7 +1332,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
-              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
+              ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
             },
           };
         });
@@ -1460,7 +1429,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ? createMrRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const finalsGpAssignments = config.assignGpCupByRound
-        ? createGpRoundAssignments(bracketStructure)
+        ? createGpMatchCupAssignments(bracketStructure, 'finals')
         : undefined;
       const finalsBmStartingCourses = config.assignBmStartingCourseByRound
         ? createBmRoundStartingCourses(bracketStructure)
@@ -1499,7 +1468,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
+            ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
           },
         };
       });

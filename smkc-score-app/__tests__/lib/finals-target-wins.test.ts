@@ -1,5 +1,6 @@
 import {
   getBmFinalsTargetWins,
+  getGpFinalsMaxCups,
   getGpFinalsTargetWins,
   getMrFinalsMaxRounds,
   getMrFinalsTargetWins,
@@ -32,6 +33,12 @@ describe('finals-target-wins', () => {
     expect(getGpFinalsTargetWins({ round: 'winners_sf' })).toBe(3);
     expect(getGpFinalsTargetWins({ round: 'losers_sf' })).toBe(3);
     expect(getGpFinalsTargetWins({ round: 'grand_final' })).toBe(3);
+  });
+
+  it('maps GP target wins to max cup counts', () => {
+    expect(getGpFinalsMaxCups({ stage: 'playoff', round: 'playoff_r1' })).toBe(1);
+    expect(getGpFinalsMaxCups({ round: 'winners_r1' })).toBe(3);
+    expect(getGpFinalsMaxCups({ round: 'grand_final' })).toBe(5);
   });
 
   it('maps MR target wins to max round counts', () => {

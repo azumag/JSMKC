@@ -72,7 +72,7 @@ import {
 } from "@/components/ui/select";
 import { DoubleEliminationBracket } from "@/components/tournament/double-elimination-bracket";
 import { PlayoffBracket } from "@/components/tournament/playoff-bracket";
-import { COURSE_INFO, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
+import { COURSE_INFO, CUPS, CUP_SUBSTITUTIONS, GP_POSITION_OPTIONS, POLLING_INTERVAL, TOTAL_GP_RACES, TV_NUMBER_OPTIONS, getDriverPoints, type CourseAbbr } from "@/lib/constants";
 import { formatGpPosition } from "@/lib/gp-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
 import { UpdateIndicator } from "@/components/ui/update-indicator";
@@ -83,7 +83,7 @@ import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
 import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
-import { isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
+import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 
 /** Client-side logger for error tracking */
 const logger = createLogger({ serviceName: 'tournaments-gp-finals' });
@@ -114,6 +114,7 @@ interface GPMatch {
   points2: number;
   completed: boolean;
   cup?: string;
+  assignedCups?: string[];
   tvNumber?: number | null;
   player1: Player;
   player2: Player;
@@ -418,14 +419,12 @@ export default function GrandPrixFinals({
     return COURSE_INFO.filter((c) => c.cup === cup).map((c) => c.abbr);
   };
 
-  const nextCupName = (index: number, preferred?: string) => {
-    const cups = ["Mushroom", "Flower", "Star", "Special"];
-    if (index === 0 && preferred) return preferred;
-    return cups[index % cups.length];
+  const nextCupName = (index: number, preferred?: string, assignedCups?: string[]) => {
+    return getCupForFormIndex(index, assignedCups, CUPS, preferred);
   };
 
-  const makeBlankCupForm = (index: number, preferred?: string): CupScoreForm => {
-    const cup = nextCupName(index, preferred);
+  const makeBlankCupForm = (index: number, preferred?: string, assignedCups?: string[]): CupScoreForm => {
+    const cup = nextCupName(index, preferred, assignedCups);
     return {
       cup,
       races: getCupCourses(cup).map((course) => ({ course, position1: null, position2: null })),
@@ -523,7 +522,7 @@ export default function GrandPrixFinals({
     }
     const forms = match.cupResults && match.cupResults.length > 0
       ? match.cupResults.map((result, index) => {
-          const resultCup = result.cup || nextCupName(index, cup);
+          const resultCup = result.cup || nextCupName(index, cup, match.assignedCups);
           return {
             cup: resultCup,
             races: result.races && result.races.length === TOTAL_GP_RACES
@@ -538,7 +537,7 @@ export default function GrandPrixFinals({
             manualPoints2: String(result.points2 ?? 0),
           };
         })
-      : [makeBlankCupForm(0, cup)];
+      : [makeBlankCupForm(0, cup, match.assignedCups)];
     setScoreForm({
       cup,
       races,
@@ -906,8 +905,8 @@ export default function GrandPrixFinals({
                       }));
                       setCupForms((current) => {
                         const updated = [...current];
-                        updated[0] = makeBlankCupForm(0, next);
-                        return updated.length > 0 ? updated : [makeBlankCupForm(0, next)];
+                        updated[0] = makeBlankCupForm(0, next, selectedMatch.assignedCups);
+                        return updated.length > 0 ? updated : [makeBlankCupForm(0, next, selectedMatch.assignedCups)];
                       });
                     }}
                   >
@@ -1085,7 +1084,7 @@ export default function GrandPrixFinals({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setCupForms((current) => [...current, makeBlankCupForm(current.length)])}
+                  onClick={() => setCupForms((current) => [...current, makeBlankCupForm(current.length, selectedMatch?.cup, selectedMatch?.assignedCups)])}
                 >
                   Add Cup
                 </Button>

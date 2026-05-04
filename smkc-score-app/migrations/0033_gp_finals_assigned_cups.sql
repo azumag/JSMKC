@@ -1,0 +1,1 @@
+ALTER TABLE GPMatch ADD COLUMN assignedCups TEXT;
