@@ -280,7 +280,7 @@ async function runTc623(adminPage) {
 /**
  * TC-602: MR player login + participant score entry (2 shared players)
  *
- * Player1 logs in via separate browser, submits race results (3-1) via the MR
+ * Player1 logs in via separate browser, submits a BM-style 3-1 score via the MR
  * participant page, verifies persistence.
  */
 async function runTc602(adminPage) {
@@ -294,14 +294,11 @@ async function runTc602(adminPage) {
 
     await nav(playerPage, `/tournaments/${tournamentId}/mr/participant`);
 
-    // MR participant: fixed 4 assigned courses with winner buttons.
-    // P1 wins races 1, 2, 4; P2 wins race 3 → 3-1
-    for (let i = 0; i < 4; i++) {
-      const winnerButtons = playerPage.locator(`button[aria-label$="wins race ${i + 1}"]`);
-      const winnerIdx = i === 2 ? 1 : 0;
-      await winnerButtons.nth(winnerIdx).click();
-      await playerPage.waitForTimeout(300);
+    // MR participant now mirrors BM: +/- total score input. Enter 3-1.
+    for (let i = 0; i < 3; i++) {
+      await playerPage.getByLabel(`${match.player1.nickname} +1`).click();
     }
+    await playerPage.getByLabel(`${match.player2.nickname} +1`).click();
 
     playerPage.once('dialog', async (dialog) => { await dialog.accept(); });
     await playerPage.getByRole('button', { name: /Submit|スコア送信|送信/ }).click();

@@ -1,11 +1,11 @@
 /**
  * Match Race Participant Score Entry Page
  *
- * Player-facing page for reporting MR match results with race-by-race entry.
+ * Player-facing page for reporting MR match results.
  * Uses shared useParticipantMatches hook and ParticipantPageLayout.
  *
- * MR-specific: fixed assigned courses with per-race winner buttons.
- * Scores are auto-calculated from the selected race winners.
+ * MR-specific: fixed 4-race total score input, matching the BM participant UI.
+ * Score range 0-4, total must equal 4. A 2-2 tie is valid.
  */
 "use client";
 
@@ -13,10 +13,9 @@ import { useState, use } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Flag } from "lucide-react";
-import { COURSE_INFO, TOTAL_MR_RACES, type CourseAbbr } from "@/lib/constants";
 import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
 import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
-import { getMatchReportSuccessMessage } from "@/lib/participant-report-message";
+import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
 
 /** MR Match extends BaseMatch with MR-specific fields */
 interface MRMatch extends BaseMatch {
@@ -30,12 +29,6 @@ interface MRMatch extends BaseMatch {
   player2ReportedPoints2?: number;
 }
 
-/** Individual MR race result */
-interface RoundResult {
-  course: CourseAbbr | "";
-  winner: number | null;
-}
-
 export default function MatchRaceParticipantPage({
   params,
 }: {
@@ -44,87 +37,75 @@ export default function MatchRaceParticipantPage({
   const { id: tournamentId } = use(params);
   const tPart = useTranslations("participant");
   const tMatch = useTranslations("match");
-  const tCommon = useTranslations("common");
 
   const ctx = useParticipantMatches<MRMatch>({ tournamentId, mode: "mr" });
 
-  /* MR-specific: per-match race winners. Courses are fixed at setup time. */
-  const [matchRounds, setMatchRounds] = useState<Record<string, RoundResult[]>>({});
+  const [reportingScores, setReportingScores] = useState<
+    Record<string, { score1: number; score2: number }>
+  >({});
 
-  const getCourseName = (abbr: string) => {
-    const course = COURSE_INFO.find((c) => c.abbr === abbr);
-    return course ? course.name : abbr;
-  };
+  const getInitialScores = (match: MRMatch) => {
+    const isPlayer1 = match.player1.id === ctx.playerId;
+    const ownScore1 = isPlayer1 ? match.player1ReportedPoints1 : match.player2ReportedPoints1;
+    const ownScore2 = isPlayer1 ? match.player1ReportedPoints2 : match.player2ReportedPoints2;
 
-  const buildInitialRounds = (match: MRMatch): RoundResult[] => {
-    if (Array.isArray(match.rounds) && match.rounds.length === TOTAL_MR_RACES) {
-      return match.rounds.map((round) => ({
-        course: (round.course as CourseAbbr) || "",
-        winner: round.winner ?? null,
-      }));
+    if (ownScore1 != null && ownScore2 != null) {
+      return { score1: ownScore1, score2: ownScore2 };
     }
 
-    const assignedCourses = Array.isArray(match.assignedCourses)
-      ? match.assignedCourses
-      : [];
+    if (match.completed) {
+      return { score1: match.score1 ?? 0, score2: match.score2 ?? 0 };
+    }
 
-    return Array.from({ length: TOTAL_MR_RACES }, (_, index) => ({
-      course: (assignedCourses[index] as CourseAbbr | undefined) ?? "",
-      winner: null,
-    }));
+    return { score1: 0, score2: 0 };
   };
 
-  const getRounds = (match: MRMatch) => matchRounds[match.id] ?? buildInitialRounds(match);
+  const hasOwnReport = (match: MRMatch) => {
+    const isPlayer1 = match.player1.id === ctx.playerId;
+    return isPlayer1
+      ? match.player1ReportedPoints1 != null
+      : match.player2ReportedPoints1 != null;
+  };
 
-  const updateWinner = (match: MRMatch, index: number, winner: number) => {
-    setMatchRounds((prev) => {
-      const rounds = prev[match.id] ?? buildInitialRounds(match);
-      const nextRounds = rounds.map((round, i) =>
-        i === index
-          ? { ...round, winner: round.winner === winner ? null : winner }
-          : round
-      );
-
-      return { ...prev, [match.id]: nextRounds };
+  const adjustScore = (
+    match: MRMatch,
+    field: "score1" | "score2",
+    delta: number
+  ) => {
+    setReportingScores((prev) => {
+      const current = prev[match.id] ?? getInitialScores(match);
+      const clamped = Math.max(0, Math.min(4, current[field] + delta));
+      return { ...prev, [match.id]: { ...current, [field]: clamped } };
     });
   };
 
-  const calculateScores = (rounds: RoundResult[]) => {
-    let score1 = 0;
-    let score2 = 0;
-
-    rounds.forEach((round) => {
-      if (round.winner === 1) score1++;
-      else if (round.winner === 2) score2++;
-    });
-
-    return { score1, score2 };
-  };
-
-  const handleSubmitMatch = async (match: MRMatch) => {
-    const rounds = getRounds(match);
+  const handleSubmitScore = async (match: MRMatch) => {
+    const scores = reportingScores[match.id] ?? getInitialScores(match);
     const reportingPlayer = match.player1.id === ctx.playerId ? 1 : 2;
 
-    if (rounds.some((round) => round.winner === null)) {
-      ctx.setError(tCommon("selectWinnerForAllRaces", { count: TOTAL_MR_RACES }));
+    if (scores.score1 + scores.score2 !== 4) {
+      ctx.setError(tMatch("totalMustEqual4"));
       return;
     }
 
     ctx.setError(null);
-    const { score1, score2 } = calculateScores(rounds);
     const data = await ctx.submitReport(match.id, {
       reportingPlayer,
-      score1,
-      score2,
-      rounds,
+      score1: scores.score1,
+      score2: scores.score2,
     });
 
     if (data) {
-      setMatchRounds((prev) => ({ ...prev, [match.id]: buildInitialRounds(match) }));
-      alert(getMatchReportSuccessMessage(data, {
-        matchReportedSuccess: tPart("matchReportedSuccess"),
-        matchConfirmedSuccess: tPart("matchConfirmedSuccess"),
-        matchMismatchSubmitted: tPart("matchMismatchSubmitted"),
+      setReportingScores((prev) => {
+        const next = { ...prev };
+        delete next[match.id];
+        return next;
+      });
+      alert(getScoreReportSuccessMessage(data, {
+        correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
+        scoresReportedSuccess: tPart("scoresReportedSuccess"),
+        scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
+        scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
       }));
     }
   };
@@ -148,66 +129,85 @@ export default function MatchRaceParticipantPage({
       submitting={ctx.submitting}
       qualificationConfirmed={ctx.qualificationConfirmed}
       renderMatchForm={(match) => {
-        const rounds = getRounds(match);
-        const { score1, score2 } = calculateScores(rounds);
+        const scores = reportingScores[match.id] ?? getInitialScores(match);
+        const totalValid = scores.score1 + scores.score2 === 4;
 
         return (
           <div className="border-t pt-4">
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h4 className="font-medium">{tPart("raceResults")}</h4>
-              <div className="text-sm font-medium text-muted-foreground">
-                {tPart("currentScore", { score1, score2 })}
+            <h4 className="font-medium mb-3">
+              {hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult")}
+            </h4>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="text-center min-w-0 max-w-[120px]">
+                <p className="text-sm mb-2 truncate">{match.player1.nickname}</p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player1.nickname} -1`}
+                    onClick={() => adjustScore(match, "score1", -1)}
+                  >
+                    -
+                  </Button>
+                  <span className="text-3xl font-bold w-10 text-center">
+                    {scores.score1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player1.nickname} +1`}
+                    onClick={() => adjustScore(match, "score1", 1)}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              <span className="text-xl mt-6">-</span>
+              <div className="text-center min-w-0 max-w-[120px]">
+                <p className="text-sm mb-2 truncate">{match.player2.nickname}</p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player2.nickname} -1`}
+                    onClick={() => adjustScore(match, "score2", -1)}
+                  >
+                    -
+                  </Button>
+                  <span className="text-3xl font-bold w-10 text-center">
+                    {scores.score2}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 w-10 text-lg"
+                    aria-label={`${match.player2.nickname} +1`}
+                    onClick={() => adjustScore(match, "score2", 1)}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {rounds.map((round, index) => (
-                <div
-                  key={`${match.id}-${index}`}
-                  className="grid gap-2 rounded-md border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_minmax(7rem,auto)_minmax(7rem,auto)] sm:items-center"
-                >
-                  <span className="text-sm font-medium">
-                    {tMatch("raceN", { n: index + 1 })}
-                  </span>
-                  <span className="min-w-0 truncate rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                    {round.course ? getCourseName(round.course) : "-"}
-                  </span>
-                  <Button
-                    variant={round.winner === 1 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateWinner(match, index, 1)}
-                    className="w-full min-w-0"
-                    aria-label={`${match.player1.nickname} wins race ${index + 1}`}
-                  >
-                    <span className="truncate">
-                      {match.player1.id === ctx.playerId
-                        ? tMatch("iWon")
-                        : tMatch("playerWon", { player: match.player1.nickname })}
-                    </span>
-                  </Button>
-                  <Button
-                    variant={round.winner === 2 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateWinner(match, index, 2)}
-                    className="w-full min-w-0"
-                    aria-label={`${match.player2.nickname} wins race ${index + 1}`}
-                  >
-                    <span className="truncate">
-                      {match.player2.id === ctx.playerId
-                        ? tMatch("iWon")
-                        : tMatch("playerWon", { player: match.player2.nickname })}
-                    </span>
-                  </Button>
-                </div>
-              ))}
-            </div>
+            <p className={`text-sm text-center mb-3 ${
+              !totalValid && (scores.score1 > 0 || scores.score2 > 0)
+                ? 'text-yellow-600' : 'invisible'
+            }`}>
+              {tMatch("totalMustEqual4")}
+            </p>
 
             <Button
-              onClick={() => handleSubmitMatch(match)}
-              disabled={ctx.submitting === match.id || rounds.some((round) => round.winner === null)}
-              className="mt-4 h-12 w-full text-base"
+              onClick={() => handleSubmitScore(match)}
+              disabled={ctx.submitting === match.id || !totalValid}
+              className="w-full"
             >
-              {ctx.submitting === match.id ? tMatch("submitting") : tPart("submitMatchResult")}
+              {ctx.submitting === match.id
+                ? tMatch("submitting")
+                : hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")}
             </Button>
           </div>
         );
