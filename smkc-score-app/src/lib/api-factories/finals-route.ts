@@ -123,14 +123,14 @@ function createGpCupSequence(
   return sequence;
 }
 
-function createGpMatchCupAssignments(
+function createGpRoundAssignments(
   bracketStructure: Array<{ matchNumber: number; round: string }>,
   stage: 'playoff' | 'finals',
 ): Map<string, string[]> {
   const assignments = new Map<string, string[]>();
-  for (const bracketMatch of bracketStructure) {
-    const maxCups = getGpFinalsMaxCups({ round: bracketMatch.round, stage });
-    assignments.set(String(bracketMatch.matchNumber), createGpCupSequence(maxCups));
+  for (const round of getOrderedRounds(bracketStructure)) {
+    const maxCups = getGpFinalsMaxCups({ round, stage });
+    assignments.set(round, createGpCupSequence(maxCups));
   }
   return assignments;
 }
@@ -152,13 +152,14 @@ function createBmRoundStartingCourses(
 
 /**
  * Normalize GP cup assignments for legacy finals/playoff rows. New rows store
- * a per-match cup sequence in `assignedCups`: FT1 => 1 cup, FT2 => 3 cups,
- * FT3 => 5 cups. The first four entries are unique; only the fifth FT3 cup
- * may repeat. Old rows that only have `cup` are backfilled from that first cup.
+ * one shared cup sequence per bracket round in `assignedCups`: FT1 => 1 cup,
+ * FT2 => 3 cups, FT3 => 5 cups. The first four entries are unique; only the
+ * fifth FT3 cup may repeat. Old rows that only have `cup` are backfilled by
+ * choosing a canonical sequence for the whole round.
  */
 interface CupNormalizationResult {
   repaired: boolean;
-  canonicalById: Map<string, { cup: string; assignedCups: string[] }>;
+  canonicalByRound: Map<string, { cup: string; assignedCups: string[] }>;
 }
 
 function normalizeAssignedCupArray(value: unknown): string[] {
@@ -172,38 +173,93 @@ function isValidGpCupSequence(sequence: string[], maxCups: number): boolean {
   return new Set(uniqueWindow).size === uniqueWindow.length;
 }
 
-async function normalizeGpMatchCupAssignments(
+async function normalizeRoundCupsToSingleSequence(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modelInstance: any,
   stage: 'finals' | 'playoff',
   matches: Array<{ id: string; cup?: string | null; assignedCups?: unknown; round?: string | null }>,
 ): Promise<CupNormalizationResult> {
-  const canonicalById = new Map<string, { cup: string; assignedCups: string[] }>();
+  const matchesByRound = new Map<string, Array<{
+    id: string;
+    cup?: string | null;
+    assignedCups: string[];
+  }>>();
 
   for (const match of matches) {
     if (!match.round) continue;
-    const maxCups = getGpFinalsMaxCups({ round: match.round, stage });
-    const existing = normalizeAssignedCupArray(match.assignedCups);
-    const assignedCups = isValidGpCupSequence(existing, maxCups)
-      ? existing
-      : createGpCupSequence(maxCups, existing[0] ?? match.cup);
-    const cup = assignedCups[0];
-    const alreadyNormalized = existing.length === maxCups
-      && existing.every((value, index) => value === assignedCups[index])
-      && match.cup === cup;
-    if (!alreadyNormalized) {
-      canonicalById.set(match.id, { cup, assignedCups });
+    if (!matchesByRound.has(match.round)) {
+      matchesByRound.set(match.round, []);
     }
-  }
-
-  for (const [id, data] of canonicalById) {
-    await modelInstance.update({
-      where: { id },
-      data,
+    matchesByRound.get(match.round)!.push({
+      id: match.id,
+      cup: match.cup,
+      assignedCups: normalizeAssignedCupArray(match.assignedCups),
     });
   }
 
-  return { repaired: canonicalById.size > 0, canonicalById };
+  const canonicalByRound = new Map<string, { cup: string; assignedCups: string[] }>();
+
+  for (const [round, roundMatches] of matchesByRound) {
+    const maxCups = getGpFinalsMaxCups({ round, stage });
+    const keyCounts = new Map<string, number>();
+    const keyToArray = new Map<string, string[]>();
+    const firstCupCounts = new Map<string, number>();
+
+    for (const match of roundMatches) {
+      const firstCup = match.assignedCups[0] ?? match.cup;
+      if (firstCup && CUPS.includes(firstCup as (typeof CUPS)[number])) {
+        firstCupCounts.set(firstCup, (firstCupCounts.get(firstCup) ?? 0) + 1);
+      }
+
+      if (!isValidGpCupSequence(match.assignedCups, maxCups)) continue;
+      const key = JSON.stringify(match.assignedCups);
+      keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+      if (!keyToArray.has(key)) keyToArray.set(key, match.assignedCups);
+    }
+
+    const roundMatchCount = roundMatches.length;
+    if (keyCounts.size === 1 && Array.from(keyCounts.values())[0] === roundMatchCount) {
+      continue;
+    }
+
+    let canonical: string[] | undefined;
+    let dominantCount = 0;
+    for (const [key, count] of keyCounts) {
+      if (count > dominantCount) {
+        canonical = keyToArray.get(key);
+        dominantCount = count;
+      }
+    }
+
+    let preferredFirstCup: string | undefined;
+    let preferredCount = 0;
+    for (const [cup, count] of firstCupCounts) {
+      if (count > preferredCount) {
+        preferredFirstCup = cup;
+        preferredCount = count;
+      }
+    }
+
+    const assignedCups = canonical ?? createGpCupSequence(maxCups, preferredFirstCup);
+    canonicalByRound.set(round, { cup: assignedCups[0], assignedCups });
+  }
+
+  let writes = 0;
+  for (const [round, data] of canonicalByRound) {
+    const canonicalKey = JSON.stringify(data.assignedCups);
+    for (const match of matchesByRound.get(round) ?? []) {
+      if (match.cup === data.cup && JSON.stringify(match.assignedCups) === canonicalKey) {
+        continue;
+      }
+      await modelInstance.update({
+        where: { id: match.id },
+        data,
+      });
+      writes += 1;
+    }
+  }
+
+  return { repaired: writes > 0, canonicalByRound };
 }
 
 /**
@@ -584,12 +640,11 @@ export function createFinalsHandlers(config: FinalsConfig) {
 
   function getRoundAssignmentData(
     round: string,
-    matchAssignmentKey: string,
     mrAssignments?: Map<string, string[]>,
     gpAssignments?: Map<string, string[]>,
     bmStartingCourses?: Map<string, number>,
   ): Record<string, unknown> {
-    const assignedCups = gpAssignments?.get(matchAssignmentKey) ?? [];
+    const assignedCups = gpAssignments?.get(round) ?? [];
     return {
       ...(config.assignMrCoursesByRound ? { assignedCourses: mrAssignments?.get(round) ?? [] } : {}),
       ...(config.assignGpCupByRound ? { cup: assignedCups[0] ?? null, assignedCups } : {}),
@@ -706,18 +761,19 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
 
       /* Normalize GP cup sequences for legacy playoff rows. New rows store a
-       * per-match assignedCups array; old rows only had the first cup. Patch
+       * round-shared assignedCups array; old rows only had the first cup. Patch
        * in-memory from the canonical map so the current response sees the
        * repaired sequence without a second findMany. */
       if (config.assignGpCupByRound && playoffMatches.length > 0) {
-        const cupResult = await normalizeGpMatchCupAssignments(
+        const cupResult = await normalizeRoundCupsToSingleSequence(
           model(prisma),
           'playoff',
           playoffMatches,
         );
         if (cupResult.repaired) {
           for (const m of playoffMatches) {
-            const canonical = cupResult.canonicalById.get((m as { id: string }).id);
+            const round = (m as { round?: string | null }).round;
+            const canonical = round ? cupResult.canonicalByRound.get(round) : undefined;
             if (canonical) {
               (m as { cup?: string | null; assignedCups?: unknown }).cup = canonical.cup;
               (m as { cup?: string | null; assignedCups?: unknown }).assignedCups = canonical.assignedCups;
@@ -842,7 +898,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           select: { id: true, round: true, cup: true, assignedCups: true },
         });
         if (legacyFinals.length > 0) {
-          await normalizeGpMatchCupAssignments(
+          await normalizeRoundCupsToSingleSequence(
             model(prisma),
             'finals',
             legacyFinals,
@@ -1109,7 +1165,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ? createMrRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const gpAssignments = config.assignGpCupByRound
-        ? createGpMatchCupAssignments(bracketStructure, 'finals')
+        ? createGpRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const bmStartingCourses = config.assignBmStartingCourseByRound
         ? createBmRoundStartingCourses(bracketStructure)
@@ -1134,7 +1190,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), mrAssignments, gpAssignments, bmStartingCourses),
+            ...getRoundAssignmentData(bracketMatch.round, mrAssignments, gpAssignments, bmStartingCourses),
           },
         };
       });
@@ -1291,7 +1347,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           ? createMrRoundAssignments(playoffStructure, 'playoff')
           : undefined;
         const playoffGpAssignments = config.assignGpCupByRound
-          ? createGpMatchCupAssignments(playoffStructure, 'playoff')
+          ? createGpRoundAssignments(playoffStructure, 'playoff')
           : undefined;
         const playoffBmStartingCourses = config.assignBmStartingCourseByRound
           ? createBmRoundStartingCourses(playoffStructure)
@@ -1332,7 +1388,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
               player1Id: player1?.playerId || playoffSeededPlayers[0].playerId,
               player2Id: player2?.playerId || player1?.playerId || playoffSeededPlayers[0].playerId,
               completed: false,
-              ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
+              ...getRoundAssignmentData(bracketMatch.round, playoffMrAssignments, playoffGpAssignments, playoffBmStartingCourses),
             },
           };
         });
@@ -1429,7 +1485,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         ? createMrRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const finalsGpAssignments = config.assignGpCupByRound
-        ? createGpMatchCupAssignments(bracketStructure, 'finals')
+        ? createGpRoundAssignments(bracketStructure, 'finals')
         : undefined;
       const finalsBmStartingCourses = config.assignBmStartingCourseByRound
         ? createBmRoundStartingCourses(bracketStructure)
@@ -1468,7 +1524,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
             player1Id: player1?.playerId || seededPlayers[0].playerId,
             player2Id: player2?.playerId || player1?.playerId || seededPlayers[0].playerId,
             completed: false,
-            ...getRoundAssignmentData(bracketMatch.round, String(bracketMatch.matchNumber), finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
+            ...getRoundAssignmentData(bracketMatch.round, finalsMrAssignments, finalsGpAssignments, finalsBmStartingCourses),
           },
         };
       });
