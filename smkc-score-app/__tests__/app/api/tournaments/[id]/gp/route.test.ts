@@ -120,7 +120,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        orderBy: [{ points: 'desc' }, { score: 'desc' }],
+        orderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
       });
       expect(prisma.gPMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
@@ -140,6 +140,29 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
       expect(result.data).toEqual({ qualifications: [], matches: [], qualificationConfirmed: false });
       expect(result.status).toBe(200);
+    });
+
+    it('should compute GP qualification ranks independently inside each group', async () => {
+      const mockQualifications = [
+        { id: 'qa1', tournamentId: 't1', playerId: 'pa1', group: 'A', score: 6, points: 90, rankOverride: null, player: { id: 'pa1', name: 'A1' } },
+        { id: 'qa2', tournamentId: 't1', playerId: 'pa2', group: 'A', score: 4, points: 70, rankOverride: null, player: { id: 'pa2', name: 'A2' } },
+        { id: 'qb1', tournamentId: 't1', playerId: 'pb1', group: 'B', score: 6, points: 95, rankOverride: null, player: { id: 'pb1', name: 'B1' } },
+        { id: 'qb2', tournamentId: 't1', playerId: 'pb2', group: 'B', score: 4, points: 65, rankOverride: null, player: { id: 'pb2', name: 'B2' } },
+      ];
+      (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
+      (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
+
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp');
+      const params = Promise.resolve({ id: 't1' });
+      const result = await GET(request, { params });
+
+      expect(result.status).toBe(200);
+      expect(result.data.qualifications.map((q: any) => [q.group, q.playerId, q._rank])).toEqual([
+        ['A', 'pa1', 1],
+        ['A', 'pa2', 2],
+        ['B', 'pb1', 1],
+        ['B', 'pb2', 2],
+      ]);
     });
 
     // Error case - Returns 500 when database query fails
@@ -719,4 +742,5 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       );
     });
   });
+
 });

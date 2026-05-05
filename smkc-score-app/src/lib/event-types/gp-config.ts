@@ -8,7 +8,6 @@
  * At qualification setup, the full cup list is shuffled 5 separate times,
  * concatenated, then assigned 1 cup per round in sequence. Deck boundaries
  * are adjusted so the same cup is not selected in consecutive rounds.
- * Unlike BM/MR, GP has no group-based ordering in qualifications.
  */
 
 import { EventTypeConfig, MatchResult } from './types';
@@ -68,8 +67,8 @@ export const gpConfig: EventTypeConfig = {
   matchScoreFields: { p1: 'points1', p2: 'points2' },
   loggerName: 'gp-api',
   eventDisplayName: 'grand prix',
-  // Per requirements.md §4.1: GP uses driver points as primary ranking criterion
-  qualificationOrderBy: [{ points: 'desc' }, { score: 'desc' }],
+  // Per requirements.md §4.1: GP uses driver points as primary ranking criterion within each group.
+  qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
   // §7.4: Pre-assign a cup to each qualification round at setup time.
   // Cups are shuffled 5 times and assigned sequentially without adjacent repeats.
   assignCupRandomly: true,
