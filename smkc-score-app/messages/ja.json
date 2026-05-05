@@ -462,6 +462,8 @@
     "w": "勝",
     "t": "引",
     "l": "敗",
+    "matchPointsShort": "勝点",
+    "driverPointsShort": "ドライバー点",
     "pts": "得点",
     "finalsTitle": "グランプリ 決勝",
     "matchTitle": "グランプリ - 試合 #{number}",

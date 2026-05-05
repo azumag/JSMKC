@@ -829,7 +829,8 @@ export default function GrandPrixPageClient({
                                 <TableHead className="text-center">{t('w')}</TableHead>
                                 <TableHead className="text-center">{t('t')}</TableHead>
                                 <TableHead className="text-center">{t('l')}</TableHead>
-                                <TableHead className="text-center">{t('pts')}</TableHead>
+                                <TableHead className="text-center">{t('matchPointsShort')}</TableHead>
+                                <TableHead className="text-center">{t('driverPointsShort')}</TableHead>
                                 <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -855,6 +856,9 @@ export default function GrandPrixPageClient({
                                   <TableCell className="text-center">{q.wins}</TableCell>
                                   <TableCell className="text-center">{q.ties}</TableCell>
                                   <TableCell className="text-center">{q.losses}</TableCell>
+                                  <TableCell className="text-center font-bold">
+                                    {q.score}
+                                  </TableCell>
                                   <TableCell className="text-center font-bold">
                                     {q.points}
                                   </TableCell>
@@ -900,7 +904,8 @@ export default function GrandPrixPageClient({
                           <TableHead className="text-center">{t('w')}</TableHead>
                           <TableHead className="text-center">{t('t')}</TableHead>
                           <TableHead className="text-center">{t('l')}</TableHead>
-                          <TableHead className="text-center">{t('pts')}</TableHead>
+                          <TableHead className="text-center">{t('matchPointsShort')}</TableHead>
+                          <TableHead className="text-center">{t('driverPointsShort')}</TableHead>
                           <TableHead className="text-center">{tc('qualificationPointsShort')}</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -914,6 +919,7 @@ export default function GrandPrixPageClient({
                             <TableCell className="text-center">{q.wins}</TableCell>
                             <TableCell className="text-center">{q.ties}</TableCell>
                             <TableCell className="text-center">{q.losses}</TableCell>
+                            <TableCell className="text-center font-bold">{q.score}</TableCell>
                             <TableCell className="text-center font-bold">{q.points}</TableCell>
                             <TableCell className="text-center font-bold">
                               {getQualificationPoints(q)}

@@ -462,6 +462,8 @@
     "w": "W",
     "t": "T",
     "l": "L",
+    "matchPointsShort": "Match Pts",
+    "driverPointsShort": "Driver Pts",
     "pts": "Pts",
     "finalsTitle": "Grand Prix Finals",
     "matchTitle": "Grand Prix - Match #{number}",
