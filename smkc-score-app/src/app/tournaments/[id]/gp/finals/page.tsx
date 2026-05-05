@@ -445,6 +445,12 @@ export default function GrandPrixFinals({
   const usesCupWinScoreOnly = (match?: Pick<GPMatch, "stage"> | null) =>
     match?.stage !== "playoff";
 
+  const getAssignedCupLabelsForMatch = (match: GPMatch): string[] => {
+    const assigned = Array.isArray(match.assignedCups) ? match.assignedCups.filter(Boolean) : [];
+    if (assigned.length > 0) return assigned;
+    return match.cup ? [match.cup] : [];
+  };
+
   const calculateCupPoints = (cup: CupScoreForm) => {
     if (cup.manualEnabled) {
       const p1 = parseManualScore(cup.manualPoints1);
@@ -946,6 +952,18 @@ export default function GrandPrixFinals({
                   </div>
                   <Badge variant="outline">FT{selectedMatchTargetWins}</Badge>
                 </div>
+                {getAssignedCupLabelsForMatch(selectedMatch).length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">{tGp('assignedCups')}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {getAssignedCupLabelsForMatch(selectedMatch).map((cup, index) => (
+                        <Badge key={`${selectedMatch.id}-assigned-cup-${index}-${cup}`} variant="secondary">
+                          {index + 1}. {tGp('cupLabel', { cup })}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
                   <div className="space-y-2">
                     <Label htmlFor="gp-finals-simple-score1">{selectedMatch.player1.nickname}</Label>
