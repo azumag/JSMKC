@@ -1,9 +1,9 @@
-export function isRemovableCupForm(index: number): boolean {
-  return index > 0;
+export function isRemovableCupForm(index: number, lockedCount = 1): boolean {
+  return index >= Math.max(1, lockedCount);
 }
 
-export function removeCupFormAt<T>(forms: readonly T[], index: number): T[] {
-  if (!isRemovableCupForm(index) || index >= forms.length) {
+export function removeCupFormAt<T>(forms: readonly T[], index: number, lockedCount = 1): T[] {
+  if (!isRemovableCupForm(index, lockedCount) || index >= forms.length) {
     return [...forms];
   }
   return forms.filter((_, currentIndex) => currentIndex !== index);

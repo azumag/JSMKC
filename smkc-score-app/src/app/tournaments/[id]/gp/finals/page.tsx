@@ -438,6 +438,9 @@ export default function GrandPrixFinals({
   const getTargetWinsForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
     getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? "finals" });
 
+  const getLockedCupCountForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
+    getTargetWinsForMatch(match);
+
   const calculateCupPoints = (cup: CupScoreForm) => {
     if (cup.manualEnabled) {
       const p1 = parseManualScore(cup.manualPoints1);
@@ -521,7 +524,7 @@ export default function GrandPrixFinals({
     } else {
       races = Array.from({ length: TOTAL_GP_RACES }, () => ({ course: "" as CourseAbbr, position1: null, position2: null }));
     }
-    const forms = match.cupResults && match.cupResults.length > 0
+    const savedForms = match.cupResults && match.cupResults.length > 0
       ? match.cupResults.map((result, index) => {
           const resultCup = result.cup || nextCupName(index, cup, match.assignedCups);
           return {
@@ -539,6 +542,11 @@ export default function GrandPrixFinals({
           };
         })
       : [makeBlankCupForm(0, cup, match.assignedCups)];
+    const lockedCupCount = getLockedCupCountForMatch(match);
+    const forms = Array.from(
+      { length: Math.max(savedForms.length, lockedCupCount) },
+      (_, index) => savedForms[index] ?? makeBlankCupForm(index, cup, match.assignedCups),
+    );
     setScoreForm({
       cup,
       races,
@@ -937,14 +945,18 @@ export default function GrandPrixFinals({
                         <div className="text-sm font-medium">
                           {selectedMatch?.player1.nickname}: {points.points1} pts / {selectedMatch?.player2.nickname}: {points.points2} pts
                         </div>
-                        {isRemovableCupForm(cupIndex) && (
+                        {isRemovableCupForm(cupIndex, selectedMatch ? getLockedCupCountForMatch(selectedMatch) : 1) && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon-sm"
                             aria-label={`Remove Cup ${cupIndex + 1}`}
                             title={`Remove Cup ${cupIndex + 1}`}
-                            onClick={() => setCupForms((current) => removeCupFormAt(current, cupIndex))}
+                            onClick={() => setCupForms((current) => removeCupFormAt(
+                              current,
+                              cupIndex,
+                              selectedMatch ? getLockedCupCountForMatch(selectedMatch) : 1,
+                            ))}
                           >
                             <XIcon className="size-4" />
                           </Button>

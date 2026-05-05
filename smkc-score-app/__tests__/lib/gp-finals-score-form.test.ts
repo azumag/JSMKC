@@ -6,6 +6,17 @@ describe("GP finals score form helpers", () => {
     expect(removeCupFormAt(["Mushroom", "Flower"], 0)).toEqual(["Mushroom", "Flower"]);
   });
 
+  it("keeps all FT-seeded cup forms non-removable", () => {
+    const forms = ["Mushroom", "Flower", "Star", "Special"];
+
+    expect(isRemovableCupForm(0, 3)).toBe(false);
+    expect(isRemovableCupForm(1, 3)).toBe(false);
+    expect(isRemovableCupForm(2, 3)).toBe(false);
+    expect(isRemovableCupForm(3, 3)).toBe(true);
+    expect(removeCupFormAt(forms, 1, 3)).toEqual(forms);
+    expect(removeCupFormAt(forms, 3, 3)).toEqual(["Mushroom", "Flower", "Star"]);
+  });
+
   it("removes added cup forms by index without mutating the original list", () => {
     const forms = ["Mushroom", "Flower", "Star"];
 
