@@ -7,7 +7,7 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
  * Admin page for managing GP qualification rounds.
  * GP uses cup-based races with driver points (1st=9, 2nd=6, 3rd=3, 4th=1).
  * Players compete in round-robin groups, and standings are
- * calculated by driver points (primary) with match score (wins×2 + ties×1) as tiebreaker.
+ * calculated by match score (wins×2 + ties×1) with driver points as tiebreaker.
  *
  * Features:
  * - Group standings display with sortable columns
@@ -781,15 +781,15 @@ export default function GrandPrixPageClient({
                     {(() => {
                       /*
                        * Compute tie-aware 1224 competition ranks for this group.
-                       * GP uses points (driver points) as primary sort key, score as secondary.
+                       * GP uses match score as primary sort key, driver points as secondary.
                        * findUnresolvedTies returns IDs of entries in ties where not all
                        * members have a rankOverride — used for yellow row highlighting and banner.
                        */
                       const groupEntries = qualifications.filter((q) => q.group === group);
-                      // GP: driver points primary, match score secondary (opposite of BM/MR)
+                      // GP: match score primary, driver points secondary.
                       const byEffectiveRank = computeTieAwareRanks(
                         groupEntries,
-                        (a, b) => b.points - a.points || b.score - a.score
+                        (a, b) => b.score - a.score || b.points - a.points
                       );
                       const tiedIds = findUnresolvedTies(byEffectiveRank);
                       // Suppress trivial 0-0 ties: only flag players who have actually played.
@@ -887,7 +887,7 @@ export default function GrandPrixPageClient({
                 {(() => {
                   const combinedRankings = computeCombinedRanks(
                     qualifications,
-                    (a, b) => b.points - a.points || b.score - a.score
+                    (a, b) => b.score - a.score || b.points - a.points
                   );
                   return (
                     <Table>

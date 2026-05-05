@@ -7,7 +7,7 @@
  *
  * GET /api/tournaments/[id]/gp/standings
  * - Admin only (403 for non-admin)
- * - Sorted by drivers points desc, then match score desc (per tournament rules)
+ * - Sorted by match score desc, then driver points desc (per tournament rules)
  * - ETag caching with If-None-Match: * bypass
  */
 
@@ -19,9 +19,9 @@ const { GET: _GET } = createStandingsHandlers({
   errorMessage: 'Failed to fetch GP standings',
   qualificationModel: 'gPQualification',
   usePagination: false,
-  // GP ranking uses drivers points as primary criterion (per requirements.md Section 4.1),
-  // with match score (Win=2, Tie=1, Loss=0) as tiebreaker
-  orderBy: [{ points: 'desc' }, { score: 'desc' }],
+  // GP ranking uses match score (Win=2, Tie=1, Loss=0) first,
+  // with driver points as tiebreaker.
+  orderBy: [{ score: 'desc' }, { points: 'desc' }],
   // H2H tiebreaker (requirements §4.1 step 3): resolve tied players by direct match results
   // GP matches store driver points as points1/points2 (not score1/score2 like BM/MR)
   matchModel: 'gPMatch',

@@ -33,7 +33,7 @@ export interface RankAssignment {
  * @param entries   Raw qualification records for one group
  * @param compareFn Sort comparator defining the "better" direction per mode.
  *                  BM/MR: (a, b) => b.score - a.score || b.points - a.points
- *                  GP:    (a, b) => b.points - a.points || b.score - a.score
+ *                  GP:    (a, b) => b.score - a.score || b.points - a.points
  * @returns         Entries with `_autoRank` attached, sorted by effective rank
  *                  (rankOverride ?? _autoRank) ascending.
  */
