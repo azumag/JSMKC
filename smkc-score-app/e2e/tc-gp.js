@@ -1384,7 +1384,22 @@ async function runTc721(adminPage) {
   }
 }
 
-/* ───────── TC-722: GP Grand Final FT3 requires three cup wins ───────── */
+function gpFinalsTargetWinsForRound(round) {
+  if (['winners_final', 'losers_sf', 'losers_final', 'grand_final', 'grand_final_reset'].includes(round)) {
+    return 3;
+  }
+  return 2;
+}
+
+function gpWinningCupResults(match, targetWins) {
+  const fallbackCups = ['Flower', 'Star', 'Special'];
+  return Array.from({ length: targetWins }, (_, index) => {
+    const cup = index === 0 ? match.cup || 'Mushroom' : fallbackCups[index - 1] || 'Mushroom';
+    return gpCupResult(cup, 45, 0);
+  });
+}
+
+/* ───────── TC-722: GP Winners SF FT2, final rounds FT3 ───────── */
 async function runTc722(adminPage) {
   let setup = null;
   try {
@@ -1400,10 +1415,12 @@ async function runTc722(adminPage) {
       if (!match || !match.player1Id || !match.player2Id || match.player1Id === match.player2Id) {
         throw new Error(`Match ${mn} not ready`);
       }
-      const res = await apiSetGpFinalsCupResults(adminPage, tournamentId, match.id, [
-        gpCupResult(match.cup || 'Mushroom', 45, 0),
-        gpCupResult('Flower', 45, 0),
-      ]);
+      const res = await apiSetGpFinalsCupResults(
+        adminPage,
+        tournamentId,
+        match.id,
+        gpWinningCupResults(match, gpFinalsTargetWinsForRound(match.round)),
+      );
       if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
     }
 
@@ -1430,9 +1447,14 @@ async function runTc722(adminPage) {
     const afterThree = matches.find((m) => m.id === m16.id);
     const completed = afterThree?.completed === true && afterThree?.points1 === 3 && afterThree?.points2 === 0;
 
-    const ok = stillOpen && completed;
+    const winnersSfMatches = matches.filter((m) => m.round === 'winners_sf');
+    const winnersSfCompletedAtFt2 = winnersSfMatches.length > 0 &&
+      winnersSfMatches.every((m) => m.completed === true && m.points1 === 2 && m.points2 === 0);
+
+    const ok = winnersSfCompletedAtFt2 && stillOpen && completed;
     log('TC-722', ok ? 'PASS' : 'FAIL',
-      !stillOpen ? `M16 after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
+      !winnersSfCompletedAtFt2 ? 'Winners SF did not complete at FT2'
+      : !stillOpen ? `M16 after two cups completed=${afterTwo?.completed} score=${afterTwo?.points1}-${afterTwo?.points2}`
       : !completed ? `M16 after three cups completed=${afterThree?.completed} score=${afterThree?.points1}-${afterThree?.points2}`
       : '');
   } catch (err) {

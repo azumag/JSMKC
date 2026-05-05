@@ -1689,15 +1689,16 @@
 - **期待結果**: 同点カップは誰にもカップ勝利を与えず、必要ならFT数を超えた追加カップで決着する
 - **スクリプト**: tc-gp.js TC-721
 
-## TC-722: GP ベスト4 — FT3 は3カップ先取で決着
+## TC-722: GP 決勝 — Winners SF はFT2、決勝帯はFT3
 - **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
 - **authRequired**: true (admin)
-- **背景**: GPのベスト4内の全試合はFT3。Upper/Lowerの準決勝、決勝、Grand Final は2カップ勝利では未完了で、3カップ先取が必要。ベスト4以前のダブルイリミネーション試合はFT2、BarragesはFT1。
+- **背景**: GPのWinners Semi FinalはFT2で完了する。Winners Final / Losers Semi Final / Losers Final / Grand Final はFT3で、2カップ勝利では未完了、3カップ先取が必要。ベスト4以前のダブルイリミネーション試合もFT2、BarragesはFT1。
 - **手順**:
   1. 28名予選 + Top-8 GP決勝ブラケット生成
-  2. Winners Semi Final / Losers Semi Final / Grand Final の対象マッチに2カップ分のP1勝利をPUTし、`points1=2, completed=false` であることを確認する
-  3. 同じ対象マッチに3カップ目P1勝利を追加してPUTし、`points1=3, completed=true` になることを確認する
-- **期待結果**: GP ベスト4内の全試合はFT3として動作し、3カップ先取で初めて完了する
+  2. Winners Semi Final に2カップ分のP1勝利をPUTし、`points1=2, completed=true` であることを確認する
+  3. Grand Final に2カップ分のP1勝利をPUTし、`points1=2, completed=false` であることを確認する
+  4. Grand Final に3カップ目P1勝利を追加してPUTし、`points1=3, completed=true` になることを確認する
+- **期待結果**: GP Winners Semi Final はFT2として完了し、Winners Final / Losers Semi Final / Losers Final / Grand Final はFT3として動作する
 - **スクリプト**: tc-gp.js TC-722
 
 ## TC-723: GP 予選順位表 — 0-1000 予選点列の表示

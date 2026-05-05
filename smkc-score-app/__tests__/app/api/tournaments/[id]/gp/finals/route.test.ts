@@ -467,6 +467,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(ft2Match.cup).toBe((ft2Match.assignedCups as string[])[0]);
       expect(winnersR1Sequences[1]).toEqual(winnersR1Sequences[0]);
       expect(winnersSfSequences[1]).toEqual(winnersSfSequences[0]);
+      expect(winnersSfSequences[0]).toHaveLength(3);
       expect(ft3Match.assignedCups).toHaveLength(5);
       expect(new Set((ft3Match.assignedCups as string[]).slice(0, 4)).size).toBe(4);
       expect(ft3Match.cup).toBe((ft3Match.assignedCups as string[])[0]);
@@ -808,7 +809,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.data.loserId).toBe('p2');
     });
 
-    it('should keep GP winners semi-final pending until FT3 cup wins are reached', async () => {
+    it('should complete GP winners semi-final once FT2 cup wins are reached', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',
@@ -825,7 +826,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       };
 
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
-      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 2, points2: 0, completed: false });
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 2, points2: 0, completed: true });
       (generateBracketStructure as jest.Mock).mockReturnValue([
         { matchNumber: 5, round: 'winners_sf', winnerGoesTo: 7, loserGoesTo: 12, position: 1 },
       ]);
@@ -846,18 +847,17 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const scoreUpdate = (prisma.gPMatch.update as jest.Mock).mock.calls[0][0];
       expect(scoreUpdate.data.points1).toBe(2);
       expect(scoreUpdate.data.points2).toBe(0);
-      expect(scoreUpdate.data.completed).toBe(false);
-      expect(prisma.gPMatch.findFirst).not.toHaveBeenCalled();
-      expect(result.data.winnerId).toBeNull();
-      expect(result.data.isComplete).toBe(false);
+      expect(scoreUpdate.data.completed).toBe(true);
+      expect(result.data.winnerId).toBe('p1');
+      expect(result.data.loserId).toBe('p2');
     });
 
-    it('should complete GP winners semi-final once FT3 cup wins are reached', async () => {
+    it('should complete GP losers semi-final once FT3 cup wins are reached', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',
-        matchNumber: 5,
-        round: 'winners_sf',
+        matchNumber: 13,
+        round: 'losers_sf',
         stage: 'finals',
         player1Id: 'p1',
         player2Id: 'p2',
@@ -871,9 +871,9 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
       (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 3, points2: 0, completed: true });
       (generateBracketStructure as jest.Mock).mockReturnValue([
-        { matchNumber: 5, round: 'winners_sf', winnerGoesTo: 7, loserGoesTo: 12, position: 1 },
+        { matchNumber: 13, round: 'losers_sf', winnerGoesTo: 15, loserGoesTo: null, position: 1 },
       ]);
-      (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm7' });
+      (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm15' });
 
       const request = new MockNextRequest(
         'http://localhost:3000/api/tournaments/t1/gp/finals',
@@ -1234,7 +1234,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         stage: 'finals',
         player1Id: 'p1',
         player2Id: 'p2',
-        points1: 3,
+        points1: 2,
         points2: 0,
         completed: false,
         player1: { id: 'p1', name: 'Player 1' },
@@ -1251,7 +1251,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm7' });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 3, score2: 0 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 2, score2: 0 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
