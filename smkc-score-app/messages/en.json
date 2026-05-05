@@ -456,6 +456,7 @@
     "manualScoreValidation": "Manual total scores must be non-negative integers.",
     "manualScoreSaveFailed": "Failed to save the manual total score.",
     "cupWinsScore": "Cups won",
+    "assignedCups": "Assigned cups",
     "createGroupsAndMatches": "Create Groups & Matches",
     "noGroupsYet": "No groups set up yet. Click \"Setup Groups\" to begin.",
     "noGroupsYetViewer": "No groups set up yet. Please wait until the setup is complete.",
