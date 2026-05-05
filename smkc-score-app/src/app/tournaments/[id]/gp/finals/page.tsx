@@ -82,7 +82,7 @@ import { canResetFinalsFromQualification } from "@/lib/finals-action-availabilit
 import { parseManualScore } from "@/lib/parse-manual-score";
 import type { Player } from "@/lib/types";
 import { buildMatchLabel } from "@/lib/overlay/phase";
-import { getGpFinalsTargetWins } from "@/lib/finals-target-wins";
+import { getGpFinalsMaxCups, getGpFinalsTargetWins } from "@/lib/finals-target-wins";
 import { getCupForFormIndex, isRemovableCupForm, removeCupFormAt } from "@/lib/gp-finals-score-form";
 import { GP_DRIVER_POINTS_INPUT_PROPS } from "@/lib/gp-driver-points-input";
 
@@ -440,7 +440,7 @@ export default function GrandPrixFinals({
     getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? "finals" });
 
   const getLockedCupCountForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
-    getTargetWinsForMatch(match);
+    getGpFinalsMaxCups({ round: match?.round, stage: match?.stage ?? "finals" });
 
   const usesCupWinScoreOnly = (match?: Pick<GPMatch, "stage"> | null) =>
     match?.stage !== "playoff";
