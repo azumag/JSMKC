@@ -120,7 +120,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        orderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
+        orderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
       });
       expect(prisma.gPMatch.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1', stage: 'qualification' },
@@ -144,10 +144,11 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
 
     it('should compute GP qualification ranks independently inside each group', async () => {
       const mockQualifications = [
-        { id: 'qa1', tournamentId: 't1', playerId: 'pa1', group: 'A', score: 6, points: 90, rankOverride: null, player: { id: 'pa1', name: 'A1' } },
-        { id: 'qa2', tournamentId: 't1', playerId: 'pa2', group: 'A', score: 4, points: 70, rankOverride: null, player: { id: 'pa2', name: 'A2' } },
-        { id: 'qb1', tournamentId: 't1', playerId: 'pb1', group: 'B', score: 6, points: 95, rankOverride: null, player: { id: 'pb1', name: 'B1' } },
-        { id: 'qb2', tournamentId: 't1', playerId: 'pb2', group: 'B', score: 4, points: 65, rankOverride: null, player: { id: 'pb2', name: 'B2' } },
+        { id: 'qa1', tournamentId: 't1', playerId: 'pa1', group: 'A', score: 6, points: 60, rankOverride: null, player: { id: 'pa1', name: 'A1' } },
+        { id: 'qa2', tournamentId: 't1', playerId: 'pa2', group: 'A', score: 4, points: 90, rankOverride: null, player: { id: 'pa2', name: 'A2' } },
+        { id: 'qb1', tournamentId: 't1', playerId: 'pb1', group: 'B', score: 6, points: 50, rankOverride: null, player: { id: 'pb1', name: 'B1' } },
+        { id: 'qb2', tournamentId: 't1', playerId: 'pb2', group: 'B', score: 6, points: 40, rankOverride: null, player: { id: 'pb2', name: 'B2' } },
+        { id: 'qb3', tournamentId: 't1', playerId: 'pb3', group: 'B', score: 4, points: 95, rankOverride: null, player: { id: 'pb3', name: 'B3' } },
       ];
       (prisma.gPQualification.findMany as jest.Mock).mockResolvedValue(mockQualifications);
       (prisma.gPMatch.findMany as jest.Mock).mockResolvedValue([]);
@@ -162,6 +163,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
         ['A', 'pa2', 2],
         ['B', 'pb1', 1],
         ['B', 'pb2', 2],
+        ['B', 'pb3', 3],
       ]);
     });
 

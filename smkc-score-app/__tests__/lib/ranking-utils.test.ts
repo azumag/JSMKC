@@ -30,9 +30,9 @@ interface Entry {
 const bmCompareFn = (a: Entry, b: Entry) =>
   b.score - a.score || b.points - a.points;
 
-/** GP comparator: points (driver points) desc, score desc */
+/** GP comparator: score desc, points (driver points) desc */
 const gpCompareFn = (a: Entry, b: Entry) =>
-  b.points - a.points || b.score - a.score;
+  b.score - a.score || b.points - a.points;
 
 // ── computeTieAwareRanks ──────────────────────────────────────────────────────
 
@@ -90,15 +90,15 @@ describe("computeTieAwareRanks", () => {
     expect(result[2].id).toBe("b");
   });
 
-  it("uses GP comparator (points primary, score secondary)", () => {
+  it("uses GP comparator (score primary, points secondary)", () => {
     const entries: Entry[] = [
-      { id: "a", score: 8, points: 6, rankOverride: null },
-      { id: "b", score: 10, points: 9, rankOverride: null },
+      { id: "a", score: 10, points: 6, rankOverride: null },
+      { id: "b", score: 8, points: 99, rankOverride: null },
       { id: "c", score: 5, points: 3, rankOverride: null },
     ];
     const result = computeTieAwareRanks(entries, gpCompareFn);
-    expect(result[0].id).toBe("b"); // highest driver points
-    expect(result[1].id).toBe("a");
+    expect(result[0].id).toBe("a"); // highest match score
+    expect(result[1].id).toBe("b");
     expect(result[2].id).toBe("c");
   });
 
@@ -168,7 +168,7 @@ describe("computeCombinedRanks", () => {
       { id: "b", score: 8, points: 9, rankOverride: null },
     ];
     const result = computeCombinedRanks(entries, gpCompareFn);
-    expect(result[0].id).toBe("b");
+    expect(result[0].id).toBe("a");
   });
 });
 

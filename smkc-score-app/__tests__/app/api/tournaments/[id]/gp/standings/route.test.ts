@@ -188,10 +188,10 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       expect(prisma.gPQualification.findMany).toHaveBeenCalledWith({
         where: { tournamentId: 't1' },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
-        // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
+        // GP ranks by match score first, then driver points (per requirements.md Section 4.1)
         orderBy: [
-          { points: 'desc' },
           { score: 'desc' },
+          { points: 'desc' },
         ],
       });
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'etag-123');
@@ -422,8 +422,8 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       expect(set).toHaveBeenCalledWith('t1', 'qualification', mockQualifications, 'generated-etag');
     });
 
-    // Edge case - Correctly sorts qualifications by score then points
-    it('should correctly sort qualifications by drivers points then match score', async () => {
+    // Edge case - Correctly requests qualifications by score then points
+    it('should request qualifications by match score then driver points', async () => {
       const mockAuth = { user: { id: 'admin1', role: 'admin' } };
       const mockQualifications = [
         {
@@ -435,8 +435,8 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           wins: 3,
           ties: 0,
           losses: 1,
-          points: 36,
-          score: 6,
+          points: 20,
+          score: 7,
           player: { id: 'p1', name: 'Player 1', nickname: 'nick1' },
         },
         {
@@ -448,7 +448,7 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
           wins: 3,
           ties: 0,
           losses: 1,
-          points: 30,
+          points: 36,
           score: 6,
           player: { id: 'p2', name: 'Player 2', nickname: 'nick2' },
         },
@@ -480,6 +480,9 @@ describe('GP Standings API Route - /api/tournaments/[id]/gp/standings', () => {
       expect(result.data.qualifications[0].playerId).toBe('p1');
       expect(result.data.qualifications[1].playerId).toBe('p2');
       expect(result.data.qualifications[2].playerId).toBe('p3');
+      expect(prisma.gPQualification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: [{ score: 'desc' }, { points: 'desc' }],
+      }));
     });
   });
 });

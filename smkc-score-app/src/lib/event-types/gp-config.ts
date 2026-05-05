@@ -4,7 +4,8 @@
  * GP qualification uses cup-based races with driver points
  * (1st=9, 2nd=6, 3rd=3, 4th=1, 5th-8th=0).
  * Match outcome is determined by total driver points across 5 races (1 cup = 5 courses).
- * Standings use accumulated total driver points as tiebreaker (not differential).
+ * Standings use match points (win=2, tie=1) first, then accumulated
+ * total driver points as tiebreaker (not differential).
  * At qualification setup, the full cup list is shuffled 5 separate times,
  * concatenated, then assigned 1 cup per round in sequence. Deck boundaries
  * are adjusted so the same cup is not selected in consecutive rounds.
@@ -14,7 +15,7 @@ import { EventTypeConfig, MatchResult } from './types';
 import { AUDIT_ACTIONS } from '@/lib/audit-log';
 import { validateGPRacePosition } from '@/lib/score-validation';
 import { DRIVER_POINTS, CUPS, CUP_SUBSTITUTIONS, TOTAL_GP_RACES } from '@/lib/constants';
-import { updateWithRetry, OptimisticLockError } from '@/lib/optimistic-locking';
+import { updateWithRetry } from '@/lib/optimistic-locking';
 
 /**
  * Calculate driver points from race finishing positions.
@@ -67,8 +68,8 @@ export const gpConfig: EventTypeConfig = {
   matchScoreFields: { p1: 'points1', p2: 'points2' },
   loggerName: 'gp-api',
   eventDisplayName: 'grand prix',
-  // Per requirements.md §4.1: GP uses driver points as primary ranking criterion within each group.
-  qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
+  // Per requirements.md §4.1: GP ranks by match points first, then driver points within each group.
+  qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
   // §7.4: Pre-assign a cup to each qualification round at setup time.
   // Cups are shuffled 5 times and assigned sequentially without adjacent repeats.
   assignCupRandomly: true,

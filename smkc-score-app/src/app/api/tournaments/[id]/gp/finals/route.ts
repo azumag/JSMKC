@@ -88,10 +88,10 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
   matchModel: 'gPMatch',
   qualificationModel: 'gPQualification',
   loggerName: 'gp-finals-api',
-  // GP uses drivers points as primary ranking criterion (per requirements.md Section 4.1)
+  // GP uses match points first, then driver points (per requirements.md Section 4.1)
   /* `group: 'asc'` is first so that Top-24 → Top-16 Playoff (#454) can pick
-   * per-group Top-N deterministically. Within-group order: points → score. */
-  qualificationOrderBy: [{ group: 'asc' }, { points: 'desc' }, { score: 'desc' }],
+   * per-group Top-N deterministically. Within-group order: score → points. */
+  qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
   putAdditionalFields: ['races', 'cup', 'cupResults', 'tvNumber'],
