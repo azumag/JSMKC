@@ -1001,7 +1001,7 @@ export default function GrandPrixFinals({
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <Table>
+                        <Table className="min-w-[560px]">
                           <TableHeader>
                             <TableRow>
                               <TableHead className="w-16">{tCommon('race')}</TableHead>
