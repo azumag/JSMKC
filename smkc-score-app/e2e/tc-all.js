@@ -3856,7 +3856,9 @@ async function main() {
   {
     let tc356TournamentId = null;
     const tc356PlayerIds = [];
+    const previousViewport356 = page.viewportSize();
     try {
+      await page.setViewportSize({ width: 390, height: 844 });
       const ts356 = Date.now();
       const players356 = [];
       for (let i = 1; i <= 8; i++) {
@@ -3879,13 +3881,20 @@ async function main() {
       await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 40000 });
       const hasScrollWrapper = await page.evaluate(() => {
         const dialog = document.querySelector('[role="dialog"]');
-        const scrollDivs = dialog ? dialog.querySelectorAll('div.overflow-x-auto') : [];
-        return Array.from(scrollDivs).some((div) => div.querySelector('table, [role="table"]'));
+        const table = dialog?.querySelector('table, [role="table"]');
+        const scrollDiv = table?.closest('[data-slot="table-container"], div.overflow-x-auto');
+        if (!(scrollDiv instanceof HTMLElement)) return false;
+        const originalLeft = scrollDiv.scrollLeft;
+        scrollDiv.scrollLeft = scrollDiv.scrollWidth;
+        const canScroll = scrollDiv.scrollWidth > scrollDiv.clientWidth && scrollDiv.scrollLeft > originalLeft;
+        scrollDiv.scrollLeft = originalLeft;
+        return canScroll;
       });
-      log('TC-356', hasScrollWrapper ? 'PASS' : 'FAIL', 'overflow-x-auto wrapper containing a table in GP finals score dialog');
+      log('TC-356', hasScrollWrapper ? 'PASS' : 'FAIL', 'GP finals score table can scroll horizontally at mobile width');
     } catch (e) {
       log('TC-356', 'FAIL', e instanceof Error ? e.message : String(e));
     } finally {
+      if (previousViewport356) await page.setViewportSize(previousViewport356);
       if (tc356TournamentId) await deleteTournament(page, tc356TournamentId);
       for (const playerId of tc356PlayerIds) await deletePlayer(page, playerId);
     }
