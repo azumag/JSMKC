@@ -58,7 +58,7 @@ import { paginate } from '@/lib/pagination';
 import { configureNextResponseMock } from '../../../../../../helpers/next-response-mock';
 
 const NextResponseMock = jest.requireMock('next/server') as { NextResponse: { json: jest.Mock } };
-const jsonMock = NextResponseMock.NextResponse.json;
+const _jsonMock = NextResponseMock.NextResponse.json;
 
 class MockNextRequest {
   private _headers: Map<string, string>;
@@ -625,8 +625,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         stage: 'finals',
         player1Id: 'p1',
         player2Id: 'p2',
-        points1: 3,
-        points2: 1,
+        points1: 2,
+        points2: 0,
         completed: false,
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
@@ -642,10 +642,21 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       (generateBracketStructure as jest.Mock).mockReturnValue(mockBracket);
       (prisma.gPMatch.findFirst as jest.Mock).mockResolvedValue({ id: 'm5' });
 
-      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 3, score2: 1 });
+      const request = new MockNextRequest('http://localhost:3000/api/tournaments/t1/gp/finals', { matchId: 'm1', score1: 2, score2: 0 });
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
+      expect(prisma.gPMatch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'm1' },
+          data: expect.objectContaining({
+            points1: 2,
+            points2: 0,
+            cupResults: null,
+            completed: true,
+          }),
+        }),
+      );
       expect(result.data).toEqual({
         match: updatedMatch,
         winnerId: 'p1',
@@ -1098,7 +1109,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.data.match.completed).toBe(false);
     });
 
-    it('should reject negative GP finals driver points', async () => {
+    it('should reject invalid GP finals cup wins', async () => {
       const mockMatch = {
         id: 'm1',
         stage: 'finals',
@@ -1114,7 +1125,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const params = Promise.resolve({ id: 't1' });
       const result = await PUT(request, { params });
 
-      expect(result.data).toEqual({ success: false, error: 'Driver points must be non-negative integers', code: 'VALIDATION_ERROR', details: { field: 'score' } });
+      expect(result.data).toEqual({ success: false, error: 'Cup wins must be integers from 0 to 2', code: 'VALIDATION_ERROR', details: { field: 'score' } });
       expect(result.status).toBe(400);
     });
 
@@ -1134,7 +1145,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player2: { id: 'p2', name: 'Player 2' },
       };
 
-      const updatedMatch = { ...mockMatch, points1: 0, points2: 0, completed: false, suddenDeathWinnerId: null };
+      const updatedMatch = { ...mockMatch, points1: 2, points2: 2, completed: false, suddenDeathWinnerId: null };
       const mockBracket = [
         { matchNumber: 1, round: 'winners_qf', player1Seed: 1, player2Seed: 8, winnerGoesTo: 5, loserGoesTo: 9, position: 1 },
       ];
@@ -1166,8 +1177,8 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         expect.objectContaining({
           where: { id: 'm1' },
           data: expect.objectContaining({
-            points1: 0,
-            points2: 0,
+            points1: 2,
+            points2: 2,
             suddenDeathWinnerId: null,
             completed: false,
           }),

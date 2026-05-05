@@ -253,6 +253,7 @@ export default function GrandPrixFinals({
     tvNumber: number | null;
   }>({ cup: "", races: [], tvNumber: null });
   const [cupForms, setCupForms] = useState<CupScoreForm[]>([]);
+  const [simpleScoreForm, setSimpleScoreForm] = useState({ score1: "0", score2: "0" });
   const [champion, setChampion] = useState<Player | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
@@ -441,6 +442,9 @@ export default function GrandPrixFinals({
   const getLockedCupCountForMatch = (match?: Pick<GPMatch, "round"> & { stage?: string | null } | null) =>
     getTargetWinsForMatch(match);
 
+  const usesCupWinScoreOnly = (match?: Pick<GPMatch, "stage"> | null) =>
+    match?.stage !== "playoff";
+
   const calculateCupPoints = (cup: CupScoreForm) => {
     if (cup.manualEnabled) {
       const p1 = parseManualScore(cup.manualPoints1);
@@ -553,6 +557,10 @@ export default function GrandPrixFinals({
       tvNumber: match.tvNumber ?? null,
     });
     setCupForms(forms);
+    setSimpleScoreForm({
+      score1: String(getGpScore(match, 1)),
+      score2: String(getGpScore(match, 2)),
+    });
     setIsScoreDialogOpen(true);
   };
 
@@ -568,33 +576,56 @@ export default function GrandPrixFinals({
 
     const body: Record<string, unknown> = { matchId: selectedMatch.id };
 
-    const cupResults = [];
-    for (const cup of cupForms) {
-      const points = calculateCupPoints(cup);
-      if (!points.valid) {
-        alert(tGp('manualScoreValidation'));
+    if (usesCupWinScoreOnly(selectedMatch)) {
+      const targetWins = getTargetWinsForMatch(selectedMatch);
+      const score1 = parseManualScore(simpleScoreForm.score1);
+      const score2 = parseManualScore(simpleScoreForm.score2);
+      const player1Won = score1 === targetWins && score2 !== null && score2 < targetWins;
+      const player2Won = score2 === targetWins && score1 !== null && score1 < targetWins;
+
+      if (
+        score1 === null ||
+        score2 === null ||
+        score1 > targetWins ||
+        score2 > targetWins ||
+        player1Won === player2Won
+      ) {
+        alert(tFinals('matchNeedWinner', { targetWins }));
         return;
       }
-      cupResults.push({
-        cup: cup.cup,
-        points1: points.points1,
-        points2: points.points2,
-        races: cup.manualEnabled ? undefined : cup.races.map((r) => ({
-          course: r.course,
-          position1: r.position1,
-          position2: r.position2,
-          points1: r.position1 ? getDriverPoints(r.position1) : 0,
-          points2: r.position2 ? getDriverPoints(r.position2) : 0,
-        })),
-      });
+
+      body.score1 = score1;
+      body.score2 = score2;
+      body.tvNumber = scoreForm.tvNumber;
+    } else {
+      const cupResults = [];
+      for (const cup of cupForms) {
+        const points = calculateCupPoints(cup);
+        if (!points.valid) {
+          alert(tGp('manualScoreValidation'));
+          return;
+        }
+        cupResults.push({
+          cup: cup.cup,
+          points1: points.points1,
+          points2: points.points2,
+          races: cup.manualEnabled ? undefined : cup.races.map((r) => ({
+            course: r.course,
+            position1: r.position1,
+            position2: r.position2,
+            points1: r.position1 ? getDriverPoints(r.position1) : 0,
+            points2: r.position2 ? getDriverPoints(r.position2) : 0,
+          })),
+        });
+      }
+      const wins = calculateCupWins(cupForms);
+      body.score1 = wins.p1;
+      body.score2 = wins.p2;
+      body.cupResults = cupResults;
+      body.cup = cupResults[cupResults.length - 1]?.cup ?? scoreForm.cup;
+      body.races = cupResults[cupResults.length - 1]?.races;
+      body.tvNumber = scoreForm.tvNumber;
     }
-    const wins = calculateCupWins(cupForms);
-    body.score1 = wins.p1;
-    body.score2 = wins.p2;
-    body.cupResults = cupResults;
-    body.cup = cupResults[cupResults.length - 1]?.cup ?? scoreForm.cup;
-    body.races = cupResults[cupResults.length - 1]?.races;
-    body.tvNumber = scoreForm.tvNumber;
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/gp/finals`, {
@@ -610,6 +641,7 @@ export default function GrandPrixFinals({
         setSelectedMatch(null);
         setScoreForm({ cup: "", races: [], tvNumber: null });
         setCupForms([]);
+        setSimpleScoreForm({ score1: "0", score2: "0" });
         if (data.playoffComplete !== undefined) {
           setPlayoffComplete(data.playoffComplete);
         }
@@ -647,9 +679,23 @@ export default function GrandPrixFinals({
     finalsExists: bracketExists,
   });
   const cupWins = calculateCupWins(cupForms);
-  const scoreInputsReady = cupForms.length > 0 && cupForms.every((cup) => calculateCupPoints(cup).valid);
+  const simpleScore1 = parseManualScore(simpleScoreForm.score1);
+  const simpleScore2 = parseManualScore(simpleScoreForm.score2);
+  const selectedMatchTargetWins = selectedMatch ? getTargetWinsForMatch(selectedMatch) : 1;
+  const simpleScoreInputsReady = Boolean(selectedMatch && usesCupWinScoreOnly(selectedMatch) &&
+    simpleScore1 !== null &&
+    simpleScore2 !== null &&
+    simpleScore1 <= selectedMatchTargetWins &&
+    simpleScore2 <= selectedMatchTargetWins &&
+    (
+      (simpleScore1 === selectedMatchTargetWins && simpleScore2 < selectedMatchTargetWins) ||
+      (simpleScore2 === selectedMatchTargetWins && simpleScore1 < selectedMatchTargetWins)
+    ));
+  const scoreInputsReady = selectedMatch && usesCupWinScoreOnly(selectedMatch)
+    ? simpleScoreInputsReady
+    : cupForms.length > 0 && cupForms.every((cup) => calculateCupPoints(cup).valid);
 
-  // GP stores driver points in points1/points2 (not score1/score2 like BM/MR).
+  // GP finals stores cup wins in points1/points2 (not score1/score2 like BM/MR).
   // DoubleEliminationBracket reads match.score1/score2 for winner highlighting (#759).
   // These must be declared before any early returns to satisfy rules-of-hooks.
   const gpBracketMatches = useMemo(
@@ -867,9 +913,8 @@ export default function GrandPrixFinals({
         />
       )}
 
-      {/* Score entry dialog: admin-only.
-           GP finals use cup-based race entry with driver points (§7.5),
-           not raw score inputs like BM/MR finals. */}
+      {/* Score entry dialog: admin-only. Upper-bracket GP finals use cup-win
+           totals; the Top-24 playoff still keeps cup-level race entry. */}
       {isAdmin && <Dialog open={isScoreDialogOpen} onOpenChange={setIsScoreDialogOpen}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
@@ -890,7 +935,50 @@ export default function GrandPrixFinals({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Cup display with §7.1 substitution toggle. scoreForm.cup is
+            {selectedMatch && usesCupWinScoreOnly(selectedMatch) ? (
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">{tGp('cupWinsScore')}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {tFinals('matchNeedWinner', { targetWins: selectedMatchTargetWins })}
+                    </div>
+                  </div>
+                  <Badge variant="outline">FT{selectedMatchTargetWins}</Badge>
+                </div>
+                <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="gp-finals-simple-score1">{selectedMatch.player1.nickname}</Label>
+                    <Input
+                      id="gp-finals-simple-score1"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={selectedMatchTargetWins}
+                      step={1}
+                      value={simpleScoreForm.score1}
+                      onChange={(e) => setSimpleScoreForm((current) => ({ ...current, score1: e.target.value }))}
+                    />
+                  </div>
+                  <div className="hidden pb-2 text-center text-lg font-semibold text-muted-foreground md:block">-</div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gp-finals-simple-score2">{selectedMatch.player2.nickname}</Label>
+                    <Input
+                      id="gp-finals-simple-score2"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={selectedMatchTargetWins}
+                      step={1}
+                      value={simpleScoreForm.score2}
+                      onChange={(e) => setSimpleScoreForm((current) => ({ ...current, score2: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Cup display with §7.1 substitution toggle. scoreForm.cup is
               always set by openScoreDialog: either from the match's assigned
               cup or a random fallback for legacy matches. The substitution
               toggle is only offered when the match has a server-assigned
@@ -1159,6 +1247,8 @@ export default function GrandPrixFinals({
                 </Button>
               </div>
             </div>
+              </>
+            )}
           </div>
           {/* TV number assignment for broadcast: explicit save button (#651)
               lets admins assign TV# before scores are entered. */}
@@ -1199,7 +1289,12 @@ export default function GrandPrixFinals({
                   try {
                     const matchLabel = buildMatchLabel(selectedMatch.round, roundNames, "gp");
                     const targetWins = getTargetWinsForMatch(selectedMatch);
-                    const currentWins = calculateCupWins(cupForms);
+                    const currentWins = usesCupWinScoreOnly(selectedMatch)
+                      ? {
+                          p1: parseManualScore(simpleScoreForm.score1) ?? 0,
+                          p2: parseManualScore(simpleScoreForm.score2) ?? 0,
+                        }
+                      : calculateCupWins(cupForms);
                     const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },

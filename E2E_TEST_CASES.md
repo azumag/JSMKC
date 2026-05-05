@@ -1752,6 +1752,18 @@
   5. クリーンアップ
 - **期待結果**: 手動合計スコア PUT でカップ勝利数が更新され、カップごとのドライバーズポイント内訳が保持される
 
+## TC-1103: GP決勝 — アッパーブラケットは取得カップ数だけで保存できる
+- **URL**: /api/tournaments/[temp-id]/gp/finals (PUT)
+- **authRequired**: true (admin)
+- **背景**: GPのアッパーブラケットはカップ別のドライバーズポイント内訳ではなく、どちらが何本取ったかだけを記録できればよい。
+- **手順**:
+  1. 8名以上の GP 予選を完了し、決勝ブラケットを生成する
+  2. アッパーブラケット M1 に `{ score1: 2, score2: 0 }` をPUTする
+  3. `GET /api/.../gp/finals` で M1 を再取得する
+  4. M1 が `completed=true`、`points1=2`、`points2=0`、`cupResults=null` で保存されていることを確認
+  5. クリーンアップ
+- **期待結果**: アッパーブラケットは `2-0` のような取得カップ数だけで保存・進行でき、不要なカップ別明細を作らない
+
 ## TC-710: GP カップ不一致修正の拒否
 - **URL**: /api/tournaments/[temp-id]/gp (PATCH with correction)
 - **authRequired**: true (player)
