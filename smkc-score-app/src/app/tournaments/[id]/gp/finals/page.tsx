@@ -930,6 +930,20 @@ export default function GrandPrixFinals({
             <div className="space-y-4">
               {cupForms.map((cup, cupIndex) => {
                 const points = calculateCupPoints(cup);
+                const setRacePosition = (
+                  raceIndex: number,
+                  field: "position1" | "position2",
+                  value: string,
+                ) => {
+                  const next = [...cupForms];
+                  const races = [...cup.races];
+                  races[raceIndex] = {
+                    ...races[raceIndex],
+                    [field]: value === "" ? null : parseInt(value, 10),
+                  };
+                  next[cupIndex] = { ...cup, races };
+                  setCupForms(next);
+                };
                 return (
                   <div
                     key={`cup-${cupIndex}`}
@@ -1007,7 +1021,64 @@ export default function GrandPrixFinals({
                         </div>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <>
+                      <div className="space-y-3 sm:hidden" data-testid={`gp-finals-mobile-race-list-${cupIndex}`}>
+                        {cup.races.map((race, raceIndex) => (
+                          <div
+                            key={`mobile-race-${selectedMatch?.id}-${cupIndex}-${raceIndex}`}
+                            className="space-y-3 border-t border-foreground/10 pt-3 first:border-t-0 first:pt-0"
+                            data-testid="gp-finals-mobile-race-entry"
+                          >
+                            <div className="space-y-1">
+                              <div className="text-xs font-semibold uppercase text-muted-foreground">
+                                {tCommon('race')} {raceIndex + 1}
+                              </div>
+                              <div className="text-sm font-medium break-words">
+                                {COURSE_INFO.find((c) => c.abbr === race.course)?.name || race.course}
+                              </div>
+                            </div>
+                            <div className="grid gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">{tGp('p1Position')}</Label>
+                                <Select
+                                  value={race.position1?.toString() || ""}
+                                  onValueChange={(value) => setRacePosition(raceIndex, "position1", value)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder={tCommon('position')} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {GP_POSITION_OPTIONS.map((position) => (
+                                      <SelectItem key={`mobile-admin-p1-${cupIndex}-${raceIndex}-${position}`} value={position.toString()}>
+                                        {fmtPos(position)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">{tGp('p2Position')}</Label>
+                                <Select
+                                  value={race.position2?.toString() || ""}
+                                  onValueChange={(value) => setRacePosition(raceIndex, "position2", value)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder={tCommon('position')} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {GP_POSITION_OPTIONS.map((position) => (
+                                      <SelectItem key={`mobile-admin-p2-${cupIndex}-${raceIndex}-${position}`} value={position.toString()}>
+                                        {fmtPos(position)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="hidden overflow-x-auto sm:block">
                         {/* Keep enough intrinsic width for race, course, and two position selects:
                             64 + ~220 + 136 * 2 = ~556px. */}
                         <Table className="min-w-[560px]">
@@ -1029,13 +1100,7 @@ export default function GrandPrixFinals({
                                 <TableCell>
                                   <Select
                                     value={race.position1?.toString() || ""}
-                                    onValueChange={(value) => {
-                                      const next = [...cupForms];
-                                      const races = [...cup.races];
-                                      races[raceIndex] = { ...races[raceIndex], position1: value === "" ? null : parseInt(value, 10) };
-                                      next[cupIndex] = { ...cup, races };
-                                      setCupForms(next);
-                                    }}
+                                    onValueChange={(value) => setRacePosition(raceIndex, "position1", value)}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={tCommon('position')} />
@@ -1052,13 +1117,7 @@ export default function GrandPrixFinals({
                                 <TableCell>
                                   <Select
                                     value={race.position2?.toString() || ""}
-                                    onValueChange={(value) => {
-                                      const next = [...cupForms];
-                                      const races = [...cup.races];
-                                      races[raceIndex] = { ...races[raceIndex], position2: value === "" ? null : parseInt(value, 10) };
-                                      next[cupIndex] = { ...cup, races };
-                                      setCupForms(next);
-                                    }}
+                                    onValueChange={(value) => setRacePosition(raceIndex, "position2", value)}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={tCommon('position')} />
@@ -1077,6 +1136,7 @@ export default function GrandPrixFinals({
                           </TableBody>
                         </Table>
                       </div>
+                      </>
                     )}
                   </div>
                 );
