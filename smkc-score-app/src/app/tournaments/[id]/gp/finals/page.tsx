@@ -1008,6 +1008,8 @@ export default function GrandPrixFinals({
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
+                        {/* Keep enough intrinsic width for race, course, and two position selects:
+                            64 + ~220 + 136 * 2 = ~556px. */}
                         <Table className="min-w-[560px]">
                           <TableHeader>
                             <TableRow>
