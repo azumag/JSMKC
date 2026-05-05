@@ -569,6 +569,14 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       const result = await POST(request, { params });
 
       expect(result.status).toBe(201);
+      expect(result.data.playoffSeededPlayers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: 'p20', qualificationRankLabel: 'B8' }),
+          expect.objectContaining({ playerId: 'p8', qualificationRankLabel: 'A8' }),
+          expect.objectContaining({ playerId: 'p21', qualificationRankLabel: 'B9' }),
+          expect.objectContaining({ playerId: 'p11', qualificationRankLabel: 'A11' }),
+        ]),
+      );
       const createManyData = (prisma.gPMatch.createMany as jest.Mock).mock.calls[0][0].data as Array<Record<string, unknown>>;
       expect(createManyData).toHaveLength(3);
       for (const match of createManyData) {

@@ -65,8 +65,8 @@ interface PlayoffBracketProps {
   roundNames: Record<string, string>;
   /** Optional callback when a match card is clicked (for score entry) */
   onMatchClick?: (match: BMMatch) => void;
-  /** Seeded player data for displaying seed numbers */
-  seededPlayers?: { seed: number; playerId: string; player: Player }[];
+  /** Seeded player data for displaying qualification labels */
+  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
   /** Number of wins required to highlight a completed match winner */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   /** See `DoubleEliminationBracket.onTvNumberChange` — same select-to-save UX. */
@@ -90,7 +90,7 @@ function PlayoffMatchCard({
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
-  seededPlayers?: { seed: number; playerId: string; player: Player }[];
+  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
   onClick?: () => void;
   isPlayer1TBD: boolean;
   isPlayer2TBD: boolean;
@@ -99,15 +99,17 @@ function PlayoffMatchCard({
 }) {
   const tc = useTranslations("common");
   const tf = useTranslations("finals");
-  const seededPlayer1 = bracketMatch.player1Seed
-    ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
+  const seededEntry1 = bracketMatch.player1Seed
+    ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)
     : undefined;
-  const seededPlayer2 = bracketMatch.player2Seed
-    ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)?.player
+  const seededEntry2 = bracketMatch.player2Seed
+    ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
+  const seedLabel1 = seededEntry1?.qualificationRankLabel ?? bracketMatch.player1Seed;
+  const seedLabel2 = seededEntry2?.qualificationRankLabel ?? bracketMatch.player2Seed;
 
-  const player1: Player | undefined = match?.player1 || seededPlayer1;
-  const player2: Player | undefined = match?.player2 || seededPlayer2;
+  const player1: Player | undefined = match?.player1 || seededEntry1?.player;
+  const player2: Player | undefined = match?.player2 || seededEntry2?.player;
 
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
   const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
@@ -178,7 +180,7 @@ function PlayoffMatchCard({
         <span className="flex items-center gap-1">
           {bracketMatch.player1Seed && (
             <span className="text-xs text-muted-foreground">
-              [{bracketMatch.player1Seed}]
+              [{seedLabel1}]
             </span>
           )}
           <span className={isPlayer1TBD ? "text-muted-foreground" : ""}>
@@ -200,7 +202,7 @@ function PlayoffMatchCard({
         <span className="flex items-center gap-1">
           {bracketMatch.player2Seed !== undefined && bracketMatch.player2Seed > 0 && (
             <span className="text-xs text-muted-foreground">
-              [{bracketMatch.player2Seed}]
+              [{seedLabel2}]
             </span>
           )}
           <span className={isPlayer2TBD ? "text-muted-foreground" : ""}>
