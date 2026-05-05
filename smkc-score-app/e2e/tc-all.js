@@ -3849,10 +3849,9 @@ async function main() {
     log('TC-355', 'SKIP', 'TID not available');
   }
 
-  // TC-356: GP finals score dialog table is horizontally scrollable on mobile
-  // Verifies that the race-entry table inside the score dialog has an
-  // overflow-x-auto wrapper so the P2 position column is reachable on narrow
-  // viewports (issue #810).
+  // TC-356: GP finals score dialog is usable on mobile without horizontal scroll
+  // Verifies that the race-entry form switches to stacked mobile rows so both
+  // P1/P2 position controls are reachable on narrow viewports (issue #810).
   {
     let tc356TournamentId = null;
     const tc356PlayerIds = [];
@@ -3879,18 +3878,17 @@ async function main() {
       await firstMatch.waitFor({ state: 'visible', timeout: 40000 });
       await firstMatch.click({ timeout: 40000 });
       await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 40000 });
-      const hasScrollWrapper = await page.evaluate(() => {
+      const mobileLayoutUsable = await page.evaluate(() => {
         const dialog = document.querySelector('[role="dialog"]');
-        const table = dialog?.querySelector('table, [role="table"]');
-        const scrollDiv = table?.closest('[data-slot="table-container"], div.overflow-x-auto');
-        if (!(scrollDiv instanceof HTMLElement)) return false;
-        const originalLeft = scrollDiv.scrollLeft;
-        scrollDiv.scrollLeft = scrollDiv.scrollWidth;
-        const canScroll = scrollDiv.scrollWidth > scrollDiv.clientWidth && scrollDiv.scrollLeft > originalLeft;
-        scrollDiv.scrollLeft = originalLeft;
-        return canScroll;
+        if (!(dialog instanceof HTMLElement)) return false;
+        const firstRace = dialog.querySelector('[data-testid="gp-finals-mobile-race-entry"]');
+        if (!(firstRace instanceof HTMLElement)) return false;
+        const controls = firstRace.querySelectorAll('[role="combobox"]');
+        const rect = firstRace.getBoundingClientRect();
+        const viewportWidth = document.documentElement.clientWidth;
+        return controls.length === 2 && rect.left >= 0 && rect.right <= viewportWidth;
       });
-      log('TC-356', hasScrollWrapper ? 'PASS' : 'FAIL', 'GP finals score table can scroll horizontally at mobile width');
+      log('TC-356', mobileLayoutUsable ? 'PASS' : 'FAIL', 'GP finals score dialog shows stacked P1/P2 inputs at mobile width');
     } catch (e) {
       log('TC-356', 'FAIL', e instanceof Error ? e.message : String(e));
     } finally {
