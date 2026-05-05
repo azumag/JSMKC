@@ -571,6 +571,26 @@ export function createFinalsHandlers(config: FinalsConfig) {
       : { p1: 'score1', p2: 'score2' };
   }
 
+  function getCompletedMatchWinner(
+    match: Record<string, unknown>,
+  ): { winnerId: string; winnerPlayer: unknown } | null {
+    const score1 = Number(match[config.putScoreFields.dbField1]);
+    const score2 = Number(match[config.putScoreFields.dbField2]);
+    if (!Number.isFinite(score1) || !Number.isFinite(score2) || score1 === score2) {
+      return null;
+    }
+
+    const winnerId = score1 > score2 ? match.player1Id : match.player2Id;
+    if (typeof winnerId !== 'string' || winnerId.length === 0) {
+      return null;
+    }
+
+    return {
+      winnerId,
+      winnerPlayer: match.player1Id === winnerId ? match.player1 : match.player2,
+    };
+  }
+
   function hasAutomaticRankTies(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     qualifications: any[],
@@ -718,13 +738,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
         );
         if (!dbMatch?.completed) continue;
 
-        const winnerId = dbMatch.score1 >= dbMatch.score2 ? dbMatch.player1Id : dbMatch.player2Id;
-        const winnerPlayer = dbMatch.player1Id === winnerId ? dbMatch.player1 : dbMatch.player2;
+        const winner = getCompletedMatchWinner(dbMatch);
+        if (!winner) continue;
         seededPlayers.push({
           seed: r2BracketMatch.advancesToUpperSeed,
-          playerId: winnerId,
-          player: winnerPlayer,
-          qualificationRankLabel: qualificationRankLabels.get(winnerId),
+          playerId: winner.winnerId,
+          player: winner.winnerPlayer,
+          qualificationRankLabel: qualificationRankLabels.get(winner.winnerId),
         });
       }
 
@@ -1476,11 +1496,13 @@ export function createFinalsHandlers(config: FinalsConfig) {
           (m: { matchNumber: number }) => m.matchNumber === r2BracketMatch.matchNumber,
         );
         if (!dbMatch || !r2BracketMatch.advancesToUpperSeed) continue;
-        const winnerId = dbMatch.score1 >= dbMatch.score2 ? dbMatch.player1Id : dbMatch.player2Id;
-        const winnerPlayer = dbMatch.player1Id === winnerId ? dbMatch.player1 : dbMatch.player2;
+        const winner = getCompletedMatchWinner(dbMatch);
+        if (!winner) {
+          throw new Error(`Playoff winner for match ${r2BracketMatch.matchNumber} not resolved`);
+        }
         upperSeedToPlayer.set(r2BracketMatch.advancesToUpperSeed, {
-          playerId: winnerId,
-          player: winnerPlayer,
+          playerId: winner.winnerId,
+          player: winner.winnerPlayer,
         });
       }
 
