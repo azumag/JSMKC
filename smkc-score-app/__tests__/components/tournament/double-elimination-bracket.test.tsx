@@ -170,6 +170,30 @@ describe("DoubleEliminationBracket TBD rendering (issue #574)", () => {
     expect(winnersQF1!.textContent).toContain(seed8.nickname);
   });
 
+  it("shows qualification group-rank labels when seeded players include them", () => {
+    const { container } = render(
+      <DoubleEliminationBracket
+        matches={buildInitialMatches()}
+        bracketStructure={build8PlayerStructure()}
+        roundNames={{}}
+        seededPlayers={seededPlayers.map((entry, index) => ({
+          ...entry,
+          qualificationRankLabel: index % 2 === 0 ? `A${index + 1}` : `B${index + 1}`,
+        }))}
+      />,
+    );
+
+    const winnersQF1 = Array.from(
+      container.querySelectorAll<HTMLElement>("[role='button']"),
+    ).find((el) => el.querySelector("div.text-xs")?.textContent === "M1");
+
+    expect(winnersQF1).toBeDefined();
+    expect(winnersQF1!.textContent).toContain("[A1]");
+    expect(winnersQF1!.textContent).toContain("[B8]");
+    expect(winnersQF1!.textContent).not.toContain("[1]");
+    expect(winnersQF1!.textContent).not.toContain("[8]");
+  });
+
   it("renders unresolved Top-24 barrage seats as TBD in a previewed 16-player bracket", () => {
     const bracketStructure = generateBracketStructure(16);
     const seededPreview = [

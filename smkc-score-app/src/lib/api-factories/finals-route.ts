@@ -64,6 +64,7 @@ interface SeededFinalsPlayer {
   seed: number;
   playerId: string;
   player: unknown;
+  qualificationRankLabel?: string;
 }
 
 function fisherYatesShuffle<T>(arr: readonly T[]): T[] {
@@ -638,6 +639,22 @@ export function createFinalsHandlers(config: FinalsConfig) {
     );
   }
 
+  function buildQualificationRankLabelMap(
+    qualifications: Array<{ playerId: string; group?: string | null }>,
+  ): Map<string, string> {
+    const rankByPlayerId = new Map<string, string>();
+    const groupCounts = new Map<string, number>();
+
+    for (const q of qualifications) {
+      const group = q.group ?? '';
+      const rank = (groupCounts.get(group) ?? 0) + 1;
+      groupCounts.set(group, rank);
+      rankByPlayerId.set(q.playerId, group ? `${group}${rank}` : `${rank}`);
+    }
+
+    return rankByPlayerId;
+  }
+
   function getRoundAssignmentData(
     round: string,
     mrAssignments?: Map<string, string[]>,
@@ -676,6 +693,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         tournamentId,
         qualifications,
       );
+      const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       const selection = selectFinalsEntrantsByGroup(
         rankedQualifications as Array<{ playerId: string; player: unknown; group: string }>,
@@ -685,6 +703,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         seed,
         playerId: qualification.playerId,
         player: qualification.player,
+        qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
       }));
 
       const playoffStructure = generatePlayoffStructure(PLAYOFF_ENTRANT_COUNT);
@@ -705,6 +724,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           seed: r2BracketMatch.advancesToUpperSeed,
           playerId: winnerId,
           player: winnerPlayer,
+          qualificationRankLabel: qualificationRankLabels.get(winnerId),
         });
       }
 
@@ -1127,6 +1147,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         qualifications,
       );
       const selectedQualifications = rankedQualifications.slice(0, topN);
+      const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       if (selectedQualifications.length < topN) {
         return handleValidationError(
@@ -1150,6 +1171,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           seed: index + 1,
           playerId: q.playerId,
           player: q.player,
+          qualificationRankLabel: qualificationRankLabels.get(q.playerId),
         }),
       );
 
@@ -1300,6 +1322,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         tournamentId,
         qualifications,
       );
+      const qualificationRankLabels = buildQualificationRankLabelMap(rankedQualifications);
 
       /* Per-group Top-N selection with bracket seed assignment (#454).
        * For 2 groups, finals-group-selection applies the handwritten CDM
@@ -1359,6 +1382,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
           seed: index + 1,
           playerId: q.playerId,
           player: q.player,
+          qualificationRankLabel: qualificationRankLabels.get(q.playerId),
         }));
 
         /*
@@ -1467,6 +1491,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
         seed,
         playerId: qualification.playerId,
         player: qualification.player,
+        qualificationRankLabel: qualificationRankLabels.get(qualification.playerId),
       }));
       const playoffUpperSeeds = playoffStructure
         .filter((m) => m.round === 'playoff_r2' && m.advancesToUpperSeed)
@@ -1476,7 +1501,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
         if (!winner) {
           throw new Error(`Playoff winner for Upper seed ${upperSeed} not resolved`);
         }
-        return { seed: upperSeed, playerId: winner.playerId, player: winner.player };
+        return {
+          seed: upperSeed,
+          playerId: winner.playerId,
+          player: winner.player,
+          qualificationRankLabel: qualificationRankLabels.get(winner.playerId),
+        };
       });
       const seededPlayers = [...directPlayers, ...playoffWinnerSeeds];
 

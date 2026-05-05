@@ -71,8 +71,8 @@ interface DoubleEliminationBracketProps {
   roundNames: Record<string, string>;
   /** Optional callback when a match card is clicked (for score entry) */
   onMatchClick?: (match: BMMatch) => void;
-  /** Optional seeded player data for displaying seed numbers */
-  seededPlayers?: { seed: number; playerId: string; player: Player }[];
+  /** Optional seeded player data for displaying qualification labels */
+  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
   /** Number of wins required to highlight a completed match winner. */
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   /**
@@ -86,12 +86,12 @@ interface DoubleEliminationBracketProps {
 
 /**
  * Individual match card within the bracket.
- * Displays two player rows with their nicknames, seed numbers, and scores.
+ * Displays two player rows with their nicknames, qualification labels, and scores.
  * Completed matches show a green border; winners have highlighted rows.
  *
  * @param match - Actual match data (may be undefined for unfilled bracket positions)
  * @param bracketMatch - Bracket structure definition for this position
- * @param seededPlayers - Seeded player data for seed number display
+ * @param seededPlayers - Seeded player data for name and qualification-label display
  * @param onClick - Click handler for score entry
  * @param isTBD - Per-slot TBD flags: whether player1/player2 slots are undetermined
  */
@@ -106,24 +106,26 @@ function MatchCard({
 }: {
   match?: BMMatch;
   bracketMatch: BracketMatch;
-  seededPlayers?: { seed: number; playerId: string; player: Player }[];
+  seededPlayers?: { seed: number; playerId: string; player: Player; qualificationRankLabel?: string }[];
   onClick?: () => void;
   isTBD: { player1: boolean; player2: boolean };
   getTargetWins?: (match: BMMatch | undefined, bracketMatch: BracketMatch) => number;
   onTvNumberChange?: (match: BMMatch, tvNumber: number | null) => void;
 }) {
   const tc = useTranslations("common");
-  /* Look up seeded players for displaying seed numbers in first-round matches */
-  const seededPlayer1 = bracketMatch.player1Seed
-    ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)?.player
+  /* Look up seeded players for displaying names and qualification rank labels. */
+  const seededEntry1 = bracketMatch.player1Seed
+    ? seededPlayers?.find((p) => p.seed === bracketMatch.player1Seed)
     : undefined;
-  const seededPlayer2 = bracketMatch.player2Seed
-    ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)?.player
+  const seededEntry2 = bracketMatch.player2Seed
+    ? seededPlayers?.find((p) => p.seed === bracketMatch.player2Seed)
     : undefined;
+  const seedLabel1 = seededEntry1?.qualificationRankLabel ?? bracketMatch.player1Seed;
+  const seedLabel2 = seededEntry2?.qualificationRankLabel ?? bracketMatch.player2Seed;
 
   /* Use actual match players if available, fall back to seeded player data */
-  const player1: Player | undefined = match?.player1 || seededPlayer1;
-  const player2: Player | undefined = match?.player2 || seededPlayer2;
+  const player1: Player | undefined = match?.player1 || seededEntry1?.player;
+  const player2: Player | undefined = match?.player2 || seededEntry2?.player;
 
   const targetWins = getTargetWins?.(match, bracketMatch) ?? 3;
   const isWinner1 = !!match?.completed && match.score1 >= targetWins && match.score1 > match.score2;
@@ -203,7 +205,7 @@ function MatchCard({
         <span className="flex items-center gap-1">
           {bracketMatch.player1Seed && (
             <span className="text-xs text-muted-foreground">
-              [{bracketMatch.player1Seed}]
+              [{seedLabel1}]
             </span>
           )}
           <span className={showTBD1 ? "text-muted-foreground" : ""}>
@@ -225,7 +227,7 @@ function MatchCard({
         <span className="flex items-center gap-1">
           {bracketMatch.player2Seed && (
             <span className="text-xs text-muted-foreground">
-              [{bracketMatch.player2Seed}]
+              [{seedLabel2}]
             </span>
           )}
           <span className={showTBD2 ? "text-muted-foreground" : ""}>
