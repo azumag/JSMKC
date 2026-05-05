@@ -455,6 +455,7 @@
     "manualTotalScoreDesc": "カップ終了後に合計点だけを修正したい場合はこちらを使用します。",
     "manualScoreValidation": "手動入力の合計ポイントは 0 以上の整数で入力してください。",
     "manualScoreSaveFailed": "合計ポイントの手動保存に失敗しました。",
+    "cupWinsScore": "取得カップ数",
     "createGroupsAndMatches": "グループ＆試合作成",
     "noGroupsYet": "グループがまだ設定されていません。「グループ設定」をクリックして開始してください。",
     "noGroupsYetViewer": "グループがまだ設定されていません。セットアップが完了するまでお待ちください。",

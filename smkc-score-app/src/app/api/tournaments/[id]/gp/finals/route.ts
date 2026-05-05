@@ -149,25 +149,24 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
       };
     }
 
-    if (![score1, score2].every((score) => Number.isInteger(score) && score >= 0)) {
-      return { error: 'Driver points must be non-negative integers', field: 'score' };
+    if (![score1, score2].every((score) => Number.isInteger(score) && score >= 0 && score <= targetWins)) {
+      return { error: `Cup wins must be integers from 0 to ${targetWins}`, field: 'score' };
     }
 
-    if (score1 !== score2) {
-      const winnerIsP1 = score1 > score2;
+    const player1ReachedTarget = score1 === targetWins && score1 > score2;
+    const player2ReachedTarget = score2 === targetWins && score2 > score1;
+
+    if (player1ReachedTarget || player2ReachedTarget) {
+      const winnerIsP1 = player1ReachedTarget;
       return {
         winnerId: winnerIsP1 ? match.player1Id as string : match.player2Id as string,
         loserId: winnerIsP1 ? match.player2Id as string : match.player1Id as string,
+        completed: true,
         updateData: {
-          points1: winnerIsP1 ? targetWins : 0,
-          points2: winnerIsP1 ? 0 : targetWins,
-          cupResults: [{
-            cup: typeof body.cup === 'string' ? body.cup : match.cup ?? CUPS[0],
-            points1: score1,
-            points2: score2,
-            winner: winnerIsP1 ? 1 : 2,
-            ...(Array.isArray(body.races) ? { races: body.races } : {}),
-          }],
+          points1: score1,
+          points2: score2,
+          cupResults: null,
+          races: null,
           suddenDeathWinnerId: null,
         },
       };
@@ -176,15 +175,10 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
     return {
       completed: false,
       updateData: {
-        points1: 0,
-        points2: 0,
-        cupResults: [{
-          cup: typeof body.cup === 'string' ? body.cup : match.cup ?? CUPS[0],
-          points1: score1,
-          points2: score2,
-          winner: null,
-          ...(Array.isArray(body.races) ? { races: body.races } : {}),
-        }],
+        points1: score1,
+        points2: score2,
+        cupResults: null,
+        races: null,
         suddenDeathWinnerId: null,
       },
     };

@@ -455,6 +455,7 @@
     "manualTotalScoreDesc": "Use this when you only need to correct the cup total after play ends.",
     "manualScoreValidation": "Manual total scores must be non-negative integers.",
     "manualScoreSaveFailed": "Failed to save the manual total score.",
+    "cupWinsScore": "Cups won",
     "createGroupsAndMatches": "Create Groups & Matches",
     "noGroupsYet": "No groups set up yet. Click \"Setup Groups\" to begin.",
     "noGroupsYetViewer": "No groups set up yet. Please wait until the setup is complete.",
