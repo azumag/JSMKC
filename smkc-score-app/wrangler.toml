@@ -42,3 +42,26 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "ARCHIVE_BUCKET"
 bucket_name = "smkc-archives"
+
+[env.preview]
+name = "smkc-preview"
+
+[[env.preview.routes]]
+pattern = "preview.smkc.bluemoon.works"
+custom_domain = true
+
+[env.preview.vars]
+NODE_ENV = "production"
+AUTH_URL = "https://preview.smkc.bluemoon.works"
+PERF_LOG = "0"
+NEXT_PUBLIC_PERF_LOG = "0"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "smkc-db-preview"
+database_id = "5a974a4a-a606-4ea2-b619-4b50db03857d"
+migrations_dir = "migrations"
+
+[[env.preview.r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "smkc-archives"

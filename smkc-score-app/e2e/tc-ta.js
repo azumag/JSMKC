@@ -27,7 +27,7 @@
  *   TC-913  TA time input hint/title/placeholder are localized.
  *
  * Setup:
- *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-profile).
+ *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
  *   - Admin Discord OAuth session must already be established in that profile.
  *   - TC-801/802/804/805/806/807/808/839 reuse the shared 28-player /
  *     normal-tournament fixture and reset the TA qualification state in

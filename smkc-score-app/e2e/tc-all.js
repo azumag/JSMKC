@@ -1,7 +1,7 @@
 /**
  * E2E All TCs — runs with persistent profile session (no login/logout)
  *
- * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
  * No login/logout is performed during tests — session is preserved.
  * Player login coverage uses a separate ephemeral browser so the admin profile stays untouched.
@@ -38,6 +38,8 @@ const {
   resolveAllTies,
   launchChromium,
   launchPersistentChromiumContext,
+  BASE,
+  resolveE2EProfileDir,
 } = require('./lib/common');
 const { createSharedE2eFixture } = require('./lib/fixtures');
 const {
@@ -54,9 +56,8 @@ const gpModule = require('./tc-gp');
 const taModule = require('./tc-ta');
 const overlayModule = require('./tc-overlay');
 
-const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 /* TID is set at runtime from a dedicated test tournament we create in main().
- * We deliberately do NOT target a pre-existing production tournament (previously
+ * We deliberately do NOT target a pre-existing remote tournament (previously
  * KasmoSMKC) so the suite is self-contained and safe to run repeatedly. */
 let TID = null;
 const WAIT = 8000;
@@ -177,7 +178,7 @@ async function main() {
 
   try {
     browser = await launchPersistentChromiumContext(
-      process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile',
+      resolveE2EProfileDir(),
       {
         headless: process.env.E2E_HEADLESS === '1',
         viewport: { width: 1280, height: 720 },

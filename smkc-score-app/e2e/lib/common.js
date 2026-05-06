@@ -14,12 +14,19 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const {
+  DEFAULT_E2E_BASE_URL,
+  DEFAULT_E2E_PROFILE_DIR,
+  PRODUCTION_E2E_BASE_URL,
+  resolveE2EBaseUrl,
+  resolveE2EProfileDir,
+} = require('./env');
 
 const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
 
 const { chromium } = require('playwright');
 
-const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
+const BASE = resolveE2EBaseUrl();
 const NAV_WAIT_MS = 8000;
 /** D1 cold-start can push page render well past the default 30s Playwright timeout.
  * Use this constant for any waitFor/click/locator that depends on admin-gated UI
@@ -2556,6 +2563,11 @@ async function setupAllModes28PlayerQualification(adminPage, label, opts = {}) {
 module.exports = {
   /* config */
   BASE,
+  DEFAULT_E2E_BASE_URL,
+  DEFAULT_E2E_PROFILE_DIR,
+  PRODUCTION_E2E_BASE_URL,
+  resolveE2EBaseUrl,
+  resolveE2EProfileDir,
   NAV_WAIT_MS,
   TOTAL_GP_RACES,
   GROUP_LETTERS,

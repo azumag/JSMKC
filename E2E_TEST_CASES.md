@@ -1,7 +1,7 @@
-# E2E Test Cases - JSMKC (smkc.bluemoon.works)
+# E2E Test Cases - JSMKC (preview.smkc.bluemoon.works)
 
 ## Project: JSMKC - Japan SMK Championship
-## Target: https://smkc.bluemoon.works/
+## Target: https://preview.smkc.bluemoon.works/
 ## Framework: Next.js 16 (App Router) + React 19
 ## i18n: next-intl (en/ja)
 
@@ -11,7 +11,7 @@
 - **URL**: /
 - **authRequired**: false
 - **手順**:
-  1. https://smkc.bluemoon.works/ にアクセス
+  1. https://preview.smkc.bluemoon.works/ にアクセス
   2. ページタイトルを確認
   3. ナビゲーション要素を確認（Players, Tournaments リンク）
   4. 言語切り替えボタンの存在確認
@@ -22,7 +22,7 @@
 - **URL**: /players
 - **authRequired**: false
 - **手順**:
-  1. https://smkc.bluemoon.works/players にアクセス
+  1. https://preview.smkc.bluemoon.works/players にアクセス
   2. プレイヤー一覧が表示されるか確認
   3. テーブルまたはリスト形式でデータが表示されるか確認
 - **期待結果**: プレイヤー一覧が正常に表示される
@@ -31,7 +31,7 @@
 - **URL**: /tournaments
 - **authRequired**: false
 - **手順**:
-  1. https://smkc.bluemoon.works/tournaments にアクセス
+  1. https://preview.smkc.bluemoon.works/tournaments にアクセス
   2. トーナメント一覧が表示されるか確認
   3. ステータスバッジが表示されるか確認
 - **期待結果**: トーナメント一覧が正常に表示される
@@ -70,7 +70,7 @@
 - **URL**: /auth/signin
 - **authRequired**: false
 - **手順**:
-  1. https://smkc.bluemoon.works/auth/signin にアクセス
+  1. https://preview.smkc.bluemoon.works/auth/signin にアクセス
   2. Player タブ（ニックネーム + パスワード）が表示されるか
   3. Admin タブ（Discord OAuth）が表示されるか
   4. フォーム要素が正しく存在するか
@@ -88,7 +88,7 @@
 - **URL**: /
 - **authRequired**: false
 - **手順**:
-  1. https://smkc.bluemoon.works/ にアクセス
+  1. https://preview.smkc.bluemoon.works/ にアクセス
   2. URLがhttps://で始まるか確認
 - **期待結果**: HTTPS接続が使用されている
 
@@ -2270,7 +2270,7 @@
 - **背景**: トーナメント作成時に「デバッグモード」チェックを ON にすると、
   `Tournament.debugMode = true` で保存される。各モード予選ページに admin
   限定の「予選スコア自動入力」ボタンが表示され、押下するとサーバ側で
-  全試合に有効な乱数スコアが入る。本番環境でも E2E 検証用に使える。
+  全試合に有効な乱数スコアが入る。preview環境でも E2E 検証用に使える。
 - **手順**:
   1. admin で `POST /api/tournaments` body に `debugMode: true` を含めて作成
   2. プレイヤー 8 名追加
@@ -2339,7 +2339,8 @@
 ## E2Eテスト実行ガイド
 
 ### セッション管理（重要）
-- Playwright永続プロファイル（`/tmp/playwright-smkc-profile`）にDiscord OAuthセッションが保存されている
+- Playwright永続プロファイル（`/tmp/playwright-smkc-preview-profile`）にプレビュー環境用のDiscord OAuthセッションが保存されている
+- E2Eは preview 専用D1にだけテストデータを作成する。本番URLを指定する場合は `E2E_ALLOW_PRODUCTION=1` を明示する
 - **テスト中にログイン/ログアウトは行わない** — セッションを消費しないこと
 - 認証不要TCも認証ありTCも同じセッションで連続実行する
 - プレイヤー credentials ログインの検証は、管理者の永続プロファイルを壊さないよう別の一時ブラウザコンテキストで行う
