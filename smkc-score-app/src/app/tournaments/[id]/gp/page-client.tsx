@@ -205,28 +205,30 @@ export default function GrandPrixPageClient({
    * Returns qualification standings, matches, and all registered players.
    */
   const fetchTournamentData = useCallback(async () => {
-    const [gpResponse, playersResponse] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/gp`),
-      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
-      fetchWithRetry("/api/players?limit=100"),
-    ]);
+    const gpResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/gp`);
 
     if (!gpResponse.ok) {
       throw new Error(`Failed to fetch GP data: ${gpResponse.status}`);
     }
 
-    if (!playersResponse.ok) {
-      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
-    }
-
     const gpJson = await gpResponse.json();
     const gpData = gpJson.data ?? gpJson;
-    const playersJson = await playersResponse.json();
+    let allPlayers = gpData.allPlayers || [];
+    try {
+      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
+      const playersResponse = await fetchWithRetry("/api/players?limit=100");
+      if (playersResponse.ok) {
+        const playersJson = await playersResponse.json();
+        allPlayers = extractArrayData<Player>(playersJson);
+      }
+    } catch {
+      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
+    }
 
     return {
       qualifications: gpData.qualifications || [],
       matches: gpData.matches || [],
-      allPlayers: extractArrayData<Player>(playersJson),
+      allPlayers,
       qualificationConfirmed: gpData.qualificationConfirmed ?? false,
     };
   }, [tournamentId]);

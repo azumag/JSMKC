@@ -51,6 +51,7 @@ import { RETRY_PENALTY_MS } from "@/lib/constants";
 import { resolveTournamentId } from "@/lib/tournament-identifier";
 import { resolveAuditUserId } from "@/lib/audit-log";
 import type { Session } from "next-auth";
+import { readTournamentArchive } from "@/lib/tournament-archive";
 
 function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unknown }>(round: T) {
   return {
@@ -145,6 +146,56 @@ async function requireAdminAndGetSession(): Promise<{
 
 /** Valid phase names for URL query parameters and request bodies */
 const PhaseSchema = z.enum(["phase1", "phase2", "phase3"]);
+type PhaseName = z.infer<typeof PhaseSchema>;
+
+function summarizeArchivedPhase(entries: unknown[], phase: PhaseName) {
+  const phaseEntries = entries.filter((entry) => (entry as { stage?: unknown }).stage === phase);
+  if (phaseEntries.length === 0) return null;
+  const activeEntry = phaseEntries.find((entry) => (entry as { eliminated?: unknown }).eliminated !== true);
+  const active = phaseEntries.filter((entry) => (entry as { eliminated?: unknown }).eliminated !== true).length;
+  const winner = phase === "phase3" && active === 1
+    ? ((activeEntry as { player?: { nickname?: string } } | undefined)?.player?.nickname ?? null)
+    : null;
+  return {
+    total: phaseEntries.length,
+    active,
+    eliminated: phaseEntries.length - active,
+    ...(phase === "phase3" ? { winner } : {}),
+  };
+}
+
+async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
+  const archive = await readTournamentArchive(id);
+  if (!archive) return null;
+
+  const entries = archive.modes.ta.entries ?? [];
+  const rounds = archive.modes.ta.phaseRounds ?? [];
+  const response: Record<string, unknown> = {
+    phaseStatus: {
+      phase1: summarizeArchivedPhase(entries, "phase1"),
+      phase2: summarizeArchivedPhase(entries, "phase2"),
+      phase3: summarizeArchivedPhase(entries, "phase3"),
+      currentPhase: "completed",
+    },
+    archived: true,
+  };
+
+  if (phase) {
+    const phaseEntries = entries.filter((entry) => (entry as { stage?: unknown }).stage === phase);
+    const phaseRounds = rounds
+      .filter((round) => (round as { phase?: unknown }).phase === phase)
+      .map((round) => normalizePhaseRound(round as { results: unknown; eliminatedIds?: unknown }));
+    const playedCourses = phaseRounds
+      .map((round) => (round as { course?: unknown }).course)
+      .filter((course): course is string => typeof course === "string");
+    response.entries = sortPhaseEntriesForDisplay(phaseEntries as never[], phaseRounds as never[]);
+    response.rounds = phaseRounds;
+    response.availableCourses = getAvailableCourses(playedCourses);
+    response.playedCourses = playedCourses;
+  }
+
+  return response;
+}
 
 /**
  * POST request body schema.
@@ -270,6 +321,10 @@ export async function GET(
     );
 
     if (!tournament) {
+      const archived = await getArchivedPhaseResponse(id, phase?.success ? phase.data : undefined);
+      if (archived) {
+        return createSuccessResponse(archived);
+      }
       return createErrorResponse("Tournament not found", 404);
     }
 
@@ -354,6 +409,12 @@ export async function GET(
       stack: err instanceof Error ? err.stack : undefined,
       tournamentId,
     });
+    const { searchParams } = new URL(request.url);
+    const phase = PhaseSchema.safeParse(searchParams.get("phase"));
+    const archived = await getArchivedPhaseResponse(id, phase.success ? phase.data : undefined);
+    if (archived) {
+      return createSuccessResponse(archived);
+    }
     return createErrorResponse("Internal server error", 500);
   }
 }

@@ -206,35 +206,36 @@ export default function TimeAttackPageClient({
   // === Data Fetching ===
   // Fetch tournament data and player list in parallel
   const fetchTournamentData = useCallback(async () => {
-    const [taResponse, playersResponse] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-      /* limit=100 is the API's hard cap (src/lib/pagination.ts). The default of 50
-       * silently truncates the Setup Players search once the roster grows past
-       * that — newly-created players end up paginated out and can no longer be
-       * added from the dialog. Request the max in one hop; if a deployment
-       * ever needs >100, the dialog must switch to server-side search instead. */
-      fetchWithRetry("/api/players?limit=100"),
-    ]);
+    const taResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`);
 
     if (!taResponse.ok) {
       const errorData = await taResponse.json().catch(() => ({}));
       throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
     }
 
-    if (!playersResponse.ok) {
-      const errorData = await playersResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to fetch players: ${playersResponse.status}`);
-    }
-
     const taJson = await taResponse.json();
-    const playersJson = await playersResponse.json();
 
     // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
     const taData = taJson.data ?? taJson;
+    let allPlayers = taData.allPlayers || [];
+    try {
+      /* limit=100 is the API's hard cap (src/lib/pagination.ts). The default of 50
+       * silently truncates the Setup Players search once the roster grows past
+       * that — newly-created players end up paginated out and can no longer be
+       * added from the dialog. Request the max in one hop; if a deployment
+       * ever needs >100, the dialog must switch to server-side search instead. */
+      const playersResponse = await fetchWithRetry("/api/players?limit=100");
+      if (playersResponse.ok) {
+        const playersJson = await playersResponse.json();
+        allPlayers = extractArrayData<Player>(playersJson);
+      }
+    } catch {
+      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
+    }
 
     return {
       entries: taData.entries || [],
-      allPlayers: extractArrayData<Player>(playersJson),
+      allPlayers,
       qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
       frozenStages: taData.frozenStages || [],
       taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,

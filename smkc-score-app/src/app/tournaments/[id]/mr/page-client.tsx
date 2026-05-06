@@ -178,28 +178,30 @@ export default function MatchRacePageClient({
    * Called by the polling hook for real-time updates.
    */
   const fetchTournamentData = useCallback(async () => {
-    const [mrResponse, playersResponse] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/mr`),
-      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
-      fetchWithRetry("/api/players?limit=100"),
-    ]);
+    const mrResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/mr`);
 
     if (!mrResponse.ok) {
       throw new Error(`Failed to fetch MR data: ${mrResponse.status}`);
     }
 
-    if (!playersResponse.ok) {
-      throw new Error(`Failed to fetch players: ${playersResponse.status}`);
-    }
-
     const mrJson = await mrResponse.json();
     const mrData = mrJson.data ?? mrJson;
-    const playersJson = await playersResponse.json();
+    let allPlayers = mrData.allPlayers || [];
+    try {
+      /* limit=100 (API cap) avoids truncating the Setup dialog player list — see ta/page.tsx for rationale. */
+      const playersResponse = await fetchWithRetry("/api/players?limit=100");
+      if (playersResponse.ok) {
+        const playersJson = await playersResponse.json();
+        allPlayers = extractArrayData<Player>(playersJson);
+      }
+    } catch {
+      // Archived mode payloads carry the tournament players, so read-only pages can survive DB outages.
+    }
 
     return {
       qualifications: mrData.qualifications || [],
       matches: mrData.matches || [],
-      allPlayers: extractArrayData<Player>(playersJson),
+      allPlayers,
       qualificationConfirmed: mrData.qualificationConfirmed ?? false,
     };
   }, [tournamentId]);

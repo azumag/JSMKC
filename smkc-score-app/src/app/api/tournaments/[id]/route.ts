@@ -29,6 +29,11 @@ import {
   handleValidationError,
 } from "@/lib/error-handling";
 import { isValidPublicModes } from "@/lib/public-modes";
+import {
+  getArchivedTournamentSummary,
+  persistTournamentArchive,
+  readTournamentArchive,
+} from "@/lib/tournament-archive";
 
 /**
  * GET /api/tournaments/:id
@@ -132,6 +137,10 @@ export async function GET(
     );
 
     if (!tournament) {
+      const archived = await readTournamentArchive(identifier);
+      if (archived) {
+        return createSuccessResponse(getArchivedTournamentSummary(archived, isSummary));
+      }
       return createErrorResponse("Tournament not found", 404);
     }
 
@@ -163,6 +172,12 @@ export async function GET(
   } catch (error) {
     // Log with tournament ID for easy filtering in log aggregation
     logger.error("Failed to fetch tournament", { error, id: resolvedId });
+    const archived = await readTournamentArchive(identifier);
+    if (archived) {
+      return createSuccessResponse(
+        getArchivedTournamentSummary(archived, new URL(request.url).searchParams.get('fields') === 'summary')
+      );
+    }
     return createErrorResponse("Failed to fetch tournament", 500);
   }
 }
@@ -276,6 +291,17 @@ export async function PUT(
         ...(debugMode !== undefined && { debugMode: debugMode === true }),
       },
     });
+
+    if (status === "completed") {
+      try {
+        await persistTournamentArchive(resolvedId);
+      } catch (archiveError) {
+        logger.warn("Failed to persist tournament archive", {
+          error: archiveError,
+          id: resolvedId,
+        });
+      }
+    }
 
     // Audit log for the update operation — fire-and-forget via .catch()
     try {

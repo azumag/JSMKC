@@ -34,6 +34,7 @@ import {
 } from "@/lib/error-handling";
 import { resolveTournament } from "@/lib/tournament-identifier";
 import { withApiTiming } from "@/lib/perf/api-timing";
+import { readTournamentArchive } from "@/lib/tournament-archive";
 
 /**
  * GET /api/tournaments/[id]/overall-ranking
@@ -61,6 +62,10 @@ async function handleGET(
     });
 
     if (!tournament) {
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse({ ...archived.overallRanking, archived: true });
+      }
       return createErrorResponse("Tournament not found", 404);
     }
     const session = await auth();
@@ -92,6 +97,10 @@ async function handleGET(
     });
   } catch (error) {
     logger.error("Failed to fetch overall rankings", { error, tournamentId: id });
+    const archived = await readTournamentArchive(id);
+    if (archived) {
+      return createSuccessResponse({ ...archived.overallRanking, archived: true });
+    }
     return createErrorResponse("Failed to fetch overall rankings", 500);
   }
 }

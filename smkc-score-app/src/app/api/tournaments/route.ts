@@ -20,6 +20,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { paginate } from "@/lib/pagination";
 import { createLogger } from "@/lib/logger";
 import { isValidTournamentSlug, normalizeTournamentSlug } from "@/lib/tournament-identifier";
+import { readTournamentArchiveIndex } from "@/lib/tournament-archive";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -77,6 +78,19 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     // Log error with structured metadata for monitoring
     logger.error("Failed to fetch tournaments", { error });
+    const archived = await readTournamentArchiveIndex();
+    if (archived.length > 0) {
+      return createSuccessResponse({
+        data: archived,
+        meta: {
+          page: 1,
+          limit: archived.length,
+          total: archived.length,
+          totalPages: 1,
+        },
+        archived: true,
+      });
+    }
     return createErrorResponse("Failed to fetch tournaments", 500);
   }
 }

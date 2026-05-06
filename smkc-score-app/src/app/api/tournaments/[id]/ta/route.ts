@@ -38,6 +38,7 @@ import { checkStageFrozen } from "@/lib/ta/freeze-check";
 import { createErrorResponse, createSuccessResponse } from "@/lib/error-handling";
 import { resolveTournamentId, resolveTournament } from "@/lib/tournament-identifier";
 import { withApiTiming } from "@/lib/perf/api-timing";
+import { getArchivedModePayload, readTournamentArchive } from "@/lib/tournament-archive";
 
 const KNOCKOUT_STAGES = ["phase1", "phase2", "phase3"] as const;
 
@@ -205,6 +206,10 @@ async function handleGET(
   } catch (error) {
     // Use structured logging for error tracking and debugging
     logger.error("Failed to fetch TA data", { error, tournamentId: id });
+    const archived = await readTournamentArchive(id);
+    if (archived) {
+      return createSuccessResponse(getArchivedModePayload(archived, "ta"));
+    }
     return createErrorResponse("Failed to fetch time attack data", 500, "INTERNAL_ERROR");
   }
 }

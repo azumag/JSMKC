@@ -26,6 +26,7 @@ import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check
 import { generateETag, invalidate } from '@/lib/standings-cache';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { computeQualificationRanks } from '@/lib/server-ranking';
+import { getArchivedModePayload, readTournamentArchive } from '@/lib/tournament-archive';
 import { bulkUpdateQualificationStats } from '@/lib/api-factories/score-report-helpers';
 import {
   generateRoundRobinSchedule,
@@ -302,6 +303,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
         gpQualificationConfirmed: true,
       });
       if (!tournament) {
+        const archived = await readTournamentArchive(id);
+        if (archived) {
+          return createSuccessResponse(getArchivedModePayload(archived, config.eventTypeCode));
+        }
         return createErrorResponse(`${config.eventDisplayName} tournament not found`, 404, 'NOT_FOUND');
       }
       tournamentId = tournament.id;
@@ -361,6 +366,10 @@ export function createQualificationHandlers(config: EventTypeConfig) {
       return response;
     } catch (error) {
       logger.error(`Failed to fetch ${config.eventDisplayName} data`, { error, tournamentId });
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse(getArchivedModePayload(archived, config.eventTypeCode));
+      }
       return createErrorResponse(`Failed to fetch ${config.eventDisplayName} data`, 500, 'INTERNAL_ERROR');
     }
   }

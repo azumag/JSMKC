@@ -38,3 +38,7 @@ binding = "DB"
 database_name = "smkc-db"
 database_id = "3132bf8c-d0f5-46a6-bc33-713480687d76"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "smkc-archives"
