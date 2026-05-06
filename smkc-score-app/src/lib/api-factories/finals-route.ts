@@ -33,6 +33,7 @@ import { checkQualificationConfirmed } from '@/lib/qualification-confirmed-check
 import { computeQualificationRanks } from '@/lib/server-ranking';
 import { invalidateOverallRankingsCache } from '@/lib/points/overall-ranking';
 import { COURSES, CUPS, MAX_TV_NUMBER } from '@/lib/constants';
+import { getArchivedFinalsPayload, readTournamentArchive } from '@/lib/tournament-archive';
 
 /**
  * Bracket size inference thresholds.
@@ -777,13 +778,31 @@ export function createFinalsHandlers(config: FinalsConfig) {
       | 'mrQualificationConfirmed'
       | 'gpQualificationConfirmed';
     // Select all three flags explicitly to avoid computed-key type inference issues with Prisma generics.
-    const tournament = await resolveTournament(id, {
-      id: true,
-      bmQualificationConfirmed: true,
-      mrQualificationConfirmed: true,
-      gpQualificationConfirmed: true,
-    });
+    let tournament;
+    try {
+      tournament = await resolveTournament(id, {
+        id: true,
+        bmQualificationConfirmed: true,
+        mrQualificationConfirmed: true,
+        gpQualificationConfirmed: true,
+      });
+    } catch (error) {
+      logger.error(config.getErrorMessage, { error, tournamentId: id });
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse(
+          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
+        );
+      }
+      return createErrorResponse(config.getErrorMessage, 500, 'INTERNAL_ERROR');
+    }
     if (!tournament) {
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse(
+          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
+        );
+      }
       return createErrorResponse('Tournament not found', 404, 'NOT_FOUND');
     }
     const tournamentId = tournament.id;
@@ -1087,6 +1106,12 @@ export function createFinalsHandlers(config: FinalsConfig) {
       });
     } catch (error) {
       logger.error(config.getErrorMessage, { error, tournamentId });
+      const archived = await readTournamentArchive(id);
+      if (archived) {
+        return createSuccessResponse(
+          getArchivedFinalsPayload(archived, config.eventTypeCode, config.getStyle)
+        );
+      }
       return createErrorResponse(config.getErrorMessage, 500, 'INTERNAL_ERROR');
     }
   }
