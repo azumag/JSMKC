@@ -330,6 +330,26 @@ npm run e2e:preview:cleanup -- --dry-run
 npm run e2e:preview:bm
 ```
 
+If the fixed preview custom domain changes or DNS is not ready yet, you can
+override the target without editing the package scripts:
+
+```bash
+E2E_BASE_URL=https://your-preview-host.example.com npm run e2e:preview:all
+```
+
+The preview runner now checks DNS before launching Chromium so missing preview
+hostnames fail fast with an actionable override hint.
+
+If the preview Playwright profile does not already have a Discord admin session,
+bootstrap it once with:
+
+```bash
+npm run e2e:preview:login
+```
+
+This opens the preview sign-in page with the dedicated E2E profile and waits
+until `/api/auth/session-status` reports an authenticated admin session.
+
 The plain `npm run e2e:*` commands also default to the preview URL and `/tmp/playwright-smkc-preview-profile`. Production E2E is blocked unless `E2E_ALLOW_PRODUCTION=1` is set for an explicit emergency check.
 
 ### Runtime variables and secrets

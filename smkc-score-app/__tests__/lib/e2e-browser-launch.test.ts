@@ -25,6 +25,7 @@ describe('E2E browser launch helpers', () => {
     delete process.env.PLAYWRIGHT_SKIP_BROWSER_GC;
     delete process.env.E2E_EXECUTABLE_PATH;
     delete process.env.E2E_BROWSER_CHANNEL;
+    delete process.env.E2E_HOST_RESOLVER_RULES;
     common = loadCommon();
   });
 
@@ -102,5 +103,13 @@ describe('E2E browser launch helpers', () => {
 
     expect(config.channel).toBe('chrome');
     expect(config.executablePath).toBeUndefined();
+  });
+
+  it('appends host resolver rules when provided', () => {
+    process.env.E2E_HOST_RESOLVER_RULES = 'MAP preview.smkc.bluemoon.works 104.21.41.48';
+
+    const config = common.getChromiumLaunchConfig();
+
+    expect(config.args).toContain('--host-resolver-rules=MAP preview.smkc.bluemoon.works 104.21.41.48');
   });
 });
