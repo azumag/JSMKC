@@ -209,7 +209,8 @@
   1. `smkc-score-app/` で `npm run e2e:preview` を実行する
   2. runner が `https://preview.smkc.bluemoon.works` と `/tmp/playwright-smkc-preview-profile` を選ぶことを確認する
   3. preview host が通常 DNS または public DNS fallback で解決できることを確認する
-  4. macOS では Chrome for Testing の Crashpad path に依存せず、installed Chrome channel で起動することを確認する
+  4. public DNS fallback は IPv4 A レコードがない host でも IPv6 AAAA レコードを解決できることを確認する
+  5. macOS では Chrome for Testing の Crashpad path に依存せず、installed Chrome channel で起動することを確認する
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
 
 ## TC-359: CDM Export 失敗時の原因ヒント表示

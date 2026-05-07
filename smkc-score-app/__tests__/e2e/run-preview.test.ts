@@ -110,6 +110,30 @@ describe('preview E2E runner', () => {
     ).resolves.toBe('104.21.41.48');
   });
 
+  it('falls back to public IPv6 DNS when local resolution and IPv4 public DNS fail', async () => {
+    lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND ipv6-preview.example.com'));
+    spawnSyncMock
+      .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
+      .mockReturnValueOnce({ status: 0, stdout: '2606:4700:3037::6815:2930\n', stderr: '' });
+
+    await expect(
+      runner.assertBaseUrlResolvable('https://ipv6-preview.example.com'),
+    ).resolves.toBe('2606:4700:3037::6815:2930');
+
+    expect(spawnSyncMock).toHaveBeenNthCalledWith(
+      1,
+      'dig',
+      ['+short', 'A', 'ipv6-preview.example.com', '@1.1.1.1'],
+      { encoding: 'utf8' },
+    );
+    expect(spawnSyncMock).toHaveBeenNthCalledWith(
+      2,
+      'dig',
+      ['+short', 'AAAA', 'ipv6-preview.example.com', '@1.1.1.1'],
+      { encoding: 'utf8' },
+    );
+  });
+
   it('throws a helpful error when the preview host does not resolve', async () => {
     lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND preview.smkc.bluemoon.works'));
 
