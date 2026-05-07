@@ -196,7 +196,7 @@ function snakeDraft28(playerIds) {
  * player-login browsers, and cleanup.
  */
 function getChromiumArgs() {
-  return [
+  const args = [
     '--disable-crash-reporter',
     '--disable-crashpad',
     '--disable-dev-shm-usage',
@@ -214,6 +214,13 @@ function getChromiumArgs() {
      * refreshes while still staying within typical CI runner limits. */
     '--js-flags=--max-old-space-size=4096',
   ];
+
+  const hostResolverRules = process.env.E2E_HOST_RESOLVER_RULES?.trim();
+  if (hostResolverRules) {
+    args.push(`--host-resolver-rules=${hostResolverRules}`);
+  }
+
+  return args;
 }
 
 function resolveE2EBrowserHome() {
