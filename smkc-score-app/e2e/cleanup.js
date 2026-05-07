@@ -13,10 +13,10 @@
  *   npm run e2e:cleanup
  *   npm run e2e:cleanup -- --dry-run
  */
-const { BASE, installApiLogging, launchPersistentChromiumContext } = require('./lib/common');
+const { BASE, installApiLogging, launchPersistentChromiumContext, resolveE2EProfileDir } = require('./lib/common');
 const { closeBrowser, envMs, formatDuration } = require('./lib/runner');
 
-const PROFILE_DIR = process.env.E2E_PROFILE_DIR || '/tmp/playwright-smkc-profile';
+const PROFILE_DIR = resolveE2EProfileDir();
 const PAGE_LIMIT = 100;
 // Matches all tournament names created by e2e test suites.
 // Includes legacy non-E2E-prefixed names from tc-bm/mr/gp/ta standalone runs.

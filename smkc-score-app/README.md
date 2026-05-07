@@ -289,6 +289,49 @@ This is a monorepo, so set these values in Cloudflare:
 Cloudflare's docs state that Workers Builds runs the build command first and then the deploy command, and that the root directory should point at the app directory in monorepos.
 `npm run deploy:cf` applies pending D1 migrations with `wrangler d1 migrations apply DB --remote` before `wrangler deploy`, so new Worker code is not promoted against an old production schema.
 
+### Preview deployment for E2E
+
+E2E runs target the fixed preview Worker at `https://preview.smkc.bluemoon.works` by default. Preview must use its own D1 database (`smkc-db-preview`) so test players and tournaments never touch production data.
+
+Cloudflare setup:
+
+1. Create the preview D1 database:
+   ```bash
+   npx wrangler d1 create smkc-db-preview
+   ```
+2. Put the returned database id into `wrangler.toml` under `[[env.preview.d1_databases]]`.
+3. Configure `preview.smkc.bluemoon.works` as the preview Worker custom domain/route.
+4. Add the same runtime secrets to the `smkc-preview` Worker: `AUTH_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `ADMIN_DISCORD_IDS`.
+5. Add the preview callback URL to the Discord OAuth app: `https://preview.smkc.bluemoon.works/api/auth/callback/discord`.
+
+Deploy and migrate preview with:
+
+```bash
+npm run deploy:preview
+```
+
+Configure pull requests to deploy to preview through Cloudflare Workers Builds, not GitHub Actions:
+
+1. In Cloudflare dashboard, open Workers & Pages → `smkc`.
+2. Open `Settings` → `Build`.
+3. In `Branch control`, enable builds for non-production branches.
+4. Keep the production branch as `main`.
+5. Set the build command to `npm run build:cf`.
+6. Set the production deploy command to `npm run deploy:cf`.
+7. Set the non-production branch deploy command to `npm run deploy:cf:preview`.
+8. Keep root directory as `smkc-score-app`.
+
+With this setup, pushes to PR branches build through Cloudflare and promote the `smkc-preview` Worker, while pushes to `main` continue to deploy the production `smkc` Worker. The preview deploy command applies D1 migrations to `smkc-db-preview` before deploying the preview Worker.
+
+Run preview E2E with the dedicated Playwright profile:
+
+```bash
+npm run e2e:preview:cleanup -- --dry-run
+npm run e2e:preview:bm
+```
+
+The plain `npm run e2e:*` commands also default to the preview URL and `/tmp/playwright-smkc-preview-profile`. Production E2E is blocked unless `E2E_ALLOW_PRODUCTION=1` is set for an explicit emergency check.
+
 ### Runtime variables and secrets
 
 Set runtime values in `Settings` → `Variables & Secrets` for the `smkc` Worker:

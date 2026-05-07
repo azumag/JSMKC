@@ -71,11 +71,11 @@ const {
   makeResults,
   makeRacesP1Wins,
   makeTaTimesForRank,
+  BASE,
 } = require('./lib/common');
 const { hasKnownOverlayToastTitle } = require('./lib/overlay-toast-assertions');
 const { runSuite } = require('./lib/runner');
 
-const BASE = process.env.E2E_BASE_URL || 'https://smkc.bluemoon.works';
 const POLL_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 1_500;
 
@@ -97,7 +97,7 @@ function hasQualificationLockedTitle(title) {
 }
 
 /**
- * Unauthenticated GET against the production overlay endpoint via Node's
+ * Unauthenticated GET against the configured overlay endpoint via Node's
  * `https` module. Mirrors the pattern used by the existing TC-328 / TC-329
  * blocks in tc-all.js: the persistent Playwright profile carries an admin
  * session cookie, so anything that needs to prove "no-auth works" must

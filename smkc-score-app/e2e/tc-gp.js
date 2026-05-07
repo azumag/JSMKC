@@ -20,7 +20,7 @@
  *   TC-724  GP combined standings tab shows rows with ascending ranks
  *
  * Setup:
- *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  *   - Admin Discord OAuth session must already exist in the profile.
  *   - Shared fixture (28 players + 2 tournaments) created once in beforeAll,
  *     torn down once in afterAll. Each TC only re-seeds GP qualification for

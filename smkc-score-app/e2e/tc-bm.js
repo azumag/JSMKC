@@ -27,7 +27,7 @@
  *   TC-533  BM combined standings tab shows rows with ascending ranks
  *
  * Setup:
- *   - Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  *   - The profile must already hold a Discord OAuth admin session.
  *   - Player-credential tests open separate non-persistent browser contexts so
  *     the admin session is never disturbed.
@@ -35,7 +35,7 @@
  * Cleanup (every test):
  *   - 28-player setup helpers return a `cleanup` closure; callers always call
  *     it in `finally`. The helpers also self-cleanup on partial failure so
- *     production never leaks tournaments/players.
+ *     the preview database never leaks tournaments/players.
  *
  * Run: node e2e/tc-bm.js  (from smkc-score-app/)  or:  npm run e2e:bm
  */
@@ -56,6 +56,7 @@ const {
   launchPersistentChromiumContext,
   assertQualificationPointsColumn,
   assertCombinedStandingsTab,
+  BASE,
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
@@ -508,7 +509,7 @@ async function runTc513(adminPage) {
     const anonBrowser = await launchChromium({ headless: true });
     const anonContext = await anonBrowser.newContext();
     const anonPage = await anonContext.newPage();
-    await anonPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await anonPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
     /* 35s: NextAuth sessionStatus stays 'loading' until D1 resolves the session lookup;
      * D1 cold starts can exceed 20s (issue #700). Wait for any CTA variant to confirm
      * hydration is complete before checking for the specific sign-in prompt. */
@@ -530,7 +531,7 @@ async function runTc513(adminPage) {
 
     /* 2. Authenticated admin (persistent profile) sees admin guidance CTA
      * (commit 05b0625: separate admin branch linking to /bm page). */
-    await adminPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await adminPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
     await adminPage.waitForFunction(
       () => document.body.innerText.includes('Admins can view this shared page') ||
             document.body.innerText.includes('管理者はこの共有ページを閲覧できます'),
@@ -551,7 +552,7 @@ async function runTc513(adminPage) {
     await ensurePlayerPassword(adminPage, player1);
     const { browser: playerBrowser, page: playerPage } =
       await loginPlayerBrowser(player1.nickname, player1.password);
-    await playerPage.goto(`https://smkc.bluemoon.works${matchUrl}`, { waitUntil: 'domcontentloaded' });
+    await playerPage.goto(`${BASE}${matchUrl}`, { waitUntil: 'domcontentloaded' });
     await playerPage.waitForFunction(
       () => document.body.innerText.includes('Score entry is on the participant page') ||
             document.body.innerText.includes('スコア入力は参加者ページで行えます'),

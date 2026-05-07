@@ -6,7 +6,7 @@
  * Normal`, `E2E Shared DualReport`) are created once in `beforeAll` and
  * reused by every TC. Finals/28-player flows go through
  * `setupMrQualViaUi(...)` so qualification scoring and tie resolution use
- * the same shared path as the production finals-prep tooling.
+ * the same shared path as the finals-prep tooling.
  *
  *  TC-601  28-player qualification full flow + standings + course assignment
  *  TC-602  MR participant score entry (UI, 2 players)
@@ -31,7 +31,7 @@
  *  TC-622  MR qualification standings show 0-1000 qualification points
  *  TC-623  MR combined standings tab shows rows with ascending ranks
  *
- * Uses Playwright persistent profile at /tmp/playwright-smkc-profile.
+ * Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
  * Admin session must already exist in the profile (Discord OAuth).
  *
  * Run: node e2e/tc-mr.js  (from smkc-score-app/)
