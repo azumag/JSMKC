@@ -52,17 +52,26 @@ async function assertBaseUrlResolvable(baseUrl) {
 }
 
 function resolveHostViaPublicDns(hostname) {
-  const result = spawnSync('dig', ['+short', hostname, '@1.1.1.1'], {
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) return null;
+  const records = [
+    { type: 'A', pattern: /^\d{1,3}(\.\d{1,3}){3}$/ },
+    { type: 'AAAA', pattern: /^[0-9a-f:]+$/i },
+  ];
 
-  const addresses = (result.stdout || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => /^\d{1,3}(\.\d{1,3}){3}$/.test(line));
+  for (const record of records) {
+    const result = spawnSync('dig', ['+short', record.type, hostname, '@1.1.1.1'], {
+      encoding: 'utf8',
+    });
+    if (result.status !== 0) continue;
 
-  return addresses[0] || null;
+    const addresses = (result.stdout || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => record.pattern.test(line));
+
+    if (addresses[0]) return addresses[0];
+  }
+
+  return null;
 }
 
 async function runTargetScript(targetScript, env = buildPreviewRuntimeEnv()) {
@@ -112,5 +121,6 @@ if (require.main === module) {
 module.exports = {
   assertBaseUrlResolvable,
   buildPreviewRuntimeEnv,
+  resolveHostViaPublicDns,
   runTargetScript,
 };
