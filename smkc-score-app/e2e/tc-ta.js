@@ -25,6 +25,8 @@
  *   TC-896  TA finals mobile admin input rows keep player names visible.
  *   TC-897  TA time inputs request the mobile numeric keyboard.
  *   TC-913  TA time input hint/title/placeholder are localized.
+ *   TC-816  Started TA phase page does not flash a Start Phase button while
+ *           phase status is still loading.
  *
  * Setup:
  *   - Uses the shared Playwright persistent profile (/tmp/playwright-smkc-preview-profile by default).
@@ -723,6 +725,79 @@ async function runTc804(adminPage) {
       : '');
   } catch (err) {
     log('TC-804', 'FAIL', err instanceof Error ? err.message : 'TA 804 failed');
+  }
+}
+
+/* ───────── TC-816: Started TA phase does not flash Start CTA while loading ─────────
+ * Reproduces issue #1161 by delaying the phase-status GET after Phase 1 has
+ * already started. The TA page may show the Finals Phases card from frozen
+ * qualification state, but must not show the Phase 1 promotion CTA until the
+ * phase status request resolves. */
+async function runTc816(adminPage) {
+  const tournamentId = sharedTaTournamentId;
+  if (!tournamentId) {
+    log('TC-816', 'FAIL', 'Shared TA tournament not initialized');
+    return;
+  }
+
+  const routePattern = `**/api/tournaments/${tournamentId}/ta/phases`;
+  let releasePhaseResponse = null;
+
+  try {
+    const existingPhase1 = await apiFetchTaPhase(adminPage, tournamentId, 'phase1');
+    const existingEntries = existingPhase1.b?.data?.entries ?? [];
+    if (existingEntries.length === 0) {
+      await uiFreezeTaQualification(adminPage, tournamentId);
+      await uiPromoteTaPhase(adminPage, tournamentId, 'promote_phase1');
+    }
+
+    let delayedRequestSeen = null;
+    const phaseRequestStarted = new Promise((resolve) => {
+      delayedRequestSeen = resolve;
+    });
+    const phaseResponseRelease = new Promise((resolve) => {
+      releasePhaseResponse = resolve;
+    });
+
+    await adminPage.route(routePattern, async (route) => {
+      if (route.request().method() === 'GET') {
+        delayedRequestSeen();
+        await phaseResponseRelease;
+      }
+      await route.continue();
+    }, { times: 1 });
+
+    const phaseResponseDone = adminPage.waitForResponse((res) =>
+      res.url().includes(`/api/tournaments/${tournamentId}/ta/phases`) &&
+      res.request().method() === 'GET', { timeout: 30000 });
+
+    await nav(adminPage, `/tournaments/${tournamentId}/ta`);
+    await adminPage.getByText(/Finals Phases|決勝フェーズ/).first().waitFor({ state: 'visible', timeout: 15000 });
+    await phaseRequestStarted;
+
+    const startPhase1VisibleWhileLoading = await adminPage
+      .getByRole('button', { name: /^(Start Phase 1|フェーズ1開始)$/ })
+      .isVisible()
+      .catch(() => false);
+
+    releasePhaseResponse();
+    await phaseResponseDone;
+    const goPhase1Visible = await adminPage
+      .getByRole('link', { name: /^(Go to Phase 1|フェーズ1へ)$/ })
+      .isVisible({ timeout: 15000 })
+      .catch(() => false);
+
+    log('TC-816', !startPhase1VisibleWhileLoading && goPhase1Visible ? 'PASS' : 'FAIL',
+      startPhase1VisibleWhileLoading
+        ? 'Start Phase 1 was visible while phase status was pending'
+        : !goPhase1Visible
+          ? 'Go to Phase 1 link was not visible after phase status loaded'
+          : '');
+  } catch (err) {
+    if (releasePhaseResponse) releasePhaseResponse();
+    log('TC-816', 'FAIL', err instanceof Error ? err.message : 'TA phase start flash regression failed');
+  } finally {
+    await adminPage.unroute(routePattern).catch(() => {});
   }
 }
 
@@ -1517,7 +1592,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       const selected = new Set(selectedTestNames());
       const needsSharedTaSeed = selected.size === 0 || [
         'TC-801', 'TC-802', 'TC-837', 'TC-839', 'TC-840', 'TC-878', 'TC-897', 'TC-913',
-        'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808',
+        'TC-804', 'TC-805', 'TC-806', 'TC-807', 'TC-808', 'TC-816',
       ].some((name) => selected.has(name));
 
       if (needsSharedTaSeed) {
@@ -1559,6 +1634,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-810', fn: runTc810 },
       { name: 'TC-811', fn: runTc811 },
       { name: 'TC-804', fn: runTc804 },
+      { name: 'TC-816', fn: runTc816 },
       { name: 'TC-806', fn: runTc806 },
       { name: 'TC-807', fn: runTc807 },
       { name: 'TC-808', fn: runTc808 },
@@ -1573,7 +1649,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc801, runTc802, runTc839, runTc804, runTc805, runTc806, runTc807, runTc808, runTc809, runTc810, runTc811,
   runTc837, runTc840, runTc878, runTc896, runTc897, runTc913,
-  runTc812, runTc813, runTc814, runTc815,
+  runTc812, runTc813, runTc814, runTc815, runTc816,
   getSuite,
   results,
 };
