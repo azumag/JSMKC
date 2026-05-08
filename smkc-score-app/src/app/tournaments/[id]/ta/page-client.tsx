@@ -67,6 +67,7 @@ import { applyAutoPairsToSetup } from "@/lib/ta/pair-utils";
 import { canEditTaEntry } from "@/lib/ta/entry-access";
 import { calculateCourseFirstPlaceCounts } from "@/lib/ta/qualification-results";
 import { TA_TIME_ENTRY_CUP_GRID_CLASS, TA_TIME_INPUT_HELP_CLASS, getTaTimeInputProps } from "@/lib/ta/time-entry-layout";
+import { canShowTaPhasePromotion, shouldShowTaFinalsPhaseManagement, type TaPhaseStatus } from "@/lib/ta/phase-controls";
 import { extractArrayData } from "@/lib/api-response";
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from "@/lib/ta/time-utils";
 import { usePolling } from "@/lib/hooks/usePolling";
@@ -195,12 +196,8 @@ export default function TimeAttackPageClient({
   };
 
   // Phase promotion states
-  const [phaseStatus, setPhaseStatus] = useState<{
-    phase1: { total: number; active: number; eliminated: number } | null;
-    phase2: { total: number; active: number; eliminated: number } | null;
-    phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
-    currentPhase: string;
-  } | null>(null);
+  const [phaseStatus, setPhaseStatus] = useState<TaPhaseStatus>(null);
+  const [phaseStatusLoaded, setPhaseStatusLoaded] = useState(false);
   const [promotingPhase, setPromotingPhase] = useState<string | null>(null);
 
   // === Data Fetching ===
@@ -456,6 +453,15 @@ export default function TimeAttackPageClient({
   // If no players are ranked in a phase's range, that phase can be skipped.
   const phase1HasPlayers = entries.some(e => e.rank !== null && e.rank >= 17 && e.rank <= 24);
   const phase2HasPlayers = entries.some(e => e.rank !== null && e.rank >= 13 && e.rank <= 16);
+  const showFinalsPhaseManagement = shouldShowTaFinalsPhaseManagement({
+    entriesCount: entries.length,
+    frozenStages,
+    phaseStatus,
+  });
+  const showPhasePromotionButtons = canShowTaPhasePromotion({
+    phaseStatusLoaded,
+    promotingPhase,
+  });
 
   /* Sync polling errors to local error state for display */
   useEffect(() => {
@@ -479,6 +485,8 @@ export default function TimeAttackPageClient({
       }
     } catch {
       // Phase status fetch is non-critical; silently ignore errors
+    } finally {
+      setPhaseStatusLoaded(true);
     }
   }, [tournamentId]);
 
@@ -1034,7 +1042,7 @@ export default function TimeAttackPageClient({
       {/* Finals Phase Management: Promote players to phase 1/2/3 and navigate to phase pages.
        * Only shown after qualification is frozen (completed) or if any phase has already started,
        * preventing premature access to finals controls while qualification is still in progress. */}
-      {entries.length > 0 && (frozenStages.includes("qualification") || phaseStatus?.phase1 || phaseStatus?.phase2 || phaseStatus?.phase3) && (
+      {showFinalsPhaseManagement && (
         <Card>
           <CardHeader>
             <CardTitle>{t('finalsPhases')}</CardTitle>
@@ -1063,7 +1071,7 @@ export default function TimeAttackPageClient({
                 )}
                 <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
-                  {isAdmin && !phaseStatus?.phase1 && phase1HasPlayers && (
+                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase1 && phase1HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase1")}
@@ -1100,7 +1108,7 @@ export default function TimeAttackPageClient({
                 )}
                 <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
-                  {isAdmin && !phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
+                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase2 && (phaseStatus?.phase1 || !phase1HasPlayers) && phase2HasPlayers && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase2")}
@@ -1140,7 +1148,7 @@ export default function TimeAttackPageClient({
                 )}
                 <div className="flex gap-2 flex-wrap">
                   {/* Promotion button: admin-only */}
-                  {isAdmin && !phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
+                  {isAdmin && showPhasePromotionButtons && !phaseStatus?.phase3 && (phaseStatus?.phase2 || !phase2HasPlayers) && (
                     <Button
                       size="sm"
                       onClick={() => handlePromoteToPhase("promote_phase3")}
