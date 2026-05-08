@@ -2,7 +2,7 @@ export type TaPhaseStatus = {
   phase1: { total: number; active: number; eliminated: number } | null;
   phase2: { total: number; active: number; eliminated: number } | null;
   phase3: { total: number; active: number; eliminated: number; winner: string | null } | null;
-  currentPhase?: string;
+  currentPhase: string;
 } | null;
 
 export function hasStartedTaPhase(phaseStatus: TaPhaseStatus): boolean {
