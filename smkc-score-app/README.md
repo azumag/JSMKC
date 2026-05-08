@@ -300,9 +300,15 @@ Cloudflare setup:
    npx wrangler d1 create smkc-db-preview
    ```
 2. Put the returned database id into `wrangler.toml` under `[[env.preview.d1_databases]]`.
-3. Configure `preview.smkc.bluemoon.works` as the preview Worker custom domain/route.
-4. Add the same runtime secrets to the `smkc-preview` Worker: `AUTH_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `ADMIN_DISCORD_IDS`.
-5. Add the preview callback URL to the Discord OAuth app: `https://preview.smkc.bluemoon.works/api/auth/callback/discord`.
+3. Deploy the Wrangler preview environment once with `npm run deploy:preview`.
+   This creates/updates the environment Worker `smkc-preview`.
+4. Configure `preview.smkc.bluemoon.works` as a custom domain on the
+   `smkc-preview` Worker. The workers.dev URL is only a diagnostic fallback;
+   E2E and OAuth should use the custom domain.
+5. Add the same runtime secrets to the `smkc-preview` Worker: `AUTH_SECRET`,
+   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `ADMIN_DISCORD_IDS`.
+6. Add the preview callback URL to the Discord OAuth app:
+   `https://preview.smkc.bluemoon.works/api/auth/callback/discord`.
 
 Deploy and migrate preview with:
 
@@ -314,14 +320,32 @@ Configure pull requests to deploy to preview through Cloudflare Workers Builds, 
 
 1. In Cloudflare dashboard, open Workers & Pages → `smkc`.
 2. Open `Settings` → `Build`.
-3. In `Branch control`, enable builds for non-production branches.
+3. Connect this repository for production builds.
 4. Keep the production branch as `main`.
-5. Set the build command to `npm run build:cf`.
-6. Set the production deploy command to `npm run deploy:cf`.
-7. Set the non-production branch deploy command to `npm run deploy:cf:preview`.
-8. Keep root directory as `smkc-score-app`.
+5. Set the root directory to `smkc-score-app`.
+6. Set the build command to `npm run build:cf`.
+7. Set the production deploy command to `npm run deploy:cf`.
+8. In Cloudflare dashboard, open Workers & Pages → `smkc-preview`.
+9. Open `Settings` → `Build`.
+10. Connect the same repository for preview builds.
+11. Enable builds for non-production branches in `Branch control`.
+12. Keep the root directory as `smkc-score-app`.
+13. Set the build command to `npm run build:cf`.
+14. Set the deploy command and non-production branch deploy command to
+    `npm run deploy:cf:preview`.
 
-With this setup, pushes to PR branches build through Cloudflare and promote the `smkc-preview` Worker, while pushes to `main` continue to deploy the production `smkc` Worker. The preview deploy command applies D1 migrations to `smkc-db-preview` before deploying the preview Worker.
+Do not configure only the production Worker `smkc` with a non-production branch
+command that deploys `smkc-preview`. It can technically work because
+`npm run deploy:cf:preview` runs `wrangler deploy --env preview`, but the
+Cloudflare dashboard then shows branch settings under one Worker while traffic
+and runtime variables belong to another. Keep `smkc` and `smkc-preview` as
+separate Build connections so the deployed Worker, custom domain, runtime
+secrets, and branch rules all line up.
+
+With this setup, pushes to `main` deploy the production `smkc` Worker, while PR
+branches build through Cloudflare and promote the `smkc-preview` Worker. The
+preview deploy command applies D1 migrations to `smkc-db-preview` before
+deploying the preview Worker.
 
 Run preview E2E with the dedicated Playwright profile:
 
