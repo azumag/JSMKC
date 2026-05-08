@@ -25,6 +25,7 @@ describe("TA phase control visibility", () => {
         phase1: { total: 8, active: 8, eliminated: 0 },
         phase2: null,
         phase3: null,
+        currentPhase: "phase1",
       },
     })).toBe(true);
   });
