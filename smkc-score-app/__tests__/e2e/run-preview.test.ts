@@ -134,6 +134,34 @@ describe('preview E2E runner', () => {
     );
   });
 
+  it('ignores invalid public IPv4 DNS lines before using a valid A record', async () => {
+    lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND preview.smkc.bluemoon.works'));
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: '999.999.999.999\n104.21.41.48\n',
+      stderr: '',
+    });
+
+    await expect(
+      runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works'),
+    ).resolves.toBe('104.21.41.48');
+  });
+
+  it('ignores invalid public IPv6 DNS lines before using a valid AAAA record', async () => {
+    lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND ipv6-preview.example.com'));
+    spawnSyncMock
+      .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
+      .mockReturnValueOnce({
+        status: 0,
+        stdout: 'feed\n2606:4700:3037::6815:2930\n',
+        stderr: '',
+      });
+
+    await expect(
+      runner.assertBaseUrlResolvable('https://ipv6-preview.example.com'),
+    ).resolves.toBe('2606:4700:3037::6815:2930');
+  });
+
   it('throws a helpful error when the preview host does not resolve', async () => {
     lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND preview.smkc.bluemoon.works'));
 

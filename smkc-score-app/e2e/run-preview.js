@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const { spawnSync } = require('child_process');
 const dns = require('dns').promises;
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 
 const {
@@ -53,8 +54,8 @@ async function assertBaseUrlResolvable(baseUrl) {
 
 function resolveHostViaPublicDns(hostname) {
   const records = [
-    { type: 'A', pattern: /^\d{1,3}(\.\d{1,3}){3}$/ },
-    { type: 'AAAA', pattern: /^[0-9a-f:]+$/i },
+    { type: 'A', family: 4 },
+    { type: 'AAAA', family: 6 },
   ];
 
   for (const record of records) {
@@ -66,7 +67,7 @@ function resolveHostViaPublicDns(hostname) {
     const addresses = (result.stdout || '')
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter((line) => record.pattern.test(line));
+      .filter((line) => net.isIP(line) === record.family);
 
     if (addresses[0]) return addresses[0];
   }
