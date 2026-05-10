@@ -266,7 +266,7 @@ async function runDebugFillTests(page) {
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-DBG summary: ${results.length - failed.length}/${results.length} passed`);
-  return { failed: failed.length > 0 };
+  return { failed: failed.length };
 }
 
 async function main() {

@@ -147,7 +147,7 @@ async function runArchiveTests(page) {
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
-  return { failed: failed.length > 0 };
+  return { failed: failed.length };
 }
 
 async function main() {

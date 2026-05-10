@@ -3977,10 +3977,10 @@ async function main() {
   ];
 
   const suiteFailures = {};
-  for (const { label, mod } of suites) {
+  for (const { label, mod, run } of suites) {
     console.log(`\n========== Running ${label} (in-process) ==========`);
-    if (typeof mod.runArchiveTests === 'function' || typeof mod.runDebugFillTests === 'function') {
-      const { failed } = await (mod.runArchiveTests ?? mod.runDebugFillTests)(page);
+    if (run) {
+      const { failed } = await run(page);
       suiteFailures[label] = failed;
       continue;
     }
