@@ -17,9 +17,9 @@ describe('tc-all focused suite registration', () => {
   });
 
   it('keeps debug-fill player creation on the shared helper', () => {
-    const createPlayersStart = debugFillSource.indexOf('async function createPlayers');
-    const createPlayersEnd = debugFillSource.indexOf('\n}\n\nasync function setupAllModes', createPlayersStart);
-    const createPlayersSource = debugFillSource.slice(createPlayersStart, createPlayersEnd);
+    const createPlayersMatch = debugFillSource.match(/async function createPlayers[\s\S]*?^}/m);
+    if (!createPlayersMatch) throw new Error('createPlayers function not found');
+    const createPlayersSource = createPlayersMatch[0];
 
     expect(createPlayersSource).toContain('apiCreatePlayer');
     expect(createPlayersSource).not.toContain('apiJson');
