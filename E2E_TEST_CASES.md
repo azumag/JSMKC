@@ -696,6 +696,20 @@
 - **期待結果**: BM のみロック、MR は編集可能
 - **スクリプト**: tc-all.js TC-351
 
+## TC-352: Tournament PUT — debugMode フラグを後から有効化できる
+- **URL**: /api/tournaments/[temp-id]
+- **authRequired**: true (admin)
+- **背景**: debug tournament は preview E2E のセットアップや debug-fill 検証で使うため、作成後の Tournament PUT でも `debugMode` が永続化される必要がある。
+- **手順**:
+  1. `debugMode=false` の一時トーナメントを作成する
+  2. `PUT /api/tournaments/:id` に `{ debugMode: true }` を送信する
+  3. PUT レスポンスの `debugMode` が `true` であることを確認する
+  4. `GET /api/tournaments/:id?fields=summary` で再取得する
+  5. 再取得した summary の `debugMode` が `true` で永続化されていることを確認する
+  6. 一時トーナメントを削除する
+- **期待結果**: Tournament PUT で `debugMode=true` が保存され、GET summary でも同じ値が返る
+- **スクリプト**: tc-all.js TC-352
+
 ## TC-353: BM/MR 予選セットアップ — 8人グループで createMany が D1 パラメータ制限内に収まること (issue #736)
 - **authRequired**: true (admin)
 - **背景**: D1 は SQL ステートメントあたり ~100 バインドパラメータ制限がある。8人グループのラウンドロビンは 28 試合を生成し、各試合に 9～12 カラムあると 252+ パラメータになる。`createMany` をチャンク分割（MATCH_CHUNK=8）することで制限を超えないようにし、D1 ネットワークリトライによる 6 秒外れ値を抑制する。
@@ -749,6 +763,16 @@
   - 横スクロール可能なテーブルラッパーが存在する
   - ラッパー未検出時は SKIP ではなく FAIL
 - **スクリプト**: tc-all.js TC-356
+
+## TC-357: Suspense fallback — 4モード予選ページの見出しが即時描画される
+- **authRequired**: true (admin)
+- **背景**: RSC streaming / PPR の待機中でも E2E セレクタと利用者の初期表示が安定するよう、BM/MR/GP/TA の qualification fallback はモード名見出しを先に描画する必要がある。
+- **手順**:
+  1. 共有トーナメント ID を使って BM/MR/GP/TA の各予選ページへ順に遷移する
+  2. 各ページで `h1` / `h2` / `h3` のいずれかを即時確認する
+  3. BM は `バトルモード` または `Battle Mode`、MR は `マッチレース` または `Match Race`、GP は `グランプリ` または `Grand Prix`、TA は `タイムアタック` または `Time Attack` を含む見出しがあることを確認する
+- **期待結果**: 4モードすべてで fallback 期間中もモード名見出しが存在し、遅いデータ取得でも見出しセレクタが安定する
+- **スクリプト**: tc-all.js TC-357
 
 ## TC-401: 全モードトーナメント — TA/BM/MR/GP の予選データが正しく存在する
 - **authRequired**: true (admin)

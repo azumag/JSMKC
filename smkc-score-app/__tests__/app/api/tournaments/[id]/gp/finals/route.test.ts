@@ -617,7 +617,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
     });
 
     // Success case - Updates match and advances winner
-    it('should update match and advance winner to next round', async () => {
+    it('should update score-only upper bracket match with null cupResults and advance winner', async () => {
       const mockMatch = {
         id: 'm1',
         tournamentId: 't1',
@@ -628,6 +628,7 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
         player2Id: 'p2',
         points1: 2,
         points2: 0,
+        cupResults: [{ cup: 'Mushroom', points1: 45, points2: 0 }],
         completed: false,
         player1: { id: 'p1', name: 'Player 1' },
         player2: { id: 'p2', name: 'Player 2' },
