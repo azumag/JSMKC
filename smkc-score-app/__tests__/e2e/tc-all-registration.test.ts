@@ -34,4 +34,10 @@ describe('tc-all focused suite registration', () => {
       expect(scriptSource).not.toContain('return { failed: failed.length > 0 }');
     }
   });
+
+  it('keeps retired TC-401/TC-402 comments in one language', () => {
+    expect(source).toContain('// 旧軽量フルワークフローとGPダイアログUI確認は廃止済み。');
+    expect(source).toContain('// TC-401/402 は上の共有4モード大会と総合ランキング検証に再利用。');
+    expect(source).not.toContain('Legacy lightweight full-workflow and GP dialog UI checks were retired.');
+  });
 });
