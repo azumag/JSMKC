@@ -1747,9 +1747,10 @@
 - **背景**: GPのWinners Semi FinalはFT2で完了する。Winners Final / Losers Semi Final / Losers Final / Grand Final はFT3で、2カップ勝利では未完了、3カップ先取が必要。ベスト4以前のダブルイリミネーション試合もFT2、BarragesはFT1。
 - **手順**:
   1. 28名予選 + Top-8 GP決勝ブラケット生成
-  2. Winners Semi Final に2カップ分のP1勝利をPUTし、`points1=2, completed=true` であることを確認する
-  3. Grand Final に2カップ分のP1勝利をPUTし、`points1=2, completed=false` であることを確認する
-  4. Grand Final に3カップ目P1勝利を追加してPUTし、`points1=3, completed=true` になることを確認する
+  2. M1-M15 は E2E 側でFT数を再計算せず、`assignedCups` を1件ずつ追加PUTしてAPIレスポンス上の `completed=true` を確認できた時点で次試合へ進める
+  3. Winners Final (M16) に2カップ分のP1勝利をPUTし、`points1=2, completed=false` であることを確認する
+  4. Winners Final (M16) に3カップ目P1勝利を追加してPUTし、`points1=3, completed=true` になることを確認する
+  5. Winners Semi Final 群は `points1=2, completed=true` で完了済みであることを確認する
 - **期待結果**: GP Winners Semi Final はFT2として完了し、Winners Final / Losers Semi Final / Losers Final / Grand Final はFT3として動作する
 - **スクリプト**: tc-gp.js TC-722
 

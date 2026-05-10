@@ -34,6 +34,7 @@ describe('E2E case drift coverage', () => {
     ['TC-352', tcAll],
     ['TC-357', tcAll],
     ['TC-717', tcGp],
+    ['TC-722', tcGp],
     ['TC-1103', tcGp],
     ['TC-725', tcGp],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
@@ -52,7 +53,6 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('FT2 相当');
     expect(section).toContain('FT3 相当');
     expect(tcGp).toContain("require('./lib/gp-finals-validators')");
-    expect(tcGp).toContain('isGpFinalsFt3Round');
     expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('isGpFinalsFt3Round');
@@ -60,6 +60,16 @@ describe('E2E case drift coverage', () => {
       isGpFinalsFt3Round: expect.any(Function),
       validateGpFinalsAssignedCupSequences: expect.any(Function),
     }));
+  });
+
+  it('keeps TC-722 from duplicating GP finals target-wins logic in E2E', () => {
+    const section = sectionFor('TC-722');
+
+    expect(section).toContain('completed=true');
+    expect(section).toContain('FT数を再計算せず');
+    expect(tcGp).toContain('completeGpFinalsMatchByCompletedFlag');
+    expect(tcGp).toContain('updated?.completed === true');
+    expect(tcGp).not.toContain('gpFinalsTargetWinsForRound');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(

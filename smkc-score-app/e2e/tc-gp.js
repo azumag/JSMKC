@@ -48,7 +48,7 @@ const {
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
-const { isGpFinalsFt3Round, validateGpFinalsAssignedCupSequences } = require('./lib/gp-finals-validators');
+const { validateGpFinalsAssignedCupSequences } = require('./lib/gp-finals-validators');
 
 const results = makeResults();
 const log = makeLog(results);
@@ -1452,17 +1452,39 @@ async function runTc721(adminPage) {
   }
 }
 
-function gpFinalsTargetWinsForRound(round) {
-  if (isGpFinalsFt3Round(round)) {
-    return 3;
+function gpAssignedCupSequence(match) {
+  if (Array.isArray(match.assignedCups) && match.assignedCups.length > 0) {
+    return match.assignedCups;
   }
-  return 2;
+  return [match.cup || 'Mushroom', 'Flower', 'Star', 'Special', 'Mushroom'];
 }
 
-function gpWinningCupResults(match, targetWins) {
-  const fallbackCups = ['Flower', 'Star', 'Special'];
-  return Array.from({ length: targetWins }, (_, index) => {
-    const cup = index === 0 ? match.cup || 'Mushroom' : fallbackCups[index - 1] || 'Mushroom';
+function gpWinningCupResultsForCups(cups) {
+  return cups.map((cup) => gpCupResult(cup, 45, 0));
+}
+
+async function completeGpFinalsMatchByCompletedFlag(adminPage, tournamentId, match) {
+  const cups = gpAssignedCupSequence(match);
+  for (let count = 1; count <= cups.length; count++) {
+    const res = await apiSetGpFinalsCupResults(
+      adminPage,
+      tournamentId,
+      match.id,
+      gpWinningCupResultsForCups(cups.slice(0, count)),
+    );
+    if (res.s !== 200) throw new Error(`Match ${match.matchNumber} put failed (${res.s})`);
+
+    const matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
+    const updated = matches.find((m) => m.id === match.id);
+    if (updated?.completed === true) return updated;
+  }
+  throw new Error(`Match ${match.matchNumber} did not complete after ${cups.length} cups`);
+}
+
+function gpWinningCupResults(match, count) {
+  const cups = gpAssignedCupSequence(match);
+  return Array.from({ length: count }, (_, index) => {
+    const cup = cups[index] || 'Mushroom';
     return gpCupResult(cup, 45, 0);
   });
 }
@@ -1483,33 +1505,20 @@ async function runTc722(adminPage) {
       if (!match || !match.player1Id || !match.player2Id || match.player1Id === match.player2Id) {
         throw new Error(`Match ${mn} not ready`);
       }
-      const res = await apiSetGpFinalsCupResults(
-        adminPage,
-        tournamentId,
-        match.id,
-        gpWinningCupResults(match, gpFinalsTargetWinsForRound(match.round)),
-      );
-      if (res.s !== 200) throw new Error(`Match ${mn} put failed (${res.s})`);
+      await completeGpFinalsMatchByCompletedFlag(adminPage, tournamentId, match);
     }
 
     let matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const m16 = matches.find((m) => m.matchNumber === 16);
     if (!m16 || !m16.player1Id || !m16.player2Id) throw new Error('M16 not ready');
 
-    const twoCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, [
-      gpCupResult(m16.cup || 'Mushroom', 45, 0),
-      gpCupResult('Flower', 45, 0),
-    ]);
+    const twoCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, gpWinningCupResults(m16, 2));
     if (twoCup.s !== 200) throw new Error(`M16 2-cup PUT failed (${twoCup.s})`);
     matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const afterTwo = matches.find((m) => m.id === m16.id);
     const stillOpen = afterTwo?.completed === false && afterTwo?.points1 === 2 && afterTwo?.points2 === 0;
 
-    const threeCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, [
-      gpCupResult(m16.cup || 'Mushroom', 45, 0),
-      gpCupResult('Flower', 45, 0),
-      gpCupResult('Star', 45, 0),
-    ]);
+    const threeCup = await apiSetGpFinalsCupResults(adminPage, tournamentId, m16.id, gpWinningCupResults(m16, 3));
     if (threeCup.s !== 200) throw new Error(`M16 3-cup PUT failed (${threeCup.s})`);
     matches = await apiFetchGpFinalsMatches(adminPage, tournamentId);
     const afterThree = matches.find((m) => m.id === m16.id);
