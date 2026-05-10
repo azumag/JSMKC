@@ -214,6 +214,8 @@
   6. public DNS fallback は `dig +short` の説明行や不正な IPv4/IPv6 風文字列を host resolver rules に採用しないことを確認する
   7. macOS では Chrome for Testing の Crashpad path に依存せず、installed Chrome channel で起動することを確認する
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
+- **スクリプト**: `npm run e2e:preview`, `npm run e2e:preview:all`
+- **補助検証**: `smkc-score-app/__tests__/e2e/run-preview.test.ts`
 
 ## TC-110: Preview 管理者ログイン補助スクリプトの要素待機
 - **URL**: /auth/signin
@@ -1815,6 +1817,7 @@
   4. M1 が `completed=true`、`points1=2`、`points2=0`、`cupResults=null` で保存されていることを確認
   5. クリーンアップ
 - **期待結果**: アッパーブラケットは `2-0` のような取得カップ数だけで保存・進行でき、不要なカップ別明細を作らない
+- **スクリプト**: tc-gp.js TC-1103 (`npm run e2e:gp`, preview: `npm run e2e:preview:gp`)
 
 ## TC-710: GP カップ不一致修正の拒否
 - **URL**: /api/tournaments/[temp-id]/gp (PATCH with correction)
