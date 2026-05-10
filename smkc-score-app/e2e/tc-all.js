@@ -55,6 +55,8 @@ const mrModule = require('./tc-mr');
 const gpModule = require('./tc-gp');
 const taModule = require('./tc-ta');
 const overlayModule = require('./tc-overlay');
+const archiveModule = require('./tc-archive');
+const debugFillModule = require('./tc-debug-fill');
 
 /* TID is set at runtime from a dedicated test tournament we create in main().
  * We deliberately do NOT target a pre-existing remote tournament (previously
@@ -3963,6 +3965,8 @@ async function main() {
   }
 
   const suites = [
+    { label: 'Archive Tests', mod: archiveModule, run: archiveModule.runArchiveTests },
+    { label: 'Debug-fill Tests', mod: debugFillModule, run: debugFillModule.runDebugFillTests },
     { label: 'BM Tests', mod: bmModule },
     { label: 'MR Tests', mod: mrModule },
     { label: 'GP Tests', mod: gpModule },
@@ -3975,6 +3979,11 @@ async function main() {
   const suiteFailures = {};
   for (const { label, mod } of suites) {
     console.log(`\n========== Running ${label} (in-process) ==========`);
+    if (typeof mod.runArchiveTests === 'function' || typeof mod.runDebugFillTests === 'function') {
+      const { failed } = await (mod.runArchiveTests ?? mod.runDebugFillTests)(page);
+      suiteFailures[label] = failed;
+      continue;
+    }
     const spec = mod.getSuite({ sharedFixture });
     try {
       const { failed } = await runSuiteInBrowser({ ...spec, page });

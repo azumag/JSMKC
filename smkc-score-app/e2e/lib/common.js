@@ -153,6 +153,23 @@ async function apiCreateTournament(page, name, opts = {}) {
   return id;
 }
 
+async function apiJson(page, path, options = {}) {
+  return page.evaluate(async ([url, init]) => {
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    });
+    return {
+      status: response.status,
+      body: await response.json().catch(() => ({})),
+    };
+  }, [path, options]);
+}
+
 async function apiDeletePlayer(page, id) {
   if (!id) return;
   await page.evaluate(async (u) => { await fetch(u, { method: 'DELETE' }); },
@@ -2592,6 +2609,7 @@ module.exports = {
   /* CRUD */
   apiCreatePlayer,
   apiCreateTournament,
+  apiJson,
   apiDeletePlayer,
   apiDeleteTournament,
   /* UI helpers */
