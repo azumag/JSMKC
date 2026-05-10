@@ -898,6 +898,50 @@ describe('GP Finals API Route - /api/tournaments/[id]/gp/finals', () => {
       expect(result.data.loserId).toBe('p2');
     });
 
+    it('should keep GP losers semi-final open before FT3 cup wins are reached', async () => {
+      const mockMatch = {
+        id: 'm1',
+        tournamentId: 't1',
+        matchNumber: 13,
+        round: 'losers_sf',
+        stage: 'finals',
+        player1Id: 'p1',
+        player2Id: 'p2',
+        points1: 1,
+        points2: 0,
+        completed: false,
+        player1: { id: 'p1' },
+        player2: { id: 'p2' },
+      };
+
+      (prisma.gPMatch.findUnique as jest.Mock).mockResolvedValue(mockMatch);
+      (prisma.gPMatch.update as jest.Mock).mockResolvedValue({ ...mockMatch, points1: 2, points2: 0, completed: false });
+      (generateBracketStructure as jest.Mock).mockReturnValue([
+        { matchNumber: 13, round: 'losers_sf', winnerGoesTo: 15, loserGoesTo: null, position: 1 },
+      ]);
+
+      const request = new MockNextRequest(
+        'http://localhost:3000/api/tournaments/t1/gp/finals',
+        {
+          matchId: 'm1',
+          cupResults: [
+            { cup: 'Mushroom', points1: 45, points2: 0 },
+            { cup: 'Flower', points1: 45, points2: 0 },
+          ],
+        },
+      );
+      const params = Promise.resolve({ id: 't1' });
+      const result = await PUT(request, { params });
+
+      const scoreUpdate = (prisma.gPMatch.update as jest.Mock).mock.calls[0][0];
+      expect(scoreUpdate.data.points1).toBe(2);
+      expect(scoreUpdate.data.points2).toBe(0);
+      expect(scoreUpdate.data.completed).toBe(false);
+      expect(prisma.gPMatch.findFirst).not.toHaveBeenCalled();
+      expect(result.data.winnerId).toBeNull();
+      expect(result.data.loserId).toBeNull();
+    });
+
     // Success case - Completes tournament with winner from winners bracket
     it('should complete tournament when winner from winners bracket wins grand final', async () => {
       const mockMatch = {

@@ -617,13 +617,61 @@ async function runTc709(adminPage) {
   }
 }
 
-/* ───────── TC-717: GP finals same-cup-per-round enforcement (PR #585) ─────────
- * Every match in the same finals round must share one cup. Generates an
- * 8-player finals bracket and asserts that within each round (winners_qf,
- * winners_sf, losers_r1, …) all matches carry the same cup string. Guards
- * against the divergent state that PR #583's old client-side random
- * fallback could leave behind when admins saved scores before the
- * server-side normalizer landed. */
+function isGpFinalsFt3Round(round) {
+  return ['winners_final', 'losers_sf', 'losers_final', 'grand_final', 'grand_final_reset'].includes(round);
+}
+
+function validateGpFinalsAssignedCupSequences(matches) {
+  const errors = [];
+  const sequencesByRound = new Map();
+
+  for (const match of matches) {
+    const round = match.round;
+    const assignedCups = Array.isArray(match.assignedCups) ? match.assignedCups : [];
+
+    if (!round) continue;
+    if (assignedCups.length === 0) {
+      errors.push(`M${match.matchNumber || match.id}: assignedCups is empty`);
+      continue;
+    }
+    if (match.cup !== assignedCups[0]) {
+      errors.push(`M${match.matchNumber || match.id}: cup=${match.cup} first=${assignedCups[0]}`);
+    }
+
+    const key = JSON.stringify(assignedCups);
+    if (!sequencesByRound.has(round)) sequencesByRound.set(round, new Set());
+    sequencesByRound.get(round).add(key);
+
+    if (isGpFinalsFt3Round(round)) {
+      if (assignedCups.length !== 5) {
+        errors.push(`M${match.matchNumber || match.id}: ${round} expected 5 assigned cups, got ${assignedCups.length}`);
+      }
+      if (new Set(assignedCups.slice(0, 4)).size !== Math.min(4, assignedCups.length)) {
+        errors.push(`M${match.matchNumber || match.id}: ${round} repeats within first 4 assigned cups`);
+      }
+    } else {
+      if (assignedCups.length > 3) {
+        errors.push(`M${match.matchNumber || match.id}: ${round} expected <=3 assigned cups, got ${assignedCups.length}`);
+      }
+      if (new Set(assignedCups).size !== assignedCups.length) {
+        errors.push(`M${match.matchNumber || match.id}: ${round} repeats assigned cups`);
+      }
+    }
+  }
+
+  for (const [round, sequences] of sequencesByRound.entries()) {
+    if (sequences.size !== 1) {
+      errors.push(`${round}: divergent assignedCups sequences`);
+    }
+  }
+
+  return errors;
+}
+
+/* ───────── TC-717: GP finals assigned-cup sequence enforcement ─────────
+ * Every match in the same finals round must share one assignedCups sequence.
+ * FT2 rounds must stay within three unique cups; FT3 rounds use five cups
+ * with only the fifth allowed to repeat one of the first four cups. */
 async function runTc717(adminPage) {
   let setup = null;
   try {
@@ -635,19 +683,10 @@ async function runTc717(adminPage) {
     const matches = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
     if (matches.length !== 17) throw new Error(`Expected 17 finals matches, got ${matches.length}`);
 
-    /* Bucket by round and check every match in a round shares one cup. */
-    const cupsByRound = new Map();
-    for (const m of matches) {
-      if (!m.round) continue;
-      if (!cupsByRound.has(m.round)) cupsByRound.set(m.round, new Set());
-      cupsByRound.get(m.round).add(m.cup ?? null);
-    }
-
-    const divergentRounds = [...cupsByRound.entries()]
-      .filter(([, cups]) => cups.size !== 1 || cups.has(null));
-    const ok = divergentRounds.length === 0;
+    const sequenceErrors = validateGpFinalsAssignedCupSequences(matches);
+    const ok = sequenceErrors.length === 0;
     log('TC-717', ok ? 'PASS' : 'FAIL',
-      ok ? '' : `rounds with divergent or null cups: ${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`);
+      ok ? '' : sequenceErrors.join(' | '));
   } catch (err) {
     log('TC-717', 'FAIL', err instanceof Error ? err.message : 'GP 717 failed');
   } finally {
@@ -1464,7 +1503,7 @@ async function runTc721(adminPage) {
 }
 
 function gpFinalsTargetWinsForRound(round) {
-  if (['winners_final', 'losers_sf', 'losers_final', 'grand_final', 'grand_final_reset'].includes(round)) {
+  if (isGpFinalsFt3Round(round)) {
     return 3;
   }
   return 2;
@@ -1598,6 +1637,7 @@ module.exports = {
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
+  validateGpFinalsAssignedCupSequences,
   getSuite,
   results,
 };

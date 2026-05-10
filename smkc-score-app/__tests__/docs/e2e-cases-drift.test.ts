@@ -27,6 +27,7 @@ describe('E2E case drift coverage', () => {
   it.each([
     ['TC-352', tcAll],
     ['TC-357', tcAll],
+    ['TC-717', tcGp],
     ['TC-1103', tcGp],
     ['TC-725', tcGp],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
@@ -36,6 +37,17 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('**期待結果**');
     expect(section).toContain(`**スクリプト**:`);
     expect(scriptSource).toContain(`log('${tc}'`);
+  });
+
+  it('keeps TC-717 aligned with the assignedCups scenario', () => {
+    const section = sectionFor('TC-717');
+
+    expect(section).toContain('assignedCups');
+    expect(section).toContain('FT2 相当');
+    expect(section).toContain('FT3 相当');
+    expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
+    expect(tcGp).toContain('match.cup !== assignedCups[0]');
+    expect(tcGp).toContain('assignedCups.slice(0, 4)');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
