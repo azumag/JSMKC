@@ -21,6 +21,7 @@ const {
   resolveE2EBaseUrl,
   resolveE2EProfileDir,
 } = require('./env');
+const { assertGpCombinedStandingsHeaders } = require('./standings-assertions');
 
 const DEFAULT_E2E_BROWSER_HOME = path.join(os.tmpdir(), 'playwright-e2e-home');
 
@@ -2242,6 +2243,10 @@ async function assertCombinedStandingsTab(page, mode, tournamentId) {
 
   const table = content.locator('table').first();
   await table.waitFor({ state: 'visible', timeout: 15000 });
+  if (mode === 'gp') {
+    const headers = await table.locator('thead th').allTextContents();
+    assertGpCombinedStandingsHeaders(headers);
+  }
   const rows = table.locator('tbody tr');
   const rowCount = await rows.count();
   if (rowCount === 0) {
@@ -2630,6 +2635,7 @@ module.exports = {
   matchUpdateUsesLeanPayload,
   assertQualificationPointsColumn,
   assertCombinedStandingsTab,
+  assertGpCombinedStandingsHeaders,
   /* BM */
   apiSetupBmGroup,
   apiFetchBm,

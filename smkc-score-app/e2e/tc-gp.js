@@ -20,7 +20,7 @@
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
- *   TC-724  GP combined standings tab shows rows with ascending ranks
+ *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
