@@ -1,0 +1,71 @@
+import fs from 'fs';
+import path from 'path';
+
+const root = path.join(process.cwd(), '..');
+const casesPath = path.join(root, 'E2E_TEST_CASES.md');
+const cases = fs.readFileSync(casesPath, 'utf8');
+
+function readE2eScript(script: string) {
+  return fs.readFileSync(path.join(process.cwd(), 'e2e', script), 'utf8');
+}
+
+function sectionFor(tc: string) {
+  const heading = new RegExp(`^#{2,3} ${tc}:`, 'm');
+  const match = heading.exec(cases);
+  const start = match?.index ?? -1;
+  if (start === -1) throw new Error(`${tc} section not found`);
+  const next = cases.slice(start + 1).search(/\n#{2,3} TC-/);
+  const end = next === -1 ? cases.length : start + 1 + next;
+  return cases.slice(start, end);
+}
+
+describe('E2E case drift coverage', () => {
+  const tcAll = readE2eScript('tc-all.js');
+  const tcGp = readE2eScript('tc-gp.js');
+  const tcDebugFill = readE2eScript('tc-debug-fill.js');
+
+  it.each([
+    ['TC-352', tcAll],
+    ['TC-357', tcAll],
+    ['TC-1103', tcGp],
+  ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
+    const section = sectionFor(tc);
+
+    expect(section).toContain('**手順**');
+    expect(section).toContain('**期待結果**');
+    expect(section).toContain(`**スクリプト**:`);
+    expect(scriptSource).toContain(`log('${tc}'`);
+  });
+
+  it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
+    'keeps %s documented as runnable focused debug-fill coverage',
+    (tc) => {
+      const section = sectionFor(tc);
+
+      expect(section).toContain(`tc-debug-fill.js ${tc}`);
+      expect(section).toContain('npm run e2e:preview:debug-fill');
+      expect(tcDebugFill).toContain(`log('${tc}'`);
+    },
+  );
+
+  it('keeps debug-fill wired into the all-suite dispatcher', () => {
+    expect(tcAll).toContain("require('./tc-debug-fill')");
+    expect(tcAll).toContain('runDebugFillTests');
+    expect(tcAll).toContain('for (const { label, mod, run } of suites)');
+  });
+
+  it.each([
+    ['TC-109', 'n/a (runner command)', 'smkc-score-app/__tests__/e2e/run-preview.test.ts'],
+    ['TC-803', 'TC-318 でカバー済み', 'TC-318'],
+    ['TC-943', '.github/pull_request_template.md', '__tests__/docs/pr-template.test.ts'],
+  ])('keeps %s explicitly classified outside standalone browser runner registration', (tc, marker, coverage) => {
+    const section = sectionFor(tc);
+
+    expect(section).toContain(marker);
+    expect(section).toContain(coverage);
+  });
+
+  it('does not leave retired TC identifiers in runnable E2E scripts as false drift signals', () => {
+    expect(tcAll).not.toContain('TC-403');
+  });
+});
