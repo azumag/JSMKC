@@ -14,6 +14,13 @@ async function isAuthenticated(page) {
   return result;
 }
 
+async function waitForPreviewAdminLoginReady(page) {
+  const adminTab = page.getByRole('tab', { name: /管理者|Admin/ });
+  await adminTab.waitFor({ state: 'visible', timeout: 15000 });
+  await adminTab.click();
+  await page.getByRole('button', { name: /Discord/ }).waitFor({ state: 'visible', timeout: 15000 });
+}
+
 async function main() {
   const env = buildPreviewRuntimeEnv(process.env);
   const { hostname } = new URL(env.E2E_BASE_URL);
@@ -35,7 +42,7 @@ async function main() {
   try {
     const page = browser.pages()[0] || await browser.newPage();
     await page.goto(`${env.E2E_BASE_URL}/auth/signin`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(1500);
+    await waitForPreviewAdminLoginReady(page);
 
     let session = await isAuthenticated(page);
     if (session.authenticated) {
@@ -63,7 +70,15 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  isAuthenticated,
+  waitForPreviewAdminLoginReady,
+  main,
+};

@@ -70,6 +70,10 @@ describe('preview E2E runner', () => {
     expect(packageJson.scripts['e2e:preview:all']).toBe('npm run e2e:preview --');
   });
 
+  it('exposes the preview admin login helper as a selector-driven E2E setup script', () => {
+    expect(packageJson.scripts['e2e:preview:login']).toBe('node e2e/login-preview-admin.js');
+  });
+
   it('defaults to the installed Chrome channel on macOS preview runs', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { value: 'darwin' });
