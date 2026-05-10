@@ -196,10 +196,12 @@ async function runTc725(adminPage) {
     const divergentRounds = rounds.filter(([, cups]) => cups.size !== 1 || cups.has(null));
     const roundCups = rounds.map(([, cups]) => [...cups][0]);
     const repeatedBoundary = roundCups.find((cup, index) => index > 0 && cup === roundCups[index - 1]);
-    const ok = rounds.length >= 13 && divergentRounds.length === 0 && !repeatedBoundary;
+    // The shared 28-player GP fixture produces 13 qualification rounds per group.
+    const minExpectedRounds = 13;
+    const ok = rounds.length >= minExpectedRounds && divergentRounds.length === 0 && !repeatedBoundary;
 
     log('TC-725', ok ? 'PASS' : 'FAIL',
-      rounds.length < 13 ? `rounds=${rounds.length} expected>=13`
+      rounds.length < minExpectedRounds ? `rounds=${rounds.length} expected>=${minExpectedRounds}`
       : divergentRounds.length > 0 ? `divergent rounds=${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`
       : repeatedBoundary ? `adjacent repeated cup=${repeatedBoundary}`
       : '');
