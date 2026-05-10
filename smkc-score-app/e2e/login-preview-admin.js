@@ -3,13 +3,22 @@ const { buildPreviewRuntimeEnv, assertBaseUrlResolvable } = require('./run-previ
 
 async function isAuthenticated(page) {
   const result = await page.evaluate(async () => {
-    const response = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
-    const body = await response.json().catch(() => null);
-    return {
-      status: response.status,
-      authenticated: body?.data?.authenticated === true,
-      body,
-    };
+    try {
+      const response = await fetch('/api/auth/session-status', { credentials: 'same-origin' });
+      const body = await response.json().catch(() => null);
+      return {
+        status: response.status,
+        authenticated: body?.data?.authenticated === true || Boolean(body?.user),
+        body,
+      };
+    } catch (error) {
+      return {
+        status: 0,
+        authenticated: false,
+        body: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   });
   return result;
 }

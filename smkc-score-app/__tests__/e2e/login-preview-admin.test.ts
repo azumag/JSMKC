@@ -26,6 +26,78 @@ function loadLoginPreviewAdmin() {
 }
 
 describe('preview admin login helper', () => {
+  it('returns authenticated when the session-status endpoint confirms the admin session', async () => {
+    const page = {
+      evaluate: jest.fn(async (callback: () => Promise<unknown>) => {
+        const originalFetch = global.fetch;
+        global.fetch = jest.fn(async () => ({
+          status: 200,
+          json: async () => ({ data: { authenticated: true } }),
+        })) as typeof fetch;
+        try {
+          return await callback();
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).resolves.toMatchObject({
+      status: 200,
+      authenticated: true,
+      body: { data: { authenticated: true } },
+    });
+  });
+
+  it('returns unauthenticated when the session-status endpoint has no session', async () => {
+    const page = {
+      evaluate: jest.fn(async (callback: () => Promise<unknown>) => {
+        const originalFetch = global.fetch;
+        global.fetch = jest.fn(async () => ({
+          status: 200,
+          json: async () => ({ data: { authenticated: false } }),
+        })) as typeof fetch;
+        try {
+          return await callback();
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).resolves.toMatchObject({
+      status: 200,
+      authenticated: false,
+      body: { data: { authenticated: false } },
+    });
+  });
+
+  it('returns unauthenticated when the session-status request fails', async () => {
+    const page = {
+      evaluate: jest.fn(async (callback: () => Promise<unknown>) => {
+        const originalFetch = global.fetch;
+        global.fetch = jest.fn(async () => {
+          throw new Error('network down');
+        }) as typeof fetch;
+        try {
+          return await callback();
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }),
+    };
+
+    const helper = loadLoginPreviewAdmin();
+    await expect(helper.isAuthenticated(page)).resolves.toMatchObject({
+      status: 0,
+      authenticated: false,
+      body: null,
+      error: 'network down',
+    });
+  });
+
   it('waits for the admin tab and Discord button instead of a fixed sleep', async () => {
     const adminTab = {
       waitFor: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
