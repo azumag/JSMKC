@@ -15,6 +15,8 @@
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-1103 GP finals upper bracket score-only cup-win save
+ *           Kept next to TC-718 because both cover finals score-save variants
+ *           before the suite moves into the longer playoff UI flows.
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
@@ -1536,6 +1538,8 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-709', fn: runTc709 },
       { name: 'TC-717', fn: runTc717 },
       { name: 'TC-718', fn: runTc718 },
+      // TC-1103 is intentionally grouped with the TC-718 finals score-save
+      // coverage before the longer TC-715/TC-716 playoff UI flows.
       { name: 'TC-1103', fn: runTc1103 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
