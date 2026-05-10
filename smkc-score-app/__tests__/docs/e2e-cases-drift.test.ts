@@ -28,6 +28,7 @@ describe('E2E case drift coverage', () => {
     ['TC-352', tcAll],
     ['TC-357', tcAll],
     ['TC-1103', tcGp],
+    ['TC-725', tcGp],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
     const section = sectionFor(tc);
 
