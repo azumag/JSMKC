@@ -15,6 +15,7 @@ const {
   nav,
   apiCreatePlayer,
   apiCreateTournament,
+  apiJson,
   apiDeletePlayer,
   apiDeleteTournament,
   apiSetupBmGroup,
@@ -42,23 +43,6 @@ function playerAssignments(players) {
     group: index < players.length / 2 ? 'A' : 'B',
     seeding: index + 1,
   }));
-}
-
-async function apiJson(page, path, options = {}) {
-  return page.evaluate(async ([url, init]) => {
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-    return {
-      status: response.status,
-      body: await response.json().catch(() => ({})),
-    };
-  }, [path, options]);
 }
 
 async function createPlayers(page, prefix, count) {
@@ -274,6 +258,17 @@ async function tcDbg04(page) {
   }
 }
 
+async function runDebugFillTests(page) {
+  await tcDbg01(page);
+  await tcDbg02(page);
+  await tcDbg03(page);
+  await tcDbg04(page);
+
+  const failed = results.filter((result) => result.s === 'FAIL');
+  console.log(`\nTC-DBG summary: ${results.length - failed.length}/${results.length} passed`);
+  return { failed: failed.length > 0 };
+}
+
 async function main() {
   let browser = null;
   const suiteTimeoutMs = envMs('E2E_DEBUG_FILL_TIMEOUT_MS', envMs('E2E_SUITE_TIMEOUT_MS', 20 * 60 * 1000));
@@ -292,18 +287,12 @@ async function main() {
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
 
-    await tcDbg01(page);
-    await tcDbg02(page);
-    await tcDbg03(page);
-    await tcDbg04(page);
+    const { failed } = await runDebugFillTests(page);
+    process.exitCode = failed ? 1 : 0;
   } finally {
     clearTimeout(suiteTimer);
     await closeBrowser(browser);
   }
-
-  const failed = results.filter((result) => result.s === 'FAIL');
-  console.log(`\nTC-DBG summary: ${results.length - failed.length}/${results.length} passed`);
-  process.exit(failed.length ? 1 : 0);
 }
 
 if (require.main === module) {
@@ -312,3 +301,7 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+module.exports = {
+  runDebugFillTests,
+};

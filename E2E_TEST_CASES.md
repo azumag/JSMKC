@@ -2373,9 +2373,11 @@
   見せてはいけない。
 - **手順**:
   1. admin で tournament を作成し `status: completed`, `publicModes: []` に更新
-  2. `/api/tournaments/:id/archive` を GET
-  3. レスポンス status と error code を確認
+  2. `/api/tournaments/:id/archive` に POST して private archive bundle を生成
+  3. 同じ URL を GET
+  4. レスポンス status と error code を確認
 - **期待結果**:
+  - POST は HTTP 200
   - HTTP 403
   - `error.code === 'FORBIDDEN'`
 - **スクリプト**: tc-archive.js TC-ARC-04 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)

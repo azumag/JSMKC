@@ -12,7 +12,9 @@
 const {
   makeResults,
   makeLog,
+  apiCreatePlayer,
   apiCreateTournament,
+  apiJson,
   apiDeletePlayer,
   apiDeleteTournament,
   apiSetupBmGroup,
@@ -26,39 +28,13 @@ const { closeBrowser, envMs, exitAfterCleanup } = require('./lib/runner');
 const results = makeResults();
 const log = makeLog(results);
 
-async function apiJson(page, path, options = {}) {
-  return page.evaluate(async ([url, init]) => {
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-    return {
-      status: response.status,
-      body: await response.json().catch(() => ({})),
-    };
-  }, [path, options]);
-}
-
 async function createPlayers(page, prefix, count) {
   const stamp = Date.now();
   const players = [];
   for (let index = 1; index <= count; index++) {
     const nickname = `${prefix.toLowerCase()}_${stamp}_${index}`;
-    const player = await apiJson(page, '/api/players', {
-      method: 'POST',
-      body: {
-        name: `${prefix} Player ${index}`,
-        nickname,
-        country: 'JP',
-      },
-    });
-    const id = player.body?.data?.player?.id;
-    if (player.status !== 201 || !id) throw new Error(`player create failed (${player.status})`);
-    players.push({ id, name: `${prefix} Player ${index}`, nickname });
+    const player = await apiCreatePlayer(page, `${prefix} Player ${index}`, nickname);
+    players.push({ ...player, name: `${prefix} Player ${index}` });
   }
   return players;
 }
@@ -150,16 +126,28 @@ async function tcArc04(page) {
     });
     if (completed.s !== 200) throw new Error(`completion update failed (${completed.s})`);
 
+    const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
     const response = await apiJson(page, `/api/tournaments/${tournamentId}/archive`);
     log('TC-ARC-04',
-      response.status === 403 && response.body?.code === 'FORBIDDEN' ? 'PASS' : 'FAIL',
-      `status=${response.status} code=${response.body?.code}`,
+      post.status === 200 && response.status === 403 && response.body?.code === 'FORBIDDEN' ? 'PASS' : 'FAIL',
+      `post=${post.status} get=${response.status} code=${response.body?.code}`,
     );
   } catch (error) {
     log('TC-ARC-04', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
     await apiDeleteTournament(page, tournamentId);
   }
+}
+
+async function runArchiveTests(page) {
+  await tcArc01(page);
+  await tcArc02(page);
+  await tcArc03(page);
+  await tcArc04(page);
+
+  const failed = results.filter((result) => result.s === 'FAIL');
+  console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
+  return { failed: failed.length > 0 };
 }
 
 async function main() {
@@ -180,18 +168,12 @@ async function main() {
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
 
-    await tcArc01(page);
-    await tcArc02(page);
-    await tcArc03(page);
-    await tcArc04(page);
+    const { failed } = await runArchiveTests(page);
+    process.exitCode = failed ? 1 : 0;
   } finally {
     clearTimeout(suiteTimer);
     await closeBrowser(browser);
   }
-
-  const failed = results.filter((result) => result.s === 'FAIL');
-  console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
-  process.exit(failed.length ? 1 : 0);
 }
 
 if (require.main === module) {
@@ -200,3 +182,7 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+module.exports = {
+  runArchiveTests,
+};
