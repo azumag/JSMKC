@@ -50,4 +50,20 @@ describe('GP combined standings E2E assertions', () => {
       ]);
     }).toThrow('GP combined standings missing driver points header');
   });
+
+  it('fails when the match points header is missing', () => {
+    expect(() => {
+      assertGpCombinedStandingsHeaders([
+        '#',
+        'Group',
+        'Player',
+        'MP',
+        'W',
+        'T',
+        'L',
+        'Driver Pts',
+        'Qual Pts',
+      ]);
+    }).toThrow('GP combined standings missing match points header');
+  });
 });

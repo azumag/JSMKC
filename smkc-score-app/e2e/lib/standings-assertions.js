@@ -3,9 +3,8 @@ function normalizeHeaderText(value) {
 }
 
 function hasAnyHeader(headers, labels) {
-  const normalized = headers.map(normalizeHeaderText);
   return labels.some((label) =>
-    normalized.some((header) => header.includes(label))
+    headers.some((header) => header.includes(label))
   );
 }
 
