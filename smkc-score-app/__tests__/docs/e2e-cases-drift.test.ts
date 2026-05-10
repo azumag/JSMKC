@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 
 const root = path.join(process.cwd(), '..');
 const casesPath = path.join(root, 'E2E_TEST_CASES.md');
@@ -50,9 +51,14 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('assignedCups');
     expect(section).toContain('FT2 相当');
     expect(section).toContain('FT3 相当');
+    expect(tcGp).toContain("require('./lib/gp-finals-validators')");
     expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('validateGpFinalsAssignedCupSequences');
-    expect(gpFinalsValidators).toContain('module.exports');
+    expect(gpFinalsValidators).toContain('isGpFinalsFt3Round');
+    expect(gpFinalsValidatorExports).toEqual(expect.objectContaining({
+      isGpFinalsFt3Round: expect.any(Function),
+      validateGpFinalsAssignedCupSequences: expect.any(Function),
+    }));
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(
