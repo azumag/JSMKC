@@ -74,6 +74,16 @@ describe('preview E2E runner', () => {
     expect(packageJson.scripts['e2e:preview:login']).toBe('node e2e/login-preview-admin.js');
   });
 
+  it('exposes a focused preview debug-fill coverage script', () => {
+    expect(packageJson.scripts['e2e:debug-fill']).toBe('node e2e/tc-debug-fill.js');
+    expect(packageJson.scripts['e2e:preview:debug-fill']).toBe('node e2e/run-preview.js tc-debug-fill.js');
+  });
+
+  it('exposes a focused preview archive coverage script', () => {
+    expect(packageJson.scripts['e2e:archive']).toBe('node e2e/tc-archive.js');
+    expect(packageJson.scripts['e2e:preview:archive']).toBe('node e2e/run-preview.js tc-archive.js');
+  });
+
   it('defaults to the installed Chrome channel on macOS preview runs', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { value: 'darwin' });

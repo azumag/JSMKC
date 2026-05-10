@@ -2315,6 +2315,73 @@
 
 ---
 
+## TC-ARC-01: トーナメントアーカイブ API — 存在しない archive は 404
+- **URL**: GET /api/tournaments/:id/archive
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: アーカイブは R2 の immutable bundle を読む。未生成または存在しない
+  id/slug は通常トーナメントへの fallback ではなく 404 として扱う。
+- **手順**:
+  1. 存在しない id で `/api/tournaments/:id/archive` を GET
+  2. レスポンス status と error code を確認
+- **期待結果**:
+  - HTTP 404
+  - `error.code === 'NOT_FOUND'`
+- **スクリプト**: tc-archive.js TC-ARC-01 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+
+---
+
+## TC-ARC-02: トーナメントアーカイブ API — 未完了トーナメントの POST は拒否
+- **URL**: POST /api/tournaments/:id/archive
+- **authRequired**: true (admin)
+- **背景**: archive bundle は完了済み大会だけを対象とする。draft/active の状態で
+  admin が POST しても、未確定データを archive として保存してはいけない。
+- **手順**:
+  1. admin で draft tournament を作成
+  2. `/api/tournaments/:id/archive` に POST
+  3. レスポンス status と error code を確認
+- **期待結果**:
+  - HTTP 409
+  - `error.code === 'CONFLICT'`
+- **スクリプト**: tc-archive.js TC-ARC-02 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+
+---
+
+## TC-ARC-03: トーナメントアーカイブ API — 完了済み公開 archive の再生成と読取
+- **URL**: POST /api/tournaments/:id/archive, GET /api/tournaments/:id/archive
+- **authRequired**: POST は admin、GET は公開
+- **背景**: 完了済み tournament は admin POST で archive を再生成でき、公開
+  `publicModes` を持つ archive は GET で mode payload と overall ranking を返す。
+- **手順**:
+  1. admin で tournament + BM 予選データを作成
+  2. `status: completed`, `publicModes: ['bm', 'overall']` に更新
+  3. `/api/tournaments/:id/archive` に POST
+  4. 同じ URL を GET
+  5. archive bundle の `tournament`, `modes.bm`, `overallRanking` を確認
+- **期待結果**:
+  - POST/GET とも HTTP 200
+  - `data.archived === true`
+  - `data.tournament.publicModes` に `bm` と `overall` が含まれる
+  - `data.modes.bm.matches` と `data.overallRanking.rankings` が配列
+- **スクリプト**: tc-archive.js TC-ARC-03 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+
+---
+
+## TC-ARC-04: トーナメントアーカイブ API — 公開 mode のない archive は非公開
+- **URL**: GET /api/tournaments/:id/archive
+- **authRequired**: false (公開GETエンドポイント)
+- **背景**: archive bundle が存在しても、`publicModes` が空なら公開閲覧者に
+  見せてはいけない。
+- **手順**:
+  1. admin で tournament を作成し `status: completed`, `publicModes: []` に更新
+  2. `/api/tournaments/:id/archive` を GET
+  3. レスポンス status と error code を確認
+- **期待結果**:
+  - HTTP 403
+  - `error.code === 'FORBIDDEN'`
+- **スクリプト**: tc-archive.js TC-ARC-04 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+
+---
+
 ## TC-DBG-01: デバッグモードトーナメント作成 → 4モード予選スコア自動入力
 - **URL**: POST /api/tournaments, POST /api/tournaments/:id/{bm,mr,gp,ta}/debug-fill
 - **authRequired**: true (admin)
@@ -2334,7 +2401,7 @@
   - GP の各試合で `races.length === 5`, position 重複なし
   - TA の各エントリーで `Object.keys(times).length === 20`
   - 順位表に `winRounds`/`points`/`qualificationPoints` が反映される
-- **スクリプト**: 未スクリプト化（手動 / E2E ループ追加予定）
+- **スクリプト**: tc-debug-fill.js TC-DBG-01 (`npm run e2e:debug-fill`, preview: `npm run e2e:preview:debug-fill`)
 
 ---
 
@@ -2351,6 +2418,7 @@
   - HTTP 403, `error.code === 'DEBUG_MODE_DISABLED'`
   - 試合の score1/score2 はすべて 0 のまま
   - UI（BM/MR/GP/TA ページ）に「予選スコア自動入力」ボタンが**表示されない**
+- **スクリプト**: tc-debug-fill.js TC-DBG-02 (`npm run e2e:debug-fill`, preview: `npm run e2e:preview:debug-fill`)
 
 ---
 
@@ -2369,6 +2437,7 @@
   - `data.filled` = 残り未入力試合数
   - `data.skipped` ≧ 1 （手で入れた試合 + bye 試合）
   - 手で入れた試合のスコアは保持
+- **スクリプト**: tc-debug-fill.js TC-DBG-03 (`npm run e2e:debug-fill`, preview: `npm run e2e:preview:debug-fill`)
 
 ---
 
@@ -2384,6 +2453,7 @@
 - **期待結果**:
   - HTTP 409, `error.code === 'QUALIFICATION_LOCKED'`
   - 試合スコアは変更されない
+- **スクリプト**: tc-debug-fill.js TC-DBG-04 (`npm run e2e:debug-fill`, preview: `npm run e2e:preview:debug-fill`)
 
 ---
 
