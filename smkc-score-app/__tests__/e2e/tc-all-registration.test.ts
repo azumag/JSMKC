@@ -17,6 +17,8 @@ describe('tc-all focused suite registration', () => {
   });
 
   it('keeps debug-fill player creation on the shared helper', () => {
+    // Match through the first unindented closing brace, which marks the end
+    // of a top-level async function in the repo's standard JS formatting.
     const createPlayersMatch = debugFillSource.match(/async function createPlayers[\s\S]*?^}/m);
     if (!createPlayersMatch) throw new Error('createPlayers function not found');
     const createPlayersSource = createPlayersMatch[0];
