@@ -1483,7 +1483,7 @@ async function main() {
   }
   log('TC-307', tc307 ? 'PASS' : 'FAIL');
 
-  // Legacy lightweight full-workflow and GP dialog UI checks were retired.
+  // 旧軽量フルワークフローとGPダイアログUI確認は廃止済み。
   // TC-401/402 は上の共有4モード大会と総合ランキング検証に再利用。
 
   // TC-316: Tiebreaker warning suppressed at group setup (mp=0), shown after tie match
