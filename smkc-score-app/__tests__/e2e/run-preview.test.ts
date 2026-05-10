@@ -64,7 +64,11 @@ describe('preview E2E runner', () => {
 
   it('exposes npm run e2e:preview as the official all-suite preview alias', () => {
     expect(packageJson.scripts['e2e:preview']).toBe('node e2e/run-preview.js tc-all.js');
-    expect(packageJson.scripts['e2e:preview:all']).toBe(packageJson.scripts['e2e:preview']);
+  });
+
+  it('keeps e2e:preview:all as a delegated compatibility alias', () => {
+    expect(packageJson.scripts['e2e:preview:all']).toBe('npm run e2e:preview --');
+    expect(packageJson.scripts['e2e:preview:all']).not.toBe(packageJson.scripts['e2e:preview']);
   });
 
   it('defaults to the installed Chrome channel on macOS preview runs', () => {
