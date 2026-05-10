@@ -12,6 +12,7 @@
  *   TC-708  GP dual report — mismatch (2 players)
  *   TC-709  GP finals admin-only enforcement (403)
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
+ *   TC-725  GP qualification cup deck avoids adjacent round repeats
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
  *   TC-1103 GP finals upper bracket score-only cup-win save
@@ -172,6 +173,38 @@ async function runTc724(adminPage) {
       ok ? '' : `combined standings rows=${ranks.length} expected>=28`);
   } catch (err) {
     log('TC-724', 'FAIL', err instanceof Error ? err.message : 'GP 724 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-725: GP qualification cup deck adjacent-repeat guard ───────── */
+async function runTc725(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+    const data = await apiFetchGp(adminPage, setup.tournamentId);
+    const cupsByRound = new Map();
+
+    for (const match of (data.matches || []).filter((m) => !m.isBye)) {
+      const cups = cupsByRound.get(match.roundNumber) ?? new Set();
+      cups.add(match.cup ?? null);
+      cupsByRound.set(match.roundNumber, cups);
+    }
+
+    const rounds = [...cupsByRound.entries()].sort(([a], [b]) => a - b);
+    const divergentRounds = rounds.filter(([, cups]) => cups.size !== 1 || cups.has(null));
+    const roundCups = rounds.map(([, cups]) => [...cups][0]);
+    const repeatedBoundary = roundCups.find((cup, index) => index > 0 && cup === roundCups[index - 1]);
+    const ok = rounds.length >= 13 && divergentRounds.length === 0 && !repeatedBoundary;
+
+    log('TC-725', ok ? 'PASS' : 'FAIL',
+      rounds.length < 13 ? `rounds=${rounds.length} expected>=13`
+      : divergentRounds.length > 0 ? `divergent rounds=${divergentRounds.map(([r, c]) => `${r}=${[...c].join(',')}`).join(' | ')}`
+      : repeatedBoundary ? `adjacent repeated cup=${repeatedBoundary}`
+      : '');
+  } catch (err) {
+    log('TC-725', 'FAIL', err instanceof Error ? err.message : 'GP 725 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -1531,6 +1564,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-708', fn: runTc708 },
       { name: 'TC-701', fn: runTc701 },
       { name: 'TC-724', fn: runTc724 },
+      { name: 'TC-725', fn: runTc725 },
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
       { name: 'TC-705', fn: runTc705 },
@@ -1561,7 +1595,7 @@ module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
   runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
-  runTc720, runTc721, runTc722, runTc724, runTc821, runTc831, runTc832,
+  runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
   getSuite,
   results,
 };

@@ -78,8 +78,12 @@ function generateShuffledCourseList(): string[] {
  * round's cup, rotate the next shuffled deck so rounds never use the same
  * cup consecutively.
  */
-function generateShuffledCupList(cupList: readonly string[]): string[] {
+function generateShuffledCupList(
+  cupList: readonly string[],
+  logger?: Pick<ReturnType<typeof createLogger>, 'warn'>,
+): string[] {
   const shuffled: string[] = [];
+  let warnedUnavoidableRepeat = false;
 
   for (let i = 0; i < GP_QUALIFICATION_CUP_DECK_REPEATS; i++) {
     let deck = fisherYatesShuffle(cupList);
@@ -91,6 +95,12 @@ function generateShuffledCupList(cupList: readonly string[]): string[] {
           ...deck.slice(firstNonRepeatingIndex),
           ...deck.slice(0, firstNonRepeatingIndex),
         ];
+      } else if (firstNonRepeatingIndex === -1 && !warnedUnavoidableRepeat) {
+        logger?.warn('GP qualification cup deck cannot avoid adjacent repeated cups', {
+          cup: previousCup,
+          cupListLength: cupList.length,
+        });
+        warnedUnavoidableRepeat = true;
       }
     }
     shuffled.push(...deck);
@@ -516,7 +526,7 @@ export function createQualificationHandlers(config: EventTypeConfig) {
        * Only applies when config.assignCupRandomly is true (GP only).
        */
       const shuffledCups = config.assignCupRandomly && config.cupList
-        ? generateShuffledCupList(config.cupList)
+        ? generateShuffledCupList(config.cupList, logger)
         : null;
       // matchSequenceIndex tracks the overall real-match number across all groups
       // for consistent GP cup assignment from the shared list.

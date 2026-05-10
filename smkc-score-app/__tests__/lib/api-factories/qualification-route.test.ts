@@ -1145,6 +1145,57 @@ describe('Qualification Route Factory', () => {
       }
     });
 
+    it('should warn when a single GP cup cannot avoid adjacent deck-boundary repeats', async () => {
+      const players = [
+        { playerId: 'player-1', group: 'A', seeding: 1 },
+        { playerId: 'player-2', group: 'A', seeding: 2 },
+        { playerId: 'player-3', group: 'A', seeding: 3 },
+        { playerId: 'player-4', group: 'A', seeding: 4 },
+      ];
+
+      (prisma.gPQualification as any) = {
+        createMany: jest.fn().mockResolvedValue({ count: 4 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (prisma.gPMatch as any) = {
+        createMany: jest.fn().mockResolvedValue({ count: 6 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+
+      const config = createMockConfig({
+        eventTypeCode: 'gp',
+        matchModel: 'gPMatch',
+        qualificationModel: 'gPQualification',
+        assignCupRandomly: true,
+        cupList: ['Mushroom'],
+      });
+      const { POST } = createQualificationHandlers(config);
+
+      const request = new NextRequest('http://localhost:3000', {
+        method: 'POST',
+        body: JSON.stringify({ players }),
+      });
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'tournament-123' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'GP qualification cup deck cannot avoid adjacent repeated cups',
+        { cup: 'Mushroom', cupListLength: 1 },
+      );
+
+      const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
+      const realMatchCups = createCall[0].data
+        .filter((match: any) => !match.isBye)
+        .map((match: any) => match.cup);
+      expect(realMatchCups).toEqual(Array(realMatchCups.length).fill('Mushroom'));
+    });
+
     it('should NOT assign cup when assignCupRandomly is not set (BM/MR)', async () => {
       /*
        * BM and MR configs do not set assignCupRandomly, so match creation
