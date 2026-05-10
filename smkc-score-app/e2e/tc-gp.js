@@ -48,7 +48,7 @@ const {
 } = require('./lib/common');
 const { createSharedE2eFixture, setupModePlayersViaUi, ensurePlayerPassword } = require('./lib/fixtures');
 const { runSuite } = require('./lib/runner');
-const { validateGpFinalsAssignedCupSequences } = require('./lib/gp-finals-validators');
+const { isGpFinalsFt3Round, validateGpFinalsAssignedCupSequences } = require('./lib/gp-finals-validators');
 
 const results = makeResults();
 const log = makeLog(results);

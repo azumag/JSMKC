@@ -52,6 +52,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('FT2 相当');
     expect(section).toContain('FT3 相当');
     expect(tcGp).toContain("require('./lib/gp-finals-validators')");
+    expect(tcGp).toContain('isGpFinalsFt3Round, validateGpFinalsAssignedCupSequences');
     expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('validateGpFinalsAssignedCupSequences');
     expect(gpFinalsValidators).toContain('isGpFinalsFt3Round');
