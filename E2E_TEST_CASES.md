@@ -215,6 +215,18 @@
   7. macOS では Chrome for Testing の Crashpad path に依存せず、installed Chrome channel で起動することを確認する
 - **期待結果**: alias が存在し、TC 本体に入る前の missing script / DNS / Crashpad permission failure で停止しない
 
+## TC-110: Preview 管理者ログイン補助スクリプトの要素待機
+- **URL**: /auth/signin
+- **authRequired**: false (ログイン準備)
+- **背景**: preview E2E は永続プロファイルの Discord 管理者セッションを前提にする。`npm run e2e:preview:login` は手動ログイン用にサインイン画面を開くため、ページロード後の固定 sleep ではなく、実際の Admin タブと Discord ログインボタンの表示を待つ必要がある。
+- **手順**:
+  1. `smkc-score-app/` で `npm run e2e:preview:login` を実行する
+  2. script が `/auth/signin` を開くことを確認する
+  3. Admin タブが表示されるまで待ち、Admin タブを選択することを確認する
+  4. Discord ログインボタンが表示されるまで待つことを確認する
+  5. 固定の `waitForTimeout(1500)` に依存しないことを確認する
+- **期待結果**: preview ログイン補助はページ描画速度に左右されず、Discord 管理者ログイン操作を開始できる
+
 ## TC-359: CDM Export 失敗時の原因ヒント表示
 - **URL**: /tournaments/[id]
 - **authRequired**: true (admin)
