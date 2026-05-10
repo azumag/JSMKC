@@ -8,7 +8,7 @@ async function isAuthenticated(page) {
       const body = await response.json().catch(() => null);
       return {
         status: response.status,
-        authenticated: body?.data?.authenticated === true || Boolean(body?.user),
+        authenticated: body?.data?.authenticated === true,
         body,
       };
     } catch (error) {
