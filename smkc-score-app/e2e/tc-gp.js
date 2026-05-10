@@ -14,6 +14,7 @@
  *   TC-713  GP qualification tie resolution (tie warning → resolveAllTies)
  *   TC-717  GP finals same-cup-per-round enforcement (PR #585 normalizer)
  *   TC-718  GP finals admin manual total-score override (PR #585 manual form)
+ *   TC-1103 GP finals upper bracket score-only cup-win save
  *   TC-719  GP tied cup extends non-grand-final bracket match
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
@@ -662,6 +663,47 @@ async function runTc718(adminPage) {
       : '');
   } catch (err) {
     log('TC-718', 'FAIL', err instanceof Error ? err.message : 'GP 718 failed');
+  } finally {
+    if (setup) await setup.cleanup();
+  }
+}
+
+/* ───────── TC-1103: GP finals upper bracket score-only cup-win save ─────────
+ * Upper-bracket GP finals can be saved with just cup-win totals. This keeps
+ * cupResults null when operators do not need per-cup driver-point detail. */
+async function runTc1103(adminPage) {
+  let setup = null;
+  try {
+    setup = await prepareSharedGpFinalsSetup(adminPage);
+
+    const gen = await apiGenerateGpFinals(adminPage, setup.tournamentId, 8);
+    if (gen.s !== 200 && gen.s !== 201) throw new Error(`Bracket gen failed (${gen.s})`);
+
+    const before = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const m1 = before.find((m) => m.matchNumber === 1 && m.round === 'winners_qf');
+    if (!m1) throw new Error('Upper-bracket Match 1 missing');
+
+    const scoreOnly = await apiSetGpFinalsScore(adminPage, setup.tournamentId, m1.id, 2, 0);
+    if (scoreOnly.s !== 200) throw new Error(`Score-only PUT failed (${scoreOnly.s})`);
+
+    const after = await apiFetchGpFinalsMatches(adminPage, setup.tournamentId);
+    const updated = after.find((m) => m.id === m1.id);
+    const winnerTarget = after.find((m) => m.matchNumber === 5);
+    const loserTarget = after.find((m) => m.matchNumber === 8);
+    const savedScoreOnly = updated?.completed === true &&
+      updated.points1 === 2 &&
+      updated.points2 === 0 &&
+      updated.cupResults === null;
+    const routed = [winnerTarget?.player1Id, winnerTarget?.player2Id].includes(m1.player1Id) &&
+      [loserTarget?.player1Id, loserTarget?.player2Id].includes(m1.player2Id);
+
+    log('TC-1103', savedScoreOnly && routed ? 'PASS' : 'FAIL',
+      !savedScoreOnly
+        ? `completed=${updated?.completed} points=${updated?.points1}-${updated?.points2} cupResults=${JSON.stringify(updated?.cupResults)}`
+        : !routed ? 'routing mismatch after score-only save'
+        : '');
+  } catch (err) {
+    log('TC-1103', 'FAIL', err instanceof Error ? err.message : 'GP 1103 failed');
   } finally {
     if (setup) await setup.cleanup();
   }
@@ -1494,6 +1536,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-709', fn: runTc709 },
       { name: 'TC-717', fn: runTc717 },
       { name: 'TC-718', fn: runTc718 },
+      { name: 'TC-1103', fn: runTc1103 },
       { name: 'TC-715', fn: runTc715 },
       { name: 'TC-716', fn: runTc716 },
       { name: 'TC-710', fn: runTc710 },
@@ -1513,7 +1556,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc719,
+  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc821, runTc831, runTc832,
   getSuite,
   results,
