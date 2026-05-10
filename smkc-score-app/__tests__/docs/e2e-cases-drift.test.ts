@@ -9,6 +9,10 @@ function readE2eScript(script: string) {
   return fs.readFileSync(path.join(process.cwd(), 'e2e', script), 'utf8');
 }
 
+function readE2eLib(script: string) {
+  return fs.readFileSync(path.join(process.cwd(), 'e2e', 'lib', script), 'utf8');
+}
+
 function sectionFor(tc: string) {
   const heading = new RegExp(`^#{2,3} ${tc}:`, 'm');
   const match = heading.exec(cases);
@@ -23,6 +27,7 @@ describe('E2E case drift coverage', () => {
   const tcAll = readE2eScript('tc-all.js');
   const tcGp = readE2eScript('tc-gp.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
+  const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
 
   it.each([
     ['TC-352', tcAll],
@@ -46,8 +51,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('FT2 相当');
     expect(section).toContain('FT3 相当');
     expect(tcGp).toContain('validateGpFinalsAssignedCupSequences');
-    expect(tcGp).toContain('match.cup !== assignedCups[0]');
-    expect(tcGp).toContain('assignedCups.slice(0, 4)');
+    expect(gpFinalsValidators).toContain('validateGpFinalsAssignedCupSequences');
+    expect(gpFinalsValidators).toContain('module.exports');
   });
 
   it.each(['TC-DBG-01', 'TC-DBG-02', 'TC-DBG-03', 'TC-DBG-04'])(

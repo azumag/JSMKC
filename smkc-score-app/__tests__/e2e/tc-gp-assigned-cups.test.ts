@@ -1,4 +1,4 @@
-import { validateGpFinalsAssignedCupSequences } from '../../e2e/tc-gp';
+import { validateGpFinalsAssignedCupSequences } from '../../e2e/lib/gp-finals-validators';
 
 describe('TC-717 assigned cup sequence validation', () => {
   it('accepts shared FT2 and FT3 assignedCups sequences', () => {

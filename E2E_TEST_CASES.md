@@ -1796,6 +1796,7 @@
 - **URL**: /api/tournaments/[temp-id]/gp/finals (GET)
 - **authRequired**: true (admin)
 - **背景**: GP Knockout / Finals では、各ラウンドに使用するカップの組み合わせをランダムに決め、同じラウンド内の全試合で同じ順番を使う。FT1 は 1 カップ、FT2 は最大 3 カップ、FT3 は最大 5 カップ。キノコ、フラワー、スター、スペシャルの4カップ内では重複しないため、同じラウンドでカップが重複し得るのは FT3 の 5 カップ目だけ。
+- **補足**: `assignedCups` の検証は E2E runner と単体テストで共有する validator を使い、E2E スクリプト内部をテスト目的だけで export しない。
 - **手順**:
   1. 28名予選 + 決勝ブラケット生成（17試合）
   2. `GET /api/.../gp/finals` で全マッチ取得
