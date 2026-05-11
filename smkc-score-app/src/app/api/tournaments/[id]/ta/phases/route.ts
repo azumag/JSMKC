@@ -164,24 +164,140 @@ function summarizeArchivedPhase(entries: unknown[], phase: PhaseName) {
   };
 }
 
+function getRoundResultPlayerIds(rounds: unknown[], phase: PhaseName) {
+  const playerIds = new Set<string>();
+  for (const round of rounds) {
+    if ((round as { phase?: unknown }).phase !== phase) continue;
+    const results = (round as { results?: unknown }).results;
+    if (Array.isArray(results)) {
+      for (const result of results) {
+        const playerId = (result as { playerId?: unknown }).playerId;
+        if (typeof playerId === "string") playerIds.add(playerId);
+      }
+    }
+    const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
+    if (Array.isArray(eliminatedIds)) {
+      for (const playerId of eliminatedIds) {
+        if (typeof playerId === "string") playerIds.add(playerId);
+      }
+    }
+  }
+  return playerIds;
+}
+
+function replayArchivedPhaseLives(rounds: unknown[], playerIds: Set<string>) {
+  const livesByPlayer = new Map([...playerIds].map((playerId) => [playerId, 3]));
+  const eliminated = new Set<string>();
+
+  const phase3Rounds = rounds
+    .filter((round) => (round as { phase?: unknown }).phase === "phase3")
+    .sort((a, b) =>
+      ((a as { roundNumber?: number }).roundNumber ?? 0) -
+      ((b as { roundNumber?: number }).roundNumber ?? 0)
+    );
+
+  for (const round of phase3Rounds) {
+    const results = (round as { results?: unknown }).results;
+    if (Array.isArray(results)) {
+      const sorted = [...results].sort((a, b) =>
+        ((a as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY) -
+        ((b as { timeMs?: number }).timeMs ?? Number.POSITIVE_INFINITY)
+      );
+      const bottomHalf = sorted.slice(Math.ceil(sorted.length / 2));
+      for (const result of bottomHalf) {
+        const playerId = (result as { playerId?: unknown }).playerId;
+        if (typeof playerId !== "string" || eliminated.has(playerId)) continue;
+        livesByPlayer.set(playerId, Math.max(0, (livesByPlayer.get(playerId) ?? 3) - 1));
+      }
+    }
+
+    const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
+    if (Array.isArray(eliminatedIds)) {
+      for (const playerId of eliminatedIds) {
+        if (typeof playerId !== "string") continue;
+        eliminated.add(playerId);
+        livesByPlayer.set(playerId, 0);
+      }
+    }
+
+    if ((round as { livesReset?: unknown }).livesReset === true) {
+      for (const playerId of playerIds) {
+        if (!eliminated.has(playerId)) livesByPlayer.set(playerId, 3);
+      }
+    }
+  }
+
+  return { livesByPlayer, eliminated };
+}
+
+function getArchivedPhaseEntries(entries: unknown[], rounds: unknown[], phase: PhaseName) {
+  const phaseEntries = entries.filter((entry) => (entry as { stage?: unknown }).stage === phase);
+  if (phaseEntries.length > 0) return phaseEntries;
+
+  const playerIds = getRoundResultPlayerIds(rounds, phase);
+  if (playerIds.size === 0) return phaseEntries;
+
+  const sourceByPlayerId = new Map(
+    entries
+      .map((entry) => [(entry as { playerId?: unknown }).playerId, entry] as const)
+      .filter(([playerId]) => typeof playerId === "string")
+  );
+  const eliminated = new Set<string>();
+  const livesByPlayer = new Map<string, number>();
+
+  if (phase === "phase3") {
+    const replay = replayArchivedPhaseLives(rounds, playerIds);
+    replay.eliminated.forEach((playerId) => eliminated.add(playerId));
+    replay.livesByPlayer.forEach((lives, playerId) => livesByPlayer.set(playerId, lives));
+  } else {
+    for (const round of rounds) {
+      if ((round as { phase?: unknown }).phase !== phase) continue;
+      const eliminatedIds = (round as { eliminatedIds?: unknown }).eliminatedIds;
+      if (!Array.isArray(eliminatedIds)) continue;
+      eliminatedIds.forEach((playerId) => {
+        if (typeof playerId === "string") eliminated.add(playerId);
+      });
+    }
+  }
+
+  return [...playerIds].map((playerId) => {
+    const source = (sourceByPlayerId.get(playerId) ?? {}) as Record<string, unknown>;
+    return {
+      ...source,
+      id: `${String(source.id ?? playerId)}-${phase}`,
+      playerId,
+      stage: phase,
+      lives: phase === "phase3" ? (livesByPlayer.get(playerId) ?? 3) : 0,
+      eliminated: eliminated.has(playerId),
+      player: source.player ?? { id: playerId, name: playerId, nickname: playerId },
+    };
+  });
+}
+
 async function getArchivedPhaseResponse(id: string, phase?: PhaseName) {
   const archive = await readTournamentArchive(id);
   if (!archive) return null;
 
   const entries = archive.modes.ta.entries ?? [];
   const rounds = archive.modes.ta.phaseRounds ?? [];
+  const phase1Entries = getArchivedPhaseEntries(entries, rounds, "phase1");
+  const phase2Entries = getArchivedPhaseEntries(entries, rounds, "phase2");
+  const phase3Entries = getArchivedPhaseEntries(entries, rounds, "phase3");
   const response: Record<string, unknown> = {
     phaseStatus: {
-      phase1: summarizeArchivedPhase(entries, "phase1"),
-      phase2: summarizeArchivedPhase(entries, "phase2"),
-      phase3: summarizeArchivedPhase(entries, "phase3"),
+      phase1: summarizeArchivedPhase(phase1Entries, "phase1"),
+      phase2: summarizeArchivedPhase(phase2Entries, "phase2"),
+      phase3: summarizeArchivedPhase(phase3Entries, "phase3"),
       currentPhase: "completed",
     },
     archived: true,
   };
 
   if (phase) {
-    const phaseEntries = entries.filter((entry) => (entry as { stage?: unknown }).stage === phase);
+    const phaseEntries =
+      phase === "phase1" ? phase1Entries :
+      phase === "phase2" ? phase2Entries :
+      phase3Entries;
     const phaseRounds = rounds
       .filter((round) => (round as { phase?: unknown }).phase === phase)
       .map((round) => normalizePhaseRound(round as { results: unknown; eliminatedIds?: unknown }));

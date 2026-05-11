@@ -105,6 +105,10 @@ jest.mock('@/lib/ta/course-selection', () => ({
   getAvailableCourses: jest.fn(),
 }));
 
+jest.mock('@/lib/tournament-archive', () => ({
+  readTournamentArchive: jest.fn(),
+}));
+
 jest.mock('@/lib/rate-limit', () => ({
   rateLimit: jest.fn(() => ({ success: true })),
   getClientIdentifier: jest.fn(() => 'test-client'),
@@ -165,6 +169,7 @@ import {
 import { getPlayedCoursesWithSuddenDeath, getAvailableCourses } from '@/lib/ta/course-selection';
 import { checkStageFrozen } from '@/lib/ta/freeze-check';
 import { auth } from '@/lib/auth';
+import { readTournamentArchive } from '@/lib/tournament-archive';
 import * as phasesRoute from '@/app/api/tournaments/[id]/ta/phases/route';
 
 const { NextResponse } = jest.requireMock('next/server');
@@ -178,6 +183,7 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
     jest.clearAllMocks();
     // Re-establish logger mock return value after clearAllMocks
     loggerMock.createLogger.mockReturnValue(loggerInstance);
+    (readTournamentArchive as jest.Mock).mockResolvedValue(null);
   });
 
   const mockParams = Promise.resolve({ id: 'tournament-1' });
@@ -244,6 +250,93 @@ describe('GET /api/tournaments/[id]/ta/phases', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: false, error: 'Tournament not found' }),
         { status: 404 }
+      );
+    });
+
+    it('reconstructs archived phase3 entries from round history when the archive lacks phase entries', async () => {
+      (prisma.tournament.findUnique as jest.Mock).mockResolvedValue(null);
+      (getAvailableCourses as jest.Mock).mockReturnValue(['DP1']);
+      (readTournamentArchive as jest.Mock).mockResolvedValue({
+        schemaVersion: 1,
+        tournament: { id: 'tournament-1', slug: 'archived', name: 'Archived', status: 'completed' },
+        allPlayers: [],
+        modes: {
+          ta: {
+            entries: [
+              {
+                id: 'qual-1',
+                tournamentId: 'tournament-1',
+                playerId: 'player-1',
+                stage: 'qualification',
+                lives: 3,
+                eliminated: false,
+                rank: 1,
+                totalTime: 60000,
+                player: { id: 'player-1', name: 'Winner', nickname: 'Winner' },
+              },
+              {
+                id: 'qual-2',
+                tournamentId: 'tournament-1',
+                playerId: 'player-2',
+                stage: 'qualification',
+                lives: 3,
+                eliminated: false,
+                rank: 2,
+                totalTime: 65000,
+                player: { id: 'player-2', name: 'Runner', nickname: 'Runner' },
+              },
+            ],
+            phaseRounds: [
+              {
+                id: 'round-1',
+                tournamentId: 'tournament-1',
+                phase: 'phase3',
+                roundNumber: 1,
+                course: 'MC1',
+                results: [
+                  { playerId: 'player-1', timeMs: 60000, isRetry: false },
+                  { playerId: 'player-2', timeMs: 70000, isRetry: false },
+                ],
+                eliminatedIds: ['player-2'],
+                livesReset: false,
+                manualOverride: false,
+              },
+            ],
+          },
+          bm: {},
+          mr: {},
+          gp: {},
+        },
+      });
+
+      await phasesRoute.GET(createRequest('?phase=phase3'), { params: mockParams });
+
+      const call = NextResponse.json.mock.calls[0][0];
+      expect(call).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            archived: true,
+            phaseStatus: expect.objectContaining({
+              phase3: expect.objectContaining({ total: 2, active: 1, eliminated: 1, winner: 'Winner' }),
+            }),
+            entries: expect.arrayContaining([
+              expect.objectContaining({
+                playerId: 'player-1',
+                stage: 'phase3',
+                eliminated: false,
+                player: expect.objectContaining({ nickname: 'Winner' }),
+              }),
+              expect.objectContaining({
+                playerId: 'player-2',
+                stage: 'phase3',
+                eliminated: true,
+                player: expect.objectContaining({ nickname: 'Runner' }),
+              }),
+            ]),
+            rounds: [expect.objectContaining({ id: 'round-1' })],
+          }),
+        })
       );
     });
   });
