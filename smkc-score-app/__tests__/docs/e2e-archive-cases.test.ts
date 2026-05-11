@@ -5,7 +5,7 @@ describe('archive E2E case registration', () => {
   const casesPath = path.join(process.cwd(), '..', 'E2E_TEST_CASES.md');
   const cases = fs.readFileSync(casesPath, 'utf8');
 
-  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07'])(
+  it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08'])(
     'documents %s as a runnable archive script case',
     (tc) => {
       const section = cases.slice(cases.indexOf(`## ${tc}:`), cases.indexOf('\n---', cases.indexOf(`## ${tc}:`)));
@@ -55,6 +55,17 @@ describe('archive E2E case registration', () => {
     expect(section).toContain('data.archived === true');
     expect(section).toContain('live `TTEntry` クエリを実行しない');
     expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/route.test.ts');
+  });
+
+  it('documents TC-ARC-08 as multi-archive index/list coverage', () => {
+    const section = cases.slice(
+      cases.indexOf('## TC-ARC-08:'),
+      cases.indexOf('\n---', cases.indexOf('## TC-ARC-08:')),
+    );
+
+    expect(section).toContain('archives/by-id/*/latest.json');
+    expect(section).toContain('複数件を返す');
+    expect(section).toContain('smkc-score-app/__tests__/lib/tournament-archive.test.ts');
   });
 
   it('documents that preview archive coverage writes to a dedicated R2 bucket', () => {

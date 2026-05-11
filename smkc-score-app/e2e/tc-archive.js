@@ -8,6 +8,7 @@
  *   TC-ARC-04  Completed private archive is not publicly readable.
  *   TC-ARC-06  Archive BM match rows keep stage and public player payloads.
  *   TC-ARC-07  TA API falls back to archive when live tournament row is gone.
+ *   TC-ARC-08  Two completed archives stay independently readable.
  *
  * Run: node e2e/tc-archive.js  (from smkc-score-app/)  or: npm run e2e:archive
  */
@@ -170,6 +171,37 @@ async function tcArc06(page) {
   }
 }
 
+async function tcArc08(page) {
+  let firstFixture = null;
+  let secondFixture = null;
+  try {
+    firstFixture = await createCompletedPublicBmArchive(page, 'TCARC08A', 'TC-ARC-08A');
+    secondFixture = await createCompletedPublicBmArchive(page, 'TCARC08B', 'TC-ARC-08B');
+
+    const first = await apiJson(page, `/api/tournaments/${firstFixture.tournamentId}/archive`);
+    const second = await apiJson(page, `/api/tournaments/${secondFixture.tournamentId}/archive`);
+    const firstId = first.body?.data?.tournament?.id;
+    const secondId = second.body?.data?.tournament?.id;
+    const ok = (
+      first.status === 200 &&
+      second.status === 200 &&
+      first.body?.data?.archived === true &&
+      second.body?.data?.archived === true &&
+      firstId === firstFixture.tournamentId &&
+      secondId === secondFixture.tournamentId &&
+      firstId !== secondId
+    );
+
+    log('TC-ARC-08', ok ? 'PASS' : 'FAIL',
+      `first=${first.status}:${firstId || ''} second=${second.status}:${secondId || ''}`);
+  } catch (error) {
+    log('TC-ARC-08', 'FAIL', error instanceof Error ? error.message : String(error));
+  } finally {
+    await cleanupArchiveFixture(page, firstFixture);
+    await cleanupArchiveFixture(page, secondFixture);
+  }
+}
+
 async function tcArc07(page) {
   let tournamentId = null;
   let tournamentDeleted = false;
@@ -235,6 +267,7 @@ async function runArchiveTests(page) {
   await tcArc04(page);
   await tcArc06(page);
   await tcArc07(page);
+  await tcArc08(page);
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
