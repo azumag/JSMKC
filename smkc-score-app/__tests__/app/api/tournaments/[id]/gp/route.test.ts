@@ -47,6 +47,12 @@ const EXPECTED_MATCH_UPDATE_SELECT = {
   isBye: true,
 };
 
+type GpQualificationResponseRow = {
+  group: string;
+  playerId: string;
+  _rank: number;
+};
+
 const rateLimitMock = jest.requireMock('@/lib/rate-limit') as { getServerSideIdentifier: jest.Mock };
 const _sanitizeMock = jest.requireMock('@/lib/sanitize') as { sanitizeInput: jest.Mock };
 const _auditLogMock = jest.requireMock('@/lib/audit-log') as { createAuditLog: jest.Mock };
@@ -158,7 +164,7 @@ describe('GP API Route - /api/tournaments/[id]/gp', () => {
       const result = await GET(request, { params });
 
       expect(result.status).toBe(200);
-      expect(result.data.qualifications.map((q: any) => [q.group, q.playerId, q._rank])).toEqual([
+      expect(result.data.qualifications.map((q: GpQualificationResponseRow) => [q.group, q.playerId, q._rank])).toEqual([
         ['A', 'pa1', 1],
         ['A', 'pa2', 2],
         ['B', 'pb1', 1],
