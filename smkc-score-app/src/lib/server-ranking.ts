@@ -12,27 +12,39 @@ export interface ComputeRanksOptions {
   matchScoreFields?: { p1: string; p2: string };
 }
 
-function assignRanksForPartition(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  qualifications: any[],
+type RankableQualification = {
+  playerId: string;
+  group?: string | null;
+  rankOverride?: number | null;
+  [key: string]: unknown;
+};
+type RankableMatch = {
+  player1Id: string;
+  player2Id: string;
+  completed?: boolean;
+  isBye?: boolean;
+  [key: string]: unknown;
+};
+export type RankedQualification<TQualification> = TQualification & {
+  _rank: number;
+  _rankOverridden?: boolean;
+};
+
+function assignRanksForPartition<TQualification extends RankableQualification, TMatch extends RankableMatch>(
+  qualifications: TQualification[],
   orderBy: Array<Partial<Record<string, 'asc' | 'desc'>>>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  matches: any[],
+  matches: TMatch[],
   options: ComputeRanksOptions,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
+): RankedQualification<TQualification>[] {
   if (qualifications.length === 0) return [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ranked: any[] = [];
+  const ranked: RankedQualification<TQualification>[] = [];
   for (let i = 0; i < qualifications.length; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const q = qualifications[i] as any;
+    const q = qualifications[i];
     if (i === 0) {
       ranked.push({ ...q, _rank: 1 });
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const prev = qualifications[i - 1] as any;
+      const prev = qualifications[i - 1];
       const isTied = (orderBy ?? []).every((ob) => {
         const field = Object.keys(ob)[0];
         return q[field] === prev[field];
@@ -70,8 +82,7 @@ function assignRanksForPartition(
      */
     const playerIdSet = new Set(tiedPlayerIds);
     const h2hMatches = matches.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (m: any) =>
+      (m) =>
         // standings-route.ts uses Prisma select without completed/isBye fields,
         // so treat undefined as "include this match" (caller already filtered).
         (m.completed === undefined || m.completed === true) &&
@@ -90,15 +101,14 @@ function assignRanksForPartition(
       const gPlayerIds = group.map((e: { playerId: string }) => e.playerId);
       const gPlayerIdSet = new Set(gPlayerIds);
       const groupMatches = h2hMatches.filter(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (m: any) => gPlayerIdSet.has(m.player1Id) && gPlayerIdSet.has(m.player2Id),
+        (m) => gPlayerIdSet.has(m.player1Id) && gPlayerIdSet.has(m.player2Id),
       );
 
       /* Tally H2H wins; draws award no win to either player */
       const h2hWins = new Map<string, number>(gPlayerIds.map((id) => [id, 0]));
       for (const m of groupMatches) {
-        const s1: number = m[scoreFields.p1];
-        const s2: number = m[scoreFields.p2];
+        const s1 = Number(m[scoreFields.p1] ?? 0);
+        const s2 = Number(m[scoreFields.p2] ?? 0);
         if (s1 > s2) h2hWins.set(m.player1Id, (h2hWins.get(m.player1Id) ?? 0) + 1);
         else if (s2 > s1) h2hWins.set(m.player2Id, (h2hWins.get(m.player2Id) ?? 0) + 1);
       }
@@ -123,8 +133,7 @@ function assignRanksForPartition(
     ranked.splice(0, ranked.length, ...resolved);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const withOverrides = ranked.map((entry: any) =>
+  const withOverrides = ranked.map((entry) =>
     entry.rankOverride != null
       ? { ...entry, _rank: entry.rankOverride, _rankOverridden: true }
       : entry,
@@ -158,15 +167,12 @@ function assignRanksForPartition(
  * @param options        - Optional score field mapping for H2H winner detection.
  * @returns              - New array with `_rank` / `_rankOverridden` injected.
  */
-export function computeQualificationRanks(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  qualifications: any[],
+export function computeQualificationRanks<TQualification extends RankableQualification, TMatch extends RankableMatch>(
+  qualifications: TQualification[],
   orderBy: Array<Partial<Record<string, 'asc' | 'desc'>>>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  matches: any[],
+  matches: TMatch[],
   options: ComputeRanksOptions = {},
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any[] {
+): RankedQualification<TQualification>[] {
   if (qualifications.length === 0) return [];
 
   const firstOrderField = Object.keys(orderBy[0] ?? {})[0];
@@ -181,8 +187,7 @@ export function computeQualificationRanks(
       partitions.set(group, groupEntries);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rankedByGroup: any[] = [];
+    const rankedByGroup: RankedQualification<TQualification>[] = [];
     for (const groupEntries of partitions.values()) {
       const groupPlayerIds = new Set(groupEntries.map((entry) => entry.playerId));
       const groupMatches = matches.filter(

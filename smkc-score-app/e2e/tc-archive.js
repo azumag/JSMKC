@@ -48,6 +48,37 @@ function bmAssignments(players) {
   }));
 }
 
+async function createCompletedPublicBmArchive(page, prefix, caseName) {
+  const players = [];
+  let tournamentId = null;
+  try {
+    players.push(...await createPlayers(page, prefix, 4));
+    tournamentId = await apiCreateTournament(page, `E2E ${caseName} ${Date.now()}`);
+    const setup = await apiSetupBmGroup(page, tournamentId, bmAssignments(players));
+    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
+
+    const completed = await apiUpdateTournament(page, tournamentId, {
+      status: 'completed',
+      publicModes: ['bm', 'overall'],
+      bmQualificationConfirmed: true,
+    });
+    if (completed.s !== 200) throw new Error(`completion update failed (${completed.s})`);
+
+    const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
+    const get = await apiJson(page, `/api/tournaments/${tournamentId}/archive`);
+    return { tournamentId, players, post, get, archive: get.body?.data };
+  } catch (error) {
+    await apiDeleteTournament(page, tournamentId);
+    for (const player of players) await apiDeletePlayer(page, player.id);
+    throw error;
+  }
+}
+
+async function cleanupArchiveFixture(page, fixture) {
+  await apiDeleteTournament(page, fixture?.tournamentId);
+  for (const player of fixture?.players ?? []) await apiDeletePlayer(page, player.id);
+}
+
 async function tcArc01(page) {
   const stamp = Date.now();
   try {
@@ -78,24 +109,10 @@ async function tcArc02(page) {
 }
 
 async function tcArc03(page) {
-  let tournamentId = null;
-  const players = [];
+  let fixture = null;
   try {
-    players.push(...await createPlayers(page, 'TCARC03', 4));
-    tournamentId = await apiCreateTournament(page, `E2E TC-ARC-03 ${Date.now()}`);
-    const setup = await apiSetupBmGroup(page, tournamentId, bmAssignments(players));
-    if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
-
-    const completed = await apiUpdateTournament(page, tournamentId, {
-      status: 'completed',
-      publicModes: ['bm', 'overall'],
-      bmQualificationConfirmed: true,
-    });
-    if (completed.s !== 200) throw new Error(`completion update failed (${completed.s})`);
-
-    const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
-    const get = await apiJson(page, `/api/tournaments/${tournamentId}/archive`);
-    const archive = get.body?.data;
+    fixture = await createCompletedPublicBmArchive(page, 'TCARC03', 'TC-ARC-03');
+    const { tournamentId, post, get, archive } = fixture;
     const ok = (
       post.status === 200 &&
       get.status === 200 &&
@@ -109,10 +126,20 @@ async function tcArc03(page) {
 
     log('TC-ARC-03', ok ? 'PASS' : 'FAIL',
       `post=${post.status} get=${get.status} publicModes=${archive?.tournament?.publicModes?.join(',') || ''}`);
+  } catch (error) {
+    log('TC-ARC-03', 'FAIL', error instanceof Error ? error.message : String(error));
+  } finally {
+    await cleanupArchiveFixture(page, fixture);
+  }
+}
 
-    const archivedMatch = archive?.modes?.bm?.matches?.[0];
+async function tcArc06(page) {
+  let fixture = null;
+  try {
+    fixture = await createCompletedPublicBmArchive(page, 'TCARC06', 'TC-ARC-06');
+    const archivedMatch = fixture.archive?.modes?.bm?.matches?.[0];
     const typedMatchOk = (
-      get.status === 200 &&
+      fixture.get.status === 200 &&
       archivedMatch?.stage === 'qualification' &&
       typeof archivedMatch?.player1?.id === 'string' &&
       typeof archivedMatch?.player2?.id === 'string' &&
@@ -122,11 +149,9 @@ async function tcArc03(page) {
     log('TC-ARC-06', typedMatchOk ? 'PASS' : 'FAIL',
       `stage=${archivedMatch?.stage || ''} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`);
   } catch (error) {
-    log('TC-ARC-03', 'FAIL', error instanceof Error ? error.message : String(error));
     log('TC-ARC-06', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
-    await apiDeleteTournament(page, tournamentId);
-    for (const player of players) await apiDeletePlayer(page, player.id);
+    await cleanupArchiveFixture(page, fixture);
   }
 }
 
@@ -158,6 +183,7 @@ async function runArchiveTests(page) {
   await tcArc02(page);
   await tcArc03(page);
   await tcArc04(page);
+  await tcArc06(page);
 
   const failed = results.filter((result) => result.s === 'FAIL');
   console.log(`\nTC-ARC summary: ${results.length - failed.length}/${results.length} passed`);
