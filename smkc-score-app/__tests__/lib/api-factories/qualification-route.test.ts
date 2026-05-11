@@ -1012,8 +1012,8 @@ describe('Qualification Route Factory', () => {
     it('should assign unique cups while consuming the first GP qualification round deck', async () => {
       /*
        * With 3 players in one group (odd → BREAK added → 4 participants → 6 matches),
-       * there are 3 real rounds. They should consume the first shuffled cup
-       * deck without repeating before all 4 cups are used.
+       * there are 3 real rounds plus 3 scoreable GP solo BREAK cups. They
+       * should consume the first shuffled cup deck without adjacent repeats.
        */
       const players = [
         { playerId: 'player-1', group: 'A', seeding: 1 },
@@ -1056,17 +1056,39 @@ describe('Qualification Route Factory', () => {
       const createCall = (prisma.gPMatch as any).createMany.mock.calls[0];
       expect(createCall[0].data.length).toBe(6);
 
-      // BYE matches are auto-completed and skip cup assignment, so only real
-      // matches carry a cup. Filter out the byes before asserting cup coverage.
-      const realMatchCups = createCall[0].data
-        .filter((m: any) => !m.isBye)
-        .map((m: any) => m.cup);
-      realMatchCups.forEach((cup: string) => {
+      const matchCups = createCall[0].data.map((m: any) => m.cup);
+      matchCups.forEach((cup: string) => {
         expect(cupList).toContain(cup);
       });
-      // With 3 real rounds drawn from 4 shuffled cups, all should be unique.
-      const uniqueCups = new Set(realMatchCups);
-      expect(uniqueCups.size).toBe(realMatchCups.length);
+
+      const cupByRound = new Map<number, string>();
+      for (const row of createCall[0].data) {
+        const previous = cupByRound.get(row.roundNumber);
+        if (previous) {
+          expect(row.cup).toBe(previous);
+        } else {
+          cupByRound.set(row.roundNumber, row.cup);
+        }
+      }
+      const roundCups = [...cupByRound.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, cup]) => cup);
+      for (let i = 1; i < roundCups.length; i++) {
+        expect(roundCups[i]).not.toBe(roundCups[i - 1]);
+      }
+
+      const byeMatches = createCall[0].data.filter((m: any) => m.isBye);
+      expect(byeMatches).toHaveLength(3);
+      byeMatches.forEach((match: any) => {
+        expect(match).toEqual(expect.objectContaining({
+          player2Id: '__BREAK__',
+          cup: expect.any(String),
+        }));
+        expect(match).not.toHaveProperty('completed');
+        expect(match).not.toHaveProperty('points1');
+        expect(match).not.toHaveProperty('points2');
+      });
+      expect(config.aggregatePlayerStats).not.toHaveBeenCalled();
     });
 
     it('should build GP qualification round cups from 5 shuffled full-cup decks', async () => {

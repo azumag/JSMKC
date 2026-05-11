@@ -548,11 +548,12 @@ async function hasCompletedRealQualificationMatch(
   tournamentId: string,
   matchModel: MatchQualificationModel,
 ): Promise<boolean> {
+  const isByeFilter = matchModel === "gPMatch" ? undefined : false;
   const where = {
     tournamentId,
     stage: "qualification",
     completed: true,
-    isBye: false,
+    ...(isByeFilter === undefined ? {} : { isBye: isByeFilter }),
     deletedAt: null,
   };
   const select = { id: true };
