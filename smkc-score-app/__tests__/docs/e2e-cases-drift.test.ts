@@ -27,6 +27,7 @@ function sectionFor(tc: string) {
 describe('E2E case drift coverage', () => {
   const tcAll = readE2eScript('tc-all.js');
   const tcGp = readE2eScript('tc-gp.js');
+  const tcOverlay = readE2eScript('tc-overlay.js');
   const tcDebugFill = readE2eScript('tc-debug-fill.js');
   const gpFinalsValidators = readE2eLib('gp-finals-validators.js');
 
@@ -37,6 +38,7 @@ describe('E2E case drift coverage', () => {
     ['TC-722', tcGp],
     ['TC-1103', tcGp],
     ['TC-725', tcGp],
+    ['TC-926', tcOverlay],
   ])('keeps %s documented and registered in its runnable E2E script', (tc, scriptSource) => {
     const section = sectionFor(tc);
 

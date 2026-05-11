@@ -136,6 +136,7 @@ model Tournament {
   overlayPlayer1Wins  Int?    // 配信中試合の1P勝利数
   overlayPlayer2Wins  Int?    // 配信中試合の2P勝利数
   overlayMatchFt      Int?    // 配信中試合のFirst-To目標勝利数 (BM/MR決勝: 5)
+  overlayLayout       Json     @default("{}") // 配信オーバーレイの名前・点数・下枠の座標設定
   qualificationConfirmed Boolean @default(false) // 後方互換レガシーフィールド（オーバーレイ参照のみ）
   qualificationConfirmedAt DateTime? // 最後に予選が確定された日時（監査証跡・オーバーレイイベント用）
   bmQualificationConfirmed Boolean @default(false) // BMモード予選確定フラグ。trueの場合BMスコア編集不可

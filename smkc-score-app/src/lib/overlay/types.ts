@@ -8,6 +8,8 @@
  * the type level so it cannot accidentally leak through the public API.
  */
 
+import type { OverlayBroadcastLayout } from "@/lib/overlay/layout";
+
 export type OverlayMode = "ta" | "bm" | "mr" | "gp";
 
 export type OverlayEventType =
@@ -298,4 +300,6 @@ export interface OverlayEventsResponse {
   overlayPlayer2Wins?: number | null;
   /** First-To target wins for the broadcast match (BM/MR finals: 5). Null for modes without FT. */
   overlayMatchFt?: number | null;
+  /** Coordinate overrides for the persistent OBS dashboard name, score, and footer slots. */
+  overlayLayout?: OverlayBroadcastLayout;
 }

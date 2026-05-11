@@ -23,6 +23,11 @@ import {
 } from "@/lib/error-handling";
 import { sanitizeInput } from "@/lib/sanitize";
 import { createLogger } from "@/lib/logger";
+import {
+  isOverlayBroadcastLayoutInput,
+  normalizeOverlayBroadcastLayout,
+} from "@/lib/overlay/layout";
+import type { Prisma } from "@prisma/client";
 
 const MAX_NAME_LENGTH = 50;
 
@@ -50,6 +55,7 @@ export async function GET(
       overlayPlayer1Wins: true,
       overlayPlayer2Wins: true,
       overlayMatchFt: true,
+      overlayLayout: true,
     });
 
     if (!tournament) {
@@ -65,6 +71,7 @@ export async function GET(
       player1Wins: tournament.overlayPlayer1Wins ?? null,
       player2Wins: tournament.overlayPlayer2Wins ?? null,
       matchFt: tournament.overlayMatchFt ?? null,
+      layout: normalizeOverlayBroadcastLayout(tournament.overlayLayout),
     });
   } catch (error) {
     logger.error("Failed to fetch broadcast state", { error, tournamentId: id });
@@ -80,7 +87,7 @@ const MAX_LABEL_LENGTH = 50;
  * Updates the overlay player names and optional match info.
  * Requires admin authentication.
  *
- * Body: { player1Name?, player2Name?, matchLabel?, player1Wins?, player2Wins?, matchFt? }
+ * Body: { player1Name?, player2Name?, matchLabel?, player1Wins?, player2Wins?, matchFt?, layout? }
  * Any field may be omitted to leave it unchanged.
  */
 export async function PUT(
@@ -107,6 +114,7 @@ export async function PUT(
       player1Wins,
       player2Wins,
       matchFt,
+      layout,
     } = body;
 
     /* Allow null/empty string to clear the field; reject only invalid types. */
@@ -143,6 +151,12 @@ export async function PUT(
     if (matchFt !== undefined && matchFt !== null && typeof matchFt !== "number") {
       return handleValidationError("matchFt must be a number", "matchFt");
     }
+    if (layout !== undefined && layout !== null && !isOverlayBroadcastLayoutInput(layout)) {
+      return handleValidationError(
+        "layout must contain numeric x/y coordinates for supported overlay slots",
+        "layout",
+      );
+    }
 
     /* Single query: fold slug/id resolution + existence check (#692) */
     const tournament = await resolveTournament(id, { id: true });
@@ -151,7 +165,7 @@ export async function PUT(
     }
     const tournamentId = tournament.id;
 
-    const updateData: Record<string, string | number | boolean | null> = {};
+    const updateData: Record<string, string | number | boolean | null | Prisma.InputJsonValue> = {};
     if (player1Name !== undefined) {
       updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
       if (player1NoCamera === undefined) updateData.overlayPlayer1NoCamera = false;
@@ -177,6 +191,9 @@ export async function PUT(
     }
     if (matchFt !== undefined) {
       updateData.overlayMatchFt = matchFt === null ? null : (matchFt as number);
+    }
+    if (layout !== undefined) {
+      updateData.overlayLayout = normalizeOverlayBroadcastLayout(layout) as unknown as Prisma.InputJsonObject;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -212,6 +229,9 @@ export async function PUT(
         : undefined,
       matchFt: updateData.overlayMatchFt !== undefined
         ? (updateData.overlayMatchFt ?? null)
+        : undefined,
+      layout: updateData.overlayLayout !== undefined
+        ? normalizeOverlayBroadcastLayout(updateData.overlayLayout)
         : undefined,
     });
   } catch (error) {

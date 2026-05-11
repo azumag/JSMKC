@@ -24,6 +24,11 @@ import { DashboardFooter } from "@/components/overlay/dashboard-footer";
 import { DashboardProgressBar } from "@/components/overlay/dashboard-progress-bar";
 import { DashboardTimeline } from "@/components/overlay/dashboard-timeline";
 import type { OverlayEvent, OverlayEventsResponse } from "@/lib/overlay/types";
+import {
+  DEFAULT_OVERLAY_BROADCAST_LAYOUT,
+  normalizeOverlayBroadcastLayout,
+  type OverlayBroadcastLayout,
+} from "@/lib/overlay/layout";
 import { POLLING_INTERVAL } from "@/lib/constants";
 
 /** Cap matches the server-side INITIAL_BACKFILL_LIMIT — keeps the column tight. */
@@ -58,6 +63,9 @@ export default function DashboardPage({
   const [overlayPlayer1Wins, setOverlayPlayer1Wins] = useState<number | null>(null);
   const [overlayPlayer2Wins, setOverlayPlayer2Wins] = useState<number | null>(null);
   const [overlayMatchFt, setOverlayMatchFt] = useState<number | null>(null);
+  const [overlayLayout, setOverlayLayout] = useState<OverlayBroadcastLayout>(
+    DEFAULT_OVERLAY_BROADCAST_LAYOUT,
+  );
 
   /* `since` advances each poll. First call uses `?initial=1` (no since)
      to backfill recent history; subsequent calls echo back `serverTime`. */
@@ -109,6 +117,7 @@ export default function DashboardPage({
       if ("overlayPlayer1Wins" in payload) setOverlayPlayer1Wins(payload.overlayPlayer1Wins ?? null);
       if ("overlayPlayer2Wins" in payload) setOverlayPlayer2Wins(payload.overlayPlayer2Wins ?? null);
       if ("overlayMatchFt" in payload) setOverlayMatchFt(payload.overlayMatchFt ?? null);
+      if ("overlayLayout" in payload) setOverlayLayout(normalizeOverlayBroadcastLayout(payload.overlayLayout));
 
       const fresh = payload.events.filter((e) => {
         if (seenRef.current.has(e.id)) return false;
@@ -178,7 +187,8 @@ export default function DashboardPage({
           the right portion (解説 / Discord) stays visible. */}
       <div
         className="pointer-events-none fixed"
-        style={{ bottom: 0, left: 170, width: 1050, height: 82 }}
+        style={{ left: overlayLayout.footer.x, top: overlayLayout.footer.y, width: 1050, height: 82 }}
+        data-testid="dashboard-footer-slot"
       >
         <DashboardFooter
           currentPhase={currentPhase}
@@ -191,8 +201,9 @@ export default function DashboardPage({
           Shows player name + current wins when match score is available (#645) */}
       {overlayPlayer1Name && (
         <div
-          className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 91, top: 497, width: 230, height: 48, overflow: "hidden" }}
+          className="pointer-events-none fixed flex items-center justify-center"
+          style={{ left: overlayLayout.player1Name.x, top: overlayLayout.player1Name.y, width: 230, height: 28, overflow: "hidden" }}
+          data-testid="overlay-p1-name"
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
@@ -200,17 +211,23 @@ export default function DashboardPage({
           >
             {overlayPlayer1Name}
           </span>
-          {overlayPlayer1Wins !== null && (
-            <span
-              className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", transform: "translateY(2px)" }}
-              data-testid="overlay-p1-score"
-            >
-              {overlayMatchFt !== null
-                ? `${overlayPlayer1Wins} / ${overlayMatchFt}`
-                : `${overlayPlayer1Wins}`}
-            </span>
-          )}
+        </div>
+      )}
+
+      {overlayPlayer1Wins !== null && (
+        <div
+          className="pointer-events-none fixed flex items-center justify-center"
+          style={{ left: overlayLayout.player1Score.x, top: overlayLayout.player1Score.y, width: 230, height: 24, overflow: "hidden" }}
+          data-testid="overlay-p1-score"
+        >
+          <span
+            className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
+            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+          >
+            {overlayMatchFt !== null
+              ? `${overlayPlayer1Wins} / ${overlayMatchFt}`
+              : `${overlayPlayer1Wins}`}
+          </span>
         </div>
       )}
 
@@ -228,8 +245,9 @@ export default function DashboardPage({
           Shows player name + current wins when match score is available (#645) */}
       {overlayPlayer2Name && (
         <div
-          className="pointer-events-none fixed flex flex-col items-center justify-center"
-          style={{ left: 91, top: 891, width: 230, height: 48, overflow: "hidden" }}
+          className="pointer-events-none fixed flex items-center justify-center"
+          style={{ left: overlayLayout.player2Name.x, top: overlayLayout.player2Name.y, width: 230, height: 28, overflow: "hidden" }}
+          data-testid="overlay-p2-name"
         >
           <span
             className="text-white font-bold text-[1.65rem] leading-none truncate w-full text-center"
@@ -237,17 +255,23 @@ export default function DashboardPage({
           >
             {overlayPlayer2Name}
           </span>
-          {overlayPlayer2Wins !== null && (
-            <span
-              className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
-              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)", transform: "translateY(2px)" }}
-              data-testid="overlay-p2-score"
-            >
-              {overlayMatchFt !== null
-                ? `${overlayPlayer2Wins} / ${overlayMatchFt}`
-                : `${overlayPlayer2Wins}`}
-            </span>
-          )}
+        </div>
+      )}
+
+      {overlayPlayer2Wins !== null && (
+        <div
+          className="pointer-events-none fixed flex items-center justify-center"
+          style={{ left: overlayLayout.player2Score.x, top: overlayLayout.player2Score.y, width: 230, height: 24, overflow: "hidden" }}
+          data-testid="overlay-p2-score"
+        >
+          <span
+            className="text-yellow-300 font-bold text-xl leading-none tabular-nums"
+            style={{ textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}
+          >
+            {overlayMatchFt !== null
+              ? `${overlayPlayer2Wins} / ${overlayMatchFt}`
+              : `${overlayPlayer2Wins}`}
+          </span>
         </div>
       )}
 
