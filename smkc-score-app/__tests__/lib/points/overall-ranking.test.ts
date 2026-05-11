@@ -287,10 +287,15 @@ describe('Overall Ranking module', () => {
       expect(result.get('p1')?.normalizedPoints).toBe(1000);
     });
 
-    it('does not award GP qualification points when only BREAK matches are completed', async () => {
-      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([]);
+    it('awards GP qualification points when only scoreable BREAK matches are completed', async () => {
+      mockPrisma.gPMatch.findMany.mockResolvedValueOnce([
+        { id: 'gp-bye-1' },
+      ]);
       mockPrisma.gPQualification.findMany.mockResolvedValue([
         { playerId: 'p1', wins: 1, ties: 0, losses: 0, mp: 1, points: 45, player: PLAYER_P1 },
+      ]);
+      getMockCalculateQualificationPointsFromMatches().mockReturnValue([
+        { playerId: 'p1', normalizedPoints: 1000 },
       ]);
 
       const result = await calculateGPQualificationPointsFromDB(
@@ -298,17 +303,18 @@ describe('Overall Ranking module', () => {
         TOURNAMENT_ID
       );
 
-      expect(result.size).toBe(0);
+      expect(result.get('p1')?.normalizedPoints).toBe(1000);
       expect(mockPrisma.gPMatch.findMany).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({
           tournamentId: TOURNAMENT_ID,
           stage: 'qualification',
           completed: true,
-          isBye: false,
         }),
       }));
-      expect(mockPrisma.gPQualification.findMany).not.toHaveBeenCalled();
-      expect(getMockCalculateQualificationPointsFromMatches()).not.toHaveBeenCalled();
+      expect(mockPrisma.gPMatch.findMany.mock.calls[0][0].where).not.toHaveProperty('isBye');
+      expect(mockPrisma.gPQualification.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tournamentId: TOURNAMENT_ID } })
+      );
     });
   });
 

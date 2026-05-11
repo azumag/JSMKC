@@ -22,6 +22,7 @@
  *   TC-831  GP finals added cup form can be removed without stale scores
  *   TC-723  GP qualification standings show 0-1000 qualification points
  *   TC-724  GP combined standings tab shows rows with point headers and ascending ranks
+ *   TC-729  GP odd-player BREAK stays scoreable as a solo driver-points cup
  *
  * Setup:
  *   - Uses Playwright persistent profile at /tmp/playwright-smkc-preview-profile by default.
@@ -210,6 +211,67 @@ async function runTc725(adminPage) {
     log('TC-725', 'FAIL', err instanceof Error ? err.message : 'GP 725 failed');
   } finally {
     if (setup) await setup.cleanup();
+  }
+}
+
+function makeSoloGpByeRaces(cup = 'Mushroom') {
+  const coursesByCup = {
+    Mushroom: ['MC1', 'DP1', 'GV1', 'BC1', 'MC2'],
+    Flower: ['CI1', 'GV2', 'DP2', 'BC2', 'MC3'],
+    Star: ['KB1', 'CI2', 'VL1', 'BC3', 'MC4'],
+    Special: ['DP3', 'KB2', 'GV3', 'VL2', 'RR'],
+  };
+  const courses = coursesByCup[cup] || coursesByCup.Mushroom;
+  return courses.map((course, index) => ({
+    course,
+    position1: index === 0 ? 1 : 2,
+    position2: 0,
+  }));
+}
+
+/* ───────── TC-729: GP odd-player BREAK is a scoreable solo cup ───────── */
+async function runTc729(adminPage) {
+  let tournamentId = null;
+  const players = [];
+  try {
+    const tournament = await uiCreateTournament(adminPage, `GP Solo BREAK ${Date.now()}`, 'gp-solo-break');
+    tournamentId = tournament.id;
+    for (let i = 0; i < 3; i++) {
+      players.push(await uiCreatePlayer(adminPage, `GP Solo ${Date.now()} ${i + 1}`));
+    }
+
+    await setupModePlayersViaUi(adminPage, 'gp', tournamentId, players);
+    const before = await apiFetchGp(adminPage, tournamentId);
+    const bye = (before.matches || []).find((m) => m.isBye && m.player2Id === '__BREAK__');
+    if (!bye) throw new Error('No GP BREAK match found for odd group');
+    if (!bye.cup) throw new Error('GP BREAK match has no assigned cup');
+
+    const soloRaces = makeSoloGpByeRaces(bye.cup);
+    const expectedPoints = 9 + 6 + 6 + 6 + 6;
+    const put = await apiPutGpQualScore(adminPage, tournamentId, bye.id, bye.cup, soloRaces);
+    const after = await apiFetchGp(adminPage, tournamentId);
+    const updated = (after.matches || []).find((m) => m.id === bye.id);
+    const qualification = (after.qualifications || []).find((q) => q.playerId === bye.player1Id);
+
+    const initiallyPending = bye.completed === false && (bye.points1 ?? 0) === 0 && (bye.points2 ?? 0) === 0;
+    const persisted = put.s === 200 &&
+      updated?.completed === true &&
+      updated.points1 === expectedPoints &&
+      updated.points2 === 0;
+    const standingsUpdated = qualification?.points === expectedPoints && qualification?.wins === 1;
+
+    log('TC-729', initiallyPending && persisted && standingsUpdated ? 'PASS' : 'FAIL',
+      !initiallyPending ? `initial BREAK completed=${bye.completed} points=${bye.points1}-${bye.points2}`
+      : !persisted ? `PUT=${put.s} updated=${updated?.points1}-${updated?.points2} completed=${updated?.completed}`
+      : !standingsUpdated ? `qualification points=${qualification?.points} wins=${qualification?.wins}`
+      : '');
+  } catch (err) {
+    log('TC-729', 'FAIL', err instanceof Error ? err.message : 'GP 729 failed');
+  } finally {
+    for (const player of players) {
+      await apiDeletePlayer(adminPage, player.id).catch(() => {});
+    }
+    if (tournamentId) await apiDeleteTournament(adminPage, tournamentId).catch(() => {});
   }
 }
 
@@ -1610,6 +1672,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
       { name: 'TC-701', fn: runTc701 },
       { name: 'TC-724', fn: runTc724 },
       { name: 'TC-725', fn: runTc725 },
+      { name: 'TC-729', fn: runTc729 },
       { name: 'TC-703', fn: runTc703 },
       { name: 'TC-704', fn: runTc704 },
       { name: 'TC-705', fn: runTc705 },
@@ -1640,7 +1703,7 @@ function getSuite({ sharedFixture: externalFixture = null } = {}) {
 module.exports = {
   runTc701, runTc702, runTc703, runTc704, runTc705, runTc706,
   runTc707, runTc708, runTc709, runTc710, runTc712, runTc713,
-  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc727, runTc719,
+  runTc715, runTc716, runTc717, runTc718, runTc1103, runTc727, runTc729, runTc719,
   runTc720, runTc721, runTc722, runTc724, runTc725, runTc821, runTc831, runTc832,
   gpAssignedCupSequence, gpFinalsUpdatedMatchFromPutResult,
   getSuite,

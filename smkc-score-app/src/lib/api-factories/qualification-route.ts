@@ -579,19 +579,22 @@ export function createQualificationHandlers(config: EventTypeConfig) {
            * BYE matches are auto-completed immediately (§10.2) and don't actually play
            * the courses, so skip assignment for BYE matches.
            */
+          const isScoreableGpBye = config.eventTypeCode === 'gp' && m.isBye;
           const isRealMatch = !m.isBye;
+          const shouldAssignPlayableCourse = isRealMatch || isScoreableGpBye;
           // MR: random per-round course draw shared by every match in that round
           // BM: fixed battle-course list (same for every real match)
-          const assignedCourses = shuffledCourses && isRealMatch
+          const assignedCourses = shuffledCourses && shouldAssignPlayableCourse
             ? getAssignedCoursesForRound(shuffledCourses, m.day)
-            : fixedCourses && isRealMatch
+            : fixedCourses && shouldAssignPlayableCourse
               ? fixedCourses
               : undefined;
 
           /* §7.4: Pick a cup from the shuffled list for this round (GP only) */
-          const assignedCup = shuffledCups && isRealMatch
+          const assignedCup = shuffledCups && shouldAssignPlayableCourse
             ? getAssignedCupForRound(shuffledCups, m.day)
             : undefined;
+          const autoCompleteBye = m.isBye && !isScoreableGpBye;
 
           matchData.push({
             tournamentId,
@@ -607,11 +610,15 @@ export function createQualificationHandlers(config: EventTypeConfig) {
             ...(assignedCourses ? { assignedCourses } : {}),
             /* Pre-assigned cup for the match (undefined for BM/MR without cup assignment) */
             ...(assignedCup ? { cup: assignedCup } : {}),
-            /* Auto-complete BYE matches with fixed scores (§10.2) */
-            ...(m.isBye ? { completed: true, ...byeData } : {}),
+            /*
+             * BM/MR BREAK remains an auto-completed walkover. GP BREAK is a
+             * scoreable solo cup: the player runs alone and records the actual
+             * driver points earned, so it must stay pending until score entry.
+             */
+            ...(autoCompleteBye ? { completed: true, ...byeData } : {}),
           });
 
-          if (m.isBye) {
+          if (autoCompleteBye) {
             byeRecipientIds.add(p1Id);
           } else {
             matchSequenceIndex++;

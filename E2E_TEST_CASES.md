@@ -1648,6 +1648,20 @@
   6. クリーンアップ
 - **期待結果**: GP participant 入力でdriver points合計送信→永続化が動作
 
+## TC-729: GP奇数人数BREAK — ソロ走行ドライバーズポイント入力
+- **URL**: /tournaments/[temp-id]/gp
+- **authRequired**: true (admin)
+- **背景**: GP予選の奇数人数グループでは、BREAK相手の試合はBM/MRの不戦勝とは異なり、1人でカップを走って実際のドライバーズポイントをスコアとして記録する
+- **手順**:
+  1. 管理者セッションで一時トーナメントとGPプレイヤー3名を作成する
+  2. GP予選グループ設定で3名を同一グループに登録し、BREAK試合を生成する
+  3. BREAK試合が未完了で、GPカップが割り当てられていることを確認する
+  4. BREAK試合へ `{ matchId, cup, races }` をPUTし、P1の順位のみからドライバーズポイントを計算できることを確認する
+  5. API再取得でBREAK試合が completed、`points1` が実走ドライバーズポイント、`points2=0` として保存されていることを確認する
+  6. クリーンアップ
+- **期待結果**: GPのBREAKは自動45-0ではなく、ソロ走行の実ドライバーズポイントで順位表に反映される
+- **スクリプト**: tc-gp.js TC-729
+
 ## TC-703: GP予選28名フル + 決勝ブラケット生成・1試合スコア入力
 - **URL**: /tournaments/[temp-id]/gp/finals
 - **authRequired**: true (admin)
