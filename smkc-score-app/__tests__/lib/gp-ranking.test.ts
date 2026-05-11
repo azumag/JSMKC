@@ -6,10 +6,17 @@ import {
   gpStandingsOrderBy,
 } from '@/lib/gp-ranking';
 
-const root = process.cwd();
+const srcRoot = path.join(__dirname, '../../src');
 
 function readSource(relativePath: string): string {
-  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+  return fs.readFileSync(path.join(srcRoot, relativePath), 'utf8');
+}
+
+function expectSourceToUse(relativePath: string, symbol: string): void {
+  const source = readSource(relativePath);
+  if (!source.includes(symbol)) {
+    throw new Error(`${relativePath} should use ${symbol}`);
+  }
 }
 
 describe('gp-ranking', () => {
@@ -54,9 +61,9 @@ describe('gp-ranking', () => {
   });
 
   it('keeps GP routes and page-client wired to the shared ranking source', () => {
-    expect(readSource('src/lib/event-types/gp-config.ts')).toContain('gpQualificationOrderBy()');
-    expect(readSource('src/app/api/tournaments/[id]/gp/finals/route.ts')).toContain('gpQualificationOrderBy()');
-    expect(readSource('src/app/api/tournaments/[id]/gp/standings/route.ts')).toContain('gpStandingsOrderBy()');
-    expect(readSource('src/app/tournaments/[id]/gp/page-client.tsx')).toContain('compareGpQualificationEntries');
+    expectSourceToUse('lib/event-types/gp-config.ts', 'gpQualificationOrderBy()');
+    expectSourceToUse('app/api/tournaments/[id]/gp/finals/route.ts', 'gpQualificationOrderBy()');
+    expectSourceToUse('app/api/tournaments/[id]/gp/standings/route.ts', 'gpStandingsOrderBy()');
+    expectSourceToUse('app/tournaments/[id]/gp/page-client.tsx', 'compareGpQualificationEntries');
   });
 });

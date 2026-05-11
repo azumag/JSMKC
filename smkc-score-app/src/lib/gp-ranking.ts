@@ -6,13 +6,13 @@ export interface GpRankableEntry {
   points: number;
 }
 
-export const GP_QUALIFICATION_ORDER_BY = [
+const GP_QUALIFICATION_ORDER_BY = [
   { group: 'asc' },
   { score: 'desc' },
   { points: 'desc' },
 ] as const satisfies readonly OrderByClause[];
 
-export const GP_STANDINGS_ORDER_BY = [
+const GP_STANDINGS_ORDER_BY = [
   { score: 'desc' },
   { points: 'desc' },
 ] as const satisfies readonly OrderByClause[];

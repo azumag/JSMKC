@@ -203,17 +203,28 @@ describe('updateWithRetry', () => {
       clientVersion: '5.0.0',
     });
 
-    const startTime = Date.now();
+    const delays: number[] = [];
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((callback, delay) => {
+      delays.push(Number(delay));
+      if (typeof callback === 'function') {
+        callback();
+      }
+      return 0 as unknown as NodeJS.Timeout;
+    });
     let callCount = 0;
 
-    await updateWithRetry(mockPrisma, async () => {
-      callCount++;
-      if (callCount === 1) throw lockError;
-      return 'success';
-    }, { baseDelay: 10, maxDelay: 100 });
+    try {
+      await updateWithRetry(mockPrisma, async () => {
+        callCount++;
+        if (callCount === 1) throw lockError;
+        return 'success';
+      }, { baseDelay: 10, maxDelay: 100 });
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
 
-    const elapsedTime = Date.now() - startTime;
-    expect(elapsedTime).toBeGreaterThanOrEqual(10); // Should wait at least baseDelay
+    expect(delays).toHaveLength(1);
+    expect(delays[0]).toBeGreaterThanOrEqual(10); // Should wait at least baseDelay
   });
 });
 
