@@ -13,6 +13,7 @@
 
 import { withApiTiming } from '@/lib/perf/api-timing';
 import { createStandingsHandlers } from '@/lib/api-factories/standings-route';
+import { gpStandingsOrderBy } from '@/lib/gp-ranking';
 
 const { GET: _GET } = createStandingsHandlers({
   loggerName: 'gp-standings-api',
@@ -21,7 +22,7 @@ const { GET: _GET } = createStandingsHandlers({
   usePagination: false,
   // GP ranking uses match score (Win=2, Tie=1, Loss=0) first,
   // with driver points as tiebreaker.
-  orderBy: [{ score: 'desc' }, { points: 'desc' }],
+  orderBy: gpStandingsOrderBy(),
   // H2H tiebreaker (requirements §4.1 step 3): resolve tied players by direct match results
   // GP matches store driver points as points1/points2 (not score1/score2 like BM/MR)
   matchModel: 'gPMatch',

@@ -9,6 +9,7 @@ import { withApiTiming } from '@/lib/perf/api-timing';
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
 import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
 import { CUPS, DRIVER_POINTS } from '@/lib/constants';
+import { gpQualificationOrderBy } from '@/lib/gp-ranking';
 
 type GpCupResultInput = {
   cup?: unknown;
@@ -91,7 +92,7 @@ const { GET: _GET, POST, PUT, PATCH } = createFinalsHandlers({
   // GP uses match points first, then driver points (per requirements.md Section 4.1)
   /* `group: 'asc'` is first so that Top-24 → Top-16 Playoff (#454) can pick
    * per-group Top-N deterministically. Within-group order: score → points. */
-  qualificationOrderBy: [{ group: 'asc' }, { score: 'desc' }, { points: 'desc' }],
+  qualificationOrderBy: gpQualificationOrderBy(),
   getStyle: 'paginated',
   putScoreFields: { dbField1: 'points1', dbField2: 'points2' },
   putAdditionalFields: ['races', 'cup', 'cupResults', 'tvNumber'],
