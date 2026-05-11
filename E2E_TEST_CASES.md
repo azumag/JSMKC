@@ -2402,6 +2402,28 @@
 
 ---
 
+## TC-ARC-06: トーナメントアーカイブ API — BM match/player payload の型付き保存
+- **URL**: POST /api/tournaments/:id/archive, GET /api/tournaments/:id/archive
+- **authRequired**: POST は admin、GET は公開
+- **背景**: archive bundle は Prisma 由来の match / qualification / player 行を
+  API fallback に再利用する。R2 保存後も `modes.bm.matches` の stage と
+  `player1`/`player2` の公開 player fields が失われると、archive 経由の
+  qualification/finals API が実行時 cast 依存になり壊れやすい。
+- **手順**:
+  1. admin で tournament + BM 予選データを作成
+  2. `status: completed`, `publicModes: ['bm', 'overall']` に更新
+  3. `/api/tournaments/:id/archive` に POST
+  4. 同じ URL を GET
+  5. `data.modes.bm.matches[0]` の `stage`, `player1`, `player2` を確認
+- **期待結果**:
+  - HTTP 200
+  - `data.modes.bm.matches[0].stage === 'qualification'`
+  - `player1.id` / `player2.id` は string
+  - player payload は公開 field (`name`, `nickname`) を含む
+- **スクリプト**: tc-archive.js TC-ARC-06 (`npm run e2e:archive`, preview: `npm run e2e:preview:archive`)
+
+---
+
 ## TC-ARC-04: トーナメントアーカイブ API — 公開 mode のない archive は非公開
 - **URL**: GET /api/tournaments/:id/archive
 - **authRequired**: false (公開GETエンドポイント)
