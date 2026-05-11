@@ -2198,6 +2198,22 @@
   4. クリーンアップ
 - **期待結果**: チャンピオン決定時に Champion バナー/テキストがページに表示される
 
+## TC-TA-FLOW-24: 24名 TA full lifecycle
+- **URL**: /tournaments/[temp-id]/ta, /ta/phase1, /ta/phase2, /ta/finals
+- **authRequired**: true (admin)
+- **背景**: P=24 の TA は、予選 24名から Phase 1 (17-24位、8名)、Phase 2 (Phase 1 生存者 + 13-16位、8名)、Phase 3 (Phase 2 生存者 + 1-12位、16名) へ段階的に進む。個別 TC-804〜TC-808 は各状態を確認するが、このケースは新規トーナメントで予選凍結からチャンピオン表示までを一気通貫で検証する。
+- **手順**:
+  1. 一時トーナメントを作成し、24名を TA 予選に登録する
+  2. `rank=1..24` になる deterministic times を seed し、順位が settle するまで待つ
+  3. 予選を凍結し、`promote_phase1` で Phase 1 を開始する
+  4. Phase 1 が 8名で始まり、4ラウンド後に4名生存することを確認する
+  5. `promote_phase2` で Phase 2 を開始し、4名生存まで進行する
+  6. `promote_phase3` で Phase 3 を開始し、16名から1名になるまでラウンドを進行する
+  7. `/ta/finals` で Champion / チャンピオン / 優勝 表示を確認する
+  8. TC-TA-FLOW-24-RANK として、総合ランキングの TA Finals 配点が脱落順序を反映することも同じ fixture で確認する
+- **期待結果**: 24名 TA の予選凍結、Phase 1/2/3 昇格、life-based elimination、チャンピオン表示が一連の runner で完了する
+- **スクリプト**: tc-ta-flow.js TC-TA-FLOW-24 (`npm run e2e:ta-flow`, preview: `npm run e2e:preview:ta-flow`)
+
 ## TC-TA-FLOW-24-RANK: TA Finals 総合ランキングが脱落順序で決定される
 - **URL**: /api/tournaments/[temp-id]/overall-ranking
 - **authRequired**: true (admin)
