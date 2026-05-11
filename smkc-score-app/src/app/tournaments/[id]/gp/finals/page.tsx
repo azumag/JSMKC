@@ -688,6 +688,7 @@ export default function GrandPrixFinals({
   const simpleScore1 = parseManualScore(simpleScoreForm.score1);
   const simpleScore2 = parseManualScore(simpleScoreForm.score2);
   const selectedMatchTargetWins = selectedMatch ? getTargetWinsForMatch(selectedMatch) : 1;
+  const selectedMatchAssignedCupLabels = selectedMatch ? getAssignedCupLabelsForMatch(selectedMatch) : [];
   const simpleScoreInputsReady = Boolean(selectedMatch && usesCupWinScoreOnly(selectedMatch) &&
     simpleScore1 !== null &&
     simpleScore2 !== null &&
@@ -952,11 +953,11 @@ export default function GrandPrixFinals({
                   </div>
                   <Badge variant="outline">FT{selectedMatchTargetWins}</Badge>
                 </div>
-                {getAssignedCupLabelsForMatch(selectedMatch).length > 0 && (
+                {selectedMatchAssignedCupLabels.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">{tGp('assignedCups')}</div>
                     <div className="flex flex-wrap gap-2">
-                      {getAssignedCupLabelsForMatch(selectedMatch).map((cup, index) => (
+                      {selectedMatchAssignedCupLabels.map((cup, index) => (
                         <Badge key={`${selectedMatch.id}-assigned-cup-${index}-${cup}`} variant="secondary">
                           {index + 1}. {tGp('cupLabel', { cup })}
                         </Badge>
