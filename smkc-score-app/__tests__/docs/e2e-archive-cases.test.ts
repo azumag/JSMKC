@@ -85,7 +85,8 @@ describe('archive E2E case registration', () => {
     );
 
     expect(section).toContain('TA/BM/MR/GP');
-    expect(section).toContain('Promise.all');
+    expect(section).toContain('Playwright');
+    expect(section).toContain('route interception');
     expect(section).toContain('/api/players?limit=100');
     expect(section).toContain('archive fallback');
     expect(section).toContain('smkc-score-app/__tests__/lib/qualification-page-data.test.ts');
