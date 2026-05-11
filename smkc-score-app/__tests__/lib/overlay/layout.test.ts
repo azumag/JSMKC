@@ -38,5 +38,11 @@ describe('overlay broadcast layout', () => {
     expect(isOverlayBroadcastLayoutInput({
       footer: { x: 180, y: -1 },
     })).toBe(false);
+    expect(isOverlayBroadcastLayoutInput({
+      player1Name: { x: -1, y: 0 },
+    })).toBe(false);
+    expect(isOverlayBroadcastLayoutInput({
+      player1Name: { x: 0, y: 1081 },
+    })).toBe(false);
   });
 });
