@@ -323,6 +323,9 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
     if (!kind) {
       return route.continue();
     }
+    if (released) {
+      return route.continue();
+    }
     if (pending[kind]) {
       return route.continue();
     }
@@ -345,7 +348,7 @@ async function assertQualificationFetchesStartInParallel(page, tournamentId, mod
           body: JSON.stringify({ error: 'TC-ARC-09 timed out waiting for paired request' }),
         }).finally(item.done),
       )).catch((error) => {
-        console.error('TC-ARC-09 releasePending error:', error);
+        console.error('TC-ARC-09 timeout fulfill error:', error);
       });
     }, QUALIFICATION_FETCH_TIMEOUT_MS);
 
